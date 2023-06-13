@@ -61,6 +61,8 @@ public:
 
 	ThreadManager udp_handler_thread_manager;
 
+	ThreadManager dyn_tex_updater_thread_manager;
+
 	std::string screenshot_dir;
 
 	ServerConfig config;

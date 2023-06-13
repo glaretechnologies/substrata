@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ListenerThread.h"
 #include "../webserver/WebDataFileWatcherThread.h"
 #include "MeshLODGenThread.h"
+#include "DynamicTextureUpdaterThread.h"
 //#include "ChunkGenThread.h"
 #include "WorkerThread.h"
 #include "../shared/Protocol.h"
@@ -794,6 +795,8 @@ int main(int argc, char *argv[])
 		//thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 
 		server.udp_handler_thread_manager.addThread(new UDPHandlerThread(&server));
+
+		server.dyn_tex_updater_thread_manager.addThread(new DynamicTextureUpdaterThread(&server, server.world_state.ptr()));
 
 		Timer save_state_timer;
 

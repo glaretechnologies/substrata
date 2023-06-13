@@ -118,6 +118,8 @@ void NetDownloadResourcesThread::doRun()
 								throw glare::Exception("Skipping " + url);
 
 							// Download with HTTP client
+							client->max_data_size			= 128 * 1024 * 1024; // 128 MB
+							client->max_socket_buffer_size	= 128 * 1024 * 1024; // 128 MB
 							HTTPClient::ResponseInfo response_info = client->downloadFile(url, data);
 							if(response_info.response_code != 200)
 								throw glare::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
