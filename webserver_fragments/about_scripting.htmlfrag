@@ -124,13 +124,15 @@ The following is a script that makes an object continuously follow a square shap
 <p><b>seat_position</b>:  This is the position in model coordinates where the hip bone of the avatar should be placed.  You can get the position by opening the model in Blender, just
 be aware that the Blender GLTF importer changes the coordinate space from y-up of GLTF to z-up upon import.</p>
 
-<p><b>upper_body_rot_angle</b>: This is the rotation, in radians, of the upper body, from the default vertical orientation.  A positive angle means the avatar will lean back.
+<p><b>upper_body_rot_angle</b>: This is the rotation, in radians, of the upper body, from the default vertical orientation.  A positive angle means the avatar will lean back.</p>
 
 <p><b>upper_leg_rot_angle</b>: This is the rotation, in radians, of the leg around the hip joint, from the default vertical orientation.  
 A positive angle means the upper leg will rotate forwards toward the chest.
+</p>
 
 <p><b>lower_leg_rot_angle</b>: This is the rotation, in radians, of the lower leg around the knee joint.
 A negative angle means the lower leg will rotate backwards toward the heel.
+</p>
 
 <h3>Applying the hovercar script</h3>
 
@@ -147,7 +149,50 @@ in your personal world.
 <li>You will need to check the <b>dynamic</b> checkbox in the object editor to make the object into a simulated physics object that can move.</li>
 </ul>
 
+
+
+
+
 <br/>
+<hr/>
+<br/>
+
+<h2 id="dynamic-texture-updating">Dynamic Texture Updating</h2>
+
+
+<p>This is an XML script that allows image textures on objects in the world to be updated occasionally from an external web server.</p>
+
+<p>In the example script below, the URL https://images.metaverse-billboards.com/space1.png is periodically checked for a new image.</p>
+
+<code>
+<pre>
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;script&gt;
+	&lt;dynamic_texture_update&gt;
+		&lt;base_url&gt;https://images.metaverse-billboards.com/space1.png&lt;/base_url&gt;
+		&lt;material_index&gt;0&lt;/material_index&gt; &lt;!-- optional --&gt;
+		&lt;material_texture&gt;colour&lt;/material_texture&gt; &lt;!-- optional, can be 'colour' or 'emission' --&gt;
+	&lt;/dynamic_texture_update&gt;
+&lt;/script&gt;
+</pre>
+</code>
+
+	<p>
+		To make an object with a dynamically updating texture:
+		From the Substrata client, add an image object in the usual way: 'Add Model/Image/Video' toolbar button, then select 'from disk' tab and select a placeholder image.
+		Then edit the script field to add the script above.
+	</p>
+	<p>
+		Your user account needs to be whitelisted by a Substrata admin for this script to work.
+		Message @nick on our Discord server, or contact us at contact@glaretechnologies.com to request this.
+	</p>
+	<p>
+		Images are checked from the URL given by 'base_url' for updates approximately every hour.  If an updated image is returned by the webserver, then the updated image will be inserted into Substrata
+as a resource, and the updated image will be applied to the object.
+	</p>
+
+
+	<br/>
 <hr/>
 <br/>
 
