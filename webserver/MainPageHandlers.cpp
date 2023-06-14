@@ -121,7 +121,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 					{
 						const uint64 shot_id = parcel->screenshot_ids[0]; // Close-in screenshot
 
-						const std::string opensea_url = "https://opensea.io/assets/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + listing.parcel_id.toString();
+						const std::string opensea_url = "https://opensea.io/assets/ethereum/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + listing.parcel_id.toString();
 
 						auction_html += "<td style=\"vertical-align:top\"><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
 							"<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a> <a href=\"" + opensea_url + "\">View&nbsp;on&nbsp;OpenSea</a></td>";

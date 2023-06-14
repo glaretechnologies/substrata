@@ -186,7 +186,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				{
 					page += "<p>This parcel has been minted as an Ethereum NFT.  (Could not find minting transaction hash)</p>";
 				}
-				page += "<p><a href=\"https://opensea.io/assets/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + parcel->id.toString() + "\">View on OpenSea</a></p>";
+				page += "<p><a href=\"https://opensea.io/assets/ethereum/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + parcel->id.toString() + "\">View on OpenSea</a></p>";
 			}
 
 			// Get current auction if any
