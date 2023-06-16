@@ -55,7 +55,7 @@ public:
 	std::string input_device_name;
 
 	Mutex buffer_mutex;
-	std::vector<float> buffer;
+	std::vector<float> callback_buffer;
 };
 
 

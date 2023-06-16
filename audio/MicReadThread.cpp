@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/PlatformUtils.h>
 #include <utils/ComObHandle.h>
 #include <utils/ContainerUtils.h>
+#include <utils/RuntimeCheck.h>
 #include <networking/UDPSocket.h>
 #include <networking/Networking.h>
 #if defined(_WIN32)
@@ -29,7 +30,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #if defined(_WIN32)
 #define USE_RT_AUDIO 0
-#elif defined(OSX)
+#else
 #define USE_RT_AUDIO 1
 #endif
 
@@ -63,16 +64,11 @@ static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int
 	MicReadThread* mic_read_thread = (MicReadThread*)user_data;
 	const float* const input_buffer_f = (float*)input_buffer;
 
+	// The RTAudio input stream is created with RTAUDIO_FLOAT32 and nChannels = 1.
 	{
 		Lock lock(mic_read_thread->buffer_mutex);
 
-		const size_t write_i = mic_read_thread->buffer.size();
-		mic_read_thread->buffer.resize(write_i + n_buffer_frames);
-
-		for(unsigned int z=0; z<n_buffer_frames; ++z)
-		{
-			mic_read_thread->buffer[write_i + z] = (input_buffer_f[z*2 + 0] + input_buffer_f[z*2 + 1]) * 0.5f;
-		}
+		ContainerUtils::append(mic_read_thread->callback_buffer, /*data=*/input_buffer_f, /*size=*/n_buffer_frames);
 	}
 
 	return 0;
@@ -225,13 +221,17 @@ void MicReadThread::doRun()
 		hr = audio_client->Start();  // Start recording.
 		throwOnError(hr);
 
-#elif USE_RT_AUDIO
+		//----------------------------------------------------------------------------------------------------------------------
 
-		// Use RTAudio to do the audio reading.
+#else
+
+		//--------------------------------- Use RTAudio to do the audio capture ------------------------------------------------
 #if _WIN32
 		const RtAudio::Api rtaudio_api = RtAudio::WINDOWS_DS;
-#else
+#elif defined(OSX)
 		const RtAudio::Api rtaudio_api = RtAudio::MACOSX_CORE;
+#else // else linux:
+		const RtAudio::Api rtaudio_api = RtAudio::LINUX_PULSE;
 #endif
 
 		RtAudio audio(rtaudio_api);
@@ -257,7 +257,7 @@ void MicReadThread::doRun()
 
 		RtAudio::StreamParameters parameters;
 		parameters.deviceId = use_device_id;
-		parameters.nChannels = 2;
+		parameters.nChannels = 1;
 		parameters.firstChannel = 0;
 		unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
 
@@ -277,12 +277,8 @@ void MicReadThread::doRun()
 		rtaudio_res = audio.startStream();
 		if(rtaudio_res != RTAUDIO_NO_ERROR)
 			throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
-#else
-
-		throw glare::Exception("Microphone reading only supported on Windows and Mac currently.");
-
+		//----------------------------------------------------------------------------------------------------------------------
 #endif
-		//----------------------------------------------------------------------------------------
 
 		//-------------------------------------- Opus init --------------------------------------------------
 
@@ -304,7 +300,7 @@ void MicReadThread::doRun()
 		//const int ret = opus_encoder_ctl(opus_encoder, OPUS_SET_BITRATE(512000));
 		//if(ret != OPUS_OK)
 		//	throw glare::Exception("opus_encoder_ctl failed.");
-		//-------------------------------------- Opus init --------------------------------------------------
+		//-------------------------------------- End Opus init --------------------------------------------------
 
 		out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(sampling_rate));
 
@@ -316,8 +312,8 @@ void MicReadThread::doRun()
 
 		std::vector<uint8> encoded_data(100000);
 
-		std::vector<float> pcm_buffer(48000);
-		size_t write_index = 0; // Write index in to pcm_buffer
+		std::vector<float> pcm_buffer;
+		const size_t max_pcm_buffer_size = 48000;
 
 		std::vector<uint8> packet;
 
@@ -363,14 +359,17 @@ void MicReadThread::doRun()
 
 				//printVar(num_frames_available);
 
-				const int frames_to_copy = myMin((int)pcm_buffer.size() - (int)write_index, (int)num_frames_available);
+				const int frames_to_copy = myMin((int)max_pcm_buffer_size - (int)pcm_buffer.size(), (int)num_frames_available);
+				const size_t write_index = pcm_buffer.size();
+				pcm_buffer.resize(pcm_buffer.size() + frames_to_copy);
+				assert(pcm_buffer.size() <= max_pcm_buffer_size);
 
 				if(flags & AUDCLNT_BUFFERFLAGS_SILENT)
 				{
 					//conPrint("Silent");
 
 					for(int i=0; i<frames_to_copy; i++)
-						pcm_buffer[write_index++] = 0.f;
+						pcm_buffer[write_index + i] = 0.f;
 				}
 				else
 				{
@@ -381,7 +380,7 @@ void MicReadThread::doRun()
 					if(num_channels == 1)
 					{
 						for(int i=0; i<frames_to_copy; i++)
-							pcm_buffer[write_index++] = src_data[i*2];
+							pcm_buffer[write_index + i] = src_data[i];
 					}
 					else if(num_channels == 2)
 					{
@@ -390,7 +389,7 @@ void MicReadThread::doRun()
 							const float left  = src_data[i*2 + 0];
 							const float right = src_data[i*2 + 1];
 							const float mixed = (left + right) * 0.5f;
-							pcm_buffer[write_index++] = mixed;
+							pcm_buffer[write_index + i] = mixed;
 						}
 					}
 					else
@@ -402,7 +401,7 @@ void MicReadThread::doRun()
 							{
 								sum += src_data[i*num_channels + c];
 							}
-							pcm_buffer[write_index++] = sum * (1.f / num_channels);
+							pcm_buffer[write_index + i] = sum * (1.f / num_channels);
 						}
 					}
 				}
@@ -412,13 +411,19 @@ void MicReadThread::doRun()
 				{
 					Lock lock(buffer_mutex);
 
-					printVar(buffer.size());
+					printVar(callback_buffer.size());
 
-					if(!buffer.empty())
-					{
-						ContainerUtils::append(pcm_buffer, buffer);
-						buffer.clear();
-					}
+					const int frames_to_copy = myMin((int)max_pcm_buffer_size - (int)pcm_buffer.size(), (int)callback_buffer.size());
+					runtimeCheck(frames_to_copy >= 0);
+					const size_t write_index = pcm_buffer.size();
+					pcm_buffer.resize(pcm_buffer.size() + frames_to_copy);
+					assert(pcm_buffer.size() <= max_pcm_buffer_size);
+
+					for(int i=0; i<frames_to_copy; i++)
+						pcm_buffer[write_index + i] = callback_buffer[i];
+
+					//removeNItemsFromFront(callback_buffer, frames_to_copy);
+					callback_buffer.clear();
 				}
 
 #endif
@@ -428,11 +433,12 @@ void MicReadThread::doRun()
 				const size_t samples_per_frame = sampling_rate / 100;
 
 				// Encode the PCM data with Opus.  Writes to encoded_data.
-				while(write_index >= samples_per_frame)
+				size_t cur_i = 0;
+				while((pcm_buffer.size() - cur_i) >= samples_per_frame) // While there are at least samples_per_frame items in pcm_buffer.
 				{
 					const opus_int32 encoded_B = opus_encode_float(
 						opus_encoder,
-						pcm_buffer.data(),
+						&pcm_buffer[cur_i],
 						(int)samples_per_frame, // frame size (in samples)
 						encoded_data.data(), // data
 						(opus_int32)encoded_data.size() // max_data_bytes
@@ -441,11 +447,7 @@ void MicReadThread::doRun()
 					if(encoded_B < 0)
 						throw glare::Exception("opus_encode failed: " + toString(encoded_B));
 
-					// Remove first samples_per_frame samples from pcm_buffer, copy remaining data to front of buffer
-					for(size_t z=samples_per_frame; z<write_index; ++z)
-						pcm_buffer[z - samples_per_frame] = pcm_buffer[z];
-
-					write_index -= samples_per_frame;
+					cur_i += samples_per_frame;
 
 					// Form packet
 					const size_t header_size_B = sizeof(uint32) * 3;
@@ -469,6 +471,9 @@ void MicReadThread::doRun()
 					// Send packet to server
 					udp_socket->sendPacket(packet.data(), packet.size(), server_ip, server_port);
 				}
+
+				// Remove first cur_i samples from pcm_buffer, copy remaining data to front of buffer
+				ContainerUtils::removeNItemsFromFront(pcm_buffer, cur_i);
 
 #if defined(_WIN32) && !USE_RT_AUDIO
 				hr = capture_client->ReleaseBuffer(num_frames_available);

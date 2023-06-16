@@ -199,6 +199,12 @@ void ClientUDPHandlerThread::doRun()
 										0 // decode_fec
 									);
 
+									//TEMP DEBUG: get max value in decoded buffer
+									/*float max_val = 0;
+									for(int i=0; i<num_samples_decoded; ++i)
+										max_val = myMax(max_val, std::fabs(pcm_buffer[i]));
+									printVar(max_val);*/
+
 									if(num_samples_decoded != stream_info->sampling_rate / 100)
 										conPrint("Unexpected number of samples");
 									else

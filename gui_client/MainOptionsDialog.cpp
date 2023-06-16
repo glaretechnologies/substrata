@@ -100,10 +100,15 @@ static std::vector<std::string> getAudioInputDeviceNames()
 	{
 		conPrint(e.what());
 	}
-#elif defined(OSX)
+
+#else // else if !defined(_WIN32):
 	
 	// Use RTAudio to do the query.
+#if defined(OSX)
 	const RtAudio::Api rtaudio_api = RtAudio::MACOSX_CORE;
+#else // else linux:
+	const RtAudio::Api rtaudio_api = RtAudio::LINUX_PULSE;
+#endif
 
 	RtAudio audio(rtaudio_api);
 
