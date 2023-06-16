@@ -153,7 +153,7 @@ void MicReadThread::doRun()
 				throwOnError(hr);
 
 				// Print endpoint friendly name and endpoint ID.
-				conPrint("Endpoint " + toString((int)i) + ": \"" + StringUtils::WToUTF8String(varName.pwszVal) + "\" (" + StringUtils::WToUTF8String(pwszID) + ")\n");
+				conPrint("Audio endpoint " + toString((int)i) + ": \"" + StringUtils::WToUTF8String(varName.pwszVal) + "\" (" + StringUtils::WToUTF8String(pwszID) + ")");
 
 				if(input_device_name == StringUtils::WToUTF8String(varName.pwszVal))
 					use_device_id = pwszID;
@@ -205,6 +205,9 @@ void MicReadThread::doRun()
 
 		const uint32 sampling_rate = (uint32)((WAVEFORMATEX*)format)->nSamplesPerSec;
 		printVar(sampling_rate);
+
+		const uint32 num_channels = (uint32)((WAVEFORMATEX*)format)->nChannels;
+		printVar(num_channels);
 
 		// Get the size of the allocated buffer.
 		//UINT32 bufferFrameCount;
@@ -372,14 +375,35 @@ void MicReadThread::doRun()
 				else
 				{
 					// Copy the available capture data to the audio sink.
+					// Mix multiple channel audio data to a single channel.
 					const float* const src_data = (const float*)p_data;
 
-					for(int i=0; i<frames_to_copy; i++)
+					if(num_channels == 1)
 					{
-						const float left  = src_data[i*2 + 0];
-						const float right = src_data[i*2 + 1];
-						const float mixed = (left + right) * 0.5f;
-						pcm_buffer[write_index++] = mixed;
+						for(int i=0; i<frames_to_copy; i++)
+							pcm_buffer[write_index++] = src_data[i*2];
+					}
+					else if(num_channels == 2)
+					{
+						for(int i=0; i<frames_to_copy; i++)
+						{
+							const float left  = src_data[i*2 + 0];
+							const float right = src_data[i*2 + 1];
+							const float mixed = (left + right) * 0.5f;
+							pcm_buffer[write_index++] = mixed;
+						}
+					}
+					else
+					{
+						for(int i=0; i<frames_to_copy; i++)
+						{
+							float sum = 0;
+							for(uint32 c=0; c<num_channels; ++c)
+							{
+								sum += src_data[i*num_channels + c];
+							}
+							pcm_buffer[write_index++] = sum * (1.f / num_channels);
+						}
 					}
 				}
 #else
