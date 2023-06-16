@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/StringUtils.h>
 #include <utils/PlatformUtils.h>
 #include <utils/ComObHandle.h>
+#include <utils/ContainerUtils.h>
 #include <networking/UDPSocket.h>
 #include <networking/Networking.h>
 #if defined(_WIN32)
@@ -23,7 +24,14 @@ Copyright Glare Technologies Limited 2023 -
 #endif
 #include <opus.h>
 #include <Timer.h>
+#include "../rtaudio/RtAudio.h"
 
+
+#if defined(_WIN32)
+#define USE_RT_AUDIO 0
+#elif defined(OSX)
+#define USE_RT_AUDIO 1
+#endif
 
 #if defined(_WIN32)
 static inline void throwOnError(HRESULT hres)
@@ -49,16 +57,39 @@ MicReadThread::~MicReadThread()
 }
 
 
+#if USE_RT_AUDIO
+static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int n_buffer_frames, double stream_time, RtAudioStreamStatus status, void* user_data)
+{
+	MicReadThread* mic_read_thread = (MicReadThread*)user_data;
+	const float* const input_buffer_f = (float*)input_buffer;
+
+	{
+		Lock lock(mic_read_thread->buffer_mutex);
+
+		const size_t write_i = mic_read_thread->buffer.size();
+		mic_read_thread->buffer.resize(write_i + n_buffer_frames);
+
+		for(unsigned int z=0; z<n_buffer_frames; ++z)
+		{
+			mic_read_thread->buffer[write_i + z] = (input_buffer_f[z*2 + 0] + input_buffer_f[z*2 + 1]) * 0.5f;
+		}
+	}
+
+	return 0;
+}
+#endif
+
+
 void MicReadThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("MicReadThread");
 
 	conPrint("MicReadThread started...");
 
-#if defined(_WIN32)
 
 	try
 	{
+#if defined(_WIN32) && !USE_RT_AUDIO
 		//----------------------------- Initialise loopback or microphone Audio capture ------------------------------------
 		// See https://learn.microsoft.com/en-us/windows/win32/coreaudio/capturing-a-stream
 
@@ -191,6 +222,63 @@ void MicReadThread::doRun()
 		hr = audio_client->Start();  // Start recording.
 		throwOnError(hr);
 
+#elif USE_RT_AUDIO
+
+		// Use RTAudio to do the audio reading.
+#if _WIN32
+		const RtAudio::Api rtaudio_api = RtAudio::WINDOWS_DS;
+#else
+		const RtAudio::Api rtaudio_api = RtAudio::MACOSX_CORE;
+#endif
+
+		RtAudio audio(rtaudio_api);
+
+		unsigned int use_device_id = 0;
+		if(input_device_name == "Default")
+		{
+			use_device_id = audio.getDefaultInputDevice();
+		}
+		else
+		{
+			const std::vector<unsigned int> device_ids = audio.getDeviceIds();
+
+			for(size_t i=0; i<device_ids.size(); ++i)
+			{
+				const RtAudio::DeviceInfo info = audio.getDeviceInfo(device_ids[i]);
+				if((info.inputChannels > 0) && info.name == input_device_name)
+					use_device_id = device_ids[i];
+			}
+		}
+
+		unsigned int desired_sample_rate = 48000;
+
+		RtAudio::StreamParameters parameters;
+		parameters.deviceId = use_device_id;
+		parameters.nChannels = 2;
+		parameters.firstChannel = 0;
+		unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
+
+		// conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
+
+		RtAudio::StreamOptions stream_options;
+		stream_options.flags = RTAUDIO_MINIMIZE_LATENCY;
+
+		RtAudioErrorType rtaudio_res = audio.openStream(/*outputParameters=*/NULL, /*input parameters=*/&parameters, RTAUDIO_FLOAT32, desired_sample_rate, &buffer_frames, rtAudioCallback, /*userdata=*/this, &stream_options);
+		if(rtaudio_res != RTAUDIO_NO_ERROR)
+			throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
+
+		const unsigned int sampling_rate = audio.getStreamSampleRate(); // Get actual sample rate used.
+
+		conPrint("Using sample rate of " + toString(sampling_rate) + " hz");
+
+		rtaudio_res = audio.startStream();
+		if(rtaudio_res != RTAUDIO_NO_ERROR)
+			throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
+#else
+
+		throw glare::Exception("Microphone reading only supported on Windows and Mac currently.");
+
+#endif
 		//----------------------------------------------------------------------------------------
 
 		//-------------------------------------- Opus init --------------------------------------------------
@@ -247,6 +335,11 @@ void MicReadThread::doRun()
 
 			while(die == 0) // Loop while there is data to be read immediately:
 			{
+				
+#if defined(_WIN32) && !USE_RT_AUDIO
+				PlatformUtils::Sleep(2);//(0.5 * 480.0 / 48000.0) * 1000);
+
+				Timer timer;
 				// Get the available data in the shared buffer.
 				BYTE* p_data;
 				uint32 num_frames_available;
@@ -256,15 +349,22 @@ void MicReadThread::doRun()
 					&num_frames_available,
 					&flags, NULL, NULL);
 
+				//conPrint("GetBuffer took " + timer.elapsedString());
+
 				if(hr == AUDCLNT_S_BUFFER_EMPTY)
+				{
+					//conPrint("AUDCLNT_S_BUFFER_EMPTY");
 					break;
+				}
 				throwOnError(hr);
+
+				//printVar(num_frames_available);
 
 				const int frames_to_copy = myMin((int)pcm_buffer.size() - (int)write_index, (int)num_frames_available);
 
 				if(flags & AUDCLNT_BUFFERFLAGS_SILENT)
 				{
-					// conPrint("Silent");
+					//conPrint("Silent");
 
 					for(int i=0; i<frames_to_copy; i++)
 						pcm_buffer[write_index++] = 0.f;
@@ -282,6 +382,22 @@ void MicReadThread::doRun()
 						pcm_buffer[write_index++] = mixed;
 					}
 				}
+#else
+				PlatformUtils::Sleep(2);
+
+				{
+					Lock lock(buffer_mutex);
+
+					printVar(buffer.size());
+
+					if(!buffer.empty())
+					{
+						ContainerUtils::append(pcm_buffer, buffer);
+						buffer.clear();
+					}
+				}
+
+#endif
 
 				// "To encode a frame, opus_encode() or opus_encode_float() must be called with exactly one frame (2.5, 5, 10, 20, 40 or 60 ms) of audio data:"
 				// We will use 10ms frames.
@@ -330,26 +446,30 @@ void MicReadThread::doRun()
 					udp_socket->sendPacket(packet.data(), packet.size(), server_ip, server_port);
 				}
 
-
+#if defined(_WIN32) && !USE_RT_AUDIO
 				hr = capture_client->ReleaseBuffer(num_frames_available);
 				throwOnError(hr);
+#endif
 			}
 			//-------------------------------------------------------
 		}
 
-
 		opus_encoder_destroy(opus_encoder);
+
+#if USE_RT_AUDIO
+		if(audio.isStreamOpen())
+		{
+			if(audio.isStreamRunning())
+				audio.stopStream();
+
+			audio.closeStream();
+		}
+#endif
 	}
 	catch(glare::Exception& e)
 	{
 		conPrint("MicReadThread::doRun() Excep: " + e.what());
 	}
-
-#else // else if !defined(_WIN32)
-
-	conPrint("Microphone reading only supported on Windows currently.");
-
-#endif
 
 	conPrint("MicReadThread finished.");
 }

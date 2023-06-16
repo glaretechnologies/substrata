@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/Exception.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
+#include "../rtaudio/RtAudio.h"
 
 #if defined(_WIN32)
 #include <mmdeviceapi.h>
@@ -99,6 +100,22 @@ static std::vector<std::string> getAudioInputDeviceNames()
 	{
 		conPrint(e.what());
 	}
+#elif defined(OSX)
+	
+	// Use RTAudio to do the query.
+	const RtAudio::Api rtaudio_api = RtAudio::MACOSX_CORE;
+
+	RtAudio audio(rtaudio_api);
+
+	const std::vector<unsigned int> device_ids = audio.getDeviceIds();
+
+	for(size_t i=0; i<device_ids.size(); ++i)
+	{
+		const RtAudio::DeviceInfo info = audio.getDeviceInfo(device_ids[i]);
+		if(info.inputChannels > 0)
+			names.push_back(info.name);
+	}
+
 #endif
 
 	return names;

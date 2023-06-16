@@ -45,7 +45,7 @@ public:
 
 	virtual void kill() override { die = 1; }
 
-private:
+//private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	glare::AtomicInt die;
 	Reference<UDPSocket> udp_socket;
@@ -53,6 +53,9 @@ private:
 	std::string server_hostname;
 	int server_port;
 	std::string input_device_name;
+
+	Mutex buffer_mutex;
+	std::vector<float> buffer;
 };
 
 
