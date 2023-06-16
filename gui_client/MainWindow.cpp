@@ -4761,6 +4761,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				const RemoteClientAudioStreamToServerStarted* m = static_cast<const RemoteClientAudioStreamToServerStarted*>(msg.getPointer());
 
+				conPrint("Received RemoteClientAudioStreamToServerStarted, avatar_uid: " + m->avatar_uid.toString() + ", sampling_rate: " + toString(m->sampling_rate));
+
 				const UID avatar_uid = m->avatar_uid;
 				if(world_state.nonNull())
 				{
