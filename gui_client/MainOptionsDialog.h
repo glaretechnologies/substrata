@@ -43,6 +43,8 @@ public:
 	
 	static const QString startLocationURLKey() { return "setting/start_location_URL"; }
 
+	static const QString inputDeviceNameKey() { return "setting/input_device_name"; }
+
 private slots:;
 	void accepted();
 	void customCacheDirCheckBoxChanged(bool checked);

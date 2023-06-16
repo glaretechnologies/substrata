@@ -10,6 +10,99 @@ Copyright Glare Technologies Limited 2021 -
 #include "../qt/SignalBlocker.h"
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QSettings>
+#include <utils/ComObHandle.h>
+#include <utils/PlatformUtils.h>
+#include <utils/Exception.h>
+#include <utils/StringUtils.h>
+#include <utils/ConPrint.h>
+
+#if defined(_WIN32)
+#include <mmdeviceapi.h>
+#include <audioclient.h>
+#include <Mmreg.h>
+#include <devpkey.h>
+#include <Functiondiscoverykeys_devpkey.h>
+#endif
+
+
+#if defined(_WIN32)
+static inline void throwOnError(HRESULT hres)
+{
+	if(FAILED(hres))
+		throw glare::Exception("Error: " + PlatformUtils::COMErrorString(hres));
+}
+#endif
+
+
+static std::vector<std::string> getAudioInputDeviceNames()
+{
+	std::vector<std::string> names;
+	names.push_back("Default");
+
+#if defined(_WIN32)
+
+	try
+	{
+		//----------------------------- Enumerate audio input devices ------------------------------------
+		// See https://learn.microsoft.com/en-us/windows/win32/coreaudio/capturing-a-stream
+
+		ComObHandle<IMMDeviceEnumerator> enumerator;
+		HRESULT hr = CoCreateInstance(
+			__uuidof(MMDeviceEnumerator),
+			NULL,
+			CLSCTX_ALL, 
+			__uuidof(IMMDeviceEnumerator),
+			(void**)&enumerator.ptr);
+		throwOnError(hr);
+
+		ComObHandle<IMMDeviceCollection> collection;
+		hr = enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &collection.ptr);
+		throwOnError(hr);
+
+		UINT count;
+		hr = collection->GetCount(&count);
+		throwOnError(hr);
+
+		// Each loop iteration prints the name of an endpoint device.
+		for(UINT i = 0; i < count; i++)
+		{
+			// Get pointer to endpoint number i.
+			ComObHandle<IMMDevice> endpoint;
+			hr = collection->Item(i, &endpoint.ptr);
+			throwOnError(hr);
+
+			// Get the endpoint ID string.
+			LPWSTR pwszID = NULL;
+			hr = endpoint->GetId(&pwszID);
+			throwOnError(hr);
+
+			ComObHandle<IPropertyStore> props;
+			hr = endpoint->OpenPropertyStore(STGM_READ, &props.ptr);
+			throwOnError(hr);
+
+			PROPVARIANT varName;
+			PropVariantInit(&varName); // Initialize container for property value.
+
+			// Get the endpoint's friendly-name property.
+			hr = props->GetValue(PKEY_Device_FriendlyName, &varName);
+			throwOnError(hr);
+
+			// Print endpoint friendly name and endpoint ID.
+			//conPrint("Endpoint " + toString((int)i) + ": \"" + StringUtils::WToUTF8String(varName.pwszVal) + "\" (" + StringUtils::WToUTF8String(pwszID) + ")\n");
+			names.push_back(StringUtils::WToUTF8String(varName.pwszVal));
+
+			CoTaskMemFree(pwszID);
+			PropVariantClear(&varName);
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint(e.what());
+	}
+#endif
+
+	return names;
+}
 
 
 MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
@@ -43,6 +136,13 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 	this->customCacheDirFileSelectWidget->setEnabled(use_custom_cache_dir);
 
 	this->startLocationURLLineEdit->setText(						settings->value(startLocationURLKey()).toString());
+
+
+	const auto dev_names = getAudioInputDeviceNames();
+	for(size_t i=0; i<dev_names.size(); ++i)
+		inputDeviceComboBox->addItem(QtUtils::toQString(dev_names[i]));
+
+	inputDeviceComboBox->setCurrentIndex(inputDeviceComboBox->findText(settings->value(inputDeviceNameKey(), "Default").toString()));
 }
 
 
@@ -63,6 +163,8 @@ void MainOptionsDialog::accepted()
 	settings->setValue(customCacheDirKey(),							this->customCacheDirFileSelectWidget->filename());
 
 	settings->setValue(startLocationURLKey(),						this->startLocationURLLineEdit->text());
+
+	settings->setValue(inputDeviceNameKey(),						this->inputDeviceComboBox->currentText());
 }
 
 

@@ -106,6 +106,12 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 	selfie_button->toggleable = true;
 	selfie_button->handler = this;
 	gl_ui->addWidget(selfie_button);
+	
+	microphone_button = new GLUIButton();
+	microphone_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/microphone.png", Vec2f(-0.8f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Enable microphone for voice chat");
+	microphone_button->toggleable = true;
+	microphone_button->handler = this;
+	gl_ui->addWidget(microphone_button);
 
 	updateWidgetPositions();
 }
@@ -130,6 +136,12 @@ void GestureUI::destroy()
 		gl_ui->removeWidget(selfie_button);
 		selfie_button->destroy();
 		selfie_button = NULL;
+	}
+	if(selfie_button.nonNull())
+	{
+		gl_ui->removeWidget(microphone_button);
+		microphone_button->destroy();
+		microphone_button = NULL;
 	}
 
 
@@ -217,6 +229,8 @@ void GestureUI::updateWidgetPositions()
 
 
 			selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+
+			microphone_button->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 		}
 	}
 }
@@ -288,6 +302,16 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 		{
 			event.accepted = true;
 			main_window->setSelfieModeEnabled(selfie_button->toggled);
+		}
+		else if(button == microphone_button.ptr())
+		{
+			event.accepted = true;
+			main_window->setMicForVoiceChatEnabled(microphone_button->toggled);
+
+			if(microphone_button->toggled)
+				microphone_button->tooltip = "Disable microphone for voice chat";
+			else
+				microphone_button->tooltip = "Enable microphone for voice chat";
 		}
 	}
 }

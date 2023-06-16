@@ -301,6 +301,7 @@ public:
 	void stopGestureClicked(const std::string& gesture_name);
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
+	void setMicForVoiceChatEnabled(bool enabled);
 
 	QPoint getGlWidgetPosInGlobalSpace(); // Get top left of the GLWidget in global screen coordinates.
 
