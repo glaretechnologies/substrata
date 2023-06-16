@@ -66,7 +66,7 @@ void UDPHandlerThread::doRun()
 			// Broadcast packet to clients
 			for(size_t i=0; i<connected_clients.size(); ++i)
 			{
-				//conPrint("Sending packet to " + connected_clients[i].ip_addr.toString() + "...");
+				//conPrint("Sending packet to " + connected_clients[i].ip_addr.toString() + ", port " + toString(connected_clients[i].client_UDP_port) + " ...");
 				udp_socket->sendPacket(packet_buf.data(), packet_len, connected_clients[i].ip_addr, connected_clients[i].client_UDP_port);
 			}
 		}

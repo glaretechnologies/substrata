@@ -38,8 +38,8 @@ namespace glare
 {
 
 
-MicReadThread::MicReadThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<UDPSocket> udp_socket_, UID client_avatar_uid_, const std::string& server_hostname_, int server_port_)
-:	out_msg_queue(out_msg_queue_), udp_socket(udp_socket_), client_avatar_uid(client_avatar_uid_), server_hostname(server_hostname_), server_port(server_port_)
+MicReadThread::MicReadThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<UDPSocket> udp_socket_, UID client_avatar_uid_, const std::string& server_hostname_, int server_port_, const std::string& input_device_name_)
+:	out_msg_queue(out_msg_queue_), udp_socket(udp_socket_), client_avatar_uid(client_avatar_uid_), server_hostname(server_hostname_), server_port(server_port_), input_device_name(input_device_name_)
 {
 }
 
@@ -52,6 +52,8 @@ MicReadThread::~MicReadThread()
 void MicReadThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("MicReadThread");
+
+	conPrint("MicReadThread started...");
 
 #if defined(_WIN32)
 
@@ -71,83 +73,87 @@ void MicReadThread::doRun()
 			(void**)&enumerator.ptr);
 		throwOnError(hr);
 
-		IMMDeviceCollection* pCollection = NULL;
-		hr = enumerator->EnumAudioEndpoints(
-			capture_loopback ? eRender : eCapture, DEVICE_STATE_ACTIVE,
-			&pCollection);
-		throwOnError(hr);
-
-		UINT count;
-		hr = pCollection->GetCount(&count);
-		throwOnError(hr);
-
-		std::wstring use_device_id;
-
-		// Each loop iteration prints the name of an endpoint device.
-		for(UINT i = 0; i < count; i++)
-		{
-			// Get pointer to endpoint number i.
-			ComObHandle<IMMDevice> endpoint;
-			hr = pCollection->Item(i, &endpoint.ptr);
-			throwOnError(hr);
-
-			// Get the endpoint ID string.
-			LPWSTR pwszID = NULL;
-			hr = endpoint->GetId(&pwszID);
-			throwOnError(hr);
-
-			if(i == 0) // NOTE: Change this to select audio device (for loopback headphone selection)
-				use_device_id = pwszID;
-
-			ComObHandle<IPropertyStore> props;
-			hr = endpoint->OpenPropertyStore(
-				STGM_READ, &props.ptr);
-			throwOnError(hr);
-
-			PROPVARIANT varName;
-			PropVariantInit(&varName); // Initialize container for property value.
-
-			// Get the endpoint's friendly-name property.
-			hr = props->GetValue(PKEY_Device_FriendlyName, &varName);
-			throwOnError(hr);
-
-			// Print endpoint friendly name and endpoint ID.
-			conPrint("Endpoint " + toString((int)i) + ": \"" + StringUtils::WToUTF8String(varName.pwszVal) + "\" (" + StringUtils::WToUTF8String(pwszID) + ")\n");
-
-			CoTaskMemFree(pwszID);
-			PropVariantClear(&varName);
-		}
-
 		ComObHandle<IMMDevice> device;
-		enumerator->GetDevice(use_device_id.c_str(), &device.ptr);
-		throwOnError(hr);
+		if(input_device_name == "Default")
+		{
+			hr = enumerator->GetDefaultAudioEndpoint(
+				eCapture, // dataFlow
+				eConsole, 
+				&device.ptr);
+			throwOnError(hr);
+		}
+		else
+		{
+			ComObHandle<IMMDeviceCollection> collection;
+			hr = enumerator->EnumAudioEndpoints(
+				capture_loopback ? eRender : eCapture, DEVICE_STATE_ACTIVE,
+				&collection.ptr);
+			throwOnError(hr);
 
-		//hr = pEnumerator->GetDefaultAudioEndpoint(
-		//	eCapture, // dataFlow
-		//	eConsole, 
-		//	&pDevice);
-		//THROW_ON_ERROR(hr)
+			UINT count;
+			hr = collection->GetCount(&count);
+			throwOnError(hr);
+
+			std::wstring use_device_id;
+
+			// Each loop iteration prints the name of an endpoint device.
+			for(UINT i = 0; i < count; i++)
+			{
+				// Get pointer to endpoint number i.
+				ComObHandle<IMMDevice> endpoint;
+				hr = collection->Item(i, &endpoint.ptr);
+				throwOnError(hr);
+
+				// Get the endpoint ID string.
+				LPWSTR pwszID = NULL;
+				hr = endpoint->GetId(&pwszID);
+				throwOnError(hr);
+
+				ComObHandle<IPropertyStore> props;
+				hr = endpoint->OpenPropertyStore(
+					STGM_READ, &props.ptr);
+				throwOnError(hr);
+
+				PROPVARIANT varName;
+				PropVariantInit(&varName); // Initialize container for property value.
+
+				// Get the endpoint's friendly-name property.
+				hr = props->GetValue(PKEY_Device_FriendlyName, &varName);
+				throwOnError(hr);
+
+				// Print endpoint friendly name and endpoint ID.
+				conPrint("Endpoint " + toString((int)i) + ": \"" + StringUtils::WToUTF8String(varName.pwszVal) + "\" (" + StringUtils::WToUTF8String(pwszID) + ")\n");
+
+				if(input_device_name == StringUtils::WToUTF8String(varName.pwszVal))
+					use_device_id = pwszID;
+
+				CoTaskMemFree(pwszID);
+				PropVariantClear(&varName);
+			}
+
+			enumerator->GetDevice(use_device_id.c_str(), &device.ptr);
+			throwOnError(hr);
+		}
 
 		ComObHandle<IAudioClient> audio_client;
 		hr = device->Activate(
-			//IID_IAudioClient, 
 			__uuidof(IAudioClient), 
 			CLSCTX_ALL,
 			NULL, 
 			(void**)&audio_client.ptr);
 		throwOnError(hr);
 
-		LPWSTR device_id = NULL;
+		/*LPWSTR device_id = NULL;
 		hr = device->GetId(&device_id);
-		throwOnError(hr);
+		throwOnError(hr);*/
 
-		IPropertyStore* properties = NULL;
-		hr = device->OpenPropertyStore(STGM_READ, &properties);
-		throwOnError(hr);
+		//IPropertyStore* properties = NULL;
+		//hr = device->OpenPropertyStore(STGM_READ, &properties);
+		//throwOnError(hr);
 
-		PROPVARIANT prop_val;
-		PropVariantInit(&prop_val);
-		properties->GetValue(PKEY_Device_FriendlyName, &prop_val);
+		//PROPVARIANT prop_val;
+		//PropVariantInit(&prop_val);
+		//properties->GetValue(PKEY_Device_FriendlyName, &prop_val);
 
 		WAVEFORMATEXTENSIBLE* format = NULL;
 		hr = audio_client->GetMixFormat((WAVEFORMATEX**)&format);
@@ -170,9 +176,9 @@ void MicReadThread::doRun()
 		printVar(sampling_rate);
 
 		// Get the size of the allocated buffer.
-		UINT32 bufferFrameCount;
-		hr = audio_client->GetBufferSize(&bufferFrameCount);
-		throwOnError(hr);
+		//UINT32 bufferFrameCount;
+		//hr = audio_client->GetBufferSize(&bufferFrameCount);
+		//throwOnError(hr);
 
 		ComObHandle<IAudioCaptureClient> capture_client;
 		hr = audio_client->GetService(
@@ -344,6 +350,8 @@ void MicReadThread::doRun()
 	conPrint("Microphone reading only supported on Windows currently.");
 
 #endif
+
+	conPrint("MicReadThread finished.");
 }
 
 

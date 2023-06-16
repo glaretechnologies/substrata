@@ -164,9 +164,6 @@ Copyright Glare Technologies Limited 2020 -
 #endif
 
 
-static const bool DO_VOICE_CHAT_CONNECTIONS = false; // TEMP
-
-
 static const int server_port = 7600;
 static const int server_UDP_port = 7601;
 
@@ -4689,12 +4686,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					client_udp_handler_thread_manager.addThread(udp_handler_thread);
 
 					// Send ClientUDPSocketOpen message - inform the server what UDP port we are listening on.
-					if(DO_VOICE_CHAT_CONNECTIONS)
-					{
-						MessageUtils::initPacket(scratch_packet, Protocol::ClientUDPSocketOpen);
-						scratch_packet.writeUInt32(local_UDP_port);
-						enqueueMessageToSend(*this->client_thread, scratch_packet);
-					}
+					MessageUtils::initPacket(scratch_packet, Protocol::ClientUDPSocketOpen);
+					scratch_packet.writeUInt32(local_UDP_port);
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
 				catch(glare::Exception& e)
 				{
@@ -4748,12 +4742,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
 					(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
-
-				if(DO_VOICE_CHAT_CONNECTIONS)
-				{
-					Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(&this->msg_queue, this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port);
-					mic_read_thread_manager.addThread(mic_read_thread);
-				}
 			}
 			else if(dynamic_cast<const AudioStreamToServerStartedMessage*>(msg.getPointer()))
 			{
@@ -12791,6 +12779,28 @@ void MainWindow::setSelfieModeEnabled(bool enabled)
 		// Enable third-person camera view if not already enabled.
 		if(!ui->actionThird_Person_Camera->isChecked())
 			ui->actionThird_Person_Camera->trigger();
+	}
+}
+
+
+void MainWindow::setMicForVoiceChatEnabled(bool enabled)
+{
+	if(enabled)
+	{
+		if(mic_read_thread_manager.getNumThreads() == 0)
+		{
+			Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(&this->msg_queue, this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port,
+				QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString())
+			);
+			mic_read_thread_manager.addThread(mic_read_thread);
+		}
+	}
+	else
+	{
+		if(mic_read_thread_manager.getNumThreads() > 0)
+		{
+			mic_read_thread_manager.killThreadsNonBlocking();
+		}
 	}
 }
 

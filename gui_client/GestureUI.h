@@ -59,6 +59,8 @@ private:
 
 	GLUIButtonRef selfie_button;
 
+	GLUIButtonRef microphone_button; // TODO: move out of GestureUI or rename GestureUI.
+
 	bool gestures_visible;
 
 	GLUIRef gl_ui;
