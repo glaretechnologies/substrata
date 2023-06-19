@@ -362,3 +362,10 @@ void GestureUI::turnOffSelfieMode()
 	selfie_button->setToggled(false);
 	main_window->setSelfieModeEnabled(selfie_button->toggled);
 }
+
+
+void GestureUI::untoggleMicButton()
+{
+	if(microphone_button.nonNull())
+		microphone_button->setToggled(false);
+}

@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "AudioEngine.h"
+#include "../gui_client/ThreadMessages.h"
 #include <utils/CircularBuffer.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
@@ -22,6 +23,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <Mmreg.h>
 #include <devpkey.h>
 #include <Functiondiscoverykeys_devpkey.h>
+#include <mfapi.h>
 #endif
 #include <opus.h>
 #include <Timer.h>
@@ -33,6 +35,7 @@ Copyright Glare Technologies Limited 2023 -
 #else
 #define USE_RT_AUDIO 1
 #endif
+
 
 #if defined(_WIN32)
 static inline void throwOnError(HRESULT hres)
@@ -62,13 +65,12 @@ MicReadThread::~MicReadThread()
 static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int n_buffer_frames, double stream_time, RtAudioStreamStatus status, void* user_data)
 {
 	MicReadThread* mic_read_thread = (MicReadThread*)user_data;
-	const float* const input_buffer_f = (float*)input_buffer;
 
-	// The RTAudio input stream is created with RTAUDIO_FLOAT32 and nChannels = 1.
+	// The RTAudio input stream is created with RTAUDIO_FLOAT32 and nChannels = 1, so input_buffer should just be an array of uninterleaved floats.
 	{
 		Lock lock(mic_read_thread->buffer_mutex);
 
-		ContainerUtils::append(mic_read_thread->callback_buffer, /*data=*/input_buffer_f, /*size=*/n_buffer_frames);
+		ContainerUtils::append(mic_read_thread->callback_buffer, /*data=*/(const float*)input_buffer, /*size=*/n_buffer_frames);
 	}
 
 	return 0;
@@ -111,6 +113,8 @@ void MicReadThread::doRun()
 		}
 		else
 		{
+			// Iterate over endpoints, get ID of endpoint whose name matches input_device_name.
+
 			ComObHandle<IMMDeviceCollection> collection;
 			hr = enumerator->EnumAudioEndpoints(
 				capture_loopback ? eRender : eCapture, DEVICE_STATE_ACTIVE,
@@ -122,8 +126,6 @@ void MicReadThread::doRun()
 			throwOnError(hr);
 
 			std::wstring use_device_id;
-
-			// Each loop iteration prints the name of an endpoint device.
 			for(UINT i = 0; i < count; i++)
 			{
 				// Get pointer to endpoint number i.
@@ -132,35 +134,54 @@ void MicReadThread::doRun()
 				throwOnError(hr);
 
 				// Get the endpoint ID string.
-				LPWSTR pwszID = NULL;
-				hr = endpoint->GetId(&pwszID);
+				LPWSTR endpoint_id = NULL;
+				hr = endpoint->GetId(&endpoint_id);
 				throwOnError(hr);
 
 				ComObHandle<IPropertyStore> props;
-				hr = endpoint->OpenPropertyStore(
-					STGM_READ, &props.ptr);
+				hr = endpoint->OpenPropertyStore(STGM_READ, &props.ptr);
 				throwOnError(hr);
-
-				PROPVARIANT varName;
-				PropVariantInit(&varName); // Initialize container for property value.
 
 				// Get the endpoint's friendly-name property.
-				hr = props->GetValue(PKEY_Device_FriendlyName, &varName);
+				PROPVARIANT endpoint_name;
+				PropVariantInit(&endpoint_name); // Initialize container for property value.
+				hr = props->GetValue(PKEY_Device_FriendlyName, &endpoint_name); 
 				throwOnError(hr);
 
-				// Print endpoint friendly name and endpoint ID.
-				conPrint("Audio endpoint " + toString((int)i) + ": \"" + StringUtils::WToUTF8String(varName.pwszVal) + "\" (" + StringUtils::WToUTF8String(pwszID) + ")");
+				// conPrint("Audio endpoint " + toString(i) + ": \"" + StringUtils::WToUTF8String(endpoint_name.pwszVal) + "\" (" + StringUtils::WToUTF8String(endpoint_id) + ")");
 
-				if(input_device_name == StringUtils::WToUTF8String(varName.pwszVal))
-					use_device_id = pwszID;
+				if(input_device_name == StringUtils::WToUTF8String(endpoint_name.pwszVal))
+					use_device_id = endpoint_id;
 
-				CoTaskMemFree(pwszID);
-				PropVariantClear(&varName);
+				CoTaskMemFree(endpoint_id);
+				PropVariantClear(&endpoint_name);
 			}
 
-			enumerator->GetDevice(use_device_id.c_str(), &device.ptr);
+			if(use_device_id.empty())
+				throw glare::Exception("Could not find device '" + input_device_name + "' (it may have been removed)");
+
+			hr = enumerator->GetDevice(use_device_id.c_str(), &device.ptr);
 			throwOnError(hr);
 		}
+
+		// Get friendly name of the device we chose
+		std::string selected_dev_name;
+		{
+			ComObHandle<IPropertyStore> props;
+			hr = device->OpenPropertyStore(STGM_READ, &props.ptr);
+			throwOnError(hr);
+
+			PROPVARIANT endpoint_name;
+			PropVariantInit(&endpoint_name); // Initialize container for property value.
+			hr = props->GetValue(PKEY_Device_FriendlyName, &endpoint_name); // Get the endpoint's friendly-name property.
+			throwOnError(hr);
+
+			selected_dev_name = StringUtils::WToUTF8String(endpoint_name.pwszVal);
+
+			PropVariantClear(&endpoint_name);
+		}
+
+		out_msg_queue->enqueue(new LogMessage("Chose audio input device: '" + selected_dev_name + "'."));
 
 		ComObHandle<IAudioClient> audio_client;
 		hr = device->Activate(
@@ -170,23 +191,15 @@ void MicReadThread::doRun()
 			(void**)&audio_client.ptr);
 		throwOnError(hr);
 
-		/*LPWSTR device_id = NULL;
-		hr = device->GetId(&device_id);
-		throwOnError(hr);*/
-
-		//IPropertyStore* properties = NULL;
-		//hr = device->OpenPropertyStore(STGM_READ, &properties);
-		//throwOnError(hr);
-
-		//PROPVARIANT prop_val;
-		//PropVariantInit(&prop_val);
-		//properties->GetValue(PKEY_Device_FriendlyName, &prop_val);
-
-		WAVEFORMATEXTENSIBLE* format = NULL;
-		hr = audio_client->GetMixFormat((WAVEFORMATEX**)&format);
+		WAVEFORMATEXTENSIBLE* mix_format = NULL;
+		hr = audio_client->GetMixFormat((WAVEFORMATEX**)&mix_format);
 		throwOnError(hr);
 
-		//printVar((int)format->Format.nSamplesPerSec);
+		if(mix_format->Format.wFormatTag != WAVE_FORMAT_EXTENSIBLE)
+			throw glare::Exception("wFormatTag was not WAVE_FORMAT_EXTENSIBLE");
+
+		WAVEFORMATEXTENSIBLE format;
+		std::memcpy(&format, mix_format, sizeof(WAVEFORMATEXTENSIBLE));
 
 		const REFERENCE_TIME hnsRequestedDuration = 10000000; // REFERENCE_TIME time units per second
 
@@ -195,20 +208,19 @@ void MicReadThread::doRun()
 			capture_loopback ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0, // streamflags - note the needed AUDCLNT_STREAMFLAGS_LOOPBACK
 			hnsRequestedDuration,
 			0,
-			(WAVEFORMATEX*)format,
+			(WAVEFORMATEX*)&format,
 			NULL);
 		throwOnError(hr);
 
-		const uint32 sampling_rate = (uint32)((WAVEFORMATEX*)format)->nSamplesPerSec;
-		printVar(sampling_rate);
+		// Currently we only handle float formats
+		if(format.SubFormat != MFAudioFormat_Float)
+			throw glare::Exception("Subformat was not MFAudioFormat_Float");
 
-		const uint32 num_channels = (uint32)((WAVEFORMATEX*)format)->nChannels;
-		printVar(num_channels);
+		if(format.Format.wBitsPerSample != 32)
+			throw glare::Exception("wBitsPerSample was not 32");
 
-		// Get the size of the allocated buffer.
-		//UINT32 bufferFrameCount;
-		//hr = audio_client->GetBufferSize(&bufferFrameCount);
-		//throwOnError(hr);
+		const uint32 capture_sampling_rate = format.Format.nSamplesPerSec;
+		const uint32 num_channels = format.Format.nChannels;
 
 		ComObHandle<IAudioCaptureClient> capture_client;
 		hr = audio_client->GetService(
@@ -217,6 +229,8 @@ void MicReadThread::doRun()
 		if(hr == AUDCLNT_E_WRONG_ENDPOINT_TYPE)
 			conPrint("ERROR: AUDCLNT_E_WRONG_ENDPOINT_TYPE");
 		throwOnError(hr);
+
+		out_msg_queue->enqueue(new LogMessage("Starting listening on device: '" + selected_dev_name + "', capture sampling rate: " + toString(capture_sampling_rate) + " hz, num channels: " + toString(num_channels)));
 
 		hr = audio_client->Start();  // Start recording.
 		throwOnError(hr);
@@ -253,6 +267,12 @@ void MicReadThread::doRun()
 			}
 		}
 
+		if(use_device_id == 0)
+			throw glare::Exception("Could not find device '" + input_device_name + "' (it may have been removed)");
+
+		const std::string selected_dev_name = audio.getDeviceInfo(use_device_id).name;
+		out_msg_queue->enqueue(new LogMessage("Chose audio input device: '" + selected_dev_name + "'."));
+
 		unsigned int desired_sample_rate = 48000;
 
 		RtAudio::StreamParameters parameters;
@@ -261,8 +281,6 @@ void MicReadThread::doRun()
 		parameters.firstChannel = 0;
 		unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
 
-		// conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
-
 		RtAudio::StreamOptions stream_options;
 		stream_options.flags = RTAUDIO_MINIMIZE_LATENCY;
 
@@ -270,9 +288,9 @@ void MicReadThread::doRun()
 		if(rtaudio_res != RTAUDIO_NO_ERROR)
 			throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
 
-		const unsigned int sampling_rate = audio.getStreamSampleRate(); // Get actual sample rate used.
+		const unsigned int capture_sampling_rate = audio.getStreamSampleRate(); // Get actual sample rate used.
 
-		conPrint("Using sample rate of " + toString(sampling_rate) + " hz");
+		out_msg_queue->enqueue(new LogMessage("Starting listening on device: '" + selected_dev_name + "', capture sampling rate: " + toString(capture_sampling_rate) + " hz, num channels: 1"));
 
 		rtaudio_res = audio.startStream();
 		if(rtaudio_res != RTAUDIO_NO_ERROR)
@@ -281,14 +299,13 @@ void MicReadThread::doRun()
 #endif
 
 		//-------------------------------------- Opus init --------------------------------------------------
-
-		// TODO: resample instead of throwing an error, if sampling rate is not supported.
-		if(!((sampling_rate == 8000) || (sampling_rate == 12000) || (sampling_rate == 16000) || (sampling_rate == 24000) ||(sampling_rate == 48000))) // Sampling rates Opus encoder supports.
-			throw glare::Exception("Microphone device used an unsupported sampling rate: " + toString(sampling_rate) + " hz.");
+		uint32 opus_sampling_rate = capture_sampling_rate;
+		if(!((opus_sampling_rate == 8000) || (opus_sampling_rate == 12000) || (opus_sampling_rate == 16000) || (opus_sampling_rate == 24000) ||(opus_sampling_rate == 48000))) // Sampling rates Opus encoder supports.
+			opus_sampling_rate = 48000; // We will resample to 48000 hz.
 
 		int opus_error = 0;
 		OpusEncoder* opus_encoder = opus_encoder_create(
-			sampling_rate, // sampling rate
+			opus_sampling_rate, // sampling rate
 			1, // channels
 			OPUS_APPLICATION_VOIP, // application
 			&opus_error
@@ -302,7 +319,7 @@ void MicReadThread::doRun()
 		//	throw glare::Exception("opus_encoder_ctl failed.");
 		//-------------------------------------- End Opus init --------------------------------------------------
 
-		out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(sampling_rate));
+		out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(opus_sampling_rate));
 
 		//-------------------------------------- UDP socket init --------------------------------------------------
 
@@ -314,6 +331,8 @@ void MicReadThread::doRun()
 
 		std::vector<float> pcm_buffer;
 		const size_t max_pcm_buffer_size = 48000;
+
+		std::vector<float> resampled_pcm_buffer;
 
 		std::vector<uint8> packet;
 
@@ -327,7 +346,7 @@ void MicReadThread::doRun()
 			if(time_since_last_stream_to_server_msg_sent.elapsed() > 2.0)
 			{
 				// Re-send, in case other clients connect
-				out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(sampling_rate));
+				out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(opus_sampling_rate));
 				time_since_last_stream_to_server_msg_sent.reset();
 			}
 
@@ -411,8 +430,6 @@ void MicReadThread::doRun()
 				{
 					Lock lock(buffer_mutex);
 
-					printVar(callback_buffer.size());
-
 					const int frames_to_copy = myMin((int)max_pcm_buffer_size - (int)pcm_buffer.size(), (int)callback_buffer.size());
 					runtimeCheck(frames_to_copy >= 0);
 					const size_t write_index = pcm_buffer.size();
@@ -425,21 +442,34 @@ void MicReadThread::doRun()
 					//removeNItemsFromFront(callback_buffer, frames_to_copy);
 					callback_buffer.clear();
 				}
-
 #endif
 
 				// "To encode a frame, opus_encode() or opus_encode_float() must be called with exactly one frame (2.5, 5, 10, 20, 40 or 60 ms) of audio data:"
 				// We will use 10ms frames.
-				const size_t samples_per_frame = sampling_rate / 100;
+				const size_t opus_samples_per_frame    = opus_sampling_rate    / 100;
+				const size_t capture_samples_per_frame = capture_sampling_rate / 100;
 
 				// Encode the PCM data with Opus.  Writes to encoded_data.
 				size_t cur_i = 0;
-				while((pcm_buffer.size() - cur_i) >= samples_per_frame) // While there are at least samples_per_frame items in pcm_buffer.
+				while((pcm_buffer.size() - cur_i) >= capture_samples_per_frame) // While there are at least samples_per_frame items in pcm_buffer.
 				{
+					if(opus_sampling_rate != capture_sampling_rate)
+					{
+						// Resample
+						resampled_pcm_buffer.resize(opus_samples_per_frame);
+						
+						//const int ratio = 48000 / stream_info->sampling_rate;
+						const float ratio = (float)capture_sampling_rate / (float)opus_sampling_rate;
+
+						runtimeCheck(cur_i + capture_samples_per_frame - 1 < pcm_buffer.size());
+						for(int i=0; i<opus_samples_per_frame; ++i)
+							resampled_pcm_buffer[i] = pcm_buffer[cur_i + myClamp((int)(i * ratio), /*lower bound=*/0, /*upper bound=*/(int)capture_samples_per_frame - 1)];
+					}
+
 					const opus_int32 encoded_B = opus_encode_float(
 						opus_encoder,
-						&pcm_buffer[cur_i],
-						(int)samples_per_frame, // frame size (in samples)
+						(opus_sampling_rate != capture_sampling_rate) ? resampled_pcm_buffer.data() : &pcm_buffer[cur_i],
+						(int)opus_samples_per_frame, // frame size (in samples)
 						encoded_data.data(), // data
 						(opus_int32)encoded_data.size() // max_data_bytes
 					);
@@ -447,7 +477,7 @@ void MicReadThread::doRun()
 					if(encoded_B < 0)
 						throw glare::Exception("opus_encode failed: " + toString(encoded_B));
 
-					cur_i += samples_per_frame;
+					cur_i += capture_samples_per_frame;
 
 					// Form packet
 					const size_t header_size_B = sizeof(uint32) * 3;
@@ -498,6 +528,7 @@ void MicReadThread::doRun()
 	catch(glare::Exception& e)
 	{
 		conPrint("MicReadThread::doRun() Excep: " + e.what());
+		out_msg_queue->enqueue(new LogMessage("MicReadThread: " + e.what()));
 	}
 
 	conPrint("MicReadThread finished.");
