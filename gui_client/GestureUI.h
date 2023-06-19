@@ -44,6 +44,8 @@ public:
 
 	void turnOffSelfieMode();
 
+	void untoggleMicButton();
+
 	static bool animateHead(const std::string& gesture);
 	static bool loopAnim(const std::string& gesture);
 
