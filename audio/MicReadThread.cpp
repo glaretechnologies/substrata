@@ -6,15 +6,14 @@ Copyright Glare Technologies Limited 2023 -
 #include "MicReadThread.h"
 
 
-#include "AudioEngine.h"
 #include "../gui_client/ThreadMessages.h"
-#include <utils/CircularBuffer.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
 #include <utils/PlatformUtils.h>
 #include <utils/ComObHandle.h>
 #include <utils/ContainerUtils.h>
 #include <utils/RuntimeCheck.h>
+#include <utils/Timer.h>
 #include <networking/UDPSocket.h>
 #include <networking/Networking.h>
 #if defined(_WIN32)
@@ -25,9 +24,8 @@ Copyright Glare Technologies Limited 2023 -
 #include <Functiondiscoverykeys_devpkey.h>
 #include <mfapi.h>
 #endif
-#include <opus.h>
-#include <Timer.h>
 #include "../rtaudio/RtAudio.h"
+#include <opus.h>
 
 
 #if defined(_WIN32)
@@ -50,8 +48,10 @@ namespace glare
 {
 
 
-MicReadThread::MicReadThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<UDPSocket> udp_socket_, UID client_avatar_uid_, const std::string& server_hostname_, int server_port_, const std::string& input_device_name_)
-:	out_msg_queue(out_msg_queue_), udp_socket(udp_socket_), client_avatar_uid(client_avatar_uid_), server_hostname(server_hostname_), server_port(server_port_), input_device_name(input_device_name_)
+MicReadThread::MicReadThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<UDPSocket> udp_socket_, UID client_avatar_uid_, const std::string& server_hostname_, int server_port_, 
+	const std::string& input_device_name_, float input_vol_scale_factor_, MicReadStatus* mic_read_status_)
+:	out_msg_queue(out_msg_queue_), udp_socket(udp_socket_), client_avatar_uid(client_avatar_uid_), server_hostname(server_hostname_), server_port(server_port_), 
+	input_device_name(input_device_name_), input_vol_scale_factor(input_vol_scale_factor_), mic_read_status(mic_read_status_)
 {
 }
 
@@ -230,7 +230,8 @@ void MicReadThread::doRun()
 			conPrint("ERROR: AUDCLNT_E_WRONG_ENDPOINT_TYPE");
 		throwOnError(hr);
 
-		out_msg_queue->enqueue(new LogMessage("Starting listening on device: '" + selected_dev_name + "', capture sampling rate: " + toString(capture_sampling_rate) + " hz, num channels: " + toString(num_channels)));
+		out_msg_queue->enqueue(new LogMessage("Starting listening on device: '" + selected_dev_name + "', capture sampling rate: " + toString(capture_sampling_rate) + " hz, num channels: " + toString(num_channels) + 
+			", input_vol_scale_factor: " + doubleToStringNDecimalPlaces(input_vol_scale_factor, 2)));
 
 		hr = audio_client->Start();  // Start recording.
 		throwOnError(hr);
@@ -343,6 +344,22 @@ void MicReadThread::doRun()
 		//------------------------ Process audio output stream ------------------------
 		while(die == 0) // Keep reading audio until we are told to quit
 		{
+			PlatformUtils::Sleep(2);
+
+			// Poll for messages
+			{
+				Lock lock(this->getMessageQueue().getMutex());
+				if(this->getMessageQueue().unlockedNonEmpty())
+				{
+					ThreadMessageRef msg = this->getMessageQueue().unlockedDequeue();
+					if(msg.isType<InputVolumeScaleChangedMessage>())
+					{
+						InputVolumeScaleChangedMessage* vol_msg = msg.downcastToPtr<InputVolumeScaleChangedMessage>();
+						this->input_vol_scale_factor = vol_msg->input_vol_scale_factor;
+					}
+				}
+			}
+
 			if(time_since_last_stream_to_server_msg_sent.elapsed() > 2.0)
 			{
 				// Re-send, in case other clients connect
@@ -353,11 +370,8 @@ void MicReadThread::doRun()
 
 			while(die == 0) // Loop while there is data to be read immediately:
 			{
-				
 #if defined(_WIN32) && !USE_RT_AUDIO
-				PlatformUtils::Sleep(2);//(0.5 * 480.0 / 48000.0) * 1000);
-
-				Timer timer;
+				//Timer timer;
 				// Get the available data in the shared buffer.
 				BYTE* p_data;
 				uint32 num_frames_available;
@@ -425,10 +439,11 @@ void MicReadThread::doRun()
 					}
 				}
 #else
-				PlatformUtils::Sleep(2);
-
 				{
 					Lock lock(buffer_mutex);
+
+					if(callback_buffer.empty())
+						break;
 
 					const int frames_to_copy = myMin((int)max_pcm_buffer_size - (int)pcm_buffer.size(), (int)callback_buffer.size());
 					runtimeCheck(frames_to_copy >= 0);
@@ -443,6 +458,23 @@ void MicReadThread::doRun()
 					callback_buffer.clear();
 				}
 #endif
+
+				// Apply input_vol_scale_factor, get max abs value in pcm_buffer
+				float max_val = 0;
+				for(size_t i=0; i<pcm_buffer.size(); ++i)
+				{
+					pcm_buffer[i] = myClamp(pcm_buffer[i] * input_vol_scale_factor, -1.f, 1.f);
+					max_val = myMax(max_val, std::fabs(pcm_buffer[i]));
+				}
+				
+				// Set current level in mic_read_status (used for showing volume indicator in UI)
+				{
+					
+					Lock lock(mic_read_status->mutex);
+					const float smoothed_max = myMax(max_val, 0.95f * mic_read_status->cur_level);
+					mic_read_status->cur_level = smoothed_max;
+				}
+
 
 				// "To encode a frame, opus_encode() or opus_encode_float() must be called with exactly one frame (2.5, 5, 10, 20, 40 or 60 ms) of audio data:"
 				// We will use 10ms frames.
@@ -510,7 +542,6 @@ void MicReadThread::doRun()
 				throwOnError(hr);
 #endif
 			}
-			//-------------------------------------------------------
 		}
 
 		opus_encoder_destroy(opus_encoder);
@@ -529,6 +560,11 @@ void MicReadThread::doRun()
 	{
 		conPrint("MicReadThread::doRun() Excep: " + e.what());
 		out_msg_queue->enqueue(new LogMessage("MicReadThread: " + e.what()));
+	}
+
+	{
+		Lock lock(mic_read_status->mutex);
+		mic_read_status->cur_level = 0;
 	}
 
 	conPrint("MicReadThread finished.");

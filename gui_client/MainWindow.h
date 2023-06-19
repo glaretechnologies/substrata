@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
+#include "../audio/MicReadThread.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
 //#include "../opengl/WGL.h"
@@ -700,4 +701,6 @@ public:
 	int main_timer_id;
 
 	bool closing; // Timer events keep firing after closeEvent(), annoyingly, so keep track of if we are closing the Window, in which case we can early-out of timerEvent().
+
+	MicReadStatus mic_read_status;
 };

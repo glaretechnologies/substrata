@@ -6909,6 +6909,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		time_since_update_packet_sent.reset();
 	}
 
+	gesture_ui.setCurrentMicLevel(mic_read_status.cur_level);
+
 	last_timerEvent_CPU_work_elapsed = time_since_last_timer_ev.elapsed();
 
 
@@ -8965,6 +8967,8 @@ void MainWindow::on_actionAbout_Substrata_triggered()
 
 void MainWindow::on_actionOptions_triggered()
 {
+	const std::string prev_audio_input_dev_name = QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
+
 	MainOptionsDialog d(this->settings);
 	const int code = d.exec();
 	if(code == QDialog::Accepted)
@@ -8978,6 +8982,23 @@ void MainWindow::on_actionOptions_triggered()
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
+	}
+
+	mic_read_thread_manager.enqueueMessage(new InputVolumeScaleChangedMessage(
+		settings->value(MainOptionsDialog::inputScaleFactorNameKey(), /*default val=*/100).toInt() * 0.01f // input_vol_scale_factor (note: stored in percent in settings)
+	));
+
+	// Restart mic read thread if audio input device changed.
+	if(QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString()) != prev_audio_input_dev_name)
+	{
+		mic_read_thread_manager.killThreadsBlocking();
+
+		Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(&this->msg_queue, this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port,
+			MainOptionsDialog::getInputDeviceName(settings),
+			MainOptionsDialog::getInputScaleFactor(settings), // input_vol_scale_factor
+			&mic_read_status
+		);
+		mic_read_thread_manager.addThread(mic_read_thread);
 	}
 }
 
@@ -10350,6 +10371,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 	ui->onlineUsersTextEdit->clear();
 	ui->chatMessagesTextEdit->clear();
+
+	gesture_ui.untoggleMicButton(); // Since mic_read_thread_manager has thread killed above.
 
 	deselectObject();
 
@@ -12792,7 +12815,9 @@ void MainWindow::setMicForVoiceChatEnabled(bool enabled)
 		if(mic_read_thread_manager.getNumThreads() == 0)
 		{
 			Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(&this->msg_queue, this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port,
-				QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString())
+				MainOptionsDialog::getInputDeviceName(settings),
+				MainOptionsDialog::getInputScaleFactor(settings), // input_vol_scale_factor
+				&mic_read_status
 			);
 			mic_read_thread_manager.addThread(mic_read_thread);
 		}
