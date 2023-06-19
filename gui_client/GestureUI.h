@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
+#include <opengl/ui/GLUIImage.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 
 
@@ -46,6 +47,8 @@ public:
 
 	void untoggleMicButton();
 
+	void setCurrentMicLevel(float level);
+
 	static bool animateHead(const std::string& gesture);
 	static bool loopAnim(const std::string& gesture);
 
@@ -62,6 +65,8 @@ private:
 	GLUIButtonRef selfie_button;
 
 	GLUIButtonRef microphone_button; // TODO: move out of GestureUI or rename GestureUI.
+
+	GLUIImageRef mic_level_image;
 
 	bool gestures_visible;
 

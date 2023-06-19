@@ -113,6 +113,10 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 	microphone_button->handler = this;
 	gl_ui->addWidget(microphone_button);
 
+	mic_level_image = new GLUIImage();
+	mic_level_image->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/mic_level.png", Vec2f(-0.7f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Microphone input indicator");
+	gl_ui->addWidget(mic_level_image);
+
 	updateWidgetPositions();
 }
 
@@ -137,11 +141,17 @@ void GestureUI::destroy()
 		selfie_button->destroy();
 		selfie_button = NULL;
 	}
-	if(selfie_button.nonNull())
+	if(microphone_button.nonNull())
 	{
 		gl_ui->removeWidget(microphone_button);
 		microphone_button->destroy();
 		microphone_button = NULL;
+	}
+	if(mic_level_image.nonNull())
+	{
+		gl_ui->removeWidget(mic_level_image);
+		mic_level_image->destroy();
+		mic_level_image = NULL;
 	}
 
 
@@ -231,6 +241,8 @@ void GestureUI::updateWidgetPositions()
 			selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
 			microphone_button->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+
+			mic_level_image->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING + BUTTON_W + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_H * 0.2f, BUTTON_H));
 		}
 	}
 }
@@ -368,4 +380,19 @@ void GestureUI::untoggleMicButton()
 {
 	if(microphone_button.nonNull())
 		microphone_button->setToggled(false);
+}
+
+
+void GestureUI::setCurrentMicLevel(float level)
+{
+	if(mic_level_image.nonNull())
+	{
+		const float SPACING = 0.02f;
+		const float BUTTON_W = 0.07f;
+		const float BUTTON_H = 0.07f;
+
+		const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
+
+		mic_level_image->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING + BUTTON_W * 0.8f, -min_max_y + SPACING + BUTTON_H * 0.2f), Vec2f(BUTTON_W * 0.14f, BUTTON_H * level * 0.6f), /*z=*/-0.9f);
+	}
 }

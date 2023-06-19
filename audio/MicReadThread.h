@@ -17,16 +17,29 @@ class AudioStreamToServerStartedMessage : public ThreadMessage
 {
 public:
 	AudioStreamToServerStartedMessage(uint32 sampling_rate_) : sampling_rate(sampling_rate_) {}
-	
 	uint32 sampling_rate;
+};
+
+
+class InputVolumeScaleChangedMessage : public ThreadMessage
+{
+public:
+	InputVolumeScaleChangedMessage(float input_vol_scale_factor_) : input_vol_scale_factor(input_vol_scale_factor_) {}
+	float input_vol_scale_factor;
+};
+
+
+struct MicReadStatus
+{
+	MicReadStatus() : cur_level(0) {}
+
+	Mutex mutex;
+	float cur_level; // in [0, 1].
 };
 
 
 namespace glare
 {
-
-
-class AudioEngine;
 
 
 /*=====================================================================
@@ -38,7 +51,7 @@ class MicReadThread : public MessageableThread
 {
 public:
 	MicReadThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<UDPSocket> udp_socket, UID client_avatar_uid, const std::string& server_hostname, int server_port,
-		const std::string& input_device_name);
+		const std::string& input_device_name, float input_vol_scale_factor, MicReadStatus* mic_read_status);
 	~MicReadThread();
 
 	virtual void doRun() override;
@@ -54,8 +67,12 @@ public:
 	int server_port;
 	std::string input_device_name;
 
+	float input_vol_scale_factor;
+
 	Mutex buffer_mutex;
 	std::vector<float> callback_buffer;
+
+	MicReadStatus* mic_read_status;
 };
 
 

@@ -167,6 +167,8 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 		inputDeviceComboBox->addItem(QtUtils::toQString(dev_names[i]));
 
 	inputDeviceComboBox->setCurrentIndex(inputDeviceComboBox->findText(settings->value(inputDeviceNameKey(), "Default").toString()));
+
+	inputVolumeScaleHorizontalSlider->setValue(						settings->value(inputScaleFactorNameKey(), 100).toInt());
 }
 
 
@@ -189,10 +191,36 @@ void MainOptionsDialog::accepted()
 	settings->setValue(startLocationURLKey(),						this->startLocationURLLineEdit->text());
 
 	settings->setValue(inputDeviceNameKey(),						this->inputDeviceComboBox->currentText());
+	settings->setValue(inputScaleFactorNameKey(),					this->inputVolumeScaleHorizontalSlider->value());
 }
 
 
 void MainOptionsDialog::customCacheDirCheckBoxChanged(bool checked)
 {
 	this->customCacheDirFileSelectWidget->setEnabled(checked);
+}
+
+
+void MainOptionsDialog::on_inputDeviceComboBox_currentIndexChanged(int index)
+{
+	// Reset volume scale back to 100 since we changed device.
+	inputVolumeScaleHorizontalSlider->setValue(100);
+}
+
+
+void MainOptionsDialog::on_inputVolumeScaleHorizontalSlider_valueChanged(int new_value)
+{
+	inputVolumeScaleLabel->setText(QtUtils::toQString(toString(new_value) + " %"));
+}
+
+
+std::string MainOptionsDialog::getInputDeviceName(const QSettings* settings)
+{
+	return QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
+}
+
+
+float MainOptionsDialog::getInputScaleFactor(const QSettings* settings)
+{
+	return settings->value(MainOptionsDialog::inputScaleFactorNameKey(), /*default val=*/100).toInt() * 0.01f; // NOTE: stored in percent in settings
 }

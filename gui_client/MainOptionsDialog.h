@@ -45,9 +45,17 @@ public:
 
 	static const QString inputDeviceNameKey() { return "setting/input_device_name"; }
 
+	static const QString inputScaleFactorNameKey() { return "setting/input_scale_factor_name"; }
+
+	static std::string getInputDeviceName(const QSettings* settings);
+	static float getInputScaleFactor(const QSettings* settings);
+
 private slots:;
 	void accepted();
 	void customCacheDirCheckBoxChanged(bool checked);
+
+	void on_inputDeviceComboBox_currentIndexChanged(int index);
+	void on_inputVolumeScaleHorizontalSlider_valueChanged(int new_value);
 
 private:
 	QSettings* settings;
