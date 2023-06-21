@@ -56,6 +56,7 @@ Avatar::Avatar()
 #if GUI_CLIENT
 	our_avatar = false;
 	audio_stream_sampling_rate = 0;
+	audio_stream_id = 0;
 
 	name_colour = Colour3f(0.8f);
 

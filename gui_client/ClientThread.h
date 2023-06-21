@@ -91,9 +91,19 @@ public:
 class RemoteClientAudioStreamToServerStarted : public ThreadMessage
 {
 public:
-	RemoteClientAudioStreamToServerStarted(UID avatar_uid_, const uint32 sampling_rate_) : avatar_uid(avatar_uid_), sampling_rate(sampling_rate_) {}
+	RemoteClientAudioStreamToServerStarted(UID avatar_uid_, const uint32 sampling_rate_, uint32 flags_, uint32 stream_id_) : avatar_uid(avatar_uid_), sampling_rate(sampling_rate_), flags(flags_), stream_id(stream_id_) {}
 	UID avatar_uid;
 	uint32 sampling_rate;
+	uint32 flags;
+	uint32 stream_id;
+};
+
+
+class RemoteClientAudioStreamToServerEnded : public ThreadMessage
+{
+public:
+	RemoteClientAudioStreamToServerEnded(UID avatar_uid_) : avatar_uid(avatar_uid_) {}
+	UID avatar_uid;
 };
 
 

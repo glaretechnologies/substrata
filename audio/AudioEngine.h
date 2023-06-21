@@ -114,6 +114,8 @@ public:
 	uint32 userdata_1;
 
 	std::string debugname;
+
+	float smoothed_cur_level;
 };
 typedef Reference<AudioSource> AudioSourceRef;
 

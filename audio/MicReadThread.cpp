@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/ContainerUtils.h>
 #include <utils/RuntimeCheck.h>
 #include <utils/Timer.h>
+#include <utils/CryptoRNG.h>
 #include <networking/UDPSocket.h>
 #include <networking/Networking.h>
 #if defined(_WIN32)
@@ -320,7 +321,10 @@ void MicReadThread::doRun()
 		//	throw glare::Exception("opus_encoder_ctl failed.");
 		//-------------------------------------- End Opus init --------------------------------------------------
 
-		out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(opus_sampling_rate));
+		uint32 stream_id;
+		CryptoRNG::getRandomBytes((uint8*)&stream_id, sizeof(stream_id));
+
+		out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(opus_sampling_rate, /*flags=*/0, /*stream_id=*/stream_id));
 
 		//-------------------------------------- UDP socket init --------------------------------------------------
 
@@ -363,13 +367,15 @@ void MicReadThread::doRun()
 			if(time_since_last_stream_to_server_msg_sent.elapsed() > 2.0)
 			{
 				// Re-send, in case other clients connect
-				out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(opus_sampling_rate));
+				out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(opus_sampling_rate, /*flags=*/1, /*stream_id=*/stream_id)); // set renew bit in flags
 				time_since_last_stream_to_server_msg_sent.reset();
 			}
 
 
 			while(die == 0) // Loop while there is data to be read immediately:
 			{
+				const size_t write_index = pcm_buffer.size(); // New data will be appended at this position in pcm_buffer.
+
 #if defined(_WIN32) && !USE_RT_AUDIO
 				//Timer timer;
 				// Get the available data in the shared buffer.
@@ -393,7 +399,6 @@ void MicReadThread::doRun()
 				//printVar(num_frames_available);
 
 				const int frames_to_copy = myMin((int)max_pcm_buffer_size - (int)pcm_buffer.size(), (int)num_frames_available);
-				const size_t write_index = pcm_buffer.size();
 				pcm_buffer.resize(pcm_buffer.size() + frames_to_copy);
 				assert(pcm_buffer.size() <= max_pcm_buffer_size);
 
@@ -447,7 +452,6 @@ void MicReadThread::doRun()
 
 					const int frames_to_copy = myMin((int)max_pcm_buffer_size - (int)pcm_buffer.size(), (int)callback_buffer.size());
 					runtimeCheck(frames_to_copy >= 0);
-					const size_t write_index = pcm_buffer.size();
 					pcm_buffer.resize(pcm_buffer.size() + frames_to_copy);
 					assert(pcm_buffer.size() <= max_pcm_buffer_size);
 
@@ -459,14 +463,14 @@ void MicReadThread::doRun()
 				}
 #endif
 
-				// Apply input_vol_scale_factor, get max abs value in pcm_buffer
+				// Apply input_vol_scale_factor to newly captured data, get max abs value in pcm_buffer
 				float max_val = 0;
-				for(size_t i=0; i<pcm_buffer.size(); ++i)
+				for(size_t i=write_index; i<pcm_buffer.size(); ++i)
 				{
 					pcm_buffer[i] = myClamp(pcm_buffer[i] * input_vol_scale_factor, -1.f, 1.f);
 					max_val = myMax(max_val, std::fabs(pcm_buffer[i]));
 				}
-				
+
 				// Set current level in mic_read_status (used for showing volume indicator in UI)
 				{
 					
@@ -479,18 +483,17 @@ void MicReadThread::doRun()
 				// "To encode a frame, opus_encode() or opus_encode_float() must be called with exactly one frame (2.5, 5, 10, 20, 40 or 60 ms) of audio data:"
 				// We will use 10ms frames.
 				const size_t opus_samples_per_frame    = opus_sampling_rate    / 100;
-				const size_t capture_samples_per_frame = capture_sampling_rate / 100;
+				const size_t capture_samples_per_frame = capture_sampling_rate / 100; // Number of samples at the capture sample rate we need for a single Opus 10ms frame.
 
 				// Encode the PCM data with Opus.  Writes to encoded_data.
 				size_t cur_i = 0;
-				while((pcm_buffer.size() - cur_i) >= capture_samples_per_frame) // While there are at least samples_per_frame items in pcm_buffer.
+				while((pcm_buffer.size() - cur_i) >= capture_samples_per_frame) // While there are at least capture_samples_per_frame items in pcm_buffer:
 				{
 					if(opus_sampling_rate != capture_sampling_rate)
 					{
 						// Resample
 						resampled_pcm_buffer.resize(opus_samples_per_frame);
 						
-						//const int ratio = 48000 / stream_info->sampling_rate;
 						const float ratio = (float)capture_sampling_rate / (float)opus_sampling_rate;
 
 						runtimeCheck(cur_i + capture_samples_per_frame - 1 < pcm_buffer.size());
@@ -566,6 +569,8 @@ void MicReadThread::doRun()
 		Lock lock(mic_read_status->mutex);
 		mic_read_status->cur_level = 0;
 	}
+
+	out_msg_queue->enqueue(new AudioStreamToServerEndedMessage());
 
 	conPrint("MicReadThread finished.");
 }

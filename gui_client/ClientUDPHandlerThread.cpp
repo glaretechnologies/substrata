@@ -63,6 +63,8 @@ struct AvatarVoiceStreamInfo
 	Reference<glare::AudioSource> avatar_audio_source;
 	OpusDecoder* opus_decoder;
 	uint32 sampling_rate;
+	uint32 stream_id;
+	uint32 next_seq_num_expected;
 };
 
 
@@ -82,8 +84,6 @@ void ClientUDPHandlerThread::doRun()
 		std::vector<float> pcm_buffer(480);
 		std::vector<float> resampled_pcm_buffer(480);
 
-		uint32 next_seq_num_expected = 0;
-
 		while(die == 0)
 		{
 			IPAddress sender_ip_addr;
@@ -100,10 +100,33 @@ void ClientUDPHandlerThread::doRun()
 				for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
 				{
 					Avatar* av = it->second.ptr();
+
 					// If there is an avatar not in our avatar_stream_info map, that has an audio source, add it to our map.
-					if(av->audio_source.nonNull() && (avatar_stream_info.count((uint32)av->uid.value()) == 0))
+					// If we are already have stream info, but stream IDs differ: this indicates a new stream has been created.  We need to reset the expected next sequence number.  We will also recreate the Opus decoder in this case.
+					bool create_stream_info = false; // Should we (re)create stream info for this avatar?
+					if(av->audio_source.nonNull())
 					{
-						const uint32 sampling_rate = av->audio_stream_sampling_rate; // TODO: sanity check? audio_stream_sampling_rate is remote user-controlled data
+						auto info_res = avatar_stream_info.find((uint32)av->uid.value());
+						if(info_res == avatar_stream_info.end())
+							create_stream_info = true;
+						else // Else if we already have stream info for this avatar:
+						{
+							AvatarVoiceStreamInfo& stream_info = info_res->second;
+							if(stream_info.stream_id != av->audio_stream_id) // But the stream ID is different:
+							{
+								if(stream_info.opus_decoder)
+								{
+									conPrint("Stream ID changed, destroying existing Opus decoder.");
+									opus_decoder_destroy(stream_info.opus_decoder);
+								}
+								create_stream_info = true;
+							}
+						}
+					}
+
+					if(create_stream_info)
+					{
+						const uint32 sampling_rate = av->audio_stream_sampling_rate;
 
 						conPrint("Creating Opus decoder for avatar, sampling_rate: " + toString(sampling_rate));
 
@@ -116,18 +139,31 @@ void ClientUDPHandlerThread::doRun()
 						if(opus_error != OPUS_OK)
 							throw glare::Exception("opus_decoder_create failed.");
 
-						avatar_stream_info[(uint32)av->uid.value()] = AvatarVoiceStreamInfo({av->audio_source, opus_decoder, sampling_rate});
+						avatar_stream_info[(uint32)av->uid.value()] = AvatarVoiceStreamInfo({av->audio_source, opus_decoder, sampling_rate, /*stream_id=*/av->audio_stream_id, /*next_seq_num_expected=*/0});
 					}
 				}
+
+				
 
 				for(auto it = avatar_stream_info.begin(); it != avatar_stream_info.end();)
 				{
 					const UID avatar_uid(it->first);
 
-					if(world_state->avatars.count(avatar_uid) == 0) // If the avatar no longer exists:
+					bool remove = false;
+					auto res = world_state->avatars.find(avatar_uid);
+					if(res == world_state->avatars.end()) // If the avatar no longer exists:
+						remove = true;
+					else
 					{
-						opus_decoder_destroy(it->second.opus_decoder);
+						Avatar* avatar = res->second.ptr();
+						if(avatar->audio_source.isNull()) // If the avatar audio source has been removed:
+							remove = true;
+					}
 
+					if(remove)
+					{
+						conPrint("Destroying Opus decoder for avatar");
+						opus_decoder_destroy(it->second.opus_decoder);
 						it = avatar_stream_info.erase(it); // Remove from our stream info map
 					}
 					else
@@ -162,7 +198,7 @@ void ClientUDPHandlerThread::doRun()
 
 								//conPrint("Received voice packet for avatar (UID: " + toString(avatar_id) + ", seq num: " + toString(rcvd_seq_num) + ")");
 
-								if(rcvd_seq_num < next_seq_num_expected)
+								if(rcvd_seq_num < stream_info->next_seq_num_expected)
 								{
 									// Discard packet
 									conPrint("Discarding packet.");
@@ -199,32 +235,41 @@ void ClientUDPHandlerThread::doRun()
 										0 // decode_fec
 									);
 
-									//TEMP DEBUG: get max value in decoded buffer
-									/*float max_val = 0;
+									// Get max abs value in decoded buffer
+									float max_val = 0;
 									for(int i=0; i<num_samples_decoded; ++i)
 										max_val = myMax(max_val, std::fabs(pcm_buffer[i]));
-									printVar(max_val);*/
+									//printVar(max_val);
 
-									if(num_samples_decoded != stream_info->sampling_rate / 100)
+									// We are using 10ms frames, so expect sampling_rate * 0.01 samples.
+									if(num_samples_decoded != (int)stream_info->sampling_rate / 100)
 										conPrint("Unexpected number of samples");
 									else
 									{
 										const float* final_pcm_data;
 										if(stream_info->sampling_rate != 48000)
 										{
-											conPrint("Resampling");
+											// conPrint("Resampling");
 
 											// Resample to 48000 hz.  TODO: use better resampling?
 
-											const int ratio = 48000 / stream_info->sampling_rate;
+											runtimeCheck((stream_info->sampling_rate == 8000) || (stream_info->sampling_rate == 12000) || (stream_info->sampling_rate == 16000) || (stream_info->sampling_rate == 24000)); // Sampling rates Opus encoder supports (apart from 48000)
 
-											for(int i=0; i<480; ++i)
+											const uint32 ratio = 48000 / stream_info->sampling_rate;
+											runtimeCheck(ratio == 2 || ratio == 3 || ratio == 4 || ratio == 6);
+
+											assert(resampled_pcm_buffer.size() == 480);
+											runtimeCheck((480 - 1) / ratio < pcm_buffer.size()); // Check reads are in-bounds
+											runtimeCheck((480 - 1) / ratio < (uint32)num_samples_decoded);
+											for(uint32 i=0; i<480; ++i)
 												resampled_pcm_buffer[i] = pcm_buffer[i / ratio];
 
 											final_pcm_data = resampled_pcm_buffer.data();
 										}
-										else
+										else // else stream_info->sampling_rate == 48000, so num_samples_decoded = 48000 / 100 = 480.
 										{
+											assert(pcm_buffer.size() == 480);
+											runtimeCheck(num_samples_decoded == 480);
 											final_pcm_data = pcm_buffer.data();
 										}
 
@@ -249,11 +294,13 @@ void ClientUDPHandlerThread::doRun()
 											}
 
 											stream_info->avatar_audio_source->buffer.pushBackNItems(final_pcm_data, 480);
+
+											stream_info->avatar_audio_source->smoothed_cur_level = myMax(stream_info->avatar_audio_source->smoothed_cur_level * 0.95f, max_val);
 										}
 
 										// conPrint("ClientUDPHandlerThread: decoded " + toString(num_samples_decoded) + " samples.");
 
-										next_seq_num_expected++;
+										stream_info->next_seq_num_expected++;
 									}
 								}
 							}
