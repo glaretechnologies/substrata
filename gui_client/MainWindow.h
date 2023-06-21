@@ -202,6 +202,7 @@ private:
 	void deselectParcel();
 	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
+	GLObjectRef makeSpeakerGLObject();
 	void doObjectSelectionTraceForMouseEvent(QMouseEvent* e);
 public:
 	virtual OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);

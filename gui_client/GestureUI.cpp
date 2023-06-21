@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "MainWindow.h"
+#include <graphics/SRGBUtils.h>
 #include <QtCore/QSettings>
 
 
@@ -114,7 +115,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 	gl_ui->addWidget(microphone_button);
 
 	mic_level_image = new GLUIImage();
-	mic_level_image->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/mic_level.png", Vec2f(-0.7f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Microphone input indicator");
+	mic_level_image->create(*gl_ui, opengl_engine, ""/*main_window->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(-0.7f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Microphone input indicator");
 	gl_ui->addWidget(mic_level_image);
 
 	updateWidgetPositions();
@@ -383,7 +384,7 @@ void GestureUI::untoggleMicButton()
 }
 
 
-void GestureUI::setCurrentMicLevel(float level)
+void GestureUI::setCurrentMicLevel(float linear_level, float display_level)
 {
 	if(mic_level_image.nonNull())
 	{
@@ -393,6 +394,12 @@ void GestureUI::setCurrentMicLevel(float level)
 
 		const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
 
-		mic_level_image->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING + BUTTON_W * 0.8f, -min_max_y + SPACING + BUTTON_H * 0.2f), Vec2f(BUTTON_W * 0.14f, BUTTON_H * level * 0.6f), /*z=*/-0.9f);
+		mic_level_image->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING + BUTTON_W * 0.8f, -min_max_y + SPACING + BUTTON_H * 0.2f), Vec2f(BUTTON_W * 0.14f, BUTTON_H * display_level * 0.6f), /*z=*/-0.9f);
+
+		// Show a green bar that changes to red if the amplitude gets too close to 1.
+		const Colour3f green = toLinearSRGB(Colour3f(0, 54.5f/100, 8.6f/100));
+		const Colour3f red   = toLinearSRGB(Colour3f(78.7f / 100, 0, 0));
+
+		mic_level_image->overlay_ob->material.albedo_linear_rgb = Maths::lerp(green, red, Maths::smoothStep(0.9f, 0.95f, linear_level));
 	}
 }

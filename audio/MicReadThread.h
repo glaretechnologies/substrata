@@ -16,8 +16,17 @@ Copyright Glare Technologies Limited 2023 -
 class AudioStreamToServerStartedMessage : public ThreadMessage
 {
 public:
-	AudioStreamToServerStartedMessage(uint32 sampling_rate_) : sampling_rate(sampling_rate_) {}
+	AudioStreamToServerStartedMessage(uint32 sampling_rate_, uint32 flags_, uint32 stream_id_) : sampling_rate(sampling_rate_), flags(flags_), stream_id(stream_id_) {}
 	uint32 sampling_rate;
+	uint32 flags;
+	uint32 stream_id;
+};
+
+
+class AudioStreamToServerEndedMessage : public ThreadMessage
+{
+public:
+	AudioStreamToServerEndedMessage() {}
 };
 
 

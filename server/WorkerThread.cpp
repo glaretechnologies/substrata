@@ -1054,12 +1054,31 @@ void WorkerThread::doRun()
 							conPrint("WorkerThread: received Protocol::AudioStreamToServerStarted");
 
 							const uint32 sampling_rate = msg_buffer.readUInt32();
+							const uint32 flags         = msg_buffer.readUInt32();
+							const uint32 stream_id     = msg_buffer.readUInt32();
 
 							// Send message to all clients
 							{
 								MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
 								writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
 								scratch_packet.writeUInt32(sampling_rate);
+								scratch_packet.writeUInt32(flags);
+								scratch_packet.writeUInt32(stream_id);
+								MessageUtils::updatePacketLengthField(scratch_packet);
+
+								enqueuePacketToBroadcast(scratch_packet, server);
+							}
+
+							break;
+						}
+					case Protocol::AudioStreamToServerEnded:
+						{
+							conPrint("WorkerThread: received Protocol::AudioStreamToServerEnded");
+
+							// Send message to all clients
+							{
+								MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerEnded);
+								writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);

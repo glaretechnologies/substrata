@@ -112,8 +112,9 @@ public:
 
 	Colour3f name_colour;
 
-	Reference<GLObject> opengl_engine_nametag_ob;
+	Reference<GLObject> nametag_gl_ob;
 	float nametag_z_offset; // To adjust nametag up when animation requires.  Smoothed over time value.
+	Reference<GLObject> speaker_gl_ob;
 
 	AvatarGraphics graphics;
 
@@ -133,8 +134,9 @@ public:
 	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.
 	float materialise_effect_start_time;
 
-	Reference<glare::AudioSource> audio_source;
+	Reference<glare::AudioSource> audio_source; // audio source for voice chat
 	uint32 audio_stream_sampling_rate; // NOTE: remote-user controlled data.
+	uint32 audio_stream_id;
 #endif
 
 	/*

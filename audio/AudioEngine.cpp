@@ -26,7 +26,7 @@ namespace glare
 
 AudioSource::AudioSource()
 :	cur_read_i(0), type(SourceType_Looping), spatial_type(SourceSpatialType_Spatial), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
-	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1)
+	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1), smoothed_cur_level(0)
 {}
 
 

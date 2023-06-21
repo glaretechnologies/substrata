@@ -226,12 +226,24 @@ void ClientThread::doRun()
 					}
 				case Protocol::AudioStreamToServerStarted:
 					{
-						conPrint("ClientThread: received Protocol::AudioStreamToServerStarted");
+						// conPrint("ClientThread: received Protocol::AudioStreamToServerStarted");
 
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						const uint32 sampling_rate = msg_buffer.readUInt32();
+						const uint32 flags = msg_buffer.readUInt32();
+						const uint32 stream_id = msg_buffer.readUInt32();
 
-						out_msg_queue->enqueue(new RemoteClientAudioStreamToServerStarted(avatar_uid, sampling_rate)); // Inform MainWindow
+						out_msg_queue->enqueue(new RemoteClientAudioStreamToServerStarted(avatar_uid, sampling_rate, flags, stream_id)); // Inform MainWindow
+
+						break;
+					}
+				case Protocol::AudioStreamToServerEnded:
+					{
+						conPrint("ClientThread: received Protocol::AudioStreamToServerEnded");
+
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+						out_msg_queue->enqueue(new RemoteClientAudioStreamToServerEnded(avatar_uid)); // Inform MainWindow
 
 						break;
 					}

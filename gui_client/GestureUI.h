@@ -47,7 +47,7 @@ public:
 
 	void untoggleMicButton();
 
-	void setCurrentMicLevel(float level);
+	void setCurrentMicLevel(float linear_level, float display_level);
 
 	static bool animateHead(const std::string& gesture);
 	static bool loopAnim(const std::string& gesture);

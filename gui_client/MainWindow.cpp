@@ -4745,23 +4745,84 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const AudioStreamToServerStartedMessage*>(msg.getPointer()))
 			{
-				// Sent by MicReadThread
+				// Sent by MicReadThread to indicate that streaming audio to the server has started.   Also sent periodically during streaming as well.
 
 				const AudioStreamToServerStartedMessage* m = static_cast<const AudioStreamToServerStartedMessage*>(msg.getPointer());
 
 				// Make AudioStreamToServerStarted packet and enqueue to send
 				MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
 				scratch_packet.writeUInt32(m->sampling_rate);
+				scratch_packet.writeUInt32(m->flags);
+				scratch_packet.writeUInt32(m->stream_id);
+
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
+			}
+			else if(dynamic_cast<const AudioStreamToServerEndedMessage*>(msg.getPointer()))
+			{
+				// Sent by MicReadThread to indicate that streaming audio to the server has ended.
+
+				// Make AudioStreamToServerEnded packet and enqueue to send
+				MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerEnded);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 			else if(dynamic_cast<const RemoteClientAudioStreamToServerStarted*>(msg.getPointer()))
 			{
-				// Sent by ClientThread after receiving message from server.
+				// Sent by ClientThread to this MainWindow after receiving AudioStreamToServerStarted message from server.
+				// Indicates a client has started streaming audio to the server.
+				// Create an audio source to play spatial audio from the avatar, if there isn't one already.
 
 				const RemoteClientAudioStreamToServerStarted* m = static_cast<const RemoteClientAudioStreamToServerStarted*>(msg.getPointer());
 
-				conPrint("Received RemoteClientAudioStreamToServerStarted, avatar_uid: " + m->avatar_uid.toString() + ", sampling_rate: " + toString(m->sampling_rate));
+				if(m->flags == 0)
+					conPrint("Received RemoteClientAudioStreamToServerStarted, avatar_uid: " + m->avatar_uid.toString() + ", sampling_rate: " + toString(m->sampling_rate) + ", flags: " + toString(m->flags) + ", stream_id: " + toString(m->stream_id));
+
+				if((m->sampling_rate == 8000) || (m->sampling_rate == 12000) || (m->sampling_rate == 16000) || (m->sampling_rate == 24000) || (m->sampling_rate == 48000)) // Sampling rates Opus encoder supports
+				{
+					const UID avatar_uid = m->avatar_uid;
+					if(world_state.nonNull())
+					{
+						Lock lock(this->world_state->mutex);
+
+						auto res = this->world_state->avatars.find(m->avatar_uid);
+						if(res != this->world_state->avatars.end())
+						{
+							Avatar* avatar = res->second.getPointer();
+
+							if(avatar->audio_source.isNull() && !avatar->isOurAvatar())
+							{
+								avatar->audio_stream_sampling_rate = m->sampling_rate;
+								avatar->audio_stream_id = m->stream_id;
+
+								// Add audio source for voice chat
+								avatar->audio_source = new glare::AudioSource();
+								avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
+								avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+
+								audio_engine.addSource(avatar->audio_source);
+
+								world_state->avatars_changed = 1; // Inform ClientUDPHandlerThread
+
+								if(avatar->speaker_gl_ob.isNull())
+								{
+									avatar->speaker_gl_ob = makeSpeakerGLObject();
+									ui->glWidget->opengl_engine->addObject(avatar->speaker_gl_ob); // Add to 3d engine
+								}
+							}
+						}
+					}
+				}
+				else
+					conPrint("Invalid sampling rate, ignoring RemoteClientAudioStreamToServerStarted message");
+			}
+			else if(dynamic_cast<const RemoteClientAudioStreamToServerEnded*>(msg.getPointer()))
+			{
+				// Sent by ClientThread to this MainWindow after receiving AudioStreamToServerEnded message from server.
+				// Indicates a client has finished streaming audio to the server.
+
+				const RemoteClientAudioStreamToServerEnded* m = static_cast<const RemoteClientAudioStreamToServerEnded*>(msg.getPointer());
+
+				conPrint("Received RemoteClientAudioStreamToServerEnded, avatar_uid: " + m->avatar_uid.toString());
 
 				const UID avatar_uid = m->avatar_uid;
 				if(world_state.nonNull())
@@ -4773,18 +4834,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						Avatar* avatar = res->second.getPointer();
 
-						if(avatar->audio_source.isNull() && !avatar->isOurAvatar())
+						// Remove audio source for voice chat, if it exists
+						if(avatar->audio_source.nonNull() && !avatar->isOurAvatar())
 						{
-							avatar->audio_stream_sampling_rate = m->sampling_rate;
-
-							// Add audio source for voice chat
-							avatar->audio_source = new glare::AudioSource();
-							avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
-							avatar->audio_source->pos = avatar->pos.toVec4fPoint();
-
-							audio_engine.addSource(avatar->audio_source);
+							audio_engine.removeSource(avatar->audio_source);
+							avatar->audio_source = NULL;
 
 							world_state->avatars_changed = 1; // Inform ClientUDPHandlerThread
+						}
+
+						// Remove speaker icon by nametag.
+						if(avatar->speaker_gl_ob.nonNull())
+						{
+							ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
+							avatar->speaker_gl_ob = NULL;
 						}
 					}
 				}
@@ -5855,8 +5918,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					avatar->graphics.destroy(*ui->glWidget->opengl_engine);
 
 					// Remove nametag OpenGL object
-					if(avatar->opengl_engine_nametag_ob.nonNull())
-						ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+					if(avatar->nametag_gl_ob.nonNull())
+						ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
+					avatar->nametag_gl_ob = NULL;
+					if(avatar->speaker_gl_ob.nonNull())
+						ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
+					avatar->speaker_gl_ob = NULL;
 
 					// Remove avatar from avatar map
 					auto old_avatar_iterator = it;
@@ -5900,8 +5967,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// Remove any existing model and nametag
 						avatar->graphics.destroy(*ui->glWidget->opengl_engine);
 						
-						if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
-							ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+						if(avatar->nametag_gl_ob.nonNull()) // Remove nametag ob
+							ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
+						avatar->nametag_gl_ob = NULL;
+						if(avatar->speaker_gl_ob.nonNull())
+							ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
+						avatar->speaker_gl_ob = NULL;
 
 						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
 
@@ -5910,12 +5981,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(!our_avatar)
 						{
 							// Add nametag object for avatar
-							avatar->opengl_engine_nametag_ob = makeNameTagGLObject(avatar->name);
+							avatar->nametag_gl_ob = makeNameTagGLObject(avatar->name);
 
 							// Set transform to be above avatar.  This transform will be updated later.
-							avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
+							avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
 
-							ui->glWidget->opengl_engine->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
+							ui->glWidget->opengl_engine->addObject(avatar->nametag_gl_ob); // Add to 3d engine
 
 							// Play entry teleport sound
 							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
@@ -6156,7 +6227,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					
 					// Update nametag transform also
-					if(avatar->opengl_engine_nametag_ob.nonNull())
+					if(avatar->nametag_gl_ob.nonNull())
 					{
 						// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
 						Vec4f use_nametag_pos = pos.toVec4fPoint();
@@ -6199,11 +6270,44 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
 
 						// Rotate around z-axis, then translate to just above the avatar's head.
-						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
-							rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
+						avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
+							rot_matrix * Matrix4f::translationMatrix(-ws_width/2, 0.f, 0.f) * Matrix4f::scaleMatrix(ws_width, 1, ws_height);
 
-						assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
-						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
+						assert(isFinite(avatar->nametag_gl_ob->ob_to_world_matrix.e[0]));
+						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->nametag_gl_ob); // Update transform in 3d engine
+
+						// Set speaker icon transform and colour
+						if(avatar->speaker_gl_ob.nonNull())
+						{
+							const float vol_padding_frac = 0.f;
+							const float vol_h = ws_height * (1 - vol_padding_frac * 2);
+							const float vol_padding = ws_height * vol_padding_frac;
+							avatar->speaker_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
+								rot_matrix * Matrix4f::translationMatrix(ws_width/2 + 0.05f, 0.f, vol_padding) * Matrix4f::scaleMatrix(vol_h, 1, vol_h);
+
+							ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->speaker_gl_ob); // Update transform in 3d engine
+
+							if(avatar->audio_source.nonNull())
+							{
+								const float a_0 = 1.0e-2f;
+								const float d = 0.5f * std::log10(avatar->audio_source->smoothed_cur_level / a_0);
+								const float display_level = myClamp(d, 0.f, 1.f);
+
+								// Show a white/grey icon that changes to green when the user is speaking, and changes to red if the amplitude gets too close to 1.
+								const Colour3f default_col = toLinearSRGB(Colour3f(0.8f));
+								const Colour3f green       = toLinearSRGB(Colour3f(0, 54.5f/100, 8.6f/100));
+								const Colour3f red         = toLinearSRGB(Colour3f(78.7f / 100, 0, 0));
+
+								const Colour3f col = Maths::uncheckedLerp(
+									Maths::uncheckedLerp(default_col, green, display_level),
+									red,
+									Maths::smoothStep(0.97f, 1.f, avatar->audio_source->smoothed_cur_level)
+								);
+
+								avatar->speaker_gl_ob->materials[0].albedo_linear_rgb = col;
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(*avatar->speaker_gl_ob);
+							}
+						}
 					}
 
 					// Update avatar audio source position
@@ -6909,7 +7013,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		time_since_update_packet_sent.reset();
 	}
 
-	gesture_ui.setCurrentMicLevel(mic_read_status.cur_level);
+	{
+		// Show a decibel level: http://msp.ucsd.edu/techniques/v0.08/book-html/node6.html
+		// cur_level = 0.01 gives log_10(0.01 / 0.01) = 0.
+		// cur_level = 1 gives log_10(1 / 0.01) = 2.  We want to map this to 1 so multiply by 0.5.
+		const float a_0 = 1.0e-2f;
+		const float d = 0.5f * std::log10(mic_read_status.cur_level / a_0);
+		const float display_level = myClamp(d, 0.f, 1.f);
+		gesture_ui.setCurrentMicLevel(mic_read_status.cur_level, display_level);
+	}
 
 	last_timerEvent_CPU_work_elapsed = time_since_last_timer_ev.elapsed();
 
@@ -8697,8 +8809,12 @@ void MainWindow::on_actionThird_Person_Camera_triggered()
 				avatar->graphics.destroy(*ui->glWidget->opengl_engine);
 
 				// Remove nametag OpenGL object
-				if(avatar->opengl_engine_nametag_ob.nonNull())
-					ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+				if(avatar->nametag_gl_ob.nonNull())
+					ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
+				avatar->nametag_gl_ob = NULL;
+				if(avatar->speaker_gl_ob.nonNull())
+					ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
+				avatar->speaker_gl_ob = NULL;
 			}
 		}
 
@@ -10432,8 +10548,12 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 			avatar->entered_vehicle = NULL;
 
-			if(avatar->opengl_engine_nametag_ob.nonNull())
-				ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+			if(avatar->nametag_gl_ob.nonNull())
+				ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
+			avatar->nametag_gl_ob = NULL;
+			if(avatar->speaker_gl_ob.nonNull())
+				ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
+			avatar->speaker_gl_ob = NULL;
 
 			avatar->graphics.destroy(*ui->glWidget->opengl_engine);
 		}
@@ -12557,7 +12677,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	system_font.setPointSize(48);
 
 	QImage image(W, H, QImage::Format_RGB888);
-	image.fill(QColor(230, 230, 230));
+	image.fill(QColor(255, 255, 255));
 	QPainter painter(&image);
 	painter.setPen(QPen(QColor(0, 0, 0)));
 	painter.setFont(system_font);
@@ -12573,6 +12693,18 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
 	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map);
+	return gl_ob;
+}
+
+
+GLObjectRef MainWindow::makeSpeakerGLObject()
+{
+	GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
+	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+	gl_ob->materials.resize(1);
+	gl_ob->materials[0].fresnel_scale = 0.1f;
+	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));//Colour3f(230 / 255.f));
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/buttons/vol_icon.png");
 	return gl_ob;
 }
 
