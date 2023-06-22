@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
+#include "GoToPositionDialog.h"
 #include "UserDetailsWidget.h"
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
@@ -153,7 +154,6 @@ Copyright Glare Technologies Limited 2020 -
 #endif
 #include <OpenGLEngineTests.h>
 #include "Scripting.h"
-#include "GoToPositionDialog.h"
 #include "HoverCarPhysics.h"
 #include "BikePhysics.h"
 
@@ -4779,7 +4779,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if((m->sampling_rate == 8000) || (m->sampling_rate == 12000) || (m->sampling_rate == 16000) || (m->sampling_rate == 24000) || (m->sampling_rate == 48000)) // Sampling rates Opus encoder supports
 				{
-					const UID avatar_uid = m->avatar_uid;
 					if(world_state.nonNull())
 					{
 						Lock lock(this->world_state->mutex);
@@ -4824,7 +4823,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				conPrint("Received RemoteClientAudioStreamToServerEnded, avatar_uid: " + m->avatar_uid.toString());
 
-				const UID avatar_uid = m->avatar_uid;
 				if(world_state.nonNull())
 				{
 					Lock lock(this->world_state->mutex);
