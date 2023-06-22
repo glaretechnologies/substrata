@@ -455,6 +455,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUI.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUI.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIImage.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIImage.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.cpp 
