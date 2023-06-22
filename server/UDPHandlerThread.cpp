@@ -45,7 +45,7 @@ void UDPHandlerThread::doRun()
 			int sender_port;
 			const size_t packet_len = udp_socket->readPacket(packet_buf.data(), (int)packet_buf.size(), sender_ip_addr, sender_port);
 
-			//conPrint("UDPHandlerThread: Received packet of length " + toString(packet_len) + " from " + sender_ip_addr.toString() + ", port " + toString(sender_port));
+			// conPrint("UDPHandlerThread: Received packet of length " + toString(packet_len) + " from " + sender_ip_addr.toString() + ", port " + toString(sender_port));
 
 			if(server->connected_clients_changed != 0)
 			{
@@ -66,7 +66,7 @@ void UDPHandlerThread::doRun()
 			// Broadcast packet to clients
 			for(size_t i=0; i<connected_clients.size(); ++i)
 			{
-				//conPrint("Sending packet to " + connected_clients[i].ip_addr.toString() + ", port " + toString(connected_clients[i].client_UDP_port) + " ...");
+				// conPrint("UDPHandlerThread: Sending packet to " + connected_clients[i].ip_addr.toString() + ", port " + toString(connected_clients[i].client_UDP_port) + " ...");
 				udp_socket->sendPacket(packet_buf.data(), packet_len, connected_clients[i].ip_addr, connected_clients[i].client_UDP_port);
 			}
 		}
@@ -81,4 +81,6 @@ void UDPHandlerThread::doRun()
 	}
 
 	udp_socket = NULL;
+
+	conPrint("UDPHandlerThread: terminating.");
 }
