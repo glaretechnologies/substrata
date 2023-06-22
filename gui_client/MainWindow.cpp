@@ -6256,11 +6256,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const Vec4f axis_i = crossProduct(axis_j, axis_k);
 						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
 
-						// Tex width and height from makeNameTagGLObject():
-						const int W = 256;
-						const int H = 80;
-						const float ws_width = 0.4f;
-						const float ws_height = ws_width * H / W;
+						const float ws_height = 0.2f; // world space height of nametag in metres
+						const float ws_width = ws_height * avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(0) / avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(2);
+
+						const float total_w = ws_width + (avatar->speaker_gl_ob.nonNull() ? (0.05f + ws_height) : 0.f); // Width of nametag and speaker icon (and spacing between them).
 
 						// If avatar is flying (e.g playing floating anim) move nametag up so it isn't blocked by the avatar head, which is higher in floating anim.
 						const float flying_z_offset = ((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) != 0) ? 0.3f : 0.f;
@@ -6270,8 +6269,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
 
 						// Rotate around z-axis, then translate to just above the avatar's head.
-						avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
-							rot_matrix * Matrix4f::translationMatrix(-ws_width/2, 0.f, 0.f) * Matrix4f::scaleMatrix(ws_width, 1, ws_height);
+						avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.45f + avatar->nametag_z_offset, 0)) *
+							rot_matrix * Matrix4f::translationMatrix(-total_w/2, 0.f, 0.f) * Matrix4f::uniformScaleMatrix(ws_width);
 
 						assert(isFinite(avatar->nametag_gl_ob->ob_to_world_matrix.e[0]));
 						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->nametag_gl_ob); // Update transform in 3d engine
@@ -6282,8 +6281,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							const float vol_padding_frac = 0.f;
 							const float vol_h = ws_height * (1 - vol_padding_frac * 2);
 							const float vol_padding = ws_height * vol_padding_frac;
-							avatar->speaker_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
-								rot_matrix * Matrix4f::translationMatrix(ws_width/2 + 0.05f, 0.f, vol_padding) * Matrix4f::scaleMatrix(vol_h, 1, vol_h);
+							avatar->speaker_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.45f + avatar->nametag_z_offset, 0)) *
+								rot_matrix * Matrix4f::translationMatrix(-total_w/2 + ws_width + 0.05f, 0.f, vol_padding) * Matrix4f::scaleMatrix(vol_h, 1, vol_h);
 
 							ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->speaker_gl_ob); // Update transform in 3d engine
 
@@ -12662,37 +12661,42 @@ void MainWindow::playerMoveKeyPressed()
 
 GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 {
-	const int W = 512;
-	const int H = 160;
-
-	GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
-	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-	gl_ob->materials.resize(1);
-
-	// Make nametag texture
-
-	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
-
 	QFont system_font = QApplication::font();
 	system_font.setPointSize(48);
 
-	QImage image(W, H, QImage::Format_RGB888);
+	const QFontMetrics font_metrics(system_font);
+	const QRect rect = font_metrics.boundingRect(QtUtils::toQString(nametag));
+	
+	const int w_padding = (int)(font_metrics.height() * 0.5f);
+	const int h_padding = (int)(font_metrics.height() * 0.5f);
+
+	const int w_px = rect.width()          + w_padding * 2;
+	const int h_px = font_metrics.height() + h_padding * 2;
+
+	GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
+	const float mesh_h = (float)h_px / w_px;
+	gl_ob->mesh_data = MeshPrimitiveBuilding::makeRoundedCornerRect(*ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,0,1,0), /*w=*/1.f, /*h=*/mesh_h, /*corner radius=*/mesh_h / 4.f, /*tris_per_corner=*/8);
+	gl_ob->materials.resize(1);
+
+	// Make nametag texture
+	ImageMapUInt8Ref map = new ImageMapUInt8(w_px, h_px, 3);
+	
+	QImage image(w_px, h_px, QImage::Format_RGB888);
 	image.fill(QColor(255, 255, 255));
 	QPainter painter(&image);
-	painter.setPen(QPen(QColor(0, 0, 0)));
+	painter.setPen(QPen(QColor(150, 150, 150)));
 	painter.setFont(system_font);
 	painter.drawText(image.rect(), Qt::AlignCenter, QtUtils::toQString(nametag));
 
-	// Copy to map
-	for(int y=0; y<H; ++y)
-	{
-		const QRgb* line = (const QRgb*)image.scanLine(y);
-		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
-	}
+	// Copy to the ImageMapUInt8 image
+	for(int y=0; y<h_px; ++y)
+		std::memcpy(map->getPixel(0, h_px - y - 1), image.scanLine(y), 3*w_px);
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map);
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map, 
+		OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat, /*allow_compression=*/true);  // NOTE: currently we don't support mip-maps for uncompressed textures, which we need.  Turn compression off once this is supported.
+	gl_ob->materials[0].cast_shadows = false;
 	return gl_ob;
 }
 
@@ -12700,11 +12704,12 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 GLObjectRef MainWindow::makeSpeakerGLObject()
 {
 	GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
-	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+	gl_ob->mesh_data = MeshPrimitiveBuilding::makeRoundedCornerRect(*ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,0,1,0), /*w=*/1.f, /*h=*/1.f, /*corner radius=*/1.f / 4.f, /*tris_per_corner=*/8);
 	gl_ob->materials.resize(1);
 	gl_ob->materials[0].fresnel_scale = 0.1f;
-	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));//Colour3f(230 / 255.f));
+	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
 	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/buttons/vol_icon.png");
+	gl_ob->materials[0].cast_shadows = false;
 	return gl_ob;
 }
 
@@ -12735,7 +12740,7 @@ OpenGLTextureRef MainWindow::makeToolTipTexture(const std::string& tooltip_text)
 	// Copy to map
 	for(int y=0; y<H; ++y)
 	{
-		const QRgb* line = (const QRgb*)image.scanLine(y);
+		const uchar* line = image.scanLine(y);
 		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
 	}
 
