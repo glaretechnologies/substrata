@@ -82,7 +82,10 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 				if(bytes_per_sample == 0)
 					throw glare::Exception("Invalid bytes per sample");
 
-				// Read actual data, convert to float and resample to target sample rate
+				if(wav_num_channels > 2)
+					throw glare::Exception("Unsupported num channels: " + toString(wav_num_channels));
+
+				// Read actual data, convert to mono float.
 				const uint32 num_samples = chunk_size / bytes_per_sample;
 
 				const uint32 MAX_NUM_SAMPLES = 1 << 27; // ~536 MB

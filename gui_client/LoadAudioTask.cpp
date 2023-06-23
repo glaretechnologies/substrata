@@ -36,7 +36,7 @@ void LoadAudioTask::run(size_t thread_index)
 		
 		if(sound_file->num_channels == 1)
 		{
-			msg->audio_buffer = sound_file->buf;
+			msg->sound_file = sound_file;
 		}
 		else if(sound_file->num_channels == 2)
 		{
@@ -45,14 +45,17 @@ void LoadAudioTask::run(size_t thread_index)
 			if(sound_file->buf->buffer.size() != num_mono_samples * 2)
 				throw glare::Exception("invalid number of samples for stereo file (not even)");
 
-			glare::AudioBufferRef buffer = new glare::AudioBuffer();
-			msg->audio_buffer = buffer;
-			buffer->buffer.resize(num_mono_samples);
+			glare::SoundFileRef mono_sound_file = new glare::SoundFile();
+			mono_sound_file->num_channels = 1;
+			mono_sound_file->sample_rate = sound_file->sample_rate;
+			mono_sound_file->buf->buffer.resize(num_mono_samples);
 
 			const float* const src = sound_file->buf->buffer.data();
-			float* const dst = buffer->buffer.data();
+			float* const dst = mono_sound_file->buf->buffer.data();
 			for(size_t i=0; i<num_mono_samples; ++i)
 				dst[i] = (src[i*2 + 0] + src[i*2 + 1]) * 0.5f; // Take average
+
+			msg->sound_file = mono_sound_file;
 		}
 		else
 			throw glare::Exception("Unhandled num channels " + toString(sound_file->num_channels));

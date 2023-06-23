@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
+#include "AudioResampler.h"
 #include "../maths/vec3.h"
 #include "../maths/vec2.h"
 #include "../maths/matrix3.h"
@@ -39,6 +40,20 @@ struct AudioBuffer : public ThreadSafeRefCounted
 };
 typedef Reference<AudioBuffer> AudioBufferRef;
 typedef VRef<AudioBuffer> AudioBufferVRef;
+
+
+struct SoundFile : public ThreadSafeRefCounted
+{
+	SoundFile() : buf(new AudioBuffer()) {}
+
+	float maxVal() const;
+	float minVal() const;
+
+	AudioBufferVRef buf;
+	uint32 num_channels;
+	uint32 sample_rate; // in hz
+};
+typedef Reference<SoundFile> SoundFileRef;
 
 
 struct MixSource
@@ -83,6 +98,8 @@ public:
 	void updateDopplerEffectFactor(const Vec4f& source_linear_vel, const Vec4f& listener_linear_vel, const Vec4f& listener_pos);
 
 	int resonance_handle; // Set in AudioEngine::addSource().
+
+	int sampling_rate;
 	
 	// Audio data can either be in buffer or shared_buffer.
 	CircularBuffer<float> buffer; // Read from front, enqueue to back.  Used for type SourceType_Streaming only.
@@ -116,6 +133,8 @@ public:
 	std::string debugname;
 
 	float smoothed_cur_level;
+
+	AudioResampler resampler;
 };
 typedef Reference<AudioSource> AudioSourceRef;
 
@@ -131,20 +150,6 @@ struct AudioCallbackData
 
 	std::vector<float> temp_buf;
 };
-
-
-struct SoundFile : public ThreadSafeRefCounted
-{
-	SoundFile() : buf(new AudioBuffer()) {}
-
-	float maxVal() const;
-	float minVal() const;
-
-	AudioBufferVRef buf;
-	uint32 num_channels;
-	uint32 sample_rate; // in hz
-};
-typedef Reference<SoundFile> SoundFileRef;
 
 
 /*=====================================================================

@@ -17,7 +17,7 @@ class AudioLoadedThreadMessage : public ThreadMessage
 public:
 	std::string audio_source_url;
 
-	glare::AudioBufferRef audio_buffer;
+	glare::SoundFileRef sound_file;
 };
 
 

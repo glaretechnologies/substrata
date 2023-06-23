@@ -25,6 +25,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <Functiondiscoverykeys_devpkey.h>
 #include <mfapi.h>
 #endif
+#include "../audio/AudioResampler.h"
 #include "../rtaudio/RtAudio.h"
 #include <opus.h>
 
@@ -337,7 +338,9 @@ void MicReadThread::doRun()
 		std::vector<float> pcm_buffer;
 		const size_t max_pcm_buffer_size = 48000;
 
-		std::vector<float> resampled_pcm_buffer;
+		js::Vector<float, 16> resampled_pcm_buffer;
+		glare::AudioResampler resampler;
+		js::Vector<float, 16> temp_resampling_buf;
 
 		std::vector<uint8> packet;
 
@@ -473,46 +476,52 @@ void MicReadThread::doRun()
 
 				// Set current level in mic_read_status (used for showing volume indicator in UI)
 				{
-					
 					Lock lock(mic_read_status->mutex);
 					const float smoothed_max = myMax(max_val, 0.95f * mic_read_status->cur_level);
 					mic_read_status->cur_level = smoothed_max;
 				}
 
-
 				// "To encode a frame, opus_encode() or opus_encode_float() must be called with exactly one frame (2.5, 5, 10, 20, 40 or 60 ms) of audio data:"
 				// We will use 10ms frames.
-				const size_t opus_samples_per_frame    = opus_sampling_rate    / 100;
-				const size_t capture_samples_per_frame = capture_sampling_rate / 100; // Number of samples at the capture sample rate we need for a single Opus 10ms frame.
-
-				// Encode the PCM data with Opus.  Writes to encoded_data.
-				size_t cur_i = 0;
-				while((pcm_buffer.size() - cur_i) >= capture_samples_per_frame) // While there are at least capture_samples_per_frame items in pcm_buffer:
+				const size_t opus_samples_per_frame = opus_sampling_rate / 100;
+				
+				// While there is enough data in pcm_buffer, keep looping doing the following:
+				// Resample to Opus sample rate if needed, feed frame to Opus to encode, then send UDP packet with encoded data to server.
+				size_t cur_i = 0; // Samples [0, cur_i) in pcm_buffer have been processed already.
+				while(1)
 				{
+					// Work out how many source samples we need for passing into Opus
+					size_t capture_samples_for_frame;
+					if(opus_sampling_rate == capture_sampling_rate) // If we don't need to resample (capture sample rate is same as Opus encoding rate):
+						capture_samples_for_frame = opus_samples_per_frame;
+					else
+						capture_samples_for_frame = resampler.numSrcSamplesNeeded(opus_samples_per_frame);
+
+					const size_t remaining_in_buffer = pcm_buffer.size() - cur_i;
+					if(remaining_in_buffer < capture_samples_for_frame) // If not enough samples left in pcm_buffer, break
+						break;
+
 					if(opus_sampling_rate != capture_sampling_rate)
 					{
 						// Resample
-						resampled_pcm_buffer.resize(opus_samples_per_frame);
-						
-						const float ratio = (float)capture_sampling_rate / (float)opus_sampling_rate;
+						resampled_pcm_buffer.resizeNoCopy(opus_samples_per_frame);
 
-						runtimeCheck(cur_i + capture_samples_per_frame - 1 < pcm_buffer.size());
-						for(int i=0; i<opus_samples_per_frame; ++i)
-							resampled_pcm_buffer[i] = pcm_buffer[cur_i + myClamp((int)(i * ratio), /*lower bound=*/0, /*upper bound=*/(int)capture_samples_per_frame - 1)];
+						resampler.resample(/*dest samples=*/resampled_pcm_buffer.data(), /*dest samples size=*/opus_samples_per_frame, /*src samples=*/&pcm_buffer[cur_i], /*src samples size=*/capture_samples_for_frame, temp_resampling_buf);
 					}
 
+					// Encode the PCM data with Opus.  Writes to encoded_data.
 					const opus_int32 encoded_B = opus_encode_float(
 						opus_encoder,
-						(opus_sampling_rate != capture_sampling_rate) ? resampled_pcm_buffer.data() : &pcm_buffer[cur_i],
+						(opus_sampling_rate == capture_sampling_rate) ? &pcm_buffer[cur_i] : resampled_pcm_buffer.data(),
 						(int)opus_samples_per_frame, // frame size (in samples)
-						encoded_data.data(), // data
+						encoded_data.data(), // output data
 						(opus_int32)encoded_data.size() // max_data_bytes
 					);
 					//printVar(encoded_B);
 					if(encoded_B < 0)
 						throw glare::Exception("opus_encode failed: " + toString(encoded_B));
 
-					cur_i += capture_samples_per_frame;
+					cur_i += capture_samples_for_frame;
 
 					// Form packet
 					const size_t header_size_B = sizeof(uint32) * 3;

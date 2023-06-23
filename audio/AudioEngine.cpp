@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/PlatformUtils.h>
 #include <utils/MemMappedFile.h>
 #include <utils/FileInStream.h>
+#include <utils/RuntimeCheck.h>
 
 
 namespace glare
@@ -25,8 +26,8 @@ namespace glare
 
 
 AudioSource::AudioSource()
-:	cur_read_i(0), type(SourceType_Looping), spatial_type(SourceSpatialType_Spatial), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
-	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1), smoothed_cur_level(0)
+:	resonance_handle(0), cur_read_i(0), type(SourceType_Looping), spatial_type(SourceSpatialType_Spatial), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
+	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1), smoothed_cur_level(0), sampling_rate(44100)
 {}
 
 
@@ -237,6 +238,13 @@ static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int
 }
 
 
+static void zeroBuffer(js::Vector<float, 16>& v)
+{
+	for(size_t i=0; i<v.size(); ++i)
+		v[i] = 0;
+}
+
+
 // Gets buffered audio data from audio sources, copies it to resonance buffers.
 // Then gets mixed data from resonance, puts on queue to rtAudioCallback.
 class ResonanceThread : public MessageableThread
@@ -247,221 +255,219 @@ public:
 	virtual void doRun() override
 	{
 		PlatformUtils::setCurrentThreadNameIfTestsEnabled("ResonanceThread");
-
-		while(die == 0)
+		
+		try
 		{
-			size_t num_samples_buffered;
+			while(die == 0)
 			{
-				Lock lock(callback_data->buffer_mutex);
-				num_samples_buffered = callback_data->buffer.size();
-			}
-
-			// 512/2 samples per buffer / 48000.0 samples/s = 0.00533 s / buffer.
-			// So we will aim for N of these buffers being queued, resulting in N * 0.00533 s latency.
-			// For N = 4 this gives 0.0213 s = 21.3 ms of latency.
-			while(num_samples_buffered < 512 * 4)
-			{
-				assert(temp_buf.size() >= frames_per_buffer * 2);
-				float* const buf = temp_buf.data();
-				bool filled_valid_buffer = false;
+				size_t num_samples_buffered;
 				{
-					Lock lock(engine->mutex);
+					Lock lock(callback_data->buffer_mutex);
+					num_samples_buffered = callback_data->buffer.size();
+				}
 
-					// Set resonance audio buffers for all audio sources
-					for(auto it = engine->audio_sources.begin(); it != engine->audio_sources.end(); )
+				// 512/2 samples per buffer / 48000.0 samples/s = 0.00533 s / buffer.
+				// So we will aim for N of these buffers being queued, resulting in N * 0.00533 s latency.
+				// For N = 4 this gives 0.0213 s = 21.3 ms of latency.
+				while(num_samples_buffered < 512 * 4)
+				{
+					bool filled_valid_buffer = false;
 					{
-						AudioSource* source = it->ptr();
-						bool remove_source = false;
+						Lock lock(engine->mutex);
 
-						if(source->type == AudioSource::SourceType_Looping)
+						// Set resonance audio buffers for all audio sources
+						for(auto it = engine->audio_sources.begin(); it != engine->audio_sources.end(); )
 						{
-							if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
-							{
-								if(source->cur_read_i + frames_per_buffer <= source->shared_buffer->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
-								{
-									const float* bufptr = &source->shared_buffer->buffer[source->cur_read_i];
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+							AudioSource* source = it->ptr();
+							bool remove_source = false;
 
-									source->cur_read_i += frames_per_buffer;
-									if(source->cur_read_i == source->shared_buffer->buffer.size()) // If reach end of buf:
-										source->cur_read_i = 0; // wrap
+							const int source_sampling_rate = source->sampling_rate;
+							const int resonance_sampling_rate = engine->getSampleRate();
+
+							size_t src_samples_needed;
+							if(source_sampling_rate == resonance_sampling_rate)
+								src_samples_needed = frames_per_buffer;
+							else
+								src_samples_needed = (int)source->resampler.numSrcSamplesNeeded(frames_per_buffer);
+
+							temp_buf.resizeNoCopy(src_samples_needed);
+
+							const float* contiguous_data_ptr = temp_buf.data(); // Pointer to a buffer of contiguous source samples.
+							// Will either point into an existing shared buffer, or at the start of temp_buf if we need to use it.
+
+							if(source->type == AudioSource::SourceType_Looping)
+							{
+								if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
+								{
+									if(source->cur_read_i + src_samples_needed <= source->shared_buffer->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
+									{
+										contiguous_data_ptr = &source->shared_buffer->buffer[source->cur_read_i];
+
+										source->cur_read_i += src_samples_needed;
+										if(source->cur_read_i == source->shared_buffer->buffer.size()) // If reached end of buf:
+											source->cur_read_i = 0; // wrap
+									}
+									else
+									{
+										// The data range we want to read from the shared buffer wraps.  So copy data to a temporary contiguous buffer first.
+										size_t cur_i = source->cur_read_i;
+
+										for(size_t i=0; i<src_samples_needed; ++i)
+										{
+											temp_buf[i] = source->shared_buffer->buffer[cur_i++];
+											if(cur_i == source->shared_buffer->buffer.size()) // If reach end of buf:
+												cur_i = 0; // wrap.  TODO: optimise: do simple copy in 2 sections.
+										}
+
+										source->cur_read_i = cur_i;
+									}
+								}
+								else // Else if we are reading from a circular buffer:
+								{
+									assert(0); // SourceType_Looping sources should only read from shared buffers.
+									zeroBuffer(temp_buf); // Just pass zeroes to resonance so as to not blow up the listener's ears.
+								}
+							}
+							else if(source->type == AudioSource::SourceType_OneShot)
+							{
+								if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
+								{
+									if(source->cur_read_i + src_samples_needed <= source->shared_buffer->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
+									{
+										contiguous_data_ptr = &source->shared_buffer->buffer[source->cur_read_i];
+										
+										source->cur_read_i += src_samples_needed;
+									}
+									else
+									{
+										// The data range we want to read from the shared buffer exceeds the shared buffer length.  Just read as much data as we can and then pad with zeroes.
+										// Copy data to a temporary contiguous buffer
+										size_t cur_i = source->cur_read_i;
+
+										for(size_t i=0; i<src_samples_needed; ++i)
+										{
+											if(cur_i < source->shared_buffer->buffer.size())
+												temp_buf[i] = source->shared_buffer->buffer[cur_i++];
+											else
+												temp_buf[i] = 0;
+										}
+										source->cur_read_i = cur_i;
+										remove_source = source->remove_on_finish && (cur_i >= source->shared_buffer->buffer.size()); // Remove the source if we reached the end of the buffer.
+									}
+								}
+								else // Else if we are reading from a circular buffer:
+								{
+									assert(0); // SourceType_OneShot sources should only read from shared buffers.
+									zeroBuffer(temp_buf); // Just pass zeroes to resonance so as to not blow up the listener's ears.
+								}
+							}
+							else if(source->type == AudioSource::SourceType_Streaming)
+							{
+								if(!source->mix_sources.empty())
+								{
+									// Mix together the audio sources, applying pitch shift factor and volume factor.
+									zeroBuffer(temp_buf);
+
+									for(size_t z=0; z<source->mix_sources.size(); ++z)
+									{
+										MixSource& mix_source = source->mix_sources[z];
+										const size_t src_buffer_size  = mix_source.soundfile->buf->buffer.size();
+										const float* const src_buffer = mix_source.soundfile->buf->buffer.data();
+
+										for(size_t i=0; i<src_samples_needed; ++i)
+										{
+											mix_source.sound_file_i += mix_source.source_delta; // Advance floating-point read index (index into source buffer)
+
+											const size_t index   = (size_t)mix_source.sound_file_i % src_buffer_size;
+											const size_t index_1 = (index + 1)                     % src_buffer_size;
+											const float frac = (float)(mix_source.sound_file_i - (size_t)mix_source.sound_file_i);
+
+											const float sample = src_buffer[index] * (1 - frac) + src_buffer[index_1] * frac;
+											temp_buf[i] += sample * mix_source.mix_factor;
+										}
+									}
 								}
 								else
 								{
-									// The data range we want to read from the shared buffer wraps.  So copy data to a temporary contiguous buffer first.
-									size_t cur_i = source->cur_read_i;
-
-									for(size_t i=0; i<frames_per_buffer; ++i)
+									if(source->buffer.size() >= src_samples_needed) // If there is sufficient data in the circular buffer:
 									{
-										buf[i] = source->shared_buffer->buffer[cur_i++];
-										if(cur_i == source->shared_buffer->buffer.size()) // If reach end of buf:
-											cur_i = 0; // TODO: optimise
+										// Copy data to temp_buf before we pop it from the source buffer.  NOTE: Could optimise by popping later, after we process the data, to avoid copying to temp_buf.
+										source->buffer.popFrontNItems(/*dest=*/temp_buf.data(), src_samples_needed);
 									}
-
-									source->cur_read_i = cur_i;
-
-									const float* bufptr = buf;
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-								}
-							}
-							else // Else if we are reading from a circular buffer:
-							{
-								assert(0); // SourceType_Looping sources should only read from shared buffers.
-
-								// Just pass zeroes to resonance so as to not blow up the listener's ears.
-								for(size_t i=0; i<frames_per_buffer; ++i)
-									buf[i] = 0;
-								const float* bufptr = buf;
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-							}
-						}
-						if(source->type == AudioSource::SourceType_OneShot)
-						{
-							if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
-							{
-								if(source->cur_read_i + frames_per_buffer <= source->shared_buffer->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
-								{
-									const float* bufptr = &source->shared_buffer->buffer[source->cur_read_i];
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-
-									source->cur_read_i += frames_per_buffer;
-								}
-								else
-								{
-									// The data range we want to read from the shared buffer exceeds the shared buffer length.  Just read as much data as we can and then pad with zeroes.
-									// Copy data to a temporary contiguous buffer
-									size_t cur_i = source->cur_read_i;
-
-									for(size_t i=0; i<frames_per_buffer; ++i)
+									else
 									{
-										if(cur_i < source->shared_buffer->buffer.size())
-											buf[i] = source->shared_buffer->buffer[cur_i++];
-										else
-											buf[i] = 0;
-									}
-
-									source->cur_read_i = cur_i;
-
-									remove_source = source->remove_on_finish && (cur_i >= source->shared_buffer->buffer.size()); // Remove the source if we reached the end of the buffer.
-
-									const float* bufptr = buf;
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-								}
-							}
-							else // Else if we are reading from a circular buffer:
-							{
-								assert(0); // SourceType_OneShot sources should only read from shared buffers.
-
-								// Just pass zeroes to resonance so as to not blow up the listener's ears.
-								for(size_t i=0; i<frames_per_buffer; ++i)
-									buf[i] = 0;
-								const float* bufptr = buf;
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-							}
-						}
-						else if(source->type == AudioSource::SourceType_Streaming)
-						{
-							if(!source->mix_sources.empty())
-							{
-								// Mix together the audio sources, applying pitch shift factor and volume factor.
-								for(size_t i=0; i<frames_per_buffer; ++i)
-									buf[i] = 0.f;
-
-								for(size_t z=0; z<source->mix_sources.size(); ++z)
-								{
-									MixSource& mix_source = source->mix_sources[z];
-									const size_t src_buffer_size  = mix_source.soundfile->buf->buffer.size();
-									const float* const src_buffer = mix_source.soundfile->buf->buffer.data();
-
-									for(size_t i=0; i<frames_per_buffer; ++i)
-									{
-										mix_source.sound_file_i += mix_source.source_delta; // Advance floating-point read index (index into source buffer)
-
-										const size_t index   = (size_t)mix_source.sound_file_i % src_buffer_size;
-										const size_t index_1 = (index + 1)                     % src_buffer_size;
-										const float frac = (float)(mix_source.sound_file_i - (size_t)mix_source.sound_file_i);
-
-										const float sample = src_buffer[index] * (1 - frac) + src_buffer[index_1] * frac;
-										buf[i] += sample * mix_source.mix_factor;
+										//conPrint("Ran out of data for streaming audio src!");
+										const size_t source_buf_size = source->buffer.size();
+										source->buffer.popFrontNItems(/*dest=*/temp_buf.data(), source_buf_size); // Copy the data that there is to temp_buf
+										for(size_t i=source_buf_size; i<src_samples_needed; ++i) // Pad the rest with zeroes.
+											temp_buf[i] = 0.f;
 									}
 								}
+							}
 
-								const float* bufptr = buf;
+							
+							runtimeCheck(contiguous_data_ptr != NULL);
+							if(source_sampling_rate == resonance_sampling_rate)
+							{
+								const float* bufptr = contiguous_data_ptr;
 								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
 							else
 							{
-								if(source->buffer.size() >= frames_per_buffer) // If there is sufficient data in the circular buffer:
-								{
-									if(source->buffer.getFirstSegmentSize() >= frames_per_buffer) // See if all the data we need is contiguous in the circular buffer (doesn't wrap)
-									{
-										// Directly copy data from the circular buffer to the resonance buffer.
-										const float* bufptr = &(*source->buffer.beginIt());
+								// Resample audio to the audio engine and Resonance sampling rate.
+								resampled_buf.resizeNoCopy(frames_per_buffer);
+								
+								source->resampler.resample(resampled_buf.data(), frames_per_buffer, contiguous_data_ptr, src_samples_needed, temp_resampling_buf);
 
-										resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-
-										source->buffer.popFrontNItems(frames_per_buffer);
-									}
-									else
-									{
-										// Copy from the circular buffer to a temporary contiguous buffer (temp_buf).
-										source->buffer.popFrontNItems(temp_buf.data(), frames_per_buffer);
-
-										const float* bufptr = temp_buf.data();
-										resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-									}
-								}
-								else
-								{
-									//conPrint("Ran out of data for streaming audio src!");
-
-									for(size_t i=0; i<frames_per_buffer; ++i)
-										temp_buf[i] = 0.f;
-
-									const float* bufptr = temp_buf.data();
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-								}
+								const float* bufptr = resampled_buf.data();
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
+
+
+							if(remove_source)
+							{
+								resonance->DestroySource(source->resonance_handle);
+								it = engine->audio_sources.erase(it); // Remove currently iterated to source, advance iterator.
+							}
+							else
+								++it;
 						}
 
-						if(remove_source)
-						{
-							resonance->DestroySource(source->resonance_handle);
-							it = engine->audio_sources.erase(it); // Remove currently iterated to source, advance iterator.
-						}
-						else
-							++it;
+						// Get mixed/filtered data from Resonance.
+						temp_buf.resizeNoCopy(frames_per_buffer * 2); // We will receive stereo data
+						filled_valid_buffer = resonance->FillInterleavedOutputBuffer(
+							2, // num channels
+							frames_per_buffer, // num frames
+							temp_buf.data()
+						);
+
+						buffers_processed++;
+
+						//for(size_t i=0; i<10; ++i)
+						//	conPrint("buf[" + toString(i) + "]: " + toString(buf[i]));
+						if(buffers_processed * frames_per_buffer < 48000) // Ignore first second or so of sound because resonance seems to fill it with garbage.
+							filled_valid_buffer = false;
+
+						//printVar(filled_valid_buffer);
+						if(!filled_valid_buffer)
+							break; // break while loop
+					} // End engine->mutex scope
+
+					// Push mixed/filtered data onto back of buffer that feeds to rtAudioCallback.
+					if(filled_valid_buffer)
+					{
+						Lock lock(callback_data->buffer_mutex);
+						callback_data->buffer.pushBackNItems(temp_buf.data(), frames_per_buffer * 2);
+						num_samples_buffered = callback_data->buffer.size();
 					}
-
-					// Get mixed/filtered data from Resonance.
-					filled_valid_buffer = resonance->FillInterleavedOutputBuffer(
-						2, // num channels
-						frames_per_buffer, // num frames
-						buf
-					);
-
-					buffers_processed++;
-
-					//for(size_t i=0; i<10; ++i)
-					//	conPrint("buf[" + toString(i) + "]: " + toString(buf[i]));
-					if(buffers_processed * frames_per_buffer < 48000) // Ignore first second or so of sound because resonance seems to fill it with garbage.
-						filled_valid_buffer = false;
-
-					//printVar(filled_valid_buffer);
-					if(!filled_valid_buffer)
-						break; // break while loop
-				} // End engine->mutex scope
-
-				// Push mixed/filtered data onto back of buffer that feeds to rtAudioCallback.
-				if(filled_valid_buffer)
-				{
-					Lock lock(callback_data->buffer_mutex);
-					callback_data->buffer.pushBackNItems(buf, frames_per_buffer * 2);
-					num_samples_buffered = callback_data->buffer.size();
 				}
-			}
 
-			PlatformUtils::Sleep(1);
+				PlatformUtils::Sleep(1);
+			}
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("ResonanceThread excep: " + e.what());
 		}
 	}
 
@@ -478,7 +484,9 @@ public:
 	uint64 frames_per_buffer; // e.g. 256, with 2 samples per frame = 512 samples.
 	uint64 buffers_processed;
 
-	std::vector<float> temp_buf;
+	js::Vector<float, 16> temp_buf;
+	js::Vector<float, 16> temp_resampling_buf;
+	js::Vector<float, 16> resampled_buf;
 };
 
 
@@ -679,6 +687,9 @@ void AudioEngine::addSource(AudioSourceRef source)
 	if(!initialised)
 		return;
 
+	if(source->sampling_rate < 8000 || source->sampling_rate > 48000)
+		throw glare::Exception("Unsupported sampling rate for audio source: " + toString(source->sampling_rate));
+
 	if(source->spatial_type == AudioSource::SourceSpatialType_Spatial)
 	{
 		source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
@@ -694,6 +705,8 @@ void AudioEngine::addSource(AudioSourceRef source)
 		source->resonance_handle = resonance->CreateStereoSource(/*num channels=*/2);
 		resonance->SetSourceVolume(source->resonance_handle, source->volume * source->getMuteVolumeFactor());
 	}
+
+	source->resampler.init(/*src rate=*/source->sampling_rate, this->sample_rate);
 
 	Lock lock(mutex);
 	audio_sources.insert(source);
@@ -826,6 +839,7 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 		// Make a new audio source
 		AudioSourceRef source = new AudioSource();
 		source->type = AudioSource::SourceType_OneShot;
+		source->sampling_rate = sound->sample_rate;
 		source->shared_buffer = sound->buf;
 		source->remove_on_finish = true;
 		source->pos = pos;
