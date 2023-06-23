@@ -82,7 +82,6 @@ void ClientUDPHandlerThread::doRun()
 
 		std::vector<uint8> packet_buf(4096);
 		std::vector<float> pcm_buffer(480);
-		std::vector<float> resampled_pcm_buffer(480);
 
 		while(die == 0)
 		{
@@ -142,8 +141,6 @@ void ClientUDPHandlerThread::doRun()
 						avatar_stream_info[(uint32)av->uid.value()] = AvatarVoiceStreamInfo({av->audio_source, opus_decoder, sampling_rate, /*stream_id=*/av->audio_stream_id, /*next_seq_num_expected=*/0});
 					}
 				}
-
-				
 
 				for(auto it = avatar_stream_info.begin(); it != avatar_stream_info.end();)
 				{
@@ -228,58 +225,27 @@ void ClientUDPHandlerThread::doRun()
 									assert(rcvd_seq_num == next_seq_num_expected);
 									*/
 
-									// Decode opus packet
+									// Decode opus packet into pcm_buffer
 									const size_t packet_header_size_B = 12;
 									const size_t opus_packet_len = packet_len - packet_header_size_B;
 									const int num_samples_decoded = opus_decode_float(stream_info->opus_decoder, packet_buf.data() + packet_header_size_B, (int32)opus_packet_len, pcm_buffer.data(), (int)pcm_buffer.size(), 
 										0 // decode_fec
 									);
-
-									// Get max abs value in decoded buffer
-									float max_val = 0;
-									for(int i=0; i<num_samples_decoded; ++i)
-										max_val = myMax(max_val, std::fabs(pcm_buffer[i]));
-									//printVar(max_val);
-
-									// We are using 10ms frames, so expect sampling_rate * 0.01 samples.
-									if(num_samples_decoded != (int)stream_info->sampling_rate / 100)
-										conPrint("Unexpected number of samples");
+									if(num_samples_decoded < 0)
+										conPrint("Opus decoding failed: " + toString(num_samples_decoded));
 									else
 									{
-										const float* final_pcm_data;
-										if(stream_info->sampling_rate != 48000)
-										{
-											// conPrint("Resampling");
-
-											// Resample to 48000 hz.  TODO: use better resampling?
-
-											runtimeCheck((stream_info->sampling_rate == 8000) || (stream_info->sampling_rate == 12000) || (stream_info->sampling_rate == 16000) || (stream_info->sampling_rate == 24000)); // Sampling rates Opus encoder supports (apart from 48000)
-
-											const uint32 ratio = 48000 / stream_info->sampling_rate;
-											runtimeCheck(ratio == 2 || ratio == 3 || ratio == 4 || ratio == 6);
-
-											assert(resampled_pcm_buffer.size() == 480);
-											runtimeCheck((480 - 1) / ratio < pcm_buffer.size()); // Check reads are in-bounds
-											runtimeCheck((480 - 1) / ratio < (uint32)num_samples_decoded);
-											for(uint32 i=0; i<480; ++i)
-												resampled_pcm_buffer[i] = pcm_buffer[i / ratio];
-
-											final_pcm_data = resampled_pcm_buffer.data();
-										}
-										else // else stream_info->sampling_rate == 48000, so num_samples_decoded = 48000 / 100 = 480.
-										{
-											assert(pcm_buffer.size() == 480);
-											runtimeCheck(num_samples_decoded == 480);
-											final_pcm_data = pcm_buffer.data();
-										}
-
-
-										if(num_samples_decoded < 0)
-										{
-											conPrint("Opus decoding failed: " + toString(num_samples_decoded));
-										}
+										// We are using 10ms frames, so expect sampling_rate * 0.01 samples.
+										if(num_samples_decoded != (int)stream_info->sampling_rate / 100)
+											conPrint("Unexpected number of samples");
 										else
 										{
+											// Get max abs value in decoded buffer
+											float max_val = 0;
+											for(int i=0; i<num_samples_decoded; ++i)
+												max_val = myMax(max_val, std::fabs(pcm_buffer[i]));
+											//printVar(max_val);
+
 											// Append to audio source buffer
 											Lock lock(audio_engine->mutex);
 
@@ -293,7 +259,7 @@ void ClientUDPHandlerThread::doRun()
 												stream_info->avatar_audio_source->buffer.popFrontNItems(num_samples_to_remove);
 											}
 
-											stream_info->avatar_audio_source->buffer.pushBackNItems(final_pcm_data, 480);
+											stream_info->avatar_audio_source->buffer.pushBackNItems(pcm_buffer.data(), num_samples_decoded);
 
 											stream_info->avatar_audio_source->smoothed_cur_level = myMax(stream_info->avatar_audio_source->smoothed_cur_level * 0.95f, max_val);
 										}

@@ -50,8 +50,6 @@ void StreamerThread::doRun()
 					/*
 					Each mp3 frame should supply us with 1152 sample-frames.
 					If we read up to 4 frames at a time, then that should be sufficient to fill up the 4096 sized buffer.
-
-					TODO: Handle non-44100 hz sample rate by resampling.
 					*/
 					const int max_num_iters = 4;
 					int iter = 0;
@@ -88,7 +86,19 @@ void StreamerThread::doRun()
 
 						// Pass the mono_samples onto the audio sources playing this stream.
 						for(auto src_it = sources_playing_stream.begin(); src_it != sources_playing_stream.end(); ++src_it)
-							(*src_it)->buffer.pushBackNItems(mono_samples.data(), mono_samples.size());
+						{
+							AudioSource* source = src_it->ptr();
+							source->buffer.pushBackNItems(mono_samples.data(), mono_samples.size());
+							if(sample_freq_hz != 0)
+							{
+								// If we have read a sample rate from the mp3 file and it differs from the default, re-init the resampler.
+								if(source->sampling_rate != sample_freq_hz)
+								{
+									source->sampling_rate = sample_freq_hz;
+									source->resampler.init(/*src rate=*/sample_freq_hz, /*dest rate*/audio_engine->getSampleRate());
+								}
+							}
+						}
 
 						min_src_buffer_size += mono_samples.size();
 					}

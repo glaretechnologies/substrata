@@ -481,6 +481,7 @@ public:
 
 			// Create a streaming audio source.
 			this->audio_source = new glare::AudioSource(); // Hang on to a reference we can use from the audio stream thread.
+			audio_source->sampling_rate = main_window->audio_engine.getSampleRate();
 			audio_source->type = glare::AudioSource::SourceType_Streaming;
 			audio_source->pos = ob->getCentroidWS();
 			audio_source->debugname = "animated tex: " + ob->target_url;

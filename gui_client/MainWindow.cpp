@@ -497,13 +497,14 @@ void MainWindow::initialise()
 		// Load a wind sound and create a non-spatial audio source, to use for a rushing effect when the player moves fast.
 		// TODO: Load wind noise off main thread. (Take about 11ms to load on my 5950x).
 		//Timer timer;
-		glare::SoundFileRef sound = audio_engine.getOrLoadSoundFile(base_dir_path + "/resources/sounds/wind_noise.mp3");
+		glare::SoundFileRef sound = audio_engine.getOrLoadSoundFile(base_dir_path + "/resources/sounds/wind_noise_48000_hz_mono.mp3");
 		//conPrint("Loading wind sound took " + timer.elapsedString());
 
 		wind_audio_source = new glare::AudioSource();
 		wind_audio_source->type = glare::AudioSource::SourceType_Looping;
 		wind_audio_source->spatial_type = glare::AudioSource::SourceSpatialType_NonSpatial;
 		wind_audio_source->shared_buffer = sound->buf;
+		wind_audio_source->sampling_rate = sound->sample_rate;
 		wind_audio_source->volume = 0;
 
 		audio_engine.addSource(wind_audio_source);
@@ -4593,17 +4594,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									ob->audio_source = NULL;
 								}
 
-								if(loaded_msg->audio_buffer->buffer.size() > 0) // Avoid divide by zero.
+								if(loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
 								{
 									// Timer timer;
 									// Add a looping audio source
 									ob->audio_source = new glare::AudioSource();
-									ob->audio_source->shared_buffer = loaded_msg->audio_buffer;
+									ob->audio_source->shared_buffer = loaded_msg->sound_file->buf;
+									ob->audio_source->sampling_rate = loaded_msg->sound_file->sample_rate;
 									ob->audio_source->pos = ob->getCentroidWS();
 									ob->audio_source->volume = ob->audio_volume;
-									const double audio_len_s = loaded_msg->audio_buffer->buffer.size() / 44100.0; // TEMP HACK
+									const double audio_len_s = loaded_msg->sound_file->buf->buffer.size() / (double)loaded_msg->sound_file->sample_rate;
 									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
-									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->audio_buffer->buffer.size());
+									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * loaded_msg->sound_file->sample_rate), (int)loaded_msg->sound_file->buf->buffer.size());
 									ob->audio_source->debugname = ob->audio_source_url;
 
 									const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
@@ -4797,6 +4799,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								avatar->audio_source = new glare::AudioSource();
 								avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
 								avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+								avatar->audio_source->sampling_rate = m->sampling_rate;
 
 								audio_engine.addSource(avatar->audio_source);
 
