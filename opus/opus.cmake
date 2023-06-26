@@ -81,17 +81,17 @@ ${OPUS_ROOT}/celt/vq.h
 ${OPUS_ROOT}/celt/_kiss_fft_guts.h
 
 
-${OPUS_ROOT}/celt/x86/celt_lpc_sse.h
-${OPUS_ROOT}/celt/x86/celt_lpc_sse4_1.c
-${OPUS_ROOT}/celt/x86/pitch_sse.c
-${OPUS_ROOT}/celt/x86/pitch_sse.h
-${OPUS_ROOT}/celt/x86/pitch_sse2.c
-${OPUS_ROOT}/celt/x86/pitch_sse4_1.c
-${OPUS_ROOT}/celt/x86/vq_sse.h
-${OPUS_ROOT}/celt/x86/vq_sse2.c
-${OPUS_ROOT}/celt/x86/x86cpu.c
-${OPUS_ROOT}/celt/x86/x86cpu.h
-${OPUS_ROOT}/celt/x86/x86_celt_map.c
+# ${OPUS_ROOT}/celt/x86/celt_lpc_sse.h
+# ${OPUS_ROOT}/celt/x86/celt_lpc_sse4_1.c
+# ${OPUS_ROOT}/celt/x86/pitch_sse.c
+# ${OPUS_ROOT}/celt/x86/pitch_sse.h
+# ${OPUS_ROOT}/celt/x86/pitch_sse2.c
+# ${OPUS_ROOT}/celt/x86/pitch_sse4_1.c
+# ${OPUS_ROOT}/celt/x86/vq_sse.h
+# ${OPUS_ROOT}/celt/x86/vq_sse2.c
+# ${OPUS_ROOT}/celt/x86/x86cpu.c
+# ${OPUS_ROOT}/celt/x86/x86cpu.h
+# ${OPUS_ROOT}/celt/x86/x86_celt_map.c
 
 
 ${OPUS_ROOT}/silk/A2NLSF.c
@@ -225,13 +225,13 @@ ${OPUS_ROOT}/silk/float/structs_FLP.h
 ${OPUS_ROOT}/silk/float/warped_autocorrelation_FLP.c
 ${OPUS_ROOT}/silk/float/wrappers_FLP.c
 
-${OPUS_ROOT}/silk/x86/main_sse.h
-${OPUS_ROOT}/silk/x86/NSQ_del_dec_sse4_1.c
-${OPUS_ROOT}/silk/x86/NSQ_sse4_1.c
-${OPUS_ROOT}/silk/x86/SigProc_FIX_sse.h
-${OPUS_ROOT}/silk/x86/VAD_sse4_1.c
-${OPUS_ROOT}/silk/x86/VQ_WMat_EC_sse4_1.c
-${OPUS_ROOT}/silk/x86/x86_silk_map.c
+# ${OPUS_ROOT}/silk/x86/main_sse.h
+# ${OPUS_ROOT}/silk/x86/NSQ_del_dec_sse4_1.c
+# ${OPUS_ROOT}/silk/x86/NSQ_sse4_1.c
+# ${OPUS_ROOT}/silk/x86/SigProc_FIX_sse.h
+# ${OPUS_ROOT}/silk/x86/VAD_sse4_1.c
+# ${OPUS_ROOT}/silk/x86/VQ_WMat_EC_sse4_1.c
+# ${OPUS_ROOT}/silk/x86/x86_silk_map.c
 
 )
 
@@ -255,13 +255,13 @@ target_compile_definitions(Opus PRIVATE -DENABLE_HARDENING)
 target_compile_definitions(Opus PRIVATE -DUSE_ALLOCA)
 target_compile_definitions(Opus PRIVATE -DOPUS_HAVE_RTCD) # Runtime CPU detection
 target_compile_definitions(Opus PRIVATE -DCPU_INFO_BY_C)
-target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE)
-target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE)
-target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE2)
-target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE2)
-target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE4_1)
-target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE4_1)
-target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_AVX)
+# target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE)
+# target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE)
+# target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE2)
+# target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE2)
+# target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE4_1)
+# target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE4_1)
+# target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_AVX)
 
 target_compile_definitions(Opus PRIVATE -DPACKAGE_VERSION=\"1.3.1\")
 #target_compile_definitions(Opus PUBLIC -DHAVE_CONFIG_H)

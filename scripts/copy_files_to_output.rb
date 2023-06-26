@@ -42,13 +42,18 @@ end
 if OS.windows?
 	copy_files(2022)
 elsif OS.mac?
+	substrata_repos_dir = ".."
+	glare_core_rev_path = "glare-core"
+	glare_core_repos_dir = getAndCheckEnvVar('GLARE_CORE_TRUNK_DIR') + "/../" + glare_core_rev_path
+
 	begin
         build_dir = getCmakeBuildDir(0, "Debug")
 		appdir = build_dir + "/gui_client.app"
 		output_dir = build_dir + "/gui_client.app/Contents/MacOS/../Resources"
 
-		copyCyberspaceResources(output_dir)
-		copyCEFRedistMac(build_dir, appdir)
+		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+		# copyCyberspaceResources(output_dir)
+		# copyCEFRedistMac(build_dir, appdir)
 	end
 
 	begin

@@ -113,7 +113,7 @@ SET(CEF_BINARY_DISTRIB_DIR_ENV $ENV{CEF_BINARY_DISTRIB_DIR})
 MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
 
 
-SET(CEF_SUPPORT ON CACHE BOOL "Enable use of Chromium Embedded Framework (CEF) - needed for webviews and video playback")
+SET(CEF_SUPPORT OFF CACHE BOOL "Enable use of Chromium Embedded Framework (CEF) - needed for webviews and video playback")
 MESSAGE("CEF_SUPPORT: ${CEF_SUPPORT}")
 
 SET(BUGSPLAT_SUPPORT ON CACHE BOOL "Enable building with BugSplat - the crash handling and bug reporting tool.")

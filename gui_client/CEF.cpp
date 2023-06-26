@@ -6,10 +6,13 @@ Copyright Glare Technologies Limited 2022 -
 #include "CEF.h"
 
 
-#include "CEFInternal.h"
+// #include "CEFInternal.h"
 #include <utils/PlatformUtils.h>
 #include <utils/RefCounted.h>
 #include <utils/ConPrint.h>
+
+#undef CEF_SUPPORT
+
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
 #include <cef_app.h>
 #include <cef_client.h>

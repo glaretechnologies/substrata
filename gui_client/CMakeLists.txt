@@ -725,17 +725,17 @@ elseif(APPLE)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
-	if(CEF_SUPPORT)
-		target_link_libraries(${CURRENT_TARGET}
-			# Chromium embedded framework
-			#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
-			#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
-			
-			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-			Jolt # Jolt physics
-			Opus
-			)
+	target_link_libraries(${CURRENT_TARGET}
+		# Chromium embedded framework
+		#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
+		#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
+		
+		# debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+		# optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+		Jolt # Jolt physics
+		Opus
+		)
+if(CEF_SUPPORT)
 	endif()
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)

@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2020 -
 #ifdef _MSC_VER // Qt headers suppress some warnings on Windows, make sure the warning suppression doesn't propagate to our code. See https://bugreports.qt.io/browse/QTBUG-26877
 #pragma warning(push, 0) // Disable warnings
 #endif
+#include <dlfcn.h>
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
@@ -13121,6 +13122,8 @@ static bool shouldEnableBugSplat()
 
 int main(int argc, char *argv[])
 {
+	dlopen("/Applications/Xcode.app/Contents/Developer/usr/lib/libMainThreadChecker.dylib", RTLD_LAZY);
+
 #ifdef BUGSPLAT_SUPPORT
 	if(shouldEnableBugSplat())
 	{

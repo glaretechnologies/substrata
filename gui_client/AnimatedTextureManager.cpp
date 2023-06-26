@@ -10,8 +10,8 @@ Copyright Glare Technologies Limited 2022-
 #include "../shared/WorldObject.h"
 #include "../qt/QtUtils.h"
 #include "FileInStream.h"
-#include "CEFInternal.h"
-#include "CEF.h"
+// #include "CEFInternal.h"
+// #include "CEF.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
 #include <utils/Base64.h>
@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2022-
 #include <Escaping.h>
 #include <xxhash.h>
 
+#undef CEF_SUPPORT
 
 #if CEF_SUPPORT
 

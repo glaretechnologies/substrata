@@ -25,6 +25,8 @@
 #include <utility>
 #include <algorithm>
 
+#undef CPPSPMD_SSE2
+
 #if CPPSPMD_SSE2
 #include <xmmintrin.h>		// SSE
 #include <emmintrin.h>		// SSE2

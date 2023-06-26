@@ -14,11 +14,11 @@ def getCmakeBuildDir(vs_version, config)
 	if OS.windows?
 		return cyberspace_output + "/vs#{vs_version}/cyberspace_x64/#{config}"
 	else
-		if config == $config_name_release
+		# if config == $config_name_release
 			return cyberspace_output
-		else
-			return cyberspace_output + "/test_builds"
-		end
+		# else
+			# return cyberspace_output + "/test_builds"
+		# end
 	end
 end
 
