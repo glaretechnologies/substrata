@@ -223,6 +223,8 @@ SET(audio
 ../audio/AudioEngine.h
 ../audio/AudioFileReader.cpp
 ../audio/AudioFileReader.h
+../audio/AudioResampler.cpp
+../audio/AudioResampler.h
 ../audio/MP3AudioFileReader.cpp
 ../audio/MP3AudioFileReader.h
 ../audio/StreamerThread.cpp
