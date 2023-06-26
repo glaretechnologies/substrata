@@ -29,6 +29,7 @@ public:
 struct ServerConnectedClientInfo
 {
 	IPAddress ip_addr;
+	UID client_avatar_id;
 	int client_UDP_port; // UDP port on client end
 };
 
@@ -48,8 +49,11 @@ public:
 
 
 	// Called from off main thread
-	void clientUDPPortOpen(WorkerThread* worker_thread, const IPAddress& ip_addr, int client_UDP_port);
+	void clientUDPPortOpen(WorkerThread* worker_thread, const IPAddress& ip_addr, UID client_avatar_id/*, int client_UDP_port*/);
 	void clientDisconnected(WorkerThread* worker_thread);
+
+	// Called when we receive a UDP packet from a client, which allows the client remote UDP port to be known.
+	void clientUDPPortBecameKnown(UID client_avatar_uid, const IPAddress& ip_addr, int client_UDP_port);
 
 
 	Reference<ServerAllWorldsState> world_state;

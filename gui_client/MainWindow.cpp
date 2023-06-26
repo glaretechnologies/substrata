@@ -3923,6 +3923,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	ui->glWidget->makeCurrent(); // Need to make this gl widget context current, before we execute OpenGL calls in processLoading.
 
 
+	// If we are connected to a server, send a UDP packet to it occasionally, so the server can work out which UDP port
+	// we are listening on.
+	if(client_avatar_uid.valid())
+	{
+		if(discovery_udp_packet_timer.elapsed() > 2.0)
+		{
+			// conPrint("Sending discovery UDP packet to server");
+			{
+				scratch_packet.clear();
+				scratch_packet.writeUInt32(2); // Packet type
+				writeToStream(this->client_avatar_uid, scratch_packet);
+
+				udp_socket->sendPacket(scratch_packet.buf.data(), scratch_packet.buf.size(), server_ip_addr, server_UDP_port);
+			}
+			discovery_udp_packet_timer.reset();
+		}
+	}
+
 	mesh_manager.trimMeshMemoryUsage();
 
 	processLoading();
@@ -4665,7 +4683,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->connection_state = ServerConnectionState_Connecting;
 				updateStatusBar();
 
-				const IPAddress server_ip_addr = static_cast<const ClientConnectingToServerMessage*>(msg.getPointer())->server_ip;
+				this->server_ip_addr = static_cast<const ClientConnectingToServerMessage*>(msg.getPointer())->server_ip;
 
 				// Now that we have the server IP address, start UDP thread.
 				try
@@ -4679,17 +4697,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					uint32 dummy_type = 6;
 					udp_socket->sendPacket(&dummy_type, sizeof(dummy_type), server_ip_addr, server_UDP_port);
 
-					const int local_UDP_port = udp_socket->getThisEndPort(); // UDP socket should be bound now; get port.
 
-					logAndConPrintMessage("Created UDP socket, local_UDP_port: " + toString(local_UDP_port));
+					//const int local_UDP_port = udp_socket->getThisEndPort(); // UDP socket should be bound now; get port.
+					//logAndConPrintMessage("Created UDP socket, local_UDP_port: " + toString(local_UDP_port));
 
 					// Create ClientUDPHandlerThread for handling incoming UDP messages from server
 					Reference<ClientUDPHandlerThread> udp_handler_thread = new ClientUDPHandlerThread(udp_socket, server_hostname, this->world_state.ptr(), &this->audio_engine);
 					client_udp_handler_thread_manager.addThread(udp_handler_thread);
 
-					// Send ClientUDPSocketOpen message - inform the server what UDP port we are listening on.
+					// Send ClientUDPSocketOpen message
 					MessageUtils::initPacket(scratch_packet, Protocol::ClientUDPSocketOpen);
-					scratch_packet.writeUInt32(local_UDP_port);
+					scratch_packet.writeUInt32(0/*local_UDP_port*/);
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
 				catch(glare::Exception& e)

@@ -704,4 +704,7 @@ public:
 	bool closing; // Timer events keep firing after closeEvent(), annoyingly, so keep track of if we are closing the Window, in which case we can early-out of timerEvent().
 
 	MicReadStatus mic_read_status;
+
+	IPAddress server_ip_addr;
+	Timer discovery_udp_packet_timer;
 };

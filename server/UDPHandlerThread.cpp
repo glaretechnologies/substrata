@@ -49,27 +49,45 @@ void UDPHandlerThread::doRun()
 
 			conPrint("UDPHandlerThread: Received packet of length " + toString(packet_len) + " from " + sender_ip_addr.toString() + ", port " + toString(sender_port));
 
-			if(server->connected_clients_changed != 0)
+			if(packet_len >= sizeof(uint32))
 			{
-				// Rebuild our connected_clients vector.
-				connected_clients.clear();
-
+				uint32 type;
+				std::memcpy(&type, packet_buf.data(), 4);
+				if(type == 1) // If packet has voice type:
 				{
-					Lock lock(server->connected_clients_mutex);
+					if(server->connected_clients_changed != 0)
+					{
+						// Rebuild our connected_clients vector.
+						connected_clients.clear();
 
-					for(auto it = server->connected_clients.begin(); it != server->connected_clients.end(); ++it)
-						connected_clients.push_back(ConnectedClientInfo({it->second.ip_addr, it->second.client_UDP_port}));
+						{
+							Lock lock(server->connected_clients_mutex);
 
-					server->connected_clients_changed = 0;
+							for(auto it = server->connected_clients.begin(); it != server->connected_clients.end(); ++it)
+								if(it->second.client_UDP_port > 0) // If remote UDP port is known:
+									connected_clients.push_back(ConnectedClientInfo({it->second.ip_addr, it->second.client_UDP_port}));
+
+							server->connected_clients_changed = 0;
+						}
+					}
+
+					// Broadcast packet to clients
+					for(size_t i=0; i<connected_clients.size(); ++i)
+					{
+						conPrint("UDPHandlerThread: Sending packet to " + connected_clients[i].ip_addr.toString() + ", port " + toString(connected_clients[i].client_UDP_port) + " ...");
+						udp_socket->sendPacket(packet_buf.data(), packet_len, connected_clients[i].ip_addr, connected_clients[i].client_UDP_port);
+					}
 				}
-			}
+				else if(type == 2)
+				{
+					if(packet_len >= sizeof(uint32) + sizeof(UID))
+					{
+						UID client_avatar_uid;
+						std::memcpy(&client_avatar_uid, packet_buf.data() + 4, sizeof(UID));
 
-
-			// Broadcast packet to clients
-			for(size_t i=0; i<connected_clients.size(); ++i)
-			{
-				conPrint("UDPHandlerThread: Sending packet to " + connected_clients[i].ip_addr.toString() + ", port " + toString(connected_clients[i].client_UDP_port) + " ...");
-				udp_socket->sendPacket(packet_buf.data(), packet_len, connected_clients[i].ip_addr, connected_clients[i].client_UDP_port);
+						server->clientUDPPortBecameKnown(client_avatar_uid, sender_ip_addr, sender_port);
+					}
+				}
 			}
 		}
 	}
