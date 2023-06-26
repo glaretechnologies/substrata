@@ -1178,17 +1178,37 @@ double Server::getCurrentGlobalTime() const
 }
 
 
-void Server::clientUDPPortOpen(WorkerThread* worker_thread, const IPAddress& ip_addr, int client_UDP_port)
+void Server::clientUDPPortOpen(WorkerThread* worker_thread, const IPAddress& ip_addr, UID client_avatar_id)
 {
-	conPrint("Server::clientUDPPortOpen(): worker_thread: 0x" + toHexString((uint64)worker_thread) + ", ip_addr: " + ip_addr.toString() + ", port: " + toString(client_UDP_port));
+	conPrint("Server::clientUDPPortOpen(): worker_thread: 0x" + toHexString((uint64)worker_thread) + ", ip_addr: " + ip_addr.toString());// + ", port: " + toString(client_UDP_port));
 
 	{
 		Lock lock(connected_clients_mutex);
 		if(connected_clients.count(worker_thread) == 0)
 		{
-			connected_clients.insert(std::make_pair(worker_thread, ServerConnectedClientInfo({ip_addr, /*client_UDP_port=*/client_UDP_port})));
+			connected_clients.insert(std::make_pair(worker_thread, 
+				ServerConnectedClientInfo({ip_addr, client_avatar_id, /*client_UDP_port=*/-1})));
 			connected_clients_changed = 1;
 		}
+	}
+}
+
+
+void Server::clientUDPPortBecameKnown(UID client_avatar_uid, const IPAddress& ip_addr, int client_UDP_port)
+{
+	conPrint("Server::clientUDPPortBecameKnown(): client with client_avatar_uid " + client_avatar_uid.toString() + 
+		", ip_addr: " + ip_addr.toString() + ", has port: " + toString(client_UDP_port));
+	{
+		Lock lock(connected_clients_mutex);
+		for(auto it = connected_clients.begin(); it != connected_clients.end(); ++it)
+		{
+			ServerConnectedClientInfo& info = it->second;
+			if(info.client_avatar_id == client_avatar_uid)
+			{
+				it->second.client_UDP_port = client_UDP_port;
+			}
+		}
+		connected_clients_changed = 1;
 	}
 }
 

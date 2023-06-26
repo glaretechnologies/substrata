@@ -1045,8 +1045,8 @@ void WorkerThread::doRun()
 					case Protocol::ClientUDPSocketOpen:
 						{
 							conPrint("WorkerThread: received Protocol::ClientUDPSocketOpen");
-							const uint32 client_UDP_port = msg_buffer.readUInt32();
-							server->clientUDPPortOpen(this, socket->getOtherEndIPAddress(), client_UDP_port);
+							//const uint32 client_UDP_port = msg_buffer.readUInt32();
+							server->clientUDPPortOpen(this, socket->getOtherEndIPAddress(), client_avatar_uid);
 							break;
 						}
 					case Protocol::AudioStreamToServerStarted:
