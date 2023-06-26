@@ -426,6 +426,7 @@ public:
 			audio_source->type = glare::AudioSource::SourceType_Streaming;
 			audio_source->pos = ob->getCentroidWS();
 			audio_source->debugname = "webview: " + ob->target_url;
+			audio_source->sampling_rate = main_window->audio_engine.getSampleRate();
 
 			{
 				Lock lock(main_window->world_state->mutex);
