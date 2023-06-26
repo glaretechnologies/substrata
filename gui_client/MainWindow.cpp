@@ -3935,7 +3935,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				scratch_packet.writeUInt32(2); // Packet type
 				writeToStream(this->client_avatar_uid, scratch_packet);
 
-				udp_socket->sendPacket(scratch_packet.buf.data(), scratch_packet.buf.size(), server_ip_addr, server_UDP_port);
+				try
+				{
+					udp_socket->sendPacket(scratch_packet.buf.data(), scratch_packet.buf.size(), server_ip_addr, server_UDP_port);
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Error while sending discovery UDP packet: " + e.what());
+				}
 			}
 			discovery_udp_packet_timer.reset();
 		}
