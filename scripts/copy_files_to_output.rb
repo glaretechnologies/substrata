@@ -7,11 +7,7 @@
 require './dist_utils.rb'
 
 
-def copy_files(vs_version)
-
-	substrata_repos_dir = ".."
-	glare_core_rev_path = "trunk"
-	glare_core_repos_dir = getAndCheckEnvVar('GLARE_CORE_TRUNK_DIR') + "/../" + glare_core_rev_path
+def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 
 	begin
 		output_dir = getCmakeBuildDir(vs_version, "Debug")
@@ -39,15 +35,20 @@ def copy_files(vs_version)
 end
 
 
+
+substrata_repos_dir = ".."
+glare_core_rev_path = "trunk"
+glare_core_repos_dir = getAndCheckEnvVar('GLARE_CORE_TRUNK_DIR') + "/../" + glare_core_rev_path
+
 if OS.windows?
-	copy_files(2022)
+	copy_files(2022, substrata_repos_dir, glare_core_repos_dir)
 elsif OS.mac?
 	begin
         build_dir = getCmakeBuildDir(0, "Debug")
 		appdir = build_dir + "/gui_client.app"
 		output_dir = build_dir + "/gui_client.app/Contents/MacOS/../Resources"
 
-		copyCyberspaceResources(output_dir)
+		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistMac(build_dir, appdir)
 	end
 
