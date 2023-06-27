@@ -2622,14 +2622,16 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.05f, /*radius=*/0.05f, down_beam_len);
 		Matrix4f ob_to_world = Matrix4f::translationMatrix(down_beam_hitpos) * scale_matrix;
 		ob_placement_beam->ob_to_world_matrix = ob_to_world;
-		ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
+		if(ui->glWidget->opengl_engine->isObjectAdded(ob_placement_beam))
+			ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
 
 		// Place hit marker
 		Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
 		Matrix4f orientation; orientation.constructFromVector(lower_hit_normal);
 		ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) *
 			orientation * marker_scale_matrix;
-		ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
+		if(ui->glWidget->opengl_engine->isObjectAdded(ob_placement_marker))
+			ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
 
 		// Place x, y, z axis arrows.
 		if(axis_and_rot_obs_enabled)
@@ -2676,7 +2678,8 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 			for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 			{
 				axis_arrow_objects[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(axis_arrow_segments[i].a, axis_arrow_segments[i].b, arrow_len);
-				ui->glWidget->opengl_engine->updateObjectTransformData(*axis_arrow_objects[i]);
+				if(ui->glWidget->opengl_engine->isObjectAdded(axis_arrow_objects[i]))
+					ui->glWidget->opengl_engine->updateObjectTransformData(*axis_arrow_objects[i]);
 			}
 
 			// Update rotation control handle arcs
@@ -2722,7 +2725,8 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 					Matrix4f::rotationMatrix(crossProduct(basis_a, basis_b), angle - arc_handle_half_angle) * Matrix4f(basis_a, basis_b, crossProduct(basis_a, basis_b), Vec4f(0, 0, 0, 1))
 					* Matrix4f::uniformScaleMatrix(arc_radius);
 
-				ui->glWidget->opengl_engine->updateObjectTransformData(*rot_handle_arc_objects[i]);
+				if(ui->glWidget->opengl_engine->isObjectAdded(rot_handle_arc_objects[i]))
+					ui->glWidget->opengl_engine->updateObjectTransformData(*rot_handle_arc_objects[i]);
 			}
 		}
 	}
