@@ -718,8 +718,10 @@ if(WIN32)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} /DYNAMICBASE:NO")
 elseif(APPLE)
 	
-    add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
-     
+	if(CEF_SUPPORT)
+		add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
+	endif()
+
 	add_definitions(-D__MACOSX_CORE__) # Add CoreAudio config choice define for RTAudio
 	add_definitions(-DGL_SILENCE_DEPRECATION) # Tell Mac to shut up about OpenGL being deprecated
 	
@@ -733,10 +735,13 @@ elseif(APPLE)
 			
 			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-			Jolt # Jolt physics
-			Opus
-			)
+		)
 	endif()
+	
+	target_link_libraries(${CURRENT_TARGET}
+		Jolt # Jolt physics
+		Opus
+	)
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
  
