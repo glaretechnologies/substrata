@@ -486,6 +486,12 @@ include_directories(../resonance-audio/resonance_audio)
 include_directories(../resonance-audio/third_party/eigen)
 include_directories(../resonance-audio/third_party/pffft)
 
+# Definitions that Resonance Audio needs:
+add_definitions(-D_USE_MATH_DEFINES)
+add_definitions(-DNOMINMAX)
+add_definitions(-DEIGEN_MPL2_ONLY)
+
+#===================================== End Resonance Audio =====================================
 
 
 #============== Opus ==============
@@ -496,18 +502,15 @@ include(../opus/opus.cmake)
 include_directories(${OPUS_ROOT}/include)
 
 
+
 include_directories(${cef_binary_dist_dir}/include)
 include_directories(${cef_binary_dist_dir})
 
 
 #include_directories(../meshoptimizer/src)
 
-# Definitions that Resonance Audio needs:
-add_definitions(-D_USE_MATH_DEFINES)
-add_definitions(-DNOMINMAX)
-add_definitions(-DEIGEN_MPL2_ONLY)
 
-#===================================== End Resonance Audio =====================================
+
 
 
 add_definitions(-DUSE_JOLT=1)
