@@ -621,8 +621,8 @@ MainWindow::~MainWindow()
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 	
 
-
-	audio_engine.removeSource(wind_audio_source);
+	if(wind_audio_source.nonNull())
+		audio_engine.removeSource(wind_audio_source);
 	wind_audio_source = NULL;
 
 
@@ -5432,15 +5432,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			controller->updateDopplerEffect(/*listener linear vel=*/listener_linear_vel, /*listener pos=*/cam_controller.getFirstPersonPosition().toVec4fPoint());
 		}
 
+		if(wind_audio_source.nonNull())
+		{
+			const float old_volume = wind_audio_source->volume;
 
-		const float old_volume = wind_audio_source->volume;
+			// Increase wind volume as speed increases, but only once we exceed a certain speed, since we don't really want wind sounds playing when we run + jump around (approx < 20 m/s).
+			const float WIND_VOLUME_FACTOR = 1.2f;
+			wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.015f * WIND_VOLUME_FACTOR, 0.f, WIND_VOLUME_FACTOR);
 
-		// Increase wind volume as speed increases, but only once we exceed a certain speed, since we don't really want wind sounds playing when we run + jump around (approx < 20 m/s).
-		const float WIND_VOLUME_FACTOR = 1.2f;
-		wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.015f * WIND_VOLUME_FACTOR, 0.f, WIND_VOLUME_FACTOR);
-
-		if(wind_audio_source->volume != old_volume)
-			audio_engine.sourceVolumeUpdated(*wind_audio_source);
+			if(wind_audio_source->volume != old_volume)
+				audio_engine.sourceVolumeUpdated(*wind_audio_source);
+		}
 	}
 
 
