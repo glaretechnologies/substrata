@@ -1051,11 +1051,12 @@ void WorkerThread::doRun()
 						}
 					case Protocol::AudioStreamToServerStarted:
 						{
-							conPrint("WorkerThread: received Protocol::AudioStreamToServerStarted");
-
 							const uint32 sampling_rate = msg_buffer.readUInt32();
 							const uint32 flags         = msg_buffer.readUInt32();
 							const uint32 stream_id     = msg_buffer.readUInt32();
+
+							if(!BitUtils::isBitSet(flags, 0x1u)) // If renew flag is not set:
+								conPrint("WorkerThread: received Protocol::AudioStreamToServerStarted without renew flag");
 
 							// Send message to all clients
 							{
