@@ -1196,8 +1196,7 @@ void Server::clientUDPPortOpen(WorkerThread* worker_thread, const IPAddress& ip_
 
 void Server::clientUDPPortBecameKnown(UID client_avatar_uid, const IPAddress& ip_addr, int client_UDP_port)
 {
-	conPrint("Server::clientUDPPortBecameKnown(): client with client_avatar_uid " + client_avatar_uid.toString() + 
-		", ip_addr: " + ip_addr.toString() + ", has port: " + toString(client_UDP_port));
+	bool change_made = false;
 	{
 		Lock lock(connected_clients_mutex);
 		for(auto it = connected_clients.begin(); it != connected_clients.end(); ++it)
@@ -1205,10 +1204,21 @@ void Server::clientUDPPortBecameKnown(UID client_avatar_uid, const IPAddress& ip
 			ServerConnectedClientInfo& info = it->second;
 			if(info.client_avatar_id == client_avatar_uid)
 			{
-				it->second.client_UDP_port = client_UDP_port;
+				if(it->second.client_UDP_port != client_UDP_port)
+				{
+					it->second.client_UDP_port = client_UDP_port;
+					change_made = true;
+					
+				}
 			}
 		}
+	}
+
+	if(change_made)
+	{
 		connected_clients_changed = 1;
+
+		conPrint("Server::clientUDPPortBecameKnown(): client with client_avatar_uid " + client_avatar_uid.toString() + ", ip_addr: " + ip_addr.toString() + ", has port: " + toString(client_UDP_port));
 	}
 }
 

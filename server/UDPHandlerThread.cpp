@@ -40,6 +40,7 @@ void UDPHandlerThread::doRun()
 		conPrint("UDPHandlerThread: Bound to port " + toString(server_UDP_port));
 
 		std::vector<uint8> packet_buf(4096);
+		uint64 num_packets_rcvd = 0;
 
 		while(1)
 		{
@@ -47,7 +48,9 @@ void UDPHandlerThread::doRun()
 			int sender_port;
 			const size_t packet_len = udp_socket->readPacket(packet_buf.data(), (int)packet_buf.size(), sender_ip_addr, sender_port);
 
-			conPrint("UDPHandlerThread: Received packet of length " + toString(packet_len) + " from " + sender_ip_addr.toString() + ", port " + toString(sender_port));
+			num_packets_rcvd++;
+			if(num_packets_rcvd % 512 == 0) // Log occasional packets:
+				conPrint("UDPHandlerThread: Received packet (packet " + toString(num_packets_rcvd) + ") of length " + toString(packet_len) + " from " + sender_ip_addr.toString() + ", port " + toString(sender_port));
 
 			if(packet_len >= sizeof(uint32))
 			{
@@ -74,7 +77,9 @@ void UDPHandlerThread::doRun()
 					// Broadcast packet to clients
 					for(size_t i=0; i<connected_clients.size(); ++i)
 					{
-						conPrint("UDPHandlerThread: Sending packet to " + connected_clients[i].ip_addr.toString() + ", port " + toString(connected_clients[i].client_UDP_port) + " ...");
+						if(num_packets_rcvd % 512 == 0) // Log occasional packets:
+							conPrint("UDPHandlerThread: Sending packet to " + connected_clients[i].ip_addr.toString() + ", port " + toString(connected_clients[i].client_UDP_port) + " ...");
+
 						udp_socket->sendPacket(packet_buf.data(), packet_len, connected_clients[i].ip_addr, connected_clients[i].client_UDP_port);
 					}
 				}
