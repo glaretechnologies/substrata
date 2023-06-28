@@ -468,6 +468,9 @@ if $qt_version == "6.2.4"
 elsif $qt_version == "6.2.2"
 	$zip_sha256_digest = "03abc5194eab6e778098105316fb977958d9d9b5b154c9e264690481dcef7df2" # From https://download.qt.io/official_releases/qt/6.2/6.2.2/single/qt-everywhere-src-6.2.2.zip.mirrorlist
 	$tar_sha256_digest = "907994f78d42b30bdea95e290e91930c2d9b593f3f8dd994f44157e387feee0f" # From https://download.qt.io/official_releases/qt/6.2/6.2.2/single/qt-everywhere-src-6.2.2.tar.xz.mirrorlist
+elsif $qt_version == "5.15.10"
+    $zip_sha256_digest = "d44c5831c626b323379f11ad82c4cc6ac5a354b2b354dd0ab4b3d21047eb7061" # Computed with Digest::SHA256, checked md5 hash vs one on website.
+    $tar_sha256_digest = "b545cb83c60934adc9a6bbd27e2af79e5013de77d46f5b9f5bb2a3c762bf55ca" # Computed with Digest::SHA256, checked md5 hash vs one on website.
 elsif $qt_version == "5.15.4"
     $zip_sha256_digest = "76c0cac5c3db5bc5812121401abada6ff0842411a07d00803a76c5d8e9c4c3fd" # Computed with Digest::SHA256, checked md5 hash vs one on website.
     $tar_sha256_digest = "615ff68d7af8eef3167de1fd15eac1b150e1fd69d1e2f4239e54447e7797253b" # Computed with Digest::SHA256, checked md5 hash vs one on website.
