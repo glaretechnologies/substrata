@@ -327,7 +327,16 @@ void ClientUDPHandlerThread::kill()
 	this->incRefCount();
 	QueueUserAPC(asyncProcedure, this->getHandle(), /*data=*/(ULONG_PTR)this);
 #else
-	if(udp_socket.nonNull())
-		udp_socket->closeSocket();
+	// Send a (zero-length) packet to our own socket, so that it returns from the blocking readPacket() call.
+	// After that the thread will terminate gracefully since 'die' is set.
+	// This approach seems to be needed since simply closing the socket from this thread doesn't seem to interupt the recvfrom() call on Mac.
+	try
+	{
+		udp_socket->sendPacket(NULL, 0, IPAddress("127.0.0.1"), udp_socket->getThisEndPort());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Sending packet to own socket failed");
+	}
 #endif
 }
