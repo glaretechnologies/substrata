@@ -302,6 +302,10 @@ ${pngdir}/pngstruct.h
 
 ${pngdir}/intel/intel_init.c
 ${pngdir}/intel/filter_sse2_intrinsics.c
+
+${pngdir}/arm/arm_init.c
+${pngdir}/arm/filter_neon_intrinsics.c
+${pngdir}/arm/palette_neon_intrinsics.c
 )
 
 
