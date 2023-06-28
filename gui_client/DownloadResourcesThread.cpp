@@ -31,7 +31,11 @@ DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<Threa
 	num_resources_downloading(num_resources_downloading_),
 	config(config_),
 	download_queue(download_queue_)
-{}
+{
+	MySocketRef mysocket = new MySocket();
+	mysocket->setUseNetworkByteOrder(false);
+	socket = mysocket;
+}
 
 
 DownloadResourcesThread::~DownloadResourcesThread()
@@ -82,6 +86,30 @@ void DownloadResourcesThread::kill()
 }
 
 
+// This executes in the DownloadResourcesThread context.
+// We call ungracefulShutdown() on the socket.  This results in any current blocking call returning with WSAEINTR ('blocking operation was interrupted by a call to WSACancelBlockingCall')
+static void asyncProcedure(uint64 data)
+{
+	DownloadResourcesThread* download_thread = (DownloadResourcesThread*)data;
+	if(download_thread->socket.nonNull())
+		download_thread->socket->ungracefulShutdown();
+
+	download_thread->decRefCount();
+}
+
+
+void DownloadResourcesThread::killConnection()
+{
+#if defined(_WIN32)
+	this->incRefCount();
+	QueueUserAPC(asyncProcedure, this->getHandle(), /*data=*/(ULONG_PTR)this);
+#else
+	if(socket.nonNull())
+		socket->ungracefulShutdown();
+#endif
+}
+
+
 void DownloadResourcesThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("DownloadResourcesThread");
@@ -90,10 +118,9 @@ void DownloadResourcesThread::doRun()
 	{
 		// conPrint("DownloadResourcesThread: Connecting to " + hostname + ":" + toString(port) + "...");
 
-		MySocketRef plain_socket = new MySocket(hostname, port);
-		plain_socket->setUseNetworkByteOrder(false);
+		socket.downcast<MySocket>()->connect(hostname, port);
 
-		TLSSocketRef socket = new TLSSocket(plain_socket, config, hostname);
+		socket = new TLSSocket(socket.downcast<MySocket>(), config, hostname);
 
 		// conPrint("DownloadResourcesThread: Connected to " + hostname + ":" + toString(port) + "!");
 

@@ -52,6 +52,8 @@ public:
 
 	virtual void kill();
 
+	void killConnection();
+
 private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	Reference<ResourceManager> resource_manager;
@@ -65,4 +67,6 @@ private:
 	std::vector<DownloadQueueItem> queue_items; // scratch buffer
 
 	glare::AtomicInt should_die;
+public:
+	SocketInterfaceRef socket;
 };
