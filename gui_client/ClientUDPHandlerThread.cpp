@@ -336,7 +336,7 @@ void ClientUDPHandlerThread::kill()
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Sending packet to own socket failed");
+		conPrint("ClientUDPHandlerThread: Sending packet to own socket failed: " + e.what());
 	}
 #endif
 }
