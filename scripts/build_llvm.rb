@@ -187,17 +187,17 @@ def buildLLVM(llvm_src_dir, vs_version = -1)
 end
 
 
-$indigo_libs_dir = ENV['INDIGO_LIBS']
-if $indigo_libs_dir.nil?
-	puts "INDIGO_LIBS env var not defined."
+$glare_core_libs_dir = ENV['GLARE_CORE_LIBS']
+if $glare_core_libs_dir.nil?
+	puts "GLARE_CORE_LIBS env var not defined."
 	exit(1)
 end
 
 # this is cmake, we cant have backslashes.
-$indigo_libs_dir = $indigo_libs_dir.gsub("\\", "/")
+$glare_core_libs_dir = $glare_core_libs_dir.gsub("\\", "/")
 
 
-$llvm_dir = "#{$indigo_libs_dir}/llvm"
+$llvm_dir = "#{$glare_core_libs_dir}/llvm"
 
 FileUtils.mkdir($llvm_dir, :verbose=>true) if !Dir.exists?($llvm_dir)
 puts "Chdir to \"#{$llvm_dir}\"."
