@@ -94,8 +94,8 @@ programAvailable("ruby")
 MESSAGE("\n----------Env vars:----------")
 
 # Get env vars
-checkAndGetEnvVar(INDIGO_LIBS INDIGO_LIBS_ENV)
-MESSAGE("INDIGO_LIBS: ${INDIGO_LIBS_ENV}")
+checkAndGetEnvVar(GLARE_CORE_LIBS GLARE_CORE_LIBS_ENV)
+MESSAGE("GLARE_CORE_LIBS: ${GLARE_CORE_LIBS_ENV}")
 
 checkAndGetEnvVar(WINTER_DIR winterdir)
 MESSAGE("Winter location: ${winterdir}")
@@ -161,10 +161,10 @@ SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")
 MESSAGE("USE_SANITIZER: ${USE_SANITIZER}")
 
 if(WIN32)
-	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_LIBS_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
+	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_LIBS_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
-	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-install")
-	#set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo-builds/build")
+	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-install")
+	#set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo-builds/build")
 endif()
 
 
@@ -173,9 +173,9 @@ string(REPLACE "." "_" INDIGO_LLVM_VERSION_PATH ${INDIGO_LLVM_VERSION})
 
 # Qt
 if(WIN32)	
-	set(INDIGO_QT_DIR			"${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}-vs${CYBERSPACE_LIBS_VS_VER}-${CYBERSPACE_BITNESS}")
+	set(INDIGO_QT_DIR			"${GLARE_CORE_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}-vs${CYBERSPACE_LIBS_VS_VER}-${CYBERSPACE_BITNESS}")
 else()
-	set(INDIGO_QT_DIR        	"${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}")
+	set(INDIGO_QT_DIR        	"${GLARE_CORE_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}")
 endif()
 
 set(INDIGO_QT_INCLUDE_DIR	"${INDIGO_QT_DIR}/include")
@@ -192,8 +192,8 @@ if(WIN32)
 	# VS subdir
 	set(VS_SUB_DIR "vs${CYBERSPACE_VS_VER}")
 	
-	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_LIBS_VS_VER}_${CYBERSPACE_BITNESS}")
-	set(libressldir "${INDIGO_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}-install")
+	set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_LIBS_VS_VER}_${CYBERSPACE_BITNESS}")
+	set(libressldir "${GLARE_CORE_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}-install")
 		
 	# Set the output directory.  Cmake will append the configuration string to this.
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "$ENV{CYBERSPACE_OUTPUT}/${VS_SUB_DIR}/cyberspace_${CYBERSPACE_PLATFORM}")
@@ -204,11 +204,11 @@ if(WIN32)
 	
 else() # Mac or Linux.
 	if(APPLE)
-		set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install")
+		set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install")
 	else()
-		set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_dylib_install") # Use dylib build
+		set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_dylib_install") # Use dylib build
 	endif()
-	set(libressldir	"${INDIGO_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-install")
+	set(libressldir	"${GLARE_CORE_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-install")
 	
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "$ENV{CYBERSPACE_OUTPUT}/test_builds")
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "$ENV{CYBERSPACE_OUTPUT}/test_builds")
