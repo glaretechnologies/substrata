@@ -10477,35 +10477,50 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	texture_loaded_messages_to_process.clear();
 
 	// Kill any existing threads connected to the server
-	resource_download_thread_manager.killThreadsBlocking();
 	net_resource_download_thread_manager.killThreadsBlocking();
 	resource_upload_thread_manager.killThreadsBlocking();
 	client_udp_handler_thread_manager.killThreadsBlocking();
 	mic_read_thread_manager.killThreadsBlocking();
 
-	if(client_thread.nonNull())
+	this->client_thread_manager.killThreadsNonBlocking(); // Suggests to client_thread to quit, by calling ClientThread::kill(), which sets should_die = 1.
+	resource_download_thread_manager.killThreadsNonBlocking(); // Suggests to DownloadResourcesThreads to quit, by calling DownloadResourcesThread::kill(), which sets should_die = 1.
+
+	// Wait for some period of time to see if client_thread and resource download threads quit.  If not, hard-kill them by calling killConnection().
+	Timer timer;
+	while((this->client_thread_manager.getNumThreads() > 0) || (resource_download_thread_manager.getNumThreads() > 0)) // While client_thread or a resource download thread is still running:
 	{
-		this->client_thread_manager.killThreadsNonBlocking(); // Suggests to client_thread to quit, by calling ClientThread::kill(), which sets should_die = 1.
-
-		// Wait for some period of time to see if client_thread quit.  If not, hard-kill it by calling killConnection().
-		Timer timer;
-		while(this->client_thread_manager.getNumThreads() > 0) // While client_thread is still running:
+		if(timer.elapsed() > 1.0)
 		{
-			if(timer.elapsed() > 1.0)
-			{
-				logAndConPrintMessage("Reached time limit waiting for client_thread to close.  Hard-killing connection");
+			logAndConPrintMessage("Reached time limit waiting for client_thread or resource download threads to close.  Hard-killing connection(s)");
 
-				this->client_thread->killConnection(); // Calls ungracefulShutdown on socket, which should interrupt and blocking socket calls.
+			if(this->client_thread_manager.getNumThreads() > 0)
+			{
+				if(client_thread.nonNull())
+					this->client_thread->killConnection(); // Calls ungracefulShutdown on socket, which should interrupt and blocking socket calls.
 
 				this->client_thread = NULL;
 				this->client_thread_manager.killThreadsBlocking();
-				break;
 			}
 
-			PlatformUtils::Sleep(10);
+			if(resource_download_thread_manager.getNumThreads() > 0)
+			{
+				Lock lock(resource_download_thread_manager.getMutex());
+				for(auto it = resource_download_thread_manager.getThreads().begin(); it != resource_download_thread_manager.getThreads().end(); ++it)
+				{
+					Reference<MessageableThread> thread = *it;
+					assert(thread.isType<DownloadResourcesThread>());
+					if(thread.isType<DownloadResourcesThread>())
+						thread.downcastToPtr<DownloadResourcesThread>()->killConnection();
+				}
+			}
+
+			break;
 		}
+
+		PlatformUtils::Sleep(10);
 	}
 	this->client_thread = NULL; // Need to make sure client_thread is destroyed, since it hangs on to a bunch of references.
+	resource_download_thread_manager.killThreadsBlocking();
 
 	this->client_avatar_uid = UID::invalidUID();
 
