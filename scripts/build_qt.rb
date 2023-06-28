@@ -242,6 +242,19 @@ def buildWindows(config, vs_version)
 	
 	extractArchiveIfNotExtraced("#{$qt_source_name}.zip", $qt_source_name, true)
 	
+	if $qt_version_major.to_i == 5 && $qt_version_minor.to_i >= 15 && $qt_version_rev.to_i >= 3
+        
+        puts "Removing 'opensource' from source dir name..."
+        puts "old $qt_source_name: #{$qt_source_name}"
+        
+        if File.exists?($qt_source_name + "/" + $qt_source_name_without_opensource)
+            FileUtils.mv($qt_source_name + "/" + $qt_source_name_without_opensource, $qt_source_name_without_opensource, :verbose=>true);
+        end
+        $qt_source_name = $qt_source_name_without_opensource
+        
+        puts "new $qt_source_name: #{$qt_source_name}"
+    end
+	
 	config_string = ""
 	if config == :release
 		config_string = "-release"
