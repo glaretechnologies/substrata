@@ -508,14 +508,14 @@ elsif $qt_version == "5.7.1"
 	$zip_sha256_digest = "4e50c645ff614d831712f5ef19a4087b4c00824920c79e96fee17d9373b42cf3" # From https://download.qt.io/official_releases/qt/5.7/5.7.1/single/qt-everywhere-opensource-src-5.7.1.zip.mirrorlist
 	$tar_sha256_digest = "c86684203be61ae7b33a6cf33c23ec377f246d697bd9fb737d16f0ad798f89b7" # From https://download.qt.io/official_releases/qt/5.7/5.7.1/single/qt-everywhere-opensource-src-5.7.1.tar.gz.mirrorlist
 end
-$indigo_libs_dir = ENV['INDIGO_LIBS']
-if $indigo_libs_dir.nil?
-	puts "INDIGO_LIBS env var not defined."
+$glare_core_libs_dir = ENV['GLARE_CORE_LIBS']
+if $glare_core_libs_dir.nil?
+	puts "GLARE_CORE_LIBS env var not defined."
 	exit(1)
 end
 
 
-$indigo_qt_dir = "#{$indigo_libs_dir}/Qt"
+$indigo_qt_dir = "#{$glare_core_libs_dir}/Qt"
 
 FileUtils.mkdir($indigo_qt_dir, :verbose=>true) if !Dir.exists?($indigo_qt_dir)
 puts "Chdir to \"#{$indigo_qt_dir}\"."
