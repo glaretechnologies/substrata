@@ -133,7 +133,7 @@ set(imathdir	"${GLARE_CORE_TRUNK_DIR_ENV}/Imath")
 set(openexrdir	"${GLARE_CORE_TRUNK_DIR_ENV}/OpenEXR")
 set(zlibdir		"${GLARE_CORE_TRUNK_DIR_ENV}/zlib")
 set(pugixmldir	"${GLARE_CORE_TRUNK_DIR_ENV}/pugixml/src")
-set(pngdir		"${GLARE_CORE_TRUNK_DIR_ENV}/libpng-1.6.37")
+set(pngdir		"${GLARE_CORE_TRUNK_DIR_ENV}/libpng")
 set(zstddir		"${GLARE_CORE_TRUNK_DIR_ENV}/zstd-1.5.2")
 
 set(cef_binary_dist_dir ${CEF_BINARY_DISTRIB_DIR_ENV})
