@@ -128,14 +128,14 @@ end
 $libjpegturbo_version = "2.1.4" # Github tag version, released aug 13th 2022.
 $libjpegturbo_source_name = "libjpeg-turbo-#{$libjpegturbo_version}"
 $libjpegturbo_source_file = "libjpeg-turbo-#{$libjpegturbo_version}.zip"
-$indigo_libs_dir = ENV['INDIGO_LIBS']
-if $indigo_libs_dir.nil?
-	STDERR.puts "INDIGO_LIBS env var not defined."
+$glare_core_dir = ENV['GLARE_CORE_LIBS']
+if $glare_core_dir.nil?
+	STDERR.puts "GLARE_CORE_LIBS env var not defined."
 	exit(1)
 end
 
 
-$indigo_libjpegturbo_dir = "#{$indigo_libs_dir}/libjpeg-turbo"
+$indigo_libjpegturbo_dir = "#{$glare_core_dir}/libjpeg-turbo"
 
 FileUtils.mkdir($indigo_libjpegturbo_dir, :verbose=>true) if !Dir.exists?($indigo_libjpegturbo_dir)
 puts "Chdir to \"#{$indigo_libjpegturbo_dir}\"."
