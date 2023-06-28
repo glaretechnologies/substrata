@@ -19,6 +19,13 @@ $qt_version = "5.15.4" if OS.mac?
 $qt_version = "5.13.2" if OS.linux?
 
 
+$llvm_version = ""
+if OS.windows?
+	$llvm_version = "6.0.0" # LLVM 3.4 is the last version that builds in pre-vs 2015.
+else
+	$llvm_version = "6.0.0" # LLVM 3.4 fails to build on High Sierra, and 6.0.0 works fine.
+end
+
 # Get Qt path.
 glare_core_libs_dir = ENV['GLARE_CORE_LIBS']
 if glare_core_libs_dir.nil?
