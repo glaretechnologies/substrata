@@ -180,7 +180,7 @@ def buildLLVM(llvm_src_dir, vs_version = -1)
 		
 		cmake_args += " -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_TARGETS_TO_BUILD=\"X86\""
 		
-		cmake_build.configure(configuration, vs_version, cmake_args)
+		cmake_build.configure(configuration, vs_version, cmake_args, false, OS.arm64?)
 		cmake_build.build()
 		cmake_build.install($build_epoch)
 	end

@@ -118,7 +118,7 @@ def buildLibJpegTurbo(configurations, vs_version)
 		cmake_args += " -DENABLE_SHARED=0" if !OS.windows?
 		cmake_args += " -DWITH_CRT_DLL=1" if OS.windows?
 		
-		cmake_build.configure(configuration, vs_version, cmake_args)
+		cmake_build.configure(configuration, vs_version, cmake_args, false, OS.arm64?)
 		cmake_build.build()
 		cmake_build.install($build_epoch)
 	end

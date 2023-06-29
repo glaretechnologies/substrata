@@ -42,7 +42,7 @@ class CMakeBuild
 	end
 	
 	
-	def configure(configuration, vs_version = -1, cmake_args = "", allow_reconfig = false)
+	def configure(configuration, vs_version = -1, cmake_args = "", allow_reconfig = false, target_arm64 = false)
 		if @@config_opts[configuration] == nil
 			STDERR.puts "#{@build_name} CMake configure: Error, invalid configration: #{configuration.to_s}"
 			exit(1)
@@ -87,8 +87,12 @@ class CMakeBuild
 		end
 
 		if OS.mac?
-			osx_args = " -DCMAKE_OSX_ARCHITECTURES:STRING=\"x86_64\"" +
-				" -DCMAKE_OSX_DEPLOYMENT_TARGET:STRING=\"10.8\"" # the sdk still needs to work on 10.8 during 4.4, even if the main indigo release targets 10.13 (because of Qt)
+			if target_arm64
+				osx_args = " -DCMAKE_OSX_ARCHITECTURES:STRING=\"arm64\""
+			else
+				osx_args = " -DCMAKE_OSX_ARCHITECTURES:STRING=\"x86_64\""
+			end
+			osx_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET:STRING=\"10.8\"" # the sdk still needs to work on 10.8 during 4.4, even if the main indigo release targets 10.13 (because of Qt)
 		end
 
 		if OS.windows?
