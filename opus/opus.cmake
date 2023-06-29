@@ -7,11 +7,11 @@ if(TARGET_ARM64)
 		${OPUS_ROOT}/celt/arm/armcpu.h
 		#${OPUS_ROOT}/celt/arm/armopts.s.in
 		${OPUS_ROOT}/celt/arm/arm_celt_map.c
-		${OPUS_ROOT}/celt/arm/celt_fft_ne10.c
-		${OPUS_ROOT}/celt/arm/celt_mdct_ne10.c
+		#${OPUS_ROOT}/celt/arm/celt_fft_ne10.c
+		#${OPUS_ROOT}/celt/arm/celt_mdct_ne10.c
 		${OPUS_ROOT}/celt/arm/celt_neon_intr.c
-		${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm-gnu.S
-		${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm.s
+#		${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm-gnu.S
+	#	${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm.s
 		${OPUS_ROOT}/celt/arm/fft_arm.h
 		${OPUS_ROOT}/celt/arm/fixed_arm64.h
 		${OPUS_ROOT}/celt/arm/fixed_armv4.h
@@ -40,7 +40,7 @@ endif()
 
 if(TARGET_ARM64)
 	set(SILK_ARCH_SPECIFIC_FILES
-		${OPUS_ROOT}/silk/arm/arm_silk_map.c
+	#	${OPUS_ROOT}/silk/arm/arm_silk_map.c
 		${OPUS_ROOT}/silk/arm/biquad_alt_arm.h
 		${OPUS_ROOT}/silk/arm/biquad_alt_neon_intr.c
 		${OPUS_ROOT}/silk/arm/LPC_inv_pred_gain_arm.h
