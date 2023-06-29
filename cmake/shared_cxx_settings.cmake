@@ -161,7 +161,11 @@ elseif(APPLE)
 
 	# NOTE: -stdlib=libc++ is needed for C++11.
 	# -Wthread-safety is Thread Safety Analysis: https://clang.llvm.org/docs/ThreadSafetyAnalysis.html
-	SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -mmmx -msse -msse2 -mssse3 -msse4.1 -arch x86_64 -Wthread-safety")
+	if(TARGET_ARM64)
+		SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -arch arm64 -Wthread-safety")
+	else()
+		SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -mmmx -msse -msse2 -mssse3 -msse4.1 -arch x86_64 -Wthread-safety")
+	endif()
 	
 	SET(COMMON_C_CXX_OPTIONS_DEBUG				"${APPLE_C_CXX_OPTIONS} -gdwarf-2")
 	SET(COMMON_C_CXX_OPTIONS_RELEASE			"${APPLE_C_CXX_OPTIONS} -gdwarf-2 -O3 -DNDEBUG") # NOTE: removed -fvisibility=hidden to allow debug symbols in exe.
