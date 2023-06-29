@@ -380,17 +380,6 @@ include(../cmake/shared_cxx_settings.cmake)
 #-DLIB3DS_EXPORTS
 add_definitions(-DPNG_ALLOW_BENIGN_ERRORS -DTIXML_USE_STL)
 
-
-if(APPLE)
-	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Xarch_x86_64 -D__x86_64__")
-elseif(WIN32)
-
-else()
-	# Linux
-	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
-endif()
-
-
 add_library(libs
 ${fftss}
 ${imath}

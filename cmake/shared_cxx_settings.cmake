@@ -163,8 +163,10 @@ elseif(APPLE)
 	# -Wthread-safety is Thread Safety Analysis: https://clang.llvm.org/docs/ThreadSafetyAnalysis.html
 	if(TARGET_ARM64)
 		SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -arch arm64 -Wthread-safety")
+		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Xarch_arm64")
 	else()
 		SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -mmmx -msse -msse2 -mssse3 -msse4.1 -arch x86_64 -Wthread-safety")
+		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Xarch_x86_64 -D__x86_64__")
 	endif()
 	
 	SET(COMMON_C_CXX_OPTIONS_DEBUG				"${APPLE_C_CXX_OPTIONS} -gdwarf-2")
@@ -188,6 +190,8 @@ else() # Linux
 	add_definitions(-D__SSSE3__ -D__NO_AVX__)
 
 	SET(LINUX_C_CXX_OPTIONS "-Wall -fPIC -pthread -mmmx -msse -msse2 -mssse3 -msse4.1")
+	
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
 	
 	# Turn on address/memory etc.. sanitizer if requested.  See http://code.google.com/p/address-sanitizer/wiki/AddressSanitizer 
 	if(NOT USE_SANITIZER STREQUAL "")
