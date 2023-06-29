@@ -123,6 +123,13 @@ SET(SUBSTRATA_PRIVATE_REPO_PATH "" CACHE PATH "Path to substrata-private repo.")
 
 SET(TARGET_ARM64 OFF CACHE BOOL "Target ARM64 architecture.  Only used on Mac currently.")
 
+if(TARGET_ARM64)
+    MESSAGE("Targeting ARM64")
+    SET(CMAKE_OS_ARCHITECTURES "arm64")
+else()
+    SET(CMAKE_OS_ARCHITECTURES "x86_64")
+    MESSAGE("Targeting x64")
+endif()
 
 MESSAGE("ENABLE_GLARE_PARCEL_AUCTION_CODE: ${ENABLE_GLARE_PARCEL_AUCTION_CODE}")
 MESSAGE("SUBSTRATA_PRIVATE_REPO_PATH: ${SUBSTRATA_PRIVATE_REPO_PATH}")
@@ -186,6 +193,8 @@ MESSAGE("\n----------Library versions:----------")
 MESSAGE("QT version: ${INDIGO_QT_VERSION}")
 MESSAGE("LLVM version: ${INDIGO_LLVM_VERSION}")
 MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
+
+enable_language( C CXX ASM )
 
 
 # LLVM, LibreSSL, OpenSSL
