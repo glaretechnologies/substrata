@@ -326,6 +326,10 @@ module OS
 		(/darwin/ =~ RUBY_PLATFORM) != nil
 	end
 
+	def OS.arm64?
+		(/arm64/ =~ RUBY_PLATFORM) != nil
+	end
+
 	def OS.unix?
 		!OS.windows?
 	end
