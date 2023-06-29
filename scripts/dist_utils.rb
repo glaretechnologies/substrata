@@ -29,10 +29,10 @@ def copyQtRedistWindows(vs_version, target_dir, copy_debug = false)
 	end
 	
 	# Get Qt path.
-	indigo_libs_dir = getAndCheckEnvVar('INDIGO_LIBS')
-	indigo_qt_dir = "#{indigo_libs_dir}/Qt/#{$qt_version}-vs#{vs_version}-64"
-	lib_path = "#{indigo_qt_dir}/bin"
-	plugins_path = "#{indigo_qt_dir}/plugins"
+	glare_core_libs_dir = getAndCheckEnvVar('GLARE_CORE_LIBS')
+	qt_dir = "#{glare_core_libs_dir}/Qt/#{$qt_version}-vs#{vs_version}-64"
+	lib_path = "#{qt_dir}/bin"
+	plugins_path = "#{qt_dir}/plugins"
 	
 	# Qt dlls.
 	dll_files = ["Qt5Core", "Qt5Gui",
@@ -170,7 +170,7 @@ end
 # Copy BugSplat support files (See https://docs.bugsplat.com/introduction/getting-started/integrations/desktop/cplusplus)
 def copyBugSplatRedist(dist_dir)
 
-	bugsplat_dir = getAndCheckEnvVar('INDIGO_LIBS') + "/BugSplat"
+	bugsplat_dir = getAndCheckEnvVar('GLARE_CORE_LIBS') + "/BugSplat"
 	FileUtils.copy(bugsplat_dir + "/BugSplat/x64/Release/BsSndRpt64.exe",   "#{dist_dir}/", :verbose => true)
 	FileUtils.copy(bugsplat_dir + "/BugSplat/x64/Release/BugSplat64.dll",   "#{dist_dir}/", :verbose => true)
 	FileUtils.copy(bugsplat_dir + "/BugSplat/x64/Release/BugSplatRc64.dll", "#{dist_dir}/", :verbose => true)

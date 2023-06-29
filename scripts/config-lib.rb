@@ -1,22 +1,19 @@
 #!/usr/bin/ruby
 
 # This file defines configuration options to be used instead of hardcoded values.
-# The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..#
+# The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
 
 #require './script_utils.rb'
 
 # The config options
 
-$vs_version = 2022 # Visual studio option used to build distribution.  Used in build.rb
-
-$libs_vs_version = 2019 # VS version used to build libraries - Qt etc.  Can be lower than $vs_version.
-# NOTE: should match CYBERSPACE_LIBS_VS_VER in Cmakelists.txt
+$vs_version = 2022 # Visual Studio version used to build libraries and Substrata.  Used in build.rb and library build scripts.
 
 
-$qt_version = "5.13.2" if OS.windows?
-#$qt_version = "6.2.2" if OS.windows?
-$qt_version = "5.15.4" if OS.mac?
-$qt_version = "5.13.2" if OS.linux?
+# 5.15.10 is the latest released open source version in the pre-6.0 series as of June 2023.
+$qt_version = "5.15.10" if OS.windows?
+$qt_version = "5.15.10" if OS.mac? 
+$qt_version = "5.15.10" if OS.linux?
 
 
 $llvm_version = ""
