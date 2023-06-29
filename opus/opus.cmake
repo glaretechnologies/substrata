@@ -1,4 +1,73 @@
 
+
+
+if(TARGET_ARM64)
+	set(CELT_ARCH_SPECIFIC_FILES
+		${OPUS_ROOT}/celt/arm/armcpu.c
+		${OPUS_ROOT}/celt/arm/armcpu.h
+		#${OPUS_ROOT}/celt/arm/armopts.s.in
+		${OPUS_ROOT}/celt/arm/arm_celt_map.c
+		${OPUS_ROOT}/celt/arm/celt_fft_ne10.c
+		${OPUS_ROOT}/celt/arm/celt_mdct_ne10.c
+		${OPUS_ROOT}/celt/arm/celt_neon_intr.c
+		${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm-gnu.S
+		${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm.s
+		${OPUS_ROOT}/celt/arm/fft_arm.h
+		${OPUS_ROOT}/celt/arm/fixed_arm64.h
+		${OPUS_ROOT}/celt/arm/fixed_armv4.h
+		${OPUS_ROOT}/celt/arm/fixed_armv5e.h
+		${OPUS_ROOT}/celt/arm/kiss_fft_armv4.h
+		${OPUS_ROOT}/celt/arm/kiss_fft_armv5e.h
+		${OPUS_ROOT}/celt/arm/mdct_arm.h
+		${OPUS_ROOT}/celt/arm/pitch_arm.h
+		${OPUS_ROOT}/celt/arm/pitch_neon_intr.c
+	)
+else()
+	set(CELT_ARCH_SPECIFIC_FILES
+		${OPUS_ROOT}/celt/x86/celt_lpc_sse.h
+		${OPUS_ROOT}/celt/x86/celt_lpc_sse4_1.c
+		${OPUS_ROOT}/celt/x86/pitch_sse.c
+		${OPUS_ROOT}/celt/x86/pitch_sse.h
+		${OPUS_ROOT}/celt/x86/pitch_sse2.c
+		${OPUS_ROOT}/celt/x86/pitch_sse4_1.c
+		${OPUS_ROOT}/celt/x86/vq_sse.h
+		${OPUS_ROOT}/celt/x86/vq_sse2.c
+		${OPUS_ROOT}/celt/x86/x86cpu.c
+		${OPUS_ROOT}/celt/x86/x86cpu.h
+		${OPUS_ROOT}/celt/x86/x86_celt_map.c
+	)
+endif()
+
+if(TARGET_ARM64)
+	set(SILK_ARCH_SPECIFIC_FILES
+		${OPUS_ROOT}/silk/arm/arm_silk_map.c
+		${OPUS_ROOT}/silk/arm/biquad_alt_arm.h
+		${OPUS_ROOT}/silk/arm/biquad_alt_neon_intr.c
+		${OPUS_ROOT}/silk/arm/LPC_inv_pred_gain_arm.h
+		${OPUS_ROOT}/silk/arm/LPC_inv_pred_gain_neon_intr.c
+		${OPUS_ROOT}/silk/arm/macros_arm64.h
+		${OPUS_ROOT}/silk/arm/macros_armv4.h
+		${OPUS_ROOT}/silk/arm/macros_armv5e.h
+		${OPUS_ROOT}/silk/arm/NSQ_del_dec_arm.h
+		${OPUS_ROOT}/silk/arm/NSQ_del_dec_neon_intr.c
+		${OPUS_ROOT}/silk/arm/NSQ_neon.c
+		${OPUS_ROOT}/silk/arm/NSQ_neon.h
+		${OPUS_ROOT}/silk/arm/SigProc_FIX_armv4.h
+		${OPUS_ROOT}/silk/arm/SigProc_FIX_armv5e.h
+	)
+else()
+	set(SILK_ARCH_SPECIFIC_FILES
+		${OPUS_ROOT}/silk/x86/main_sse.h
+		${OPUS_ROOT}/silk/x86/NSQ_del_dec_sse4_1.c
+		${OPUS_ROOT}/silk/x86/NSQ_sse4_1.c
+		${OPUS_ROOT}/silk/x86/SigProc_FIX_sse.h
+		${OPUS_ROOT}/silk/x86/VAD_sse4_1.c
+		${OPUS_ROOT}/silk/x86/VQ_WMat_EC_sse4_1.c
+		${OPUS_ROOT}/silk/x86/x86_silk_map.c
+	)
+endif()
+
+
 set(OPUS_SRC_FILES
 ${OPUS_ROOT}/src/analysis.c
 ${OPUS_ROOT}/src/analysis.h
@@ -80,38 +149,7 @@ ${OPUS_ROOT}/celt/vq.c
 ${OPUS_ROOT}/celt/vq.h
 ${OPUS_ROOT}/celt/_kiss_fft_guts.h
 
-if(TARGET_ARM64)
-	${OPUS_ROOT}/celt/arm/armcpu.c
-	${OPUS_ROOT}/celt/arm/armcpu.h
-	#${OPUS_ROOT}/celt/arm/armopts.s.in
-	${OPUS_ROOT}/celt/arm/arm_celt_map.c
-	${OPUS_ROOT}/celt/arm/celt_fft_ne10.c
-	${OPUS_ROOT}/celt/arm/celt_mdct_ne10.c
-	${OPUS_ROOT}/celt/arm/celt_neon_intr.c
-	${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm-gnu.S
-	${OPUS_ROOT}/celt/arm/celt_pitch_xcorr_arm.s
-	${OPUS_ROOT}/celt/arm/fft_arm.h
-	${OPUS_ROOT}/celt/arm/fixed_arm64.h
-	${OPUS_ROOT}/celt/arm/fixed_armv4.h
-	${OPUS_ROOT}/celt/arm/fixed_armv5e.h
-	${OPUS_ROOT}/celt/arm/kiss_fft_armv4.h
-	${OPUS_ROOT}/celt/arm/kiss_fft_armv5e.h
-	${OPUS_ROOT}/celt/arm/mdct_arm.h
-	${OPUS_ROOT}/celt/arm/pitch_arm.h
-	${OPUS_ROOT}/celt/arm/pitch_neon_intr.c
-else()
-	${OPUS_ROOT}/celt/x86/celt_lpc_sse.h
-	${OPUS_ROOT}/celt/x86/celt_lpc_sse4_1.c
-	${OPUS_ROOT}/celt/x86/pitch_sse.c
-	${OPUS_ROOT}/celt/x86/pitch_sse.h
-	${OPUS_ROOT}/celt/x86/pitch_sse2.c
-	${OPUS_ROOT}/celt/x86/pitch_sse4_1.c
-	${OPUS_ROOT}/celt/x86/vq_sse.h
-	${OPUS_ROOT}/celt/x86/vq_sse2.c
-	${OPUS_ROOT}/celt/x86/x86cpu.c
-	${OPUS_ROOT}/celt/x86/x86cpu.h
-	${OPUS_ROOT}/celt/x86/x86_celt_map.c
-endif()
+${CELT_ARCH_SPECIFIC_FILES}
 
 ${OPUS_ROOT}/silk/A2NLSF.c
 ${OPUS_ROOT}/silk/ana_filt_bank_1.c
@@ -244,31 +282,7 @@ ${OPUS_ROOT}/silk/float/structs_FLP.h
 ${OPUS_ROOT}/silk/float/warped_autocorrelation_FLP.c
 ${OPUS_ROOT}/silk/float/wrappers_FLP.c
 
-if(TARGET_ARM64)
-	${OPUS_ROOT}/silk/arm/arm_silk_map.c
-	${OPUS_ROOT}/silk/arm/biquad_alt_arm.h
-	${OPUS_ROOT}/silk/arm/biquad_alt_neon_intr.c
-	${OPUS_ROOT}/silk/arm/LPC_inv_pred_gain_arm.h
-	${OPUS_ROOT}/silk/arm/LPC_inv_pred_gain_neon_intr.c
-	${OPUS_ROOT}/silk/arm/macros_arm64.h
-	${OPUS_ROOT}/silk/arm/macros_armv4.h
-	${OPUS_ROOT}/silk/arm/macros_armv5e.h
-	${OPUS_ROOT}/silk/arm/NSQ_del_dec_arm.h
-	${OPUS_ROOT}/silk/arm/NSQ_del_dec_neon_intr.c
-	${OPUS_ROOT}/silk/arm/NSQ_neon.c
-	${OPUS_ROOT}/silk/arm/NSQ_neon.h
-	${OPUS_ROOT}/silk/arm/SigProc_FIX_armv4.h
-	${OPUS_ROOT}/silk/arm/SigProc_FIX_armv5e.h
-else()
-	${OPUS_ROOT}/silk/x86/main_sse.h
-	${OPUS_ROOT}/silk/x86/NSQ_del_dec_sse4_1.c
-	${OPUS_ROOT}/silk/x86/NSQ_sse4_1.c
-	${OPUS_ROOT}/silk/x86/SigProc_FIX_sse.h
-	${OPUS_ROOT}/silk/x86/VAD_sse4_1.c
-	${OPUS_ROOT}/silk/x86/VQ_WMat_EC_sse4_1.c
-	${OPUS_ROOT}/silk/x86/x86_silk_map.c
-endif()
-
+${SILK_ARCH_SPECIFIC_FILES}
 )
 
 # Group source files
