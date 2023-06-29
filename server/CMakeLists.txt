@@ -134,7 +134,10 @@ SET(ethereum_files
 
 include_directories(${basisu_dir})
 
-add_definitions(-DBASISU_SUPPORT_SSE=1)
+if(TARGET_ARM64)
+else()
+	add_definitions(-DBASISU_SUPPORT_SSE=1)
+endif()
 # Disable some basis universal stuff we don't use
 # add_definitions(-DBASISD_SUPPORT_UASTC=0) # This would be nice but it doesn't compile with it defined.
 # add_definitions(-DBASISD_SUPPORT_BC7_MODE5=0)
