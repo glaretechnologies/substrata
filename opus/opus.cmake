@@ -303,7 +303,6 @@ target_include_directories(Opus PRIVATE ${OPUS_ROOT}/silk/float)
 target_compile_definitions(Opus PRIVATE -DOPUS_BUILD)
 target_compile_definitions(Opus PRIVATE -DENABLE_HARDENING)
 target_compile_definitions(Opus PRIVATE -DUSE_ALLOCA)
-target_compile_definitions(Opus PRIVATE -DOPUS_HAVE_RTCD) # Runtime CPU detection
 target_compile_definitions(Opus PRIVATE -DCPU_INFO_BY_C)
 
 if(TARGET_ARM64)
@@ -311,6 +310,7 @@ target_compile_definitions(Opus PRIVATE -DOPUS_ARM_ASM)
 target_compile_definitions(Opus PRIVATE -DOPUS_ARM_MAY_HAVE_NEON_INTR)
 target_compile_definitions(Opus PRIVATE -DOPUS_ARM_PRESUME_AARCH64_NEON_INTR)
 else()
+target_compile_definitions(Opus PRIVATE -DOPUS_HAVE_RTCD) # Runtime CPU detection
 target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE)
 target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE)
 target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE2)
