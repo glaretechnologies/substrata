@@ -178,7 +178,12 @@ def buildLLVM(llvm_src_dir, vs_version = -1)
 			cmake_args += " -DLLVM_BUILD_LLVM_DYLIB=TRUE"
 		end
 		
-		cmake_args += " -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_TARGETS_TO_BUILD=\"X86\""
+		cmake_args += " -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_OPTIMIZED_TABLEGEN=ON"
+		if OS.arm64?
+			cmake_args += " -DLLVM_TARGETS_TO_BUILD=\"AArch64\""
+		else
+			cmake_args += " -DLLVM_TARGETS_TO_BUILD=\"X86\""
+		end
 		
 		cmake_build.configure(configuration, vs_version, cmake_args, false, OS.arm64?)
 		cmake_build.build()
