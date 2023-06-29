@@ -1,7 +1,7 @@
 #
 # Copies various files that are need to run Substrata into the CYBERSPACE_OUTPUT directories.
 #
-# Note that copyCyberspaceResources() is defined dist_utils.rb
+# Note that copyCyberspaceResources() is defined in dist_utils.rb
 #
 
 require './dist_utils.rb'
@@ -15,6 +15,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir)
 		copyBugSplatRedist(output_dir)
+		copyQtRedistWindows(vs_version, output_dir, true)
 	end
 
 	begin
@@ -23,6 +24,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir)
 		copyBugSplatRedist(output_dir)
+		copyQtRedistWindows(vs_version, output_dir, false)
 	end
 
 	begin
@@ -31,6 +33,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir)
 		copyBugSplatRedist(output_dir)
+		copyQtRedistWindows(vs_version, output_dir, false)
 	end
 end
 

@@ -17,16 +17,13 @@ if(WIN32)
 	# See https://cmake.org/cmake/help/latest/variable/MSVC_VERSION.html, https://en.wikipedia.org/wiki/Microsoft_Visual_Studio
 	if(MSVC_VERSION GREATER_EQUAL 1920 AND MSVC_VERSION LESS 1930)
 		set(CYBERSPACE_VS_VER 2019)
-		set(CYBERSPACE_LIBS_VS_VER 2019)
 	elseif(MSVC_VERSION GREATER_EQUAL 1930 AND MSVC_VERSION LESS 1940)
 		set(CYBERSPACE_VS_VER 2022)
-		set(CYBERSPACE_LIBS_VS_VER 2022)
 	else()
 		message(FATAL_ERROR "Unhandled MSVC version")
 	endif()
 	
 	MESSAGE("CYBERSPACE_VS_VER: ${CYBERSPACE_VS_VER}")
-	MESSAGE("CYBERSPACE_LIBS_VS_VER: ${CYBERSPACE_LIBS_VS_VER}")	
 endif()
 
 
@@ -161,7 +158,7 @@ SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")
 MESSAGE("USE_SANITIZER: ${USE_SANITIZER}")
 
 if(WIN32)
-	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_LIBS_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
+	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
 	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-install")
 	#set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo-builds/build")
@@ -173,7 +170,7 @@ string(REPLACE "." "_" INDIGO_LLVM_VERSION_PATH ${INDIGO_LLVM_VERSION})
 
 # Qt
 if(WIN32)	
-	set(INDIGO_QT_DIR			"${GLARE_CORE_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}-vs${CYBERSPACE_LIBS_VS_VER}-${CYBERSPACE_BITNESS}")
+	set(INDIGO_QT_DIR			"${GLARE_CORE_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}-vs${CYBERSPACE_VS_VER}-${CYBERSPACE_BITNESS}")
 else()
 	set(INDIGO_QT_DIR        	"${GLARE_CORE_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}")
 endif()
@@ -192,8 +189,8 @@ if(WIN32)
 	# VS subdir
 	set(VS_SUB_DIR "vs${CYBERSPACE_VS_VER}")
 	
-	set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_LIBS_VS_VER}_${CYBERSPACE_BITNESS}")
-	set(libressldir "${GLARE_CORE_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}-install")
+	set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_VS_VER}_${CYBERSPACE_BITNESS}")
+	set(libressldir "${GLARE_CORE_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_VS_VER}-install")
 		
 	# Set the output directory.  Cmake will append the configuration string to this.
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "$ENV{CYBERSPACE_OUTPUT}/${VS_SUB_DIR}/cyberspace_${CYBERSPACE_PLATFORM}")
