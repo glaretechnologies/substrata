@@ -68,8 +68,7 @@ end
 
 
 substrata_repos_dir = ".."
-glare_core_rev_path = "trunk"
-glare_core_repos_dir = getAndCheckEnvVar('GLARE_CORE_TRUNK_DIR') + "/../" + glare_core_rev_path
+glare_core_repos_dir = getAndCheckEnvVar('GLARE_CORE_TRUNK_DIR')
 
 if OS.windows?
 	copy_files(2022, substrata_repos_dir, glare_core_repos_dir)
