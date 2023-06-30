@@ -1,3 +1,89 @@
+Prerequisites
+=============
+ruby (used by substrata build scripts)
+cmake (used for substrata build)
+Python (used by LLVM build)
+
+
+Check out source
+================
+	cd ~/programming
+
+	git clone https://github.com/glaretechnologies/glare-core.git
+	git clone https://github.com/glaretechnologies/winter.git
+	git clone https://github.com/glaretechnologies/substrata.git
+
+
+Build libraries that Substrata uses
+===================================
+	mkdir libs
+
+Set needed env vars:
+GLARE_CORE_LIBS is where library build scripts will build libraries: Qt, LLVM, Libjpegturbo etc.
+WINTER_DIR just has the path to the checked out Winter repo.
+GLARE_CORE_TRUNK_DIR just has the path to the checked out Glare-core repo.
+CYBERSPACE_OUTPUT is where the built executables will be placed.
+
+For example:
+	export GLARE_CORE_LIBS=/Users/XX/programming/libs
+	export WINTER_DIR=/Users/XX/programming/winter
+	export GLARE_CORE_TRUNK_DIR=/Users/XX/programming/glare-core
+	export CYBERSPACE_OUTPUT=/Users/XX/programming/substrata_output
+
+	cd glare-core/scripts
+	ruby build_libressl.rb
+
+	cd ../../
+	cd substrata/scripts
+
+	ruby build_jpegturbo.rb
+	ruby build_llvm.rb
+	ruby build_qt.rb
+
+
+Optionally build Chromium Embedded Framework (CEF) as described below.  The following build instructions will assume we are building without CEF support.
+CEF is used for web-views. (embedded browser widgets)
+
+Build Substrata
+================
+	cd ../../
+	mkdir substrata_build
+	cd substrata_build
+
+On Windows:
+	cmake ../substrata -DCEF_SUPPORT=OFF
+
+On Mac/linux, x64 architecture:
+	cmake ../substrata -DCEF_SUPPORT=OFF -DCMAKE_BUILD_TYPE=Debug
+
+On Mac, ARM64 architecture:
+	cmake ../substrata -DCEF_SUPPORT=OFF -DCMAKE_BUILD_TYPE=Debug -DTARGET_ARM64=ON
+
+
+Start build:	
+	make
+
+Or to just build the GUI client:
+	make gui_client
+
+To build with e.g. 8 threads:
+	make gui_client -j 8
+
+
+Running Substrata
+=================
+
+	cd ../
+	cd substrata/scripts
+	ruby copy_files_to_output.rb --no_cef
+
+
+Then run the gui_client executable that should have been built.
+
+
+
+
+
 
 Building Chromium Embedded Framework (CEF)
 ==========================================
