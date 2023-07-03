@@ -9,6 +9,9 @@ include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
 include(../cmake/winter.cmake)
 
+add_definitions(${WINTER_PREPROCESSOR_DEFINITIONS}) # WINTER_PREPROCESSOR_DEFINITIONS is returned from embed_winter.cmake via winter.cmake.
+
+
 #============== Jolt physics ==============
 
 set(PHYSICS_REPO_ROOT "${CMAKE_SOURCE_DIR}/jolt")
@@ -585,7 +588,7 @@ ${simpleraytracer}
 ${sceneparser}
 ${utils}
 ${hdr}
-${winter}
+${WINTER_FILES}
 ${gui_client}
 ${shared_files}
 ${scripts}
