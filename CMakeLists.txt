@@ -157,7 +157,7 @@ message("")
 message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 
 
-SET(INDIGO_LLVM_VERSION 6.0.0)
+SET(SUBSTRATA_LLVM_VERSION 6.0.0)
 SET(INDIGO_LIBRESSL_VERSION 3.5.2)
 
 SET(PERFORMANCEAPI_ENABLED OFF CACHE BOOL "Enable Superluminal instrumentation support") # Superluminal instrumentation support
@@ -177,7 +177,7 @@ endif()
 
 
 # The llvm dirs use the version seperator "_" instead of "."
-string(REPLACE "." "_" INDIGO_LLVM_VERSION_PATH ${INDIGO_LLVM_VERSION})
+string(REPLACE "." "_" SUBSTRATA_LLVM_VERSION_PATH ${SUBSTRATA_LLVM_VERSION})
 
 # Qt
 if(WIN32)	
@@ -191,7 +191,7 @@ set(INDIGO_QT_LIB_DIR	"${INDIGO_QT_DIR}/lib")
 
 MESSAGE("\n----------Library versions:----------")
 MESSAGE("QT version: ${INDIGO_QT_VERSION}")
-MESSAGE("LLVM version: ${INDIGO_LLVM_VERSION}")
+MESSAGE("LLVM version: ${SUBSTRATA_LLVM_VERSION}")
 MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
 
 enable_language( C CXX ASM )
@@ -202,7 +202,7 @@ if(WIN32)
 	# VS subdir
 	set(VS_SUB_DIR "vs${CYBERSPACE_VS_VER}")
 	
-	set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_VS_VER}_${CYBERSPACE_BITNESS}")
+	set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${SUBSTRATA_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_VS_VER}_${CYBERSPACE_BITNESS}")
 	set(libressldir "${GLARE_CORE_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_VS_VER}-install")
 		
 	# Set the output directory.  Cmake will append the configuration string to this.
@@ -214,9 +214,9 @@ if(WIN32)
 	
 else() # Mac or Linux.
 	if(APPLE)
-		set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install")
+		set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${SUBSTRATA_LLVM_VERSION_PATH}_install")
 	else()
-		set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_dylib_install") # Use dylib build
+		set(llvmdir "${GLARE_CORE_LIBS_ENV}/llvm/llvm_${SUBSTRATA_LLVM_VERSION_PATH}_dylib_install") # Use dylib build
 	endif()
 	set(libressldir	"${GLARE_CORE_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-install")
 	
