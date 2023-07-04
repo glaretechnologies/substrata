@@ -432,7 +432,7 @@ def buildUnix()
 
 	if $qt_version_major.to_i >= 6
 		linux_args = OS.linux? ? "-xcb -qt-libpng" : "" # add -force-debug-info for debug info in release builds on linux.
-	elsif $qt_version_major.to_i >= 5 && $qt_version_minor >= 15
+	elsif $qt_version_major.to_i >= 5 && $qt_version_minor.to_i >= 15
 		linux_args = OS.linux? ? "-bundled-xcb-xinput -qt-libpng" : "" # -qt-xcb option was removed in 5.15, see https://codereview.qt-project.org/c/qt/qtdoc/+/300877/3/doc/src/platforms/linux.qdoc
 	else
 		linux_args = OS.linux? ? "-qt-xcb -qt-libpng" : "" # add -force-debug-info for debug info in release builds on linux.
