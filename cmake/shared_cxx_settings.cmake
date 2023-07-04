@@ -58,7 +58,7 @@ addIncludeDirectory("${zstddir}/lib/common")
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/opencl/khronos")
 
 # BugSplat
-addIncludeDirectory("${GLARE_CORE_LIBS_ENV}/BugSplat/inc")
+addIncludeDirectory("${GLARE_CORE_LIBS_ENV}/BugSplat/BugSplat/inc")
 
 
 # Append INDIGO_SHARED_INCLUDE_DIRS

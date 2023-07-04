@@ -707,7 +707,8 @@ if(WIN32)
 	
 	if(BUGSPLAT_SUPPORT)
 		target_link_libraries(${CURRENT_TARGET}
-			${GLARE_CORE_LIBS_ENV}/BugSplat/lib64/BugSplat64.lib
+			optimized ${GLARE_CORE_LIBS_ENV}/BugSplat/BugSplat/x64/Release/BugSplat64.lib
+			debug ${GLARE_CORE_LIBS_ENV}/BugSplat/BugSplat/x64/Debug/BugSplat64.lib
 		)
 	endif()
 
