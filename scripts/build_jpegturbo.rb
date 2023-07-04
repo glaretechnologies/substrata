@@ -87,9 +87,9 @@ def getOutputDirName(configuration, dir_type, vs_version = -1)
 			exit 1
 		end
 		
-		return "libjpeg-turbo-vs#{vs_version}-#{dir_type}#{config_suffix}"
+		return "libjpeg-turbo-#{$libjpegturbo_version}-vs#{vs_version}-#{dir_type}#{config_suffix}"
 	else
-		return "libjpeg-turbo-#{dir_type}#{config_suffix}"
+		return "libjpeg-turbo-#{$libjpegturbo_version}-#{dir_type}#{config_suffix}"
 	end
 end
 
@@ -125,7 +125,7 @@ def buildLibJpegTurbo(configurations, vs_version)
 end
 
 
-$libjpegturbo_version = "2.1.4" # Github tag version, released aug 13th 2022.
+$libjpegturbo_version = "3.0.0" # From 4th July 2023.
 $libjpegturbo_source_name = "libjpeg-turbo-#{$libjpegturbo_version}"
 $libjpegturbo_source_file = "libjpeg-turbo-#{$libjpegturbo_version}.zip"
 $glare_core_dir = ENV['GLARE_CORE_LIBS']
