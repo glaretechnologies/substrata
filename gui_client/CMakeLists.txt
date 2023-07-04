@@ -707,7 +707,7 @@ if(WIN32)
 	
 	if(BUGSPLAT_SUPPORT)
 		target_link_libraries(${CURRENT_TARGET}
-			${INDIGO_LIBS_ENV}/BugSplat/lib64/BugSplat64.lib
+			${GLARE_CORE_LIBS_ENV}/BugSplat/lib64/BugSplat64.lib
 		)
 	endif()
 
