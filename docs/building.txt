@@ -32,12 +32,12 @@ For example:
 
 	cd glare-core/scripts
 	ruby build_libressl.rb
+	ruby build_llvm.rb
 
 	cd ../../
 	cd substrata/scripts
 
 	ruby build_jpegturbo.rb
-	ruby build_llvm.rb
 	ruby build_qt.rb
 
 
