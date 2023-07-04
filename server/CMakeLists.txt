@@ -8,9 +8,17 @@ include(../cmake/shared_cxx_settings.cmake)
 include_directories("${winterdir}") # Just put winter dir on include path so we can find wnt_SourceBuffer.h
 
 
+FILE(GLOB docs "../docs/*.txt")
+if(ENABLE_GLARE_PARCEL_AUCTION_CODE)
+	FILE(GLOB private_docs "${SUBSTRATA_PRIVATE_REPO_PATH}/docs/*.txt")
+	SET(docs
+		${docs}
+		${private_docs}
+	)
+endif()
+
 FILE(GLOB server "./*.cpp" "./*.h")
 FILE(GLOB webserver "../webserver/*.cpp" "../webserver/*.h")
-FILE(GLOB docs "../docs/*.txt")
 SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h
