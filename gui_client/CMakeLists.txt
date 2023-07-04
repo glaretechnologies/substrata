@@ -747,6 +747,7 @@ elseif(APPLE)
 	target_link_libraries(${CURRENT_TARGET}
 		Jolt # Jolt physics
 		Opus
+		curses # Used by some LLVM code
 	)
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
