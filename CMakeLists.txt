@@ -159,6 +159,7 @@ message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 
 SET(SUBSTRATA_LLVM_VERSION 6.0.0)
 SET(INDIGO_LIBRESSL_VERSION 3.5.2)
+SET(SUBSTRATA_JPEGTURBO_VERSION 3.0.0)
 
 SET(PERFORMANCEAPI_ENABLED OFF CACHE BOOL "Enable Superluminal instrumentation support") # Superluminal instrumentation support
 MESSAGE("PERFORMANCEAPI_ENABLED (Superluminal instrumentation support): ${PERFORMANCEAPI_ENABLED}")
@@ -169,9 +170,9 @@ SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")
 MESSAGE("USE_SANITIZER: ${USE_SANITIZER}")
 
 if(WIN32)
-	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
+	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-${SUBSTRATA_JPEGTURBO_VERSION}-vs${CYBERSPACE_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
-	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-install")
+	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-${SUBSTRATA_JPEGTURBO_VERSION}-install")
 	#set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo-builds/build")
 endif()
 
