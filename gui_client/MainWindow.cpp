@@ -4110,24 +4110,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//const double fps = num_frames / (double)fps_display_timer.elapsed();
 		
 		std::string msg;
-		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
-		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
-		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
-		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
-		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
-		msg += "last_eval_script_time: " + doubleToStringNSigFigs(last_eval_script_time * 1000, 3) + "ms\n";
-		msg += "num obs with scripts: " + toString(obs_with_scripts.size()) + "\n";
-		msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
-		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
-		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
-		msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
-		msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
-		msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
-
-		if(texture_server)
-			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
-
-		msg += this->mesh_manager.getDiagnostics();
 
 		if(ui->glWidget->opengl_engine.nonNull() && ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked())
 		{
@@ -4147,6 +4129,25 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += physics_world->getDiagnostics();
 			msg += "-------------------------------\n";
 		}
+
+		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
+		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
+		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
+		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
+		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
+		msg += "last_eval_script_time: " + doubleToStringNSigFigs(last_eval_script_time * 1000, 3) + "ms\n";
+		msg += "num obs with scripts: " + toString(obs_with_scripts.size()) + "\n";
+		msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
+		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
+		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
+		msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
+		msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
+		msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
+
+		if(texture_server)
+			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
+
+		msg += this->mesh_manager.getDiagnostics();
 
 
 		{
