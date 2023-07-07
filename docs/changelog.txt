@@ -1,3 +1,12 @@
+1.0
+====
+Lots of graphics engine optimisations, 3x faster in some cases.
+Added voice chat:
+	Added audio input device selection in options dialog
+	Added enable microphone for voice chat button
+Slightly better leaning while turning for bikes.
+
+
 0.99
 ====
 Added bike and hovercar vehicles.
