@@ -164,6 +164,9 @@ SET(SUBSTRATA_JPEGTURBO_VERSION 3.0.0)
 SET(PERFORMANCEAPI_ENABLED OFF CACHE BOOL "Enable Superluminal instrumentation support") # Superluminal instrumentation support
 MESSAGE("PERFORMANCEAPI_ENABLED (Superluminal instrumentation support): ${PERFORMANCEAPI_ENABLED}")
 
+SET(TRACY_ENABLED OFF CACHE BOOL "Enable Tracy profiler instrumentation support")
+MESSAGE("TRACY_ENABLED (Tracy profiler instrumentation support): ${TRACY_ENABLED}")
+
 # To use a Clang sanitizer, for example address sanitizer, set on command line like so:
 # -DUSE_SANITIZER=address or -DUSE_SANITIZER=thread
 SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")

@@ -20,6 +20,13 @@ include(../jolt/Jolt/Jolt.cmake)
 include_directories(${PHYSICS_REPO_ROOT})
 
 
+#============== Tracy compiler ==============
+
+include_directories("${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public")
+set(tracy_files "${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public/TracyClient.cpp")
+
+
+
 # Rules to build moc_xx.cpp files, from xx.h files, using the program 'moc'.
 addMocFileRule(gui_client MainWindow)
 addMocFileRule(gui_client GuiClientApplication)
@@ -535,6 +542,7 @@ SOURCE_GROUP(audio FILES ${audio})
 SOURCE_GROUP(resonance-audio FILES ${resonance})
 SOURCE_GROUP(meshoptimizer FILES ${meshoptimizer})
 SOURCE_GROUP(opus FILES ${opus_src})
+SOURCE_GROUP(tracy FILES ${tracy_files})
 
 
 if(WIN32)
@@ -613,6 +621,7 @@ ${meshoptimizer}
 ${rc_stuff}
 ${natvis_files}
 ${opus_src}
+${tracy_files}
 )
 
 add_definitions(-DGUI_CLIENT=1)
@@ -626,6 +635,12 @@ if(WIN32)
 	
 	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/ZI") # ZI = Set debug info format to 'Program Database for Edit & Continue'  for debug builds.
 	# It slows down the code too much to use for RelWithDebInfo builds.
+	
+	# Enable Tracy profiler for RELEASE and RELWITHDEBINFO configs.  Can't enable for Debug config because it clashes with Edit & Continue (/ZI).
+	if(TRACY_ENABLED)
+		SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			-DTRACY_ENABLE=1")
+		SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	-DTRACY_ENABLE=1")
+	endif()
 	
 	if(BUGSPLAT_SUPPORT)
 		add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
