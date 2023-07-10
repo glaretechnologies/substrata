@@ -204,7 +204,6 @@ ${UTILS_DIR}/ReferenceTest.cpp
 ${UTILS_DIR}/ReferenceTest.h
 ${UTILS_DIR}/SHA256.cpp
 ${UTILS_DIR}/SHA256.h
-${UTILS_DIR}/Singleton.h
 ${UTILS_DIR}/SmallArray.cpp
 ${UTILS_DIR}/SmallArray.h
 ${UTILS_DIR}/SmallVector.cpp
