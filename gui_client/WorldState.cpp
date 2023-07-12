@@ -17,7 +17,8 @@ WorldState::WorldState()
 :	last_global_time_received(0),
 	local_time_global_time_received(0),
 	correction_start_time(0),
-	correction_amount(0)
+	correction_amount(0),
+	objects(UID::invalidUID())
 {
 	url_whitelist = new URLWhitelist();
 }

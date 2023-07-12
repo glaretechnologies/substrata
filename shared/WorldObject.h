@@ -235,9 +235,10 @@ public:
 
 	static std::string objectTypeString(ObjectType t);
 
-private:
+public:
 	// Group centroid_ws, current_lod_level, biased_aabb_len and in_proximity together in first cache line (64 B) to make MainWindow::checkForLODChanges() fast.
 	Vec4f centroid_ws; // Object-space AABB centroid transformed to world space.
+private:
 	float aabb_ws_longest_len;	// == getAABBWS().longestLength()
 	float biased_aabb_len;		// == getAABBWS().longestLength() * lod_bias_factor.  lod_bias_factor can be something like 2 for voxel objects to push out the transition distances a bit.
 public:

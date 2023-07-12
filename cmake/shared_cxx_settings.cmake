@@ -141,7 +141,10 @@ if(WIN32)
 	if(NO_WHOLE_PROGRAM_OPT)
 		SET(GL_OPT)
 	else()
-		SET(GL_OPT "/GL")
+		#SET(GL_OPT "/GL")
+		# Whole program optimisations (/GL) temporarily disabled due to inlining problem:
+		# https://developercommunity.visualstudio.com/t/Visual-Studio-not-inlining-small-functio/10412214?q=link+time+code+generation+inline
+		SET(GL_OPT)
 	endif()
 	
 	# Append optimisation flags.
