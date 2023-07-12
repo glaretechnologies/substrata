@@ -157,6 +157,8 @@ Copyright Glare Technologies Limited 2020 -
 #include "HoverCarPhysics.h"
 #include "BikePhysics.h"
 
+#include <tracy/Tracy.hpp>
+
 
 // If we are building on Windows, and we are not in Release mode (e.g. BUILD_TESTS is enabled), then make sure the console window is shown.
 #if defined(_WIN32) && defined(BUILD_TESTS)
@@ -2071,6 +2073,7 @@ void MainWindow::removeObScriptingInfo(WorldObject* ob)
 void MainWindow::loadScriptForObject(WorldObject* ob)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+	ZoneScoped; // Tracy profiler
 
 	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
  	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
@@ -2244,6 +2247,7 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+	ZoneScoped; // Tracy profiler
 
 	if(::hasPrefix(ob->content, "biome:"))
 	{
@@ -3127,6 +3131,8 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 
 void MainWindow::checkForLODChanges()
 {
+	ZoneScoped; // Tracy profiler
+
 	if(world_state.isNull())
 		return;
 		
@@ -3141,10 +3147,14 @@ void MainWindow::checkForLODChanges()
 		//const int begin_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * slice;
 		//const int end_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * (slice + 1);
 		
-		const auto values_end = this->world_state->objects.valuesEnd();
-		for(auto it = this->world_state->objects.valuesBegin(); it != values_end; ++it)
+		glare::FastIterMapValueInfo<UID, WorldObjectRef>* const objects_data = this->world_state->objects.vector.data();
+		const size_t objects_size                                            = this->world_state->objects.vector.size();
+		for(size_t i=0; i<objects_size; ++i)
 		{
-			WorldObject* ob = it.getValue().ptr();
+			if(i + 16 < objects_size)
+				_mm_prefetch((const char*)(&objects_data[i + 16].value->centroid_ws), _MM_HINT_T0);
+
+			WorldObject* const ob = objects_data[i].value.ptr();
 
 			const float cam_to_ob_d2 = ob->getCentroidWS().getDist2(cam_pos);
 			if(cam_to_ob_d2 > load_distance2_) // If object is out of load distance:
@@ -3175,12 +3185,14 @@ void MainWindow::checkForLODChanges()
 			}
 		}
 	} // End lock scope
-	//conPrint("checkForLODChanges took took " + timer.elapsedStringMSWIthNSigFigs(4) + " (" + toString(world_state->objects.size()) + " obs)");
+	//conPrint("checkForLODChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + " (" + toString(world_state->objects.size()) + " obs)");
 }
 
 
 void MainWindow::checkForAudioRangeChanges()
 {
+	ZoneScoped; // Tracy profiler
+
 	if(world_state.isNull())
 		return;
 
@@ -3905,6 +3917,7 @@ void MainWindow::updateObjectsWithDiagnosticVis()
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	PERFORMANCEAPI_INSTRUMENT("timerEvent");
+	ZoneScoped; // Tracy profiler
 
 	if(closing || in_CEF_message_loop)
 		return;
@@ -4107,6 +4120,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
 	{
+		ZoneScopedN("diagnostics"); // Tracy profiler
+
 		//const double fps = num_frames / (double)fps_display_timer.elapsed();
 		
 		std::string msg;
@@ -4234,6 +4249,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(world_state.nonNull())
 	{
 		PERFORMANCEAPI_INSTRUMENT("set anim data");
+		ZoneScopedN("set anim data"); // Tracy profiler
 		Timer timer;
 		//Timer tex_upload_timer;
 		//tex_upload_timer.pause();
@@ -4554,6 +4570,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Handle any messages (chat messages etc..)
 	{
 		PERFORMANCEAPI_INSTRUMENT("handle msgs");
+		ZoneScopedN("handle msgs"); // Tracy profiler
 
 		// Remove any messages
 		std::vector<Reference<ThreadMessage> > msgs;
@@ -5331,6 +5348,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Evaluate scripts on objects
 	{
+		ZoneScopedN("script eval"); // Tracy profiler
+
 		Timer timer;
 		Scripting::evaluateObjectScripts(this->obs_with_scripts, global_time, dt, world_state.ptr(), ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), &this->audio_engine,
 			/*num_scripts_processed_out=*/this->last_num_scripts_processed
@@ -5343,6 +5362,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(this->world_state.nonNull())
 	{
+		ZoneScopedN("path_controllers eval"); // Tracy profiler
+
 		Lock lock(this->world_state->mutex);
 		for(size_t i=0; i<path_controllers.size(); ++i)
 			path_controllers[i]->update(*world_state, *physics_world, ui->glWidget->opengl_engine.ptr(), (float)dt);
@@ -5351,7 +5372,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	UpdateEvents physics_events;
 
 	PlayerPhysicsInput physics_input;
-	ui->glWidget->processPlayerPhysicsInput((float)dt, /*input_out=*/physics_input); // sets player physics move impulse.
+	{
+		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
+		ui->glWidget->processPlayerPhysicsInput((float)dt, /*input_out=*/physics_input); // sets player physics move impulse.
+	}
 
 	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
 
@@ -5367,57 +5391,60 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	//printVar(num_substeps);
 	//conPrint("substep_dt: " + doubleToStringMaxNDecimalPlaces(substep_dt * 1000.0, 3) + " ms");
 
-	for(int i=0; i<num_substeps; ++i)
 	{
-		if(physics_world.nonNull())
+		PERFORMANCEAPI_INSTRUMENT("physics sim");
+		ZoneScopedN("physics sim"); // Tracy profiler
+
+		for(int i=0; i<num_substeps; ++i)
 		{
-			physics_world->think(substep_dt); // Advance physics simulation
-
-			PERFORMANCEAPI_INSTRUMENT("player physics");
-
-			if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+			if(physics_world.nonNull())
 			{
-				if(this->cur_seat_index == 0) // If we are driving it:
-					vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
-			}
-			else
-			{
-				// Process player physics
-				UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
-				physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
+				physics_world->think(substep_dt); // Advance physics simulation
 
-				// Process contact events for objects that the player touched.
-				// Take physics ownership of any such object if needed.
+				if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 				{
-					Lock world_state_lock(this->world_state->mutex);
-					for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+					if(this->cur_seat_index == 0) // If we are driving it:
+						vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
+				}
+				else
+				{
+					// Process player physics
+					UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
+					physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
+
+					// Process contact events for objects that the player touched.
+					// Take physics ownership of any such object if needed.
 					{
-						PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
-						if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+						Lock world_state_lock(this->world_state->mutex);
+						for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
 						{
-							WorldObject* ob = (WorldObject*)physics_ob->userdata;
-						
-							if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+							PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+							if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
 							{
-								// conPrint("==Taking ownership of physics object from avatar physics contact...==");
-								takePhysicsOwnershipOfObject(*ob, global_time);
+								WorldObject* ob = (WorldObject*)physics_ob->userdata;
+						
+								if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+								{
+									// conPrint("==Taking ownership of physics object from avatar physics contact...==");
+									takePhysicsOwnershipOfObject(*ob, global_time);
+								}
 							}
 						}
 					}
+					player_physics.contacted_events.resize(0);
 				}
-				player_physics.contacted_events.resize(0);
-			}
 
 
-			// Process vehicle controllers for any vehicles we are not driving:
-			for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
-			{
-				VehiclePhysics* controller = it->second.ptr();
-				if((controller != vehicle_controller_inside.ptr()) || (this->cur_seat_index != 0)) // If this is not the controller for the vehicle we are inside of, or if we are not driving it:
+				// Process vehicle controllers for any vehicles we are not driving:
+				for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
 				{
-					PlayerPhysicsInput controller_physics_input;
-					controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
-					controller->update(*this->physics_world, controller_physics_input, (float)substep_dt);
+					VehiclePhysics* controller = it->second.ptr();
+					if((controller != vehicle_controller_inside.ptr()) || (this->cur_seat_index != 0)) // If this is not the controller for the vehicle we are inside of, or if we are not driving it:
+					{
+						PlayerPhysicsInput controller_physics_input;
+						controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
+						controller->update(*this->physics_world, controller_physics_input, (float)substep_dt);
+					}
 				}
 			}
 		}
@@ -5442,7 +5469,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			const float old_volume = wind_audio_source->volume;
 
 			// Increase wind volume as speed increases, but only once we exceed a certain speed, since we don't really want wind sounds playing when we run + jump around (approx < 20 m/s).
-			const float WIND_VOLUME_FACTOR = 1.2f;
+			const float WIND_VOLUME_FACTOR = 0.7f;
 			wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.015f * WIND_VOLUME_FACTOR, 0.f, WIND_VOLUME_FACTOR);
 
 			if(wind_audio_source->volume != old_volume)
@@ -5672,7 +5699,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						material.transparent = false;
 					}*/
 
-					player_phys_debug_spheres[i]->materials = std::vector<OpenGLMaterial>(1, material);
+					player_phys_debug_spheres[i]->setSingleMaterial(material);
 
 					ui->glWidget->opengl_engine->addObject(player_phys_debug_spheres[i]);
 				}
@@ -5717,7 +5744,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					//material.tex_path = "resources/obstacle.png";
 
 					
-					wheel_gl_objects[i]->materials = std::vector<OpenGLMaterial>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
+				//	wheel_gl_objects[i]->materials = SmallArray<OpenGLMaterial, 2>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
 
 					wheel_gl_objects[i]->materials[2].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
 					wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
@@ -5755,7 +5782,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				material.roughness = 0.6;
 				material.metallic_frac = 0.0;
 					
-				car_body_gl_object->materials = std::vector<OpenGLMaterial>(car_body_gl_object->mesh_data->num_materials_referenced, material);
+				//car_body_gl_object->materials = SmallArray<OpenGLMaterial, 2>(car_body_gl_object->mesh_data->num_materials_referenced, material);
 
 				car_body_gl_object->materials[12].alpha = 0.5f;
 				car_body_gl_object->materials[12].transparent = true;
@@ -5866,6 +5893,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(physics_world.nonNull())
 	{
 		PERFORMANCEAPI_INSTRUMENT("audio occlusions");
+		ZoneScopedN("audio occlusions"); // Tracy profiler
 
 		Lock lock(audio_engine.mutex);
 		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
@@ -5929,6 +5957,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(world_state.nonNull())
 	{
 		PERFORMANCEAPI_INSTRUMENT("avatar graphics");
+		ZoneScopedN("avatar graphics"); // Tracy profiler
 
 		try
 		{
@@ -6486,6 +6515,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(world_state.nonNull())
 	{
 		PERFORMANCEAPI_INSTRUMENT("object graphics");
+		ZoneScopedN("object graphics"); // Tracy profiler
 
 		try
 		{
@@ -6720,6 +6750,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		try
 		{
 			PERFORMANCEAPI_INSTRUMENT("parcel graphics");
+			ZoneScopedN("parcel graphics"); // Tracy profiler
 
 			Lock lock(this->world_state->mutex);
 
@@ -6949,6 +6980,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(client_thread.nonNull() && (time_since_update_packet_sent.elapsed() > 0.1))
 	{
 		PERFORMANCEAPI_INSTRUMENT("sending packets");
+		ZoneScopedN("sending packets"); // Tracy profiler
 
 		// Send AvatarTransformUpdate packet
 		{
@@ -7073,6 +7105,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	//Timer timer;
 	{
 		PERFORMANCEAPI_INSTRUMENT("updateGL()");
+		ZoneScopedN("updateGL"); // Tracy profiler
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 		ui->glWidget->update();
 #else
@@ -7344,6 +7377,8 @@ static std::string printableServerURL(const std::string& hostname, const std::st
 
 void MainWindow::updateStatusBar()
 {
+	ZoneScoped; // Tracy profiler
+
 	std::string status;
 	switch(this->connection_state)
 	{
@@ -12104,7 +12139,7 @@ void MainWindow::createPathControlledPathVisObjects(const WorldObject& ob)
 				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f, 0.3f, 0.3f));
 				material.transparent = true;
 				material.alpha = 0.9f;
-				edge_gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+				edge_gl_ob->setSingleMaterial(material);
 
 				ui->glWidget->opengl_engine->addObject(edge_gl_ob);
 
@@ -13554,14 +13589,14 @@ int main(int argc, char *argv[])
 				material.transparent = true;
 				material.alpha = 0.9f;
 
-				mw.ob_placement_beam->materials = std::vector<OpenGLMaterial>(1, material);
+				mw.ob_placement_beam->setSingleMaterial(material);
 
 				// Make object-placement beam hit marker out of a sphere.
 				mw.ob_placement_marker = mw.ui->glWidget->opengl_engine->allocateObject();
 				mw.ob_placement_marker->ob_to_world_matrix = Matrix4f::identity();
 				mw.ob_placement_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
 
-				mw.ob_placement_marker->materials = std::vector<OpenGLMaterial>(1, material);
+				mw.ob_placement_marker->setSingleMaterial(material);
 			}
 
 			{
@@ -13575,7 +13610,7 @@ int main(int argc, char *argv[])
 				material.transparent = true;
 				material.alpha = 0.9f;
 
-				mw.ob_denied_move_marker->materials = std::vector<OpenGLMaterial>(1, material);
+				mw.ob_denied_move_marker->setSingleMaterial(material);
 			}
 
 			// Make voxel_edit_marker model
@@ -13589,7 +13624,7 @@ int main(int argc, char *argv[])
 				material.transparent = true;
 				material.alpha = 0.3f;
 
-				mw.voxel_edit_marker->materials = std::vector<OpenGLMaterial>(1, material);
+				mw.voxel_edit_marker->setSingleMaterial(material);
 			}
 
 			// Make voxel_edit_face_marker model
@@ -13600,7 +13635,7 @@ int main(int argc, char *argv[])
 
 				OpenGLMaterial material;
 				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.3f, 0.8f, 0.3f));
-				mw.voxel_edit_face_marker->materials = std::vector<OpenGLMaterial>(1, material);
+				mw.voxel_edit_face_marker->setSingleMaterial(material);
 			}
 
 			// Make shader for parcels
@@ -13616,6 +13651,7 @@ int main(int argc, char *argv[])
 					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
 					mw.ui->glWidget->opengl_engine->getAndIncrNextProgramIndex()
 				);
+				mw.ui->glWidget->opengl_engine->addProgram(mw.parcel_shader_prog);
 				// Let any glare::Exception thrown fall through to below.
 			}
 

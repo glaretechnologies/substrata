@@ -14,7 +14,8 @@ if(WIN32)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "")
 
 	# /DEBUG /OPT:REF /OPT:ICF are for writing pdb files that can be used with minidumps.
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS_RELEASE "/DEBUG /OPT:REF /OPT:ICF /LTCG")
+	# /LTCG temporarily removed due to problem with inlining: https://developercommunity.visualstudio.com/t/Visual-Studio-not-inlining-small-functio/10412214?q=link+time+code+generation+inline
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS_RELEASE "/DEBUG /OPT:REF /OPT:ICF")
 
 	target_link_libraries(${CURRENT_TARGET}
 		libs
