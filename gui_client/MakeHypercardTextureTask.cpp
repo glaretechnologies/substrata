@@ -65,6 +65,6 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while loading script: " + e.what());
+		conPrint("Error in MakeHypercardTextureTask: " + e.what());
 	}
 }
