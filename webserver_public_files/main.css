@@ -15,6 +15,14 @@ h1,h2,h3
 {
 	line-height: 1.2;
 }
+table
+{
+	width: 100%;
+}
+td
+{
+	vertical-align: top;
+}
 .main
 {
 	min-height: 400px;
@@ -44,4 +52,31 @@ h1,h2,h3
 
 .msg {
 	background-color: yellow;
+}
+
+.footer {
+	font-size: 0.8em;
+	color: grey;
+	text-align: center;
+}
+
+#price-plot-canvas
+{
+	border:1px solid #d3d3d3;
+}
+#tooltip-canvas
+{
+	border:1px solid #d3d3d3;
+	position:absolute;
+	left:-400px;
+	top:100px;
+	pointer-events:none;
+}
+#selection-point-canvas
+{
+	border:none;
+	position:absolute;
+	left:-400px;
+	top:100px;
+	pointer-events:none;
 }
