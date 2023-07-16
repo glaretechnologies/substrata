@@ -34,8 +34,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, /*page title=*/"Substrata");
 	page_out +=
-		"	<body style=\"margin-top: 46px;\">\n"
-		"	<div id=\"login\" style=\"float: right; margin-top: -8px;\">\n"; // Start login div
+		"	<body class=\"root-body\">\n"
+		"	<div id=\"login\">\n"; // Start login div
 
 	web::UnsafeString logged_in_username;
 	bool is_user_admin;
@@ -58,7 +58,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		"	</div>																									\n"; // End login div
 
 
-	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" style=\"padding-bottom:20px\" />";
+	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" class=\"logo-root-page\" />";
 
 
 	std::string auction_html;

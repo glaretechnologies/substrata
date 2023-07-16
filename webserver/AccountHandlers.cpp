@@ -103,7 +103,7 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 			page += "No address linked.";
 		else
 		{
-			page += "<span style=\"color: grey;\">" + web::Escaping::HTMLEscape(logged_in_user->controlled_eth_address) + "</span>";
+			page += "<span class=\"eth-address\">" + web::Escaping::HTMLEscape(logged_in_user->controlled_eth_address) + "</span>";
 			page += "<br/>";
 			page += "This is an address that you control, and for which control of the address has been proven to the Substrata server.";
 		}
@@ -228,7 +228,7 @@ void renderProveParcelOwnerByNFT(ServerAllWorldsState& world_state, const web::R
 		{
 			page += "<p>If your Ethereum account is the owner of a Substrata Parcel NFT, you can claim ownership of the parcel on the substrata server on this page.</p>";
 
-			page += "<p>Your linked Ethereum address: <span style=\"color: grey;\">" +
+			page += "<p>Your linked Ethereum address: <span class=\"eth-address\">" +
 				logged_in_user->controlled_eth_address + "</span> (The parcel NFT must be owned by this address)</p>";
 
 			page +=
@@ -347,7 +347,7 @@ void renderMakeParcelIntoNFTPage(ServerAllWorldsState& world_state, const web::R
 				page += "<p>If you make this parcel an NFT, then the Substrata server will consider the owner of the parcel NFT to be the owner "
 					" of the parcel.</p>";
 
-				page += "<p>Ownership of the NFT will be assigned to your Ethereum address: <span style=\"color: grey;\">" +
+				page += "<p>Ownership of the NFT will be assigned to your Ethereum address: <span class=\"eth-address\">" +
 					logged_in_user->controlled_eth_address + "</span></p>";
 
 				page +=

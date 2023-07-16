@@ -49,8 +49,8 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 {
 	std::string page_out = standardHTMLHeader(request_info, page_title, extra_header_tags);
 	page_out +=
-		"	<body style=\"margin-top: 60px;\">\n"
-		"	<div id=\"login\" style=\"float: right; margin-top: -8px;\">\n"; // Start login div
+		"	<body class=\"standard-body\">\n"
+		"	<div id=\"login\">\n"; // Start login div
 	
 	web::UnsafeString logged_in_username;
 	bool is_user_admin;
@@ -74,7 +74,7 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 	}
 	page_out += 
 	"	</div>																									\n" // End login div
-	"	<a href=\"/\"><img src=\"/files/logo_small.png\" alt=\"substrata logo\" style=\"padding-bottom:20px\"/></a>											\n"
+	"	<a href=\"/\"><img src=\"/files/logo_small.png\" alt=\"substrata logo\" class=\"substrata-logo-top-small\"/></a>											\n"
 	
 	"	<header>																								\n"
 	"		<h1>" + web::Escaping::HTMLEscape(page_title) + "</h1>												\n"
@@ -117,7 +117,7 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		crossorigin=\"\"></script>";
 
 	page += "<a name=\"map\"></a>";
-	page += "<div style=\"height: 650px\" id=\"mapid\"></div>";
+	page += "<div id=\"mapid\"></div>";
 
 	// Get parcel polygon boundaries.  Some parcels are rectangles, so we will handle those as a special case optimisation where we can just write a rectangle.
 	std::vector<Vec2d> poly_verts;

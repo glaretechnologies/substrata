@@ -82,9 +82,9 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				{
 					Screenshot* shot = shot_res->second.ptr();
 					if(shot->state == Screenshot::ScreenshotState_notdone)
-						page += "<div style=\"display: inline-block;\">Screenshot processing...</div>     \n";
+						page += "<div class=\"inline-block\">Screenshot processing...</div>     \n";
 					else
-						page += "<div style=\"display: inline-block;\"><a href=\"/screenshot/" + toString(screenshot_id) + "\"><img src=\"/screenshot/" + toString(screenshot_id) + "\" width=\"320px\" alt=\"screenshot\" /></a></div>   \n";
+						page += "<div class=\"inline-block\"><a href=\"/screenshot/" + toString(screenshot_id) + "\"><img src=\"/screenshot/" + toString(screenshot_id) + "\" width=\"320px\" alt=\"screenshot\" /></a></div>   \n";
 				}
 			}
 

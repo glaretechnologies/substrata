@@ -108,7 +108,7 @@ void renderUsersPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			const User* user = it->second.ptr();
 			page_out += "<div>\n";
 			page_out += "<a href=\"/admin_user/" + user->id.toString() + "\">id: " + user->id.toString() + "</a>,       username: " + web::Escaping::HTMLEscape(user->name) + ",       email: " + web::Escaping::HTMLEscape(user->email_address) + ",      joined " + user->created_time.timeAgoDescription() +
-				"  linked eth address: <span style=\"color: grey;\">" + user->controlled_eth_address + "</span>";
+				"  linked eth address: <span class=\"eth-address\">" + user->controlled_eth_address + "</span>";
 			page_out += "</div>\n";
 		}
 
