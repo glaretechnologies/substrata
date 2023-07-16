@@ -11,6 +11,14 @@ body
 	padding:0 10px;
 	font-family: Helvetica;
 }
+.root-body
+{
+	margin-top: 46px;
+}
+.standard-body
+{
+	margin-top: 60px;
+}
 h1,h2,h3
 {
 	line-height: 1.2;
@@ -36,6 +44,8 @@ td
 #login
 {
 	text-align: right;
+	float: right;
+	margin-top: -8px;
 }
 .map-info {
 	padding: 6px 8px;
@@ -52,6 +62,10 @@ td
 
 .msg {
 	background-color: yellow;
+}
+.info-notify
+{
+	background-color: blanchedalmond;
 }
 
 .footer {
@@ -79,4 +93,36 @@ td
 	left:-400px;
 	top:100px;
 	pointer-events:none;
+}
+
+.eth-address
+{
+	color: grey;
+}
+.substrata-logo-top-small
+{
+	padding-bottom:20px;
+}
+.logo-root-page
+{
+	padding-bottom:20px;
+}
+.buy-visa-image
+{
+	position: relative;
+	top: 9px;
+}
+.buy-paypal-image
+{
+	position: relative;
+	top: 6px;
+	left: -1px;
+}
+.inline-block
+{
+	display: inline-block;
+}
+#mapid
+{
+	height: 650px;
 }

@@ -272,7 +272,7 @@ void renderSignUpPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 	if(world_state.isInReadOnlyMode())
 	{
-		page_out += "<div style=\"background-color: blanchedalmond;\"><p>Server is in read-only mode, signing up is paused currently.</p></div>";
+		page_out += "<div class=\"info-notify\"><p>Server is in read-only mode, signing up is paused currently.</p></div>";
 	}
 	else
 	{
