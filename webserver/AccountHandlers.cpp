@@ -163,7 +163,7 @@ void renderProveEthAddressOwnerPage(ServerAllWorldsState& world_state, const web
 		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/logged_in_user->name);
 		page += "<div class=\"main\">   \n";
 	
-		page += "<script src=\"/files/account.js\"></script>";
+		
 
 		page += "<br/>";
 		page += "Step 1: connect to Ethereum/MetaMask";
@@ -179,19 +179,9 @@ void renderProveEthAddressOwnerPage(ServerAllWorldsState& world_state, const web
 
 		page += "</div>   \n"; // End main div
 
-		page += "<script>"
-			"current_eth_signing_nonce = \"" + logged_in_user->current_eth_signing_nonce + "\";		\n"
-			"const ethereumButton = document.querySelector('.enableEthereumButton');				\n"
-			"																						\n"
-			"ethereumButton.addEventListener('click', connectToMetaMaskAccount);					\n"
+		page += "<div id=\"current_eth_signing_nonce\" class=\"hidden\">" + logged_in_user->current_eth_signing_nonce + "</div>\n";
 
-			"const signButton = document.querySelector('.signEthereumButton');				\n"
-			"																						\n"
-			"signButton.addEventListener('click', requestSignMessage);					\n"
-			"signButton.disabled = true;"
-
-			"</script>";
-
+		page += "<script src=\"/files/account.js\"></script>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);

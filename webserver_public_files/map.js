@@ -26,9 +26,9 @@ const HIGHLIGHTED_COL = '#ef9518';
 // method that we will use to update the control based on feature properties passed
 info.update = function (props) {
     this._div.innerHTML =
-        "<span style=\"color: " + MRADMIN_COL + "\">&#9632;</span> Owned by Substrata<br/>" +
-        "<span style=\"color: " + OTHER_OWNED_COL + "\">&#9632;</span> Owned by other<br/>" +
-        "<span style=\"color: " + FOR_AUCTION_COL + "\">&#9632;</span> Currently at auction";
+        "<span class=\"map-col-mradmin\">&#9632;</span> Owned by Substrata<br/>" +
+        "<span class=\"map-col-other\">&#9632;</span> Owned by other<br/>" +
+        "<span class=\"map-col-for-auction\">&#9632;</span> Currently at auction";
 
 };
 
@@ -58,6 +58,23 @@ L.gridLayer.gridDebug = function (opts) {
 };
 
 mymap.addLayer(L.gridLayer.gridDebug());*/
+
+
+var elems = document.getElementById("poly_coords").textContent.split(',');
+var poly_coords = []
+for (let i = 0; i < elems.length; i += 2) {
+    poly_coords.push([elems[i], elems[i + 1]]);
+}
+
+var poly_parcel_ids = document.getElementById("poly_parcel_ids").textContent.split(',').map(s => parseInt(s, /*radix=*/10));
+
+var poly_parcel_state = document.getElementById("poly_parcel_state").textContent.split(',').map(s => parseInt(s, /*radix=*/10));
+
+var rect_bound_coords = document.getElementById("rect_bound_coords").textContent.split(',').map(s => parseFloat(s));
+
+var rect_parcel_ids = document.getElementById("rect_parcel_ids").textContent.split(',').map(s => parseInt(s, /*radix=*/10));
+
+var rect_parcel_state = document.getElementById("rect_parcel_state").textContent.split(',').map(s => parseInt(s, /*radix=*/10));
 
 
 

@@ -38,6 +38,7 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"	<!DOCTYPE html>																									\n"
 		"	<html>																											\n"
 		"		<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">		\n"
+		//"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\">								\n" 
 		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>												\n"
 		"		<link href=\"/files/main.css\" rel=\"stylesheet\" />														\n"
 		+ extra_header_tags + 
@@ -102,19 +103,21 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 
 const std::string getMapHeaderTags()
 {
-	return "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.css\"\
+	/*return "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.css\"\
 		integrity=\"sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==\"\
-		crossorigin=\"\"/>";
+		crossorigin=\"\"/>";*/
+	return "<link rel=\"stylesheet\" href=\"/files/leaflet.css\" />";
 }
 
 
 const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID highlighted_parcel_id)
 {
 	std::string page;
-	page += 
+	/*page += 
 		"<script src=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.js\"\
 		integrity=\"sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==\"\
-		crossorigin=\"\"></script>";
+		crossorigin=\"\"></script>";*/
+	page += "<script src=\"/files/leaflet.js\"></script>";
 
 	page += "<a name=\"map\"></a>";
 	page += "<div id=\"mapid\"></div>";
@@ -189,34 +192,34 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 	const double scale = 1.0 / 20; // Not totally sure where this scale comes from, but somehow from const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
 	std::string var_js;
 	var_js.reserve(rect_parcel_ids.size() * 80); // Reserve 80 chars per parcel (only use about 70 in practice).
-	var_js += "<script>poly_coords = [";
+	var_js += "<div class=\"hidden\" id=\"poly_coords\">";
 	for(size_t i=0; i<poly_verts.size(); ++i)
 	{
-		var_js += "[" + doubleToStringMaxNDecimalPlaces(poly_verts[i].y * scale, 2) + ", " + doubleToStringMaxNDecimalPlaces(poly_verts[i].x * scale, 2) + "]";
+		var_js += doubleToStringMaxNDecimalPlaces(poly_verts[i].y * scale, 2) + ", " + doubleToStringMaxNDecimalPlaces(poly_verts[i].x * scale, 2);
 		if(i + 1 < poly_verts.size())
-			var_js += ",\n";
+			var_js += ",";
 	}
-	var_js += "];\n";
+	var_js += "</div>\n";
 
-	var_js += "poly_parcel_ids = [";
+	var_js += "<div class=\"hidden\" id=\"poly_parcel_ids\">";
 	for(size_t i=0; i<poly_parcel_ids.size(); ++i)
 	{
 		var_js += toString(poly_parcel_ids[i]);
 		if(i + 1 < poly_parcel_ids.size())
 			var_js += ", ";
 	}
-	var_js += "];\n";
+	var_js += "</div>\n";
 
-	var_js += "poly_parcel_state = [";
+	var_js += "<div class=\"hidden\" id=\"poly_parcel_state\">";
 	for(size_t i=0; i<poly_parcel_state.size(); ++i)
 	{
 		var_js += toString(poly_parcel_state[i]);
 		if(i + 1 < poly_parcel_state.size())
 			var_js += ", ";
 	}
-	var_js += "];\n";
+	var_js += "</div>\n";
 	
-	var_js += "rect_bound_coords = [";
+	var_js += "<div class=\"hidden\" id=\"rect_bound_coords\">";
 	for(size_t i=0; i<rect_bounds.size(); ++i)
 	{
 		var_js += 
@@ -226,27 +229,29 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		if(i + 1 < rect_bounds.size())
 			var_js += ",\n";
 	}
-	var_js += "];\n";
+	var_js += "</div>\n";
 
-	var_js += "rect_parcel_ids = [";
+	var_js += "<div class=\"hidden\" id=\"rect_parcel_ids\">";
 	for(size_t i=0; i<rect_parcel_ids.size(); ++i)
 	{
 		var_js += toString(rect_parcel_ids[i]);
 		if(i + 1 < rect_parcel_ids.size())
 			var_js += ", ";
 	}
-	var_js += "];\n";
+	var_js += "</div>\n";
 
-	var_js += "rect_parcel_state = [";
+	var_js += "<div class=\"hidden\" id=\"rect_parcel_state\">";
 	for(size_t i=0; i<rect_parcel_state.size(); ++i)
 	{
 		var_js += toString(rect_parcel_state[i]);
 		if(i + 1 < rect_parcel_state.size())
 			var_js += ", ";
 	}
-	var_js += "];\n";
+	var_js += "</div>\n";
 
-	var_js += "highlight_parcel_id = " + toString(highlighted_parcel_id.value()) + ";";
+	var_js += "<div class=\"hidden\" id=\"highlight_parcel_id\">";
+	var_js += toString(highlighted_parcel_id.value());
+	var_js += "</div>\n";
 
 	var_js += "</script>";
 

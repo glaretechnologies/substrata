@@ -126,3 +126,26 @@ td
 {
 	height: 650px;
 }
+.hidden
+{
+	display: none;
+}
+
+/*These colours should match those in map.js*/
+.map-col-mradmin
+{
+	color: #3388ff; /* blue */
+}
+.map-col-other
+{
+	color: #0f9caa; /* blue */
+}
+.map-col-for-auction
+{
+	color: #b40d96; /* purpleish */
+}
+.map-col-highlighted
+{
+	color: #ef9518;
+}
+
