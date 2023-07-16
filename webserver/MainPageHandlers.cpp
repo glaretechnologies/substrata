@@ -69,7 +69,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 		int num_auctions_shown = 0; // Num substrata auctions shown
 		const TimeStamp now = TimeStamp::currentTime();
-		auction_html += "<table style=\"width: 100%;\"><tr>\n";
+		auction_html += "<table><tr>\n";
 		for(auto it = root_world->parcels.begin(); (it != root_world->parcels.end()) && (num_auctions_shown < 3); ++it)
 		{
 			Parcel* parcel = it->second.ptr();
@@ -92,7 +92,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 							const double cur_price_BTC = cur_price_EUR * world_state.BTC_per_EUR;
 							const double cur_price_ETH = cur_price_EUR * world_state.ETH_per_EUR;
 
-							auction_html += "<td style=\"vertical-align:top\"><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
+							auction_html += "<td><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
 								"&euro;" + doubleToStringNDecimalPlaces(cur_price_EUR, 2) + " / " + doubleToStringNSigFigs(cur_price_BTC, 2) + "&nbsp;BTC / " + doubleToStringNSigFigs(cur_price_ETH, 2) + "&nbsp;ETH</td>";
 						}
 
@@ -107,7 +107,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		int opensea_num_shown = 0;
 		if(num_auctions_shown == 0)
 		{
-			auction_html += "<table style=\"width: 100%;\"><tr>\n";
+			auction_html += "<table><tr>\n";
 			for(auto it = world_state.opensea_parcel_listings.begin(); (it != world_state.opensea_parcel_listings.end()) && (opensea_num_shown < 3); ++it)
 			{
 				const OpenSeaParcelListing& listing = *it;
@@ -123,7 +123,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 						const std::string opensea_url = "https://opensea.io/assets/ethereum/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + listing.parcel_id.toString();
 
-						auction_html += "<td style=\"vertical-align:top\"><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
+						auction_html += "<td><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
 							"<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a> <a href=\"" + opensea_url + "\">View&nbsp;on&nbsp;OpenSea</a></td>";
 					}
 

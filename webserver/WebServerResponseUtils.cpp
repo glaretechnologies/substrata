@@ -89,10 +89,10 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 	std::string page_out;
 	page_out +=
 		"	<hr/>																						\n"
-		"	<div class=\"footer\" style=\"font-size: 0.8em; color: grey\">Substrata is made by <a href=\"http://glaretechnologies.com\">Glare Technologies</a>		\n"
+		"	<div class=\"footer\">Substrata is made by <a href=\"http://glaretechnologies.com\">Glare Technologies</a>.		\n"
 		"	Contact us at contact@glaretechnologies.com<br/>											\n"
 		"	</div>																						\n"
-		"	<div class=\"footer\" style=\"font-size: 0.8em; color: grey; text-align: center\"><a href=\"/faq\">F.A.Q.</a> | <a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a> | <a href=\"/map\">Map</a></div>				\n"
+		"	<div class=\"footer\"><a href=\"/faq\">F.A.Q.</a> | <a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a> | <a href=\"/map\">Map</a></div>				\n"
 		"	</body>																						\n"
 		"</html>																						\n";
 
