@@ -69,3 +69,15 @@ function requestSignMessage() {
         console.error("Error while signing message: " + error);
     }
 }
+
+
+current_eth_signing_nonce = document.getElementById('current_eth_signing_nonce').textContent;
+
+const ethereumButton = document.querySelector('.enableEthereumButton');
+
+ethereumButton.addEventListener('click', connectToMetaMaskAccount);
+
+const signButton = document.querySelector('.signEthereumButton');
+
+signButton.addEventListener('click', requestSignMessage);
+signButton.disabled = true;
