@@ -41,3 +41,7 @@ h1,h2,h3
 .form-field {
 	margin-bottom: 1em;
 }
+
+.msg {
+	background-color: yellow;
+}
