@@ -66,7 +66,7 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		{
 			const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
 			if(!msg.empty())
-				page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+				page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 		}
 
 

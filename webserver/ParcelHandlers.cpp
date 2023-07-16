@@ -67,7 +67,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			{
 				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
 				if(!msg.empty())
-					page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+					page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 			}
 
 			//page += "<div>Parcel " + parcel->id.toString() + "</div>";
@@ -354,7 +354,7 @@ void renderAddParcelWriterPage(ServerAllWorldsState& world_state, const web::Req
 		{
 			const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
 			if(!msg.empty())
-				page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+				page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 		}
 
 		// Lookup parcel
@@ -393,7 +393,7 @@ void renderRemoveParcelWriterPage(ServerAllWorldsState& world_state, const web::
 		{
 			const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
 			if(!msg.empty())
-				page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+				page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 		}
 
 		// Lookup writer

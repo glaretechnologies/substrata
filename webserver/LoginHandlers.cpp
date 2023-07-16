@@ -132,7 +132,7 @@ void renderLoginPage(const web::RequestInfo& request_info, web::ReplyInfo& reply
 	page_out += "</head><h1>Log in</h1><body>";
 
 	if(!msg.empty())
-		page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
+		page_out += "<div class=\"msg\">" + msg.HTMLEscaped() + "</div>  \n";
 
 	page_out += "<form action=\"login_post\" method=\"post\">";
 	page_out += "<input type=\"hidden\" name=\"return\" value=\"" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\"><br/>";
@@ -277,7 +277,7 @@ void renderSignUpPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 	else
 	{
 		if(!msg.empty())
-			page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
+			page_out += "<div class=\"msg\">" + msg.HTMLEscaped() + "</div>  \n";
 
 		page_out += "<form action=\"signup_post\" method=\"post\">";
 		page_out += "<input type=\"hidden\" name=\"return\" value=\"" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\"><br>";
@@ -415,7 +415,7 @@ void renderResetPasswordPage(const web::RequestInfo& request_info, web::ReplyInf
 	page_out += "</head><h1>Reset Password</h1><body>";
 
 	if(!msg.empty())
-		page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
+		page_out += "<div class=\"msg\">" + msg.HTMLEscaped() + "</div>  \n";
 
 	page_out += "<form action=\"reset_password_post\" method=\"post\">";
 
@@ -543,7 +543,7 @@ void renderResetPasswordFromEmailPage(ServerAllWorldsState& world_state, const w
 
 
 		if(!msg.empty())
-			page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
+			page_out += "<div class=\"msg\">" + msg.HTMLEscaped() + "</div>  \n";
 
 		conPrint("reset_token: " + reset_token);
 		//conPrint("new_password: " + new_password);
@@ -678,7 +678,7 @@ void renderChangePasswordPage(ServerAllWorldsState& world_state, const web::Requ
 			{
 				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
 				if(!msg.empty())
-					page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+					page_out += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 			}
 			else
 				throw glare::Exception("Must be logged in to change password");
