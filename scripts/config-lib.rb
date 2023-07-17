@@ -15,7 +15,7 @@ $qt_version = "5.15.10" if OS.mac?
 $qt_version = "5.15.10" if OS.linux?
 
 
-$llvm_version = "6.0.0" # NOTE: Also defined in SUBSTRATA_LLVM_VERSION in CMakeLists.txt.
+$llvm_version = "15.0.7" # NOTE: Also defined in SUBSTRATA_LLVM_VERSION in CMakeLists.txt.
 
 
 # Get Qt path.
