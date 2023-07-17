@@ -1,66 +1,51 @@
 /*=====================================================================
 Server.cpp
 ----------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #include "Server.h"
 
 
 #include "ListenerThread.h"
-#include "../webserver/WebDataFileWatcherThread.h"
+#include "UDPHandlerThread.h"
 #include "MeshLODGenThread.h"
 #include "DynamicTextureUpdaterThread.h"
 //#include "ChunkGenThread.h"
 #include "WorkerThread.h"
+#include "ServerTestSuite.h"
+#include "WorldCreation.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/MessageUtils.h"
-#include "../networking/Networking.h"
-#include <ThreadManager.h>
-#include <PlatformUtils.h>
-#include <Clock.h>
-#include <Timer.h>
-#include <FileUtils.h>
-#include <ConPrint.h>
-#include <Exception.h>
-#include <Parser.h>
-#include <Base64.h>
-#include <FileChecksum.h>
-#include <CryptoRNG.h>
-#include <XMLParseUtils.h>
-#include <IndigoXMLDoc.h>
-#include <SHA256.h> //TEMP for testing
-#include <DatabaseTests.h> //TEMP for testing
-#include <ArgumentParser.h>
-#include <SocketBufferOutStream.h>
-#include <TLSSocket.h>
-#include <PCG32.h>
-#include <Matrix4f.h>
-#include <Quat.h>
-#include <Rect2.h>
-#include <OpenSSL.h>
-#include <Keccak256.h>
-#include <graphics/PNGDecoder.h>
-#include <graphics/Map2D.h>
-#include <tls.h>
-#include <networking/HTTPClient.h>//TEMP for testing
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
-#include "../ethereum/Infura.h"
-#include <WebWorkerThreadTests.h>//TEMP for testing
-#include <WebListenerThread.h>
-#include "UDPHandlerThread.h"
+#include "../webserver/WebDataFileWatcherThread.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include "../webserver/CoinbasePollerThread.h"
 #include "../webserver/OpenSeaPollerThread.h"
 #endif
-#include "../ethereum/RLP.h"//TEMP for testing
-#include "../ethereum/Signing.h"//TEMP for testing
-#include <WebSocketTests.h>//TEMP for testing
-#include "WorldCreation.h"
-#include "../shared/LODGeneration.h"
-//#include <graphics/FormatDecoderGLTF.h>//TEMP for testing
+#include <webserver/WebListenerThread.h>
+#include <networking/Networking.h>
+#include <networking/TLSSocket.h>
+#include <maths/PCG32.h>
+#include <maths/Matrix4f.h>
+#include <maths/Quat.h>
+#include <maths/Rect2.h>
+#include <utils/ThreadManager.h>
+#include <utils/PlatformUtils.h>
+#include <utils/Clock.h>
+#include <utils/Timer.h>
+#include <utils/FileUtils.h>
+#include <utils/ConPrint.h>
+#include <utils/Exception.h>
+#include <utils/Parser.h>
+#include <utils/XMLParseUtils.h>
+#include <utils/IndigoXMLDoc.h>
+#include <utils/ArgumentParser.h>
+#include <utils/SocketBufferOutStream.h>
+#include <utils/OpenSSL.h>
+#include <tls.h>
 
 
 static bool isParcelInCurrentAuction(ServerAllWorldsState& world_state, const Parcel* parcel, TimeStamp now) REQUIRES(world_state.mutex)
@@ -438,39 +423,7 @@ int main(int argc, char *argv[])
 		// Run tests if --test is present.
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
-#if BUILD_TESTS
-			//WorldMaterial::test();
-			LODGeneration::test();
-			//WebSocketTests::test();
-			//SafeBrowsingCheckerThread::test(server.world_state.ptr());
-			//GIFDecoder::test();
-			//PNGDecoder::test();
-			//BatchedMeshTests::test();
-			//glare::BestFitAllocator::test();
-			//Parser::doUnitTests();
-			//FormatDecoderGLTF::test();
-			//DatabaseTests::test();
-			//StringUtils::test();
-			//SHA256::test();
-			//RLP::test();
-			//Signing::test();
-			//Keccak256::test();
-			//Infura::test();
-			//SHA256::test();
-			//RLP::test();
-			//Signing::test();
-			//Keccak256::test();
-			//Infura::test();
-			//AccountHandlers::test();
-			//web::WebWorkerThreadTests::test();
-			////SHA256::test();
-			////CryptoRNG::test();
-			//StringUtils::test();
-			////HTTPClient::test();
-			//Base64::test();
-			//Parser::doUnitTests();
-			conPrint("----Finished tests----");
-#endif
+			ServerTestSuite::test();
 			return 0;
 		}
 		//-----------------------------------------------------------------------------------------
