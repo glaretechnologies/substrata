@@ -732,7 +732,7 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 	//if(v >= 2)
 	{
 		const size_t num_mats = stream.readUInt32();
-		const uint32 MAX_NUM_MATS = 1024;
+		const uint32 MAX_NUM_MATS = 2048; // There's an object in the cryptovoxels world with 1398 materials.
 		if(num_mats > MAX_NUM_MATS)
 			throw glare::Exception("Too many materials: " + toString(num_mats));
 		ob.materials.resize(num_mats);
