@@ -164,6 +164,8 @@ ${UTILS_DIR}/KillThreadMessage.cpp
 ${UTILS_DIR}/KillThreadMessage.h
 ${UTILS_DIR}/Keccak256.cpp
 ${UTILS_DIR}/Keccak256.h
+${UTILS_DIR}/LinearIterSet.cpp
+${UTILS_DIR}/LinearIterSet.h
 ${UTILS_DIR}/Lock.cpp
 ${UTILS_DIR}/Lock.h
 ${UTILS_DIR}/Maybe.h

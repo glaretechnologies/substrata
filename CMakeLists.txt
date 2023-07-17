@@ -109,6 +109,8 @@ MESSAGE("GLARE_CORE_TRUNK_DIR: ${GLARE_CORE_TRUNK_DIR_ENV}")
 SET(CEF_BINARY_DISTRIB_DIR_ENV $ENV{CEF_BINARY_DISTRIB_DIR})
 MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
 
+MESSAGE("\n----------Cache vars:----------")
+
 
 SET(CEF_SUPPORT ON CACHE BOOL "Enable use of Chromium Embedded Framework (CEF) - needed for webviews and video playback")
 MESSAGE("CEF_SUPPORT: ${CEF_SUPPORT}")
@@ -142,7 +144,7 @@ set(openexrdir	"${GLARE_CORE_TRUNK_DIR_ENV}/OpenEXR")
 set(zlibdir		"${GLARE_CORE_TRUNK_DIR_ENV}/zlib")
 set(pugixmldir	"${GLARE_CORE_TRUNK_DIR_ENV}/pugixml/src")
 set(pngdir		"${GLARE_CORE_TRUNK_DIR_ENV}/libpng")
-set(zstddir		"${GLARE_CORE_TRUNK_DIR_ENV}/zstd-1.5.2")
+set(zstddir		"${GLARE_CORE_TRUNK_DIR_ENV}/zstd")
 
 set(cef_binary_dist_dir ${CEF_BINARY_DISTRIB_DIR_ENV})
 
@@ -157,7 +159,7 @@ message("")
 message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 
 
-SET(SUBSTRATA_LLVM_VERSION 6.0.0)
+SET(SUBSTRATA_LLVM_VERSION 15.0.7) # NOTE: Also defined config_lib.rb.
 SET(INDIGO_LIBRESSL_VERSION 3.5.2)
 SET(SUBSTRATA_JPEGTURBO_VERSION 3.0.0)
 

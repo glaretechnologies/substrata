@@ -3,8 +3,6 @@
 # This file defines configuration options to be used instead of hardcoded values.
 # The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
 
-#require './script_utils.rb'
-
 # The config options
 
 $vs_version = 2022 # Visual Studio version used to build libraries and Substrata.  Used in build.rb and library build scripts.
@@ -17,12 +15,8 @@ $qt_version = "5.15.10" if OS.mac?
 $qt_version = "5.15.10" if OS.linux?
 
 
-$llvm_version = ""
-if OS.windows?
-	$llvm_version = "6.0.0" # LLVM 3.4 is the last version that builds in pre-vs 2015.
-else
-	$llvm_version = "6.0.0" # LLVM 3.4 fails to build on High Sierra, and 6.0.0 works fine.
-end
+$llvm_version = "15.0.7" # NOTE: Also defined in SUBSTRATA_LLVM_VERSION in CMakeLists.txt.
+
 
 # Get Qt path.
 glare_core_libs_dir = ENV['GLARE_CORE_LIBS']
