@@ -34,11 +34,16 @@ const std::string CRLF = "\r\n";
 
 const std::string standardHTMLHeader(const web::RequestInfo& request_info, const std::string& page_title, const std::string& extra_header_tags)
 {
+	// Content-Security-Policy:
+	// This restricts the domains from which content (scripts, images etc.) are allowed to be loaded.
+	// We will allow everything to be loaded from the 'self' origin, and some stuff to be loaded from youtube, vimeo etc., for embedded videos.
+	// i.ytimg.com is youtube's (thumbnail) image server.
+	// The Content-Security-Policy could also be returned as a HTTP response header.
 	return
 		"	<!DOCTYPE html>																									\n"
 		"	<html>																											\n"
 		"		<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">		\n"
-		//"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\">								\n" 
+		"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\">	\n" 
 		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>												\n"
 		"		<link href=\"/files/main.css\" rel=\"stylesheet\" />														\n"
 		+ extra_header_tags + 
