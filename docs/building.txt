@@ -90,25 +90,36 @@ Building Chromium Embedded Framework (CEF)
 
 We want to build CEF ourselves so we can compile in proprietary_codecs (in particular h264 support) 
 
+
+CEF on Windows
+===========
+
+pre-build:
+---------
+Install Windows 11 SDK with 10.0.22621.0 version 
+(Otherwise get the following error: "Exception: Path "C:\Program Files (x86)\Windows Kits\10\\include\10.0.22621.0\\um" from environment variable "include" does not exist. Make sure the necessary SDK is installed.")
+
 Building CEF from source
 ------------------------
-Following https://bitbucket.org/chromiumembedded/cef/wiki/AutomatedBuildSetup roughly:
+Following https://bitbucket.org/chromiumembedded/cef/wiki/AutomatedBuildSetup and https://bitbucket.org/chromiumembedded/cef/wiki/BranchesAndBuilding.md roughly:
+
+Download https://bitbucket.org/chromiumembedded/cef/raw/master/tools/automate/automate-git.py
 
 In cmd.exe shell:
 
+
 set GN_DEFINES=is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome use_thin_lto=false
-set GYP_MSVS_VERSION=2019
+set GYP_MSVS_VERSION=2022
 set CEF_ARCHIVE_FORMAT=tar.bz2
-C:\programming>python automate-git.py --download-dir=c:/cef --branch=4951 --minimal-distrib --client-distrib --force-clean --x64-build 
+C:\programming>python automate-git.py --download-dir=c:/cef --branch=5845 --minimal-distrib --client-distrib --force-clean --x64-build --with-pgo-profiles
 
-Note that GYP_MSVS_VERSION=2022 doesn't work (brotli compile/link errors)
-
-Branch 4951 is march 2022, see https://bitbucket.org/chromiumembedded/cef/wiki/BranchesAndBuilding.md
-
+Branch 5845 is June 2023
 
 
 To build binary distribution
 ----------------------------
+Add C:\cef\depot_tools to PATH env var (needed because make_distrib.bat calls 'python.bat') which is in C:\cef\depot_tools.
+
 cd C:\cef\chromium\src\cef\tools
 make_distrib.bat --ninja-build --x64-build
 
