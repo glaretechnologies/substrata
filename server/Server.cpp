@@ -429,8 +429,7 @@ int main(int argc, char *argv[])
 		//-----------------------------------------------------------------------------------------
 
 
-		const int listen_port = 7600;
-		conPrint("listen port: " + toString(listen_port));
+		const int listen_port = 7600; // Listen port for sub protocol
 
 #if defined(_WIN32)
 		const std::string substrata_appdata_dir = PlatformUtils::getOrCreateAppDataDirectory("Substrata");
@@ -456,7 +455,7 @@ int main(int argc, char *argv[])
 				server_config = parseServerConfig(config_path);
 			}
 			else
-				conPrint("server config not found at '" + config_path + "', skipping...");
+				conPrint("server config not found at '" + config_path + "', using default configuration values instead.");
 		}
 
 		server.config = server_config;
@@ -486,7 +485,11 @@ int main(int argc, char *argv[])
 
 			if(!server.world_state->resource_manager->isFileForURLPresent(mesh_URL))
 			{
-				server.world_state->resource_manager->copyLocalFileToResourceDir(server_state_dir + "/dist_resources/xbot_glb_3242545562312850498.bmesh", mesh_URL);
+				const std::string src_path = server_state_dir + "/dist_resources/" + mesh_URL;
+				if(FileUtils::fileExists(src_path))
+					server.world_state->resource_manager->copyLocalFileToResourceDir(src_path, mesh_URL);
+				else
+					conPrint("WARNING: file '" + src_path + "' did not exist, default avatar model will be missing for webclient users.");
 			}
 		}
 
@@ -643,6 +646,10 @@ int main(int argc, char *argv[])
 		conPrint("webserver fragments_dir: " + web_data_store->fragments_dir);
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
 		conPrint("webserver webclient_dir: " + web_data_store->webclient_dir);
+
+		FileUtils::createDirIfDoesNotExist(web_data_store->fragments_dir);
+		FileUtils::createDirIfDoesNotExist(web_data_store->public_files_dir);
+		FileUtils::createDirIfDoesNotExist(web_data_store->webclient_dir);
 
 		web_data_store->loadAndCompressFiles();
 
