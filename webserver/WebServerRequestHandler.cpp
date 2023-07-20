@@ -285,6 +285,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderAboutSubstrataPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/running_your_own_server")
+		{
+			MainPageHandlers::renderRunningYourOwnServerPage(*this->world_state, *this->data_store, request, reply_info);
+		}
 		else if(request.path == "/bot_status")
 		{
 			MainPageHandlers::renderBotStatusPage(*this->world_state, request, reply_info);

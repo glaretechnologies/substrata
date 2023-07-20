@@ -763,6 +763,23 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 }
 
 
+void renderRunningYourOwnServerPage(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Running your own Substrata Server");
+
+	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("running_your_own_server.htmlfrag");
+	if(store_file.nonNull())
+	{
+		assert(!store_file->compressed);
+		page += std::string(store_file->data.begin(), store_file->data.end());
+	}
+	
+	page += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 void renderNotFoundPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, "Substrata");
