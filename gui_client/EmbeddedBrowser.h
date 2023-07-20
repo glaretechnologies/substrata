@@ -37,10 +37,11 @@ public:
 	EmbeddedBrowser();
 	~EmbeddedBrowser();
 
-	void create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine);
+	void create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine, const std::string& root_page = "");
 
 	//void requestExit();
 
+	void updateRootPage(const std::string& root_page);
 	void navigate(const std::string& URL);
 
 	void browserBecameVisible();

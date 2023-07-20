@@ -20,8 +20,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <FileInStream.h>
 #include <PlatformUtils.h>
 #include <QtGui/QPainter>
-#include "superluminal/PerformanceAPI.h"
+#include <webserver/ResponseUtils.h>
 #include <utils/Base64.h>
+#include "superluminal/PerformanceAPI.h"
 
 
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
@@ -234,8 +235,8 @@ public:
 class EmbeddedBrowserResourceHandler : public CefResourceHandler
 {
 public:
-	EmbeddedBrowserResourceHandler(Reference<ResourceManager> resource_manager_) : file_in_stream(NULL), resource_manager(resource_manager_) {}
-	~EmbeddedBrowserResourceHandler() { delete file_in_stream; }
+	EmbeddedBrowserResourceHandler(Reference<ResourceManager> resource_manager_, const std::string& root_page_) : in_stream(NULL), resource_manager(resource_manager_), root_page(root_page_) {}
+	~EmbeddedBrowserResourceHandler() { delete in_stream; }
 
 	// Open the response stream. To handle the request immediately set
 	// |handle_request| to true and return true. To decide at a later time set
@@ -253,9 +254,19 @@ public:
 
 		//conPrint("\n" + doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 2) + ":------------------AnimatedTexResourceHandler::Open(): URL: " + URL + "------------------");
 
-		if(hasPrefix(URL, "http://resource/"))
+		if(hasPrefix(URL, "https://localdomain/"))
 		{
-			const std::string resource_URL = eatPrefix(URL, "http://resource/");
+			handle_request = true;
+
+			in_stream = new BufferInStream(root_page);
+
+			response_mime_type = "text/html";
+			return true;
+		}
+
+		if(hasPrefix(URL, "https://resource/"))
+		{
+			const std::string resource_URL = eatPrefix(URL, "https://resource/");
 			//conPrint("resource_URL: " + resource_URL);
 
 			ResourceRef resource = resource_manager->getExistingResourceForURL(resource_URL);
@@ -265,7 +276,9 @@ public:
 				//conPrint("path: " + path);
 				try
 				{
-					file_in_stream = new FileInStream(path);
+					in_stream = new FileInStream(path);
+
+					response_mime_type = web::ResponseUtils::getContentTypeForPath(resource_URL);
 
 					handle_request = true;
 					return true;
@@ -301,9 +314,11 @@ public:
 	// SetError() on |response| to indicate the error condition.
 	virtual void GetResponseHeaders(CefRefPtr<CefResponse> response, int64& response_length, CefString& redirectUrl) override
 	{
-		if(file_in_stream)
+		response->SetMimeType(response_mime_type);
+
+		if(in_stream)
 		{
-			response_length = (int64)this->file_in_stream->fileSize();
+			response_length = (int64)this->in_stream->size();
 		}
 		else
 		{
@@ -324,15 +339,15 @@ public:
 		CefRefPtr<CefResourceSkipCallback> callback) override
 	{
 		//conPrint("Skipping " + toString(bytes_to_skip) + " B...");
-		if(file_in_stream)
+		if(in_stream)
 		{
 			try
 			{
 				// There seems to be a CEF bug where are a Skip call is made at the start of a resource read, after a video repeats.
 				// This breaks video looping.  Work around it by detecting the skip call and doing nothing in that case.
 				// See https://magpcss.org/ceforum/viewtopic.php?f=6&t=19171
-				if(file_in_stream->getReadIndex() != 0)
-					file_in_stream->advanceReadIndex(bytes_to_skip);
+				if(in_stream->getReadIndex() != 0)
+					in_stream->advanceReadIndex(bytes_to_skip);
 
 				bytes_skipped = bytes_to_skip;
 				return true;
@@ -364,12 +379,12 @@ public:
 	// called.
 	virtual bool Read(void* data_out, int bytes_to_read, int& bytes_read, CefRefPtr<CefResourceReadCallback> callback) override
 	{
-		if(file_in_stream)
+		if(in_stream)
 		{
 			try
 			{
 				//conPrint("Reading up to " + toString(bytes_to_read) + " B, getReadIndex: " + toString(file_in_stream->getReadIndex()));
-				const size_t bytes_available = file_in_stream->fileSize() - file_in_stream->getReadIndex(); // bytes still available to read in the file
+				const size_t bytes_available = in_stream->size() - in_stream->getReadIndex(); // bytes still available to read in the file
 				if(bytes_available == 0)
 				{
 					bytes_read = 0; // indicate response completion (EOF)
@@ -378,7 +393,7 @@ public:
 				else
 				{
 					const size_t use_bytes_to_read = myMin((size_t)bytes_to_read, bytes_available);
-					file_in_stream->readData(data_out, use_bytes_to_read);
+					in_stream->readData(data_out, use_bytes_to_read);
 					bytes_read = (int)use_bytes_to_read;
 					return true;
 				}
@@ -403,7 +418,9 @@ public:
 		// conPrint("\n" + doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 2) + "------------------AnimatedTexResourceHandler::Cancel()------------------");
 	}
 
-	FileInStream* file_in_stream;
+	std::string root_page;
+	std::string response_mime_type;
+	RandomAccessInStream* in_stream;
 	Reference<ResourceManager> resource_manager;
 
 	IMPLEMENT_REFCOUNTING(EmbeddedBrowserResourceHandler);
@@ -487,7 +504,10 @@ public:
 	{
 		// conPrint("Request URL: " + request->GetURL().ToString());
 
-		if(hasPrefix(request->GetURL().ToString(), "http://resource/"))
+		const std::string URL = request->GetURL().ToString();
+
+		if(hasPrefix(URL, "https://resource/") ||
+			hasPrefix(URL, "https://localdomain/"))
 		{
 			// conPrint("interecepting resource request");
 			disable_default_handling = true;
@@ -554,16 +574,16 @@ public:
 	{
 		//conPrint("GetResourceHandler() Request URL: " + request->GetURL().ToString());
 
-		// TODO: check URL prefix for http://resource/, return new AnimatedTexResourceHandler only in that case?
+		// TODO: check URL prefix for https://resource/, return new AnimatedTexResourceHandler only in that case?
 		// Will we need to handle other URLS here?
 
-		Reference<ResourceManager> resouce_manager;
+		Reference<ResourceManager> resource_manager;
 		{
 			Lock lock(mutex);
-			resouce_manager = this->m_main_window->resource_manager;
+			resource_manager = this->m_main_window->resource_manager;
 		}
 
-		return new EmbeddedBrowserResourceHandler(resouce_manager);
+		return new EmbeddedBrowserResourceHandler(resource_manager, root_page);
 		//return nullptr;
 	}
 
@@ -848,6 +868,8 @@ public:
 
 	std::vector<float> temp_buf;
 
+	std::string root_page;
+
 	IMPLEMENT_REFCOUNTING(EmbeddedBrowserCefClient);
 };
 
@@ -855,7 +877,7 @@ public:
 class EmbeddedBrowserCEFBrowser : public RefCounted
 {
 public:
-	EmbeddedBrowserCEFBrowser(/*WebViewData* web_view_data_, */EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, MainWindow* main_window_, WorldObject* ob_)
+	EmbeddedBrowserCEFBrowser(/*WebViewData* web_view_data_, */EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, MainWindow* main_window_, WorldObject* ob_, const std::string& root_page)
 	:	//web_view_data(web_view_data_),
 		mRenderHandler(render_handler),
 		main_window(main_window_),
@@ -863,6 +885,7 @@ public:
 		//mLifeSpanHandler(lifespan_handler)
 	{
 		cef_client = new EmbeddedBrowserCefClient(main_window, ob);
+		cef_client->root_page = root_page;
 		cef_client->mRenderHandler = mRenderHandler;
 		cef_client->mLifeSpanHandler = lifespan_handler;
 	}
@@ -1000,11 +1023,13 @@ public:
 
 
 
-static Reference<EmbeddedBrowserCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine)
+static Reference<EmbeddedBrowserCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine,
+	const std::string& root_page)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
-	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(/*web_view_data, */new EmbeddedBrowserRenderHandler(opengl_tex, main_window, ob, opengl_engine), CEF::getLifespanHandler(), main_window, ob);
+	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(/*web_view_data, */new EmbeddedBrowserRenderHandler(opengl_tex, main_window, ob, opengl_engine), CEF::getLifespanHandler(), main_window, ob,
+		root_page);
 
 	CefWindowInfo window_info;
 	window_info.windowless_rendering_enabled = true;
@@ -1054,10 +1079,17 @@ EmbeddedBrowser::~EmbeddedBrowser()
 }
 
 
-void EmbeddedBrowser::create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine)
+void EmbeddedBrowser::create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine, const std::string& root_page)
 {
 	this->embedded_cef_browser = NULL;
-	this->embedded_cef_browser = createBrowser(URL, opengl_tex, main_window, ob, opengl_engine);
+	this->embedded_cef_browser = createBrowser(URL, opengl_tex, main_window, ob, opengl_engine, root_page);
+}
+
+
+void EmbeddedBrowser::updateRootPage(const std::string& root_page)
+{
+	if(embedded_cef_browser.nonNull())
+		embedded_cef_browser->cef_client->root_page = root_page;
 }
 
 

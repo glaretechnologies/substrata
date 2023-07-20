@@ -73,7 +73,7 @@
      </widget>
      <widget class="QWidget" name="tab_3">
       <attribute name="title">
-       <string>YouTube</string>
+       <string>YouTube / Twitch</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_5">
        <item>
