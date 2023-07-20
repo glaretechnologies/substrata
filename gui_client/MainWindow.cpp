@@ -1640,7 +1640,10 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->image_cube_opengl_mesh;
 				opengl_ob->materials.resize(2);
-				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
+				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(0.f);
+				opengl_ob->materials[0].emission_linear_rgb = Colour3f(1.f);
+				const float luminance = 24000; // nits.  Chosen so videos look about the right brightness in daylight.
+				opengl_ob->materials[0].emission_scale = luminance / (683.002f * 106.856e-9f); // See ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths()
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
 				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
