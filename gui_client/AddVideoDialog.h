@@ -9,10 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "ui_AddVideoDialog.h"
 #include "../shared/ResourceManager.h"
 class QSettings;
-struct GLObject;
 struct IMFDXGIDeviceManager;
-class TextureServer;
-class OpenGLEngine;
 
 
 /*=====================================================================
@@ -24,7 +21,7 @@ class AddVideoDialog : public QDialog, private Ui_AddVideoDialog
 {
 	Q_OBJECT
 public:
-	AddVideoDialog(QSettings* settings, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager);
+	AddVideoDialog(QSettings* settings, Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager);
 	~AddVideoDialog();
 
 	bool wasResultLocalPath();
