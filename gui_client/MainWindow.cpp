@@ -8156,7 +8156,7 @@ void MainWindow::on_actionAdd_Video_triggered()
 			return;
 		}
 
-		AddVideoDialog dialog(this->base_dir_path, this->settings, this->texture_server, this->resource_manager, 
+		AddVideoDialog dialog(this->settings, this->texture_server, this->resource_manager, 
 #ifdef _WIN32
 			this->device_manager.ptr
 #else
