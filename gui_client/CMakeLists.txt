@@ -220,6 +220,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.h
 SET(webserver_files
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.h
 )
 
 SET(direct3d

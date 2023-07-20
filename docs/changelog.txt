@@ -1,3 +1,15 @@
+1.1
+===
+General optimisations to reduce CPU load, for main game loop and for rendering:
+	greatly increases frame rate in many cases.
+Fix for very slow rendering on Macs.
+Added new video object type, and Add Video dialog.
+Added new UI for videos, with autoplay, loop, and mute options.
+Made videos and web-views use emission instead of (reflection) colour channel.
+Reduced wind volume a bit.
+Fixed spotlights not affecting avatars.
+Fixed hologram materials not working properly.
+
 1.0
 ====
 Lots of graphics engine optimisations, 3x faster in some cases.
@@ -5,7 +17,6 @@ Added voice chat:
 	Added audio input device selection in options dialog
 	Added enable microphone for voice chat button
 Slightly better leaning while turning for bikes.
-
 
 0.99
 ====

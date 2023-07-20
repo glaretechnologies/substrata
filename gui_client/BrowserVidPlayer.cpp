@@ -55,7 +55,7 @@ static void checkYouTubeVideoID(const std::string& s)
 
 // For youtube URLs, we want to transform the URL into an embedded webpage, and encode it into a data URL.
 // Throws glare::Exception on failure.
-static std::string makeDataURLForVideoURL(const std::string& video_url, int width, int height, WorldObject* ob, ResourceManager& resource_manager, const std::string& server_hostname)
+static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int width, int height, WorldObject* ob, ResourceManager& resource_manager, const std::string& server_hostname)
 {
 	const URL parsed_URL = URL::parseURL(video_url);
 
@@ -117,13 +117,39 @@ static std::string makeDataURLForVideoURL(const std::string& video_url, int widt
 					"	</body>																		\n"
 					"</html>																		\n";
 				
-				return makeDataURL(embed_html);
+				return embed_html;
 			}
 			else
 				throw glare::Exception("Could not find video id param (v) in YouTube URL.");
 		}
+		else if(parsed_URL.host == "www.twitch.tv")
+		{
+			std::string channel_name = parsed_URL.path;
+			channel_name = eatPrefix(channel_name, "/");
+
+			const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
+			const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
+
+			// See https://dev.twitch.tv/docs/embed/video-and-clips/
+
+			const std::string iframe_src_url = "https://player.twitch.tv/?channel=" + web::Escaping::URLEscape(channel_name) + "&parent=localdomain&autoplay=" + boolToString(autoplay) + "&muted=" + boolToString(muted);
+
+			const std::string embed_html = 
+				"<html>																					\n"
+				"	<body style='margin:0px;'>															\n"
+				"		<iframe style='margin:0px;'													\n"
+				"			src=\"" + iframe_src_url + "\"												\n"
+				"			height=" + toString(height - 5) + "											\n"
+				"			width=" + toString(width - 5) + "											\n"
+				"		allowfullscreen>																\n"
+				"		</iframe>																		\n"
+				"	</body>																				\n"
+				"</html>																				\n";
+
+			return embed_html;
+		}
 		else
-			throw glare::Exception("only YouTube HTTP URLS accepted currently.");
+			throw glare::Exception("only YouTube and Twitch HTTP URLS accepted currently.");
 	}
 	else // Else non-http:
 	{
@@ -133,7 +159,7 @@ static std::string makeDataURLForVideoURL(const std::string& video_url, int widt
 		std::string use_URL;
 		if(resource.nonNull() && resource->getState() == Resource::State_Present)
 		{
-			use_URL = "http://resource/" + web::Escaping::URLEscape(video_url);// resource->getLocalPath();
+			use_URL = "https://resource/" + web::Escaping::URLEscape(video_url);// resource->getLocalPath();
 		}
 		else // Otherwise use streaming via HTTP
 		{
@@ -159,25 +185,9 @@ static std::string makeDataURLForVideoURL(const std::string& video_url, int widt
 			"	</body>"
 			"</html>";
 
-		return makeDataURL(html);
+		return html;
 	}
 }
-
-
-	// twitch embed:
-#if 0
-	const std::string html = 																	 \n"
-		"<html>																					 \n"
-		"  <body>																				 \n"
-		"   <iframe																				 \n"
-		"    src=\"https://player.twitch.tv/?channel=australisfishing&parent=self\"				 \n"
-		"    height=xxx																			\n"
-		"    width=xxxx																			\n"
-		"    allowfullscreen>																	 \n"
-		"</iframe>																				 \n"
-		"  </body>																				 \n"
-		"</html>																				 \n"
-#endif
 
 
 static void getVidTextureDimensions(const std::string& video_URL, WorldObject* ob, int& width_out, int& height_out)
@@ -227,9 +237,10 @@ void BrowserVidPlayer::createNewBrowserPlayer(MainWindow* main_window, OpenGLEng
 	if(ob->opengl_engine_ob.isNull())
 		throw glare::Exception("ob->opengl_engine_ob.isNull");
 
-	const std::string use_url = makeDataURLForVideoURL(video_URL, width, height, ob, *main_window->resource_manager, main_window->server_hostname);
-
 	main_window->logMessage("Creating vid player browser, video_URL: " + video_URL);
+
+	// Try and make page now, before we allocate a texture.
+	const std::string root_page = makeEmbedHTMLForVideoURL(video_URL, width, height, ob, *main_window->resource_manager, main_window->server_hostname);
 
 	main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
@@ -244,7 +255,10 @@ void BrowserVidPlayer::createNewBrowserPlayer(MainWindow* main_window, OpenGLEng
 	opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 
 	browser = new EmbeddedBrowser();
-	browser->create(use_url, ob->opengl_engine_ob->materials[0].emission_texture, main_window, ob, opengl_engine);
+
+	const std::string use_url = "https://localdomain/"; // URL to serve the root page
+
+	browser->create(use_url, ob->opengl_engine_ob->materials[0].emission_texture, main_window, ob, opengl_engine, root_page);
 
 	this->loaded_video_url = video_URL;
 }
@@ -351,7 +365,11 @@ void BrowserVidPlayer::videoURLMayHaveChanged(MainWindow* main_window, OpenGLEng
 
 			try
 			{
-				const std::string use_url = makeDataURLForVideoURL(video_URL, width, height, ob, *main_window->resource_manager, main_window->server_hostname);
+				const std::string root_page = makeEmbedHTMLForVideoURL(video_URL, width, height, ob, *main_window->resource_manager, main_window->server_hostname);
+
+				browser->updateRootPage(root_page);
+
+				const std::string use_url = "https://localdomain/"; // URL to serve the root page
 
 				browser->navigate(use_url);
 

@@ -197,7 +197,7 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 			std::string use_URL;
 			if(resource.nonNull() && resource->getState() == Resource::State_Present)
 			{
-				use_URL = "http://resource/" + web::Escaping::URLEscape(tex_path);// resource->getLocalPath();
+				use_URL = "https://resource/" + web::Escaping::URLEscape(tex_path);// resource->getLocalPath();
 			}
 			else // Otherwise use streaming via HTTP
 			{
