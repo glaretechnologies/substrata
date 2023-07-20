@@ -1,41 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>AddObjectDialog</class>
- <widget class="QDialog" name="AddObjectDialog">
+ <class>AddVideoDialog</class>
+ <widget class="QDialog" name="AddVideoDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1124</width>
-    <height>686</height>
+    <width>859</width>
+    <height>161</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Add Model or Image</string>
+   <string>Add Video</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QTabWidget" name="tabWidget">
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>16777215</height>
+      </size>
+     </property>
+     <property name="sizeIncrement">
+      <size>
+       <width>0</width>
+       <height>2</height>
+      </size>
+     </property>
      <property name="currentIndex">
       <number>0</number>
      </property>
-     <widget class="QWidget" name="tab">
-      <attribute name="title">
-       <string>Model library</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_4">
-       <item>
-        <widget class="QListWidget" name="listWidget"/>
-       </item>
-      </layout>
-     </widget>
      <widget class="QWidget" name="tab_2">
       <attribute name="title">
        <string>From disk</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
-        <widget class="FileSelectWidget" name="avatarSelectWidget" native="true">
+        <widget class="FileSelectWidget" name="fileSelectWidget">
          <property name="maximumSize">
           <size>
            <width>16777215</width>
@@ -46,11 +48,24 @@
        </item>
        <item>
         <widget class="QLabel" name="label_3">
+         <property name="sizeIncrement">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
          <property name="text">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Supported model formats: OBJ, GLTF, GLB, VOX, STL and IGMESH&lt;/p&gt;&lt;p&gt;Supported image formats: JPG, PNG, GIF, EXR, KTX, KTX2&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Supported video formats: MP4&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="wordWrap">
           <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="videoInfoLabel">
+         <property name="text">
+          <string/>
          </property>
         </widget>
        </item>
@@ -58,7 +73,7 @@
      </widget>
      <widget class="QWidget" name="tab_3">
       <attribute name="title">
-       <string>From Web</string>
+       <string>YouTube</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_5">
        <item>
@@ -72,35 +87,17 @@
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="urlLineEdit"/>
+           <widget class="QLineEdit" name="urlLineEdit">
+            <property name="placeholderText">
+             <string>https://www.youtube.com/watch?v=x2upXpaS4fk</string>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>
        </item>
       </layout>
      </widget>
-    </widget>
-   </item>
-   <item>
-    <widget class="QLabel" name="label">
-     <property name="text">
-      <string>Preview:</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QWidget" name="centralWidget" native="true">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_2">
-      <item>
-       <widget class="AddObjectPreviewWidget" name="objectPreviewGLWidget" native="true"/>
-      </item>
-     </layout>
     </widget>
    </item>
    <item>
@@ -118,14 +115,8 @@
  <customwidgets>
   <customwidget>
    <class>FileSelectWidget</class>
-   <extends>QWidget</extends>
+   <extends>QLineEdit</extends>
    <header>../qt/FileSelectWidget.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>AddObjectPreviewWidget</class>
-   <extends>QWidget</extends>
-   <header>AddObjectPreviewWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
@@ -134,7 +125,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>accepted()</signal>
-   <receiver>AddObjectDialog</receiver>
+   <receiver>AddVideoDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -150,7 +141,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>rejected()</signal>
-   <receiver>AddObjectDialog</receiver>
+   <receiver>AddVideoDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">

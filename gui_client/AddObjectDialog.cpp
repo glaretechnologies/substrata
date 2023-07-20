@@ -9,7 +9,6 @@ Copyright Glare Technologies Limited 2022 -
 #include "ModelLoading.h"
 #include "MeshBuilding.h"
 #include "NetDownloadResourcesThread.h"
-#include "SubstrataVideoSurface.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
 #include "../dll/include/IndigoMesh.h"
@@ -30,9 +29,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <QtWidgets/QListWidget>
 #include <QtCore/QSettings>
 #include <QtCore/QTimer>
-#if defined(_WIN32)
-#include "../video/WMFVideoReader.h"
-#endif
 
 
 AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager_, IMFDXGIDeviceManager* dev_manager_)
@@ -197,91 +193,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			objectPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
 		}
 
-
-		if(hasExtension(local_path, "mp4"))
-		{
-#if defined(_WIN32)
-			Reference<WMFVideoReader> reader = new WMFVideoReader(false, /*just_read_audio=*/false, local_path, /*NULL,*/ /*reader callback=*/NULL, dev_manager, /*decode_to_d3d_tex=*/false);
-
-			// Load first frame
-			const SampleInfoRef frameinfo = reader->getAndLockNextSample(/*just_get_vid_sample=*/true);
-
-			if(frameinfo.isNull())
-				throw glare::Exception("frame was null. (EOS?)");
-
-			makeMeshForWidthAndHeight(local_path, (int)frameinfo->width, (int)frameinfo->height);
-
-			// Load frame 0 into opengl texture
-			preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(frameinfo->width, frameinfo->height, objectPreviewGLWidget->opengl_engine.ptr(),
-				ArrayRef<uint8>(NULL, 0), // Just pass in NULL here so we can use loadIntoExistingTexture which takes a stride below
-				OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
-				GL_SRGB8_ALPHA8, // GL internal format
-				GL_BGRA, // GL format.  Video frames are BGRA.
-				OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
-				OpenGLTexture::Wrapping_Repeat);
-
-			ArrayRef<uint8> tex_data_arrayref(frameinfo->frame_buffer, frameinfo->height * frameinfo->stride_B);
-			preview_gl_ob->materials[0].albedo_texture->loadIntoExistingTexture(/*mipmap level=*/0, frameinfo->width, frameinfo->height, frameinfo->stride_B, tex_data_arrayref, /*bind_needed=*/true);
-
-			this->loaded_mesh_is_image_cube = true;
-
-#else
-			SubstrataVideoSurface* video_surface = new SubstrataVideoSurface(NULL);
-			video_surface->load_into_opengl_tex = false; // Just copy into mem buffer.  OpenGL texture stuff gets tricky with multiple GL contexts.
-
-			QMediaPlayer* media_player = new QMediaPlayer(NULL, QMediaPlayer::VideoSurface);
-			media_player->setVideoOutput(video_surface);
-			media_player->setMedia(QUrl(QtUtils::toQString(local_path)));
-			media_player->play();
-
-			// Wait until we have a valid video frame.
-			Timer timer;
-			while(timer.elapsed() < 10.0)
-			{
-				if(media_player->error() != QMediaPlayer::NoError)
-					break;
-
-				if(!video_surface->frame_copy.empty()) // We have a frame:
-					break;
-
-				QCoreApplication::processEvents();
-				PlatformUtils::Sleep(1);
-			}
-
-			media_player->stop();
-
-			this->objectPreviewGLWidget->makeCurrent(); // Gl context may have been made non-current in QCoreApplication::processEvents() above.
-
-			if(!video_surface->frame_copy.empty())
-			{
-				const int W = video_surface->current_format.frameWidth();
-				const int H = video_surface->current_format.frameHeight();
-				makeMeshForWidthAndHeight(local_path, W, H);
-
-				// Load frame 0 into opengl texture
-				preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, objectPreviewGLWidget->opengl_engine.ptr(),
-					ArrayRef<uint8>(NULL, 0), // tex data
-					OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
-					GL_SRGB8_ALPHA8, // GL internal format
-					GL_BGRA, // GL format.  Video frames are BGRA.  NOTE: FIXME for what qt returns
-					OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
-					OpenGLTexture::Wrapping_Repeat);
-				
-				ArrayRef<uint8> tex_data_arrayref(video_surface->frame_copy);
-
-				const size_t stride_B = video_surface->frame_copy.size() / H;
-				preview_gl_ob->materials[0].albedo_texture->loadIntoExistingTexture(/*mipmap level=*/0, W, H, stride_B, tex_data_arrayref, /*bind_needed=*/true);
-			}
-			else
-			{
-				makeMeshForWidthAndHeight(local_path, 1024, 1024);
-			}
-
-			delete media_player;
-			delete video_surface;
-#endif
-		}
-		else if(ImageDecoding::hasSupportedImageExtension(local_path))
+		if(ImageDecoding::hasSupportedImageExtension(local_path))
 		{
 			// Load image to get aspect ratio of image.
 			// We will scale our model so it has the same aspect ratio.
@@ -311,7 +223,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			this->angle = results.angle;
 		}
 		else
-			throw glare::Exception("file did not have a supported image, video, or model extension: '" + getExtension(local_path) + "'");
+			throw glare::Exception("file did not have a supported image or model extension: '" + getExtension(local_path) + "'");
 
 		// Try and load textures
 		tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, objectPreviewGLWidget->opengl_engine.ptr(), this->objectPreviewGLWidget->texture_server_ptr, this);
