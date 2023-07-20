@@ -8,19 +8,18 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "MainWindow.h"
 #include "EmbeddedBrowser.h"
-#include "CEFInternal.h"
-#include "CEF.h"
 #include "../shared/WorldObject.h"
-#include "../qt/QtUtils.h"
+#include "CEF.h"
+#include <qt/QtUtils.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
 #include <maths/vec2.h>
-#include <Escaping.h>
-#include <FileInStream.h>
-#include <PlatformUtils.h>
-#include "superluminal/PerformanceAPI.h"
-#include <utils/Base64.h>
+#include <webserver/Escaping.h>
 #include <networking/URL.h>
+#include <utils/FileInStream.h>
+#include <utils/PlatformUtils.h>
+#include <utils/Base64.h>
+#include "superluminal/PerformanceAPI.h"
 
 
 BrowserVidPlayer::BrowserVidPlayer()
@@ -33,15 +32,6 @@ BrowserVidPlayer::BrowserVidPlayer()
 BrowserVidPlayer::~BrowserVidPlayer()
 {
 	browser = NULL;
-}
-
-
-static const std::string makeDataURL(const std::string& html)
-{
-	std::string html_base64;
-	Base64::encode(html.data(), html.size(), html_base64);
-
-	return "data:text/html;base64," + html_base64;
 }
 
 

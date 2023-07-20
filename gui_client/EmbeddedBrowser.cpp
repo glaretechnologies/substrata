@@ -9,20 +9,19 @@ Copyright Glare Technologies Limited 2023 -
 #include "MainWindow.h"
 #include "CEFInternal.h"
 #include "CEF.h"
-#include "URLWhitelist.h"
 #include "../shared/WorldObject.h"
-#include "../qt/QtUtils.h"
 #include "../audio/AudioEngine.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
 #include <maths/vec2.h>
-#include <Escaping.h>
-#include <FileInStream.h>
-#include <PlatformUtils.h>
-#include <QtGui/QPainter>
+#include <webserver/Escaping.h>
 #include <webserver/ResponseUtils.h>
+#include <qt/QtUtils.h>
+#include <utils/FileInStream.h>
+#include <utils/PlatformUtils.h>
 #include <utils/Base64.h>
 #include "superluminal/PerformanceAPI.h"
+#include <QtGui/QPainter>
 
 
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
@@ -231,7 +230,8 @@ public:
 };
 
 
-// Reads a resource off disk and returns the data to CEF.
+// Reads a resource off disk and returns the data to CEF via the URL https://resource/xx
+// Also returns root_page from https://localdomain/.
 class EmbeddedBrowserResourceHandler : public CefResourceHandler
 {
 public:
@@ -317,13 +317,9 @@ public:
 		response->SetMimeType(response_mime_type);
 
 		if(in_stream)
-		{
 			response_length = (int64)this->in_stream->size();
-		}
 		else
-		{
 			response_length = -1;
-		}
 	}
 
 
@@ -516,32 +512,6 @@ public:
 		return nullptr;
 	}
 
-	//void OnLoadStart(CefRefPtr<CefBrowser> browser,
-	//	CefRefPtr<CefFrame> frame,
-	//	TransitionType transition_type) override
-	//{
-	//	CEF_REQUIRE_UI_THREAD();
-
-	//	if(frame->IsMain())
-	//	{
-	//		//conPrint("Loading started");
-	//	}
-	//}
-
-	//void OnLoadEnd(CefRefPtr<CefBrowser> browser,
-	//	CefRefPtr<CefFrame> frame,
-	//	int httpStatusCode) override
-	//{
-	//	CEF_REQUIRE_UI_THREAD();
-
-	//	if(frame->IsMain())
-	//	{
-	//		const std::string url = frame->GetURL();
-
-	//		//conPrint("Load ended for URL: " + std::string(url) + " with HTTP status code: " + toString(httpStatusCode));
-	//	}
-	//}
-
 	bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser,
 		CefRefPtr<CefFrame> frame,
 		CefRefPtr<CefRequest> request,
@@ -586,31 +556,6 @@ public:
 		return new EmbeddedBrowserResourceHandler(resource_manager, root_page);
 		//return nullptr;
 	}
-
-	//--------------------- CefCommandHandler ----------------------------
-	// Called to execute a Chrome command triggered via menu selection or keyboard
-	// shortcut. Values for |command_id| can be found in the cef_command_ids.h
-	// file. |disposition| provides information about the intended command target.
-	// Return true if the command was handled or false for the default
-	// implementation. For context menu commands this will be called after
-	// CefContextMenuHandler::OnContextMenuCommand. Only used with the Chrome
-	// runtime.
-	//virtual bool OnChromeCommand(CefRefPtr<CefBrowser> browser, int command_id, cef_window_open_disposition_t disposition) override
-	//{
-	//	return false;
-	//}
-
-
-	////--------------------- CefContextMenuHandler ----------------------------
-	//// Called before a context menu is displayed. |params| provides information
-	//// about the context menu state. |model| initially contains the default
-	//// context menu. The |model| can be cleared to show no context menu or
-	//// modified to show a custom menu. Do not keep references to |params| or
-	//// |model| outside of this callback.
-	//virtual void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model) override
-	//{
-	//}
-
 
 	//---------------------------- CefLoadHandler ----------------------------
 	void OnLoadStart(CefRefPtr<CefBrowser> browser,
@@ -877,12 +822,10 @@ public:
 class EmbeddedBrowserCEFBrowser : public RefCounted
 {
 public:
-	EmbeddedBrowserCEFBrowser(/*WebViewData* web_view_data_, */EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, MainWindow* main_window_, WorldObject* ob_, const std::string& root_page)
-	:	//web_view_data(web_view_data_),
-		mRenderHandler(render_handler),
+	EmbeddedBrowserCEFBrowser(EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, MainWindow* main_window_, WorldObject* ob_, const std::string& root_page)
+	:	mRenderHandler(render_handler),
 		main_window(main_window_),
 		ob(ob_)
-		//mLifeSpanHandler(lifespan_handler)
 	{
 		cef_client = new EmbeddedBrowserCefClient(main_window, ob);
 		cef_client->root_page = root_page;
@@ -1010,25 +953,21 @@ public:
 		}
 	}
 
-	//WebViewData* web_view_data;
 	MainWindow* main_window;
 	WorldObject* ob;
 
 	CefRefPtr<EmbeddedBrowserRenderHandler> mRenderHandler;
 	CefRefPtr<CefBrowser> cef_browser;
 	CefRefPtr<EmbeddedBrowserCefClient> cef_client;
-
-	//CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler;
 };
 
 
-
-static Reference<EmbeddedBrowserCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine,
+static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine,
 	const std::string& root_page)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
-	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(/*web_view_data, */new EmbeddedBrowserRenderHandler(opengl_tex, main_window, ob, opengl_engine), CEF::getLifespanHandler(), main_window, ob,
+	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(new EmbeddedBrowserRenderHandler(opengl_tex, main_window, ob, opengl_engine), CEF::getLifespanHandler(), main_window, ob,
 		root_page);
 
 	CefWindowInfo window_info;
@@ -1312,31 +1251,3 @@ void EmbeddedBrowser::keyReleased(QKeyEvent* e)
 		embedded_cef_browser->sendKeyEvent(KEYEVENT_KEYUP, e->key(), e->nativeVirtualKey(), modifiers);
 #endif
 }
-
-
-//void EmbeddedBrowser::loadStartedSlot()
-//{
-//	//conPrint("loadStartedSlot()");
-//	loading_in_progress = true;
-//}
-//
-//
-//void EmbeddedBrowser::loadProgress(int progress)
-//{
-//	//conPrint("loadProgress(): " + toString(progress));
-//	cur_load_progress = progress;
-//}
-//
-//
-//void EmbeddedBrowser::loadFinished(bool ok)
-//{
-//	//conPrint("loadFinished(): " + boolToString(ok));
-//	loading_in_progress = false;
-//}
-//
-//
-//void EmbeddedBrowser::linkHovered(const QString &url)
-//{
-//	//conPrint("linkHovered(): " + QtUtils::toStdString(url));
-//	this->current_hovered_URL = url;
-//}

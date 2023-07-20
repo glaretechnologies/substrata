@@ -1,7 +1,7 @@
 /*=====================================================================
 AnimatedTextureManager.h
 ------------------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 

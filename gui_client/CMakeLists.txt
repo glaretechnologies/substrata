@@ -55,7 +55,6 @@ addMocFileRule(gui_client GoToPositionDialog)
 addMocFileRule(gui_client FindObjectDialog)
 addMocFileRule(gui_client ListObjectsNearbyDialog)
 addMocFileRule(gui_client LogWindow)
-addMocFileRule(gui_client WebViewData)
 addMocFileRule(gui_client DiagnosticsWidget)
 
 addMocFileRule(qt FileSelectWidget)
@@ -123,7 +122,6 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_GoToPositionDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_FindObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ListObjectsNearbyDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_LogWindow.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_WebViewData.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_DiagnosticsWidget.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h

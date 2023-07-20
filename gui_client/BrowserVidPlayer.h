@@ -6,10 +6,9 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
-#include <utils/Timer.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
-#include <map>
+#include <string>
 class MainWindow;
 class WorldObject;
 class QMouseEvent;
