@@ -34,6 +34,7 @@ addMocFileRule(gui_client GlWidget)
 addMocFileRule(gui_client AvatarSettingsDialog)
 addMocFileRule(gui_client AvatarPreviewWidget)
 addMocFileRule(gui_client AddObjectDialog)
+addMocFileRule(gui_client AddVideoDialog)
 addMocFileRule(gui_client AddObjectPreviewWidget)
 addMocFileRule(gui_client ObjectEditor)
 addMocFileRule(gui_client ParcelEditor)
@@ -64,6 +65,7 @@ addMocFileRule(qt IndigoDoubleSpinBox)
 
 # Rules to compile the .ui files into ui_xx.h, using 'uic'.
 addUIFileRule(gui_client AddObjectDialog)
+addUIFileRule(gui_client AddVideoDialog)
 addUIFileRule(gui_client AvatarSettingsDialog)
 addUIFileRule(gui_client MainWindow)
 addUIFileRule(gui_client ObjectEditor)
@@ -100,6 +102,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_GlWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_AddVideoDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ObjectEditor.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialEditor.cpp
@@ -124,6 +127,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_WebViewData.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_DiagnosticsWidget.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ParcelEditor.h

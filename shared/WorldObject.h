@@ -40,6 +40,7 @@ class RayMesh;
 namespace Indigo { class SceneNodeModel; }
 namespace js { class AABBox; }
 class WebViewData;
+class BrowserVidPlayer;
 struct AnimatedTexObData;
 struct MeshData;
 struct PhysicsShapeData;
@@ -230,7 +231,8 @@ public:
 		ObjectType_Hypercard = 1,
 		ObjectType_VoxelGroup = 2,
 		ObjectType_Spotlight = 3,
-		ObjectType_WebView = 4
+		ObjectType_WebView = 4,
+		ObjectType_Video = 5 // A Youtube or Twitch video, or mp4 video, with video-specific UI.
 	};
 
 	static std::string objectTypeString(ObjectType t);
@@ -268,6 +270,9 @@ public:
 	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 4; // Does a hiqh-quality lightmap for this object need to be built or rebuilt?
 	static const uint32 DYNAMIC_FLAG                            = 8; // Is this object a dynamic object (moving object) from the point of view of the physics engine?
 	static const uint32 SUMMONED_FLAG                           = 16; // Is this object a vehicle object that was summoned by a user?
+	static const uint32 VIDEO_AUTOPLAY                          = 32; // For video objects, should the video auto-play?
+	static const uint32 VIDEO_LOOP                              = 64; // For video objects, should the video loop?
+	static const uint32 VIDEO_MUTED                             = 128; // For video objects, should the video be initially muted?
 	uint32 flags;
 
 	TimeStamp created_time;
@@ -388,6 +393,7 @@ public:
 	bool is_path_controlled; // Is this object controlled by a path controller script?  If so, we want to set the OpenGL transform from the physics engine.
 
 	Reference<WebViewData> web_view_data;
+	Reference<BrowserVidPlayer> browser_vid_player;
 	Reference<AnimatedTexObData> animated_tex_data;
 
 

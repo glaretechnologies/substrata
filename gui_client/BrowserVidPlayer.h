@@ -1,7 +1,7 @@
 /*=====================================================================
-WebViewData.h
--------------
-Copyright Glare Technologies Limited 2022 -
+BrowserVidPlayer.h
+------------------
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
@@ -9,8 +9,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/Timer.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
-#include <QtGui/QImage>
-#include <QtCore/QObject>
 #include <map>
 class MainWindow;
 class WorldObject;
@@ -20,17 +18,19 @@ class QKeyEvent;
 class QWheelEvent;
 class EmbeddedBrowser;
 class OpenGLEngine;
+class QString;
 template <class T> class Vec2;
 
 
-class WebViewData : public QObject, public RefCounted
+class BrowserVidPlayer : public RefCounted
 { 
-	Q_OBJECT
 public:
-	WebViewData();
-	~WebViewData();
+	BrowserVidPlayer();
+	~BrowserVidPlayer();
 
 	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
+
+	void videoURLMayHaveChanged(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob);
 
 	static double maxBrowserDist() { return 20.0; }
 
@@ -44,34 +44,23 @@ public:
 	void keyPressed(QKeyEvent* e);
 	void keyReleased(QKeyEvent* e);
 
-signals:;
-	void linkHoveredSignal(const QString &url);
-
-	void mouseDoubleClickedSignal(QMouseEvent* e);
-
-private slots:
-	void loadStartedSlot();
-	void loadProgress(int progress);
-	void loadFinished(bool ok);
-
-	void linkHovered(const QString &url);
-
-
 private:
-	std::string loaded_target_url;
+	void createNewBrowserPlayer(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob);
 
-	QString current_hovered_URL;
+	enum State
+	{
+		State_Unloaded,
+		State_ErrorOccurred,
+		State_BrowserCreated
+	};
+	State state;
 
-	int cur_load_progress;
-	bool loading_in_progress;
+	std::string loaded_video_url;
 
 	Reference<EmbeddedBrowser> browser;
-
-	bool showing_click_to_load_text;
-	bool user_clicked_to_load;
 
 	bool previous_is_visible;
 };
 
 
-typedef Reference<WebViewData> WebViewDataRef;
+typedef Reference<BrowserVidPlayer> BrowserVidPlayerRef;

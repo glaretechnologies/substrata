@@ -63,6 +63,7 @@
     <addaction name="actionAdd_Spotlight"/>
     <addaction name="actionAdd_Audio_Source"/>
     <addaction name="actionAdd_Web_View"/>
+    <addaction name="actionAdd_Video"/>
     <addaction name="separator"/>
     <addaction name="actionCopy_Object"/>
     <addaction name="actionPaste_Object"/>
@@ -156,6 +157,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionAddObject"/>
+   <addaction name="actionAdd_Video"/>
    <addaction name="actionAddHypercard"/>
    <addaction name="actionAdd_Voxels"/>
    <addaction name="actionAdd_Web_View"/>
@@ -412,10 +414,10 @@
   </action>
   <action name="actionAddObject">
    <property name="text">
-    <string>Add Model / Image / Video</string>
+    <string>Add Model / Image</string>
    </property>
    <property name="toolTip">
-    <string>Add Model/Image/Video</string>
+    <string>Add Model/Image</string>
    </property>
   </action>
   <action name="actionDeleteObject">
@@ -639,6 +641,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+M</string>
+   </property>
+  </action>
+  <action name="actionAdd_Video">
+   <property name="text">
+    <string>Add Video</string>
    </property>
   </action>
  </widget>
