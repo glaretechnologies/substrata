@@ -6,37 +6,19 @@ Copyright Glare Technologies Limited 2023 -
 #include "AddVideoDialog.h"
 
 
-#include "ModelLoading.h"
-#include "MeshBuilding.h"
-#include "NetDownloadResourcesThread.h"
 #include "IncludeOpenGL.h"
 #include "SubstrataVideoSurface.h"
-#include "../shared/LODGeneration.h"
-#include "../shared/ImageDecoding.h"
-#include "../dll/include/IndigoMesh.h"
-#include "../dll/include/IndigoException.h"
-#include "../simpleraytracer/raymesh.h"
-#include "../dll/IndigoStringUtils.h"
-#include "../utils/FileUtils.h"
-#include "../utils/Exception.h"
-#include "../utils/PlatformUtils.h"
-#include "../utils/StringUtils.h"
-#include "../utils/ConPrint.h"
-#include "../utils/FileChecksum.h"
-#include "../utils/TaskManager.h"
-#include "../indigo/TextureServer.h"
 #include "../qt/QtUtils.h"
+#include "../utils/ConPrint.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
-#include <QtWidgets/QListWidget>
 #include <QtCore/QSettings>
-#include <QtCore/QTimer>
 #if defined(_WIN32)
 #include "../video/WMFVideoReader.h"
 #endif
 
 
-AddVideoDialog::AddVideoDialog(QSettings* settings_, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager_, IMFDXGIDeviceManager* dev_manager_)
+AddVideoDialog::AddVideoDialog(QSettings* settings_, Reference<ResourceManager> resource_manager_, IMFDXGIDeviceManager* dev_manager_)
 :	settings(settings_),
 	resource_manager(resource_manager_),
 	dev_manager(dev_manager_),
@@ -173,10 +155,6 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 		}
 		else
 			throw glare::Exception("file did not have a supported video extension: '" + getExtension(local_path) + "'");
-	}
-	catch(Indigo::IndigoException& e)
-	{
-		QtUtils::showErrorMessageDialog(QtUtils::toQString(e.what()), this);
 	}
 	catch(glare::Exception& e)
 	{
