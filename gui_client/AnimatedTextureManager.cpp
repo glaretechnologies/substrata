@@ -1,25 +1,24 @@
 /*=====================================================================
 AnimatedTextureManager.cpp
 --------------------------
-Copyright Glare Technologies Limited 2022-
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #include "AnimatedTextureManager.h"
 
 
 #include "MainWindow.h"
 #include "EmbeddedBrowser.h"
-#include "../shared/WorldObject.h"
-#include "../qt/QtUtils.h"
-#include "FileInStream.h"
-#include "CEFInternal.h"
 #include "CEF.h"
+#include "../shared/WorldObject.h"
+#include <qt/QtUtils.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
+#include <webserver/Escaping.h>
 #include <utils/Base64.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
-#include <Escaping.h>
+#include <utils/FileInStream.h>
 #include <xxhash.h>
 
 

@@ -1,35 +1,32 @@
 /*=====================================================================
 WebViewData.cpp
 ---------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #include "WebViewData.h"
 
 
 #include "MainWindow.h"
 #include "EmbeddedBrowser.h"
-#include "CEFInternal.h"
 #include "CEF.h"
 #include "URLWhitelist.h"
 #include "../shared/WorldObject.h"
-#include "../qt/QtUtils.h"
 #include "../audio/AudioEngine.h"
+#include <qt/QtUtils.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
 #include <maths/vec2.h>
-#include <Escaping.h>
-#include <FileInStream.h>
-#include <PlatformUtils.h>
+#include <webserver/Escaping.h>
+#include <networking/URL.h>
+#include <utils/FileInStream.h>
+#include <utils/PlatformUtils.h>
+#include <utils/Base64.h>
 #include <QtGui/QPainter>
 #include "superluminal/PerformanceAPI.h"
-#include <utils/Base64.h>
-#include <networking/URL.h>
 
 
 WebViewData::WebViewData()
-:	cur_load_progress(0),
-	loading_in_progress(false),
-	browser(NULL),
+:	browser(NULL),
 	showing_click_to_load_text(false),
 	user_clicked_to_load(false),
 	previous_is_visible(true)
@@ -332,7 +329,6 @@ void WebViewData::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
 
 void WebViewData::mouseDoubleClicked(QMouseEvent* e, const Vec2f& uv_coords)
 {
-	//conPrint("mouseDoubleClicked()");
 }
 
 
@@ -361,32 +357,4 @@ void WebViewData::keyReleased(QKeyEvent* e)
 {
 	if(browser.nonNull())
 		browser->keyReleased(e);
-}
-
-
-void WebViewData::loadStartedSlot()
-{
-	//conPrint("loadStartedSlot()");
-	loading_in_progress = true;
-}
-
-
-void WebViewData::loadProgress(int progress)
-{
-	//conPrint("loadProgress(): " + toString(progress));
-	cur_load_progress = progress;
-}
-
-
-void WebViewData::loadFinished(bool ok)
-{
-	//conPrint("loadFinished(): " + boolToString(ok));
-	loading_in_progress = false;
-}
-
-
-void WebViewData::linkHovered(const QString &url)
-{
-	//conPrint("linkHovered(): " + QtUtils::toStdString(url));
-	this->current_hovered_URL = url;
 }

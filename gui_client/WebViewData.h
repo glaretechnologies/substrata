@@ -1,17 +1,14 @@
 /*=====================================================================
 WebViewData.h
 -------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
 
-#include <utils/Timer.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
-#include <QtGui/QImage>
-#include <QtCore/QObject>
-#include <map>
+#include <string>
 class MainWindow;
 class WorldObject;
 class QMouseEvent;
@@ -23,9 +20,8 @@ class OpenGLEngine;
 template <class T> class Vec2;
 
 
-class WebViewData : public QObject, public RefCounted
+class WebViewData : public RefCounted
 { 
-	Q_OBJECT
 public:
 	WebViewData();
 	~WebViewData();
@@ -44,26 +40,8 @@ public:
 	void keyPressed(QKeyEvent* e);
 	void keyReleased(QKeyEvent* e);
 
-signals:;
-	void linkHoveredSignal(const QString &url);
-
-	void mouseDoubleClickedSignal(QMouseEvent* e);
-
-private slots:
-	void loadStartedSlot();
-	void loadProgress(int progress);
-	void loadFinished(bool ok);
-
-	void linkHovered(const QString &url);
-
-
 private:
 	std::string loaded_target_url;
-
-	QString current_hovered_URL;
-
-	int cur_load_progress;
-	bool loading_in_progress;
 
 	Reference<EmbeddedBrowser> browser;
 
