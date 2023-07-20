@@ -16,13 +16,15 @@ class WorkerThread;
 class ServerConfig
 {
 public:
-	ServerConfig() : allow_light_mapper_bot_full_perms(false) {}
+	ServerConfig() : allow_light_mapper_bot_full_perms(false), update_parcel_sales(false) {}
 	
 	std::string webserver_fragments_dir; // empty string = use default.
 	std::string webserver_public_files_dir; // empty string = use default.
 	std::string webclient_dir; // empty string = use default.
 	
 	bool allow_light_mapper_bot_full_perms; // Allow lightmapper bot (User account with name "lightmapperbot" to have full write permissions.
+
+	bool update_parcel_sales; // Should we run auctions?
 };
 
 
