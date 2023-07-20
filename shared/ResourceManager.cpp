@@ -188,20 +188,27 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 }
 
 
-std::string ResourceManager::copyLocalFileToResourceDir(const std::string& local_path) // Threadsafe
+std::string ResourceManager::copyLocalFileToResourceDirIfNotPresent(const std::string& local_path) // Threadsafe
 {
 	try
 	{
 		const uint64 hash = FileChecksum::fileChecksum(local_path);
 		const std::string URL = ResourceManager::URLForPathAndHash(local_path, hash);
 
-		FileUtils::copyFile(local_path, this->pathForURL(URL));
+		const std::string dest_path = this->pathForURL(URL);
+		if(!FileUtils::fileExists(dest_path))
+			FileUtils::copyFile(local_path, dest_path);
 
-		Lock lock(mutex);
-		ResourceRef res = getOrCreateResourceForURL(URL);
+		ResourceRef res = getExistingResourceForURL(URL);
+		const bool already_exists = res.nonNull();
+		if(res.isNull())
+			res = getOrCreateResourceForURL(URL);
+
+		const Resource::State prev_state = res->getState();
 		res->setState(Resource::State_Present);
 
-		this->changed = 1;
+		if(!already_exists || (prev_state != Resource::State_Present))
+			this->changed = 1;
 
 		return URL;
 	}

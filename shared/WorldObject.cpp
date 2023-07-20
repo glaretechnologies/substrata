@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2016 -
 //#include <SceneNodeModel.h>
 #include "../gui_client/WinterShaderEvaluator.h"
 #include "../gui_client/WebViewData.h"
+#include "../gui_client/BrowserVidPlayer.h"
 #include "../gui_client/AnimatedTextureManager.h"
 #include "../gui_client/MeshManager.h"
 #include <graphics/ImageMap.h>
@@ -388,6 +389,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_VoxelGroup: return "voxel group";
 	case ObjectType_Spotlight: return "spotlight";
 	case ObjectType_WebView: return "web view";
+	case ObjectType_Video: return "video";
 	default: return "Unknown";
 	}
 }

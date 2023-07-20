@@ -103,6 +103,10 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 		{
 			aabb_os = js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
 		}
+		else if(ob->object_type == WorldObject::ObjectType_Video)
+		{
+			aabb_os = js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
+		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		{
 			try

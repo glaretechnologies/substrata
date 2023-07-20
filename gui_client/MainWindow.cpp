@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "UserDetailsWidget.h"
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
+#include "AddVideoDialog.h"
 #include "MainOptionsDialog.h"
 #include "FindObjectDialog.h"
 #include "ListObjectsNearbyDialog.h"
@@ -51,6 +52,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "CameraController.h"
 #include "BiomeManager.h"
 #include "WebViewData.h"
+#include "BrowserVidPlayer.h"
 #include "AnimatedTextureManager.h"
 #include "CEF.h"
 #include "../shared/Protocol.h"
@@ -722,6 +724,12 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	}
 	web_view_obs.clear();
 
+	// Clear browser_vid_player_obs
+	for(auto entry : browser_vid_player_obs)
+	{
+		entry->browser_vid_player = NULL;
+	}
+	browser_vid_player_obs.clear();
 
 	// Clear obs_with_animated_tex - will close video readers
 	for(auto entry : obs_with_animated_tex)
@@ -1650,6 +1658,45 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				//connect(ob->web_view_data.ptr(), SIGNAL(linkHoveredSignal(const QString&)), this, SLOT(webViewDataLinkHovered(const QString&)));
 				//connect(ob->web_view_data.ptr(), SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(webViewMouseDoubleClicked(QMouseEvent*)));
 				this->web_view_obs.insert(ob);
+			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_Video)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob->shape = this->image_cube_shape;
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = useScaleForWorldOb(ob->scale);
+
+				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
+				opengl_ob->mesh_data = this->image_cube_opengl_mesh;
+				opengl_ob->materials.resize(2);
+				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(0.f);
+				opengl_ob->materials[0].emission_linear_rgb = Colour3f(1.f);
+				const float luminance = 24000; // nits.  Chosen so videos look about the right brightness in daylight.
+				opengl_ob->materials[0].emission_scale = luminance / (683.002f * 106.856e-9f); // See ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths()
+				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+				ob->loaded_content = ob->content;
+
+				ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
+
+				physics_world->addObject(ob->physics_object);
+
+				ob->browser_vid_player = new BrowserVidPlayer();
+				this->browser_vid_player_obs.insert(ob);
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
@@ -4298,6 +4345,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 		}
 
+		// Process browser vid player objects
+		for(auto it = browser_vid_player_obs.begin(); it != browser_vid_player_obs.end(); ++it)
+		{
+			WorldObject* ob = it->ptr();
+
+			try
+			{
+				ob->browser_vid_player->process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+			}
+			catch(glare::Exception& e)
+			{
+				logMessage("Excep while processing browser vid player: " + e.what());
+			}
+		}
+
 		this->last_animated_tex_time = timer.elapsed();
 	}
 
@@ -6542,6 +6604,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						ui->indigoView->objectRemoved(*ob);
 
 						ob->web_view_data = NULL;
+						ob->browser_vid_player = NULL;
 
 						if(ob->audio_source.nonNull())
 						{
@@ -6558,6 +6621,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						active_objects.erase(ob);
 						obs_with_animated_tex.erase(ob);
 						web_view_obs.erase(ob);
+						browser_vid_player_obs.erase(ob);
 						obs_with_scripts.erase(ob);
 						obs_with_diagnostic_vis.erase(ob);
 					}
@@ -8068,6 +8132,100 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	}
 
 	showInfoNotification("Added web view.");
+}
+
+
+void MainWindow::on_actionAdd_Video_triggered()
+{
+	try
+	{
+		const float quad_w = 0.4f;
+		const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+			this->cam_controller.getUpVec() * quad_w * 0.5f -
+			this->cam_controller.getRightVec() * quad_w * 0.5f;
+
+		// Check permissions
+		bool ob_pos_in_parcel;
+		const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+		if(!have_creation_perms)
+		{
+			if(ob_pos_in_parcel)
+				showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+			else
+				showErrorNotification("You can only create videos in a parcel that you have write permissions for.");
+			return;
+		}
+
+		AddVideoDialog dialog(this->base_dir_path, this->settings, this->texture_server, this->resource_manager, 
+#ifdef _WIN32
+			this->device_manager.ptr
+#else
+			NULL
+#endif
+		);
+		const int res = dialog.exec();
+
+		if(res == QDialog::Accepted)
+		{
+			std::string use_URL;
+			if(dialog.wasResultLocalPath())
+			{
+				if(dialog.getVideoLocalPath() == "")
+					return;
+
+				// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+				use_URL = this->resource_manager->copyLocalFileToResourceDirIfNotPresent(dialog.getVideoLocalPath());
+			}
+			else
+			{
+				if(dialog.getVideoURL() == "")
+					return;
+
+				use_URL = dialog.getVideoURL();
+			}
+
+			WorldObjectRef new_world_object = new WorldObject();
+			new_world_object->uid = UID(0); // Will be set by server
+			new_world_object->object_type = WorldObject::ObjectType_Video;
+			new_world_object->pos = ob_pos;
+			new_world_object->axis = Vec3f(0, 0, 1);
+			new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
+			new_world_object->scale = Vec3f(/*width=*/1.f, /*depth=*/0.02f, /*height=*/(float)dialog.video_height / dialog.video_width); // NOTE: matches Youtube aspect ratio of 16:9.
+			new_world_object->max_model_lod_level = 0;
+
+			BitUtils::setBit(new_world_object->flags, WorldObject::VIDEO_AUTOPLAY);
+
+			new_world_object->materials.resize(2);
+			new_world_object->materials[0] = new WorldMaterial();
+			new_world_object->materials[0]->colour_rgb = Colour3f(0.f);
+			new_world_object->materials[0]->emission_lum_flux_or_lum = 20000; // NOTE: this material data is generally not used in loadModelForObject() for ObjectType_Video.
+			new_world_object->materials[0]->emission_rgb = Colour3f(1.f);
+			new_world_object->materials[0]->emission_texture_url = use_URL; // Video URL is stored in emission_texture_url. (need to put here so it is a resource dependency)
+			new_world_object->materials[1] = new WorldMaterial();
+
+			const js::AABBox aabb_os = this->image_cube_shape.getAABBOS();
+			new_world_object->setAABBOS(aabb_os);
+
+
+			// Send CreateObject message to server
+			{
+				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+				new_world_object->writeToNetworkStream(scratch_packet);
+
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
+			}
+
+			showInfoNotification("Added video.");
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		// Show error
+		print(e.what());
+		QErrorMessage m;
+		m.showMessage(QtUtils::toQString(e.what()));
+		m.exec();
+	}
 }
 
 
@@ -10245,6 +10403,9 @@ void MainWindow::objectEditedSlot()
 				}
 			}
 
+			if(selected_ob->browser_vid_player.nonNull())
+				selected_ob->browser_vid_player->videoURLMayHaveChanged(this, ui->glWidget->opengl_engine.ptr(), selected_ob.ptr());
+
 			if(this->selected_ob->audio_source.nonNull())
 			{
 				this->selected_ob->audio_source->pos = this->selected_ob->getCentroidWS();
@@ -11191,16 +11352,20 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 		{
 			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
+			const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
+				Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+				Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 			if(ob->web_view_data.nonNull()) // If this is a web-view object:
 			{
-				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
-				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
-
-				const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
-					Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
-					Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
-
 				ob->web_view_data->mousePressed(e, uvs);
+			}
+			else if(ob->browser_vid_player.nonNull()) // If this is a video object:
+			{
+				ob->browser_vid_player->mousePressed(e, uvs);
 			}
 		}
 	}
@@ -11339,16 +11504,20 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		{
 			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
+			const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
+				Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+				Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 			if(ob->web_view_data.nonNull()) // If this is a web-view object:
 			{
-				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
-				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
-
-				const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
-					Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
-					Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
-
 				ob->web_view_data->mouseReleased(e, uvs);
+			}
+			else if(ob->browser_vid_player.nonNull()) // If this is a video object:
+			{
+				ob->browser_vid_player->mouseReleased(e, uvs);
 			}
 		}
 	}
@@ -11751,20 +11920,24 @@ void MainWindow::updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mo
 			{
 				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
+				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+				const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
+					Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+					Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 				if(ob->web_view_data.nonNull() && mouse_event) // If this is a web-view object:
 				{
-					const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
-					const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
-
-					const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
-						Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
-						Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
-
 					ob->web_view_data->mouseMoved(mouse_event, uvs);
+				}
+				else if(ob->browser_vid_player.nonNull() && mouse_event) // If this is a video object:
+				{
+					ob->browser_vid_player->mouseMoved(mouse_event, uvs);
 				}
 				else 
 				{
-					if(!ob->target_url.empty()) // And the object has a target URL:
+					if(!ob->target_url.empty() && (ob->web_view_data.isNull() && ob->browser_vid_player.isNull())) // If the object has a target URL (and is not a web-view and not a video object):
 					{
 						// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
 						const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
@@ -12676,16 +12849,22 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 		{
 			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 	
+			const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
+				Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+				Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 			if(ob->web_view_data.nonNull()) // If this is a web-view object:
 			{
-				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
-				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
-
-				const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
-					Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
-					Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
-
 				ob->web_view_data->wheelEvent(e, uvs);
+				e->accept();
+				return;
+			}
+			else if(ob->browser_vid_player.nonNull()) // If this is a video object:
+			{
+				ob->browser_vid_player->wheelEvent(e, uvs);
 				e->accept();
 				return;
 			}

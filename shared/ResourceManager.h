@@ -50,7 +50,7 @@ public:
 	void copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL); // Threadsafe
 
 	// Returns URL
-	std::string copyLocalFileToResourceDir(const std::string& local_path); // Threadsafe
+	std::string copyLocalFileToResourceDirIfNotPresent(const std::string& local_path); // Threadsafe
 
 	void setResourceAsLocallyPresentForURL(const std::string& URL); // Threadsafe
 

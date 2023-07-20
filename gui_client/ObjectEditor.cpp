@@ -41,6 +41,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	setupUi(this);
 
 	this->modelFileSelectWidget->force_use_last_dir_setting = true;
+	this->videoURLFileSelectWidget->force_use_last_dir_setting = true;
 	this->audioFileWidget->force_use_last_dir_setting = true;
 
 	//this->scaleXDoubleSpinBox->setMinimum(0.00001);
@@ -87,6 +88,12 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 
 	connect(this->linkScaleCheckBox,		SIGNAL(toggled(bool)),				this, SLOT(linkScaleCheckBoxToggled(bool)));
 
+	connect(this->autoplayCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->loopCheckBox,				SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->mutedCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+
+	connect(this->videoURLFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
+
 	this->visitURLLabel->hide();
 
 	// Set up script edit timer.
@@ -127,6 +134,7 @@ void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 	case WorldObject::ObjectType_VoxelGroup: ob_type = "Voxel Group"; break;
 	case WorldObject::ObjectType_Spotlight: ob_type = "Spotlight"; break;
 	case WorldObject::ObjectType_WebView: ob_type = "Web View"; break;
+	case WorldObject::ObjectType_Video: ob_type = "Video"; break;
 	}
 
 	std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
@@ -186,6 +194,12 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	SignalBlocker::setValue(this->restitutionDoubleSpinBox, ob.restitution);
 
 	
+	SignalBlocker::setChecked(this->autoplayCheckBox, BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_AUTOPLAY));
+	SignalBlocker::setChecked(this->loopCheckBox,     BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_LOOP));
+	SignalBlocker::setChecked(this->mutedCheckBox,    BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_MUTED));
+
+	this->videoURLFileSelectWidget->setFilename(QtUtils::toQString((!ob.materials.empty()) ? ob.materials[0]->emission_texture_url : ""));
+	
 	lightmapURLLabel->setText(QtUtils::toQString(ob.lightmap_url));
 
 	WorldMaterialRef selected_mat;
@@ -197,42 +211,68 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	if(ob.object_type == WorldObject::ObjectType_Hypercard)
 	{
 		this->materialsGroupBox->hide();
+		this->lightmapGroupBox->hide();
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
 		this->audioGroupBox->show();
+		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
 	}
 	else if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		this->materialsGroupBox->show();
+		this->lightmapGroupBox->show();
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
 		this->audioGroupBox->show();
+		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
 	}
 	else if(ob.object_type == WorldObject::ObjectType_Spotlight)
 	{
 		this->materialsGroupBox->hide();
+		this->lightmapGroupBox->hide();
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->show();
 		this->audioGroupBox->hide();
+		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
 	}
 	else if(ob.object_type == WorldObject::ObjectType_WebView)
 	{
 		this->materialsGroupBox->show();
+		this->lightmapGroupBox->hide();
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
 		this->audioGroupBox->hide();
+		this->physicsSettingsGroupBox->hide();
+		this->videoGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_Video)
+	{
+		this->materialsGroupBox->hide();
+		this->lightmapGroupBox->hide();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
+		this->audioGroupBox->hide();
+		this->physicsSettingsGroupBox->hide();
+		this->videoGroupBox->show();
 	}
 	else
 	{
 		this->materialsGroupBox->show();
+		this->lightmapGroupBox->show();
 		this->modelLabel->show();
 		this->modelFileSelectWidget->show();
 		this->spotlightGroupBox->hide();
 		this->audioGroupBox->show();
+		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
 	}
 
 	if(ob.object_type != WorldObject::ObjectType_Hypercard)
@@ -340,6 +380,10 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.restitution = new_restitution;
 
 
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_AUTOPLAY, this->autoplayCheckBox->isChecked());
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_LOOP,     this->loopCheckBox    ->isChecked());
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_MUTED,    this->mutedCheckBox   ->isChecked());
+
 	if(ob_out.object_type != WorldObject::ObjectType_Hypercard) // Don't store materials for hypercards. (doesn't use them, and matEditor may have old/invalid data)
 	{
 		if(selected_mat_index >= (int)cloned_materials.size())
@@ -355,6 +399,15 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.materials.resize(cloned_materials.size());
 		for(size_t i=0; i<cloned_materials.size(); ++i)
 			ob_out.materials[i] = cloned_materials[i]->clone();
+	}
+
+	// Set the emission_texture_url from the video URL control.  NOTE: needs to go after setting materials above. 
+	if(ob_out.object_type == WorldObject::ObjectType_Video)
+	{
+		if(ob_out.materials.size() >= 1)
+		{
+			ob_out.materials[0]->emission_texture_url = QtUtils::toIndString(this->videoURLFileSelectWidget->filename());
+		}
 	}
 
 	if(ob_out.object_type == WorldObject::ObjectType_Spotlight) // NOTE: is ob_out.object_type set?

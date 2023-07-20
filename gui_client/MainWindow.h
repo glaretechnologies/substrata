@@ -91,8 +91,6 @@ public:
 		QWidget *parent = 0);
 	~MainWindow();
 
-	friend struct AnimatedTexObData;
-
 	void initialise();
 
 	void connectToServer(const std::string& URL/*const std::string& hostname, const std::string& worldname*/); // Disconnect from any current server, connect to new server
@@ -120,6 +118,7 @@ private slots:;
 	void on_actionAdd_Voxels_triggered();
 	void on_actionAdd_Spotlight_triggered();
 	void on_actionAdd_Web_View_triggered();
+	void on_actionAdd_Video_triggered();
 	void on_actionAdd_Audio_Source_triggered();
 	void on_actionCopy_Object_triggered();
 	void on_actionPaste_Object_triggered();
@@ -412,6 +411,7 @@ public:
 	std::set<WorldObjectRef> active_objects; // Objects that have moved recently and so need interpolation done on them.
 	std::set<WorldObjectRef> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
 	std::set<WorldObjectRef> web_view_obs;
+	std::set<WorldObjectRef> browser_vid_player_obs;
 	std::set<WorldObjectRef> obs_with_scripts; // Objects with non-null script_evaluator
 	std::set<WorldObjectRef> obs_with_diagnostic_vis;
 
@@ -513,8 +513,8 @@ private:
 	bool need_help_info_dock_widget_position; // We may need to position the Help info dock widget to the bottom right of the GL view.
 	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
 
-	std::string server_hostname; // e.g. "substrata.info" or "localhost"
 public:
+	std::string server_hostname; // e.g. "substrata.info" or "localhost"
 	std::string server_worldname; // e.g. "" or "ono-sendai"
 private:
 	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is. 

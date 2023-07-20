@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <vector>
 class MainWindow;
 class WorldObject;
-class AnimatedTexCEFBrowser;
+class EmbeddedBrowser;
 class OpenGLEngine;
 class OpenGLMaterial;
 class TextureData;
@@ -30,7 +30,7 @@ struct AnimatedTexData : public RefCounted
 	int last_loaded_frame_i;
 	int cur_frame_i; // -1 = reached EOS
 
-	Reference<AnimatedTexCEFBrowser> browser;
+	Reference<EmbeddedBrowser> browser;
 };
 
 

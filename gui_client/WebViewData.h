@@ -18,8 +18,7 @@ class QMouseEvent;
 class QEvent;
 class QKeyEvent;
 class QWheelEvent;
-class WebViewDataCEFApp;
-class WebViewCEFBrowser;
+class EmbeddedBrowser;
 class OpenGLEngine;
 template <class T> class Vec2;
 
@@ -66,7 +65,7 @@ private:
 	int cur_load_progress;
 	bool loading_in_progress;
 
-	Reference<WebViewCEFBrowser> browser;
+	Reference<EmbeddedBrowser> browser;
 
 	bool showing_click_to_load_text;
 	bool user_clicked_to_load;
