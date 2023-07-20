@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "IncludeOpenGL.h"
 #include "SubstrataVideoSurface.h"
 #include "../qt/QtUtils.h"
+#include "../utils/PlatformUtils.h"
 #include "../utils/ConPrint.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
@@ -146,7 +147,7 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 				this->video_width = video_surface->current_format.frameWidth();
 				this->video_height = video_surface->current_format.frameHeight();
 
-				this->videoInfoLabel->SetText(QtUtils::toQString("Video width: " + toString(this->video_width) + " px, height: " + toString(this->video_height) + " px"));
+				this->videoInfoLabel->setText(QtUtils::toQString("Video width: " + toString(this->video_width) + " px, height: " + toString(this->video_height) + " px"));
 			}
 
 			delete media_player;
