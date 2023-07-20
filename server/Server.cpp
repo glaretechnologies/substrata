@@ -389,6 +389,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.webserver_public_files_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
 	config.webclient_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
 	config.allow_light_mapper_bot_full_perms = XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
+	config.update_parcel_sales = XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
 	return config;
 }
 
@@ -1061,7 +1062,7 @@ int main(int argc, char *argv[])
 			}
 
 
-			if((loop_iter % 512) == 0) // Approx every 50 s.
+			if(server_config.update_parcel_sales && ((loop_iter % 512) == 0)) // Approx every 50 s.
 			{
 				updateParcelSales(*server.world_state);
 
