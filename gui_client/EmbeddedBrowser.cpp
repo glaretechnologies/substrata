@@ -690,6 +690,7 @@ public:
 			audio_source->pos = ob->getCentroidWS();
 			audio_source->debugname = "webview: " + ob->target_url;
 			audio_source->sampling_rate = main_window->audio_engine.getSampleRate();
+			audio_source->volume = myClamp(ob->audio_volume, 0.f, 10.f);
 
 			{
 				Lock lock(main_window->world_state->mutex);
