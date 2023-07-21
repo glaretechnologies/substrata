@@ -35,10 +35,11 @@ BrowserVidPlayer::~BrowserVidPlayer()
 }
 
 
+// See https://webapps.stackexchange.com/questions/54443/format-for-id-of-youtube-video
 static void checkYouTubeVideoID(const std::string& s)
 {
 	for(size_t i=0; i<s.size(); ++i)
-		if(!isAlphaNumeric(s[i]))
+		if(!(isAlphaNumeric(s[i]) || s[i] == '-' || s[i] == '_'))
 			throw glare::Exception("invalid char in youtube vid id: '" + std::string(1, s[i]) + "'");
 }
 

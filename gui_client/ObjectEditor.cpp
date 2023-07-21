@@ -93,6 +93,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->mutedCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
 	connect(this->videoURLFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
+	connect(this->videoVolumeDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	this->visitURLLabel->hide();
 
@@ -199,6 +200,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	SignalBlocker::setChecked(this->mutedCheckBox,    BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_MUTED));
 
 	this->videoURLFileSelectWidget->setFilename(QtUtils::toQString((!ob.materials.empty()) ? ob.materials[0]->emission_texture_url : ""));
+
+	SignalBlocker::setValue(videoVolumeDoubleSpinBox, ob.audio_volume);
 	
 	lightmapURLLabel->setText(QtUtils::toQString(ob.lightmap_url));
 
@@ -427,7 +430,11 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	if(ob_out.audio_source_url != new_audio_source_url)
 		ob_out.changed_flags |= WorldObject::AUDIO_SOURCE_URL_CHANGED;
 	ob_out.audio_source_url = new_audio_source_url;
-	ob_out.audio_volume = volumeDoubleSpinBox->value();
+
+	if(ob_out.object_type == WorldObject::ObjectType_Video)
+		ob_out.audio_volume = videoVolumeDoubleSpinBox->value();
+	else
+		ob_out.audio_volume = volumeDoubleSpinBox->value();
 }
 
 

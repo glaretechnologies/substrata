@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>618</width>
-    <height>1302</height>
+    <height>1304</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -704,9 +704,6 @@
       <item>
        <widget class="QWidget" name="widget_13" native="true">
         <layout class="QFormLayout" name="formLayout_5">
-         <property name="verticalSpacing">
-          <number>0</number>
-         </property>
          <property name="leftMargin">
           <number>0</number>
          </property>
@@ -734,6 +731,23 @@
          </item>
          <item row="0" column="1">
           <widget class="FileSelectWidget" name="videoURLFileSelectWidget"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_10">
+           <property name="text">
+            <string>Volume</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="RealControl" name="videoVolumeDoubleSpinBox">
+           <property name="maximum">
+            <double>5.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>
