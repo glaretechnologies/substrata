@@ -52,66 +52,75 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 
 	if(parsed_URL.scheme == "http" || parsed_URL.scheme == "https")
 	{
-		if(parsed_URL.host == "www.youtube.com")
+		if(parsed_URL.host == "www.youtube.com" || parsed_URL.host == "youtu.be")
 		{
-			// Parse query
-			const std::map<std::string, std::string> params = URL::parseQuery(parsed_URL.query);
-			const auto res = params.find("v"); // Find "v" param (video id)
-			if(res != params.end())
+			std::string video_id;
+			if(parsed_URL.host == "www.youtube.com")
 			{
-				const std::string video_id = res->second;
-				checkYouTubeVideoID(video_id); // Check video id so we don't need to worry about escaping it
-
-				const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
-				const bool loop     = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
-				const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
-
-				// See https://developers.google.com/youtube/player_parameters
-				const std::string player_params =
-					"{												\n"
-					"	height: '" + toString(height) + "',			\n"
-					"	width: '" + toString(width) + "',			\n"
-					"	videoId: '" + video_id + "',				\n"
-					"	playerVars: {								\n"
-					"		'playsinline': 1,						\n"
-					"		'autoplay': " + toString(autoplay ? 1 : 0) + ",		\n"
-					"		'loop': "     + toString(loop ? 1 : 0) + ",			\n"
-					"		'playlist': '" + video_id + "'			\n"// Set the playlist to the video ID.  This is needed for looping to work.
-					"	},											\n"
-					"	events: {									\n"
-					"		onReady: function(e) {					\n"
-					"			" + (muted ? "e.target.mute();" : "") + "\n" // If video should be muted, insert a call to mute the video here.
-					"		}										\n"
-					"	}											\n"
-					"}";
-
-				// See https://developers.google.com/youtube/iframe_api_reference
-				const std::string embed_html = 
-					"<html>																			\n"
-					"	<body style='margin:0px;'>													\n"
-					"	<div id=\"player\"></div>													\n"
-					"		<script>																\n"
-					"			// Load the IFrame Player API code asynchronously.					\n"
-					"			var tag = document.createElement('script');							\n"
-					"			tag.src = \"https://www.youtube.com/iframe_api\";					\n"
-					"			var firstScriptTag = document.getElementsByTagName('script')[0];	\n"
-					"			firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);		\n"
-					"																				\n"
-					"			// Replace the 'ytplayer' element with an <iframe> and				\n"
-					"			// YouTube player after the API code downloads.						\n"
-					"			var player;															\n"
-					"			function onYouTubeIframeAPIReady() {								\n"
-					"				player = new YT.Player('player', 								\n"
-					+ player_params +
-					"			)}																	\n"
-					"		</script>																\n"
-					"	</body>																		\n"
-					"</html>																		\n";
-				
-				return embed_html;
+				// Parse query
+				const std::map<std::string, std::string> params = URL::parseQuery(parsed_URL.query);
+				const auto res = params.find("v"); // Find "v" param (video id)
+				if(res != params.end())
+					video_id = res->second;
+				else
+					throw glare::Exception("Could not find video id param (v) in YouTube URL.");
 			}
 			else
-				throw glare::Exception("Could not find video id param (v) in YouTube URL.");
+			{
+				// Handle URLs of the form https://youtu.be/SaejB5NSzOs
+				assert(parsed_URL.host == "youtu.be");
+				video_id = eatSuffix(eatPrefix(parsed_URL.path, "/"), "/");
+			}
+
+			checkYouTubeVideoID(video_id); // Check video id so we don't need to worry about escaping it
+
+			const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
+			const bool loop     = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
+			const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
+
+			// See https://developers.google.com/youtube/player_parameters
+			const std::string player_params =
+				"{												\n"
+				"	height: '" + toString(height) + "',			\n"
+				"	width: '" + toString(width) + "',			\n"
+				"	videoId: '" + video_id + "',				\n"
+				"	playerVars: {								\n"
+				"		'playsinline': 1,						\n"
+				"		'autoplay': " + toString(autoplay ? 1 : 0) + ",		\n"
+				"		'loop': "     + toString(loop ? 1 : 0) + ",			\n"
+				"		'playlist': '" + video_id + "'			\n"// Set the playlist to the video ID.  This is needed for looping to work.
+				"	},											\n"
+				"	events: {									\n"
+				"		onReady: function(e) {					\n"
+				"			" + (muted ? "e.target.mute();" : "") + "\n" // If video should be muted, insert a call to mute the video here.
+				"		}										\n"
+				"	}											\n"
+				"}";
+
+			// See https://developers.google.com/youtube/iframe_api_reference
+			const std::string embed_html = 
+				"<html>																			\n"
+				"	<body style='margin:0px;'>													\n"
+				"	<div id=\"player\"></div>													\n"
+				"		<script>																\n"
+				"			// Load the IFrame Player API code asynchronously.					\n"
+				"			var tag = document.createElement('script');							\n"
+				"			tag.src = \"https://www.youtube.com/iframe_api\";					\n"
+				"			var firstScriptTag = document.getElementsByTagName('script')[0];	\n"
+				"			firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);		\n"
+				"																				\n"
+				"			// Replace the 'ytplayer' element with an <iframe> and				\n"
+				"			// YouTube player after the API code downloads.						\n"
+				"			var player;															\n"
+				"			function onYouTubeIframeAPIReady() {								\n"
+				"				player = new YT.Player('player', 								\n"
+				+ player_params +
+				"			)}																	\n"
+				"		</script>																\n"
+				"	</body>																		\n"
+				"</html>																		\n";
+				
+			return embed_html;
 		}
 		else if(parsed_URL.host == "www.twitch.tv")
 		{
