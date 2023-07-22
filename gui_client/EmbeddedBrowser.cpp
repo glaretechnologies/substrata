@@ -1046,7 +1046,7 @@ void EmbeddedBrowser::browserBecameVisible()
 	{
 		if(embedded_cef_browser->mRenderHandler->discarded_dirty_updates)
 		{
-			conPrint("Browser had disacarded dirty updates, invalidating...");
+			// conPrint("Browser had disacarded dirty updates, invalidating...");
 			embedded_cef_browser->mRenderHandler->discarded_dirty_updates = false;
 
 			if(embedded_cef_browser->cef_browser && embedded_cef_browser->cef_browser->GetHost())
