@@ -30,6 +30,12 @@
 #include <algorithm>
 
 
+// NOTE: these max volume levels should be the same as in maxAudioVolumeForObject() in WorkerThread.cpp (runs on server)
+static const float DEFAULT_MAX_VOLUME = 4;
+static const float DEFAULT_MAX_VIDEO_VOLUME = 4;
+static const float SLIDER_MAX_VOLUME = 2;
+
+
 ObjectEditor::ObjectEditor(QWidget *parent)
 :	QWidget(parent),
 	selected_mat_index(0),
@@ -95,6 +101,12 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->videoURLFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->videoVolumeDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
+	this->volumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VOLUME);
+	this->volumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
+
+	this->videoVolumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VIDEO_VOLUME);
+	this->videoVolumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
+
 	this->visitURLLabel->hide();
 
 	// Set up script edit timer.
@@ -148,9 +160,28 @@ void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 }
 
 
-void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
+void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_, bool ob_in_editing_users_world)
 {
 	//this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
+
+	if(ob_in_editing_users_world)
+	{
+		// If the user is logged in, and we are connected to the user's personal world, set a high maximum volume.
+		this->volumeDoubleSpinBox->setMaximum(1000);
+		this->volumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
+
+		this->videoVolumeDoubleSpinBox->setMaximum(1000);
+		this->videoVolumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
+	}
+	else
+	{
+		// Otherwise just use the default max volume values
+		this->volumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VOLUME);
+		this->volumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
+
+		this->videoVolumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VIDEO_VOLUME);
+		this->videoVolumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
+	}
 
 	this->cloned_materials.resize(ob.materials.size());
 	for(size_t i=0; i<ob.materials.size(); ++i)
