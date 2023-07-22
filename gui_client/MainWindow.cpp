@@ -2821,6 +2821,20 @@ bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 }
 
 
+bool MainWindow::connectedToUsersPersonalWorldOrGodUser()
+{
+	if(!this->logged_in_user_id.valid())
+	{
+		return false;
+	}
+	else
+	{
+		return isGodUser(this->logged_in_user_id) || // The logged in user is the 'god' (superadmin) user,
+			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)); // or if this is the personal world of the user:
+	}
+}
+
+
 // Similar to objectModificationAllowed() above, but also shows error notifications if modification is not allowed
 bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action)
 {
@@ -9420,7 +9434,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					ui->indigoView->objectTransformChanged(*in_world_ob);
 
 					// Update object values in editor
-					ui->objectEditor->setFromObject(*in_world_ob, ui->objectEditor->getSelectedMatIndex());
+					ui->objectEditor->setFromObject(*in_world_ob, ui->objectEditor->getSelectedMatIndex(), /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser());
 
 					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
@@ -10815,6 +10829,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	active_objects.clear();
 	obs_with_animated_tex.clear();
 	web_view_obs.clear();
+	browser_vid_player_obs.clear();
 	obs_with_scripts.clear();
 	obs_with_diagnostic_vis.clear();
 
@@ -12403,7 +12418,7 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	}
 
 	// Show object editor, hide parcel editor.
-	ui->objectEditor->setFromObject(*selected_ob, selected_mat_index); // Update the editor widget with values from the selected object
+	ui->objectEditor->setFromObject(*selected_ob, selected_mat_index, /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser()); // Update the editor widget with values from the selected object
 	ui->objectEditor->setEnabled(true);
 	ui->objectEditor->show();
 	ui->parcelEditor->hide();

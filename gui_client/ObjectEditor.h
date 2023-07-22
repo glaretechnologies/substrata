@@ -30,7 +30,7 @@ public:
 
 	void init(); // settings should be set before this.
 
-	void setFromObject(const WorldObject& ob, int selected_mat_index);
+	void setFromObject(const WorldObject& ob, int selected_mat_index, bool ob_in_editing_users_world);
 	void setTransformFromObject(const WorldObject& ob);
 
 	void objectLastModifiedUpdated(const WorldObject& ob) { updateInfoLabel(ob); }

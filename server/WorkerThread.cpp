@@ -737,6 +737,13 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& u
 }
 
 
+static bool userConnectedToTheirPersonalWorldOrGodUser(const UserID& user_id, const std::string& user_name, const std::string& connected_world_name)
+{
+	return isGodUser(user_id) || // if the user is the god user (id 0)
+		(!connected_world_name.empty() && (user_name == connected_world_name)); // or if this is the user's personal world
+}
+
+
 // This is for editing the parcel itself.
 // NOTE: world state mutex should be locked before calling this method.
 static bool userHasParcelWritePermissions(const Parcel& parcel, const UserID& user_id, const std::string& connected_world_name, ServerWorldState& world_state)
@@ -749,6 +756,12 @@ static bool userHasParcelWritePermissions(const Parcel& parcel, const UserID& us
 	}
 	else
 		return false;
+}
+
+
+static float maxAudioVolumeForObject(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name)
+{
+	return userConnectedToTheirPersonalWorldOrGodUser(user_id, user_name, connected_world_name) ? 1000.f : 4.f;
 }
 
 
@@ -1543,6 +1556,9 @@ void WorkerThread::doRun()
 										else
 										{
 											ob->copyNetworkStateFrom(temp_ob);
+											
+											// Clamp volume to the max allowed level
+											ob->audio_volume = myClamp(ob->audio_volume, 0.f, maxAudioVolumeForObject(*ob, client_user_id, client_user_name, this->connected_world_name));
 
 											ob->last_modified_time = TimeStamp::currentTime();
 
