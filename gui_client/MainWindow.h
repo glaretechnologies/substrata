@@ -413,6 +413,7 @@ public:
 	std::set<WorldObjectRef> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
 	std::set<WorldObjectRef> web_view_obs;
 	std::set<WorldObjectRef> browser_vid_player_obs;
+	std::set<WorldObjectRef> audio_obs; // Objects with an audio_source or a non-empty audio_source_url, or objects that may play audio such as web-views or videos.
 	std::set<WorldObjectRef> obs_with_scripts; // Objects with non-null script_evaluator
 	std::set<WorldObjectRef> obs_with_diagnostic_vis;
 

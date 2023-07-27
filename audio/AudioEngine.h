@@ -171,7 +171,7 @@ public:
 
 	//AudioSourceRef addSourceFromSoundFile(const std::string& sound_file_path);
 
-	AudioSourceRef addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, double global_time);
+	AudioSourceRef addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, float source_volume, double global_time);
 
 	void sourcePositionUpdated(AudioSource& source);
 

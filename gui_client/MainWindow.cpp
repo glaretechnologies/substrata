@@ -1112,8 +1112,29 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	ob->using_placeholder_model = true;
 }
 
+/*
+60 m is roughly the distance at which a source with volume factor 1 becomes inaudible, with a reasonable system volume level.
 
-static const float MAX_AUDIO_DIST = 60;
+intensity I = A^2 / r^2
+
+suppose we have some volume amplitude scale s.
+
+I_s = (s A / r_s)^2
+I_s = s^2 (A / r_s)^2
+
+Solving for same intensity for unscaled and scaled source: (I = I_s)
+A^2 / r^2 = s^2 A^2 / r_s^2
+
+1 /r^2 = s^2 / r_s^2
+r_s^2 / r^2 = s^2
+
+r_s / r = s
+
+*/
+static inline float maxAudioDistForSourceVolFactor(float volume_factor)
+{
+	return 60.f * volume_factor;
+}
 
 
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it, if we are not already downloading it.
@@ -1146,7 +1167,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 			else if(has_audio_extension)
 			{
 				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
-				in_range = ob_dist < MAX_AUDIO_DIST;
+				in_range = ob_dist < maxAudioDistForSourceVolFactor(ob->audio_volume);
 			}
 
 			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
@@ -2398,7 +2419,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 			
 				// If the object is further than MAX_AUDIO_DIST from the camera, don't load the audio.
 				const float dist = cam_controller.getPosition().toVec4fVector().getDist(ob->pos.toVec4fVector());
-				if(dist > MAX_AUDIO_DIST)
+				if(dist > maxAudioDistForSourceVolFactor(ob->audio_volume))
 					return;
 
 				// Remove any existing audio source
@@ -2417,9 +2438,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 					if(hasExtensionStringView(ob->audio_source_url, "mp3"))
 					{
 						// Make a new audio source
-						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(resource_manager->pathForURL(ob->audio_source_url), ob->pos.toVec4fPoint(), this->world_state->getCurrentGlobalTime());
-
-						source->volume = ob->audio_volume;
+						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(resource_manager->pathForURL(ob->audio_source_url), ob->pos.toVec4fPoint(), ob->audio_volume, this->world_state->getCurrentGlobalTime());
 
 						Lock lock(world_state->mutex);
 						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
@@ -2462,7 +2481,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
 							load_audio_task->result_msg_queue = &this->msg_queue;
 
-							load_item_queue.enqueueItem(*ob, load_audio_task, /*task max dist=*/MAX_AUDIO_DIST);
+							load_item_queue.enqueueItem(*ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
 						}
 					}
 
@@ -3266,17 +3285,28 @@ void MainWindow::checkForAudioRangeChanges()
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
 
-		const auto values_end = this->world_state->objects.valuesEnd();
-		for(auto it = this->world_state->objects.valuesBegin(); it != values_end; ++it)
+		/*{
+			for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
+			{
+				WorldObject* ob = it.getValue().ptr();
+				if(!ob->audio_source_url.empty() || ob->audio_source.nonNull())
+				{
+					runtimeCheck(this->audio_obs.count(ob) > 0);
+				}
+			}
+		}*/
+
+		for(auto it = this->audio_obs.begin(); it != audio_obs.end(); ++it)
 		{
-			WorldObject* ob = it.getValue().ptr();
+			WorldObject* ob = it->ptr();
 
 			if(!ob->audio_source_url.empty() || ob->audio_source.nonNull())
 			{
 				const float dist2 = cam_pos.getDist2(ob->pos.toVec4fPoint());
+				const float max_audio_dist2 = Maths::square(maxAudioDistForSourceVolFactor(ob->audio_volume)); // MAX_AUDIO_DIST
 				if(ob->audio_source.nonNull())
 				{
-					if(dist2 > Maths::square(MAX_AUDIO_DIST))
+					if(dist2 > max_audio_dist2)
 					{
 						// conPrint("Object out of range, removing audio object '" + ob->audio_source->debugname + "'.");
 						audio_engine.removeSource(ob->audio_source);
@@ -3289,7 +3319,7 @@ void MainWindow::checkForAudioRangeChanges()
 				{
 					assert(!ob->audio_source_url.empty()); // The object has an audio URL to play:
 
-					if(dist2 <= Maths::square(MAX_AUDIO_DIST))
+					if(dist2 <= max_audio_dist2)
 					{
 						// conPrint("Object in range, loading audio object.");
 						loadAudioForObject(ob);
@@ -3298,7 +3328,7 @@ void MainWindow::checkForAudioRangeChanges()
 			}
 		}
 	} // End lock scope
-	//conPrint("checkForAudioRangeChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + " (" + toString(world_state->objects.size()) + " obs)");
+	//conPrint("checkForAudioRangeChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + " (" + toString(audio_obs.size()) + " audio obs)");
 }
 
 
@@ -4154,9 +4184,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	checkForLODChanges();
 	
-	if(frame_num % 8 == 0)
-		checkForAudioRangeChanges();
-
 	gesture_ui.think();
 
 	updateObjectsWithDiagnosticVis();
@@ -4233,7 +4260,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "\nAudio engine:\n";
 			{
 				Lock lock(audio_engine.mutex);
-				msg += "Num audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
+				msg += "Num audio obs: " + toString(audio_obs.size()) + "\n";
+				msg += "Num active audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
 			}
 			/*msg += "Audio sources\n";
 			Lock lock(audio_engine.mutex);
@@ -5979,19 +6007,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			glare::AudioSource* source = it->ptr();
 
-			const float dist2 = source->pos.getDist2(campos); // Dist from camera to source position
-			if(dist2 < Maths::square(MAX_AUDIO_DIST)) // Only do tracing for nearby objects
+			const float dist = source->pos.getDist(campos); // Dist from camera to source position
+			if(dist < maxAudioDistForSourceVolFactor(source->volume)) // Only do tracing for nearby objects
 			{
-				const float dist = std::sqrt(dist2);
 				const Vec4f trace_dir = (dist == 0) ? Vec4f(1,0,0,0) : ((source->pos - campos) / dist); // Trace from camera to source position
 				assert(trace_dir.isUnitLength());
 
-				const float use_dist = myMax(0.f, dist - 1.f); // Ignore intersections with x metres of the source.  This is so meshes that contain the source (e.g. speaker models)
+				const float max_trace_dist = 60.f; // Limit the distance we trace, so that very loud sources very far away don't do expensive traces right through the world.
+
+				const float trace_dist = myClamp(dist - 1.f, 0.f, max_trace_dist); // Ignore intersections with x metres of the source.  This is so meshes that contain the source (e.g. speaker models)
 				// don't occlude the source.
 
 				const Vec4f trace_start = campos;
 
-				const bool hit_object = physics_world->doesRayHitAnything(trace_start, trace_dir, use_dist);
+				const bool hit_object = physics_world->doesRayHitAnything(trace_start, trace_dir, trace_dist);
 				if(hit_object)
 				{
 					//conPrint("hit aabb: " + results.hit_object->aabb_ws.toStringNSigFigs(4));
@@ -6639,6 +6668,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						obs_with_animated_tex.erase(ob);
 						web_view_obs.erase(ob);
 						browser_vid_player_obs.erase(ob);
+						audio_obs.erase(ob);
 						obs_with_scripts.erase(ob);
 						obs_with_diagnostic_vis.erase(ob);
 					}
@@ -6690,6 +6720,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						//else
 						//{
 						
+						if(!ob->audio_source_url.empty() || ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video)
+							this->audio_obs.insert(ob);
+
+
 						if((ob->state != WorldObject::State_JustCreated) && (ob->state != WorldObject::State_InitialSend)) // Don't reload materials when we just created the object locally.
 						{
 							// Update transform for object and object materials in OpenGL engine
@@ -6719,7 +6753,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 						//}
 
-						
 
 						if(ob->state == WorldObject::State_JustCreated)
 						{
@@ -7167,6 +7200,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		const float display_level = myClamp(d, 0.f, 1.f);
 		gesture_ui.setCurrentMicLevel(mic_read_status.cur_level, display_level);
 	}
+
+	if(frame_num % 8 == 0)
+		checkForAudioRangeChanges();
 
 	last_timerEvent_CPU_work_elapsed = time_since_last_timer_ev.elapsed();
 
@@ -10404,7 +10440,10 @@ void MainWindow::objectEditedSlot()
 			}
 
 			if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
+			{
+				this->audio_obs.insert(this->selected_ob);
 				loadAudioForObject(this->selected_ob.getPointer());
+			}
 
 			if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
 			{
@@ -10830,6 +10869,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	obs_with_animated_tex.clear();
 	web_view_obs.clear();
 	browser_vid_player_obs.clear();
+	audio_obs.clear();
 	obs_with_scripts.clear();
 	obs_with_diagnostic_vis.clear();
 

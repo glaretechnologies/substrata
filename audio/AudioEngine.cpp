@@ -879,7 +879,7 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 //}
 
 
-AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, double global_time)
+AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, float source_volume, double global_time)
 {
 	Lock lock(mutex);
 
@@ -888,6 +888,7 @@ AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& s
 	source->type = AudioSource::SourceType_Streaming;
 	source->remove_on_finish = false;
 	source->pos = pos;
+	source->volume = source_volume;
 
 	auto res = streams.find(sound_file_path);
 	if(res == streams.end())
@@ -954,9 +955,9 @@ void glare::AudioEngine::test()
 		//engine.addSource(source);
 
 		//AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile("D:\\files\\Good_Gas___Live_A_Lil_ft__MadeinTYO__UnoTheActivist___FKi_1st__Lyrics__mp3_3425190382177260630.mp3", Vec4f(1, 0, 0, 1), /*global time=*/0.0);
-		AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 0, 0, 1), /*global time=*/0.0);
+		AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 0, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
 		PlatformUtils::Sleep(1);
-		AudioSourceRef source2 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 1, 0, 1), /*global time=*/0.0);
+		AudioSourceRef source2 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 1, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
 
 		testAssert(engine.streams.size() == 1);
 		testAssert(engine.sources_playing_streams.size() == 1);
