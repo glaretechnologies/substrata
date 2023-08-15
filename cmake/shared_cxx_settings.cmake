@@ -15,7 +15,6 @@ endmacro(addIncludeDirectory)
 addIncludeDirectory(${jpegturbodir}/include)
 #addIncludeDirectory(${jpegturbodir}) # This one works on linux/mac
 addIncludeDirectory(${pngdir})
-addIncludeDirectory(${tiffdir})
 addIncludeDirectory(${pugixmldir})
 addIncludeDirectory(${zlibdir})
 

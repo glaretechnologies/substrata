@@ -138,7 +138,6 @@ MESSAGE("SUBSTRATA_PRIVATE_REPO_PATH: ${SUBSTRATA_PRIVATE_REPO_PATH}")
 
 
 # External library directory (apart from llvm, openssl and Qt)
-set(tiffdir		"${GLARE_CORE_TRUNK_DIR_ENV}/tiff-3.8.2/libtiff")
 set(imathdir	"${GLARE_CORE_TRUNK_DIR_ENV}/Imath")
 set(openexrdir	"${GLARE_CORE_TRUNK_DIR_ENV}/OpenEXR")
 set(zlibdir		"${GLARE_CORE_TRUNK_DIR_ENV}/zlib")
