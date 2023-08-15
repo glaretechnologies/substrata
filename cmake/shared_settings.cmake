@@ -51,6 +51,8 @@ ${GRAPHICS_DIR}/ImageFilter.cpp
 ${GRAPHICS_DIR}/ImageFilter.h
 ${GRAPHICS_DIR}/ImageMap.cpp
 ${GRAPHICS_DIR}/ImageMap.h
+${GRAPHICS_DIR}/ImageMapTests.cpp
+${GRAPHICS_DIR}/ImageMapTests.h
 ${GRAPHICS_DIR}/imformatdecoder.cpp
 ${GRAPHICS_DIR}/imformatdecoder.h
 ${GRAPHICS_DIR}/jpegdecoder.cpp
@@ -352,55 +354,6 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/hitinfo.h
 
 set(fft2d "../libs/fft2d/fft4f2d.c")
 
-set(opengl 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/gl3w.c 
-#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.cpp 
-#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/DrawIndirectBuffer.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/DrawIndirectBuffer.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/FrameBuffer.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/FrameBuffer.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VAO.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VAO.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VBO.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VBO.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VertexBufferAllocator.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VertexBufferAllocator.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLTexture.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLTexture.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngine.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngine.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLMeshRenderData.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLCircularBuffer.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLCircularBuffer.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShaderFileWatcherThread.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShaderFileWatcherThread.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShadowMapping.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/SSBO.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/SSBO.h
-#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TerrainSystem.cpp 
-#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TerrainSystem.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/WGL.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/WGL.h
-)
-
 
 set(video 
 ${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoReader.cpp
@@ -417,53 +370,6 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.h
 )
 endif()
 
-
-set(opengl_shaders
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/clear_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/clear_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/depth_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/depth_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/downsize_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/downsize_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/env_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/env_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/outline_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/outline_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/overlay_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/overlay_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/phong_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/phong_vert_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/transparent_frag_shader.glsl
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
-#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/water_frag_shader.glsl
-#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/water_vert_shader.glsl
-
-../shaders/parcel_frag_shader.glsl
-../shaders/parcel_vert_shader.glsl
-../shaders/imposter_frag_shader.glsl
-../shaders/imposter_vert_shader.glsl
-)
-
-
-set(opengl_ui
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUI.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUI.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIImage.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIImage.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUICallbackHandler.h
-)
 
 
 set(indigo_src
@@ -537,9 +443,6 @@ SOURCE_GROUP(simpleraytracer FILES ${simpleraytracer})
 SOURCE_GROUP(utils FILES ${utils})
 SOURCE_GROUP(scripts FILES ${scripts})
 SOURCE_GROUP(double_conversion FILES ${double_conversion})
-SOURCE_GROUP(opengl FILES ${opengl})
-SOURCE_GROUP(opengl\\shaders FILES ${opengl_shaders})
-SOURCE_GROUP(opengl\\ui FILES ${opengl_ui})
 SOURCE_GROUP(dll FILES ${dll_src})
 SOURCE_GROUP(fft2d FILES ${fft2d})
 SOURCE_GROUP(xxhash FILES ${xxhash})
