@@ -66,6 +66,7 @@ class ScriptLoadedThreadMessage;
 class ObjectPathController;
 namespace glare { class PoolAllocator; }
 class VehiclePhysics;
+class TerrainSystem;
 
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
@@ -156,6 +157,7 @@ private slots:;
 
 	void applyUndoOrRedoObject(const WorldObjectRef& ob);
 
+	void diagnosticsWidgetChanged();
 	void sendChatMessageSlot();
 
 	void glWidgetMouseClicked(QMouseEvent* e);
@@ -709,4 +711,6 @@ public:
 
 	IPAddress server_ip_addr;
 	Timer discovery_udp_packet_timer;
+
+	Reference<TerrainSystem> terrain_system;
 };

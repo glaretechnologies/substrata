@@ -26,7 +26,11 @@ uniform sampler2D fbm_tex;
 layout (std140) uniform MaterialCommonUniforms
 {
 	vec4 sundir_cs;
+	vec4 sundir_ws;
+	float near_clip_dist;
 	float time;
+	float l_over_w;
+	float l_over_h;
 };
 
 
