@@ -26,6 +26,8 @@ public:
 
 	void init(QSettings* settings);
 
+signals:;
+	void settingsChangedSignal();
 protected slots:
 	void settingsChanged();
 private:

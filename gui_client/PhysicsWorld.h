@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/Vector.h>
 #include <utils/Mutex.h>
 #include <utils/HashSet.h>
+#include <utils/Array2D.h>
 #include <set>
 
 #if USE_JOLT
@@ -98,6 +99,8 @@ public:
 
 	static PhysicsShape createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob);
 	static PhysicsShape createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob);
+
+	static PhysicsShape createJoltHeightFieldShape(int vert_res, const Array2D<float>& heightfield, float quad_w);
 
 	// Creates a box, centered at (0,0,0), with x and y extent = ground_quad_w, and z extent = 1.
 	static PhysicsShape createGroundQuadShape(float ground_quad_w);

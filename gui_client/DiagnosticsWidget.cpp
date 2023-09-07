@@ -20,6 +20,8 @@ DiagnosticsWidget::DiagnosticsWidget(
 	setupUi(this);
 
 	connect(this->showPhysicsObOwnershipCheckBox,	SIGNAL(toggled(bool)), this, SLOT(settingsChanged()));
+	connect(this->showVehiclePhysicsVisCheckBox,	SIGNAL(toggled(bool)), this, SLOT(settingsChanged()));
+	connect(this->showWireframesCheckBox,			SIGNAL(toggled(bool)), this, SLOT(settingsChanged()));
 }
 
 
@@ -43,4 +45,6 @@ void DiagnosticsWidget::settingsChanged()
 		settings->setValue("diagnostics/show_physics_ob_ownership", this->showPhysicsObOwnershipCheckBox->isChecked());
 		settings->setValue("diagnostics/show_vehicle_physics_vis", this->showVehiclePhysicsVisCheckBox->isChecked());
 	}
+
+	emit settingsChangedSignal();
 }

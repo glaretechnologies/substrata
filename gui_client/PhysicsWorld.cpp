@@ -38,6 +38,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/ScaledShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Collision/PhysicsMaterialSimple.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
@@ -336,6 +337,8 @@ static const int LARGE_OB_NUM_CELLS_THRESHOLD = 32;
 
 void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale)
 {
+	assert(translation.isFinite());
+
 	object.pos = translation;
 	object.rot = rot_quat;
 	object.scale = Vec3f(scale);
@@ -394,6 +397,8 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 
 void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& pos, const Quatf& rot, const Vec4f& linear_vel, const Vec4f& angular_vel)
 {
+	assert(pos.isFinite());
+
 	object.pos = pos;
 	object.rot = rot;
 
@@ -846,6 +851,42 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 }
 
 
+PhysicsShape PhysicsWorld::createJoltHeightFieldShape(int vert_res, const Array2D<float>& heightfield, float quad_w)
+{
+	const int block_size = 4;
+
+	assert(heightfield.getWidth() >= vert_res);
+	assert(heightfield.getWidth() % 2 == 0); // Needs to be a multiple of mBlockSize
+	assert(heightfield.getWidth() >= 4); // inSampleCount / mBlockSize = inSampleCount / 2 needs to be at least 4, so need inSampleCount >= 4.
+	assert(Maths::isPowerOfTwo<int>(heightfield.getWidth() / block_size)); // inSampleCount / mBlockSize must be a power of 2 and minimally 2.
+	assert((heightfield.getWidth() / block_size) >= 2);
+
+	const float z_offset = -quad_w * (heightfield.getWidth() - 1);
+	JPH::HeightFieldShapeSettings settings(
+		heightfield.getData(), 
+		JPH::Vec3Arg(0,0,z_offset), // inOffset
+		JPH::Vec3Arg(quad_w, 1.f, quad_w), // inScale
+		(uint32)heightfield.getWidth(), // inSampleCount: inSampleCount / mBlockSize must be a power of 2 and minimally 2.
+		NULL // inMaterialIndices
+	);
+	settings.mBlockSize = block_size;
+	//settings.mBitsPerSample = sBitsPerSample;
+
+	JPH::Result<JPH::Ref<JPH::Shape>> result = settings.Create();
+	if(result.HasError())
+		throw glare::Exception(std::string("Error building Jolt heightfield shape: ") + result.GetError().c_str());
+
+	JPH::Ref<JPH::Shape> jolt_shape = result.Get();
+
+	const JPH::AABox bounds = jolt_shape->GetLocalBounds();
+
+	PhysicsShape shape;
+	shape.jolt_shape = jolt_shape;
+	shape.size_B = computeSizeBForShape(jolt_shape);
+	return shape;
+}
+
+
 // Creates a box, centered at (0,0,0), with x and y extent = ground_quad_w, and z extent = 1.
 PhysicsShape PhysicsWorld::createGroundQuadShape(float ground_quad_w)
 {
@@ -872,6 +913,11 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 
 	if(!object->jolt_body_id.IsInvalid())
 		return; // Jolt body is already built, we don't need to do anything more.
+
+	if(fabs(object->pos[0]) > 1.0e9 || fabs(object->pos[1]) > 1.0e9 || fabs(object->pos[2]) > 1.0e9)
+	{
+		return;
+	}
 
 	if(object->scale.x == 0 || object->scale.y == 0 || object->scale.z == 0)
 	{
@@ -1012,6 +1058,33 @@ void PhysicsWorld::think(double dt)
 
 	// We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
 	physics_system->Update((float)dt, cCollisionSteps, cIntegrationSubSteps, temp_allocator, job_system);
+
+
+	// TEMP: apply buoyancy to all objects
+	if(false)
+	{
+		Lock lock(activated_obs_mutex);
+
+		const JPH::BodyLockInterfaceLocking& lock_interface = physics_system->GetBodyLockInterface();
+
+		for(auto it = activated_obs.begin(); it != activated_obs.end(); ++it)
+		{
+			PhysicsObject* physics_ob = *it;
+
+			JPH::Body* body = lock_interface.TryGetBody(physics_ob->jolt_body_id);
+
+			body->ApplyBuoyancyImpulse(
+				JPH::RVec3Arg(0,0,-4), // inSurfacePosition
+				JPH::RVec3Arg(0,0,1), // inSurfaceNormal
+				2.0f, //inBuoyancy
+				0.5, // inLinearDrag
+				0.1, // inAngularDrag
+				JPH::Vec3Arg(0,0,0), // inFluidVelocity
+				JPH::Vec3Arg(0,0,-9.81), // inGravity
+				dt // inDeltaTime
+			);
+		}
+	}
 }
 
 

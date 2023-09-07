@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "TestSuite.h"
 #include "MeshBuilding.h"
 #include "ThreadMessages.h"
+#include "TerrainSystem.h"
 #include "LoadScriptTask.h"
 #include "CredentialManager.h"
 #include "UploadResourceThread.h"
@@ -307,7 +308,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	proximity_loader.setLoadDistance(dist);
 	this->load_distance = dist;
 	this->load_distance2 = dist*dist;
-	ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
+
+	// Since we use a perspective projection matrix with infinite far distance, use a large max drawing distance.
+	ui->glWidget->max_draw_dist = 100000;
 
 	// Restore main window geometry and state
 	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
@@ -324,6 +327,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui->objectEditor->init();
 
 	ui->diagnosticsWidget->init(settings);
+	connect(ui->diagnosticsWidget, SIGNAL(settingsChangedSignal()), this, SLOT(diagnosticsWidgetChanged()));
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
@@ -4236,6 +4240,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "-------------------------------\n";
 		}
 
+		if(terrain_system.nonNull())
+		{
+			msg += "\n------------Terrain------------\n";
+			msg += terrain_system->getDiagnostics();
+			msg += "--------------------------------\n";
+		}
+
 		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
@@ -5449,6 +5460,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 					}
 				}
+			}
+			else if(dynamic_cast<TerrainChunkGeneratedMsg*>(msg.ptr()))
+			{
+				const TerrainChunkGeneratedMsg* m = static_cast<const TerrainChunkGeneratedMsg*>(msg.ptr());
+				terrain_system->handleCompletedMakeChunkTask(*m);
 			}
 		}
 	}
@@ -6908,6 +6924,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
 								parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+								parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
 								ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
 								// Make physics object for parcel:
@@ -7203,6 +7220,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(frame_num % 8 == 0)
 		checkForAudioRangeChanges();
+
+	if(terrain_system.nonNull())
+		terrain_system->updateCampos(this->cam_controller.getPosition());
+
+
 
 	last_timerEvent_CPU_work_elapsed = time_since_last_timer_ev.elapsed();
 
@@ -8966,6 +8988,7 @@ void MainWindow::addParcelObjects()
 
 				parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
 				parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+				parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
 				ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
 
 				// Make physics object for parcel:
@@ -9942,6 +9965,12 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 }
 
 
+void MainWindow::diagnosticsWidgetChanged()
+{
+	ui->glWidget->opengl_engine->setDrawWireFrames(ui->diagnosticsWidget->showWireframesCheckBox->isChecked());
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -10891,6 +10920,9 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 		physics_world->removeObject(it->second.phy_ob);
 	}
 	ground_quads.clear();
+
+	if(terrain_system.nonNull())
+		terrain_system->shutdown();
 
 	this->ui->indigoView->shutdown();
 
@@ -13075,17 +13107,56 @@ void MainWindow::setGLWidgetContextAsCurrent()
 }
 
 
-static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
-{
-	for(size_t i=0; i<v.size(); ++i)
-		if(v[i] == p)
-			return true;
-	return false;
-}
+//static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
+//{
+//	for(size_t i=0; i<v.size(); ++i)
+//		if(v[i] == p)
+//			return true;
+//	return false;
+//}
 
+
+static bool done_terrain_test = false;
 
 void MainWindow::updateGroundPlane()
 {
+#if 1 
+	// Use new terrain system:
+	if(this->world_state.isNull())
+		return;
+
+	if(ui->glWidget->opengl_engine.isNull() || !ui->glWidget->opengl_engine->initSucceeded())
+		return;
+
+	if(terrain_system.isNull())
+	{
+		terrain_system = new TerrainSystem();
+		terrain_system->init(ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, &this->msg_queue);
+	}
+
+#if 0
+	// Trace some rays against the ground, in order to test terrain physics.  Place a sphere where the rays intersect the ground.
+	if(!done_terrain_test && total_timer.elapsed() > 6)
+	{
+		for(int x=0; x<100; ++x)
+		for(int y=0; y<100; ++y)
+		{
+			float px = -500.f + x * 10;
+			float py = -500.f + y * 10;
+			RayTraceResult results;
+			physics_world->traceRay(Vec4f(px,py,500,1), Vec4f(0,0,-1,0), 10000.f, results);
+
+			GLObjectRef ob = ui->glWidget->opengl_engine->makeSphereObject(0.02f, Colour4f(1,0,0,1));
+			ob->ob_to_world_matrix = Matrix4f::translationMatrix(Vec4f(px,py,500,1) + Vec4f(0,0,-1,0) * results.hitdist_ws) *  Matrix4f::uniformScaleMatrix(0.3f);
+			ui->glWidget->opengl_engine->addObject(ob);
+		}
+
+		done_terrain_test = true;
+	}
+#endif
+
+#else // else use old flat ground quad system:
+
 	if(this->world_state.isNull())
 		return;
 
@@ -13122,6 +13193,7 @@ void MainWindow::updateGroundPlane()
 				GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 				gl_ob->materials.resize(1);
 				gl_ob->materials[0].albedo_linear_rgb = Colour3f(0.79f); // toLinearSRGB(Colour3f(0.9f));
+				gl_ob->materials[0].tex_matrix = Matrix2f((float)ground_quad_w, 0, 0, (float)ground_quad_w);
 				//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
 				try
 				{
@@ -13135,7 +13207,7 @@ void MainWindow::updateGroundPlane()
 				gl_ob->materials[0].roughness = 0.8f;
 				gl_ob->materials[0].fresnel_scale = 0.5f;
 
-				gl_ob->ob_to_world_matrix.setToTranslationMatrix(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0);
+				gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0) * Matrix4f::scaleMatrix((float)ground_quad_w, (float)ground_quad_w, 1);
 				gl_ob->mesh_data = ground_quad_mesh_opengl_data;
 
 				ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
@@ -13177,6 +13249,7 @@ void MainWindow::updateGroundPlane()
 	{
 		conPrint("MainWindow::updateGroundPlane() error: " + e.what());
 	}
+#endif
 }
 
 
@@ -13719,50 +13792,10 @@ int main(int argc, char *argv[])
 			}
 
 
-			/*
-			Load a ground plane into the GL engine
-			*/
-			{
-				// Build Indigo::Mesh
-				mw.ground_quad_mesh = new Indigo::Mesh();
-				mw.ground_quad_mesh->num_uv_mappings = 1;
+			// Build ground plane graphics and physics data
+			mw.ground_quad_mesh_opengl_data = MeshPrimitiveBuilding::makeQuadMesh(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/16);
+			mw.ground_quad_shape = PhysicsWorld::createGroundQuadShape(ground_quad_w);
 
-				// Tessalate ground mesh, to avoid texture shimmer due to large quads.
-				const int N = 10;
-				mw.ground_quad_mesh->vert_positions.reserve(N * N);
-				mw.ground_quad_mesh->vert_normals.reserve(N * N);
-				mw.ground_quad_mesh->uv_pairs.reserve(N * N);
-				mw.ground_quad_mesh->quads.reserve(N * N);
-
-				for(int y=0; y<N; ++y)
-				{
-					const float v = (float)y/((float)N - 1);
-					for(int x=0; x<N; ++x)
-					{
-						const float u = (float)x/((float)N - 1);
-						mw.ground_quad_mesh->vert_positions.push_back(Indigo::Vec3f(u * (float)ground_quad_w, v * (float)ground_quad_w, 0.f));
-						mw.ground_quad_mesh->vert_normals.push_back(Indigo::Vec3f(0, 0, 1));
-						mw.ground_quad_mesh->uv_pairs.push_back(Indigo::Vec2f(u * (float)ground_quad_w, v * (float)ground_quad_w));
-
-						if(x < N-1 && y < N-1)
-						{
-							mw.ground_quad_mesh->quads.push_back(Indigo::Quad());
-							mw.ground_quad_mesh->quads.back().mat_index = 0;
-							mw.ground_quad_mesh->quads.back().vertex_indices[0] = mw.ground_quad_mesh->quads.back().uv_indices[0] = y    *N + x;
-							mw.ground_quad_mesh->quads.back().vertex_indices[1] = mw.ground_quad_mesh->quads.back().uv_indices[1] = y    *N + x+1;
-							mw.ground_quad_mesh->quads.back().vertex_indices[2] = mw.ground_quad_mesh->quads.back().uv_indices[2] = (y+1)*N + x+1;
-							mw.ground_quad_mesh->quads.back().vertex_indices[3] = mw.ground_quad_mesh->quads.back().uv_indices[3] = (y+1)*N + x;
-						}
-					}
-				}
-
-				mw.ground_quad_mesh->endOfModel();
-
-				// Build OpenGLMeshRenderData
-				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), mw.ground_quad_mesh, false);
-
-				mw.ground_quad_shape = PhysicsWorld::createGroundQuadShape(ground_quad_w);
-			}
 
 			// If the user didn't explictly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
 			if(!server_URL_explicitly_specified)
@@ -13796,7 +13829,7 @@ int main(int argc, char *argv[])
 				mw.hypercard_quad_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
 			}
 
-			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
+			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0), /*vert_res=*/2);
 
 			// Make spotlight meshes
 			{
