@@ -27,6 +27,9 @@ layout (std140) uniform MaterialCommonUniforms
 {
 	vec4 sundir_cs;
 	vec4 sundir_ws;
+	vec4 sun_spec_rad_times_solid_angle;
+	vec4 sun_and_sky_av_spec_rad;
+	vec4 air_scattering_coeffs;
 	float near_clip_dist;
 	float time;
 	float l_over_w;
@@ -393,8 +396,7 @@ void main()
 	// Compute position on cumulus cloud layer
 	if(pos_ws.z < 1000.f)
 	{
-		vec3 sundir_ws = vec3(3.6716393E-01, 6.3513672E-01, 6.7955279E-01); // TEMP HACK
-		vec3 cum_layer_pos = pos_ws + sundir_ws * (1000.f - pos_ws.z) / sundir_ws.z;
+		vec3 cum_layer_pos = pos_ws + sundir_ws.xyz * (1000.f - pos_ws.z) / sundir_ws.z;
 
 		vec2 cum_tex_coords = vec2(cum_layer_pos.x, cum_layer_pos.y) * 1.0e-4f;
 		cum_tex_coords.x += time * 0.002;
@@ -414,7 +416,7 @@ void main()
 	sky_irradiance = texture(cosine_env_tex, unit_normal_ws.xyz) * 1.0e9f; // integral over hemisphere of cosine * incoming radiance from sky.
 
 
-	vec4 sun_light = vec4(1662102582.6479533,1499657101.1924045,1314152016.0871031, 1) * sun_vis_factor; // Sun spectral radiance multiplied by solid angle, see SkyModel2Generator::makeSkyEnvMap().
+	vec4 sun_light = sun_spec_rad_times_solid_angle * sun_vis_factor; // Sun spectral radiance multiplied by solid angle, see SkyModel2Generator::makeSkyEnvMap().
 
 	vec4 col =
 		sky_irradiance * diffuse_col * (1.0 / 3.141592653589793) +  // Diffuse substrate part of BRDF * incoming radiance from sky
@@ -422,10 +424,11 @@ void main()
 
 #if DEPTH_FOG
 	// Blend with background/fog colour
-	float dist_ = -pos_cs.z;
-	float fog_factor = 1.0f - exp(dist_ * -0.00015);
-	vec4 sky_col = vec4(1.8, 4.7, 8.0, 1) * 2.0e7; // Bluish grey
-	col = mix(col, sky_col, fog_factor);
+	float dist_ = max(0.0, -pos_cs.z); // Max with 0 avoids bright artifacts on horizon.
+	vec3 transmission = exp(air_scattering_coeffs.xyz * -dist_);
+
+	col.xyz *= transmission;
+	col.xyz += sun_and_sky_av_spec_rad.xyz * (1 - transmission);
 #endif
 
 	col *= 0.000000003; // tone-map
