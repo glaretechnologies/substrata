@@ -1021,27 +1021,34 @@ EmbeddedBrowser::~EmbeddedBrowser()
 
 void EmbeddedBrowser::create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine, const std::string& root_page)
 {
+#if CEF_SUPPORT
 	this->embedded_cef_browser = NULL;
 	this->embedded_cef_browser = createBrowser(URL, opengl_tex, main_window, ob, opengl_engine, root_page);
+#endif
 }
 
 
 void EmbeddedBrowser::updateRootPage(const std::string& root_page)
 {
+#if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
 		embedded_cef_browser->cef_client->root_page = root_page;
+#endif
 }
 
 
 void EmbeddedBrowser::navigate(const std::string& URL)
 {
+#if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
 		embedded_cef_browser->navigate(URL);
+#endif
 }
 
 
 void EmbeddedBrowser::browserBecameVisible()
 {
+#if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
 	{
 		if(embedded_cef_browser->mRenderHandler->discarded_dirty_updates)
@@ -1053,6 +1060,7 @@ void EmbeddedBrowser::browserBecameVisible()
 				embedded_cef_browser->cef_browser->GetHost()->Invalidate(PET_VIEW);
 		}
 	}
+#endif
 }
 
 
