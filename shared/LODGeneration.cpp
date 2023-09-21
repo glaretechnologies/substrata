@@ -203,7 +203,7 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
 
-			Reference<Map2D> resized_map = imagemap->resizeMidQuality(new_w, new_h, task_manager);
+			Reference<Map2D> resized_map = imagemap->resizeMidQuality(new_w, new_h, &task_manager);
 			assert(resized_map.isType<ImageMapUInt8>());
 
 			// Save as a JPEG or PNG depending if there is an alpha channel.
@@ -287,7 +287,7 @@ void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int
 
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
 
-			Reference<Map2D> resized_map = imagemap->resizeMidQuality(new_w, new_h, task_manager);
+			Reference<Map2D> resized_map = imagemap->resizeMidQuality(new_w, new_h, &task_manager);
 			runtimeCheck(resized_map.isType<ImageMapUInt8>());
 
 			writeBasisUniversalKTXFile(*resized_map.downcast<ImageMapUInt8>(), ktx_tex_path);
