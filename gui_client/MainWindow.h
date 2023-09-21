@@ -631,6 +631,7 @@ public:
 	int last_foostep_side;
 
 	double last_timerEvent_CPU_work_elapsed;
+	double last_updateGL_time;
 	double last_animated_tex_time;
 	double last_model_and_tex_loading_time;
 	double last_eval_script_time;
