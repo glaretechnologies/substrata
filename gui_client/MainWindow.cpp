@@ -215,6 +215,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	client_tls_config(NULL),
 	last_foostep_side(0),
 	last_timerEvent_CPU_work_elapsed(0),
+	last_updateGL_time(0),
 	last_animated_tex_time(0),
 	last_model_and_tex_loading_time(0),
 	grabbed_axis(-1),
@@ -1487,7 +1488,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 	
 	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
 	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->getCentroidWS()));
-	const float max_dist_for_ob_model_lod_level = max_dist_for_ob_lod_level; // We don't want to clamp with max_model_lod_level.
+
+	// For objects with max_model_lod_level=0 (e.g. objects with simple meshes like cubes), the mesh is valid at all object LOD levels, so has no max distance.
+	const float max_dist_for_ob_model_lod_level = (ob->max_model_lod_level == 0) ? std::numeric_limits<float>::max() : max_dist_for_ob_lod_level; // We don't want to clamp with max_model_lod_level.
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->loaded_lod_level == ob_lod_level))
@@ -3796,7 +3799,7 @@ void MainWindow::processLoading()
 					Timer load_item_timer;
 					//size_t loaded_size_B = 0;
 
-					// conPrint("Handling model loaded message, model_url: " + message->model_url);
+					// conPrint("Handling model loaded message, lod_model_url: " + message->lod_model_url);
 					num_models_loaded++;
 
 					try
@@ -4030,6 +4033,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		return;
 	}
 
+	Timer timerEvent_timer;
+
 	in_CEF_message_loop = true;
 	CEF::doMessageLoopWork();
 	in_CEF_message_loop = false;
@@ -4249,6 +4254,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
+		msg += "main loop updateGL time: " + doubleToStringNSigFigs(this->last_updateGL_time * 1000, 3) + " ms\n";
 		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
 		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
 		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
@@ -5464,7 +5470,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			else if(dynamic_cast<TerrainChunkGeneratedMsg*>(msg.ptr()))
 			{
 				const TerrainChunkGeneratedMsg* m = static_cast<const TerrainChunkGeneratedMsg*>(msg.ptr());
-				terrain_system->handleCompletedMakeChunkTask(*m);
+				if(terrain_system.nonNull())
+					terrain_system->handleCompletedMakeChunkTask(*m);
 			}
 		}
 	}
@@ -7226,7 +7233,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 
-	last_timerEvent_CPU_work_elapsed = time_since_last_timer_ev.elapsed();
+	last_timerEvent_CPU_work_elapsed = timerEvent_timer.elapsed();
 
 
 	/*if(last_timerEvent_CPU_work_elapsed > 0.010)
@@ -7243,6 +7250,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	//Timer timer;
 	{
+		Timer timer2;
 		PERFORMANCEAPI_INSTRUMENT("updateGL()");
 		ZoneScopedN("updateGL"); // Tracy profiler
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -7252,6 +7260,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 #endif
 		//if(timer.elapsed() > 0.020)
 		//	conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": updateGL() took " + timer.elapsedStringNSigFigs(4));
+		this->last_updateGL_time = timer2.elapsed();
 	}
 
 	frame_num++;
@@ -9394,7 +9403,6 @@ void MainWindow::on_actionOptions_triggered()
 		this->proximity_loader.setLoadDistance(dist);
 		this->load_distance = dist;
 		this->load_distance2 = dist*dist;
-		ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
 
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 
@@ -10922,7 +10930,10 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	ground_quads.clear();
 
 	if(terrain_system.nonNull())
+	{
 		terrain_system->shutdown();
+		terrain_system = NULL;
+	}
 
 	this->ui->indigoView->shutdown();
 
@@ -13107,20 +13118,20 @@ void MainWindow::setGLWidgetContextAsCurrent()
 }
 
 
-//static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
-//{
-//	for(size_t i=0; i<v.size(); ++i)
-//		if(v[i] == p)
-//			return true;
-//	return false;
-//}
+static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
+{
+	for(size_t i=0; i<v.size(); ++i)
+		if(v[i] == p)
+			return true;
+	return false;
+}
 
 
 static bool done_terrain_test = false;
 
 void MainWindow::updateGroundPlane()
 {
-#if 1 
+#if 0
 	// Use new terrain system:
 	if(this->world_state.isNull())
 		return;
@@ -13722,9 +13733,6 @@ int main(int argc, char *argv[])
 
 			const float sun_phi = 1.f;
 			const float sun_theta = Maths::pi<float>() / 4;
-			mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0)));
-			// printVar(mw.ui->glWidget->opengl_engine->getSunDir());
-
 			mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
 
 			/*
@@ -13733,20 +13741,12 @@ int main(int argc, char *argv[])
 			if(mw.ui->glWidget->opengl_engine->initSucceeded())
 			{
 				OpenGLMaterial env_mat;
-				try
-				{
-					env_mat.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture(cyberspace_base_dir_path + "/resources/sky_no_sun.exr");
-					env_mat.albedo_texture->setTWrappingEnabled(false); // Disable wrapping in vertical direction to avoid grey dot straight up.
-				}
-				catch(glare::Exception& e)
-				{
-					conPrint("ERROR: " + e.what());
-					assert(0);
-				}
 				env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
 				mw.ui->glWidget->opengl_engine->setEnvMat(env_mat);
 			}
+
+			mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0)));
 
 
 			// Make an arrow marking the axes at the origin
