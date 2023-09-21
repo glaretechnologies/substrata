@@ -221,7 +221,7 @@ public:
 	}
 
 	// The root node of the subtree, 'node', has already been created.
-	void TerrainTestSystem::createInteriorNodeSubtree(TerrainTestNode* node, const Vec3d& campos)
+	void createInteriorNodeSubtree(TerrainTestNode* node, const Vec3d& campos)
 	{
 		// We should split this node into 4 children, and make it an interior node.
 		const float cur_w = node->aabb.max_[0] - node->aabb.min_[0];
@@ -278,7 +278,7 @@ public:
 	}
 
 	// The root node of the subtree, 'node', has already been created.
-	void TerrainTestSystem::createSubtree(TerrainTestNode* node, const Vec3d& campos)
+	void createSubtree(TerrainTestNode* node, const Vec3d& campos)
 	{
 		conPrint("Creating subtree, depth " + toString(node->depth) + ", at " + node->aabb.toStringMaxNDecimalPlaces(4));
 
