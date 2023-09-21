@@ -9,6 +9,7 @@ require './config-lib.rb'
 
 
 $copy_cef = true
+$copy_bugsplat = true
 
 
 def printUsage()
@@ -25,6 +26,8 @@ arg_parser = ArgumentParser.new(ARGV)
 arg_parser.options.each do |opt|
 	if opt[0] == "--no_cef"
 		$copy_cef = false
+	elsif opt[0] == "--no_bugsplat"
+		$copy_bugsplat = false
 	elsif opt[0] == "--help" || opt[0] == "-h"
 		printUsage()
 		exit 0
@@ -42,7 +45,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
-		copyBugSplatRedist(output_dir)
+		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, true)
 	end
 
@@ -51,7 +54,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
-		copyBugSplatRedist(output_dir)
+		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, false)
 	end
 
@@ -60,7 +63,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
-		copyBugSplatRedist(output_dir)
+		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, false)
 	end
 end
