@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2023 -
 class OpenGLShader;
 class OpenGLMeshRenderData;
 class VertexBufferAllocator;
+class PhysicsWorld;
 
 
 /*=====================================================================
