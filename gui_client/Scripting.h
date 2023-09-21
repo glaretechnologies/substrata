@@ -91,4 +91,4 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double global_time, double dt, WorldState* world_state, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine,
 	int& num_scripts_processed_out);
 
-}
+} // end namespace Scripting
