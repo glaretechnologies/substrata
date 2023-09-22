@@ -246,13 +246,21 @@ void GlWidget::initializeGL()
 		use_MSAA = settings->value(MainOptionsDialog::MSAAKey(),	/*default val=*/true).toBool();
 		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/true).toBool();
 	}
-    
+
 #if OSX
-    bloom = false; // use_final_image_buffer seems to crash on Mac, don't use it.
+	bloom = false; // use_final_image_buffer seems to crash on Mac, don't use it.
+#endif
+
+	// Enable debug output (glDebugMessageCallback) in Debug and RelWithDebugInfo mode, e.g. when BUILD_TESTS is 1.
+	// Don't enable in Release mode, in case it has a performance cost.
+#if BUILD_TESTS
+	const bool enable_debug_outout = true;
+#else
+	const bool enable_debug_outout = false;
 #endif
 
 	OpenGLEngineSettings engine_settings;
-	engine_settings.enable_debug_output = true;
+	engine_settings.enable_debug_output = enable_debug_outout;
 	engine_settings.shadow_mapping = shadows;
 	engine_settings.compress_textures = true;
 	engine_settings.depth_fog = true;
