@@ -45,7 +45,7 @@ struct ObWithDynamicTexture
 
 
 // See if object has a server-side script, if so, add info about it to obs_with_dyn_textures_out.
-static void checkForDynamicTextureToCheck(const std::string& world_name, WorldObject* ob, ServerAllWorldsState* world_state, std::vector<ObWithDynamicTexture>& obs_with_dyn_textures_out)
+static void checkForDynamicTextureToCheck(const std::string& world_name, WorldObject* ob, ServerAllWorldsState* world_state, std::vector<ObWithDynamicTexture>& obs_with_dyn_textures_out) REQUIRES(world_state->mutex)
 {
 	if(!ob->script.empty())
 	{
