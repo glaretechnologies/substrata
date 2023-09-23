@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1182</width>
-    <height>763</height>
+    <width>1418</width>
+    <height>957</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,7 +34,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1182</width>
+     <width>1418</width>
      <height>21</height>
     </rect>
    </property>
@@ -256,7 +256,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>255</height>
+          <height>332</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -353,7 +353,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>255</height>
+          <height>317</height>
          </rect>
         </property>
        </widget>
@@ -403,6 +403,21 @@
      </property>
      <item>
       <widget class="DiagnosticsWidget" name="diagnosticsWidget" native="true"/>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="environmentDockWidget">
+   <property name="windowTitle">
+    <string>Environment</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_2">
+    <layout class="QVBoxLayout" name="verticalLayout_12">
+     <item>
+      <widget class="EnvironmentOptionsWidget" name="environmentOptionsWidget" native="true"/>
      </item>
     </layout>
    </widget>
@@ -684,6 +699,12 @@
    <class>DiagnosticsWidget</class>
    <extends>QWidget</extends>
    <header>DiagnosticsWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>EnvironmentOptionsWidget</class>
+   <extends>QWidget</extends>
+   <header>EnvironmentOptionsWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

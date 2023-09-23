@@ -175,6 +175,7 @@ private slots:;
 	void objectTransformEditedSlot();
 	void objectEditedSlot();
 	void parcelEditedSlot();
+	void environmentSettingChangedSlot();
 	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap
 	void bakeObjectLightmapHighQualSlot(); // Bake the currently selected object lightmap
 	void removeLightmapSignalSlot();
