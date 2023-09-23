@@ -17,8 +17,8 @@ class EnvironmentOptionsWidget : public QWidget, public Ui::EnvironmentOptionsWi
 	Q_OBJECT        // must include this if you use Qt signals/slots
 
 public:
-	EnvironmentOptionsWidget::EnvironmentOptionsWidget(QWidget* parent);
-	EnvironmentOptionsWidget::~EnvironmentOptionsWidget();
+	EnvironmentOptionsWidget(QWidget* parent);
+	~EnvironmentOptionsWidget();
 
 	void init(QSettings* settings_);
 
