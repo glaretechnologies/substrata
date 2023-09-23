@@ -259,6 +259,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui->menuWindow->addSeparator();
 	ui->menuWindow->addAction(ui->editorDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->materialBrowserDockWidget->toggleViewAction());
+	ui->menuWindow->addAction(ui->environmentDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->chatDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->helpInfoDockWidget->toggleViewAction());
 	//ui->menuWindow->addAction(ui->indigoViewDockWidget->toggleViewAction());
@@ -329,6 +330,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	ui->diagnosticsWidget->init(settings);
 	connect(ui->diagnosticsWidget, SIGNAL(settingsChangedSignal()), this, SLOT(diagnosticsWidgetChanged()));
+
+	ui->environmentOptionsWidget->init(settings);
+	connect(ui->environmentOptionsWidget, SIGNAL(settingChanged()), this, SLOT(environmentSettingChangedSlot()));
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
@@ -10534,6 +10538,20 @@ void MainWindow::parcelEditedSlot()
 }
 
 
+// An environment setting has been edited in the environment options dock widget
+void MainWindow::environmentSettingChangedSlot()
+{
+	if(ui->glWidget->opengl_engine.nonNull())
+	{
+		const float theta = myClamp(::degreeToRad((float)ui->environmentOptionsWidget->sunThetaRealControl->value()), 0.01f, Maths::pi<float>() - 0.01f);
+		const float phi   = ::degreeToRad((float)ui->environmentOptionsWidget->sunPhiRealControl->value());
+		const Vec4f sundir = GeometrySampling::dirForSphericalCoords(phi, theta);
+
+		ui->glWidget->opengl_engine->setSunDir(sundir);
+	}
+}
+
+
 void MainWindow::bakeObjectLightmapSlot()
 {
 	if(this->selected_ob.nonNull())
@@ -13733,7 +13751,7 @@ int main(int argc, char *argv[])
 
 			const float sun_phi = 1.f;
 			const float sun_theta = Maths::pi<float>() / 4;
-			mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
+			mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationAroundZAxis(sun_phi));
 
 			/*
 			Set env material

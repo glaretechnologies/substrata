@@ -37,6 +37,7 @@ addMocFileRule(gui_client AddObjectDialog)
 addMocFileRule(gui_client AddVideoDialog)
 addMocFileRule(gui_client AddObjectPreviewWidget)
 addMocFileRule(gui_client ObjectEditor)
+addMocFileRule(gui_client EnvironmentOptionsWidget)
 addMocFileRule(gui_client ParcelEditor)
 addMocFileRule(gui_client LoginDialog)
 addMocFileRule(gui_client SignUpDialog)
@@ -49,6 +50,7 @@ addMocFileRule(gui_client MaterialBrowser)
 addMocFileRule(gui_client IndigoView)
 addMocFileRule(gui_client ShaderEditorDialog)
 addMocFileRule(gui_client AboutDialog)
+addMocFileRule(gui_client MainOptionsDialog)
 addMocFileRule(gui_client MainOptionsDialog)
 addMocFileRule(gui_client GoToParcelDialog)
 addMocFileRule(gui_client GoToPositionDialog)
@@ -68,6 +70,7 @@ addUIFileRule(gui_client AddVideoDialog)
 addUIFileRule(gui_client AvatarSettingsDialog)
 addUIFileRule(gui_client MainWindow)
 addUIFileRule(gui_client ObjectEditor)
+addUIFileRule(gui_client EnvironmentOptionsWidget)
 addUIFileRule(gui_client ParcelEditor)
 addUIFileRule(gui_client LoginDialog)
 addUIFileRule(gui_client SignUpDialog)
@@ -104,6 +107,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddVideoDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ObjectEditor.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_EnvironmentOptionsWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialEditor.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ParcelEditor.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_LoginDialog.cpp
@@ -128,6 +132,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_EnvironmentOptionsWidget.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ParcelEditor.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialEditor.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_LoginDialog.h
