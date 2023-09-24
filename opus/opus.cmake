@@ -132,7 +132,7 @@ ${OPUS_ROOT}/celt/mdct.h
 ${OPUS_ROOT}/celt/mfrngcod.h
 ${OPUS_ROOT}/celt/modes.c
 ${OPUS_ROOT}/celt/modes.h
-${OPUS_ROOT}/celt/opus_custom_demo.c
+#${OPUS_ROOT}/celt/opus_custom_demo.c
 ${OPUS_ROOT}/celt/os_support.h
 ${OPUS_ROOT}/celt/pitch.c
 ${OPUS_ROOT}/celt/pitch.h
