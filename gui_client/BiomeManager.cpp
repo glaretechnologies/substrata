@@ -331,7 +331,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 		/*ob to world matrix=*/Matrix4f::identity());
 
 	// Do assignedLoadedOpenGLTexturesToMats() equivalent
-	tree_opengl_ob->materials[0].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(resource_manager.pathForURL(materials[0]->colour_texture_url)), /*use_sRGB=*/true);
+	tree_opengl_ob->materials[0].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(resource_manager.pathForURL(materials[0]->colour_texture_url)));
 
 	physics_shape_out = elm_tree_physics_shape_data->physics_shape;
 
