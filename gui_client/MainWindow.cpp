@@ -1240,7 +1240,7 @@ static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat
 	for(int lvl=-1; lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = world_mat.getLODTextureURLForLevel(base_tex_path, lvl, tex_has_alpha);
-		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path), use_sRGB);
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
 		if(tex.nonNull())
 			return tex;
 	}
@@ -1254,7 +1254,7 @@ static Reference<OpenGLTexture> getBestLightmapLOD(const std::string& base_light
 	for(int lvl=0; lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = WorldObject::getLODLightmapURL(base_lightmap_path, lvl);
-		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
 		if(tex.nonNull())
 			return tex;
 	}
@@ -1286,7 +1286,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.albedo_texture.ptr();
 				
-				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
 				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
 					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
 				
@@ -1305,7 +1305,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.emission_texture.ptr();
 
-				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path), /*use_sRGB=*/true);
+				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path));
 				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, opengl_engine);
 
@@ -1324,7 +1324,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.metallic_roughness_texture.ptr();
 
-				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
+				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
 				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
 
@@ -1343,7 +1343,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.lightmap_texture.ptr();
 
-				opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
+				opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
 				if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
 
@@ -1379,7 +1379,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.albedo_texture.ptr();
 
-				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
 				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
 					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
 
@@ -1398,7 +1398,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.emission_texture.ptr();
 
-				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path), /*use_sRGB=*/true);
+				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path));
 				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, opengl_engine);
 
@@ -1417,7 +1417,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.metallic_roughness_texture.ptr();
 
-				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
+				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
 				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
 
@@ -1564,7 +1564,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				const std::string tex_key = "hypercard_" + ob->content;
 
 				// If the hypercard texture is already loaded, use it
-				opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+				opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key));
 				opengl_ob->materials[0].tex_path = tex_key;
 
 				if(opengl_ob->materials[0].albedo_texture.isNull())
@@ -10379,7 +10379,7 @@ void MainWindow::objectEditedSlot()
 								const std::string tex_key = "hypercard_" + selected_ob->content;
 
 								// If the hypercard texture is already loaded, use it
-								opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+								opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key));
 								opengl_ob->materials[0].tex_path = tex_key;
 
 								if(opengl_ob->materials[0].albedo_texture.isNull())
@@ -13075,8 +13075,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map, 
-		OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat, /*allow_compression=*/true);  // NOTE: currently we don't support mip-maps for uncompressed textures, which we need.  Turn compression off once this is supported.
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map);  // NOTE: currently we don't support mip-maps for uncompressed textures, which we need.  Turn compression off once this is supported.
 	gl_ob->materials[0].cast_shadows = false;
 	return gl_ob;
 }
@@ -13125,8 +13124,10 @@ OpenGLTextureRef MainWindow::makeToolTipTexture(const std::string& tooltip_text)
 		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
 	}
 
-	return ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("tooltip_" + tooltip_text), *map,
-		OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Clamp, /*allow compression=*/false);
+	TextureParams tex_params;
+	tex_params.wrapping = OpenGLTexture::Wrapping_Clamp;
+	tex_params.allow_compression = false;
+	return ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("tooltip_" + tooltip_text), *map, tex_params);
 }
 
 
@@ -13136,6 +13137,10 @@ void MainWindow::setGLWidgetContextAsCurrent()
 }
 
 
+#define USE_NEW_TERRAIN_SYSTEM 0
+
+
+#if !USE_NEW_TERRAIN_SYSTEM
 static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
 {
 	for(size_t i=0; i<v.size(); ++i)
@@ -13143,13 +13148,13 @@ static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
 			return true;
 	return false;
 }
-
+#endif
 
 static bool done_terrain_test = false;
 
 void MainWindow::updateGroundPlane()
 {
-#if 0
+#if USE_NEW_TERRAIN_SYSTEM
 	// Use new terrain system:
 	if(this->world_state.isNull())
 		return;
