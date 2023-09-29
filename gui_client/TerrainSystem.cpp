@@ -141,7 +141,7 @@ static const bool GEOMORPHING_SUPPORT = false;
 static float world_w = 32768;//8192*4;
 // static float CHUNK_W = 512.f;
 static int chunk_res = 127; // quad res per patch
-const float quad_w_screenspace_target = 0.004f;
+const float quad_w_screenspace_target = 0.032f;
 //const float quad_w_screenspace_target = 0.004f;
 static const int max_depth = 14;
 
@@ -152,7 +152,7 @@ static const int max_depth = 14;
 ////const float quad_w_screenspace_target = 0.004f;
 //static const int max_depth = 2;
 
-const float scale_factor = 1.f / (8 * 1024);
+static const float terrain_scale_factor = 1.f / (8 * 1024);
 
 
 static const float water_z = 10.f;
@@ -171,24 +171,115 @@ static Colour3f depth_colours[] =
 };
 
 
+typedef ImageMap<uint16, UInt16ComponentValueTraits> ImageMapUInt16;
+typedef Reference<ImageMapUInt16> ImageMapUInt16Ref;
+
+
+// Take heightmap data from src_heightfield_map and put in alpha channel of src_col_map, return new map.
+static Map2DRef combineMaps(const Map2DRef& src_col_map, const Map2DRef& src_heightfield_map)
+{
+	ImageMapUInt8*  src_col_map_uint8     = src_col_map        .downcastToPtr<ImageMapUInt8>();
+	ImageMapUInt16* src_height_map_uint16 = src_heightfield_map.downcastToPtr<ImageMapUInt16>();
+
+	ImageMapUInt8Ref new_map = new ImageMapUInt8(src_col_map->getMapWidth(), src_col_map->getMapHeight(), 4);
+	for(size_t i=0; i<new_map->numPixels(); ++i)
+	{
+		new_map->getPixel(i)[0] = src_col_map_uint8->getPixel(i)[0];
+		new_map->getPixel(i)[1] = src_col_map_uint8->getPixel(i)[1];
+		new_map->getPixel(i)[2] = src_col_map_uint8->getPixel(i)[2];
+		new_map->getPixel(i)[3] = (uint8)(src_height_map_uint16->getPixel(i)[0] / 256);
+	}
+	return new_map;
+}
+
+
+// Create index data for chunk, will be reused for all chunks
+static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* opengl_engine, int vert_res_with_borders)
+{
+	const int quad_res_with_borders = vert_res_with_borders - 1;
+
+	js::Vector<uint16, 16> vert_index_buffer_uint16(quad_res_with_borders * quad_res_with_borders * 6);
+	uint16* const indices = vert_index_buffer_uint16.data();
+	for(int y=0; y<quad_res_with_borders; ++y)
+	for(int x=0; x<quad_res_with_borders; ++x)
+	{
+		// Trianglulate the quad in this way to match how Jolt triangulates the height field shape.
+		// 
+		// 
+		// |----|
+		// | \  |
+		// |  \ |
+		// |   \|
+		// |----|--> x
+
+		// bot left tri
+		const int offset = (y*quad_res_with_borders + x) * 6;
+		indices[offset + 0] = (uint16)(y       * vert_res_with_borders + x    ); // bot left
+		indices[offset + 1] = (uint16)(y       * vert_res_with_borders + x + 1); // bot right
+		indices[offset + 2] = (uint16)((y + 1) * vert_res_with_borders + x    ); // top left
+
+		// top right tri
+		indices[offset + 3] = (uint16)(y       * vert_res_with_borders + x + 1); // bot right
+		indices[offset + 4] = (uint16)((y + 1) * vert_res_with_borders + x + 1); // top right
+		indices[offset + 5] = (uint16)((y + 1) * vert_res_with_borders + x    ); // top left
+	}
+
+	return opengl_engine->vert_buf_allocator->allocateIndexData(vert_index_buffer_uint16.data(), vert_index_buffer_uint16.dataSizeBytes());
+}
+
+
 void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, const Vec3d& campos, glare::TaskManager* task_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
 {
-	//heightmap = PNGDecoder::decode("D:\\terrain\\height.png");
-//	heightmap = EXRDecoder::decode("C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed.exr");
-//	heightmap = ImageDecoding::decodeImage(".", "D:\\terrain\\Height Map_8192x8192.exr");
-	//heightmap = ImageDecoding::decodeImage(".", "D:\\terrain\\Height Map_1024x1024.exr");
-
-	//detail_heightmap = JPEGDecoder::decode(".", "C:\\Users\\nick\\Downloads\\cgaxis_dirt_with_large_rocks_38_46_4K\\dirt_with_large_rocks_38_46_height.jpg");
-	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-08\\tex\\SAND-08-BEACH_DEPTH_2k.png");
-	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-11\\tex\\SAND-11-DUNES_DEPTH_2k.png");
-	small_dune_heightmap = PNGDecoder::decode("C:\\Users\\nick\\Downloads\\sand_ground_59_83_height.png");
-
 	opengl_engine = opengl_engine_;
 	physics_world = physics_world_;
 	task_manager = task_manager_;
 	out_msg_queue = out_msg_queue_;
 
 	next_id = 0;
+
+
+	//heightmap = PNGDecoder::decode("D:\\terrain\\height.png");
+	//heightmap = EXRDecoder::decode("C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed.exr");
+	heightmap = EXRDecoder::decode("C:\\programming\\cyberspace\\output\\vs2022\\cyberspace_x64\\Debug\\heightfield_with_deposited_sed_DWAB.exr");
+//	heightmap = ImageDecoding::decodeImage(".", "D:\\terrain\\Height Map_8192x8192.exr");
+	//heightmap = ImageDecoding::decodeImage(".", "D:\\terrain\\Height Map_1024x1024.exr");
+
+	maskmap = PNGDecoder::decode("C:\\programming\\terraingen\\vs2022_build\\mask.png");
+
+	// TODO: need to force to not use sRGB and not build mipmaps?
+	{
+		TextureParams params;
+		params.allow_compression = false;
+		params.use_sRGB = false;
+		opengl_engine->setTerrainMaskTexture(opengl_engine->getTexture("C:\\programming\\terraingen\\vs2022_build\\mask.png", params));
+	}
+
+	Map2DRef rock_col_map     = ImageDecoding::decodeImage(".", "D:\\terrain\\RockPack1\\ROCK-01\\tex\\ROCK-01_250cm_COLOR_2k.jpg");
+	Map2DRef sediment_col_map = ImageDecoding::decodeImage(".", "D:\\terrain\\GroundPack2\\SAND-07\\tex\\SAND-07-CRACKED_COLOR_2k.jpg");
+
+	detail_heightmaps[0] = ImageDecoding::decodeImage(".", "D:\\terrain\\RockPack1\\ROCK-01\\tex\\ROCK-01_250cm_DEPTH_2k.png");
+	detail_heightmaps[1] = ImageDecoding::decodeImage(".", "D:\\terrain\\GroundPack2\\SAND-07\\tex\\SAND-07-CRACKED_DEPTH_2k.png");
+
+	Map2DRef rock_map     = combineMaps(rock_col_map,     detail_heightmaps[0]);
+	Map2DRef sediment_map = combineMaps(sediment_col_map, detail_heightmaps[1]);
+
+	opengl_engine->setDetailTexture(0, opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("detail_tex0"), *rock_map)); // rock
+	opengl_engine->setDetailTexture(1, opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("detail_tex1"), *sediment_map));
+
+	//opengl_engine->setDetailTexture(1, opengl_engine->getOrLoadOpenGLTextureForMap2D("D:\\terrain\\GroundPack2\\SAND-07\\tex\\SAND-07-CRACKED_COLOR_2k.jpg", /*allow compression=*/true)); // sediment
+	//opengl_engine->setDetailTexture(2, opengl_engine->getTexture("D:\\terrain\\ForestPack2\\FORESTFLOOR-11\\tex\\FORESTFLOOR-11_COLOR_2k.jpg", /*allow compression=*/true)); // vegetation
+	opengl_engine->setDetailTexture(2, opengl_engine->getTexture("C:\\Users\\nick\\Downloads\\Grass\\PACKED_1_Grass0066_5_S 2 yellow.jpg")); // vegetation
+
+
+	
+
+
+	//detail_heightmap = JPEGDecoder::decode(".", "C:\\Users\\nick\\Downloads\\cgaxis_dirt_with_large_rocks_38_46_4K\\dirt_with_large_rocks_38_46_height.jpg");
+	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-08\\tex\\SAND-08-BEACH_DEPTH_2k.png");
+	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-11\\tex\\SAND-11-DUNES_DEPTH_2k.png");
+	//small_dune_heightmap = PNGDecoder::decode("C:\\Users\\nick\\Downloads\\sand_ground_59_83_height.png");
+
+	
 
 	root_node = new TerrainNode();
 	root_node->parent = NULL;
@@ -207,9 +298,9 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 	//terrain_mat.albedo_texture = opengl_engine->getTexture("D:\\terrain\\colour.png", /*allow_compression=*/false);
 	//terrain_mat.albedo_texture = opengl_engine->getTexture("D:\\terrain\\Colormap_0.png", /*allow_compression=*/false);
 	//terrain_mat.albedo_texture = opengl_engine->getTexture("N:\\indigo\\trunk\\testscenes\\ColorChecker_sRGB_from_Ref.png", /*allow_compression=*/true);
-	terrain_mat.albedo_texture = opengl_engine->getTexture("C:\\programming\\terraingen\\vs2022_build\\colour.png", /*allow_compression=*/true);
+	//terrain_mat.albedo_texture = opengl_engine->getTexture("C:\\programming\\terraingen\\vs2022_build\\colour.png", /*allow_compression=*/true);
 	//terrain_mat.tex_matrix = Matrix2f(1.f/64, 0, 0, -1.f/64);
-	terrain_mat.tex_matrix = Matrix2f(scale_factor, 0, 0, scale_factor);
+	terrain_mat.tex_matrix = Matrix2f(terrain_scale_factor, 0, 0, terrain_scale_factor);
 	//terrain_mat.tex_translation = Vec2f(0.5f, 0.5f);
 	terrain_mat.terrain = true;
 
@@ -287,6 +378,11 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 		opengl_engine->addObject(gl_ob);
 	}
 #endif
+
+
+	// Create index data for chunk, will be reused for all chunks
+	this->vert_res_10_index_buffer  = createIndexBufferForChunkWithRes(opengl_engine, /*vert_res_with_borders=*/10);
+	this->vert_res_130_index_buffer = createIndexBufferForChunkWithRes(opengl_engine, /*vert_res_with_borders=*/130);
 }
 
 
@@ -399,6 +495,26 @@ inline static Vec2f toVec2f(const Vec4f& v)
 	return Vec2f(v[0], v[1]);
 }
 
+static float fbm(ImageMapFloat& fbm_imagemap, Vec2f p)
+{
+	// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
+	return (fbm_imagemap.sampleSingleChannelTiled(p.x, -p.y, 0) - 0.5f) * 2.f;
+}
+
+static Vec2f rot(Vec2f p)
+{
+	const float theta = 1.618034 * 3.141592653589 * 2;
+	return Vec2f(cos(theta) * p.x - sin(theta) * p.y, sin(theta) * p.x + cos(theta) * p.y);
+}
+
+static float fbmMix(ImageMapFloat& fbm_imagemap, const Vec2f& p)
+{
+	return 
+		fbm(fbm_imagemap, p) +
+		fbm(fbm_imagemap, rot(p * 2)) * 0.5f +
+		0;
+}
+
 
 float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w, bool water) const
 {
@@ -408,8 +524,8 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w, bool 
 	{
 		
 #if 1
-		const float nx = p_x * scale_factor;
-		const float ny = p_y * scale_factor;
+		const float nx = p_x * terrain_scale_factor;
+		const float ny = p_y * terrain_scale_factor;
 		
 		const float MIN_TERRAIN_Z = -50.f; // Have a max under-sea depth.  This allows having a flat sea-floor, which in turn allows a lower-res mesh to be used for seafloor chunks.
 
@@ -419,18 +535,50 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w, bool 
 			terrain_h = MIN_TERRAIN_Z;
 		else
 		{
-			const float noise_xy_scale = 1 / 200.f;
-			const Vec4f p = Vec4f(p_x * noise_xy_scale, p_y * noise_xy_scale, 0, 1);
-			//const float fbm_val = PerlinNoise::ridgedMultifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 0.2f;
-			const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 5.5f;
+			const Colour4f mask_val = maskmap->vec3SampleTiled(nx, 1.f - ny);
+			
+			// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
+			terrain_h = myMax(MIN_TERRAIN_Z, heightmap->sampleSingleChannelTiledHighQual(nx, 1.f - ny, /*channel=*/0));// + detail_h;
 
-			terrain_h = 0;//p_x; // myMax(MIN_TERRAIN_Z, heightmap->sampleSingleChannelTiledHighQual(nx, 1.f - ny, /*channel=*/0)) /*+ fbm_val*/;// + detail_h;
+			if(terrain_h > MIN_TERRAIN_Z) // Don't apply fine noise on the seafloor.
+			{
+				// 
+				//const float noise_xy_scale = 1 / 200.f;
+				//const Vec4f p = Vec4f(p_x * noise_xy_scale, p_y * noise_xy_scale, 0, 1);
+				//const float fbm_val = PerlinNoise::ridgedMultifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 0.2f;
+				//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 5.5f;
+				//const float fbm_val = fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p[0], p[1])) * 1.2f;
 
-			const float dune_envelope = Maths::smoothStep(water_z + 0.4f, water_z + 1.5f, terrain_h);
-			const float dune_xy_scale = 1 / 2.f;
-			const float dune_h = small_dune_heightmap->sampleSingleChannelTiled(p_x * dune_xy_scale, p_y * dune_xy_scale, 0) * dune_envelope * 0.1f;
+				// Vegetation noise
+				const float veg_noise_xy_scale = 1 / 50.f;
+				const float veg_noise_mag = 0.4f * mask_val[2];
+				const float veg_fbm_val = fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p_x, p_y) * veg_noise_xy_scale) * veg_noise_mag;
+				terrain_h += veg_fbm_val;
 
-			terrain_h += dune_h;
+				//const float dune_envelope = Maths::smoothStep(water_z + 0.4f, water_z + 1.5f, terrain_h);
+				//const float dune_xy_scale = 1 / 2.f;
+				//const float dune_h = 0; // small_dune_heightmap->sampleSingleChannelTiled(p_x * dune_xy_scale, p_y * dune_xy_scale, 0) * dune_envelope * 0.1f;
+
+				//Vec2f detail_uvs = Vec2f(p_x, p_y) * (1 / 3.f);
+				//detail_uvs.y *= -1.0;
+				Vec2f detail_map_0_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 8.0);
+				Vec2f detail_map_1_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
+				Vec2f detail_map_2_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
+
+			
+
+				float rock_weight_env = Maths::smoothStep(0.2f, 0.6f, mask_val[0] + fbmMix(*opengl_engine->fbm_imagemap, detail_map_2_uvs * 0.2f) * 0.2f);
+				float rock_height = detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, -detail_map_0_uvs.y, 0) * rock_weight_env;
+
+				//float rock_height = mask_val[0] * 10.0;
+			
+				//if(mask_val[0] > 0 && detail_heightmaps[0].nonNull())
+				//	terrain_h += detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, detail_map_0_uvs.y, 0) * mask_val[0] * 1.f;
+				//if(mask_val[1] > 0 && detail_heightmaps[1].nonNull())
+				//	terrain_h += detail_heightmaps[1]->sampleSingleChannelTiled(detail_map_1_uvs.x, detail_map_1_uvs.y, 0) * mask_val[1] * 0.1f;
+
+				terrain_h += rock_height * 0.8f;
+			}
 		}
 		return terrain_h;
 
@@ -556,7 +704,7 @@ void TerrainSystem::makeTerrainChunkMesh(float chunk_x, float chunk_y, float chu
 		{
 			const float p_x = x * quad_w + chunk_x;
 			const float p_y = y * quad_w + chunk_y;
-			const float z    = evalTerrainHeight(p_x,      p_y,      quad_w, water);
+			const float z = evalTerrainHeight(p_x, p_y, quad_w, water);
 			if(z != z_0)
 			{
 				completely_flat = false;
@@ -602,18 +750,18 @@ done:
 	}
 
 	const size_t normal_size_B = 4;
-	size_t vert_size_B = sizeof(float) * (3 + 2) + normal_size_B; // position, uv, normal
+	size_t vert_size_B = sizeof(Vec3f) + normal_size_B; // position, normal
 	if(GEOMORPHING_SUPPORT)
 		vert_size_B += sizeof(float) + normal_size_B; // morph-z, morph-normal
+
+	chunk_data_out.vert_res_with_borders = vert_res_with_borders;
 
 	chunk_data_out.mesh_data = new OpenGLMeshRenderData();
 	chunk_data_out.mesh_data->vert_data.resize(vert_size_B * vert_res_with_borders * vert_res_with_borders);
 	
 
-	
-
 	//chunk_data_out.mesh_data->vert_index_buffer.resize(quad_res_with_borders * quad_res_with_borders * 6);
-	chunk_data_out.mesh_data->vert_index_buffer_uint16.resize(quad_res_with_borders * quad_res_with_borders * 6);
+	//chunk_data_out.mesh_data->vert_index_buffer_uint16.resize(quad_res_with_borders * quad_res_with_borders * 6);
 
 	OpenGLMeshRenderData& meshdata = *chunk_data_out.mesh_data;
 
@@ -624,7 +772,7 @@ done:
 	meshdata.has_shading_normals = true;
 	meshdata.batches.resize(1);
 	meshdata.batches[0].material_index = 0;
-	meshdata.batches[0].num_indices = (uint32)meshdata.vert_index_buffer_uint16.size();
+	meshdata.batches[0].num_indices = (uint32)(quad_res_with_borders * quad_res_with_borders * 6);
 	meshdata.batches[0].prim_start_offset = 0;
 
 	meshdata.num_materials_referenced = 1;
@@ -650,17 +798,6 @@ done:
 	normal_attrib.offset = (uint32)in_vert_offset_B;
 	meshdata.vertex_spec.attributes.push_back(normal_attrib);
 	in_vert_offset_B += normal_size_B;
-
-	const size_t uv_offset_B = in_vert_offset_B;
-	VertexAttrib uv_attrib;
-	uv_attrib.enabled = true;
-	uv_attrib.num_comps = 2;
-	uv_attrib.type = GL_FLOAT;
-	uv_attrib.normalised = false;
-	uv_attrib.stride = (uint32)vert_size_B;
-	uv_attrib.offset = (uint32)uv_offset_B;
-	meshdata.vertex_spec.attributes.push_back(uv_attrib);
-	in_vert_offset_B += sizeof(float) * 2;
 
 	size_t morph_offset_B, morph_normal_offset_B;
 	if(GEOMORPHING_SUPPORT)
@@ -722,48 +859,49 @@ done:
 	//conPrint("eval terrain height took     " + timer.elapsedStringMSWIthNSigFigs(4));
 	timer.reset();
 
+	const float skirt_height = chunk_w * (1 / 128.f) * 0.25f; // The skirt height needs to be large enough to cover any cracks, but smaller is better to avoid wasted fragment drawing.
+
 	for(int y=0; y<vert_res_with_borders; ++y)
 	for(int x=0; x<vert_res_with_borders; ++x)
 	{
-		float p_x;
+		float p_x; // x coordinate, object space
 		int src_x;
-		const float skirt_height = quad_w * 0.25f; // The skirt height needs to be large enough to cover any cracks, but smaller is better to avoid wasted fragment drawing.
 		float z_offset = 0;
 		if(x == 0) // If edge vert:
 		{
-			p_x = chunk_x;
+			p_x = 0;
 			src_x = 0;
 			z_offset = skirt_height;
 		}
 		else if(x == vert_res_with_borders-1) // If edge vert:
 		{
-			p_x = (interior_vert_res-1) * quad_w + chunk_x;
+			p_x = (interior_vert_res-1) * quad_w;
 			src_x = interior_vert_res-1;
 			z_offset = skirt_height;
 		}
 		else
 		{
-			p_x = (x-1) * quad_w + chunk_x;
+			p_x = (x-1) * quad_w;
 			src_x = x-1;
 		}
 
-		float p_y;
+		float p_y; // y coordinate, object space
 		int src_y;
 		if(y == 0) // If edge vert:
 		{
-			p_y = chunk_y;
+			p_y = 0;
 			src_y = 0;
 			z_offset = skirt_height;
 		}
 		else if(y == vert_res_with_borders-1) // If edge vert:
 		{
-			p_y = (interior_vert_res-1) * quad_w + chunk_y;
+			p_y = (interior_vert_res-1) * quad_w;
 			src_y = interior_vert_res-1;
 			z_offset = skirt_height;
 		}
 		else
 		{
-			p_y = (y-1) * quad_w + chunk_y;
+			p_y = (y-1) * quad_w;
 			src_y = y-1;
 		}
 
@@ -800,8 +938,8 @@ done:
 		const uint32 packed_normal = packNormal(normal);
 		std::memcpy(vert_data + vert_size_B * (y * vert_res_with_borders + x) + sizeof(float) * 3, &packed_normal, sizeof(uint32));
 
-		const Vec2f uv(p_x, p_y);
-		std::memcpy(vert_data + vert_size_B * (y * vert_res_with_borders + x) + uv_offset_B, &uv, sizeof(float)*2);
+		//const Vec2f uv(p_x, p_y);
+		//std::memcpy(vert_data + vert_size_B * (y * vert_res_with_borders + x) + uv_offset_B, &uv, sizeof(float)*2);
 
 		// Morph z-displacement:
 		// Starred vertices, without the morph displacement, should have the position that the lower LOD level triangle would have, below.
@@ -869,33 +1007,6 @@ done:
 	meshdata.aabb_os = aabb_os;
 
 	
-	//uint32* const indices = chunk_data_out.mesh_data->vert_index_buffer.data();
-	uint16* const indices = chunk_data_out.mesh_data->vert_index_buffer_uint16.data();
-	//std::vector<uint32> indices(chunk_data_out.mesh_data->vert_index_buffer_uint16.size());
-	for(int y=0; y<quad_res_with_borders; ++y)
-	for(int x=0; x<quad_res_with_borders; ++x)
-	{
-		// Trianglulate the quad in this way to match how Jolt triangulates the height field shape.
-		// 
-		// 
-		// |----|
-		// | \  |
-		// |  \ |
-		// |   \|
-		// |----|--> x
-
-		// bot left tri
-		const int offset = (y*quad_res_with_borders + x) * 6;
-		indices[offset + 0] = (uint16)(y       * vert_res_with_borders + x    ); // bot left
-		indices[offset + 1] = (uint16)(y       * vert_res_with_borders + x + 1); // bot right
-		indices[offset + 2] = (uint16)((y + 1) * vert_res_with_borders + x    ); // top left
-		
-		// top right tri
-		indices[offset + 3] = (uint16)(y       * vert_res_with_borders + x + 1); // bot right
-		indices[offset + 4] = (uint16)((y + 1) * vert_res_with_borders + x + 1); // top right
-		indices[offset + 5] = (uint16)((y + 1) * vert_res_with_borders + x    ); // top left
-	}
-
 	//const size_t num_verts = vert_res_with_borders * vert_res_with_borders;
 
 	Timer timer2;
@@ -1274,6 +1385,8 @@ bool TerrainSystem::areAllParentSubtreesBuilt(TerrainNode* node)
 
 void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg& msg)
 {
+	Timer timer;
+
 	// Lookup node based on id
 	auto res = id_to_node_map.find(msg.node_id);
 	if(res != id_to_node_map.end())
@@ -1291,13 +1404,27 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 		Reference<OpenGLMeshRenderData> mesh_data = msg.chunk_data.mesh_data;
 
 		// Update node AABB, now that we have actual heighfield data.
-		node.aabb = mesh_data->aabb_os;
+		// Offset node object space AABB by the chunk x, y coords to get the world-space AABB.
+		node.aabb = js::AABBox(
+			mesh_data->aabb_os.min_ + Vec4f(msg.chunk_x, msg.chunk_y, 0, 0),
+			mesh_data->aabb_os.max_ + Vec4f(msg.chunk_x, msg.chunk_y, 0, 0)
+		);
 
 		{
-			if(!mesh_data->vert_index_buffer.empty())
-				mesh_data->indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer.data(), mesh_data->vert_index_buffer.dataSizeBytes());
+			//printVar(mesh_data->vert_index_buffer_uint16.dataSizeBytes());
+			//printVar(mesh_data->vert_data.dataSizeBytes());
+
+			//if(!mesh_data->vert_index_buffer.empty())
+			//	mesh_data->indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer.data(), mesh_data->vert_index_buffer.dataSizeBytes());
+			//else
+			//	mesh_data->indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint16.data(), mesh_data->vert_index_buffer_uint16.dataSizeBytes());
+			assert(msg.chunk_data.vert_res_with_borders == 10 || msg.chunk_data.vert_res_with_borders == 130);
+			if(msg.chunk_data.vert_res_with_borders == 10)
+				mesh_data->indices_vbo_handle = this->vert_res_10_index_buffer;
+			else if(msg.chunk_data.vert_res_with_borders == 130)
+				mesh_data->indices_vbo_handle = this->vert_res_130_index_buffer;
 			else
-				mesh_data->indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint16.data(), mesh_data->vert_index_buffer_uint16.dataSizeBytes());
+				conPrint("Erropr. invalid msg.chunk_data.vert_res_with_borders");
 
 			mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocate(mesh_data->vertex_spec, mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
 
@@ -1312,7 +1439,7 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 		}
 
 		GLObjectRef gl_ob = new GLObject();
-		gl_ob->ob_to_world_matrix = Matrix4f::identity();
+		gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(msg.chunk_x, msg.chunk_y, 0);
 		gl_ob->mesh_data = mesh_data;
 
 		// d = (2 ^ chunk_lod_lvl) / quad_w_screenspace_target
@@ -1398,6 +1525,9 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 			}
 		}
 	}
+
+
+	conPrint("TerrainSystem::handleCompletedMakeChunkTask() took " + timer.elapsedString());
 }
 
 
