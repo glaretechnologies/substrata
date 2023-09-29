@@ -61,6 +61,7 @@ struct TerrainChunk
 
 struct TerrainChunkData
 {
+	int vert_res_with_borders;
 	//js::Vector<uint8, 16> vert_data;
 	//js::Vector<uint8, 16> index_data;
 	Reference<OpenGLMeshRenderData> mesh_data;
@@ -125,7 +126,7 @@ struct TerrainNode : public RefCounted
 
 	TerrainNode* parent;
 
-	js::AABBox aabb;
+	js::AABBox aabb; // world space AABB
 	//int lod_level;
 	int depth;
 	uint64 id;
@@ -204,7 +205,14 @@ public:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 
 	Map2DRef heightmap;
-	Map2DRef small_dune_heightmap;
+	Map2DRef maskmap;
+	//Map2DRef small_dune_heightmap;
+
+	Map2DRef detail_heightmaps[4];
+
+
+	IndexBufAllocationHandle vert_res_10_index_buffer;
+	IndexBufAllocationHandle vert_res_130_index_buffer;
 };
 
 #ifdef _WIN32
