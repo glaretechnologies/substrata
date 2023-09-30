@@ -5587,6 +5587,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	player_physics.zeroMoveDesiredVel();
 
 
+	// Force player above terrain surface.
+	// Useful to prevent player falling down to infinity if they fall below the terrain surface before it is loaded.
+	if(terrain_system.nonNull())
+	{
+		const Vec3d player_pos = player_physics.getBottomPosition();
+
+		const float terrain_h = terrain_system->evalTerrainHeight((float)player_pos.x, (float)player_pos.y, 1.0);
+
+		if((float)player_pos.z < (terrain_h - 0.5f))
+		{
+			logMessage("Player was below terrain, moving up");
+			Vec3d new_player_pos = player_pos;
+			new_player_pos.z = terrain_h + player_physics.getEyeHeight() + 0.5f;
+			player_physics.setPosition(new_player_pos, player_physics.getLinearVel());
+		}
+	}
+
+
 	// Compute Doppler-effect factor for vehicle controllers, also set wind audio source volume.
 	if(physics_world.nonNull())
 	{
