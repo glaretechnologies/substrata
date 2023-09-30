@@ -113,6 +113,16 @@ void PlayerPhysics::shutdown()
 }
 
 
+Vec3d PlayerPhysics::getBottomPosition()
+{
+	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
+	if(jolt_character)
+		return toVec3d(toVec3f(jolt_character->GetPosition()));
+	else
+		return Vec3d(0.0);
+}
+
+
 void PlayerPhysics::setPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel) // Move discontinuously.  For teleporting etc.
 {
 	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
@@ -127,6 +137,12 @@ void PlayerPhysics::setPosition(const Vec3d& new_player_pos, const Vec4f& linear
 		interaction_character->SetPosition(toJoltVec3(new_player_pos - Vec3d(0, 0, EYE_HEIGHT)));
 		interaction_character->SetLinearVelocity(toJoltVec3(linear_vel));
 	}
+}
+
+
+float PlayerPhysics::getEyeHeight()
+{
+	return EYE_HEIGHT;
 }
 
 
