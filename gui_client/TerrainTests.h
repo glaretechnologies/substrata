@@ -28,5 +28,6 @@ TerrainTests
 -------------
 =====================================================================*/
 
-
 void testTerrain();
+
+void testTerrainSystem(TerrainSystem& terrain_system);

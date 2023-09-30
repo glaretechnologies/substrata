@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "TerrainTests.h"
 
 
+#include "TerrainSystem.h"
 #include <utils/TaskManager.h>
 #include <utils/ContainerUtils.h>
 #include <utils/TestUtils.h>
@@ -585,10 +586,10 @@ void processSomeMessages(TerrainTestSystem& terrain, PCG32& rng)
 	//std::shuffle(terrain.tasks.begin(), terrain.tasks.end(), generator);
 	if(terrain.tasks.size() > 0)
 	{
-		const int num = rng.nextUInt(terrain.tasks.size());
+		const int num = rng.nextUInt((uint32)terrain.tasks.size());
 		for(int i=0; i<num; ++i)
 		{
-			const int task_i = rng.nextUInt(terrain.tasks.size());
+			const int task_i = rng.nextUInt((uint32)terrain.tasks.size());
 
 			TestTerrainChunkGeneratedMsg generated_msg;
 			generated_msg.chunk_x = terrain.tasks[task_i]->chunk_x;
@@ -646,6 +647,7 @@ static void printMeshCovering(TerrainTestSystem& terrain)
 		conPrint("");
 	}
 }
+
 
 void testTerrain()
 {
@@ -722,8 +724,6 @@ void testTerrain()
 			//if(i >= 20175)
 			conPrint("--------------- i=" + toString(i) + "-----------------");
 			{
-				int a = 0;
-
 				std::string s;
 				terrain.appendSubtreeString(terrain.root_node.ptr(), s);
 				conPrint(s);
@@ -790,4 +790,25 @@ void testTerrain()
 //	}
 
 	conPrint("testTerrain() done.");
+}
+
+
+void testTerrainSystem(TerrainSystem& terrain_system)
+{
+	conPrint("testTerrainSystem()");
+
+	double min_time = 1.0e10;
+	for(int i=0; i<1000; ++i)
+	{
+		//conPrint("-------------");
+		Timer timer;
+		TerrainChunkData chunk_data;
+		terrain_system.makeTerrainChunkMesh(/*chunk_x=*/1463.f, /*chunk_y=*/1883.9f, /*chunk_w=*/1.f, /*build physics ob=*/true, chunk_data);
+		//conPrint("makeTerrainChunkMesh elapsed: " + timer.elapsedStringNSigFigs(3));
+		min_time = myMin(min_time, timer.elapsed());
+	}
+	conPrint("makeTerrainChunkMesh elapsed: " + doubleToStringNSigFigs(min_time * 1000, 5) + " ms");
+
+	conPrint("testTerrainSystem() done.");
+	exit(1);
 }

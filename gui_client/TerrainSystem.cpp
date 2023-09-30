@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "OpenGLEngine.h"
+#include "TerrainTests.h"
 #include "graphics/PerlinNoise.h"
 #include "PhysicsWorld.h"
 #include "../shared/ImageDecoding.h"
@@ -35,11 +36,13 @@ TerrainSystem::~TerrainSystem()
 
 
 // Pack normal into GL_INT_2_10_10_10_REV format.
-inline static uint32 packNormal(const Vec3f& normal)
+inline static uint32 packNormal(const Vec4f& normal)
 {
-	int x = (int)(normal.x * 511.f);
-	int y = (int)(normal.y * 511.f);
-	int z = (int)(normal.z * 511.f);
+	const Vec4f scaled_normal = normal * 511.f;
+	const Vec4i scaled_normal_int = toVec4i(scaled_normal);
+	const int x = scaled_normal_int[0];
+	const int y = scaled_normal_int[1];
+	const int z = scaled_normal_int[2];
 	// ANDing with 1023 isolates the bottom 10 bits.
 	return (x & 1023) | ((y & 1023) << 10) | ((z & 1023) << 20);
 }
@@ -152,6 +155,8 @@ static const int max_depth = 14;
 ////const float quad_w_screenspace_target = 0.004f;
 //static const int max_depth = 2;
 
+// Scale factor for world-space -> heightmap UV conversion.
+// Its reciprocal is the width of the terrain in metres.
 static const float terrain_scale_factor = 1.f / (8 * 1024);
 
 
@@ -304,31 +309,15 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 	//terrain_mat.tex_translation = Vec2f(0.5f, 0.5f);
 	terrain_mat.terrain = true;
 
-	{
-	//	ProgramKey key("water", ProgramKeyArgs());
-	//
-	//	OpenGLProgramRef water_prog = opengl_engine->buildProgram("water", key);
-	//
-	//	water_fbm_tex_location			= water_prog->getUniformLocation("fbm_tex");
-	//	water_cirrus_tex_location		= water_prog->getUniformLocation("cirrus_tex");
-	//	water_sundir_cs_location		= water_prog->getUniformLocation("sundir_cs");
-	//
-	//	water_prog->uses_colour_and_depth_buf_textures = true;
-	//	
-	//	//water_mat.uses_custom_shader = true;
-	//	water_mat.auto_assign_shader = false;
-	//
-	//	water_mat.shader_prog = water_prog;
-
-		water_mat.water = true;
-	}
+	
+	water_mat.water = true;
 
 	//conPrint("Terrain init took " + timer.elapsedString() + " (" + toString(num_chunks) + " chunks)");
 
 
 	//TEMP: create single large water object
 	
-#if 0
+#if 1
 	const float large_water_quad_w = 20000;
 	Reference<OpenGLMeshRenderData> quad_meshdata = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/2);
 	for(int y=0; y<16; ++y)
@@ -383,6 +372,8 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 	// Create index data for chunk, will be reused for all chunks
 	this->vert_res_10_index_buffer  = createIndexBufferForChunkWithRes(opengl_engine, /*vert_res_with_borders=*/10);
 	this->vert_res_130_index_buffer = createIndexBufferForChunkWithRes(opengl_engine, /*vert_res_with_borders=*/130);
+
+	//testTerrainSystem(*this); // TEMP
 }
 
 
@@ -413,6 +404,9 @@ void TerrainSystem::shutdown()
 	root_node = NULL;
 
 	id_to_node_map.clear();
+
+	this->vert_res_10_index_buffer = IndexBufAllocationHandle();
+	this->vert_res_130_index_buffer = IndexBufAllocationHandle();
 }
 
 
@@ -478,190 +472,191 @@ std::string TerrainSystem::getDiagnostics() const
 }
 
 
-struct VoronoiBasisNoise01
-{
-	inline static float eval(const Vec4f& p)
-	{
-		Vec4f closest_p;
-		float dist;
-		Voronoi::evaluate3d(p, 1.0f, closest_p, dist);
-		return dist;
-	}
-};
+//struct VoronoiBasisNoise01
+//{
+//	inline static float eval(const Vec4f& p)
+//	{
+//		Vec4f closest_p;
+//		float dist;
+//		Voronoi::evaluate3d(p, 1.0f, closest_p, dist);
+//		return dist;
+//	}
+//};
 
 
-inline static Vec2f toVec2f(const Vec4f& v)
-{
-	return Vec2f(v[0], v[1]);
-}
+//static inline Vec2f toVec2f(const Vec4f& v)
+//{
+//	return Vec2f(v[0], v[1]);
+//}
 
-static float fbm(ImageMapFloat& fbm_imagemap, Vec2f p)
+static inline float fbm(ImageMapFloat& fbm_imagemap, Vec2f p)
 {
 	// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
 	return (fbm_imagemap.sampleSingleChannelTiled(p.x, -p.y, 0) - 0.5f) * 2.f;
 }
 
-static Vec2f rot(Vec2f p)
+static inline Vec2f rot(Vec2f p)
 {
 	const float theta = 1.618034 * 3.141592653589 * 2;
 	return Vec2f(cos(theta) * p.x - sin(theta) * p.y, sin(theta) * p.x + cos(theta) * p.y);
 }
 
-static float fbmMix(ImageMapFloat& fbm_imagemap, const Vec2f& p)
+static inline float fbmMix(ImageMapFloat& fbm_imagemap, const Vec2f& p)
 {
 	return 
 		fbm(fbm_imagemap, p) +
-		fbm(fbm_imagemap, rot(p * 2)) * 0.5f +
-		0;
+		fbm(fbm_imagemap, rot(p * 2)) * 0.5f;
 }
 
 
-float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w, bool water) const
+// p_x, p_y are world space coordinates.
+float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 {
-	if(water)
-		return -4;
+#if 1
+	const float nx = p_x * terrain_scale_factor;
+	const float ny = p_y * terrain_scale_factor;
+		
+	const float MIN_TERRAIN_Z = -50.f; // Have a max under-sea depth.  This allows having a flat sea-floor, which in turn allows a lower-res mesh to be used for seafloor chunks.
+
+	const float eps = 1 / 1000.f; // Avoid edge pixels where wrapping occurs
+	float terrain_h;
+	if(nx < eps || nx > (1 - eps) || ny < eps || ny > (1 - eps))
+		terrain_h = MIN_TERRAIN_Z;
 	else
 	{
-		
-#if 1
-		const float nx = p_x * terrain_scale_factor;
-		const float ny = p_y * terrain_scale_factor;
-		
-		const float MIN_TERRAIN_Z = -50.f; // Have a max under-sea depth.  This allows having a flat sea-floor, which in turn allows a lower-res mesh to be used for seafloor chunks.
+		const Colour4f mask_val = maskmap->vec3SampleTiled(nx, 1.f - ny);
+			
+		// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
+		terrain_h = myMax(MIN_TERRAIN_Z, heightmap->sampleSingleChannelTiledHighQual(nx, 1.f - ny, /*channel=*/0));// + detail_h;
 
-		const float eps = 1 / 1000.f; // Avoid edge pixels where wrapping occurs
-		float terrain_h;
-		if(nx < eps || nx > (1 - eps) || ny < eps || ny > (1 - eps))
-			terrain_h = MIN_TERRAIN_Z;
-		else
+		if(terrain_h > MIN_TERRAIN_Z) // Don't apply fine noise on the seafloor.
 		{
-			const Colour4f mask_val = maskmap->vec3SampleTiled(nx, 1.f - ny);
-			
-			// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
-			terrain_h = myMax(MIN_TERRAIN_Z, heightmap->sampleSingleChannelTiledHighQual(nx, 1.f - ny, /*channel=*/0));// + detail_h;
+			// 
+			//const float noise_xy_scale = 1 / 200.f;
+			//const Vec4f p = Vec4f(p_x * noise_xy_scale, p_y * noise_xy_scale, 0, 1);
+			//const float fbm_val = PerlinNoise::ridgedMultifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 0.2f;
+			//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 5.5f;
+			//const float fbm_val = fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p[0], p[1])) * 1.2f;
 
-			if(terrain_h > MIN_TERRAIN_Z) // Don't apply fine noise on the seafloor.
-			{
-				// 
-				//const float noise_xy_scale = 1 / 200.f;
-				//const Vec4f p = Vec4f(p_x * noise_xy_scale, p_y * noise_xy_scale, 0, 1);
-				//const float fbm_val = PerlinNoise::ridgedMultifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 0.2f;
-				//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 5.5f;
-				//const float fbm_val = fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p[0], p[1])) * 1.2f;
+			// Vegetation noise
+			const float veg_noise_xy_scale = 1 / 50.f;
+			const float veg_noise_mag = 0.4f * mask_val[2];
+			const float veg_fbm_val = (veg_noise_mag > 0) ?
+				fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p_x, p_y) * veg_noise_xy_scale) * veg_noise_mag : 
+				0.f;
+			terrain_h += veg_fbm_val;
 
-				// Vegetation noise
-				const float veg_noise_xy_scale = 1 / 50.f;
-				const float veg_noise_mag = 0.4f * mask_val[2];
-				const float veg_fbm_val = fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p_x, p_y) * veg_noise_xy_scale) * veg_noise_mag;
-				terrain_h += veg_fbm_val;
+			//const float dune_envelope = Maths::smoothStep(water_z + 0.4f, water_z + 1.5f, terrain_h);
+			//const float dune_xy_scale = 1 / 2.f;
+			//const float dune_h = 0; // small_dune_heightmap->sampleSingleChannelTiled(p_x * dune_xy_scale, p_y * dune_xy_scale, 0) * dune_envelope * 0.1f;
 
-				//const float dune_envelope = Maths::smoothStep(water_z + 0.4f, water_z + 1.5f, terrain_h);
-				//const float dune_xy_scale = 1 / 2.f;
-				//const float dune_h = 0; // small_dune_heightmap->sampleSingleChannelTiled(p_x * dune_xy_scale, p_y * dune_xy_scale, 0) * dune_envelope * 0.1f;
-
-				//Vec2f detail_uvs = Vec2f(p_x, p_y) * (1 / 3.f);
-				//detail_uvs.y *= -1.0;
-				Vec2f detail_map_0_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 8.0);
-				Vec2f detail_map_1_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
-				Vec2f detail_map_2_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
+			//Vec2f detail_uvs = Vec2f(p_x, p_y) * (1 / 3.f);
+			//detail_uvs.y *= -1.0;
+			Vec2f detail_map_0_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 8.0);
+			Vec2f detail_map_1_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
+			Vec2f detail_map_2_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
 
 			
 
-				float rock_weight_env = Maths::smoothStep(0.2f, 0.6f, mask_val[0] + fbmMix(*opengl_engine->fbm_imagemap, detail_map_2_uvs * 0.2f) * 0.2f);
-				float rock_height = detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, -detail_map_0_uvs.y, 0) * rock_weight_env;
+			float rock_weight_env;
+			if(mask_val[0] == 0)
+				rock_weight_env = 0;
+			else
+				rock_weight_env = Maths::smoothStep(0.2f, 0.6f, mask_val[0] + fbmMix(*opengl_engine->fbm_imagemap, detail_map_2_uvs * 0.2f) * 0.2f);
+			float rock_height = detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, -detail_map_0_uvs.y, 0) * rock_weight_env;
 
-				//float rock_height = mask_val[0] * 10.0;
+			//float rock_height = mask_val[0] * 10.0;
 			
-				//if(mask_val[0] > 0 && detail_heightmaps[0].nonNull())
-				//	terrain_h += detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, detail_map_0_uvs.y, 0) * mask_val[0] * 1.f;
-				//if(mask_val[1] > 0 && detail_heightmaps[1].nonNull())
-				//	terrain_h += detail_heightmaps[1]->sampleSingleChannelTiled(detail_map_1_uvs.x, detail_map_1_uvs.y, 0) * mask_val[1] * 0.1f;
+			//if(mask_val[0] > 0 && detail_heightmaps[0].nonNull())
+			//	terrain_h += detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, detail_map_0_uvs.y, 0) * mask_val[0] * 1.f;
+			//if(mask_val[1] > 0 && detail_heightmaps[1].nonNull())
+			//	terrain_h += detail_heightmaps[1]->sampleSingleChannelTiled(detail_map_1_uvs.x, detail_map_1_uvs.y, 0) * mask_val[1] * 0.1f;
 
-				terrain_h += rock_height * 0.8f;
-			}
+			terrain_h += rock_height * 0.8f;
 		}
-		return terrain_h;
+	}
+	return terrain_h;
 
 #elif 0
 	//	return p_x * 0.01f;
 	//	const float xy_scale = 1 / 5.f;
 
 
-		//const float num_octaves = 10;//-std::log2(quad_w * xy_scale);
-	//	const Vec4f p = Vec4f(p_x * xy_scale, p_y * xy_scale, 0, 1);
-		//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/num_octaves, /*offset=*/0.1f);
-		//const float fbm_val = PerlinNoise::noise(p) + PerlinNoise::noise(p * 8.0);
-	//	const float fbm_val = PerlinNoise::FBM(p, 4);
+	//const float num_octaves = 10;//-std::log2(quad_w * xy_scale);
+//	const Vec4f p = Vec4f(p_x * xy_scale, p_y * xy_scale, 0, 1);
+	//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/num_octaves, /*offset=*/0.1f);
+	//const float fbm_val = PerlinNoise::noise(p) + PerlinNoise::noise(p * 8.0);
+//	const float fbm_val = PerlinNoise::FBM(p, 4);
 
-		const float nx = p_x * scale_factor + 0.5f;
-		const float ny = p_y * scale_factor + 0.5f;
+	const float nx = p_x * scale_factor + 0.5f;
+	const float ny = p_y * scale_factor + 0.5f;
 
-		float terrain_h;
-		if(nx < 0 || nx > 1 || ny < 0 || ny > 1)
-			terrain_h = -300;
-		else
-			terrain_h = (heightmap->sampleSingleChannelTiledHighQual(nx, ny, 0) - 0.57f) * 800;// + fbm_val * 0.5;
+	float terrain_h;
+	if(nx < 0 || nx > 1 || ny < 0 || ny > 1)
+		terrain_h = -300;
+	else
+		terrain_h = (heightmap->sampleSingleChannelTiledHighQual(nx, ny, 0) - 0.57f) * 800;// + fbm_val * 0.5;
 		
-		return terrain_h;
+	return terrain_h;
 
-		//const float detail_xy_scale = 1 / 3.f;
-		//return detail_heightmap->sampleSingleChannelTiled(p_x * detail_xy_scale, p_y * detail_xy_scale, 0) * 0.2f;
+	//const float detail_xy_scale = 1 / 3.f;
+	//return detail_heightmap->sampleSingleChannelTiled(p_x * detail_xy_scale, p_y * detail_xy_scale, 0) * 0.2f;
 #else
 
 
-	//	return PerlinNoise::noise(Vec4f(p_x / 30.f, p_y / 30.f, 0, 0)) * 10.f;
-		//return p_x * 0.1f;//PerlinNoise::noise(Vec4f(p_x / 30.f, p_y / 30.f, 0, 0)) * 10.f;
-		//return 0.f; // TEMP 
-		float seaside_factor = Maths::smoothStep(-1000.f, -300.f, p_y);
+//	return PerlinNoise::noise(Vec4f(p_x / 30.f, p_y / 30.f, 0, 0)) * 10.f;
+	//return p_x * 0.1f;//PerlinNoise::noise(Vec4f(p_x / 30.f, p_y / 30.f, 0, 0)) * 10.f;
+	//return 0.f; // TEMP 
+	float seaside_factor = Maths::smoothStep(-1000.f, -300.f, p_y);
 
-		const float dist_from_origin = Vec2f(p_x, p_y).length();
-		const float centre_flatten_factor = Maths::smoothStep(700.f, 1000.f, dist_from_origin); // Start the hills only x metres from origin
+	const float dist_from_origin = Vec2f(p_x, p_y).length();
+	const float centre_flatten_factor = Maths::smoothStep(700.f, 1000.f, dist_from_origin); // Start the hills only x metres from origin
 		
-		// FBM feature size is (1 / xy_scale) * 2 ^ -num_octaves     = 1 / (xyscale * 2^num_octaves)
-		// For example if xy_scale = 1/3000 and num_octaves = 10, we have feature size = 3000 / 1024 ~= 3.
-		// We want the feature size to be = quad_w, e.g.
-		// quad_w = (1 / xy_scale) * 2 ^ -num_octaves
-		// so
-		// quad_w * xy_scale = 2 ^ -num_octaves
-		// log2(quad_w * xy_scale) = -num_octaves
-		// num_octaves = - log2(quad_w * xy_scale)
-		const float xy_scale = 1 / 3000.f;
+	// FBM feature size is (1 / xy_scale) * 2 ^ -num_octaves     = 1 / (xyscale * 2^num_octaves)
+	// For example if xy_scale = 1/3000 and num_octaves = 10, we have feature size = 3000 / 1024 ~= 3.
+	// We want the feature size to be = quad_w, e.g.
+	// quad_w = (1 / xy_scale) * 2 ^ -num_octaves
+	// so
+	// quad_w * xy_scale = 2 ^ -num_octaves
+	// log2(quad_w * xy_scale) = -num_octaves
+	// num_octaves = - log2(quad_w * xy_scale)
+	const float xy_scale = 1 / 3000.f;
 
-		const float num_octaves = 10;//-std::log2(quad_w * xy_scale);
+	const float num_octaves = 10;//-std::log2(quad_w * xy_scale);
 
-		const Vec4f p = Vec4f(p_x * xy_scale, p_y * xy_scale, 0, 1);
-		//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/num_octaves, /*offset=*/0.1f);
-		const float fbm_val = PerlinNoise::FBM(p, /*num octaves=*/(int)num_octaves);
+	const Vec4f p = Vec4f(p_x * xy_scale, p_y * xy_scale, 0, 1);
+	//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/num_octaves, /*offset=*/0.1f);
+	const float fbm_val = PerlinNoise::FBM(p, /*num octaves=*/(int)num_octaves);
 
-	//	float fbm_val = 0;
-	//	static float octave_params[] = 
-	//	{
-	//		1.0f, 0.5f,
-	//		2.0f, 0.25f,
-	//		4.0f, 0.125f,
-	//		128.0f, 0.04f,
-	//		256.0f, 0.02f
-	//	};
-	//
-	//	for(int i=0; i<staticArrayNumElems(octave_params)/2; ++i)
-	//	{
-	//		const float scale  = octave_params[i*2 + 0];
-	//		const float weight = octave_params[i*2 + 1];
-	//		fbm_val += PerlinNoise::noise(p * scale) * weight;
-	//	}
+//	float fbm_val = 0;
+//	static float octave_params[] = 
+//	{
+//		1.0f, 0.5f,
+//		2.0f, 0.25f,
+//		4.0f, 0.125f,
+//		128.0f, 0.04f,
+//		256.0f, 0.02f
+//	};
+//
+//	for(int i=0; i<staticArrayNumElems(octave_params)/2; ++i)
+//	{
+//		const float scale  = octave_params[i*2 + 0];
+//		const float weight = octave_params[i*2 + 1];
+//		fbm_val += PerlinNoise::noise(p * scale) * weight;
+//	}
 
-		//fbm_val += (1 - std::fabs(PerlinNoise::noise(p * 100.f))) * 0.025f; // Ridged noise
-		//fbm_val += VoronoiBasisNoise01::eval(p * 0.1f) * 0.1f;//0.025f; // Ridged noise
-		//fbm_val += Voronoi::voronoiFBM(toVec2f(p * 10000.f), 2) * 0.01f;
+	//fbm_val += (1 - std::fabs(PerlinNoise::noise(p * 100.f))) * 0.025f; // Ridged noise
+	//fbm_val += VoronoiBasisNoise01::eval(p * 0.1f) * 0.1f;//0.025f; // Ridged noise
+	//fbm_val += Voronoi::voronoiFBM(toVec2f(p * 10000.f), 2) * 0.01f;
 
-		return -300 + seaside_factor * 300 + centre_flatten_factor * myMax(0.f, fbm_val - 0.2f) * 600;
+	return -300 + seaside_factor * 300 + centre_flatten_factor * myMax(0.f, fbm_val - 0.2f) * 600;
 #endif
-	}
 }
 
 
-void TerrainSystem::makeTerrainChunkMesh(float chunk_x, float chunk_y, float chunk_w, bool build_physics_ob, bool water, TerrainChunkData& chunk_data_out) const
+void TerrainSystem::makeTerrainChunkMesh(float chunk_x, float chunk_y, float chunk_w, bool build_physics_ob, TerrainChunkData& chunk_data_out) const
 {
+	//Timer timer;
 	/*
 	 
 	An example mesh with interior_vert_res=4, giving vert_res_with_borders=6
@@ -698,13 +693,13 @@ void TerrainSystem::makeTerrainChunkMesh(float chunk_x, float chunk_y, float chu
 	{
 		const int CHECK_RES = 32;
 		const float quad_w = chunk_w / (CHECK_RES - 1);
-		const float z_0 = evalTerrainHeight(chunk_x, chunk_y, quad_w, water);
+		const float z_0 = evalTerrainHeight(chunk_x, chunk_y, quad_w);
 		for(int y=0; y<CHECK_RES; ++y)
 		for(int x=0; x<CHECK_RES; ++x)
 		{
 			const float p_x = x * quad_w + chunk_x;
 			const float p_y = y * quad_w + chunk_y;
-			const float z = evalTerrainHeight(p_x, p_y, quad_w, water);
+			const float z = evalTerrainHeight(p_x, p_y, quad_w);
 			if(z != z_0)
 			{
 				completely_flat = false;
@@ -719,34 +714,14 @@ done:
 	const int vert_res_with_borders = interior_vert_res + 2;
 	const int quad_res_with_borders = vert_res_with_borders - 1;
 
-	//int lod_level_factor = 1 << lod_level;
-	//int vert_res = myMax(4, MAX_RES / lod_level_factor); // Number of verts in x and y directions
-	//int quad_res = vert_res - 1; // Number of quads in x and y directions
-//	int quad_res_no_border = chunk_res; // myMax(1, MAX_RES / lod_level_factor); // Number of quads in x and y directions
-//	int vert_res_no_border = quad_res_no_border + 1;
-//	float quad_w = chunk_w / quad_res_no_border; // (CHUNK_W / MAX_RES) * lod_level_factor; // Width in metres of each quad
-	float quad_w = chunk_w / interior_quad_res;
-	//float chunk_x = (float)chunk_x_i * CHUNK_W;
-	//float chunk_y = (float)chunk_y_i * CHUNK_W;
+	const float quad_w = chunk_w / interior_quad_res;
 
-	//conPrint("quad_res: " + toString(quad_res));
-	//conPrint("vert_res: " + toString(vert_res));
-	//const int res = vert_res; // Num verts along each side
+	const int jolt_vert_res = interior_vert_res;
 	
-	//heightfield_out.resize(vert_res, vert_res);
-
-	// inSampleCount / mBlockSize must be a power of 2 and minimally 2.
-	// (padded_vert_res = inSampleCount)
-	//const int blocksize = 2; // Jolt blocksize
-	const int jolt_vert_res = interior_vert_res;//myMax(4, (int)Maths::roundToNextHighestPowerOf2(vert_res)); // Jolt has certain requirements for the heightfield data
-//	//const int padded_vert_res = myMax(4, Maths::roundUpToMultipleOfPowerOf2(vert_res, 4)); // Jolt has certain requirements for the heightfield data
-//	//Array2D<float> padded_heightfield(padded_vert_res, padded_vert_res);
 	Array2D<float> jolt_heightfield;
 	if(build_physics_ob)
 	{
 		jolt_heightfield.resizeNoCopy(jolt_vert_res, jolt_vert_res);
-		//padded_heightfield.resize(jolt_vert_res, jolt_vert_res);
-		//padded_heightfield.setAllElems(FLT_MAX); // TEMP inefficient
 	}
 
 	const size_t normal_size_B = 4;
@@ -760,12 +735,8 @@ done:
 	chunk_data_out.mesh_data->vert_data.resize(vert_size_B * vert_res_with_borders * vert_res_with_borders);
 	
 
-	//chunk_data_out.mesh_data->vert_index_buffer.resize(quad_res_with_borders * quad_res_with_borders * 6);
-	//chunk_data_out.mesh_data->vert_index_buffer_uint16.resize(quad_res_with_borders * quad_res_with_borders * 6);
-
 	OpenGLMeshRenderData& meshdata = *chunk_data_out.mesh_data;
 
-	//meshdata.setIndexType(GL_UNSIGNED_INT);
 	meshdata.setIndexType(GL_UNSIGNED_SHORT);
 
 	meshdata.has_uvs = true;
@@ -791,9 +762,9 @@ done:
 
 	VertexAttrib normal_attrib;
 	normal_attrib.enabled = true;
-	normal_attrib.num_comps = 4; // 3;
-	normal_attrib.type = GL_INT_2_10_10_10_REV; // GL_FLOAT;
-	normal_attrib.normalised = true; // false;
+	normal_attrib.num_comps = 4;
+	normal_attrib.type = GL_INT_2_10_10_10_REV;
+	normal_attrib.normalised = true;
 	normal_attrib.stride = (uint32)vert_size_B;
 	normal_attrib.offset = (uint32)in_vert_offset_B;
 	meshdata.vertex_spec.attributes.push_back(normal_attrib);
@@ -816,9 +787,9 @@ done:
 		morph_normal_offset_B = in_vert_offset_B;
 		VertexAttrib morph_normal_attrib;
 		morph_normal_attrib.enabled = true;
-		morph_normal_attrib.num_comps = 4; // 3;
-		morph_normal_attrib.type = GL_INT_2_10_10_10_REV; // GL_FLOAT;
-		morph_normal_attrib.normalised = true; // false;
+		morph_normal_attrib.num_comps = 4;
+		morph_normal_attrib.type = GL_INT_2_10_10_10_REV;
+		morph_normal_attrib.normalised = true;
 		morph_normal_attrib.stride = (uint32)vert_size_B;
 		morph_normal_attrib.offset = (uint32)in_vert_offset_B;
 		meshdata.vertex_spec.attributes.push_back(morph_normal_attrib);
@@ -827,56 +798,54 @@ done:
 
 	assert(in_vert_offset_B == vert_size_B);
 
-	js::AABBox aabb_os = js::AABBox::emptyAABBox();
-
-	uint8* const vert_data = chunk_data_out.mesh_data->vert_data.data();
-
-	Timer timer;
-
 	Array2D<float> raw_heightfield(interior_vert_res, interior_vert_res);
-	Array2D<Vec3f> raw_normals(interior_vert_res, interior_vert_res);
+	// Array2D<Vec3f> raw_normals(interior_vert_res, interior_vert_res);
 	for(int y=0; y<interior_vert_res; ++y)
 	for(int x=0; x<interior_vert_res; ++x)
 	{
 		const float p_x = x * quad_w + chunk_x;
 		const float p_y = y * quad_w + chunk_y;
-		const float dx = 0.1f;
-		const float dy = 0.1f;
-
-		const float z    = evalTerrainHeight(p_x,      p_y,      quad_w, water); // z = h(p_x, p_y)
-		const float z_dx = evalTerrainHeight(p_x + dx, p_y,      quad_w, water); // z_dx = h(p_x + dx, dy)
-		const float z_dy = evalTerrainHeight(p_x,      p_y + dy, quad_w, water); // z_dy = h(p_x, p_y + dy)
-
-		const Vec3f p_dx_minus_p(dx, 0, z_dx - z); // p(p_x + dx, dy) - p(p_x, p_y) = (p_x + dx, d_y, z_dx) - (p_x, p_y, z) = (d_x, 0, z_dx - z)
-		const Vec3f p_dy_minus_p(0, dy, z_dy - z);
-
-		const Vec3f normal = normalise(crossProduct(p_dx_minus_p, p_dy_minus_p));
-
-		raw_heightfield.elem(x, y) = z;
-		raw_normals.elem(x, y) = normal;
+	// 	const float dx = 0.1f;
+	// 	const float dy = 0.1f;
+	// 
+	 	const float z    = evalTerrainHeight(p_x,      p_y,      quad_w); // z = h(p_x, p_y)
+	// 	const float z_dx = evalTerrainHeight(p_x + dx, p_y,      quad_w, water); // z_dx = h(p_x + dx, dy)
+	// 	const float z_dy = evalTerrainHeight(p_x,      p_y + dy, quad_w, water); // z_dy = h(p_x, p_y + dy)
+	// 
+	// 	const Vec3f p_dx_minus_p(dx, 0, z_dx - z); // p(p_x + dx, dy) - p(p_x, p_y) = (p_x + dx, d_y, z_dx) - (p_x, p_y, z) = (d_x, 0, z_dx - z)
+	// 	const Vec3f p_dy_minus_p(0, dy, z_dy - z);
+	// 
+	// 	const Vec3f normal = normalise(crossProduct(p_dx_minus_p, p_dy_minus_p));
+	// 
+	 	raw_heightfield.elem(x, y) = z;
+	// 	raw_normals.elem(x, y) = normal;
 	}
 
 	//conPrint("eval terrain height took     " + timer.elapsedStringMSWIthNSigFigs(4));
-	timer.reset();
+	//timer.reset();
 
 	const float skirt_height = chunk_w * (1 / 128.f) * 0.25f; // The skirt height needs to be large enough to cover any cracks, but smaller is better to avoid wasted fragment drawing.
+	const int interior_vert_res_minus_1 = interior_vert_res - 1;
+	
+	uint8* const vert_data = chunk_data_out.mesh_data->vert_data.data();
+	js::AABBox aabb_os = js::AABBox::emptyAABBox();
 
 	for(int y=0; y<vert_res_with_borders; ++y)
 	for(int x=0; x<vert_res_with_borders; ++x)
 	{
 		float p_x; // x coordinate, object space
-		int src_x;
+		int src_x; // x index to use reading from raw_heightfield
 		float z_offset = 0;
-		if(x == 0) // If edge vert:
+		if(x == 0) // If edge vert, vert is on bottom of skirt
 		{
 			p_x = 0;
 			src_x = 0;
 			z_offset = skirt_height;
 		}
-		else if(x == vert_res_with_borders-1) // If edge vert:
+		else if(x == vert_res_with_borders-1) // If edge vert, vert is on bottom of skirt
 		{
-			p_x = (interior_vert_res-1) * quad_w;
-			src_x = interior_vert_res-1;
+			p_x = interior_vert_res_minus_1 * quad_w;
+			src_x = interior_vert_res_minus_1;
 			z_offset = skirt_height;
 		}
 		else
@@ -887,16 +856,16 @@ done:
 
 		float p_y; // y coordinate, object space
 		int src_y;
-		if(y == 0) // If edge vert:
+		if(y == 0) // If edge vert, vert is on bottom of skirt
 		{
 			p_y = 0;
 			src_y = 0;
 			z_offset = skirt_height;
 		}
-		else if(y == vert_res_with_borders-1) // If edge vert:
+		else if(y == vert_res_with_borders-1) // If edge vert, vert is on bottom of skirt
 		{
-			p_y = (interior_vert_res-1) * quad_w;
-			src_y = interior_vert_res-1;
+			p_y = interior_vert_res_minus_1 * quad_w;
+			src_y = interior_vert_res_minus_1;
 			z_offset = skirt_height;
 		}
 		else
@@ -905,41 +874,56 @@ done:
 			src_y = y-1;
 		}
 
-		//const float p_x = x * quad_w + chunk_x;
-		//const float p_y = y * quad_w + chunk_y;
-		//const float dx = 0.1f;
-		//const float dy = 0.1f;
+		const float recip_2_quad_w = 1.f / (quad_w*2);
 
-		const float z = raw_heightfield.elem(src_x, src_y) - z_offset; // evalTerrainHeight(p_x, p_y, water); // z = h(p_x, p_y)
+		// Compute normal and height at vertex.
+		// For interior vertices, use central differences from adjacent vertices for computing the normal.
+		// This is fast because it avoids calling evalTerrainHeight().
+		// For edge vertices, compute normal using evalTerrainHeight() calls, since the resulting normal should match adjacent chunks more closely,
+		// for example if the adjacent chunk has different tesselation resolution.
+		float h;
+		Vec4f normal;
+		if(src_x >= 1 && src_x < interior_vert_res_minus_1 && src_y >= 1 && src_y < interior_vert_res_minus_1)
+		{
+			h = raw_heightfield.elem(src_x, src_y);
 
-		//const float z_dx = evalTerrainHeight(p_x + dx, p_y, water); // z_dx = h(p_x + dx, dy)
-		//const float z_dy = evalTerrainHeight(p_x, p_y + dy, water); // z_dy = h(p_x, p_y + dy)
-		//
-		//const Vec3f p_dx_minus_p(dx, 0, z_dx - z); // p(p_x + dx, dy) - p(p_x, p_y) = (p_x + dx, d_y, z_dx) - (p_x, p_y, z) = (d_x, 0, z_dx - z)
-		//const Vec3f p_dy_minus_p(0, dy, z_dy - z);
-		//
-		//const Vec3f normal = normalise(crossProduct(p_dx_minus_p, p_dy_minus_p));
-		//conPrint(normal.toStringMaxNDecimalPlaces(4));
-		const Vec3f normal = raw_normals.elem(src_x, src_y);
+			const float dh_dx = (raw_heightfield.elem(src_x+1, src_y) - raw_heightfield.elem(src_x-1, src_y)) * recip_2_quad_w;
+			const float dh_dy = (raw_heightfield.elem(src_x, src_y+1) - raw_heightfield.elem(src_x, src_y-1)) * recip_2_quad_w;
+
+			normal = normalise(Vec4f(-dh_dx, -dh_dy, 1, 0));
+		}
+		else
+		{
+			const float dx = 0.005f;
+			const float dy = 0.005f;
+			
+						h    = evalTerrainHeight(chunk_x + p_x,      chunk_y + p_y,      quad_w); // h(p_x, p_y)
+			const float h_dx = evalTerrainHeight(chunk_x + p_x + dx, chunk_y + p_y,      quad_w); // h(p_x + dx, dy)
+			const float h_dy = evalTerrainHeight(chunk_x + p_x,      chunk_y + p_y + dy, quad_w); // h(p_x, p_y + dy)
+			
+			const float dh_dx = (h_dx - h) * (1.f / dx);
+			const float dh_dy = (h_dy - h) * (1.f / dy);
+			
+			normal = normalise(Vec4f(-dh_dx, -dh_dy, 1, 0));
+		}
+
+		const float p_z = h - z_offset; // Z coordinate taking into account downwards offset for skirt, if applicable.
 
 		if(build_physics_ob)
 		{
 			const int int_x = x - 1; // Don't include border/skirt vertices in Jolt heightfield.
 			const int int_y = y - 1;
 			if((int_x >= 0) && (int_x < jolt_vert_res) && (int_y >= 0) && (int_y < jolt_vert_res))
-				jolt_heightfield.elem(int_x, jolt_vert_res - 1 - int_y) = z;
+				jolt_heightfield.elem(int_x, jolt_vert_res - 1 - int_y) = p_z;
 		}
 
-		const Vec3f pos(p_x, p_y, z);
-		std::memcpy(vert_data + vert_size_B * (y * vert_res_with_borders + x), &pos, sizeof(float)*3);
+		const Vec4f pos(p_x, p_y, p_z, 1);
+		std::memcpy(vert_data + vert_size_B * (y * vert_res_with_borders + x), &pos, sizeof(float)*3); // Store x,y,z pos coords.
 
-		aabb_os.enlargeToHoldPoint(pos.toVec4fPoint());
+		aabb_os.enlargeToHoldPoint(pos);
 
 		const uint32 packed_normal = packNormal(normal);
 		std::memcpy(vert_data + vert_size_B * (y * vert_res_with_borders + x) + sizeof(float) * 3, &packed_normal, sizeof(uint32));
-
-		//const Vec2f uv(p_x, p_y);
-		//std::memcpy(vert_data + vert_size_B * (y * vert_res_with_borders + x) + uv_offset_B, &uv, sizeof(float)*2);
 
 		// Morph z-displacement:
 		// Starred vertices, without the morph displacement, should have the position that the lower LOD level triangle would have, below.
@@ -977,8 +961,8 @@ done:
 
 		if(GEOMORPHING_SUPPORT)
 		{
-			float morphed_z = z;
-			Vec3f morphed_normal = normal;
+			float morphed_z = p_z;
+			Vec4f morphed_normal = normal;
 			//if((y % 2) == 0)
 			//{
 			//	if(((x % 2) == 1) && (x + 1 < raw_heightfield.getWidth()))
@@ -1006,58 +990,18 @@ done:
 
 	meshdata.aabb_os = aabb_os;
 
-	
-	//const size_t num_verts = vert_res_with_borders * vert_res_with_borders;
-
-	Timer timer2;
-
-//	std::vector<uint32> simplified_indices(indices.size());
-//	float result_error = 0;
-//	const size_t res_num_indices = meshopt_simplify(/*destination index buffer=*/simplified_indices.data(), indices.data(), indices.size(), 
-//		(const float*)meshdata.vert_data.data(), num_verts, /*vertex positions stride=*/vert_size_B,
-//		/*target_index_count=*/6, /*target error=*/0.001f, &result_error);
-//	//printVar(result_error);
-//	//conPrint("meshopt_simplify took " + timer2.elapsedStringNSigFigs(4));
-//	timer2.reset();
-//
-//	simplified_indices.resize(res_num_indices);
-//
-//	indices = simplified_indices;
-
-//	runtimeCheck(indices.size() % 3 == 0);
-//	for(size_t i=0; i<indices.size(); ++i)
-//		runtimeCheck(indices[i] < num_verts);
-
-
-//	std::vector<uint32> reordered_indices(indices.size());
-//	meshopt_optimizeVertexCache(reordered_indices.data(), indices.data(), indices.size(), num_verts);
-//	//reordered_indices = indices;
-//
-//	js::Vector<uint8, 16> reordered_vert_data(meshdata.vert_data.size());
-//	meshopt_optimizeVertexFetch(/*destination=*/reordered_vert_data.data(), /*indices=*/reordered_indices.data(), /*index count=*/reordered_indices.size(), 
-//		/*vertices=*/meshdata.vert_data.data(), /*vertex count=*/vert_res_with_borders * vert_res_with_borders, /*vertex size=*/vert_size_B);
-
-//	//conPrint("vertex optimisation took " + timer2.elapsedStringNSigFigs(4));
-//
-//	meshdata.vert_data = reordered_vert_data;
-//
-//	// Copy back to chunk_data_out.mesh_data->vert_index_buffer_uint16
-//	for(size_t i=0; i<reordered_indices.size(); ++i)
-//		chunk_data_out.mesh_data->vert_index_buffer_uint16[i] = (uint16)reordered_indices[i];
-
-	//for(size_t i=0; i<indices.size(); ++i)
-	//	chunk_data_out.mesh_data->vert_index_buffer_uint16[i] = (uint16)indices[i];
-
-	// Update batch num indices
-	//meshdata.batches[0].num_indices = (uint32)indices.size();
-
 	//conPrint("Creating mesh took           " + timer.elapsedStringMSWIthNSigFigs(4));
-	timer.reset();
+	
 
 	if(build_physics_ob)
+	{
+		//timer.reset();
+		
 		chunk_data_out.physics_shape = PhysicsWorld::createJoltHeightFieldShape(jolt_vert_res, jolt_heightfield, quad_w);
 
-	//conPrint("Creating physics shape took  " + timer.elapsedStringMSWIthNSigFigs(4));
+		//conPrint("Creating physics shape took  " + timer.elapsedStringMSWIthNSigFigs(4));
+	}
+
 	//conPrint("---------------");
 }
 
@@ -1385,7 +1329,7 @@ bool TerrainSystem::areAllParentSubtreesBuilt(TerrainNode* node)
 
 void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg& msg)
 {
-	Timer timer;
+	//Timer timer;
 
 	// Lookup node based on id
 	auto res = id_to_node_map.find(msg.node_id);
@@ -1478,7 +1422,7 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 
 		PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 		physics_ob->shape = shape;
-		physics_ob->pos = Vec4f(node.aabb.min_[0], node.aabb.min_[1], 0, 1); // chunk.pos;
+		physics_ob->pos = Vec4f(msg.chunk_x, msg.chunk_y, 0, 1);
 		physics_ob->rot = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
 		physics_ob->scale = Vec3f(1.f);
 
@@ -1526,8 +1470,7 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 		}
 	}
 
-
-	conPrint("TerrainSystem::handleCompletedMakeChunkTask() took " + timer.elapsedString());
+	//conPrint("TerrainSystem::handleCompletedMakeChunkTask() took " + timer.elapsedString());
 }
 
 
@@ -1536,7 +1479,7 @@ void MakeTerrainChunkTask::run(size_t thread_index)
 	try
 	{
 		// Make terrain
-		terrain->makeTerrainChunkMesh(chunk_x, chunk_y, chunk_w, build_physics_ob, /*water=*/false, /*chunk data out=*/chunk_data);
+		terrain->makeTerrainChunkMesh(chunk_x, chunk_y, chunk_w, build_physics_ob, /*chunk data out=*/chunk_data);
 
 		// Send message to out-message-queue (e.g. to MainWindow), saying that we have finished the work.
 		TerrainChunkGeneratedMsg* msg = new TerrainChunkGeneratedMsg();
