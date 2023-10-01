@@ -11,12 +11,17 @@ Copyright Glare Technologies Limited 2019 -
 #include <indigo/TextureServer.h>
 #include <graphics/ImageMapSequence.h>
 #include <graphics/GifDecoder.h>
+#include <graphics/CompressedImage.h>
 #include <graphics/imformatdecoder.h> // For ImFormatExcep
 #include <graphics/TextureProcessing.h>
 #include <opengl/OpenGLEngine.h>
+#include <opengl/TextureAllocator.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <IncludeHalf.h>
+
+
+#define GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT					0x8E8F
 
 
 LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, bool use_sRGB_)
@@ -42,8 +47,30 @@ void LoadTextureTask::run(size_t thread_index)
 		else
 			map = ImageDecoding::decodeImage(".", key);
 
+#if USE_TEXTURE_VIEWS // NOTE: USE_TEXTURE_VIEWS is defined in opengl/TextureAllocator.h
+		// Resize for texture view
+		if(map.isType<ImageMap<half, HalfComponentValueTraits> >())
+		{
+		}
+		if(map.isType<ImageMapUInt8>() || map.isType<ImageMapFloat>() || map.isType<ImageMap<half, HalfComponentValueTraits> >())
+		{
+			const size_t W = map->getMapWidth();
+			const size_t H = map->getMapHeight();
+			if(W <= 256 && H <= 256)
+			{
+				const size_t max_dim = myMax(W, H);
+				const size_t power_2 = Maths::roundToNextHighestPowerOf2(max_dim);
+		
+				if(W != power_2 || H != power_2)
+				{
+					map = map->resizeMidQuality((int)power_2, (int)power_2, /*task manager=*/NULL);
+				}
+			}
+		}
+#endif
+
 		const bool allow_compression = opengl_engine->textureCompressionSupportedAndEnabled();
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), allow_compression);
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), allow_compression, /*build_mipmaps=*/true);
 
 		if(hasExtension(key, "gif") && texture_data->compressedSizeBytes() > 100000000)
 		{
