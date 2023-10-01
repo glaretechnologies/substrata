@@ -3879,7 +3879,10 @@ void MainWindow::processLoading()
 
 					try
 					{
-						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, ui->glWidget->opengl_engine, OpenGLTextureKey(message->tex_key), message->use_sRGB,
+						// NOTE: bit of a hack, assuming fancy filtering (trilinear) is wanted if we have mip levels.
+						const OpenGLTexture::Filtering filtering = (message->texture_data->num_mip_levels > 1) ? OpenGLTexture::Filtering_Fancy : OpenGLTexture::Filtering_Bilinear;
+
+						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, ui->glWidget->opengl_engine, OpenGLTextureKey(message->tex_key), message->use_sRGB, filtering,
 							message->texture_data, this->tex_loading_progress);
 					}
 					catch(glare::Exception&)
@@ -13093,7 +13096,9 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map);  // NOTE: currently we don't support mip-maps for uncompressed textures, which we need.  Turn compression off once this is supported.
+	TextureParams tex_params;
+	tex_params.allow_compression = false;
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map, tex_params);
 	gl_ob->materials[0].cast_shadows = false;
 	return gl_ob;
 }
