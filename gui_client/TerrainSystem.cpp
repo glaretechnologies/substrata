@@ -148,6 +148,8 @@ const float quad_w_screenspace_target = 0.032f;
 //const float quad_w_screenspace_target = 0.004f;
 static const int max_depth = 14;
 
+static const float MAX_PHYSICS_DIST = 500.f; // Build physics objects for terrain chunks if the closest point on them to camera is <= MAX_PHYSICS_DIST away.
+
 //static float world_w = 4096;
 //// static float CHUNK_W = 512.f;
 //static int chunk_res = 128; // quad res per patch
@@ -1138,7 +1140,7 @@ void TerrainSystem::createSubtree(TerrainNode* node, const Vec3d& campos)
 		task->chunk_x = node->aabb.min_[0];
 		task->chunk_y = node->aabb.min_[1];
 		task->chunk_w = node->aabb.max_[0] - node->aabb.min_[0];
-		task->build_physics_ob = min_dist < 2000.f;
+		task->build_physics_ob = min_dist <= MAX_PHYSICS_DIST;
 		//task->build_physics_ob = (max_depth - node->depth) < 3;
 		task->terrain = this;
 		task->out_msg_queue = out_msg_queue;
@@ -1209,7 +1211,7 @@ void TerrainSystem::updateSubtree(TerrainNode* cur, const Vec3d& campos)
 				task->chunk_x = cur->aabb.min_[0];
 				task->chunk_y = cur->aabb.min_[1];
 				task->chunk_w = cur->aabb.max_[0] - cur->aabb.min_[0];
-				task->build_physics_ob = min_dist < 2000.f;
+				task->build_physics_ob = min_dist <= MAX_PHYSICS_DIST;
 				//task->build_physics_ob = (max_depth - cur->depth) < 3;
 				task->terrain = this;
 				task->out_msg_queue = out_msg_queue;
