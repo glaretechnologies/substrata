@@ -370,6 +370,8 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 	}
 #endif
 
+	opengl_engine->getCurrentScene()->water_level_z = water_z; // Controls caustic drawing
+
 
 	// Create index data for chunk, will be reused for all chunks
 	this->vert_res_10_index_buffer  = createIndexBufferForChunkWithRes(opengl_engine, /*vert_res_with_borders=*/10);
