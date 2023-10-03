@@ -3237,15 +3237,19 @@ void MainWindow::checkForLODChanges()
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
 		const float load_distance2_ = this->load_distance2;
 
-		//const int slice = num_frames_since_fps_timer_reset % 8; // TEMP HACK
-		//const int begin_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * slice;
-		//const int end_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * (slice + 1);
-		
 		glare::FastIterMapValueInfo<UID, WorldObjectRef>* const objects_data = this->world_state->objects.vector.data();
 		const size_t objects_size                                            = this->world_state->objects.vector.size();
-		for(size_t i=0; i<objects_size; ++i)
+
+		// Process just some of the objects each frame, to reduce CPU time and ease pressure on the cache.
+		const size_t num_slices = 4;
+		const size_t slice = frame_num % num_slices;
+		const size_t begin_i = myMin(objects_size, Maths::roundedUpDivide(objects_size, num_slices) * slice      );
+		const size_t end_i   = myMin(objects_size, Maths::roundedUpDivide(objects_size, num_slices) * (slice + 1));
+
+		//conPrint("checking slice from " + toString(begin_i) + " to " + toString(end_i));
+		for(size_t i=begin_i; i<end_i; ++i)
 		{
-			if(i + 16 < objects_size)
+			if(i + 16 < end_i)
 				_mm_prefetch((const char*)(&objects_data[i + 16].value->centroid_ws), _MM_HINT_T0);
 
 			WorldObject* const ob = objects_data[i].value.ptr();
@@ -3881,8 +3885,9 @@ void MainWindow::processLoading()
 					{
 						// NOTE: bit of a hack, assuming fancy filtering (trilinear) is wanted if we have mip levels.
 						const OpenGLTexture::Filtering filtering = (message->texture_data->num_mip_levels > 1) ? OpenGLTexture::Filtering_Fancy : OpenGLTexture::Filtering_Bilinear;
+						const OpenGLTexture::Wrapping wrapping = OpenGLTexture::Wrapping_Repeat; // Assume repeating
 
-						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, ui->glWidget->opengl_engine, OpenGLTextureKey(message->tex_key), message->use_sRGB, filtering,
+						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, ui->glWidget->opengl_engine, OpenGLTextureKey(message->tex_key), message->use_sRGB, filtering, wrapping,
 							message->texture_data, this->tex_loading_progress);
 					}
 					catch(glare::Exception&)
