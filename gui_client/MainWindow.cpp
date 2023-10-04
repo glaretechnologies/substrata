@@ -330,6 +330,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	ui->diagnosticsWidget->init(settings);
 	connect(ui->diagnosticsWidget, SIGNAL(settingsChangedSignal()), this, SLOT(diagnosticsWidgetChanged()));
+	connect(ui->diagnosticsWidget, SIGNAL(reloadTerrainSignal()), this, SLOT(diagnosticsReloadTerrain()));
 
 	ui->environmentOptionsWidget->init(settings);
 	connect(ui->environmentOptionsWidget, SIGNAL(settingChanged()), this, SLOT(environmentSettingChangedSlot()));
@@ -10009,6 +10010,18 @@ void MainWindow::diagnosticsWidgetChanged()
 }
 
 
+void MainWindow::diagnosticsReloadTerrain()
+{
+	if(this->terrain_system.nonNull())
+	{
+		terrain_system->shutdown();
+		terrain_system = NULL;
+	}
+
+	// Just leave terrain_system null, will be reinitialised in MainWindow::updateGroundPlane().
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -13165,7 +13178,7 @@ void MainWindow::setGLWidgetContextAsCurrent()
 }
 
 
-#define USE_NEW_TERRAIN_SYSTEM 0
+#define USE_NEW_TERRAIN_SYSTEM 1
 
 
 #if !USE_NEW_TERRAIN_SYSTEM

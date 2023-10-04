@@ -898,8 +898,9 @@ done:
 		}
 		else
 		{
-			const float dx = 0.005f;
-			const float dy = 0.005f;
+			// Use large deltas for consistency with the normal generation in the interior of the chunk, otherwise the chunk edge is visible due to different normal generation techniques.
+			const float dx = quad_w; 
+			const float dy = quad_w;
 			
 						h    = evalTerrainHeight(chunk_x + p_x,      chunk_y + p_y,      quad_w); // h(p_x, p_y)
 			const float h_dx = evalTerrainHeight(chunk_x + p_x + dx, chunk_y + p_y,      quad_w); // h(p_x + dx, dy)

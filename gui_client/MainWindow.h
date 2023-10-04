@@ -158,6 +158,7 @@ private slots:;
 	void applyUndoOrRedoObject(const WorldObjectRef& ob);
 
 	void diagnosticsWidgetChanged();
+	void diagnosticsReloadTerrain();
 	void sendChatMessageSlot();
 
 	void glWidgetMouseClicked(QMouseEvent* e);
