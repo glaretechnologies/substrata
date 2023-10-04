@@ -19,9 +19,10 @@ DiagnosticsWidget::DiagnosticsWidget(
 {
 	setupUi(this);
 
-	connect(this->showPhysicsObOwnershipCheckBox,	SIGNAL(toggled(bool)), this, SLOT(settingsChanged()));
-	connect(this->showVehiclePhysicsVisCheckBox,	SIGNAL(toggled(bool)), this, SLOT(settingsChanged()));
-	connect(this->showWireframesCheckBox,			SIGNAL(toggled(bool)), this, SLOT(settingsChanged()));
+	connect(this->showPhysicsObOwnershipCheckBox,	SIGNAL(toggled(bool)),	this, SLOT(settingsChanged()));
+	connect(this->showVehiclePhysicsVisCheckBox,	SIGNAL(toggled(bool)),	this, SLOT(settingsChanged()));
+	connect(this->showWireframesCheckBox,			SIGNAL(toggled(bool)),	this, SLOT(settingsChanged()));
+	connect(this->reloadTerrainPushButton,			SIGNAL(clicked()),		this, SIGNAL(reloadTerrainSignal()));
 }
 
 

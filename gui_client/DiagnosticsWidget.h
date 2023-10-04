@@ -28,6 +28,8 @@ public:
 
 signals:;
 	void settingsChangedSignal();
+	void reloadTerrainSignal();
+
 protected slots:
 	void settingsChanged();
 private:

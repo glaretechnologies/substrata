@@ -57,6 +57,13 @@
     </widget>
    </item>
    <item>
+    <widget class="QPushButton" name="reloadTerrainPushButton">
+     <property name="text">
+      <string>Reload terrain</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QPlainTextEdit" name="diagnosticsTextEdit">
      <property name="readOnly">
       <bool>true</bool>
