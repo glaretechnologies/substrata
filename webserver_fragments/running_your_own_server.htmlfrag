@@ -1,5 +1,10 @@
 
-<h2>Server Downloads</h2>
+<p>Running your own Substrata server is (hopefully) relatively easy, as it's just a single executable to run.  It will require some technical proficiency though.</p>
+
+<p>You can run a Substrata server on your personal computer, or on a cloud server somewhere.  It's free to run.</p>
+<p>The instructions below are generally written for running a server on your personal computer, though they can be adapted for e.g. a cloud Linux server.</p>
+
+<h2>Download</h2>
 
 <p>Download the server distribution for your operating system:</p>
 <p>
@@ -12,10 +17,19 @@ MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataS
 Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.1.2.tar.gz">SubstrataServer_v1.1.2.tar.gz</a>
 </p>
 
-<p>Executables are signed by Glare Technologies Limited on Windows and Mac.</p>
-
 <p>Extract the contents into a convenient directory, e.g. c:/substrata_server</p>
 
+<p>(You will need <a href="https://www.7-zip.org/download.html">7-zip</a> to extract the Windows distribution)</p>
+
+<p>Executables are signed by Glare Technologies Limited on Windows and Mac:
+on Windows, check that server.exe has a digital signature from Glare Technologies Limited.  (right click on exe, Properties, Digital Signatures tab)</p>
+
+
+<h2>Run the server</h2>
+
+<p>Run the server executable from the files you just extracted.</p>
+
+<p>This will create the server_state_dir (if it does not already exist) described in the next section.</p>
 
 <h2>Locating server_state_dir</h2>
 
@@ -25,11 +39,12 @@ Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataS
 
 <p>server_state_dir is:</p>
 <p>On Windows: APPDATA/Substrata/server_data </p>
+<p>Where APPDATA is your application data directory, something like C:\Users\YOURNAME\AppData.</p>
+
 <p>On Mac: /Users/USERNAME/cyberspace_server_state</p>
 <p>On Linux: /home/USERNAME/cyberspace_server_state</p>
+<p>Where USERNAME is the current user name.</p>
 
-<p>Where APPDATA is your application data directory, something like C:\Users\YOURNAME\AppData.</p>
-<p>USERNAME is the current user name</p>
 
 
 
@@ -45,9 +60,9 @@ If you don't have OpenSSL installed, download from our server: <a href="https://
 	Extract to a directory, check that openssl.exe has a Digital signature from Glare Technologies Limited.  (right click on exe, Properties, Digital Signatures tab)
 </p>
 <p>
-	Open a command shell (cmd.exe or powershell), go to the directory you extracted the files (openssl.exe and openssl.cnf), and execute this command:
+	Open a command shell (cmd.exe or powershell), go to the directory you extracted the openssl files (openssl.exe, openssl.cnf and some dlls), and execute this command: 
 </p>
-<pre>./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key -config openssl.cnf</pre>
+<div class="commands"><pre>./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key -config openssl.cnf</pre></div>
 <p>
 	It will ask some questions, you can press enter to skip them, apart from at least one:  Organization name, enter anything you want.
 </p>
@@ -61,7 +76,7 @@ If you don't have OpenSSL installed, download from our server: <a href="https://
 
 <p>You probably already have openssl installed, so execute</p>
 
-<pre>openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key</pre>
+<div class="commands"><pre>openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key</pre></div>
 
 <p>and copy the two generated files (MyCertificate.crt and MyKey.key) into your server_state_dir.</p>
 
@@ -81,9 +96,9 @@ Substrata
    |
    --------server_data
                |
-               -------------substrata_server_config.xml, MyCertificate.crt, MyKey.key
+               -----------substrata_server_config.xml, MyCertificate.crt, MyKey.key
                |
-                -----------dist_resources
+                ----------dist_resources
                |            |
                |            ---------- xbot_glb_3242545562312850498.bmesh  
                |
@@ -94,37 +109,67 @@ Substrata
               
                           
 </pre>
-<p>If so, you are ready to run the server!</p>
+<p>If so, you are ready to properly run the server!</p>
 
 
 <h2>Run the server</h2>
 
-In cmd.exe or powershell, change into the directory you extracted the server distribution, and run the server, e.g.
+<p>In cmd.exe or powershell, change into the directory you extracted the server distribution, and run the server, e.g.</p>
 
-<pre>
+<div class="commands"><pre>
 cd c:/substrata_server
 ./server.exe
-</pre>
+</pre></div>
 
-Read the output carefully, there will probably be some warning messages, but if it doesn't exit by itself, then your server is ready to use!
+
+<p>Read the output carefully, there will probably be some warning messages, but if it doesn't exit by itself, then your server is ready to use!</p>
 
 <h2>Visiting in your Substrata client</h2>
 
-Run Substrata, then enter sub://localhost in the URL bar (where sub://substrata.info/?x=0.0&amp;y=0.0&amp;z=1.7 usually is)
+<p>Run Substrata, then enter sub://localhost in the URL bar:</p>
 
-You should see an empty Substrata world.  
-Create a user in your Substrata client, this will be the admin user.
+<img src="/files/substrata_localhost.PNG" alt="Substrata connecting to localhost"/>
+
+<p>You should see an empty Substrata world.</p>
+<p>
+Create a user in your Substrata client using the 'Sign Up' link in the top right of your Substrata client.  The first user you create will be the admin user, and will have permissions to create and destroy objects anywhere, 
+as well as to administer the server via the admin web interface.</p>
+</p>
 
 <h2>Visiting the local web interface</h2>
 
-In your web browser, visit https://localhost/.  Note that because we used a self-signed certificate, your browser will probably complain that the certificate is invalid ('site not secure').  Just skip these warnings.
+<p>In your web browser, visit https://localhost/.  Note that because we used a self-signed certificate, your browser will probably complain that the certificate is invalid ('site not secure').  Just skip these warnings.
+</p>
+<p>
+You should see a basic substrata website:  
+</p>
 
-You should see a basic substrata website.  You can acess the admin interface via this website also.
+<img src="/files/substrata_website_localhost.PNG" alt="Substrata localhost website" />
 
+<p>You can log into the web interface using the same username and password you just created in your Substrata client.</p>
 
+<p>Once you have logged in, you can click on your name in the upper right of the page, then click on 'Admin Page' on the upper right of the page again, to access the administrator web interface:</p>
+
+<img src="/files/admin_page.PNG" alt="Substrata admin web interface" />
 
 <h2>Video tutorial</h2>
 
+<p>
 Here is a slightly out of date, but still very helpful tutorial, walking you through similar steps.
+</p>
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/d7eYzp8vqV8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen=""></iframe>
+<iframe width="650" height="365" src="https://www.youtube.com/embed/d7eYzp8vqV8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen=""></iframe>
+
+
+<h2>Support</h2>
+
+<p>Need help running your own server?  Come and chat about it on our <a href="https://discord.gg/R6tfYn3">Discord server</a>.</p>
+
+
+<h2>TODO</h2>
+
+<p>To document:</p>
+
+<p>* How to set up the webclient files for your server, so users can access your Substrata world via a web browser.</p>
+
+<p>* How to use a TLS certificate from a public certificate authority like Let's Encrypt, instead of a self-signed certificate.</p>
