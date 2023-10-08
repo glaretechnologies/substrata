@@ -858,7 +858,7 @@ PhysicsShape PhysicsWorld::createJoltHeightFieldShape(int vert_res, const Array2
 	assert(heightfield.getWidth() >= vert_res);
 	assert(heightfield.getWidth() % 2 == 0); // Needs to be a multiple of mBlockSize
 	assert(heightfield.getWidth() >= 4); // inSampleCount / mBlockSize = inSampleCount / 2 needs to be at least 4, so need inSampleCount >= 4.
-	assert(Maths::isPowerOfTwo<int>(heightfield.getWidth() / block_size)); // inSampleCount / mBlockSize must be a power of 2 and minimally 2.
+	assert(Maths::isPowerOfTwo<int>((int)heightfield.getWidth() / block_size)); // inSampleCount / mBlockSize must be a power of 2 and minimally 2.
 	assert((heightfield.getWidth() / block_size) >= 2);
 
 	const float z_offset = -quad_w * (heightfield.getWidth() - 1);
@@ -1081,7 +1081,7 @@ void PhysicsWorld::think(double dt)
 				0.1, // inAngularDrag
 				JPH::Vec3Arg(0,0,0), // inFluidVelocity
 				JPH::Vec3Arg(0,0,-9.81), // inGravity
-				dt // inDeltaTime
+				(float)dt // inDeltaTime
 			);
 		}
 	}
