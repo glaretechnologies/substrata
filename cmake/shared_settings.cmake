@@ -51,6 +51,7 @@ ${GRAPHICS_DIR}/ImageFilter.cpp
 ${GRAPHICS_DIR}/ImageFilter.h
 ${GRAPHICS_DIR}/ImageMap.cpp
 ${GRAPHICS_DIR}/ImageMap.h
+${GRAPHICS_DIR}/ImageMapSequence.h
 ${GRAPHICS_DIR}/ImageMapTests.cpp
 ${GRAPHICS_DIR}/ImageMapTests.h
 ${GRAPHICS_DIR}/imformatdecoder.cpp
