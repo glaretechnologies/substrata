@@ -13814,7 +13814,7 @@ int main(int argc, char *argv[])
 
 
 			// Make an arrow marking the axes at the origin
-			const Vec4f arrow_origin(0, 0, 0.05f, 1);
+			/*const Vec4f arrow_origin(0, 0, 0.05f, 1);
 			{
 				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
 				mw.ui->glWidget->opengl_engine->addObject(arrow);
@@ -13826,12 +13826,12 @@ int main(int argc, char *argv[])
 			{
 				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 				mw.ui->glWidget->opengl_engine->addObject(arrow);
-			}
+			}*/
 
 			// For ob placement:
-			mw.axis_arrow_objects[0] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
-			mw.axis_arrow_objects[1] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
-			mw.axis_arrow_objects[2] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
+			mw.axis_arrow_objects[0] = mw.ui->glWidget->opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(1, 0, 0, 1), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
+			mw.axis_arrow_objects[1] = mw.ui->glWidget->opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0, 1, 0, 1), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
+			mw.axis_arrow_objects[2] = mw.ui->glWidget->opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0, 0, 1, 1), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 
 			//mw.axis_arrow_objects[3] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
 			//mw.axis_arrow_objects[4] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
