@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "PhysicsWorld.h"
 #include "../shared/ImageDecoding.h"
 #include <utils/TaskManager.h>
+#include <utils/FileUtils.h>
 #include <utils/ContainerUtils.h>
 #include <utils/RuntimeCheck.h>
 #include "graphics/Voronoi.h"
@@ -159,10 +160,11 @@ static const float MAX_PHYSICS_DIST = 500.f; // Build physics objects for terrai
 
 // Scale factor for world-space -> heightmap UV conversion.
 // Its reciprocal is the width of the terrain in metres.
-static const float terrain_scale_factor = 1.f / (8 * 1024);
+static const float terrain_section_w = 8 * 1024;
+static const float terrain_scale_factor = 1.f / terrain_section_w;
 
 
-static const float water_z = 10.f;
+static const float water_z = -5.0;
 
 static Colour3f depth_colours[] = 
 {
@@ -235,6 +237,9 @@ static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* o
 }
 
 
+static const int TERRAIN_SECTION_OFFSET = TerrainSystem::TERRAIN_DATA_SECTION_RES / 2;
+
+
 void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, const Vec3d& campos, glare::TaskManager* task_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
 {
 	opengl_engine = opengl_engine_;
@@ -244,22 +249,32 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 
 	next_id = 0;
 
-
-	//heightmap = PNGDecoder::decode("D:\\terrain\\height.png");
-	//heightmap = EXRDecoder::decode("C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed.exr");
-	heightmap = EXRDecoder::decode("C:\\programming\\cyberspace\\output\\vs2022\\cyberspace_x64\\Debug\\heightfield_with_deposited_sed_DWAB.exr");
-//	heightmap = ImageDecoding::decodeImage(".", "D:\\terrain\\Height Map_8192x8192.exr");
-	//heightmap = ImageDecoding::decodeImage(".", "D:\\terrain\\Height Map_1024x1024.exr");
-
-	maskmap = PNGDecoder::decode("C:\\programming\\terraingen\\vs2022_build\\mask.png");
-
-	// TODO: need to force to not use sRGB and not build mipmaps?
+	for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
+	for(int y=0; y<TERRAIN_DATA_SECTION_RES; ++y)
 	{
-		TextureParams params;
-		params.allow_compression = false;
-		params.use_sRGB = false;
-		opengl_engine->setTerrainMaskTexture(opengl_engine->getTexture("C:\\programming\\terraingen\\vs2022_build\\mask.png", params));
+		const int src_x = x - TERRAIN_SECTION_OFFSET;
+		const int src_y = y - TERRAIN_SECTION_OFFSET;
+		if(FileUtils::fileExists("C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed_" + toString(src_x) + "_" + toString(src_y) + ".exr"))
+		{
+			conPrint("Loading terrain section with index " + toString(x) + ", " + toString(y) + "...");
+
+			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].heightmap = EXRDecoder::decode("C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed_" + toString(src_x) + "_" + toString(src_y) + ".exr");
+			
+			const std::string mask_map_path = "C:\\programming\\terraingen\\vs2022_build\\mask_" + toString(src_x) + "_" + toString(src_y) + ".png";
+			
+			Map2DRef maskmap = PNGDecoder::decode(mask_map_path);
+			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].maskmap = maskmap;
+
+			opengl_engine->removeOpenGLTexture(OpenGLTextureKey(mask_map_path));
+
+			TextureParams params;
+			params.allow_compression = false;
+			params.use_sRGB = false;
+			params.wrapping = OpenGLTexture::Wrapping_Clamp;
+			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].mask_gl_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(mask_map_path), *maskmap, params);
+		}
 	}
+
 
 	Map2DRef rock_col_map     = ImageDecoding::decodeImage(".", "D:\\terrain\\RockPack1\\ROCK-01\\tex\\ROCK-01_250cm_COLOR_2k.jpg");
 	Map2DRef sediment_col_map = ImageDecoding::decodeImage(".", "D:\\terrain\\GroundPack2\\SAND-07\\tex\\SAND-07-CRACKED_COLOR_2k.jpg");
@@ -517,21 +532,50 @@ static inline float fbmMix(ImageMapFloat& fbm_imagemap, const Vec2f& p)
 float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 {
 #if 1
-	const float nx = p_x * terrain_scale_factor;
-	const float ny = p_y * terrain_scale_factor;
-		
 	const float MIN_TERRAIN_Z = -50.f; // Have a max under-sea depth.  This allows having a flat sea-floor, which in turn allows a lower-res mesh to be used for seafloor chunks.
 
-	const float eps = 1 / 1000.f; // Avoid edge pixels where wrapping occurs
+
+	// Work out which source terrain data section we are reading from
+	const int section_x = Maths::floorToInt(p_x / terrain_section_w + 0.5f) + TERRAIN_SECTION_OFFSET;
+	const int section_y = Maths::floorToInt(p_y / terrain_section_w + 0.5f) + TERRAIN_SECTION_OFFSET;
+	if(section_x < 0 || section_x >= 8 || section_y < 0 || section_y >= 8)
+		return MIN_TERRAIN_Z;
+	const TerrainDataSection& section = terrain_data_sections[section_x + section_y*TERRAIN_DATA_SECTION_RES]; // terrain_data_sections.elem(section_x, section_y);
+	if(section.heightmap.isNull())
+		return MIN_TERRAIN_Z;
+
+
+	const float nx = p_x * terrain_scale_factor + 0.5f; // Offset by 0.5 so that the central heightmap is centered at (0,0,0).
+	const float ny = p_y * terrain_scale_factor + 0.5f;
+		
+
+	//const float eps = 1 / 1000.f; // Avoid edge pixels where wrapping occurs
 	float terrain_h;
-	if(nx < eps || nx > (1 - eps) || ny < eps || ny > (1 - eps))
-		terrain_h = MIN_TERRAIN_Z;
-	else
+	//if(nx < eps || nx > (1 - eps) || ny < eps || ny > (1 - eps))
+	//	terrain_h = MIN_TERRAIN_Z;
+	//else
 	{
-		const Colour4f mask_val = maskmap->vec3SampleTiled(nx, 1.f - ny);
+
+		//const float dist_from_origin = Vec2f(p_x, p_y).length();
+		//const float centre_flatten_factor = Maths::smoothStep(700.f, 1000.f, dist_from_origin); // Start the hills only x metres from origin
+		const float x_edge_w = 400;
+		const float centre_flatten_factor_x = Maths::smoothPulse(-600.f - x_edge_w, -600.f, 800.f, 800.f + x_edge_w, p_x); // Start the hills only x metres from origin
+		const float centre_flatten_factor_y = Maths::smoothPulse(-600.f, -500.f, 800.f, 1000.f, p_y); // Start the hills only x metres from origin
+		const float centre_flatten_factor = centre_flatten_factor_x * centre_flatten_factor_y;
+		const float non_flatten_factor = 1 - centre_flatten_factor;
+
+
+		const float seaside_factor = Maths::smoothStep(-1000.f, -300.f, p_y);
+
+
+		const Colour4f mask_val = section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
 			
 		// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
-		terrain_h = myMax(MIN_TERRAIN_Z, heightmap->sampleSingleChannelTiledHighQual(nx, 1.f - ny, /*channel=*/0));// + detail_h;
+		const float heightmap_terrain_z = section.heightmap->sampleSingleChannelHighQual(nx, 1.f - ny, /*channel=*/0, /*wrap=*/false);
+		//terrain_h = -300 + seaside_factor * 300 + non_flatten_factor * myMax(MIN_TERRAIN_Z, heightmap_terrain_z);// + detail_h;
+
+		//terrain_h = myMax(MIN_TERRAIN_Z, -300 + seaside_factor * 300 + non_flatten_factor * heightmap_terrain_z);// + detail_h;
+		terrain_h = /*-300 + seaside_factor * 300 +*/ myMax(-100000.f, /*non_flatten_factor **/ heightmap_terrain_z);// + detail_h;
 
 		if(terrain_h > MIN_TERRAIN_Z) // Don't apply fine noise on the seafloor.
 		{
@@ -1114,6 +1158,8 @@ void TerrainSystem::createInteriorNodeSubtree(TerrainNode* node, const Vec3d& ca
 
 static const float USE_MIN_DIST_TO_AABB = 5.f;
 
+static const int LOWER_DEPTH_BOUND = 3; // Enfore some tesselation to make sure each chunk lies completely in only one source terrain section.
+
 // The root node of the subtree, 'node', has already been created.
 void TerrainSystem::createSubtree(TerrainNode* node, const Vec3d& campos)
 {
@@ -1123,7 +1169,7 @@ void TerrainSystem::createSubtree(TerrainNode* node, const Vec3d& campos)
 
 	//const int desired_lod_level = myClamp((int)std::log2(quad_w_screenspace_target * min_dist), /*lowerbound=*/0, /*upperbound=*/8);
 	// depth = log2(world_w / (res * d * quad_w_screenspace))
-	const int desired_depth = myClamp((int)std::log2(world_w / (chunk_res * min_dist * quad_w_screenspace_target)), /*lowerbound=*/0, /*upperbound=*/max_depth);
+	const int desired_depth = myClamp((int)std::log2(world_w / (chunk_res * min_dist * quad_w_screenspace_target)), /*lowerbound=*/LOWER_DEPTH_BOUND, /*upperbound=*/max_depth);
 
 	//assert(desired_lod_level <= node->lod_level);
 	//assert(desired_depth >= node->depth);
@@ -1165,7 +1211,7 @@ void TerrainSystem::updateSubtree(TerrainNode* cur, const Vec3d& campos)
 	//printVar(min_dist);
 
 	//const int desired_lod_level = myClamp((int)std::log2(quad_w_screenspace_target * min_dist), /*lowerbound=*/0, /*upperbound=*/8);
-	const int desired_depth = myClamp((int)std::log2(world_w / (chunk_res * min_dist * quad_w_screenspace_target)), /*lowerbound=*/0, /*upperbound=*/max_depth);
+	const int desired_depth = myClamp((int)std::log2(world_w / (chunk_res * min_dist * quad_w_screenspace_target)), /*lowerbound=*/LOWER_DEPTH_BOUND, /*upperbound=*/max_depth);
 
 	if(cur->children[0].isNull()) // If 'cur' is a leaf node (has no children, so is not interior node):
 	{
@@ -1421,6 +1467,27 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 		//assert(node.depth >= 0 && node.depth < staticArrayNumElems(depth_colours));
 		//gl_ob->materials[0].albedo_linear_rgb = depth_colours[node.depth % staticArrayNumElems(depth_colours)];
 
+		// Assign mask map as diffuse texture, based on which source section the chunk lies in.
+		const float chunk_middle_x = msg.chunk_x + msg.chunk_w/2; // world space x coord in middle of chunk
+		const float chunk_middle_y = msg.chunk_y + msg.chunk_w/2;
+
+		const int section_x = Maths::floorToInt(chunk_middle_x / terrain_section_w + 0.5); // section indices
+		const int section_y = Maths::floorToInt(chunk_middle_y / terrain_section_w + 0.5);
+
+		const int index_x = section_x + TERRAIN_SECTION_OFFSET; // Indices into terrain_data_sections array
+		const int index_y = section_y + TERRAIN_SECTION_OFFSET;
+
+		if(index_x >= 0 && index_x < 8 && index_y >= 0 && index_y < 8)
+		{
+			const TerrainDataSection& section = terrain_data_sections[index_x + index_y * TERRAIN_DATA_SECTION_RES];
+			gl_ob->materials[0].albedo_texture = section.mask_gl_tex;
+		}
+
+		// Since we are doing texture clamping, we need to make sure tex coords are mapped to [0, 1] with tex matrix
+		// For example, section (1, 2), will have section_x = 1 and section_y = 2.
+		// Its uvs are world space coordinates, so will be something like (8192 * 1, 8192 * 2) at corner, before texture matrix multiplication.
+		// After multiplciation is (1, 2).  We want to translate that down to (0, 0), so we want to translate by (-1, -2)
+		gl_ob->materials[0].tex_translation = Vec2f(-(float)section_x, -(float)section_y);
 
 
 		PhysicsShape shape = msg.chunk_data.physics_shape;
