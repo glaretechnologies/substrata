@@ -149,3 +149,13 @@ td
 	color: #ef9518;
 }
 
+.commands {
+	font-size: 0.8em;
+	font-family: "Lucida Console", Courier, monospace;
+	background-color: rgb(230, 230, 230);
+	overflow: auto;
+}
+.code {
+	font-family: "Lucida Console", Courier, monospace;
+}
+
