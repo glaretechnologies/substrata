@@ -29,6 +29,15 @@ TerrainSystem
 -------------
 =====================================================================*/
 
+
+struct TerrainDataSection
+{
+	Map2DRef heightmap;
+	Map2DRef maskmap;
+	OpenGLTextureRef mask_gl_tex;
+};
+
+
 struct TerrainChunkData
 {
 	int vert_res_with_borders;
@@ -143,11 +152,12 @@ private:
 	glare::TaskManager* task_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 
-	Map2DRef heightmap;
-	Map2DRef maskmap;
-
+public:
+	static const int TERRAIN_DATA_SECTION_RES = 8;
+private:
+	TerrainDataSection terrain_data_sections[TERRAIN_DATA_SECTION_RES*TERRAIN_DATA_SECTION_RES];
+	
 	Map2DRef detail_heightmaps[4];
-
 
 	IndexBufAllocationHandle vert_res_10_index_buffer;
 	IndexBufAllocationHandle vert_res_130_index_buffer;
