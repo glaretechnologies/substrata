@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "OpenGLEngine.h"
+#include "OpenGLShader.h"
+#include "BiomeManager.h"
 #include "TerrainTests.h"
 #include "graphics/PerlinNoise.h"
 #include "PhysicsWorld.h"
@@ -16,14 +18,15 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/ContainerUtils.h>
 #include <utils/RuntimeCheck.h>
 #include "graphics/Voronoi.h"
+#include "graphics/FormatDecoderGLTF.h"
 #include "graphics/PNGDecoder.h"
 #include "graphics/EXRDecoder.h"
 #include "graphics/jpegdecoder.h"
+#include "graphics/SRGBUtils.h"
 #include "opengl/GLMeshBuilding.h"
 #include "opengl/MeshPrimitiveBuilding.h"
 #include "meshoptimizer/src/meshoptimizer.h"
 #include "../dll/include/IndigoMesh.h"
-
 
 
 TerrainSystem::TerrainSystem()
@@ -237,13 +240,11 @@ static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* o
 }
 
 
-static const int TERRAIN_SECTION_OFFSET = TerrainSystem::TERRAIN_DATA_SECTION_RES / 2;
-
-
-void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, const Vec3d& campos, glare::TaskManager* task_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
+void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::TaskManager* task_manager_, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
 {
 	opengl_engine = opengl_engine_;
 	physics_world = physics_world_;
+	biome_manager = biome_manager_;
 	task_manager = task_manager_;
 	out_msg_queue = out_msg_queue_;
 
@@ -258,8 +259,19 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 		{
 			conPrint("Loading terrain section with index " + toString(x) + ", " + toString(y) + "...");
 
-			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].heightmap = EXRDecoder::decode("C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed_" + toString(src_x) + "_" + toString(src_y) + ".exr");
+			const std::string heightmap_path = "C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed_" + toString(src_x) + "_" + toString(src_y) + ".exr";
+			Map2DRef heightmap = EXRDecoder::decode(heightmap_path);
+			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].heightmap = heightmap;
 			
+			{
+				TextureParams params;
+				params.allow_compression = false;
+				params.use_sRGB = false;
+				params.wrapping = OpenGLTexture::Wrapping_Clamp;
+				terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].heightmap_gl_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(heightmap_path), *heightmap, params);
+			}
+
+
 			const std::string mask_map_path = "C:\\programming\\terraingen\\vs2022_build\\mask_" + toString(src_x) + "_" + toString(src_y) + ".png";
 			
 			Map2DRef maskmap = PNGDecoder::decode(mask_map_path);
@@ -267,11 +279,13 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 
 			opengl_engine->removeOpenGLTexture(OpenGLTextureKey(mask_map_path));
 
-			TextureParams params;
-			params.allow_compression = false;
-			params.use_sRGB = false;
-			params.wrapping = OpenGLTexture::Wrapping_Clamp;
-			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].mask_gl_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(mask_map_path), *maskmap, params);
+			{
+				TextureParams params;
+				params.allow_compression = false;
+				params.use_sRGB = false;
+				params.wrapping = OpenGLTexture::Wrapping_Clamp;
+				terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].mask_gl_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(mask_map_path), *maskmap, params);
+			}
 		}
 	}
 
@@ -293,7 +307,6 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 	opengl_engine->setDetailTexture(2, opengl_engine->getTexture("C:\\Users\\nick\\Downloads\\Grass\\PACKED_1_Grass0066_5_S 2 yellow.jpg")); // vegetation
 
 
-	
 
 
 	//detail_heightmap = JPEGDecoder::decode(".", "C:\\Users\\nick\\Downloads\\cgaxis_dirt_with_large_rocks_38_46_4K\\dirt_with_large_rocks_38_46_height.jpg");
@@ -301,7 +314,7 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-11\\tex\\SAND-11-DUNES_DEPTH_2k.png");
 	//small_dune_heightmap = PNGDecoder::decode("C:\\Users\\nick\\Downloads\\sand_ground_59_83_height.png");
 
-	
+
 
 	root_node = new TerrainNode();
 	root_node->parent = NULL;
@@ -393,6 +406,9 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 	this->vert_res_130_index_buffer = createIndexBufferForChunkWithRes(opengl_engine, /*vert_res_with_borders=*/130);
 
 	//testTerrainSystem(*this); // TEMP
+
+
+	terrain_scattering.init(this, opengl_engine_, physics_world, biome_manager_, campos, bump_allocator);
 }
 
 
@@ -418,6 +434,8 @@ void TerrainSystem::removeAllNodeDataForSubtree(TerrainNode* node)
 
 void TerrainSystem::shutdown()
 {
+	terrain_scattering.shutdown();
+
 	if(root_node.nonNull())
 		removeAllNodeDataForSubtree(root_node.ptr());
 	root_node = NULL;
@@ -426,6 +444,14 @@ void TerrainSystem::shutdown()
 
 	this->vert_res_10_index_buffer = IndexBufAllocationHandle();
 	this->vert_res_130_index_buffer = IndexBufAllocationHandle();
+}
+
+
+void TerrainSystem::updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator)
+{
+	updateSubtree(root_node.ptr(), campos);
+
+	terrain_scattering.updateCampos(campos, bump_allocator);
 }
 
 
@@ -529,15 +555,36 @@ static inline float fbmMix(ImageMapFloat& fbm_imagemap, const Vec2f& p)
 
 
 // p_x, p_y are world space coordinates.
+Colour4f TerrainSystem::evalTerrainMask(float p_x, float p_y) const
+{
+	const float nx = p_x * terrain_scale_factor + 0.5f; // Offset by 0.5 so that the central heightmap is centered at (0,0,0).
+	const float ny = p_y * terrain_scale_factor + 0.5f;
+
+	// Work out which source terrain data section we are reading from
+	const int section_x = Maths::floorToInt(nx) + TERRAIN_SECTION_OFFSET;
+	const int section_y = Maths::floorToInt(ny) + TERRAIN_SECTION_OFFSET;
+	if(section_x < 0 || section_x >= 8 || section_y < 0 || section_y >= 8)
+		return Colour4f(1,0,0,0);
+	const TerrainDataSection& section = terrain_data_sections[section_x + section_y*TERRAIN_DATA_SECTION_RES]; // terrain_data_sections.elem(section_x, section_y);
+	if(section.heightmap.isNull())
+		return Colour4f(1,0,0,0);
+
+	return section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
+}
+
+
+// p_x, p_y are world space coordinates.
 float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 {
 #if 1
 	const float MIN_TERRAIN_Z = -50.f; // Have a max under-sea depth.  This allows having a flat sea-floor, which in turn allows a lower-res mesh to be used for seafloor chunks.
 
+	const float nx = p_x * terrain_scale_factor + 0.5f; // Offset by 0.5 so that the central heightmap is centered at (0,0,0).
+	const float ny = p_y * terrain_scale_factor + 0.5f;
 
 	// Work out which source terrain data section we are reading from
-	const int section_x = Maths::floorToInt(p_x / terrain_section_w + 0.5f) + TERRAIN_SECTION_OFFSET;
-	const int section_y = Maths::floorToInt(p_y / terrain_section_w + 0.5f) + TERRAIN_SECTION_OFFSET;
+	const int section_x = Maths::floorToInt(nx) + TERRAIN_SECTION_OFFSET;
+	const int section_y = Maths::floorToInt(ny) + TERRAIN_SECTION_OFFSET;
 	if(section_x < 0 || section_x >= 8 || section_y < 0 || section_y >= 8)
 		return MIN_TERRAIN_Z;
 	const TerrainDataSection& section = terrain_data_sections[section_x + section_y*TERRAIN_DATA_SECTION_RES]; // terrain_data_sections.elem(section_x, section_y);
@@ -545,83 +592,71 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 		return MIN_TERRAIN_Z;
 
 
-	const float nx = p_x * terrain_scale_factor + 0.5f; // Offset by 0.5 so that the central heightmap is centered at (0,0,0).
-	const float ny = p_y * terrain_scale_factor + 0.5f;
-		
+	//const float dist_from_origin = Vec2f(p_x, p_y).length();
+	//const float centre_flatten_factor = Maths::smoothStep(700.f, 1000.f, dist_from_origin); // Start the hills only x metres from origin
+//	const float x_edge_w = 400;
+//	const float centre_flatten_factor_x = Maths::smoothPulse(-600.f - x_edge_w, -600.f, 800.f, 800.f + x_edge_w, p_x); // Start the hills only x metres from origin
+//	const float centre_flatten_factor_y = Maths::smoothPulse(-600.f, -500.f, 800.f, 1000.f, p_y); // Start the hills only x metres from origin
+//	const float centre_flatten_factor = centre_flatten_factor_x * centre_flatten_factor_y;
+//	const float non_flatten_factor = 1 - centre_flatten_factor;
 
-	//const float eps = 1 / 1000.f; // Avoid edge pixels where wrapping occurs
-	float terrain_h;
-	//if(nx < eps || nx > (1 - eps) || ny < eps || ny > (1 - eps))
-	//	terrain_h = MIN_TERRAIN_Z;
-	//else
+
+//	const float seaside_factor = Maths::smoothStep(-1000.f, -300.f, p_y);
+
+
+	const Colour4f mask_val = section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
+			
+	// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
+	const float heightmap_terrain_z = section.heightmap->sampleSingleChannelHighQual(nx, 1.f - ny, /*channel=*/0, /*wrap=*/false);
+	//terrain_h = -300 + seaside_factor * 300 + non_flatten_factor * myMax(MIN_TERRAIN_Z, heightmap_terrain_z);// + detail_h;
+
+	//terrain_h = myMax(MIN_TERRAIN_Z, -300 + seaside_factor * 300 + non_flatten_factor * heightmap_terrain_z);// + detail_h;
+	float terrain_h = /*-300 + seaside_factor * 300 +*/ myMax(-100000.f, /*non_flatten_factor **/ heightmap_terrain_z);// + detail_h;
+
+	if(terrain_h > MIN_TERRAIN_Z) // Don't apply fine noise on the seafloor.
 	{
+		// 
+		//const float noise_xy_scale = 1 / 200.f;
+		//const Vec4f p = Vec4f(p_x * noise_xy_scale, p_y * noise_xy_scale, 0, 1);
+		//const float fbm_val = PerlinNoise::ridgedMultifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 0.2f;
+		//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 5.5f;
+		//const float fbm_val = fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p[0], p[1])) * 1.2f;
 
-		//const float dist_from_origin = Vec2f(p_x, p_y).length();
-		//const float centre_flatten_factor = Maths::smoothStep(700.f, 1000.f, dist_from_origin); // Start the hills only x metres from origin
-		const float x_edge_w = 400;
-		const float centre_flatten_factor_x = Maths::smoothPulse(-600.f - x_edge_w, -600.f, 800.f, 800.f + x_edge_w, p_x); // Start the hills only x metres from origin
-		const float centre_flatten_factor_y = Maths::smoothPulse(-600.f, -500.f, 800.f, 1000.f, p_y); // Start the hills only x metres from origin
-		const float centre_flatten_factor = centre_flatten_factor_x * centre_flatten_factor_y;
-		const float non_flatten_factor = 1 - centre_flatten_factor;
+		// Vegetation noise
+		const float veg_noise_xy_scale = 1 / 50.f;
+		const float veg_noise_mag = 0.4f * mask_val[2];
+		const float veg_fbm_val = (veg_noise_mag > 0) ?
+			fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p_x, p_y) * veg_noise_xy_scale) * veg_noise_mag : 
+			0.f;
+		terrain_h += veg_fbm_val;
 
+		//const float dune_envelope = Maths::smoothStep(water_z + 0.4f, water_z + 1.5f, terrain_h);
+		//const float dune_xy_scale = 1 / 2.f;
+		//const float dune_h = 0; // small_dune_heightmap->sampleSingleChannelTiled(p_x * dune_xy_scale, p_y * dune_xy_scale, 0) * dune_envelope * 0.1f;
 
-		const float seaside_factor = Maths::smoothStep(-1000.f, -300.f, p_y);
-
-
-		const Colour4f mask_val = section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
-			
-		// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
-		const float heightmap_terrain_z = section.heightmap->sampleSingleChannelHighQual(nx, 1.f - ny, /*channel=*/0, /*wrap=*/false);
-		//terrain_h = -300 + seaside_factor * 300 + non_flatten_factor * myMax(MIN_TERRAIN_Z, heightmap_terrain_z);// + detail_h;
-
-		//terrain_h = myMax(MIN_TERRAIN_Z, -300 + seaside_factor * 300 + non_flatten_factor * heightmap_terrain_z);// + detail_h;
-		terrain_h = /*-300 + seaside_factor * 300 +*/ myMax(-100000.f, /*non_flatten_factor **/ heightmap_terrain_z);// + detail_h;
-
-		if(terrain_h > MIN_TERRAIN_Z) // Don't apply fine noise on the seafloor.
-		{
-			// 
-			//const float noise_xy_scale = 1 / 200.f;
-			//const Vec4f p = Vec4f(p_x * noise_xy_scale, p_y * noise_xy_scale, 0, 1);
-			//const float fbm_val = PerlinNoise::ridgedMultifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 0.2f;
-			//const float fbm_val = PerlinNoise::multifractal<float>(p, /*H=*/1, /*lacunarity=*/2, /*num octaves=*/10, /*offset=*/0.1f) * 5.5f;
-			//const float fbm_val = fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p[0], p[1])) * 1.2f;
-
-			// Vegetation noise
-			const float veg_noise_xy_scale = 1 / 50.f;
-			const float veg_noise_mag = 0.4f * mask_val[2];
-			const float veg_fbm_val = (veg_noise_mag > 0) ?
-				fbmMix(*opengl_engine->fbm_imagemap, Vec2f(p_x, p_y) * veg_noise_xy_scale) * veg_noise_mag : 
-				0.f;
-			terrain_h += veg_fbm_val;
-
-			//const float dune_envelope = Maths::smoothStep(water_z + 0.4f, water_z + 1.5f, terrain_h);
-			//const float dune_xy_scale = 1 / 2.f;
-			//const float dune_h = 0; // small_dune_heightmap->sampleSingleChannelTiled(p_x * dune_xy_scale, p_y * dune_xy_scale, 0) * dune_envelope * 0.1f;
-
-			//Vec2f detail_uvs = Vec2f(p_x, p_y) * (1 / 3.f);
-			//detail_uvs.y *= -1.0;
-			Vec2f detail_map_0_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 8.0);
-			Vec2f detail_map_1_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
-			Vec2f detail_map_2_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
+		//Vec2f detail_uvs = Vec2f(p_x, p_y) * (1 / 3.f);
+		//detail_uvs.y *= -1.0;
+		Vec2f detail_map_0_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 8.0);
+		Vec2f detail_map_1_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
+		Vec2f detail_map_2_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
 
 			
 
-			float rock_weight_env;
-			if(mask_val[0] == 0)
-				rock_weight_env = 0;
-			else
-				rock_weight_env = Maths::smoothStep(0.2f, 0.6f, mask_val[0] + fbmMix(*opengl_engine->fbm_imagemap, detail_map_2_uvs * 0.2f) * 0.2f);
-			float rock_height = detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, -detail_map_0_uvs.y, 0) * rock_weight_env;
+		float rock_weight_env;
+		if(mask_val[0] == 0)
+			rock_weight_env = 0;
+		else
+			rock_weight_env = Maths::smoothStep(0.2f, 0.6f, mask_val[0] + fbmMix(*opengl_engine->fbm_imagemap, detail_map_2_uvs * 0.2f) * 0.2f);
+		float rock_height = detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, -detail_map_0_uvs.y, 0) * rock_weight_env;
 
-			//float rock_height = mask_val[0] * 10.0;
+		//float rock_height = mask_val[0] * 10.0;
 			
-			//if(mask_val[0] > 0 && detail_heightmaps[0].nonNull())
-			//	terrain_h += detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, detail_map_0_uvs.y, 0) * mask_val[0] * 1.f;
-			//if(mask_val[1] > 0 && detail_heightmaps[1].nonNull())
-			//	terrain_h += detail_heightmaps[1]->sampleSingleChannelTiled(detail_map_1_uvs.x, detail_map_1_uvs.y, 0) * mask_val[1] * 0.1f;
+		//if(mask_val[0] > 0 && detail_heightmaps[0].nonNull())
+		//	terrain_h += detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, detail_map_0_uvs.y, 0) * mask_val[0] * 1.f;
+		//if(mask_val[1] > 0 && detail_heightmaps[1].nonNull())
+		//	terrain_h += detail_heightmaps[1]->sampleSingleChannelTiled(detail_map_1_uvs.x, detail_map_1_uvs.y, 0) * mask_val[1] * 0.1f;
 
-			terrain_h += rock_height * 0.8f;
-		}
+		terrain_h += rock_height * 0.8f;
 	}
 	return terrain_h;
 
@@ -780,6 +815,7 @@ done:
 	chunk_data_out.vert_res_with_borders = vert_res_with_borders;
 
 	chunk_data_out.mesh_data = new OpenGLMeshRenderData();
+	chunk_data_out.mesh_data->vert_data.setAllocator(this->opengl_engine->mem_allocator);
 	chunk_data_out.mesh_data->vert_data.resize(vert_size_B * vert_res_with_borders * vert_res_with_borders);
 	
 
@@ -1282,12 +1318,6 @@ void TerrainSystem::updateSubtree(TerrainNode* cur, const Vec3d& campos)
 }
 
 
-void TerrainSystem::updateCampos(const Vec3d& campos)
-{
-	updateSubtree(root_node.ptr(), campos);
-}
-
-
 // The subtree with root node 'node' is fully built, so we can remove any old meshes for it, and insert the new pending meshes.
 void TerrainSystem::insertPendingMeshesForSubtree(TerrainNode* node)
 {
@@ -1571,4 +1601,3 @@ void MakeTerrainChunkTask::run(size_t thread_index)
 		conPrint(e.what());
 	}
 }
-

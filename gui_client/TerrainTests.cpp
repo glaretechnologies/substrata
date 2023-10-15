@@ -649,7 +649,7 @@ static void printMeshCovering(TerrainTestSystem& terrain)
 }
 
 
-void testTerrain()
+void TerrainTests::testTerrain()
 {
 	conPrint("testTerrain()");
 
@@ -793,7 +793,7 @@ void testTerrain()
 }
 
 
-void testTerrainSystem(TerrainSystem& terrain_system)
+void TerrainTests::testTerrainSystem(TerrainSystem& terrain_system)
 {
 	conPrint("testTerrainSystem()");
 
