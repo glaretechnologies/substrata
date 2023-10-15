@@ -27,7 +27,11 @@ class VertexBufferAllocator;
 TerrainTests
 -------------
 =====================================================================*/
+class TerrainTests
+{
 
-void testTerrain();
+	static void testTerrain();
 
-void testTerrainSystem(TerrainSystem& terrain_system);
+	static void testTerrainSystem(TerrainSystem& terrain_system);
+
+};

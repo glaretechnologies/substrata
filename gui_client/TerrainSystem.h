@@ -8,12 +8,14 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "IncludeOpenGL.h"
 #include "FrameBuffer.h"
+#include "TerrainScattering.h"
 #include "OpenGLTexture.h"
 #include "OpenGLEngine.h"
 #include "PhysicsObject.h"
 #include "../utils/RefCounted.h"
 #include "../utils/Reference.h"
 #include "../utils/Array2D.h"
+#include "../utils/BumpAllocator.h"
 #include "../maths/Matrix4f.h"
 #include "../maths/vec3.h"
 #include <string>
@@ -22,6 +24,7 @@ class OpenGLShader;
 class OpenGLMeshRenderData;
 class VertexBufferAllocator;
 class PhysicsWorld;
+class BiomeManager;
 
 
 /*=====================================================================
@@ -33,6 +36,7 @@ TerrainSystem
 struct TerrainDataSection
 {
 	Map2DRef heightmap;
+	OpenGLTextureRef heightmap_gl_tex;
 	Map2DRef maskmap;
 	OpenGLTextureRef mask_gl_tex;
 };
@@ -113,20 +117,26 @@ public:
 	TerrainSystem();
 	~TerrainSystem();
 
-	void init(OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, const Vec3d& campos, glare::TaskManager* task_manager, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue);
+	friend class TerrainTests;
+	friend class TerrainScattering;
+	friend class MakeTerrainChunkTask;
+
+	void init(OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::TaskManager* task_manager, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue);
 
 	void shutdown();
 
 	void handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg& msg);
 
-	void updateCampos(const Vec3d& campos);
+	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
 
 	std::string getDiagnostics() const;
 
+
+	Colour4f evalTerrainMask(float p_x, float p_y) const;
 	float evalTerrainHeight(float p_x, float p_y, float quad_w) const;
 
-	void makeTerrainChunkMesh(float chunk_x, float chunk_y, float chunk_w, bool build_physics_ob, TerrainChunkData& chunk_data_out) const;
 private:
+	void makeTerrainChunkMesh(float chunk_x, float chunk_y, float chunk_w, bool build_physics_ob, TerrainChunkData& chunk_data_out) const;
 	void updateSubtree(TerrainNode* node, const Vec3d& campos);
 	void removeSubtree(TerrainNode* node, std::vector<GLObjectRef>& old_children_gl_obs_in_out, std::vector<PhysicsObjectRef>& old_children_phys_obs_in_out);
 	void removeLeafGeometry(TerrainNode* node);
@@ -149,11 +159,15 @@ private:
 
 	OpenGLEngine* opengl_engine;
 	PhysicsWorld* physics_world;
+	BiomeManager* biome_manager;
 	glare::TaskManager* task_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 
+	TerrainScattering terrain_scattering;
+
 public:
 	static const int TERRAIN_DATA_SECTION_RES = 8;
+	static const int TERRAIN_SECTION_OFFSET = TERRAIN_DATA_SECTION_RES / 2;
 private:
 	TerrainDataSection terrain_data_sections[TERRAIN_DATA_SECTION_RES*TERRAIN_DATA_SECTION_RES];
 	
