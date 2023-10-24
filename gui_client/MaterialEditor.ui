@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>581</width>
-    <height>354</height>
+    <height>374</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -227,6 +227,34 @@
     <widget class="QLabel" name="label_12">
      <property name="text">
       <string>Hologram</string>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="1">
+    <widget class="QCheckBox" name="windCheckBox">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="0">
+    <widget class="QLabel" name="label_13">
+     <property name="text">
+      <string>Use vert colours for wind</string>
+     </property>
+    </widget>
+   </item>
+   <item row="16" column="1">
+    <widget class="QCheckBox" name="doubleSidedCheckBox">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item row="16" column="0">
+    <widget class="QLabel" name="label_14">
+     <property name="text">
+      <string>Double sided</string>
      </property>
     </widget>
    </item>

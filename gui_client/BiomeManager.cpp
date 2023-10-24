@@ -102,6 +102,53 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 
 //	if(grass_tex.isNull())
 //		grass_tex = opengl_engine.getTexture(base_dir_path + "/resources/grass.png");
+
+
+	// Build elm tree opengl and physics geometry.
+	if(elm_tree_mesh_render_data.isNull())
+	{
+		const std::string model_URL = "elm_RT_glb_3393252396927074015.bmesh";
+
+		PhysicsShape physics_shape;
+		BatchedMeshRef batched_mesh;
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(model_URL, resource_manager,
+			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
+
+		elm_tree_physics_shape = physics_shape;
+		elm_tree_mesh_render_data = gl_meshdata;
+	}
+
+	// Build Elm tree materials
+	{
+		std::vector<WorldMaterialRef> materials(2);
+		materials[0] = new WorldMaterial();
+		materials[0]->colour_rgb = Colour3f(162/256.f);
+		materials[0]->colour_texture_url = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
+		materials[0]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
+		materials[0]->roughness.val = 1.f;
+		materials[1] = new WorldMaterial();
+		materials[1]->colour_rgb = Colour3f(162/256.f); // TEMP different
+		materials[1]->colour_texture_url = "elm_leaf_new_png_17162787394814938526.png";
+		materials[1]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
+
+		elm_tree_gl_materials.resize(2);
+
+		ModelLoading::setGLMaterialFromWorldMaterial(*materials[0], 0, "", resource_manager, elm_tree_gl_materials[0]);
+		ModelLoading::setGLMaterialFromWorldMaterial(*materials[1], 0, "", resource_manager, elm_tree_gl_materials[1]);
+
+		for(size_t i=0; i<2; ++i)
+		{
+			elm_tree_gl_materials[i].imposterable = true; // Mark mats as imposterable so they can smoothly blend out
+			elm_tree_gl_materials[i].use_wind_vert_shader = true;
+		}
+
+		elm_tree_gl_materials[0].albedo_texture = opengl_engine.getTexture(resource_manager.pathForURL(materials[0]->colour_texture_url));
+
+		elm_tree_gl_materials[1].double_sided = true;
+		elm_tree_gl_materials[1].albedo_texture = elm_leaf_tex;
+		elm_tree_gl_materials[1].backface_albedo_texture = elm_leaf_backface_tex;
+		elm_tree_gl_materials[1].transmission_texture = elm_leaf_transmission_tex;
+	}
 }
 
 
@@ -324,6 +371,8 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 			// Add to mesh manager
 			elm_tree_mesh_data = mesh_manager.insertMesh(model_URL, gl_meshdata);
 			elm_tree_physics_shape_data = mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(model_URL, /*is dynamic=*/false), physics_shape);
+
+			elm_tree_mesh_render_data = elm_tree_mesh_data->gl_meshdata;
 		}
 	}
 
@@ -384,8 +433,18 @@ GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexB
 	GLObjectRef tree_imposter_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(gl_engine, elm_tree_imposter_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
 		/*ob to world matrix=*/Matrix4f::identity());
 
+	tree_imposter_opengl_ob->depth_draw_depth_bias = -2.0; // Move position used for depth away from sun by some distance, to avoid shadows from the imposters shadowing the actual tree model, in the transition zone.
+
 	for(size_t i=0; i<tree_imposter_opengl_ob->materials.size(); ++i)
+	{
 		tree_imposter_opengl_ob->materials[i].imposter = true; // Mark mats as imposters so they use the imposter shader
+		tree_imposter_opengl_ob->materials[i].materialise_lower_z = 100; // begin fade in distance
+		tree_imposter_opengl_ob->materials[i].materialise_upper_z = 120; // end fade in distance
+		tree_imposter_opengl_ob->materials[i].begin_fade_out_distance = 100000;
+		tree_imposter_opengl_ob->materials[i].end_fade_out_distance   = 120000;
+		tree_imposter_opengl_ob->materials[i].imposter_tex_has_multiple_angles = true;
+		
+	}
 
 	if(!tree_imposter_opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
 		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(vert_buf_allocator, *tree_imposter_opengl_ob->mesh_data); // Load mesh data into OpenGL

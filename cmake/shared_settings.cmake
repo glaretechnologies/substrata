@@ -11,6 +11,7 @@ ${GRAPHICS_DIR}/bitmap.cpp
 ${GRAPHICS_DIR}/bitmap.h
 ${GRAPHICS_DIR}/BoxFilterFunction.cpp
 ${GRAPHICS_DIR}/BoxFilterFunction.h
+${GRAPHICS_DIR}/colour3.cpp
 ${GRAPHICS_DIR}/colour3.h
 ${GRAPHICS_DIR}/Colour3f.cpp
 ${GRAPHICS_DIR}/Colour4f.cpp
@@ -107,6 +108,9 @@ set(UTILS_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/utils")
 set(utils
 ${UTILS_DIR}/AESEncryption.cpp
 ${UTILS_DIR}/AESEncryption.h
+${UTILS_DIR}/AllocatorVectorUnitTests.cpp
+${UTILS_DIR}/AllocatorVectorUnitTests.h
+${UTILS_DIR}/AllocatorVector.h
 ${UTILS_DIR}/ArgumentParser.cpp
 ${UTILS_DIR}/ArgumentParser.h
 ${UTILS_DIR}/Array2D.h
@@ -124,6 +128,8 @@ ${UTILS_DIR}/BufferInStream.cpp
 ${UTILS_DIR}/BufferInStream.h
 ${UTILS_DIR}/BufferOutStream.cpp
 ${UTILS_DIR}/BufferOutStream.h
+${UTILS_DIR}/BumpAllocator.cpp
+${UTILS_DIR}/BumpAllocator.h
 ${UTILS_DIR}/CircularBuffer.cpp
 ${UTILS_DIR}/CircularBuffer.h
 ${UTILS_DIR}/Checksum.cpp

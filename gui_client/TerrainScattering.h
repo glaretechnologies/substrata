@@ -45,10 +45,12 @@ public:
 	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
 
 	
+	// Needs to be same as PrecomputedPoint in build_imposters_compute_shader.glsl
 	struct PrecomputedPoint
 	{
 		Vec2f uv;
 		float scale_factor;
+		float rot;
 	};
 
 	struct VegetationLocationInfo
@@ -89,7 +91,7 @@ public:
 	struct GridScatter : public RefCounted
 	{
 		GridScatter()
-		:	last_centre(-1000000, -1000000)
+		:	last_centre(-1000000, -1000000), use_wind_vert_shader(false)
 		{}
 
 		Array2D<GridScatterChunk> chunks;
@@ -97,11 +99,14 @@ public:
 		float chunk_width;
 		int grid_res;
 
+		bool use_wind_vert_shader;
+
 		float begin_fade_in_distance;
 		float end_fade_in_distance;
 		float begin_fade_out_distance;
 		float end_fade_out_distance;
 		OpenGLTextureRef imposter_texture;
+		OpenGLTextureRef imposter_normal_map;
 
 		float density;
 		float base_scale;
@@ -158,6 +163,7 @@ private:
 	Reference<OpenGLMeshRenderData> grass_clump_meshdata;
 
 	Reference<OpenGLTexture> grass_texture;
+	Reference<OpenGLTexture> grass_normal_map;
 
 
 	Reference<OpenGLProgram> build_imposters_prog;

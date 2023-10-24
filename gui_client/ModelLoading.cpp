@@ -92,6 +92,8 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	opengl_mat.transparent = (mat.opacity.val < 1.0f) || BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG); // Hologram is done with transparent material shader.
 
 	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
+	opengl_mat.use_wind_vert_shader = BitUtils::isBitSet(mat.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND);
+	opengl_mat.double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
@@ -151,6 +153,8 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
 	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
+	opengl_mat.use_wind_vert_shader = BitUtils::isBitSet(mat.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND);
+	opengl_mat.double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
 
 	opengl_mat.fresnel_scale = 0.3f;
 
@@ -1126,7 +1130,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	const size_t uv1_offset         = uv0_offset + uv0_size;
 	const size_t num_bytes_per_vert = uv1_offset;// +(mesh_has_uv1 ? packed_uv1_size : 0);
 
-	js::Vector<uint8, 16>& vert_data = mesh_data->vert_data;
+	glare::AllocatorVector<uint8, 16>& vert_data = mesh_data->vert_data;
 	vert_data.reserve(mesh->vert_positions.size() * num_bytes_per_vert);
 
 	js::Vector<uint32, 16> uint32_indices(mesh->triangles.size() * 3 + mesh->quads.size() * 6);

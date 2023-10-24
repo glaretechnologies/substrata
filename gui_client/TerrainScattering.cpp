@@ -113,7 +113,7 @@ void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* openg
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_billboard_tex_path));
 
 		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_billboard_tex_path);
-		map.downcast<ImageMapUInt8>()->floodFillFromOpaquePixels(100); // TEMP
+		map.downcast<ImageMapUInt8>()->floodFillFromOpaquePixels(/*src_alpha_threshold=*/100, /*update_alpha_threshold=*/100, /*iterations=*/100); // TEMP
 
 
 		TextureParams params;
@@ -122,6 +122,22 @@ void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* openg
 		//grass_texture = opengl_engine->getTexture(grass_billboard_tex_path, params);
 		grass_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(grass_billboard_tex_path), *map, params);
 	}
+
+	{
+		const std::string grass_normal_map_path = "D:\\models\\grass clump billboard 2 normals.png";
+		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_normal_map_path));
+
+		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_normal_map_path);
+		map.downcast<ImageMapUInt8>()->floodFillFromOpaquePixels(/*src_alpha_threshold=*/100, /*update_alpha_threshold=*/100, /*iterations=*/100); // TEMP
+
+
+		TextureParams params;
+		params.wrapping = OpenGLTexture::Wrapping_Clamp;
+		params.allow_compression = false;
+		params.use_sRGB = false;
+		grass_normal_map = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(grass_normal_map_path), *map, params);
+	}
+
 	//grass_texture = opengl_engine->getTexture("N:\\substrata\\trunk\\resources\\obstacle.png");
 
 
@@ -143,12 +159,14 @@ void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* openg
 		Reference<GridScatter> scatter = new GridScatter();
 		scatter->chunk_width = widths[i];
 		scatter->grid_res = 17;
+		scatter->use_wind_vert_shader = true;
 		const float max_draw_dist = (scatter->grid_res / 2) * scatter->chunk_width;
 		scatter->begin_fade_in_distance = 0;
 		scatter->end_fade_in_distance = 0.001f;
 		scatter->begin_fade_out_distance = max_draw_dist * begin_fade_fracs[i];
 		scatter->end_fade_out_distance   = max_draw_dist;
 		scatter->imposter_texture = grass_texture;
+		scatter->imposter_normal_map = grass_normal_map;
 		scatter->density = densities[i];
 		scatter->base_scale = 0.5f;
 		scatter->imposter_width_over_height = 1.6f;
@@ -722,15 +740,6 @@ void TerrainScattering::updateCamposForGridScatter(const Vec3d& campos, glare::B
 				}
 
 				updateGridScatterChunkWithComputeShader(x, y, grid_scatter, chunk);
-
-			//	if(chunk.imposters_gl_ob.nonNull())
-			//		opengl_engine->removeObject(chunk.imposters_gl_ob);
-			//
-			//
-			//	makeGridScatterChunk(x, y, bump_allocator, grid_scatter, chunk); // Setschunk.imposters_gl_ob.
-			//
-			//	if(chunk.imposters_gl_ob.nonNull())
-			//		opengl_engine->addObject(chunk.imposters_gl_ob);
 			}
 		}
 
@@ -738,9 +747,6 @@ void TerrainScattering::updateCamposForGridScatter(const Vec3d& campos, glare::B
 		//conPrint("Updating tree ob chunks took " + timer.elapsedString());
 	}
 }
-
-
-
 
 
 static inline unsigned int computeHash(int x, int y, unsigned int hash_mask)
@@ -837,11 +843,13 @@ void TerrainScattering::buildPrecomputedPoints(float chunk_w_m, float density, g
 		}
 
 		const float scale_factor =  (rng.unitRandom() * rng.unitRandom() * rng.unitRandom());
+		const float rot = rng.unitRandom() * Maths::get2Pi<float>();
 
 		{
 		PrecomputedPoint point;
 		point.uv = Vec2f(u, v);
 		point.scale_factor = scale_factor;
+		point.rot = rot;
 		precomputed_points.push_back(point);
 		}
 
@@ -1051,7 +1059,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 	meshdata.num_materials_referenced = 1;
 
 
-	const size_t vert_size_B = sizeof(float) * 6; // position, width, uv
+	const size_t vert_size_B = sizeof(float) * 7; // position, width, uv, rot
 
 	// NOTE: The order of these attributes should be the same as in OpenGLProgram constructor with the glBindAttribLocations.
 	size_t in_vert_offset_B = 0;
@@ -1097,6 +1105,17 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 	meshdata.vertex_spec.attributes.push_back(uv_attrib);
 	in_vert_offset_B += sizeof(float) * 2;
 
+	const size_t imposter_rot_offset_B = in_vert_offset_B;
+	VertexAttrib imposter_rot_attrib;
+	imposter_rot_attrib.enabled = true;
+	imposter_rot_attrib.num_comps = 1;
+	imposter_rot_attrib.type = GL_FLOAT;
+	imposter_rot_attrib.normalised = false;
+	imposter_rot_attrib.stride = (uint32)vert_size_B;
+	imposter_rot_attrib.offset = (uint32)in_vert_offset_B;
+	meshdata.vertex_spec.attributes.push_back(imposter_rot_attrib);
+	in_vert_offset_B += sizeof(float);
+
 	assert(in_vert_offset_B == vert_size_B);
 
 
@@ -1117,6 +1136,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 		const float master_scale = 4.5f;
 		const float imposter_height = veg_locations[i].scale * master_scale;
 		const float imposter_width = imposter_height * imposter_width_over_height;
+		const float imposter_rot = 0; // TEMP
 
 		// Store lower 2 vertices
 		const Vec4f lower_pos = veg_locations[i].pos;
@@ -1128,11 +1148,13 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 0), &v0pos, sizeof(float)*3); // Store x,y,z pos coords.
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 0) + width_offset_B , &imposter_width, sizeof(float));
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 0) + uv_offset_B , &uv0, sizeof(float)*2);
+		std::memcpy(vert_data + vert_size_B * (i * 4 + 0) + imposter_rot_offset_B , &imposter_rot, sizeof(float));
 
 		// Vertex 1
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 1), &v1pos, sizeof(float)*3); // Store x,y,z pos coords.
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 1) + width_offset_B , &imposter_width, sizeof(float));
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 1) + uv_offset_B , &uv1, sizeof(float)*2);
+		std::memcpy(vert_data + vert_size_B * (i * 4 + 1) + imposter_rot_offset_B , &imposter_rot, sizeof(float));
 
 		// Store upper 2 vertices
 		const Vec4f upper_pos = veg_locations[i].pos + Vec4f(0,0,imposter_height, 0);
@@ -1144,11 +1166,13 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 2), &v2pos, sizeof(float)*3); // Store x,y,z pos coords.
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 2) + width_offset_B , &imposter_width, sizeof(float));
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 2) + uv_offset_B , &uv2, sizeof(float)*2);
+		std::memcpy(vert_data + vert_size_B * (i * 4 + 2) + imposter_rot_offset_B , &imposter_rot, sizeof(float));
 
 		// Vertex 3
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 3), &v3pos, sizeof(float)*3); // Store x,y,z pos coords.
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 3) + width_offset_B , &imposter_width, sizeof(float));
 		std::memcpy(vert_data + vert_size_B * (i * 4 + 3) + uv_offset_B , &uv3, sizeof(float)*2);
+		std::memcpy(vert_data + vert_size_B * (i * 4 + 3) + imposter_rot_offset_B , &imposter_rot, sizeof(float));
 
 		aabb_os.enlargeToHoldPoint(lower_pos);
 	}
@@ -1234,7 +1258,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocato
 	meshdata.num_materials_referenced = 1;
 
 
-	const size_t vert_size_B = sizeof(float) * 6; // position, width, uv
+	const size_t vert_size_B = sizeof(float) * 7; // position, width, uv, rot
 
 	// NOTE: The order of these attributes should be the same as in OpenGLProgram constructor with the glBindAttribLocations.
 	size_t in_vert_offset_B = 0;
@@ -1269,6 +1293,17 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocato
 	uv_attrib.offset = (uint32)in_vert_offset_B;
 	meshdata.vertex_spec.attributes.push_back(uv_attrib);
 	in_vert_offset_B += sizeof(float) * 2;
+
+	//const size_t imposter_rot_offset_B = in_vert_offset_B;
+	VertexAttrib imposter_rot_attrib;
+	imposter_rot_attrib.enabled = true;
+	imposter_rot_attrib.num_comps = 1;
+	imposter_rot_attrib.type = GL_FLOAT;
+	imposter_rot_attrib.normalised = false;
+	imposter_rot_attrib.stride = (uint32)vert_size_B;
+	imposter_rot_attrib.offset = (uint32)in_vert_offset_B;
+	meshdata.vertex_spec.attributes.push_back(imposter_rot_attrib);
+	in_vert_offset_B += sizeof(float);
 
 	assert(in_vert_offset_B == vert_size_B);
 
@@ -1336,6 +1371,7 @@ void TerrainScattering::makeTreeChunk(int chunk_x_index, int chunk_y_index, glar
 		/*precomputed points=*/NULL, /*locations out=*/chunk.locations);
 	if(chunk.imposters_gl_ob.nonNull())
 	{
+		chunk.imposters_gl_ob->depth_draw_depth_bias = -2.0; // Move position used for depth away from sun by some distance, to avoid shadows from the imposters shadowing the actual tree model, in the transition zone.
 		chunk.imposters_gl_ob->materials[0].materialise_lower_z = 100; // begin fade in distance
 		chunk.imposters_gl_ob->materials[0].materialise_upper_z = 120; // end fade in distance
 		chunk.imposters_gl_ob->materials[0].begin_fade_out_distance = 100000;
@@ -1381,11 +1417,13 @@ void TerrainScattering::makeGridScatterChunk(int chunk_x_index, int chunk_y_inde
 	if(chunk.imposters_gl_ob.nonNull())
 	{
 		chunk.imposters_gl_ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
+		chunk.imposters_gl_ob->materials[0].use_wind_vert_shader = grid_scatter.use_wind_vert_shader;
 		chunk.imposters_gl_ob->materials[0].materialise_lower_z = grid_scatter.begin_fade_in_distance;
 		chunk.imposters_gl_ob->materials[0].materialise_upper_z = grid_scatter.end_fade_in_distance;
 		chunk.imposters_gl_ob->materials[0].begin_fade_out_distance = grid_scatter.begin_fade_out_distance;
 		chunk.imposters_gl_ob->materials[0].end_fade_out_distance = grid_scatter.end_fade_out_distance;
 		chunk.imposters_gl_ob->materials[0].albedo_texture = grid_scatter.imposter_texture;
+		chunk.imposters_gl_ob->materials[0].normal_map = grid_scatter.imposter_normal_map;
 	}
 }
 
@@ -1400,89 +1438,136 @@ static void bindTextureUnitToSampler(const OpenGLTexture& texture, int texture_u
 
 void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_index, int chunk_y_index, GridScatter& grid_scatter, GridScatterChunk& chunk)
 {
-	//glQueryCounter(timer_query_ids[0], GL_TIMESTAMP); // See http://www.lighthouse3d.com/tutorials/opengl-timer-query/
+	// See if there is any vegetation on this chunk, by checking all pixels on the mask map that the section covers
 
-	build_imposters_prog->useProgram();
+	// First, compute terrain section this chunk lies on:
+	const float centre_p_x = (chunk_x_index + 0.5f) * grid_scatter.chunk_width; // world space x coordinate in metres at centre of chunk
+	const float centre_p_y = (chunk_y_index + 0.5f) * grid_scatter.chunk_width;
+	const float centre_nx = centre_p_x * terrain_scale_factor + 0.5f; // Normalised section coordinates of centre of chunk.  Offset by 0.5 so that the central heightmap is centered at (0,0,0).
+	const float centre_ny = centre_p_y * terrain_scale_factor + 0.5f;
+	const int section_x = Maths::floorToInt(centre_nx) + TerrainSystem::TERRAIN_SECTION_OFFSET;
+	const int section_y = Maths::floorToInt(centre_ny) + TerrainSystem::TERRAIN_SECTION_OFFSET;
 
-	// Update chunk_info_ssbo
-	ShaderChunkInfo chunk_info;
-	chunk_info.chunk_x_index = chunk_x_index;
-	chunk_info.chunk_y_index = chunk_y_index;
-	chunk_info.chunk_w_m = grid_scatter.chunk_width;
-	chunk_info.base_scale = grid_scatter.base_scale;
-	chunk_info.imposter_width_over_height = grid_scatter.imposter_width_over_height;
-	chunk_info.terrain_scale_factor = terrain_scale_factor;
-	chunk_info.vert_data_offset_B = (uint32)chunk.imposters_gl_ob->mesh_data->vbo_handle.offset;
-
-	chunk_info_ssbo->updateData(0, &chunk_info, sizeof(chunk_info));
-
-	// Bind stuff
-
-	// Bind heightmap and mask map
-	// Work out which source terrain data section we are reading from
-	{
-	const float p_x = (chunk_x_index + 0.5f) * grid_scatter.chunk_width;
-	const float p_y = (chunk_y_index + 0.5f) * grid_scatter.chunk_width;
-	const float nx = p_x * terrain_scale_factor + 0.5f; // Offset by 0.5 so that the central heightmap is centered at (0,0,0).
-	const float ny = p_y * terrain_scale_factor + 0.5f;
-	const int section_x = Maths::floorToInt(nx) + TerrainSystem::TERRAIN_SECTION_OFFSET;
-	const int section_y = Maths::floorToInt(ny) + TerrainSystem::TERRAIN_SECTION_OFFSET;
+	TerrainDataSection* section = NULL;
+	float max_vegetation_val = 0;
 	if(section_x >= 0 && section_x < TerrainSystem::TERRAIN_DATA_SECTION_RES && section_y >= 0 && section_y < TerrainSystem::TERRAIN_DATA_SECTION_RES)
 	{
-		TerrainDataSection& section = terrain_system->terrain_data_sections[section_x + section_y*TerrainSystem::TERRAIN_DATA_SECTION_RES];
-		if(section.heightmap_gl_tex.nonNull())
+		section = &terrain_system->terrain_data_sections[section_x + section_y*TerrainSystem::TERRAIN_DATA_SECTION_RES];
+		
+		const float query_nw = grid_scatter.chunk_width / terrain_section_w; // query width in normalised section coordinates
+		const int query_w_px = myMax(1, (int)(section->maskmap->getMapWidth() * query_nw)); // in pixels
+		const float corner_p_x = chunk_x_index * grid_scatter.chunk_width;
+		const float corner_p_y = chunk_y_index * grid_scatter.chunk_width;
+		const float corner_nx = Maths::fract(corner_p_x * terrain_scale_factor + 0.5f); // Normalised section coordinates.
+		const float corner_ny = Maths::fract(corner_p_y * terrain_scale_factor + 0.5f); // Normalised section coordinates.
+		const float step_n = query_nw / query_w_px;
+		for(int j=0; j<=query_w_px; ++j)
+		for(int i=0; i<=query_w_px; ++i)
 		{
-			bindTextureUnitToSampler(*section.heightmap_gl_tex, /*texture unit index=*/0, terrain_height_map_location);
-			bindTextureUnitToSampler(*section.mask_gl_tex,      /*texture unit index=*/1, terrain_mask_tex_location);
+			const float nx = corner_nx + (float)i * step_n;
+			const float ny = corner_ny + (float)i * step_n;
+			const Colour4f mask_val = section->maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
+			max_vegetation_val = myMax(max_vegetation_val, mask_val[2]);
 		}
 	}
-	}
 
-	bindTextureUnitToSampler(opengl_engine->getFBMTex(), /*texture unit index=*/2, terrain_fbm_tex_location);
-
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/VERTEX_DATA_BINDING_POINT_INDEX,        chunk.imposters_gl_ob->mesh_data->vbo_handle.vbo->bufferName());
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/PRECOMPUTED_POINTS_BINDING_POINT_INDEX, grid_scatter.precomputed_points_ssbo->handle);
-	
-	// Execute compute shader
-	glDispatchCompute(/*num groups x=*/(GLuint)grid_scatter.precomputed_points.size(), 1, 1);
-	OpenGLProgram::useNoPrograms();
-
-	glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT); // Make sure all writes to object vertices have finished before use.
-
-	// Update AABB with approximate bounds
-	js::AABBox aabb_ws = js::AABBox::emptyAABBox();
-	const int N = 4;
-	for(int y=0; y<N; ++y)
-	for(int x=0; x<N; ++x)
+	if(max_vegetation_val == 0)
 	{
-		const float p_x = (chunk_x_index + x * (1.f / (N - 1))) * grid_scatter.chunk_width;
-		const float p_y = (chunk_y_index + y * (1.f / (N - 1))) * grid_scatter.chunk_width;
-		const float p_z = terrain_system->evalTerrainHeight(p_x, p_y, 1.0f);
-		aabb_ws.enlargeToHoldPoint(Vec4f(p_x, p_y, p_z, 1));
+		if(chunk.imposters_gl_ob->mesh_data->batches[0].num_indices != 0)
+		{
+			chunk.imposters_gl_ob->mesh_data->batches[0].num_indices = 0; // Disable drawing
+			opengl_engine->objectBatchDataChanged(*chunk.imposters_gl_ob);
+
+			chunk.imposters_gl_ob->aabb_ws = js::AABBox(Vec4f(0,0,-1.0e10f, 1), Vec4f(0,0,-1.0e10f, 1));
+		}
 	}
+	else
+	{
+		if(chunk.imposters_gl_ob->mesh_data->batches[0].num_indices == 0)
+		{
+			chunk.imposters_gl_ob->mesh_data->batches[0].num_indices = (uint32)grid_scatter.precomputed_points.size() * 6; // (re)enable drawing
+			opengl_engine->objectBatchDataChanged(*chunk.imposters_gl_ob);
+		}
 
-	// Expand AABB a little to handle finite size of imposters, and also terrain bumps/dips between sample positions
-	const float padding = 0.3f;
-	aabb_ws.min_ -= Vec4f(padding, padding, grid_scatter.chunk_width * 0.2f, 0);
-	aabb_ws.max_ += Vec4f(padding, padding, grid_scatter.chunk_width * 0.2f, 0);
+
+		//glQueryCounter(timer_query_ids[0], GL_TIMESTAMP); // See http://www.lighthouse3d.com/tutorials/opengl-timer-query/
+
+		build_imposters_prog->useProgram();
+
+		// Update chunk_info_ssbo
+		ShaderChunkInfo chunk_info;
+		chunk_info.chunk_x_index = chunk_x_index;
+		chunk_info.chunk_y_index = chunk_y_index;
+		chunk_info.chunk_w_m = grid_scatter.chunk_width;
+		chunk_info.base_scale = grid_scatter.base_scale;
+		chunk_info.imposter_width_over_height = grid_scatter.imposter_width_over_height;
+		chunk_info.terrain_scale_factor = terrain_scale_factor;
+		chunk_info.vert_data_offset_B = (uint32)chunk.imposters_gl_ob->mesh_data->vbo_handle.offset;
+
+		chunk_info_ssbo->updateData(0, &chunk_info, sizeof(chunk_info));
+
+		// Bind stuff
+
+		// Bind heightmap and mask map
+		// Work out which source terrain data section we are reading from
+		{
+
+		if(section)
+		{
+			if(section->heightmap_gl_tex.nonNull())
+			{
+				bindTextureUnitToSampler(*section->heightmap_gl_tex, /*texture unit index=*/0, terrain_height_map_location);
+				bindTextureUnitToSampler(*section->mask_gl_tex,      /*texture unit index=*/1, terrain_mask_tex_location);
+			}
+		}
+		}
+
+		bindTextureUnitToSampler(opengl_engine->getFBMTex(), /*texture unit index=*/2, terrain_fbm_tex_location);
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/VERTEX_DATA_BINDING_POINT_INDEX,        chunk.imposters_gl_ob->mesh_data->vbo_handle.vbo->bufferName());
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/PRECOMPUTED_POINTS_BINDING_POINT_INDEX, grid_scatter.precomputed_points_ssbo->handle);
 	
-	chunk.imposters_gl_ob->aabb_ws = aabb_ws;
+		// Execute compute shader
+		glDispatchCompute(/*num groups x=*/(GLuint)grid_scatter.precomputed_points.size(), 1, 1);
+		OpenGLProgram::useNoPrograms();
+
+		glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT); // Make sure all writes to object vertices have finished before use.
+
+		// Update AABB with approximate bounds
+		js::AABBox aabb_ws = js::AABBox::emptyAABBox();
+		const int N = 4;
+		for(int y=0; y<N; ++y)
+		for(int x=0; x<N; ++x)
+		{
+			const float p_x = (chunk_x_index + x * (1.f / (N - 1))) * grid_scatter.chunk_width;
+			const float p_y = (chunk_y_index + y * (1.f / (N - 1))) * grid_scatter.chunk_width;
+			const float p_z = terrain_system->evalTerrainHeight(p_x, p_y, 1.0f);
+			aabb_ws.enlargeToHoldPoint(Vec4f(p_x, p_y, p_z, 1));
+		}
+
+		// Expand AABB a little to handle finite size of imposters, and also terrain bumps/dips between sample positions
+		const float padding = 0.3f;
+		aabb_ws.min_ -= Vec4f(padding, padding, grid_scatter.chunk_width * 0.2f, 0);
+		aabb_ws.max_ += Vec4f(padding, padding, grid_scatter.chunk_width * 0.2f, 0);
+	
+		chunk.imposters_gl_ob->aabb_ws = aabb_ws;
 
 
-	/*glQueryCounter(timer_query_ids[1], GL_TIMESTAMP);
+		/*glQueryCounter(timer_query_ids[1], GL_TIMESTAMP);
 
-	// wait until the results are available
-	GLint stopTimerAvailable = 0;
-	while(!stopTimerAvailable)
-		glGetQueryObjectiv(timer_query_ids[1], GL_QUERY_RESULT_AVAILABLE, &stopTimerAvailable);
+		// wait until the results are available
+		GLint stopTimerAvailable = 0;
+		while(!stopTimerAvailable)
+			glGetQueryObjectiv(timer_query_ids[1], GL_QUERY_RESULT_AVAILABLE, &stopTimerAvailable);
 
-	// get query results
-	GLuint64 startTime, stopTime;
-	glGetQueryObjectui64v(timer_query_ids[0], GL_QUERY_RESULT, &startTime);
-	glGetQueryObjectui64v(timer_query_ids[1], GL_QUERY_RESULT, &stopTime);
+		// get query results
+		GLuint64 startTime, stopTime;
+		glGetQueryObjectui64v(timer_query_ids[0], GL_QUERY_RESULT, &startTime);
+		glGetQueryObjectui64v(timer_query_ids[1], GL_QUERY_RESULT, &stopTime);
 
-	const double elapsed_ms = (stopTime - startTime) / 1000000.0;
-	conPrint("updateGridScatterChunkWithComputeShader GPU time: " + doubleToStringNSigFigs(elapsed_ms, 4) + " ms");*/
+		const double elapsed_ms = (stopTime - startTime) / 1000000.0;
+		conPrint("updateGridScatterChunkWithComputeShader GPU time: " + doubleToStringNSigFigs(elapsed_ms, 4) + " ms");*/
+	}
 }
 
 

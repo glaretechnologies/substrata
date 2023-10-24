@@ -6,7 +6,8 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
-
+#include "PhysicsObject.h"
+#include <opengl/OpenGLEngine.h>
 #include "../shared/WorldObject.h"
 #include "../simpleraytracer/raymesh.h"
 #include <map>
@@ -20,6 +21,7 @@ class OpenGLEngine;
 class VertexBufferAllocator;
 struct GLObject;
 class OpenGLTexture;
+class OpenGLMeshRenderData;
 struct PhysicsShapeData;
 
 
@@ -97,8 +99,14 @@ private:
 
 	std::map<WorldObject*, Reference<ObBiomeData> > ob_to_biome_data;
 
+public:
+	Reference<OpenGLMeshRenderData> elm_tree_mesh_render_data;
+
+	PhysicsShape elm_tree_physics_shape;
 
 	Reference<MeshData> elm_tree_mesh_data;
 	Reference<PhysicsShapeData> elm_tree_physics_shape_data;
 	Reference<MeshData> elm_tree_imposter_mesh_data;
+
+	std::vector<OpenGLMaterial> elm_tree_gl_materials;
 };
