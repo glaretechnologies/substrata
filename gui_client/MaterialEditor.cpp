@@ -45,6 +45,9 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 
 	connect(this->emissionTextureFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
 	connect(this->luminanceDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	
+	connect(this->windCheckBox,						SIGNAL(toggled(bool)),				this, SIGNAL(materialChanged()));
+	connect(this->doubleSidedCheckBox,				SIGNAL(toggled(bool)),				this, SIGNAL(materialChanged()));
 }
 
 
@@ -112,6 +115,9 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 
 	SignalBlocker::setValue(this->luminanceDoubleSpinBox, mat.emission_lum_flux_or_lum);
 	
+	SignalBlocker::setChecked(this->windCheckBox,        (mat.flags & WorldMaterial::USE_VERT_COLOURS_FOR_WIND) != 0);
+	SignalBlocker::setChecked(this->doubleSidedCheckBox, (mat.flags & WorldMaterial::DOUBLE_SIDED_FLAG) != 0);
+
 	updateColourButton();
 }
 
@@ -130,6 +136,7 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	mat_out.metallic_fraction	= ScalarVal(this->metallicFractionDoubleSpinBox->value());
 	mat_out.opacity				= ScalarVal(this->opacityDoubleSpinBox->value());
 
+	mat_out.flags = 0;
 	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::HOLOGRAM_FLAG, this->hologramCheckBox->isChecked());
 
 	mat_out.roughness.texture_url = QtUtils::toIndString(this->metallicRoughnessFileSelectWidget->filename());
@@ -138,6 +145,9 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	mat_out.emission_texture_url = QtUtils::toIndString(this->emissionTextureFileSelectWidget->filename());
 
 	mat_out.emission_lum_flux_or_lum = this->luminanceDoubleSpinBox->value();
+
+	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND, this->windCheckBox->isChecked());
+	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::DOUBLE_SIDED_FLAG, this->doubleSidedCheckBox->isChecked());
 }
 
 

@@ -238,7 +238,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	axis_and_rot_obs_enabled(false),
 	closing(false),
 	last_vehicle_renewal_msg_time(-1),
-	main_timer_id(0)
+	main_timer_id(0),
+	bump_allocator(/*size (B)=*/16 * 1024 * 1024)
 {
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -4327,7 +4328,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
 					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
 					"num batches (draw calls): " + toString(selected_ob->opengl_engine_ob->mesh_data->batches.size()) + "\n" +
-					"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n";
+					"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n" +
+					"shading normals: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_shading_normals) + "\n" + 
+					"vert colours: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_vert_colours) + "\n";
 
 				if(!selected_ob->opengl_engine_ob->materials.empty() && !selected_ob->materials.empty())
 				{
@@ -6597,6 +6600,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			for(size_t i=0; i<use_num_av_positions; ++i)
 				ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations[i] = temp_av_positions[i];
 
+			ui->glWidget->opengl_engine->getCurrentScene()->grass_pusher_sphere_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + Vec4f(0, 0, -PlayerPhysics::getEyeHeight(), 0);
 		}
 		catch(glare::Exception& e)
 		{
@@ -7260,7 +7264,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		checkForAudioRangeChanges();
 
 	if(terrain_system.nonNull())
-		terrain_system->updateCampos(this->cam_controller.getPosition());
+		terrain_system->updateCampos(this->cam_controller.getPosition(), bump_allocator);
 
 
 
@@ -13205,8 +13209,10 @@ void MainWindow::updateGroundPlane()
 
 	if(terrain_system.isNull())
 	{
+		biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager); // TEMP NEW
+
 		terrain_system = new TerrainSystem();
-		terrain_system->init(ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, &this->msg_queue);
+		terrain_system->init(ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
 	}
 
 #if 0

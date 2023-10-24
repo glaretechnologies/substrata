@@ -78,6 +78,8 @@ public:
 	// Used to determine the file format of LOD level textures, e.g. will be a PNG if this flag is set.
 	static const uint32 MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
 	static const uint32 HOLOGRAM_FLAG               = 4; // E.g. just emission, no light scattering.
+	static const uint32 USE_VERT_COLOURS_FOR_WIND   = 8;
+	static const uint32 DOUBLE_SIDED_FLAG           = 16;
 
 	uint32 flags;
 

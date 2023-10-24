@@ -31,6 +31,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../shared/WorldObject.h"
 #include "../utils/ArgumentParser.h"
 #include "../utils/Timer.h"
+#include "../utils/BumpAllocator.h"
 #include "../utils/TaskManager.h"
 #include "../utils/StandardPrintOutput.h"
 #include "../utils/CircularBuffer.h"
@@ -716,4 +717,6 @@ public:
 	Timer discovery_udp_packet_timer;
 
 	Reference<TerrainSystem> terrain_system;
+
+	glare::BumpAllocator bump_allocator;
 };
