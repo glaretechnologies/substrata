@@ -983,7 +983,9 @@ void MainWindow::startLoadingTextureForObject(const Vec4f& centroid_ws, float aa
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level, importance_factor);
+					load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
+						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB, /*allow compression=*/true, /*is_terrain_map=*/false), 
+						max_dist_for_ob_lod_level, importance_factor);
 			}
 		}
 	}
@@ -1014,7 +1016,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true), max_dist_for_ob_lod_level);
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true, /*allow compression=*/true, /*is_terrain_map=*/false), max_dist_for_ob_lod_level);
 			}
 		}
 	}
@@ -2355,7 +2357,8 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 						const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 						if(just_added)
 							//load_item_queue.enqueueItem(aabb_ws.centroid(), aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level);
-							load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/tex_path, /*use_sRGB=*/true), /*task max dist=*/std::numeric_limits<float>::infinity());
+							load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/tex_path, /*use_sRGB=*/true, /*allow compression=*/true, /*is_terrain_map=*/false), 
+								/*task max dist=*/std::numeric_limits<float>::infinity());
 					}
 				}
 				else
@@ -3786,6 +3789,10 @@ void MainWindow::processLoading()
 
 				if(tex_loading_progress.done() || !tex_loading_progress.loadingInProgress())
 				{
+					if(cur_loading_terrain_map.nonNull())
+						terrain_system->handleTextureLoaded(tex_loading_progress.path, cur_loading_terrain_map);
+
+
 					tex_loading_progress.tex_data = NULL;
 					tex_loading_progress.opengl_tex = NULL;
 
@@ -3882,6 +3889,8 @@ void MainWindow::processLoading()
 
 					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 					num_textures_loaded++;
+
+					this->cur_loading_terrain_map = message->terrain_map;
 
 					try
 					{
@@ -5403,18 +5412,22 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
 
 						bool use_SRGB = true;
+						bool allow_compression = true;
 						Vec3d pos(0, 0, 0);
 						float size_factor = 1;
 						bool build_dynamic_physics_ob = false;
+						bool is_terrain_map = false;
 						// Look up in our map of downloading resources
 						auto res = URL_to_downloading_info.find(URL);
 						if(res != URL_to_downloading_info.end())
 						{
 							const DownloadingResourceInfo& info = res->second;
 							use_SRGB = info.use_sRGB;
+							allow_compression = info.allow_compression;
 							pos = info.pos;
 							size_factor = info.size_factor;
 							build_dynamic_physics_ob = info.build_dynamic_physics_ob;
+							is_terrain_map = info.is_terrain_map;
 						}
 						else
 						{
@@ -5433,7 +5446,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 								if(just_added)
-									load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_SRGB),
+									load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, 
+										new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, use_SRGB, allow_compression, is_terrain_map),
 										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 							}
 						}
@@ -13211,8 +13225,139 @@ void MainWindow::updateGroundPlane()
 	{
 		biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager); // TEMP NEW
 
+		// TEMP hard code terrain specification here
+		TerrainSpec spec;
+		{
+			TerrainSpecSection section_spec;
+			section_spec.x = 0;
+			section_spec.y = 0;
+			section_spec.heightmap_URL = "heightfield_with_deposited_sed_0_0_exr_7476966575222569805.exr";
+			section_spec.mask_map_URL = "mask_0_0_png_2938168406394891568.png";
+
+			spec.section_specs.push_back(section_spec);
+		}
+		spec.detail_col_map_URLs[0] = "ROCK_01_250cm_COLOR_2k_jpg_2053876572380771645.jpg";
+		spec.detail_col_map_URLs[1] = "SAND_07_CRACKED_COLOR_2k_jpg_6250238929326165990.jpg";
+		spec.detail_col_map_URLs[2] = "PACKED_1_Grass0066_5_S_2_yellow_jpg_18143602756437551523.jpg";
+
+		spec.detail_height_map_URLs[0] = "ROCK_01_250cm_DEPTH_1024_8_bit_png_16343331399131414954.png";
+		spec.detail_height_map_URLs[1] = "SAND_07_CRACKED_DEPTH_2k_png_17910689727088886157.png";
+
+		// Convert URL-based terrain spec to path-based spec
+		TerrainPathSpec path_spec;
+		path_spec.section_specs.resize(spec.section_specs.size());
+		for(size_t i=0; i<spec.section_specs.size(); ++i)
+		{
+			path_spec.section_specs[i].x = spec.section_specs[i].x;
+			path_spec.section_specs[i].y = spec.section_specs[i].y;
+			if(!spec.section_specs[i].heightmap_URL.empty())
+				path_spec.section_specs[i].heightmap_path = resource_manager->pathForURL(spec.section_specs[i].heightmap_URL);
+			if(!spec.section_specs[i].mask_map_URL.empty())
+				path_spec.section_specs[i].mask_map_path  = resource_manager->pathForURL(spec.section_specs[i].mask_map_URL);
+		}
+
+		for(int i=0; i<4; ++i)
+		{
+			if(!spec.detail_col_map_URLs[i].empty())
+				path_spec.detail_col_map_paths[i]    = resource_manager->pathForURL(spec.detail_col_map_URLs[i]);
+			if(!spec.detail_height_map_URLs[i].empty())
+				path_spec.detail_height_map_paths[i] = resource_manager->pathForURL(spec.detail_height_map_URLs[i]);
+		}
+
+
+		static const float terrain_section_w = 8 * 1024;
+		const float aabb_ws_longest_len = terrain_section_w;
+
+		//----------------------------- Start downloading textures, if not already present on disk in resource manager -----------------------------
+		for(size_t i=0; i<spec.section_specs.size(); ++i)
+		{
+			TerrainSpecSection& section_spec = spec.section_specs[i];
+			const Vec4f centroid_ws(section_spec.x  * terrain_section_w, section_spec.y  * terrain_section_w, 0, 1);
+
+			if(!section_spec.heightmap_URL.empty())
+			{
+				DownloadingResourceInfo info;
+				info.use_sRGB = false;
+				info.allow_compression = false;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(centroid_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, info);
+			}
+			if(!section_spec.mask_map_URL.empty())
+			{
+				DownloadingResourceInfo info;
+				info.use_sRGB = false;
+				info.allow_compression = false;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(centroid_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
+			}
+		}
+
+		for(int i=0; i<4; ++i)
+		{
+			if(!spec.detail_col_map_URLs[i].empty())
+			{
+				DownloadingResourceInfo info;
+				info.use_sRGB = true;
+				info.allow_compression = true;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(0,0,0);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(spec.detail_col_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
+			}
+			if(!spec.detail_height_map_URLs[i].empty())
+			{
+				DownloadingResourceInfo info;
+				info.use_sRGB = false;
+				info.allow_compression = false;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(0,0,0);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(spec.detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
+			}
+		}
+		//--------------------------------------------------------------------------------------------------------------------------
+
+
+		//----------------------------- Start loading textures, if the resource is already present on disk -----------------------------
+		for(size_t i=0; i<spec.section_specs.size(); ++i)
+		{
+			TerrainSpecSection& section_spec = spec.section_specs[i];
+			TerrainPathSpecSection& path_section = path_spec.section_specs[i];
+
+			const Vec4f centroid_ws(section_spec.x  * terrain_section_w, section_spec.y  * terrain_section_w, 0, 1);
+			
+			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
+				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.heightmap_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+
+			if(!section_spec.mask_map_URL.empty())
+				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.mask_map_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+		}
+
+		for(int i=0; i<4; ++i)
+		{
+			if(!spec.detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_col_map_URLs[i]))
+				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_col_map_paths[i], /*use_sRGB=*/true, /*allow compression=*/true, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+
+			if(!spec.detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_height_map_URLs[i]))
+				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_height_map_paths[i], /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+		}
+		//--------------------------------------------------------------------------------------------------------------------------------
+
+
 		terrain_system = new TerrainSystem();
-		terrain_system->init(ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
+		terrain_system->init(path_spec, ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
 	}
 
 #if 0

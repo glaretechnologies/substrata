@@ -42,6 +42,8 @@ public:
 
 	void shutdown();
 
+	void rebuild();
+
 	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
 
 	
