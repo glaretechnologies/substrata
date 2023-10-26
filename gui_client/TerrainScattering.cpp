@@ -354,6 +354,18 @@ void TerrainScattering::shutdown()
 }
 
 
+void TerrainScattering::rebuild()
+{
+	last_centre_x = -100000;
+	last_centre_y = -100000;
+
+	last_ob_centre_i = Vec2i(-100000);
+
+	for(size_t i=0; i<grid_scatters.size(); ++i)
+		grid_scatters[i]->last_centre = Vec2i(-100000);
+}
+
+
 /*
                    large chunk (0, 0)                                     large chunk (1, 0)
 ==============================================================================================================
@@ -1453,21 +1465,23 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 	if(section_x >= 0 && section_x < TerrainSystem::TERRAIN_DATA_SECTION_RES && section_y >= 0 && section_y < TerrainSystem::TERRAIN_DATA_SECTION_RES)
 	{
 		section = &terrain_system->terrain_data_sections[section_x + section_y*TerrainSystem::TERRAIN_DATA_SECTION_RES];
-		
-		const float query_nw = grid_scatter.chunk_width / terrain_section_w; // query width in normalised section coordinates
-		const int query_w_px = myMax(1, (int)(section->maskmap->getMapWidth() * query_nw)); // in pixels
-		const float corner_p_x = chunk_x_index * grid_scatter.chunk_width;
-		const float corner_p_y = chunk_y_index * grid_scatter.chunk_width;
-		const float corner_nx = Maths::fract(corner_p_x * terrain_scale_factor + 0.5f); // Normalised section coordinates.
-		const float corner_ny = Maths::fract(corner_p_y * terrain_scale_factor + 0.5f); // Normalised section coordinates.
-		const float step_n = query_nw / query_w_px;
-		for(int j=0; j<=query_w_px; ++j)
-		for(int i=0; i<=query_w_px; ++i)
+		if(section->maskmap.nonNull())
 		{
-			const float nx = corner_nx + (float)i * step_n;
-			const float ny = corner_ny + (float)i * step_n;
-			const Colour4f mask_val = section->maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
-			max_vegetation_val = myMax(max_vegetation_val, mask_val[2]);
+			const float query_nw = grid_scatter.chunk_width / terrain_section_w; // query width in normalised section coordinates
+			const int query_w_px = myMax(1, (int)(section->maskmap->getMapWidth() * query_nw)); // in pixels
+			const float corner_p_x = chunk_x_index * grid_scatter.chunk_width;
+			const float corner_p_y = chunk_y_index * grid_scatter.chunk_width;
+			const float corner_nx = Maths::fract(corner_p_x * terrain_scale_factor + 0.5f); // Normalised section coordinates.
+			const float corner_ny = Maths::fract(corner_p_y * terrain_scale_factor + 0.5f); // Normalised section coordinates.
+			const float step_n = query_nw / query_w_px;
+			for(int j=0; j<=query_w_px; ++j)
+			for(int i=0; i<=query_w_px; ++i)
+			{
+				const float nx = corner_nx + (float)i * step_n;
+				const float ny = corner_ny + (float)i * step_n;
+				const Colour4f mask_val = section->maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
+				max_vegetation_val = myMax(max_vegetation_val, mask_val[2]);
+			}
 		}
 	}
 

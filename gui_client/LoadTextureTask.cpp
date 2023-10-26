@@ -24,8 +24,9 @@ Copyright Glare Technologies Limited 2019 -
 #define GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT					0x8E8F
 
 
-LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, bool use_sRGB_)
-:	opengl_engine(opengl_engine_), texture_server(texture_server_), result_msg_queue(result_msg_queue_), path(path_), use_sRGB(use_sRGB_)
+LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
+	bool use_sRGB_, bool allow_compression_, bool is_terrain_map_)
+:	opengl_engine(opengl_engine_), texture_server(texture_server_), result_msg_queue(result_msg_queue_), path(path_), use_sRGB(use_sRGB_), allow_compression(allow_compression_), is_terrain_map(is_terrain_map_)
 {}
 
 
@@ -69,8 +70,8 @@ void LoadTextureTask::run(size_t thread_index)
 		}
 #endif
 
-		const bool allow_compression = opengl_engine->textureCompressionSupportedAndEnabled();
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), allow_compression, /*build_mipmaps=*/true);
+		const bool do_compression = opengl_engine->textureCompressionSupportedAndEnabled() && this->allow_compression;
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), do_compression, /*build_mipmaps=*/true);
 
 		if(hasExtension(key, "gif") && texture_data->compressedSizeBytes() > 100000000)
 		{
@@ -84,6 +85,8 @@ void LoadTextureTask::run(size_t thread_index)
 		msg->tex_key = key;
 		msg->use_sRGB = use_sRGB;
 		msg->texture_data = texture_data;
+		if(is_terrain_map)
+			msg->terrain_map = map;
 		result_msg_queue->enqueue(msg);
 	}
 	catch(TextureServerExcep& e)

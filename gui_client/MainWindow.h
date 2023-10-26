@@ -75,10 +75,12 @@ struct IMFDXGIDeviceManager;
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : use_sRGB(true), build_dynamic_physics_ob(false) {}
+	DownloadingResourceInfo() : use_sRGB(true), allow_compression(true), build_dynamic_physics_ob(false), is_terrain_map(false) {}
 
 	bool use_sRGB; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
-	bool build_dynamic_physics_ob; // For downloading meshes.
+	bool allow_compression; // For downloading textures.
+	bool build_dynamic_physics_ob; // For downloading meshes.  Once the mesh is downloaded we need to know if we want to build the dynamic or static physics shape for it.
+	bool is_terrain_map;
 
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
@@ -693,6 +695,8 @@ public:
 	int cur_loading_voxel_subsample_factor;
 	PhysicsShape cur_loading_physics_shape;
 	int cur_loading_voxel_ob_model_lod_level;
+
+	Map2DRef cur_loading_terrain_map; // Non-null iff we are currently loading a map used for the terrain system into OpenGL.
 
 	OpenGLTextureLoadingProgress tex_loading_progress;
 

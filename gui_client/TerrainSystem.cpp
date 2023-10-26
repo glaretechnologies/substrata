@@ -187,24 +187,6 @@ typedef ImageMap<uint16, UInt16ComponentValueTraits> ImageMapUInt16;
 typedef Reference<ImageMapUInt16> ImageMapUInt16Ref;
 
 
-// Take heightmap data from src_heightfield_map and put in alpha channel of src_col_map, return new map.
-static Map2DRef combineMaps(const Map2DRef& src_col_map, const Map2DRef& src_heightfield_map)
-{
-	ImageMapUInt8*  src_col_map_uint8     = src_col_map        .downcastToPtr<ImageMapUInt8>();
-	ImageMapUInt16* src_height_map_uint16 = src_heightfield_map.downcastToPtr<ImageMapUInt16>();
-
-	ImageMapUInt8Ref new_map = new ImageMapUInt8(src_col_map->getMapWidth(), src_col_map->getMapHeight(), 4);
-	for(size_t i=0; i<new_map->numPixels(); ++i)
-	{
-		new_map->getPixel(i)[0] = src_col_map_uint8->getPixel(i)[0];
-		new_map->getPixel(i)[1] = src_col_map_uint8->getPixel(i)[1];
-		new_map->getPixel(i)[2] = src_col_map_uint8->getPixel(i)[2];
-		new_map->getPixel(i)[3] = (uint8)(src_height_map_uint16->getPixel(i)[0] / 256);
-	}
-	return new_map;
-}
-
-
 // Create index data for chunk, will be reused for all chunks
 static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* opengl_engine, int vert_res_with_borders)
 {
@@ -240,8 +222,9 @@ static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* o
 }
 
 
-void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::TaskManager* task_manager_, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
+void TerrainSystem::init(const TerrainPathSpec& spec_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::TaskManager* task_manager_, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
 {
+	spec = spec_;
 	opengl_engine = opengl_engine_;
 	physics_world = physics_world_;
 	biome_manager = biome_manager_;
@@ -250,72 +233,31 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 
 	next_id = 0;
 
-	for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
-	for(int y=0; y<TERRAIN_DATA_SECTION_RES; ++y)
+	// Set terrain_data_sections paths from spec
+	for(size_t i=0; i<spec.section_specs.size(); ++i)
 	{
-		const int src_x = x - TERRAIN_SECTION_OFFSET;
-		const int src_y = y - TERRAIN_SECTION_OFFSET;
-		if(FileUtils::fileExists("C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed_" + toString(src_x) + "_" + toString(src_y) + ".exr"))
+		TerrainPathSpecSection& section_spec = spec.section_specs[i];
+		const int dest_x = section_spec.x + TERRAIN_SECTION_OFFSET;
+		const int dest_y = section_spec.y + TERRAIN_SECTION_OFFSET;
+
+		if(dest_x < 0 || dest_x >= TERRAIN_DATA_SECTION_RES ||
+			dest_y < 0 || dest_y >= TERRAIN_DATA_SECTION_RES)
 		{
-			conPrint("Loading terrain section with index " + toString(x) + ", " + toString(y) + "...");
-
-			const std::string heightmap_path = "C:\\programming\\terraingen\\vs2022_build\\heightfield_with_deposited_sed_" + toString(src_x) + "_" + toString(src_y) + ".exr";
-			Map2DRef heightmap = EXRDecoder::decode(heightmap_path);
-			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].heightmap = heightmap;
-			
-			{
-				TextureParams params;
-				params.allow_compression = false;
-				params.use_sRGB = false;
-				params.wrapping = OpenGLTexture::Wrapping_Clamp;
-				terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].heightmap_gl_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(heightmap_path), *heightmap, params);
-			}
-
-
-			const std::string mask_map_path = "C:\\programming\\terraingen\\vs2022_build\\mask_" + toString(src_x) + "_" + toString(src_y) + ".png";
-			
-			Map2DRef maskmap = PNGDecoder::decode(mask_map_path);
-			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].maskmap = maskmap;
-
-			opengl_engine->removeOpenGLTexture(OpenGLTextureKey(mask_map_path));
-
-			{
-				TextureParams params;
-				params.allow_compression = false;
-				params.use_sRGB = false;
-				params.wrapping = OpenGLTexture::Wrapping_Clamp;
-				terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].mask_gl_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(mask_map_path), *maskmap, params);
-			}
+			conPrint("Warning: invalid section coords for terrain section spec, section spec will not be used.");
+		}
+		else
+		{
+			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].heightmap_path = section_spec.heightmap_path;
+			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].mask_map_path  = section_spec.mask_map_path;
 		}
 	}
-
-
-	Map2DRef rock_col_map     = ImageDecoding::decodeImage(".", "D:\\terrain\\RockPack1\\ROCK-01\\tex\\ROCK-01_250cm_COLOR_2k.jpg");
-	Map2DRef sediment_col_map = ImageDecoding::decodeImage(".", "D:\\terrain\\GroundPack2\\SAND-07\\tex\\SAND-07-CRACKED_COLOR_2k.jpg");
-
-	detail_heightmaps[0] = ImageDecoding::decodeImage(".", "D:\\terrain\\RockPack1\\ROCK-01\\tex\\ROCK-01_250cm_DEPTH_2k.png");
-	detail_heightmaps[1] = ImageDecoding::decodeImage(".", "D:\\terrain\\GroundPack2\\SAND-07\\tex\\SAND-07-CRACKED_DEPTH_2k.png");
-
-	Map2DRef rock_map     = combineMaps(rock_col_map,     detail_heightmaps[0]);
-	Map2DRef sediment_map = combineMaps(sediment_col_map, detail_heightmaps[1]);
-
-	opengl_engine->setDetailTexture(0, opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("detail_tex0"), *rock_map)); // rock
-	opengl_engine->setDetailTexture(1, opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("detail_tex1"), *sediment_map));
-
-	//opengl_engine->setDetailTexture(1, opengl_engine->getOrLoadOpenGLTextureForMap2D("D:\\terrain\\GroundPack2\\SAND-07\\tex\\SAND-07-CRACKED_COLOR_2k.jpg", /*allow compression=*/true)); // sediment
-	//opengl_engine->setDetailTexture(2, opengl_engine->getTexture("D:\\terrain\\ForestPack2\\FORESTFLOOR-11\\tex\\FORESTFLOOR-11_COLOR_2k.jpg", /*allow compression=*/true)); // vegetation
-	opengl_engine->setDetailTexture(2, opengl_engine->getTexture("C:\\Users\\nick\\Downloads\\Grass\\PACKED_1_Grass0066_5_S 2 yellow.jpg")); // vegetation
-
-
-
 
 	//detail_heightmap = JPEGDecoder::decode(".", "C:\\Users\\nick\\Downloads\\cgaxis_dirt_with_large_rocks_38_46_4K\\dirt_with_large_rocks_38_46_height.jpg");
 	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-08\\tex\\SAND-08-BEACH_DEPTH_2k.png");
 	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-11\\tex\\SAND-11-DUNES_DEPTH_2k.png");
 	//small_dune_heightmap = PNGDecoder::decode("C:\\Users\\nick\\Downloads\\sand_ground_59_83_height.png");
 
-
-
+	
 	root_node = new TerrainNode();
 	root_node->parent = NULL;
 	root_node->aabb = js::AABBox(Vec4f(-world_w/2, -world_w/2, -1, 1), Vec4f(world_w/2, world_w/2, 1, 1));
@@ -409,6 +351,51 @@ void TerrainSystem::init(OpenGLEngine* opengl_engine_, PhysicsWorld* physics_wor
 
 
 	terrain_scattering.init(this, opengl_engine_, physics_world, biome_manager_, campos, bump_allocator);
+}
+
+
+void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef& map)
+{
+	conPrint("TerrainSystem::handleTextureLoaded(): path: '" + path + "'");
+
+	assert(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(path)));
+
+	for(int i=0; i<4; ++i)
+	{
+		if(spec.detail_col_map_paths[i] == path)
+		{
+			opengl_engine->setDetailTexture(i, opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path)));
+		}
+
+		if(spec.detail_height_map_paths[i] == path)
+		{
+			opengl_engine->setDetailHeightmap(i, opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path)));
+
+			detail_heightmaps[i] = map;
+		}
+	}
+
+	for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
+	for(int y=0; y<TERRAIN_DATA_SECTION_RES; ++y)
+	{
+		TerrainDataSection& section = terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES];
+
+		if(section.heightmap_path == path)
+		{
+			section.heightmap = map;
+			section.heightmap_gl_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path));
+		}
+		if(section.mask_map_path == path)
+		{
+			section.maskmap = map;
+			section.mask_gl_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path));
+		}
+	}
+
+	// Reload terrain:
+	removeSubtree(root_node.ptr(), root_node->old_subtree_gl_obs, root_node->old_subtree_phys_obs);
+
+	terrain_scattering.rebuild();
 }
 
 
@@ -566,7 +553,7 @@ Colour4f TerrainSystem::evalTerrainMask(float p_x, float p_y) const
 	if(section_x < 0 || section_x >= 8 || section_y < 0 || section_y >= 8)
 		return Colour4f(1,0,0,0);
 	const TerrainDataSection& section = terrain_data_sections[section_x + section_y*TERRAIN_DATA_SECTION_RES]; // terrain_data_sections.elem(section_x, section_y);
-	if(section.heightmap.isNull())
+	if(section.maskmap.isNull())
 		return Colour4f(1,0,0,0);
 
 	return section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
@@ -604,7 +591,7 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 //	const float seaside_factor = Maths::smoothStep(-1000.f, -300.f, p_y);
 
 
-	const Colour4f mask_val = section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
+	const Colour4f mask_val = section.maskmap.nonNull() ? section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false) : Colour4f(0.f);
 			
 	// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
 	const float heightmap_terrain_z = section.heightmap->sampleSingleChannelHighQual(nx, 1.f - ny, /*channel=*/0, /*wrap=*/false);
@@ -646,8 +633,8 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 		if(mask_val[0] == 0)
 			rock_weight_env = 0;
 		else
-			rock_weight_env = Maths::smoothStep(0.2f, 0.6f, mask_val[0] + fbmMix(*opengl_engine->fbm_imagemap, detail_map_2_uvs * 0.2f) * 0.2f);
-		float rock_height = detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, -detail_map_0_uvs.y, 0) * rock_weight_env;
+			rock_weight_env =  Maths::smoothStep(0.2f, 0.6f, mask_val[0] + fbmMix(*opengl_engine->fbm_imagemap, detail_map_2_uvs * 0.2f) * 0.2f);
+		float rock_height = detail_heightmaps[0].nonNull() ? detail_heightmaps[0]->sampleSingleChannelTiled(detail_map_0_uvs.x, -detail_map_0_uvs.y, 0) * rock_weight_env : 0;
 
 		//float rock_height = mask_val[0] * 10.0;
 			

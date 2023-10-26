@@ -33,8 +33,47 @@ TerrainSystem
 =====================================================================*/
 
 
+//-------------------------- Specification of Terrain - heightmaps and mask maps to use on each section --------------------------
+struct TerrainSpecSection
+{
+	int x, y; // section coordinates.  (0,0) is section centered on world origin.
+
+	std::string heightmap_URL;
+	std::string mask_map_URL;
+};
+
+struct TerrainSpec
+{
+	std::vector<TerrainSpecSection> section_specs;
+
+	std::string detail_col_map_URLs[4];
+	std::string detail_height_map_URLs[4];
+};
+
+
+struct TerrainPathSpecSection
+{
+	int x, y; // section coordinates.  (0,0) is section centered on world origin.
+
+	std::string heightmap_path;
+	std::string mask_map_path;
+};
+
+struct TerrainPathSpec
+{
+	std::vector<TerrainPathSpecSection> section_specs;
+
+	std::string detail_col_map_paths[4];
+	std::string detail_height_map_paths[4];
+};
+//-------------------------- End Specification of Terrain --------------------------
+
+
 struct TerrainDataSection
 {
+	std::string heightmap_path;
+	std::string mask_map_path;
+
 	Map2DRef heightmap;
 	OpenGLTextureRef heightmap_gl_tex;
 	Map2DRef maskmap;
@@ -121,9 +160,12 @@ public:
 	friend class TerrainScattering;
 	friend class MakeTerrainChunkTask;
 
-	void init(OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::TaskManager* task_manager, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue);
+	void init(const TerrainPathSpec& spec, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::TaskManager* task_manager, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue);
 
 	void shutdown();
+
+	// A texture that will be used by the terrain system has been loaded into OpenGL.
+	void handleTextureLoaded(const std::string& path, const Map2DRef& map);
 
 	void handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg& msg);
 
@@ -175,4 +217,6 @@ private:
 
 	IndexBufAllocationHandle vert_res_10_index_buffer;
 	IndexBufAllocationHandle vert_res_130_index_buffer;
+
+	TerrainPathSpec spec;
 };
