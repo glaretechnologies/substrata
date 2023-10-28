@@ -241,12 +241,13 @@ private:
 	void removeObScriptingInfo(WorldObject* ob);
 	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
 	void setMaterialFlagsForObject(WorldObject* ob);
-	
+public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersPersonalWorldOrGodUser();
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
 	// Action will be printed in error message, could be "modify" or "delete"
 	bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob);
+private:
 
 	void updateOnlineUsersList(); // Works off world state avatars.
 	bool areEditingVoxels();

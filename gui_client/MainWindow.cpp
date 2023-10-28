@@ -5077,6 +5077,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				user_details->setTextAsNotLoggedIn();
 
+				ui->worldSettingsWidget->updateControlsEditable();
+
 				updateStatusBar();
 			}
 			else if(dynamic_cast<const AvatarIsHereMessage*>(msg.getPointer()))
@@ -5210,6 +5212,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
 
 				recolourParcelsForLoggedInState();
+				ui->worldSettingsWidget->updateControlsEditable();
 
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -5233,6 +5236,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->logged_in_user_flags = 0;
 
 				recolourParcelsForLoggedInState();
+				ui->worldSettingsWidget->updateControlsEditable();
 
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -10924,6 +10928,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	this->logged_in_user_flags = 0;
 
 	user_details->setTextAsNotLoggedIn();
+
+	ui->worldSettingsWidget->updateControlsEditable();
 
 	ui->onlineUsersTextEdit->clear();
 	ui->chatMessagesTextEdit->clear();
