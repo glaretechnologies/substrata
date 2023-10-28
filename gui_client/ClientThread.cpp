@@ -1021,6 +1021,20 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new ServerAdminMessage(msg_text));
 						break;
 					}
+				case Protocol::WorldSettingsInitialSendMessage:
+					{
+						Reference<WorldSettingsReceivedMessage> msg = new WorldSettingsReceivedMessage(/*is_initial_send=*/true);
+						readWorldSettingsFromStream(msg_buffer, msg->world_settings); // Read from msg_buffer, write to msg->world_settings
+						out_msg_queue->enqueue(msg);
+						break;
+					}
+				case Protocol::WorldSettingsUpdate:
+					{
+						Reference<WorldSettingsReceivedMessage> msg = new WorldSettingsReceivedMessage(/*is_initial_send=*/false);
+						readWorldSettingsFromStream(msg_buffer, msg->world_settings); // Read from msg_buffer, write to msg->world_settings
+						out_msg_queue->enqueue(msg);
+						break;
+					}
 				default:
 					{
 						conPrint("Unknown message id: " + ::toString(msg_type));

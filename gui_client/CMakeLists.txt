@@ -58,6 +58,8 @@ addMocFileRule(gui_client FindObjectDialog)
 addMocFileRule(gui_client ListObjectsNearbyDialog)
 addMocFileRule(gui_client LogWindow)
 addMocFileRule(gui_client DiagnosticsWidget)
+addMocFileRule(gui_client TerrainSpecSectionWidget)
+addMocFileRule(gui_client WorldSettingsWidget)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -89,6 +91,8 @@ addUIFileRule(gui_client FindObjectDialog)
 addUIFileRule(gui_client ListObjectsNearbyDialog)
 addUIFileRule(gui_client LogWindow)
 addUIFileRule(gui_client DiagnosticsWidget)
+addUIFileRule(gui_client TerrainSpecSectionWidget)
+addUIFileRule(gui_client WorldSettingsWidget)
 
 addUIFileRule(qt FileSelectWidget)
 addUIFileRule(qt RealControl)
@@ -127,6 +131,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_FindObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ListObjectsNearbyDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_LogWindow.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_DiagnosticsWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_TerrainSpecSectionWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_WorldSettingsWidget.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
@@ -152,6 +158,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_FindObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ListObjectsNearbyDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_LogWindow.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_DiagnosticsWidget.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_TerrainSpecSectionWidget.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_WorldSettingsWidget.h
 )
 
 SET(qt
@@ -209,6 +217,8 @@ SET(shared_files
 ../shared/WorldObject.h
 ../shared/WorldMaterial.cpp
 ../shared/WorldMaterial.h
+../shared/WorldSettings.cpp
+../shared/WorldSettings.h
 ../shared/VoxelMeshBuilding.cpp
 ../shared/VoxelMeshBuilding.h
 )

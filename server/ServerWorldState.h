@@ -11,6 +11,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/Avatar.h"
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
+#include "../shared/WorldSettings.h"
 #include "User.h"
 #include "Order.h"
 #include "UserWebSession.h"
@@ -28,6 +29,10 @@ Generated at 2016-01-12 12:22:34 +1300
 class ServerWorldState : public ThreadSafeRefCounted
 {
 public:
+	void addParcelAsDBDirty(const ParcelRef parcel) { db_dirty_parcels.insert(parcel); }
+	void addWorldObjectAsDBDirty(const WorldObjectRef ob) { db_dirty_world_objects.insert(ob); }
+
+	WorldSettings world_settings;
 
 	std::map<UID, Reference<Avatar>> avatars;
 
@@ -36,9 +41,6 @@ public:
 
 	std::unordered_set<ParcelRef, ParcelRefHash> db_dirty_parcels;
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> db_dirty_world_objects;
-
-	void addParcelAsDBDirty(const ParcelRef parcel) { db_dirty_parcels.insert(parcel); }
-	void addWorldObjectAsDBDirty(const WorldObjectRef ob) { db_dirty_world_objects.insert(ob); }
 
 	std::map<ParcelID, ParcelRef> parcels;
 };
