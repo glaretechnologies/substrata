@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
+#include "../shared/WorldSettings.h"
 #include "WorldState.h"
 #include <MessageableThread.h>
 #include <Platform.h>
@@ -203,6 +204,15 @@ class ServerAdminMessage : public ThreadMessage
 public:
 	ServerAdminMessage(const std::string& msg_) : msg(msg_) {}
 	std::string msg;
+};
+
+
+class WorldSettingsReceivedMessage : public ThreadMessage
+{
+public:
+	WorldSettingsReceivedMessage(bool is_initial_send_) : is_initial_send(is_initial_send_) {}
+	WorldSettings world_settings;
+	bool is_initial_send;
 };
 
 

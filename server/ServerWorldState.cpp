@@ -73,6 +73,7 @@ void ServerAllWorldsState::createNewDatabase(const std::string& path)
 static const uint32 WORLD_STATE_MAGIC_NUMBER = 487173571;
 static const uint32 WORLD_STATE_SERIALISATION_VERSION = 3; // v3: using Database
 static const uint32 WORLD_CHUNK = 50;
+static const uint32 WORLD_SETTINGS_CHUNK = 60;
 static const uint32 WORLD_OBJECT_CHUNK = 100;
 static const uint32 USER_CHUNK = 101;
 static const uint32 PARCEL_CHUNK = 102;
@@ -109,6 +110,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_screenshots = 0;
 	size_t num_sub_eth_transactions = 0;
 	size_t num_tiles_read = 0;
+	size_t num_world_settings = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -191,6 +193,21 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					parcel->database_key = database_key;
 					world_states[world_name]->parcels[parcel->id] = parcel; // Add to parcel map
 					num_parcels++;
+				}
+				else if(chunk == WORLD_SETTINGS_CHUNK)
+				{
+					// Read world name
+					const std::string world_name = stream.readStringLengthFirst(10000);
+
+					// Create ServerWorldState for world name if needed
+					if(world_states.count(world_name) == 0) 
+						world_states[world_name] = new ServerWorldState();
+
+					// Deserialise world settings
+					readWorldSettingsFromStream(stream, world_states[world_name]->world_settings);
+
+					world_states[world_name]->world_settings.database_key = database_key;
+					num_world_settings++;
 				}
 				else if(chunk == RESOURCE_CHUNK)
 				{
@@ -540,7 +557,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
-		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles in " + timer.elapsedStringNSigFigs(4));
+		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -808,6 +825,7 @@ void ServerAllWorldsState::serialiseToDisk()
 		size_t num_tiles_written = 0;
 		size_t num_users = 0;
 		size_t num_resources = 0;
+		size_t num_world_settings = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -868,6 +886,24 @@ void ServerAllWorldsState::serialiseToDisk()
 				}
 
 				world_state->db_dirty_parcels.clear();
+			}
+
+			// Save the world settings if dirty
+			if(world_state->world_settings.db_dirty)
+			{
+				temp_buf.clear();
+				temp_buf.writeUInt32(WORLD_SETTINGS_CHUNK);
+				temp_buf.writeStringLengthFirst(world_name); // Write world name
+				world_state->world_settings.writeToStream(temp_buf); // Write world settings to temp_buf
+
+				if(!world_state->world_settings.database_key.valid())
+					world_state->world_settings.database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(world_state->world_settings.database_key, temp_buf.buf);
+
+				world_state->world_settings.db_dirty = false;
+
+				num_world_settings++;
 			}
 		}
 
@@ -1085,7 +1121,7 @@ void ServerAllWorldsState::serialiseToDisk()
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(num_users) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
 			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " +
-			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles in " + timer.elapsedStringNSigFigs(4));
+			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles, " + toString(num_world_settings) + " world setting(s) in " + timer.elapsedStringNSigFigs(4));
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

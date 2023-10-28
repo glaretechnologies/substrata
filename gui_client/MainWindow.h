@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
+#include "../shared/WorldSettings.h"
 #include "../audio/MicReadThread.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
@@ -179,6 +180,7 @@ private slots:;
 	void objectTransformEditedSlot();
 	void objectEditedSlot();
 	void parcelEditedSlot();
+	void worldSettingsAppliedSlot();
 	void environmentSettingChangedSlot();
 	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap
 	void bakeObjectLightmapHighQualSlot(); // Bake the currently selected object lightmap
@@ -440,6 +442,8 @@ public:
 	UserID logged_in_user_id;
 	std::string logged_in_user_name;
 	uint32 logged_in_user_flags;
+
+	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
 
 	bool shown_object_modification_error_msg;
 

@@ -920,6 +920,17 @@ void WorkerThread::doRun()
 				socket->flush();
 			}
 
+			// Send world settings to client
+			{
+				MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsInitialSendMessage);
+
+				cur_world_state->world_settings.writeToStream(scratch_packet);
+
+				MessageUtils::updatePacketLengthField(scratch_packet);
+				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+			}
+
+
 			// Send all current avatar state data to client
 			{
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -2388,6 +2399,48 @@ void WorkerThread::doRun()
 							//			}
 							//		}
 							//}
+
+							break;
+						}
+					case Protocol::WorldSettingsUpdate:
+						{
+							conPrintIfNotFuzzing("WorldSettingsUpdate");
+						
+							WorldSettings world_settings;
+							readWorldSettingsFromStream(msg_buffer, world_settings);
+
+							if(userConnectedToTheirPersonalWorldOrGodUser(client_user_id, client_user_name, this->connected_world_name))
+							{
+								{
+									Lock lock(server->world_state->mutex);
+									cur_world_state->world_settings = world_settings;
+									cur_world_state->world_settings.db_dirty = true;
+									world_state->markAsChanged();
+								}
+
+								conPrintIfNotFuzzing("WorkerThread: Updated world settings.");
+
+								// Send WorldSettingsUpdate message to all connected clients
+								{
+									MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsUpdate);
+									world_settings.writeToStream(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
+
+									enqueuePacketToBroadcast(scratch_packet, server);
+								}
+							}
+							else
+							{
+								conPrintIfNotFuzzing("Client does not have pemissions to set world settings.");
+
+								// Send error message back to client
+								MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
+								scratch_packet.writeStringLengthFirst("You do not have permissions to set the world settings");
+								MessageUtils::updatePacketLengthField(scratch_packet);
+
+								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+								socket->flush();
+							}
 
 							break;
 						}

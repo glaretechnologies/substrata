@@ -98,6 +98,9 @@ const uint32 ParcelList				= 3160;
 const uint32 GetAllObjects			= 3600; // Client wants to get all objects from server
 const uint32 AllObjectsSent			= 3601; // Server has sent all objects
 
+const uint32 WorldSettingsInitialSendMessage	= 3700;
+const uint32 WorldSettingsUpdate	= 3701;
+
 
 //TEMP HACK move elsewhere
 const uint32 GetFile				= 4000;

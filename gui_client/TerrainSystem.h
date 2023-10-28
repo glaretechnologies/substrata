@@ -6,18 +6,17 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
-#include "IncludeOpenGL.h"
-#include "FrameBuffer.h"
 #include "TerrainScattering.h"
-#include "OpenGLTexture.h"
-#include "OpenGLEngine.h"
 #include "PhysicsObject.h"
-#include "../utils/RefCounted.h"
-#include "../utils/Reference.h"
-#include "../utils/Array2D.h"
-#include "../utils/BumpAllocator.h"
-#include "../maths/Matrix4f.h"
-#include "../maths/vec3.h"
+#include <opengl/IncludeOpenGL.h>
+#include <opengl/OpenGLTexture.h>
+#include <opengl/OpenGLEngine.h>
+#include <utils/RefCounted.h>
+#include <utils/Reference.h>
+#include <utils/Array2D.h>
+#include <utils/BumpAllocator.h>
+#include <maths/Matrix4f.h>
+#include <maths/vec3.h>
 #include <string>
 #include <map>
 class OpenGLShader;
@@ -34,22 +33,7 @@ TerrainSystem
 
 
 //-------------------------- Specification of Terrain - heightmaps and mask maps to use on each section --------------------------
-struct TerrainSpecSection
-{
-	int x, y; // section coordinates.  (0,0) is section centered on world origin.
-
-	std::string heightmap_URL;
-	std::string mask_map_URL;
-};
-
-struct TerrainSpec
-{
-	std::vector<TerrainSpecSection> section_specs;
-
-	std::string detail_col_map_URLs[4];
-	std::string detail_height_map_URLs[4];
-};
-
+// Similar to TerrainSpec in WorldSettings.h but with paths instead of URLs
 
 struct TerrainPathSpecSection
 {
@@ -65,6 +49,10 @@ struct TerrainPathSpec
 
 	std::string detail_col_map_paths[4];
 	std::string detail_height_map_paths[4];
+
+	float terrain_section_width_m;
+	float water_z;
+	uint32 flags;
 };
 //-------------------------- End Specification of Terrain --------------------------
 
@@ -219,4 +207,11 @@ private:
 	IndexBufAllocationHandle vert_res_130_index_buffer;
 
 	TerrainPathSpec spec;
+
+	// Scale factor for world-space -> heightmap UV conversion.
+	// Its reciprocal is the width of the terrain in metres.
+	float terrain_section_w;
+	float terrain_scale_factor;
+
+	std::vector<GLObjectRef> water_gl_obs;
 };

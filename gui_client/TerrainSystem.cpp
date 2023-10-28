@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "graphics/PerlinNoise.h"
 #include "PhysicsWorld.h"
 #include "../shared/ImageDecoding.h"
+#include "../shared/WorldSettings.h"
 #include <utils/TaskManager.h>
 #include <utils/FileUtils.h>
 #include <utils/ContainerUtils.h>
@@ -145,7 +146,7 @@ max depth quad_w = world_w / (chunk_res * 2^max_depth)
 static const bool GEOMORPHING_SUPPORT = false;
 
 //static float world_w = 131072;//8192*4;
-static float world_w = 32768;//8192*4;
+static float world_w = 32768;//8192*4;   TODO: make this just large enough to enclose all defined terrain sections.
 // static float CHUNK_W = 512.f;
 static int chunk_res = 127; // quad res per patch
 const float quad_w_screenspace_target = 0.032f;
@@ -163,11 +164,9 @@ static const float MAX_PHYSICS_DIST = 500.f; // Build physics objects for terrai
 
 // Scale factor for world-space -> heightmap UV conversion.
 // Its reciprocal is the width of the terrain in metres.
-static const float terrain_section_w = 8 * 1024;
-static const float terrain_scale_factor = 1.f / terrain_section_w;
+//static const float terrain_section_w = 8 * 1024;
+//static const float terrain_scale_factor = 1.f / terrain_section_w;
 
-
-static const float water_z = -5.0;
 
 static Colour3f depth_colours[] = 
 {
@@ -231,6 +230,9 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, OpenGLEngine* opengl_engi
 	task_manager = task_manager_;
 	out_msg_queue = out_msg_queue_;
 
+	terrain_section_w = spec_.terrain_section_width_m;
+	terrain_scale_factor = 1.f / spec_.terrain_section_width_m;
+
 	next_id = 0;
 
 	// Set terrain_data_sections paths from spec
@@ -251,6 +253,37 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, OpenGLEngine* opengl_engi
 			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].mask_map_path  = section_spec.mask_map_path;
 		}
 	}
+
+	// Set some default OpenGL terrain textures, to use before proper textures are loaded.
+	{
+		ImageMapUInt8Ref default_mask_map = new ImageMapUInt8(1, 1, 4);
+		default_mask_map->getPixel(0, 0)[0] = 255;
+		default_mask_map->getPixel(0, 0)[1] = 0;
+		default_mask_map->getPixel(0, 0)[2] = 0;
+		default_mask_map->getPixel(0, 0)[3] = 0;
+		OpenGLTextureRef default_mask_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_mask_tex__"), *default_mask_map);
+		for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
+		for(int y=0; y<TERRAIN_DATA_SECTION_RES; ++y)
+			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].mask_gl_tex = default_mask_tex;
+	}
+	{
+		ImageMapUInt8Ref default_detail_col_map = new ImageMapUInt8(1, 1, 4);
+		default_detail_col_map->getPixel(0, 0)[0] = 100;
+		default_detail_col_map->getPixel(0, 0)[1] = 100;
+		default_detail_col_map->getPixel(0, 0)[2] = 100;
+		default_detail_col_map->getPixel(0, 0)[3] = 255;
+		OpenGLTextureRef default_col_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_col_tex__"), *default_detail_col_map);
+		for(int i=0; i<4; ++i)
+			opengl_engine->setDetailTexture(i, default_col_tex);
+	}
+	{
+		ImageMapUInt8Ref default_detail_height_map = new ImageMapUInt8(1, 1, 1);
+		default_detail_height_map->getPixel(0, 0)[0] = 0;
+		OpenGLTextureRef default_detail_height_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_detail_height_tex__"), *default_detail_height_map);
+		for(int i=0; i<4; ++i)
+			opengl_engine->setDetailHeightmap(i, default_detail_height_tex);
+	}
+
 
 	//detail_heightmap = JPEGDecoder::decode(".", "C:\\Users\\nick\\Downloads\\cgaxis_dirt_with_large_rocks_38_46_4K\\dirt_with_large_rocks_38_46_height.jpg");
 	//detail_heightmap = PNGDecoder::decode("D:\\terrain\\GroundPack2\\SAND-08\\tex\\SAND-08-BEACH_DEPTH_2k.png");
@@ -290,57 +323,63 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, OpenGLEngine* opengl_engi
 	//TEMP: create single large water object
 	
 #if 1
-	const float large_water_quad_w = 20000;
-	Reference<OpenGLMeshRenderData> quad_meshdata = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/2);
-	for(int y=0; y<16; ++y)
-	for(int x=0; x<16; ++x)
+	if(BitUtils::isBitSet(spec.flags, TerrainSpec::WATER_ENABLED_FLAG))
 	{
-		const int offset_x = x - 8;
-		const int offset_y = y - 8;
-		if(!(offset_x == 0 && offset_y == 0))
+		const float large_water_quad_w = 20000;
+		Reference<OpenGLMeshRenderData> quad_meshdata = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/2);
+		for(int y=0; y<16; ++y)
+		for(int x=0; x<16; ++x)
+		{
+			const int offset_x = x - 8;
+			const int offset_y = y - 8;
+			if(!(offset_x == 0 && offset_y == 0))
+			{
+				// Tessellate ground mesh, to avoid texture shimmer due to large quads.
+				GLObjectRef gl_ob = new GLObject();
+				gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, spec.water_z) * Matrix4f::uniformScaleMatrix(large_water_quad_w) * Matrix4f::translationMatrix(-0.5f + offset_x, -0.5f + offset_y, 0);
+				gl_ob->mesh_data = quad_meshdata;
+
+				gl_ob->materials.resize(1);
+				gl_ob->materials[0].albedo_linear_rgb = Colour3f(1,0,0);
+				gl_ob->materials[0] = water_mat;
+				opengl_engine->addObject(gl_ob);
+				water_gl_obs.push_back(gl_ob);
+			}
+		}
+
 		{
 			// Tessellate ground mesh, to avoid texture shimmer due to large quads.
 			GLObjectRef gl_ob = new GLObject();
-			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, water_z) * Matrix4f::uniformScaleMatrix(large_water_quad_w) * Matrix4f::translationMatrix(-0.5f + offset_x, -0.5f + offset_y, 0);
-			gl_ob->mesh_data = quad_meshdata;
+			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, spec.water_z) * Matrix4f::uniformScaleMatrix(large_water_quad_w) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
+			gl_ob->mesh_data = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/64);
+
+			gl_ob->materials.resize(1);
+			//gl_ob->materials[0].albedo_linear_rgb = Colour3f(0,0,1);
+			gl_ob->materials[0] = water_mat;
+			opengl_engine->addObject(gl_ob);
+			water_gl_obs.push_back(gl_ob);
+		}
+
+
+
+		// Create cylinder for water boundary
+		{
+			GLObjectRef gl_ob = new GLObject();
+			const float wall_h = 1000.0f;
+			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -wall_h) * Matrix4f::scaleMatrix(25000, 25000, wall_h);
+			gl_ob->mesh_data = MeshPrimitiveBuilding::makeCylinderMesh(*opengl_engine->vert_buf_allocator.ptr(), /*end_caps=*/false);
 
 			gl_ob->materials.resize(1);
 			gl_ob->materials[0].albedo_linear_rgb = Colour3f(1,0,0);
-			gl_ob->materials[0] = water_mat;
+			//gl_ob->materials[0] = water_mat;
+
 			opengl_engine->addObject(gl_ob);
+			water_gl_obs.push_back(gl_ob);
 		}
-	}
 
-	{
-		// Tessellate ground mesh, to avoid texture shimmer due to large quads.
-		GLObjectRef gl_ob = new GLObject();
-		gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, water_z) * Matrix4f::uniformScaleMatrix(large_water_quad_w) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
-		gl_ob->mesh_data = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/64);
-
-		gl_ob->materials.resize(1);
-		//gl_ob->materials[0].albedo_linear_rgb = Colour3f(0,0,1);
-		gl_ob->materials[0] = water_mat;
-		opengl_engine->addObject(gl_ob);
-	}
-
-
-
-	// Create cylinder for water boundary
-	{
-		GLObjectRef gl_ob = new GLObject();
-		const float wall_h = 1000.0f;
-		gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -wall_h) * Matrix4f::scaleMatrix(25000, 25000, wall_h);
-		gl_ob->mesh_data = MeshPrimitiveBuilding::makeCylinderMesh(*opengl_engine->vert_buf_allocator.ptr(), /*end_caps=*/false);
-
-		gl_ob->materials.resize(1);
-		gl_ob->materials[0].albedo_linear_rgb = Colour3f(1,0,0);
-		//gl_ob->materials[0] = water_mat;
-
-		opengl_engine->addObject(gl_ob);
+		opengl_engine->getCurrentScene()->water_level_z = spec.water_z; // Controls caustic drawing
 	}
 #endif
-
-	opengl_engine->getCurrentScene()->water_level_z = water_z; // Controls caustic drawing
 
 
 	// Create index data for chunk, will be reused for all chunks
@@ -431,6 +470,10 @@ void TerrainSystem::shutdown()
 
 	this->vert_res_10_index_buffer = IndexBufAllocationHandle();
 	this->vert_res_130_index_buffer = IndexBufAllocationHandle();
+
+	for(size_t i=0; i<water_gl_obs.size(); ++i)
+		opengl_engine->removeObject(water_gl_obs[i]);
+	water_gl_obs.clear();
 }
 
 

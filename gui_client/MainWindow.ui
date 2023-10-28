@@ -256,7 +256,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>332</height>
+          <height>261</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -353,7 +353,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>317</height>
+          <height>261</height>
          </rect>
         </property>
        </widget>
@@ -418,6 +418,21 @@
     <layout class="QVBoxLayout" name="verticalLayout_12">
      <item>
       <widget class="EnvironmentOptionsWidget" name="environmentOptionsWidget" native="true"/>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="worldSettingsDockWidget">
+   <property name="windowTitle">
+    <string>World Settings</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_3">
+    <layout class="QVBoxLayout" name="verticalLayout_13">
+     <item>
+      <widget class="WorldSettingsWidget" name="worldSettingsWidget" native="true"/>
      </item>
     </layout>
    </widget>
@@ -705,6 +720,12 @@
    <class>EnvironmentOptionsWidget</class>
    <extends>QWidget</extends>
    <header>EnvironmentOptionsWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>WorldSettingsWidget</class>
+   <extends>QWidget</extends>
+   <header>WorldSettingsWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

@@ -45,6 +45,8 @@ SET(shared_files
 ../shared/VoxelMeshBuilding.h
 ../shared/WorldObject.cpp
 ../shared/WorldObject.h
+../shared/WorldSettings.cpp
+../shared/WorldSettings.h
 ../shared/WorldMaterial.cpp
 ../shared/WorldMaterial.h
 )
