@@ -7307,6 +7307,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(terrain_system.nonNull())
 		terrain_system->updateCampos(this->cam_controller.getPosition(), bump_allocator);
 
+	if(ui->glWidget->opengl_engine.nonNull())
+	{
+		ui->glWidget->opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
+	}
 
 
 	last_timerEvent_CPU_work_elapsed = timerEvent_timer.elapsed();
