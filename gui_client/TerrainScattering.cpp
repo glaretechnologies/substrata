@@ -110,7 +110,7 @@ struct ShaderChunkInfo
 };
 
 
-void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::BumpAllocator& bump_allocator)
+void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* terrain_system_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::BumpAllocator& bump_allocator)
 {
 	terrain_system = terrain_system_;
 	opengl_engine = opengl_engine_;
@@ -118,7 +118,7 @@ void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* openg
 	biome_manager = biome_manager_;
 
 	{
-		const std::string grass_billboard_tex_path = "D:\\models\\grass clump billboard 2.png";
+		const std::string grass_billboard_tex_path = base_dir_path + "/resources/grass clump billboard 2.png";
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_billboard_tex_path));
 
 		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_billboard_tex_path);
@@ -133,7 +133,7 @@ void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* openg
 	}
 
 	{
-		const std::string grass_normal_map_path = "D:\\models\\grass clump billboard 2 normals.png";
+		const std::string grass_normal_map_path = base_dir_path + "/resources/grass clump billboard 2 normals.png";
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_normal_map_path));
 
 		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_normal_map_path);
