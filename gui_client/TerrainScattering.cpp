@@ -30,6 +30,15 @@ Copyright Glare Technologies Limited 2023 -
 #include "../dll/include/IndigoMesh.h"
 
 
+// Just for Mac
+#ifndef GL_SHADER_STORAGE_BUFFER
+#define GL_SHADER_STORAGE_BUFFER						0x90D2
+#endif
+#ifndef GL_COMPUTE_SHADER
+#define GL_COMPUTE_SHADER								0x91B9
+#endif
+
+
 static const float LARGE_TREE_CHUNK_W = 256; // metres
 static const int LARGE_TREE_CHUNK_GRID_RES = 17;
 
@@ -286,6 +295,14 @@ void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* openg
 
 
 	//----------------------- Scatter compute shader -------------------------
+	
+#if defined(OSX)
+	const bool use_imposter_compute_shader = false; // Mac doesn't support compute shaders
+#else
+	const bool use_imposter_compute_shader = true;
+#endif
+
+	if(use_imposter_compute_shader)
 	{
 		const std::string use_shader_dir = opengl_engine->getDataDir() + "/shaders";
 		OpenGLShaderRef build_imposters_compute_shader = new OpenGLShader(use_shader_dir + "/build_imposters_compute_shader.glsl", opengl_engine->getVersionDirective(), 
@@ -687,16 +704,20 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& 
 	}
 	}
 #endif
-	Timer timer;
-	for(size_t i=0; i<grid_scatters.size(); ++i)
-	{
-		GridScatter& scatter = *grid_scatters[i];
 
-		updateCamposForGridScatter(campos, bump_allocator, scatter);
-	}
-	if(timer.elapsed() > 0.00001f)
+	if(build_imposters_prog.nonNull()) // Mac doesn't support compute shaders, so build_imposters_prog will be null on mac.  Don't do grid scattering on mac.
 	{
-		//conPrint("Updating grid scatters took " + timer.elapsedStringMSWIthNSigFigs(4));
+		Timer timer;
+		for(size_t i=0; i<grid_scatters.size(); ++i)
+		{
+			GridScatter& scatter = *grid_scatters[i];
+
+			updateCamposForGridScatter(campos, bump_allocator, scatter);
+		}
+		if(timer.elapsed() > 0.00001f)
+		{
+			//conPrint("Updating grid scatters took " + timer.elapsedStringMSWIthNSigFigs(4));
+		}
 	}
 }
 
