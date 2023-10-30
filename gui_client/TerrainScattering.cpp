@@ -154,7 +154,7 @@ void TerrainScattering::init(TerrainSystem* terrain_system_, OpenGLEngine* openg
 	const float densities[]        = { 20,   7,   4,    1.25,  0.15f };
 	const float begin_fade_fracs[] = { 0.5f, 0.5f, 0.5f, 0.8f, 0.9f };
 
-	for(int i=0; i<staticArrayNumElems(widths); ++i)
+	for(size_t i=0; i<staticArrayNumElems(widths); ++i)
 	{
 		Reference<GridScatter> scatter = new GridScatter();
 		scatter->chunk_width = widths[i];
@@ -343,8 +343,8 @@ void TerrainScattering::shutdown()
 	for(size_t i=0; i<grid_scatters.size(); ++i)
 	{
 		Reference<GridScatter> scatter = grid_scatters[i];
-		for(int y=0; y<scatter->chunks.getHeight(); ++y)
-		for(int x=0; x<scatter->chunks.getWidth() ; ++x)
+		for(size_t y=0; y<scatter->chunks.getHeight(); ++y)
+		for(size_t x=0; x<scatter->chunks.getWidth() ; ++x)
 		{
 			GridScatterChunk& chunk = scatter->chunks.elem(x, y);
 			if(chunk.imposters_gl_ob.nonNull())
@@ -1369,7 +1369,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocato
 }
 
 
-static int total_num_trees = 0;
+//static int total_num_trees = 0;
 
 // Build and sets chunk.tree_info and chunk.imposters_gl_ob
 void TerrainScattering::makeTreeChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, LargeTreeChunk& chunk)
