@@ -496,6 +496,7 @@ static void parseBiomeInfo(const std::string& ob_content, js::Vector<js::AABBox,
 void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager)
 {
+#if 0
 	//if(grass_ob.isNull())
 	//	grass_ob = makeGrassOb(mesh_manager, task_manager, resource_manager, grass_tex);
 
@@ -633,6 +634,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 	//		);
 	//	}
 	//}
+#endif
 }
 
 
