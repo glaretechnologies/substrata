@@ -385,11 +385,13 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	pugi::xml_node root_elem = doc.getRootElement();
 
 	ServerConfig config;
-	config.webserver_fragments_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webserver_fragments_dir", /*default val=*/"");
-	config.webserver_public_files_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
-	config.webclient_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
+	config.webserver_fragments_dir		= XMLParseUtils::parseStringWithDefault(root_elem, "webserver_fragments_dir", /*default val=*/"");
+	config.webserver_public_files_dir	= XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
+	config.webclient_dir				= XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
+	config.tls_certificate_path			= XMLParseUtils::parseStringWithDefault(root_elem, "tls_certificate_path", /*default val=*/"");
+	config.tls_private_key_path			= XMLParseUtils::parseStringWithDefault(root_elem, "tls_private_key_path", /*default val=*/"");
 	config.allow_light_mapper_bot_full_perms = XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
-	config.update_parcel_sales = XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
+	config.update_parcel_sales			= XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
 	return config;
 }
 
@@ -542,76 +544,39 @@ int main(int argc, char *argv[])
 		
 		server.world_state->denormaliseData();
 
-		
-		//----------------------------------------------- Launch webserver -----------------------------------------------
-
-		// Create TLS configuration
-		struct tls_config* web_tls_configuration = tls_config_new();
-
-#if defined(_WIN32) || defined(OSX)
-		// NOTE: key generated with 
-		// cd D:\programming\LibreSSL\libressl-2.8.3-x64-vs2019-install\bin
-		// ./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key
-
-		if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
-			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-		if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-
-		/*const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
-		if(tls_config_set_cert_file(web_tls_configuration, (certdir + "/godaddy-1da07c9956c94289.crt").c_str()) != 0)
-			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-		if(tls_config_set_key_file(web_tls_configuration, (certdir + "/godaddy-generated-private-key.txt").c_str()) != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));*/
-
-#else
-		const std::string certdir = "/home/" + username + "/certs/substrata.info";
-		if(FileUtils::fileExists(certdir))
+		// If there are explicit paths to cert file and private key file in server config, use them, otherwise use default paths.
+		std::string tls_certificate_path, tls_private_key_path;
+		if(!server_config.tls_certificate_path.empty())
 		{
-			conPrint("Using godaddy certs");
-
-			if(tls_config_set_cert_file(web_tls_configuration, (certdir + "/godaddy-1da07c9956c94289.crt").c_str()) != 0)
-				throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-			if(tls_config_set_key_file(web_tls_configuration, (certdir + "/godaddy-generated-private-key.txt").c_str()) != 0) // set private key
-				throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+			tls_certificate_path = server_config.tls_certificate_path;
+			tls_private_key_path = server_config.tls_private_key_path;
 		}
 		else
 		{
-			if(FileUtils::fileExists("/etc/letsencrypt/live/substrata.info"))
-			{
-				conPrint("Using Lets-encrypt certs");
+			tls_certificate_path = server_state_dir + "/MyCertificate.crt"; // Use some default paths
+			tls_private_key_path = server_state_dir + "/MyKey.key";
 
-				if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
-					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-				if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
-					throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-			}
-			else if(FileUtils::fileExists("/etc/letsencrypt/live/test.substrata.info"))
-			{
-				conPrint("Using Lets-encrypt certs");
-
-				if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/cert.pem") != 0)
-					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-				if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/privkey.pem") != 0) // set private key
-					throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-			}
-			else
-			{
-				if(dev_mode)
-				{
-					if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
-						throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-					if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
-						throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-				}
-				else
-				{
-					// We need to be able to start without a cert, so we can do the initial Lets-Encrypt challenge
-					conPrint("No Lets-encrypt cert dir found, skipping loading cert.");
-				}
-			}
+			// See https://substrata.info/running_your_own_server , 'Generating a TLS keypair'.
 		}
-#endif
+
+		conPrint("tls_certificate_path: " + tls_certificate_path);
+		conPrint("tls_private_key_path: " + tls_private_key_path);
+		
+		if(!FileUtils::fileExists(tls_certificate_path))
+			throw glare::Exception("ERROR: No file found at TLS certificate path '" + tls_certificate_path + "'");
+		if(!FileUtils::fileExists(tls_private_key_path))
+			throw glare::Exception("ERROR: No file found at TLS private key path '" + tls_private_key_path + "'");
+
+
+		//----------------------------------------------- Launch webserver -----------------------------------------------
+		// Create TLS configuration
+		struct tls_config* web_tls_configuration = tls_config_new();
+
+		if(tls_config_set_cert_file(web_tls_configuration, tls_certificate_path.c_str()) != 0)
+			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+
+		if(tls_config_set_key_file(web_tls_configuration, tls_private_key_path.c_str()) != 0) // set private key
+			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
@@ -684,65 +649,12 @@ int main(int argc, char *argv[])
 		// Create TLS configuration for substrata protocol server
 		struct tls_config* tls_configuration = tls_config_new();
 
-#if defined(_WIN32) || defined(OSX)
-		if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
-			throw glare::Exception("tls_config_set_cert_file failed.");
+		if(tls_config_set_cert_file(tls_configuration, tls_certificate_path.c_str()) != 0)
+			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
 		
-		if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed.");
-#else
-		if(false) // For local testing:
-		{
-			conPrint("Using MyCertificate.crt etc.");
-			
-			if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
-				throw glare::Exception("tls_config_set_cert_file failed.");
-		
-			if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
-				throw glare::Exception("tls_config_set_key_file failed.");
-		}
-		else if(FileUtils::fileExists(certdir))
-		{
-			conPrint("Using godaddy certs");
+		if(tls_config_set_key_file(tls_configuration, tls_private_key_path.c_str()) != 0) // set private key
+			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(tls_configuration));
 
-			if(tls_config_set_cert_file(tls_configuration, (certdir + "/godaddy-1da07c9956c94289.crt").c_str()) != 0)
-				throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-			if(tls_config_set_key_file(tls_configuration, (certdir + "/godaddy-generated-private-key.txt").c_str()) != 0) // set private key
-				throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-		}
-		else
-		{
-			if(FileUtils::fileExists("/etc/letsencrypt/live/substrata.info"))
-			{
-				conPrint("Using Lets-encrypt certs");
-
-				if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
-					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
-				if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
-					throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(tls_configuration));
-			}
-			else if(FileUtils::fileExists("/etc/letsencrypt/live/test.substrata.info"))
-			{
-				conPrint("Using Lets-encrypt certs");
-
-				if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/test.substrata.info/cert.pem") != 0)
-					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
-				if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/test.substrata.info/privkey.pem") != 0) // set private key
-					throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(tls_configuration));
-			}
-			else
-			{
-				if(dev_mode)
-				{
-					if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
-						throw glare::Exception("tls_config_set_cert_file failed.");
-
-					if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
-						throw glare::Exception("tls_config_set_key_file failed.");
-				}
-			}
-		}
-#endif
 		conPrint("Launching ListenerThread...");
 
 		ThreadManager thread_manager;
@@ -1113,12 +1025,12 @@ int main(int argc, char *argv[])
 	}
 	catch(ArgumentParserExcep& e)
 	{
-		conPrint("ArgumentParserExcep: " + e.what());
+		stdErrPrint("ArgumentParserExcep: " + e.what());
 		return 1;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("glare::Exception: " + e.what());
+		stdErrPrint("glare::Exception: " + e.what());
 		return 1;
 	}
 
