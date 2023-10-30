@@ -854,10 +854,10 @@ void TerrainScattering::buildPrecomputedPoints(float chunk_w_m, float density, g
 			}
 		}
 
+		{
 		const float scale_factor =  (rng.unitRandom() * rng.unitRandom() * rng.unitRandom());
 		const float rot = rng.unitRandom() * Maths::get2Pi<float>();
-
-		{
+		
 		PrecomputedPoint point;
 		point.uv = Vec2f(u, v);
 		point.scale_factor = scale_factor;
