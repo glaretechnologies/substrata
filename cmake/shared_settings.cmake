@@ -11,7 +11,7 @@ ${GRAPHICS_DIR}/bitmap.cpp
 ${GRAPHICS_DIR}/bitmap.h
 ${GRAPHICS_DIR}/BoxFilterFunction.cpp
 ${GRAPHICS_DIR}/BoxFilterFunction.h
-${GRAPHICS_DIR}/colour3.cpp
+${GRAPHICS_DIR}/Colour3.cpp
 ${GRAPHICS_DIR}/colour3.h
 ${GRAPHICS_DIR}/Colour3f.cpp
 ${GRAPHICS_DIR}/Colour4f.cpp
