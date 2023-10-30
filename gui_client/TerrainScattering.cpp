@@ -1559,6 +1559,7 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 
 		bindTextureUnitToSampler(opengl_engine->getFBMTex(), /*texture unit index=*/2, terrain_fbm_tex_location);
 
+#if !defined(OSX)
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/VERTEX_DATA_BINDING_POINT_INDEX,        chunk.imposters_gl_ob->mesh_data->vbo_handle.vbo->bufferName());
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/PRECOMPUTED_POINTS_BINDING_POINT_INDEX, grid_scatter.precomputed_points_ssbo->handle);
 	
@@ -1567,6 +1568,7 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 		OpenGLProgram::useNoPrograms();
 
 		glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT); // Make sure all writes to object vertices have finished before use.
+#endif
 
 		// Update AABB with approximate bounds
 		js::AABBox aabb_ws = js::AABBox::emptyAABBox();
