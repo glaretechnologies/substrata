@@ -332,9 +332,6 @@ PhysicsWorld::~PhysicsWorld()
 }
 
 
-static const int LARGE_OB_NUM_CELLS_THRESHOLD = 32;
-
-
 void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale)
 {
 	assert(translation.isFinite());
@@ -461,7 +458,7 @@ void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_qu
 	const Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
 
 #ifndef NDEBUG
-	Matrix4f prod = ob_to_world * world_to_ob;
+	// Matrix4f prod = ob_to_world * world_to_ob;
 	// assert(epsEqual(Matrix4f::identity(), prod, /*eps=*/1.0e-3f));
 #endif
 	
@@ -855,7 +852,7 @@ PhysicsShape PhysicsWorld::createJoltHeightFieldShape(int vert_res, const Array2
 {
 	const int block_size = 4;
 
-	assert(heightfield.getWidth() >= vert_res);
+	assert((int)heightfield.getWidth() >= vert_res);
 	assert(heightfield.getWidth() % 2 == 0); // Needs to be a multiple of mBlockSize
 	assert(heightfield.getWidth() >= 4); // inSampleCount / mBlockSize = inSampleCount / 2 needs to be at least 4, so need inSampleCount >= 4.
 	assert(Maths::isPowerOfTwo<int>((int)heightfield.getWidth() / block_size)); // inSampleCount / mBlockSize must be a power of 2 and minimally 2.
@@ -878,7 +875,7 @@ PhysicsShape PhysicsWorld::createJoltHeightFieldShape(int vert_res, const Array2
 
 	JPH::Ref<JPH::Shape> jolt_shape = result.Get();
 
-	const JPH::AABox bounds = jolt_shape->GetLocalBounds();
+	// const JPH::AABox bounds = jolt_shape->GetLocalBounds();
 
 	PhysicsShape shape;
 	shape.jolt_shape = jolt_shape;

@@ -41,8 +41,8 @@ static const float lean_spring_damping = 500.f; // This seems to cause the insta
 
 
 BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path)
-:	m_opengl_engine(NULL),
-	last_roll_error(0)
+:	m_opengl_engine(NULL)
+	//last_roll_error(0)
 {
 	world_object = object.ptr();
 	m_physics_world = &physics_world;
@@ -451,7 +451,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	const Vec4f bike_forwards_os = z_up_to_model_space * forwards_y_for;
 	const Vec4f bike_right_os = z_up_to_model_space * right_y_for;
-	const Vec4f bike_up_os = crossProduct(bike_right_os, bike_forwards_os);
+	//const Vec4f bike_up_os = crossProduct(bike_right_os, bike_forwards_os);
 
 	const Vec4f bike_right_vec_ws = to_world * bike_right_os;
 	const Vec4f bike_forward_vec_ws = to_world * bike_forwards_os;

@@ -485,7 +485,7 @@ void TerrainSystem::updateCampos(const Vec3d& campos, glare::BumpAllocator& bump
 }
 
 
-static void appendSubtreeString(TerrainNode* node, std::string& s)
+/*static void appendSubtreeString(TerrainNode* node, std::string& s)
 {
 	for(int i=0; i<node->depth; ++i)
 		s.push_back(' ');
@@ -497,7 +497,7 @@ static void appendSubtreeString(TerrainNode* node, std::string& s)
 		for(int i=0; i<4; ++i)
 			appendSubtreeString(node->children[i].ptr(), s);
 	}
-}
+}*/
 
 
 struct TerrainSysDiagnosticsInfo
@@ -667,7 +667,7 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 		//Vec2f detail_uvs = Vec2f(p_x, p_y) * (1 / 3.f);
 		//detail_uvs.y *= -1.0;
 		Vec2f detail_map_0_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 8.0);
-		Vec2f detail_map_1_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
+		//Vec2f detail_map_1_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
 		Vec2f detail_map_2_uvs = Vec2f(nx, ny) * (8.0 * 1024 / 4.0);
 
 			

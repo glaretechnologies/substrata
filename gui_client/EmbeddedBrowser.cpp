@@ -457,7 +457,7 @@ public:
 	CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
 
 	// From CefDisplayHandler
-	virtual bool OnConsoleMessage( CefRefPtr< CefBrowser > browser, cef_log_severity_t level, const CefString& message, const CefString& source, int line )
+	virtual bool OnConsoleMessage( CefRefPtr< CefBrowser > browser, cef_log_severity_t level, const CefString& message, const CefString& source, int line ) override
 	{
 		conPrint("OnConsoleMessage: " + message.ToString());
 		return true;
@@ -1064,11 +1064,11 @@ void EmbeddedBrowser::browserBecameVisible()
 }
 
 
-static const int text_tex_W = 512;
-static const int button_W = 200;
-static const int button_left_x = text_tex_W/2 - button_W/2;
-static const int button_top_y = (int)((1080.0 / 1920) * text_tex_W) - 120;
-static const int button_H = 60;
+//static const int text_tex_W = 512;
+//static const int button_W = 200;
+//static const int button_left_x = text_tex_W/2 - button_W/2;
+//static const int button_top_y = (int)((1080.0 / 1920) * text_tex_W) - 120;
+//static const int button_H = 60;
 
 
 //static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::string& text)
