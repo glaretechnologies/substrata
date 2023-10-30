@@ -13388,7 +13388,7 @@ void MainWindow::updateGroundPlane()
 
 
 			terrain_system = new TerrainSystem();
-			terrain_system->init(path_spec, ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
+			terrain_system->init(path_spec, this->base_dir_path, ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
 		}
 
 #if 0

@@ -221,7 +221,7 @@ static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* o
 }
 
 
-void TerrainSystem::init(const TerrainPathSpec& spec_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::TaskManager* task_manager_, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
+void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_dir_path, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::TaskManager* task_manager_, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
 {
 	spec = spec_;
 	opengl_engine = opengl_engine_;
@@ -389,7 +389,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, OpenGLEngine* opengl_engi
 	//testTerrainSystem(*this); // TEMP
 
 
-	terrain_scattering.init(this, opengl_engine_, physics_world, biome_manager_, campos, bump_allocator);
+	terrain_scattering.init(base_dir_path, this, opengl_engine_, physics_world, biome_manager_, campos, bump_allocator);
 }
 
 

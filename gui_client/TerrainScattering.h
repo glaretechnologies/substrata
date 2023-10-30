@@ -38,7 +38,7 @@ public:
 	TerrainScattering();
 	~TerrainScattering();
 
-	void init(TerrainSystem* terrain_system, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::BumpAllocator& bump_allocator);
+	void init(const std::string& base_dir_path, TerrainSystem* terrain_system, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::BumpAllocator& bump_allocator);
 
 	void shutdown();
 
