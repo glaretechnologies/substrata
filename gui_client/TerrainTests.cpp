@@ -109,8 +109,8 @@ public:
 	{
 		testAssert(obs.count(ob) == 0);
 
-		testAssert(ob->chunk_x >= 0 && (ob->chunk_x + ob->chunk_w) <= mesh_covering_square.getWidth());
-		testAssert(ob->chunk_y >= 0 && (ob->chunk_y + ob->chunk_w) <= mesh_covering_square.getHeight());
+		testAssert(ob->chunk_x >= 0 && (ob->chunk_x + ob->chunk_w) <= (int)mesh_covering_square.getWidth());
+		testAssert(ob->chunk_y >= 0 && (ob->chunk_y + ob->chunk_w) <= (int)mesh_covering_square.getHeight());
 
 		// Check no cells have an object in them already, add add to cell
 		for(int y=ob->chunk_y; y<ob->chunk_y + ob->chunk_w; ++y)
@@ -152,8 +152,8 @@ public:
 	// Test methods
 	bool areAllCellsFilled()
 	{
-		for(int y=0; y<mesh_covering_square.getHeight(); ++y)
-		for(int x=0; x<mesh_covering_square.getWidth() ; ++x)
+		for(size_t y=0; y<mesh_covering_square.getHeight(); ++y)
+		for(size_t x=0; x<mesh_covering_square.getWidth() ; ++x)
 		{
 			if(mesh_covering_square.elem(x, y) == std::numeric_limits<uint64>::max()) // If cell empty:
 				return false;
@@ -637,9 +637,9 @@ void checkAllLeafNodesBuilt(TerrainTestSystem& terrain)
 
 static void printMeshCovering(TerrainTestSystem& terrain)
 {
-	for(int y=0; y<terrain.mesh_covering_square.getHeight(); ++y)
+	for(size_t y=0; y<terrain.mesh_covering_square.getHeight(); ++y)
 	{
-		for(int x=0; x<terrain.mesh_covering_square.getWidth(); ++x)
+		for(size_t x=0; x<terrain.mesh_covering_square.getWidth(); ++x)
 		{
 			uint64 val = terrain.mesh_covering_square.elem(x, y);
 			conPrintStr((val == std::numeric_limits<uint64>::max() ? "e" : toString(val)) + " ");
@@ -749,9 +749,9 @@ void TerrainTests::testTerrain()
 			//testAssert(terrain.areAllCellsFilled());
 			if(!terrain.areAllCellsFilled())
 			{
-				for(int y=0; y<terrain.mesh_covering_square.getHeight(); ++y)
+				for(size_t y=0; y<terrain.mesh_covering_square.getHeight(); ++y)
 				{
-					for(int x=0; x<terrain.mesh_covering_square.getWidth(); ++x)
+					for(size_t x=0; x<terrain.mesh_covering_square.getWidth(); ++x)
 					{
 						uint64 val = terrain.mesh_covering_square.elem(x, y);
 						conPrintStr((val == std::numeric_limits<uint64>::max() ? "e" : toString(val)) + " ");

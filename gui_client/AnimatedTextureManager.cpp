@@ -235,12 +235,6 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 }
 
 
-static inline float largestDim(const js::AABBox& aabb)
-{
-	return horizontalMax((aabb.max_ - aabb.min_).v);
-}
-
-
 AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 	AnimatedTexObDataProcessStats stats;

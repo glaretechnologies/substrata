@@ -126,7 +126,7 @@ private:
 	Vec4f last_force_point;
 	Vec4f last_force_vec;
 
-	float last_roll_error;
+	//float last_roll_error;
 
 	int steering_node_i;
 	int back_arm_node_i;

@@ -13239,7 +13239,7 @@ static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
 	return false;
 }
 
-static bool done_terrain_test = false;
+//static bool done_terrain_test = false;
 
 void MainWindow::updateGroundPlane()
 {
