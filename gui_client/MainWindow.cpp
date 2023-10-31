@@ -324,8 +324,11 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	{
 		// State was not restored.  This will be the case for new Substrata installs.
 		// Hide some dock widgets to provide a slightly simpler user experience.
+		// Hide everything but chat and help-info dock widgets.
+		this->ui->editorDockWidget->hide();
 		this->ui->materialBrowserDockWidget->hide();
-
+		this->ui->environmentDockWidget->hide();
+		this->ui->worldSettingsWidget->hide();
 		this->ui->diagnosticsDockWidget->hide();
 	}
 
