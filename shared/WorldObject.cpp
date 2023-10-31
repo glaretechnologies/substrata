@@ -1002,7 +1002,9 @@ void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t comp
 {
 	group_out.voxels.clear();
 
-	const uint64 decompressed_size = ZSTD_getDecompressedSize(compressed_data, compressed_data_len);
+	const uint64 decompressed_size = ZSTD_getFrameContentSize(compressed_data, compressed_data_len);
+	if(decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN || decompressed_size == ZSTD_CONTENTSIZE_ERROR)
+		throw glare::Exception("Failed to get decompressed_size");
 
 	BufferInStream instream;
 	instream.buf.resizeNoCopy(decompressed_size);
