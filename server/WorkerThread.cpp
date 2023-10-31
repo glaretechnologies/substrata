@@ -2418,6 +2418,12 @@ void WorkerThread::doRun()
 									world_state->markAsChanged();
 								}
 
+								// Process resources
+								std::set<DependencyURL> URLs;
+								world_settings.getDependencyURLSet(URLs);
+								for(auto it = URLs.begin(); it != URLs.end(); ++it)
+									sendGetFileMessageIfNeeded(it->URL);
+
 								conPrintIfNotFuzzing("WorkerThread: Updated world settings.");
 
 								// Send WorldSettingsUpdate message to all connected clients
