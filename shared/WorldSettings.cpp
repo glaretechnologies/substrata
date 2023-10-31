@@ -29,6 +29,28 @@ WorldSettings::~WorldSettings()
 }
 
 
+void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
+{
+	for(size_t i=0; i<terrain_spec.section_specs.size(); ++i)
+	{
+		const TerrainSpecSection& section_spec = terrain_spec.section_specs[i];
+
+		if(!section_spec.heightmap_URL.empty())
+			URLs_out.insert(DependencyURL(section_spec.heightmap_URL));
+		if(!section_spec.mask_map_URL.empty())
+			URLs_out.insert(DependencyURL(section_spec.mask_map_URL));
+	}
+
+	for(int i=0; i<4; ++i)
+		if(!terrain_spec.detail_col_map_URLs[i].empty())
+			URLs_out.insert(DependencyURL(terrain_spec.detail_col_map_URLs[i]));
+
+	for(int i=0; i<4; ++i)
+		if(!terrain_spec.detail_height_map_URLs[i].empty())
+			URLs_out.insert(DependencyURL(terrain_spec.detail_height_map_URLs[i]));
+}
+
+
 static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 1;
 
 

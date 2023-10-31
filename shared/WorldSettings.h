@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
+#include "DependencyURL.h"
 #include "TimeStamp.h"
 #include <vec3.h>
 #include <vec2.h>
@@ -14,6 +15,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <DatabaseKey.h>
 #include <string>
 #include <vector>
+#include <set>
 
 
 struct TerrainSpecSection
@@ -51,6 +53,9 @@ public:
 	~WorldSettings();
 
 	GLARE_ALIGNED_16_NEW_DELETE
+
+	// NOTE: not setting use_sRGB etc. in DependencyURLs, as this getDependencyURLSet method is just used on the server currently, which doesn't need those.
+	void getDependencyURLSet(std::set<DependencyURL>& URLs_out);
 
 	void writeToStream(OutStream& stream) const;
 
