@@ -88,6 +88,7 @@ void DownloadResourcesThread::kill()
 
 // This executes in the DownloadResourcesThread context.
 // We call ungracefulShutdown() on the socket.  This results in any current blocking call returning with WSAEINTR ('blocking operation was interrupted by a call to WSACancelBlockingCall')
+#if defined(_WIN32)
 static void asyncProcedure(uint64 data)
 {
 	DownloadResourcesThread* download_thread = (DownloadResourcesThread*)data;
@@ -96,6 +97,7 @@ static void asyncProcedure(uint64 data)
 
 	download_thread->decRefCount();
 }
+#endif
 
 
 void DownloadResourcesThread::killConnection()
