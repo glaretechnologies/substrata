@@ -277,9 +277,9 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 	}
 	{
 		ImageMapUInt8Ref default_detail_col_map = new ImageMapUInt8(1, 1, 4);
-		default_detail_col_map->getPixel(0, 0)[0] = 100;
-		default_detail_col_map->getPixel(0, 0)[1] = 100;
-		default_detail_col_map->getPixel(0, 0)[2] = 100;
+		default_detail_col_map->getPixel(0, 0)[0] = 150;
+		default_detail_col_map->getPixel(0, 0)[1] = 150;
+		default_detail_col_map->getPixel(0, 0)[2] = 150;
 		default_detail_col_map->getPixel(0, 0)[3] = 255;
 		OpenGLTextureRef default_col_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_col_tex__"), *default_detail_col_map);
 		for(int i=0; i<4; ++i)
