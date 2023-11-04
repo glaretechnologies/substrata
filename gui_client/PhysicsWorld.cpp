@@ -186,6 +186,18 @@ void PhysicsWorld::init()
 }
 
 
+void PhysicsWorld::setWaterBuoyancyEnabled(bool enabled)
+{
+	water_buoyancy_enabled = enabled;
+}
+
+
+void PhysicsWorld::setWaterZ(float water_z_)
+{
+	water_z = water_z_;
+}
+
+
 // Modified from TempAllocatorImpl, added maxTop high water mark.
 class PhysicsWorldAllocatorImpl final : public JPH::TempAllocator
 {
@@ -259,7 +271,9 @@ private:
 
 PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
 :	activated_obs(/*empty_key_=*/NULL),
-	newly_activated_obs(/*empty_key_=*/NULL)
+	newly_activated_obs(/*empty_key_=*/NULL),
+	water_buoyancy_enabled(false),
+	water_z(0)
 #if !USE_JOLT
 	,ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
 	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
@@ -1057,9 +1071,10 @@ void PhysicsWorld::think(double dt)
 	physics_system->Update((float)dt, cCollisionSteps, cIntegrationSubSteps, temp_allocator, job_system);
 
 
-	// TEMP: apply buoyancy to all objects
-	if(false)
+	// Apply buoyancy to all activated dynamic objects if enabled
+	if(water_buoyancy_enabled)
 	{
+		//Timer timer;
 		Lock lock(activated_obs_mutex);
 
 		const JPH::BodyLockInterfaceLocking& lock_interface = physics_system->GetBodyLockInterface();
@@ -1069,18 +1084,30 @@ void PhysicsWorld::think(double dt)
 			PhysicsObject* physics_ob = *it;
 
 			JPH::Body* body = lock_interface.TryGetBody(physics_ob->jolt_body_id);
+			if((body->GetMotionType() == JPH::EMotionType::Dynamic) && // Don't want to apply to our kinematic scripted objects.
+				(body->GetWorldSpaceBounds().mMin.GetZ() < this->water_z)) // If bottom of object is < water_z.  (use as quick test for in water)
+			{
+				const float fluid_density = 1020.f; // kg/m^3, see https://en.wikipedia.org/wiki/Seawater
 
-			body->ApplyBuoyancyImpulse(
-				JPH::RVec3Arg(0,0,-4), // inSurfacePosition
-				JPH::RVec3Arg(0,0,1), // inSurfaceNormal
-				2.0f, //inBuoyancy
-				0.5, // inLinearDrag
-				0.1, // inAngularDrag
-				JPH::Vec3Arg(0,0,0), // inFluidVelocity
-				JPH::Vec3Arg(0,0,-9.81), // inGravity
-				(float)dt // inDeltaTime
-			);
+				// From ApplyBuoyancyImpulse: 
+				// fluid_density = buoyancy / (total_volume * inverse_mass)
+				// buoyancy = fluid_density * total_volume * inverse_mass
+				// buoyancy = fluid_density * total_volume / mass
+				const float buoyancy = fluid_density * body->GetShape()->GetVolume() / physics_ob->mass;
+
+				body->ApplyBuoyancyImpulse(
+					JPH::RVec3Arg(0,0, this->water_z), // inSurfacePosition
+					JPH::RVec3Arg(0,0,1), // inSurfaceNormal
+					buoyancy, // inBuoyancy
+					0.5, // inLinearDrag
+					0.1, // inAngularDrag
+					JPH::Vec3Arg(0,0,0), // inFluidVelocity
+					JPH::Vec3Arg(0,0,-9.81), // inGravity
+					(float)dt // inDeltaTime
+				);
+			}
 		}
+		//conPrint("Applying buoyancy took " + timer.elapsedStringMSWIthNSigFigs(5));
 	}
 }
 
