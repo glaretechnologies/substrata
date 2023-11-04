@@ -309,6 +309,7 @@ void ClientUDPHandlerThread::doRun()
 
 // This executes in the ClientUDPHandlerThread.
 // We call closesocket() on the UDP socket.  This results in the blocking recvfrom() call returning with WSAEINTR ('blocking operation was interrupted by a call to WSACancelBlockingCall')
+#if defined(_WIN32)
 static void asyncProcedure(uint64 data)
 {
 	ClientUDPHandlerThread* udp_handler_thread = (ClientUDPHandlerThread*)data;
@@ -317,6 +318,7 @@ static void asyncProcedure(uint64 data)
 
 	udp_handler_thread->decRefCount();
 }
+#endif
 
 
 void ClientUDPHandlerThread::kill()

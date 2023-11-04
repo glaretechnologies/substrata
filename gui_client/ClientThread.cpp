@@ -60,6 +60,7 @@ void ClientThread::kill()
 
 // This executes in the ClientThread context.
 // We call ungracefulShutdown() on the socket.  This results in any current blocking call returning with WSAEINTR ('blocking operation was interrupted by a call to WSACancelBlockingCall')
+#if defined(_WIN32)
 static void asyncProcedure(uint64 data)
 {
 	ClientThread* client_thread = (ClientThread*)data;
@@ -68,6 +69,7 @@ static void asyncProcedure(uint64 data)
 
 	client_thread->decRefCount();
 }
+#endif
 
 
 void ClientThread::killConnection()
