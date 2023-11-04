@@ -125,8 +125,8 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_billboard_tex_path));
 
 		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_billboard_tex_path);
-		map.downcast<ImageMapUInt8>()->floodFillFromOpaquePixels(/*src_alpha_threshold=*/100, /*update_alpha_threshold=*/100, /*iterations=*/100); // TEMP
-
+		//map.downcast<ImageMapUInt8>()->floodFillFromOpaquePixels(/*src_alpha_threshold=*/100, /*update_alpha_threshold=*/100, /*iterations=*/100); // TEMP
+		//PNGDecoder::write(*map.downcast<ImageMapUInt8>(), "grass clump billboard 2 floodfilled.png");
 
 		TextureParams params;
 		params.wrapping = OpenGLTexture::Wrapping_Clamp;
@@ -140,8 +140,8 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_normal_map_path));
 
 		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_normal_map_path);
-		map.downcast<ImageMapUInt8>()->floodFillFromOpaquePixels(/*src_alpha_threshold=*/100, /*update_alpha_threshold=*/100, /*iterations=*/100); // TEMP
-
+		//map.downcast<ImageMapUInt8>()->floodFillFromOpaquePixels(/*src_alpha_threshold=*/100, /*update_alpha_threshold=*/100, /*iterations=*/100); // TEMP
+		//PNGDecoder::write(*map.downcast<ImageMapUInt8>(), "grass clump billboard 2 normals floodfilled.png");
 
 		TextureParams params;
 		params.wrapping = OpenGLTexture::Wrapping_Clamp;
