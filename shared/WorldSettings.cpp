@@ -18,6 +18,7 @@ WorldSettings::WorldSettings()
 {
 	terrain_spec.terrain_section_width_m = 8192;
 	terrain_spec.water_z = -4;
+	terrain_spec.default_terrain_z = 0;
 	terrain_spec.flags = 0;
 
 	db_dirty = false;
@@ -51,7 +52,7 @@ void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 }
 
 
-static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 1;
+static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 2;
 
 
 void WorldSettings::writeToStream(OutStream& stream) const
@@ -82,6 +83,8 @@ void WorldSettings::writeToStream(OutStream& stream) const
 	buffer.writeFloat(terrain_spec.water_z);
 	buffer.writeUInt32(terrain_spec.flags);
 
+	buffer.writeFloat(terrain_spec.default_terrain_z); // New in v2
+
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)buffer.buf.size();
 	std::memcpy(buffer.buf.data() + sizeof(uint32), &buffer_size, sizeof(uint32));
@@ -93,7 +96,7 @@ void WorldSettings::writeToStream(OutStream& stream) const
 
 void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 {
-	/*const uint32 version =*/ stream_.readUInt32();
+	const uint32 version = stream_.readUInt32();
 	const uint32 buffer_size = stream_.readUInt32();
 
 	checkProperty(buffer_size >= 8ul, "WorldSettings readFromStream: buffer_size was too small");
@@ -130,6 +133,9 @@ void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 	settings.terrain_spec.terrain_section_width_m = buffer_stream.readFloat();
 	settings.terrain_spec.water_z = buffer_stream.readFloat();
 	settings.terrain_spec.flags = buffer_stream.readUInt32();
+
+	if(version >= 2)
+		settings.terrain_spec.default_terrain_z = buffer_stream.readFloat();
 
 	// We effectively skip any remaining data we have not processed by discarding buffer_stream.
 }

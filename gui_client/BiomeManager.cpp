@@ -399,8 +399,6 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 	if(!tree_opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
 		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(vert_buf_allocator, *tree_opengl_ob->mesh_data); // Load mesh data into OpenGL
 
-	tree_opengl_ob->is_instanced_ob_with_imposters = true;
-
 	return tree_opengl_ob;
 }
 
@@ -451,7 +449,6 @@ GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexB
 
 	tree_imposter_opengl_ob->materials[0].albedo_texture = elm_imposters_tex;
 	tree_imposter_opengl_ob->is_imposter = true;
-	tree_imposter_opengl_ob->is_instanced_ob_with_imposters = true;
 
 	return tree_imposter_opengl_ob;
 }

@@ -11069,16 +11069,6 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	cur_loading_voxel_ob = NULL;
 	cur_loading_mesh_data = NULL;
 
-
-	// Remove any ground quads.
-	for(auto it = ground_quads.begin(); it != ground_quads.end(); ++it)
-	{
-		// Remove this ground quad as it is not needed any more.
-		ui->glWidget->opengl_engine->removeObject(it->second.gl_ob);
-		physics_world->removeObject(it->second.phy_ob);
-	}
-	ground_quads.clear();
-
 	if(terrain_system.nonNull())
 	{
 		terrain_system->shutdown();
@@ -13273,14 +13263,6 @@ void MainWindow::setGLWidgetContextAsCurrent()
 }
 
 
-static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
-{
-	for(size_t i=0; i<v.size(); ++i)
-		if(v[i] == p)
-			return true;
-	return false;
-}
-
 //static bool done_terrain_test = false;
 
 void MainWindow::updateGroundPlane()
@@ -13291,268 +13273,154 @@ void MainWindow::updateGroundPlane()
 	if(ui->glWidget->opengl_engine.isNull() || !ui->glWidget->opengl_engine->initSucceeded())
 		return;
 
-	const TerrainSpec& spec = this->connected_world_settings.terrain_spec;
-	if(!spec.section_specs.empty()) // If there is at least one terrain section specified, use the new terrain system:
+	if(terrain_system.isNull())
 	{
-		// Remove any old ground quads if present
-		for(auto it = ground_quads.begin(); it != ground_quads.end(); ++it)
+		biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager); // TEMP NEW
+
+		// Convert URL-based terrain spec to path-based spec
+		const TerrainSpec& spec = this->connected_world_settings.terrain_spec;
+		TerrainPathSpec path_spec;
+		path_spec.section_specs.resize(spec.section_specs.size());
+		for(size_t i=0; i<spec.section_specs.size(); ++i)
 		{
-			// Remove this ground quad as it is not needed any more.
-			ui->glWidget->opengl_engine->removeObject(it->second.gl_ob);
-			physics_world->removeObject(it->second.phy_ob);
+			path_spec.section_specs[i].x = spec.section_specs[i].x;
+			path_spec.section_specs[i].y = spec.section_specs[i].y;
+			if(!spec.section_specs[i].heightmap_URL.empty())
+				path_spec.section_specs[i].heightmap_path = resource_manager->pathForURL(spec.section_specs[i].heightmap_URL);
+			if(!spec.section_specs[i].mask_map_URL.empty())
+				path_spec.section_specs[i].mask_map_path  = resource_manager->pathForURL(spec.section_specs[i].mask_map_URL);
 		}
-		ground_quads.clear();
 
-		if(terrain_system.isNull())
+		for(int i=0; i<4; ++i)
 		{
-			biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager); // TEMP NEW
+			if(!spec.detail_col_map_URLs[i].empty())
+				path_spec.detail_col_map_paths[i]    = resource_manager->pathForURL(spec.detail_col_map_URLs[i]);
+			if(!spec.detail_height_map_URLs[i].empty())
+				path_spec.detail_height_map_paths[i] = resource_manager->pathForURL(spec.detail_height_map_URLs[i]);
+		}
 
-			// Convert URL-based terrain spec to path-based spec
-			TerrainPathSpec path_spec;
-			path_spec.section_specs.resize(spec.section_specs.size());
-			for(size_t i=0; i<spec.section_specs.size(); ++i)
+		const float terrain_section_width_m = myClamp(spec.terrain_section_width_m, 8.f, 1000000.f);
+
+		path_spec.terrain_section_width_m = terrain_section_width_m;
+		path_spec.default_terrain_z = spec.default_terrain_z;
+		path_spec.water_z = spec.water_z;
+		path_spec.flags = spec.flags;
+
+
+		const float aabb_ws_longest_len = terrain_section_width_m;
+
+		//----------------------------- Start downloading textures, if not already present on disk in resource manager -----------------------------
+		for(size_t i=0; i<spec.section_specs.size(); ++i)
+		{
+			const TerrainSpecSection& section_spec = spec.section_specs[i];
+			const Vec4f centroid_ws(section_spec.x  * terrain_section_width_m, section_spec.y  * terrain_section_width_m, 0, 1);
+
+			if(!section_spec.heightmap_URL.empty())
 			{
-				path_spec.section_specs[i].x = spec.section_specs[i].x;
-				path_spec.section_specs[i].y = spec.section_specs[i].y;
-				if(!spec.section_specs[i].heightmap_URL.empty())
-					path_spec.section_specs[i].heightmap_path = resource_manager->pathForURL(spec.section_specs[i].heightmap_URL);
-				if(!spec.section_specs[i].mask_map_URL.empty())
-					path_spec.section_specs[i].mask_map_path  = resource_manager->pathForURL(spec.section_specs[i].mask_map_URL);
+				DownloadingResourceInfo info;
+				info.use_sRGB = false;
+				info.allow_compression = false;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(centroid_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, info);
 			}
-
-			for(int i=0; i<4; ++i)
+			if(!section_spec.mask_map_URL.empty())
 			{
-				if(!spec.detail_col_map_URLs[i].empty())
-					path_spec.detail_col_map_paths[i]    = resource_manager->pathForURL(spec.detail_col_map_URLs[i]);
-				if(!spec.detail_height_map_URLs[i].empty())
-					path_spec.detail_height_map_paths[i] = resource_manager->pathForURL(spec.detail_height_map_URLs[i]);
+				DownloadingResourceInfo info;
+				info.use_sRGB = false;
+				info.allow_compression = false;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(centroid_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
 			}
+		}
 
-			const float terrain_section_width_m = myClamp(spec.terrain_section_width_m, 8.f, 1000000.f);
-
-			path_spec.terrain_section_width_m = terrain_section_width_m;
-			path_spec.water_z = spec.water_z;
-			path_spec.flags = spec.flags;
-
-
-			const float aabb_ws_longest_len = terrain_section_width_m;
-
-			//----------------------------- Start downloading textures, if not already present on disk in resource manager -----------------------------
-			for(size_t i=0; i<spec.section_specs.size(); ++i)
+		for(int i=0; i<4; ++i)
+		{
+			if(!spec.detail_col_map_URLs[i].empty())
 			{
-				const TerrainSpecSection& section_spec = spec.section_specs[i];
-				const Vec4f centroid_ws(section_spec.x  * terrain_section_width_m, section_spec.y  * terrain_section_width_m, 0, 1);
-
-				if(!section_spec.heightmap_URL.empty())
-				{
-					DownloadingResourceInfo info;
-					info.use_sRGB = false;
-					info.allow_compression = false;
-					info.is_terrain_map = true;
-					info.pos = Vec3d(centroid_ws);
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
-					startDownloadingResource(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, info);
-				}
-				if(!section_spec.mask_map_URL.empty())
-				{
-					DownloadingResourceInfo info;
-					info.use_sRGB = false;
-					info.allow_compression = false;
-					info.is_terrain_map = true;
-					info.pos = Vec3d(centroid_ws);
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
-					startDownloadingResource(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
-				}
+				DownloadingResourceInfo info;
+				info.use_sRGB = true;
+				info.allow_compression = true;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(0,0,0);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(spec.detail_col_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
 			}
-
-			for(int i=0; i<4; ++i)
+			if(!spec.detail_height_map_URLs[i].empty())
 			{
-				if(!spec.detail_col_map_URLs[i].empty())
-				{
-					DownloadingResourceInfo info;
-					info.use_sRGB = true;
-					info.allow_compression = true;
-					info.is_terrain_map = true;
-					info.pos = Vec3d(0,0,0);
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
-					startDownloadingResource(spec.detail_col_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
-				}
-				if(!spec.detail_height_map_URLs[i].empty())
-				{
-					DownloadingResourceInfo info;
-					info.use_sRGB = false;
-					info.allow_compression = false;
-					info.is_terrain_map = true;
-					info.pos = Vec3d(0,0,0);
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
-					startDownloadingResource(spec.detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
-				}
+				DownloadingResourceInfo info;
+				info.use_sRGB = false;
+				info.allow_compression = false;
+				info.is_terrain_map = true;
+				info.pos = Vec3d(0,0,0);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(spec.detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
 			}
-			//--------------------------------------------------------------------------------------------------------------------------
+		}
+		//--------------------------------------------------------------------------------------------------------------------------
 
 
-			//----------------------------- Start loading textures, if the resource is already present on disk -----------------------------
-			for(size_t i=0; i<spec.section_specs.size(); ++i)
-			{
-				const TerrainSpecSection& section_spec = spec.section_specs[i];
-				TerrainPathSpecSection& path_section = path_spec.section_specs[i];
+		//----------------------------- Start loading textures, if the resource is already present on disk -----------------------------
+		for(size_t i=0; i<spec.section_specs.size(); ++i)
+		{
+			const TerrainSpecSection& section_spec = spec.section_specs[i];
+			TerrainPathSpecSection& path_section = path_spec.section_specs[i];
 
-				const Vec4f centroid_ws(section_spec.x  * terrain_section_width_m, section_spec.y  * terrain_section_width_m, 0, 1);
+			const Vec4f centroid_ws(section_spec.x  * terrain_section_width_m, section_spec.y  * terrain_section_width_m, 0, 1);
 			
-				if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
-					load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.heightmap_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
-						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
+				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.heightmap_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
-				if(!section_spec.mask_map_URL.empty())
-					load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.mask_map_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
-						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
-			}
-
-			for(int i=0; i<4; ++i)
-			{
-				if(!spec.detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_col_map_URLs[i]))
-					load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_col_map_paths[i], /*use_sRGB=*/true, /*allow compression=*/true, /*is terrain map=*/true), 
-						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
-
-				if(!spec.detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_height_map_URLs[i]))
-					load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_height_map_paths[i], /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
-						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
-			}
-			//--------------------------------------------------------------------------------------------------------------------------------
-
-
-			terrain_system = new TerrainSystem();
-			terrain_system->init(path_spec, this->base_dir_path, ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
+			if(!section_spec.mask_map_URL.empty())
+				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.mask_map_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
+
+		for(int i=0; i<4; ++i)
+		{
+			if(!spec.detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_col_map_URLs[i]))
+				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_col_map_paths[i], /*use_sRGB=*/true, /*allow compression=*/true, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+
+			if(!spec.detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_height_map_URLs[i]))
+				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_height_map_paths[i], /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+		}
+		//--------------------------------------------------------------------------------------------------------------------------------
+
+
+		terrain_system = new TerrainSystem();
+		terrain_system->init(path_spec, this->base_dir_path, ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
+	}
 
 #if 0
-		// Trace some rays against the ground, in order to test terrain physics.  Place a sphere where the rays intersect the ground.
-		if(!done_terrain_test && total_timer.elapsed() > 6)
-		{
-			for(int x=0; x<100; ++x)
-			for(int y=0; y<100; ++y)
-			{
-				float px = -500.f + x * 10;
-				float py = -500.f + y * 10;
-				RayTraceResult results;
-				physics_world->traceRay(Vec4f(px,py,500,1), Vec4f(0,0,-1,0), 10000.f, results);
-
-				GLObjectRef ob = ui->glWidget->opengl_engine->makeSphereObject(0.02f, Colour4f(1,0,0,1));
-				ob->ob_to_world_matrix = Matrix4f::translationMatrix(Vec4f(px,py,500,1) + Vec4f(0,0,-1,0) * results.hitdist_ws) *  Matrix4f::uniformScaleMatrix(0.3f);
-				ui->glWidget->opengl_engine->addObject(ob);
-			}
-
-			done_terrain_test = true;
-		}
-#endif
-
-	}
-	else // else use old flat ground quad system:
+	// Trace some rays against the ground, in order to test terrain physics.  Place a sphere where the rays intersect the ground.
+	if(!done_terrain_test && total_timer.elapsed() > 6)
 	{
-		if(this->world_state.isNull())
-			return;
-
-		// Remove new terrain system if present
-		if(terrain_system.nonNull())
+		for(int x=0; x<100; ++x)
+		for(int y=0; y<100; ++y)
 		{
-			terrain_system->shutdown();
-			terrain_system = NULL;
+			float px = -500.f + x * 10;
+			float py = -500.f + y * 10;
+			RayTraceResult results;
+			physics_world->traceRay(Vec4f(px,py,500,1), Vec4f(0,0,-1,0), 10000.f, results);
+
+			GLObjectRef ob = ui->glWidget->opengl_engine->makeSphereObject(0.02f, Colour4f(1,0,0,1));
+			ob->ob_to_world_matrix = Matrix4f::translationMatrix(Vec4f(px,py,500,1) + Vec4f(0,0,-1,0) * results.hitdist_ws) *  Matrix4f::uniformScaleMatrix(0.3f);
+			ui->glWidget->opengl_engine->addObject(ob);
 		}
 
-		try
-		{
-			// The basic idea is that we want to have a ground-plane quad under the player's feet at all times.
-			// However the quad can't get too large, or you start getting shuddering and other graphical glitches.
-			// So we'll load in 4 quads around the player position, and add new quads or remove old ones as required as the player moves.
-	
-			const Vec3d pos = cam_controller.getPosition();
-
-			// Get integer indices of nearest 4 quads to player position.
-			const int cur_x = Maths::floorToInt(pos.x / ground_quad_w);
-			const int cur_y = Maths::floorToInt(pos.y / ground_quad_w);
-
-			const int adj_x = (Maths::fract(pos.x / ground_quad_w) < 0.5) ? (cur_x - 1) : (cur_x + 1);
-			const int adj_y = (Maths::fract(pos.y / ground_quad_w) < 0.5) ? (cur_y - 1) : (cur_y + 1);
-
-			SmallVector<Vec2i, 4> new_quads(4);
-			new_quads[0] = Vec2i(cur_x, cur_y);
-			new_quads[1] = Vec2i(adj_x, cur_y);
-			new_quads[2] = Vec2i(cur_x, adj_y);
-			new_quads[3] = Vec2i(adj_x, adj_y);
-
-			// Add any new quad not in ground_quads.
-			for(size_t i=0; i<4; ++i)
-			{
-				const Vec2i new_quad = new_quads[i];
-				if(ground_quads.count(new_quad) == 0)
-				{
-					// Make new quad
-					//conPrint("Added ground quad (" + toString(new_quad.x) + ", " + toString(new_quad.y) + ")");
-
-					GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
-					gl_ob->materials.resize(1);
-					gl_ob->materials[0].albedo_linear_rgb = Colour3f(0.79f); // toLinearSRGB(Colour3f(0.9f));
-					gl_ob->materials[0].tex_matrix = Matrix2f((float)ground_quad_w, 0, 0, (float)ground_quad_w);
-					//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
-					try
-					{
-						gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/obstacle.png");
-					}
-					catch(glare::Exception& e)
-					{
-						assert(0);
-						conPrint("ERROR: " + e.what());
-					}
-					gl_ob->materials[0].roughness = 0.8f;
-					gl_ob->materials[0].fresnel_scale = 0.5f;
-
-					gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0) * Matrix4f::scaleMatrix((float)ground_quad_w, (float)ground_quad_w, 1);
-					gl_ob->mesh_data = ground_quad_mesh_opengl_data;
-
-					ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
-
-					Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
-					phy_ob->shape = ground_quad_shape;
-					phy_ob->pos = Vec4f((new_quad.x + 0.5f) * (float)ground_quad_w, (new_quad.y + 0.5f) * (float)ground_quad_w, -0.5f, 1); // Ground quad shape is a box centered at (0,0,0), so need to offset a bit.
-					phy_ob->rot = Quatf::identity();
-					phy_ob->scale = Vec3f(1.f);
-
-					physics_world->addObject(phy_ob);
-
-					GroundQuad ground_quad;
-					ground_quad.gl_ob = gl_ob;
-					ground_quad.phy_ob = phy_ob;
-
-					ground_quads.insert(std::make_pair(new_quad, ground_quad));
-				}
-			}
-
-			// Remove any stale ground quads.
-			for(auto it = ground_quads.begin(); it != ground_quads.end();)
-			{
-				if(!contains(new_quads, it->first))
-				{
-					//conPrint("Removed ground quad (" + toString(it->first.x) + ", " + toString(it->first.y) + ")");
-
-					// Remove this ground quad as it is not needed any more.
-					ui->glWidget->opengl_engine->removeObject(it->second.gl_ob);
-					physics_world->removeObject(it->second.phy_ob);
-
-					it = ground_quads.erase(it);
-				}
-				else
-					++it;
-			}
-		}
-		catch(glare::Exception& e)
-		{
-			conPrint("MainWindow::updateGroundPlane() error: " + e.what());
-		}
+		done_terrain_test = true;
 	}
+#endif
 }
 
 

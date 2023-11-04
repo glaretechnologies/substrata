@@ -35,6 +35,7 @@ struct TerrainSpec
 
 	float terrain_section_width_m;
 	float water_z;
+	float default_terrain_z;
 
 	static const uint32 WATER_ENABLED_FLAG = 1;
 	uint32 flags;
