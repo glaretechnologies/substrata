@@ -5332,6 +5332,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					terrain_system->shutdown();
 					terrain_system = NULL;
 				}
+
+				if(physics_world.nonNull())
+				{
+					physics_world->setWaterBuoyancyEnabled(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
+					const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
+					physics_world->setWaterZ(use_water_z);
+				}
 			}
 			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
 			{

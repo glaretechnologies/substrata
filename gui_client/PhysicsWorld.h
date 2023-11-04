@@ -92,6 +92,9 @@ public:
 	~PhysicsWorld();
 
 	static void init();
+
+	void setWaterBuoyancyEnabled(bool enabled);
+	void setWaterZ(float water_z);
 		
 	void addObject(const Reference<PhysicsObject>& object);
 	
@@ -166,4 +169,8 @@ public:
 	BPLayerInterfaceImpl* broad_phase_layer_interface;
 	MyBroadPhaseLayerFilter* broad_phase_layer_filter;
 	MyObjectLayerPairFilter* object_layer_pair_filter;
+
+private:
+	bool water_buoyancy_enabled;
+	float water_z;
 };
