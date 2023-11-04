@@ -159,6 +159,10 @@ public:
 
 	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
 
+	void rebuildScattering();
+
+	void invalidateVegetationMap(const js::AABBox& aabb_ws);
+
 	std::string getDiagnostics() const;
 
 

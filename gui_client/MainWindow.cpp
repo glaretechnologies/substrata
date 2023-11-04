@@ -1876,6 +1876,15 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						}
 
 
+						if(hasPrefix(ob->content, "biome: park"))
+						{
+							ob->opengl_engine_ob->draw_to_mask_map = true;
+
+							if(this->terrain_system.nonNull())
+								this->terrain_system->invalidateVegetationMap(ob->getAABBWS());
+						}
+
+
 						//Timer timer;
 						ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
@@ -3220,6 +3229,8 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 		audio_engine.sourcePositionUpdated(*ob->audio_source);
 	}
 
+	if(this->terrain_system.nonNull() && ::hasPrefix(ob->content, "biome:"))
+		this->terrain_system->invalidateVegetationMap(ob->getAABBWS());
 
 	if(ob->object_type == WorldObject::ObjectType_Spotlight)
 	{
@@ -3539,6 +3550,14 @@ void MainWindow::processLoading()
 
 											assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
+											if(hasPrefix(ob->content, "biome: park"))
+											{
+												ob->opengl_engine_ob->draw_to_mask_map = true;
+
+												if(this->terrain_system.nonNull())
+													this->terrain_system->invalidateVegetationMap(ob->getAABBWS());
+											}
+
 											ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 
 
@@ -3751,6 +3770,14 @@ void MainWindow::processLoading()
 							if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
 							{
 								assignedLoadedOpenGLTexturesToMats(voxel_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
+
+								if(hasPrefix(voxel_ob->content, "biome: park"))
+								{
+									voxel_ob->opengl_engine_ob->draw_to_mask_map = true;
+
+									if(this->terrain_system.nonNull())
+										this->terrain_system->invalidateVegetationMap(voxel_ob->getAABBWS());
+								}
 
 								ui->glWidget->opengl_engine->addObject(opengl_ob);
 
@@ -10187,6 +10214,9 @@ void MainWindow::objectTransformEditedSlot()
 				this->selected_ob->audio_source->pos = this->selected_ob->getCentroidWS();
 				this->audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
 			}
+
+			if(this->terrain_system.nonNull() && ::hasPrefix(selected_ob->content, "biome:"))
+				this->terrain_system->invalidateVegetationMap(selected_ob->getAABBWS());
 		}
 	}
 	catch(glare::Exception& e)
@@ -10602,6 +10632,9 @@ void MainWindow::objectEditedSlot()
 				this->selected_ob->audio_source->volume = this->selected_ob->audio_volume;
 				this->audio_engine.sourceVolumeUpdated(*this->selected_ob->audio_source);
 			}
+
+			if(this->terrain_system.nonNull() && ::hasPrefix(selected_ob->content, "biome:"))
+				this->terrain_system->invalidateVegetationMap(selected_ob->getAABBWS());
 		}
 
 	}
@@ -12452,6 +12485,8 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 			}
 		}
 
+		if(this->terrain_system.nonNull() && ::hasPrefix(selected_ob->content, "biome:"))
+			this->terrain_system->invalidateVegetationMap(selected_ob->getAABBWS());
 
 		// Trigger sending update-lightmap update flag message later.
 		//ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
@@ -14007,7 +14042,8 @@ int main(int argc, char *argv[])
 
 
 			// Make an arrow marking the axes at the origin
-			/*const Vec4f arrow_origin(0, 0, 0.05f, 1);
+#if BUILD_TESTS
+			const Vec4f arrow_origin(0, 0, 0.05f, 1);
 			{
 				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
 				mw.ui->glWidget->opengl_engine->addObject(arrow);
@@ -14019,7 +14055,8 @@ int main(int argc, char *argv[])
 			{
 				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 				mw.ui->glWidget->opengl_engine->addObject(arrow);
-			}*/
+			}
+#endif
 
 			// For ob placement:
 			mw.axis_arrow_objects[0] = mw.ui->glWidget->opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(1, 0, 0, 1), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
