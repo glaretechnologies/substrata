@@ -60,7 +60,7 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 
 		TerrainSpecSectionWidget* new_section_widget = new TerrainSpecSectionWidget(this);
 		new_section_widget->xSpinBox->setValue(section_spec.x);
-		new_section_widget->xSpinBox->setValue(section_spec.y);
+		new_section_widget->ySpinBox->setValue(section_spec.y);
 		new_section_widget->heightmapURLFileSelectWidget->setFilename(QtUtils::toQString(section_spec.heightmap_URL));
 		new_section_widget->maskMapURLFileSelectWidget->setFilename(QtUtils::toQString(section_spec.mask_map_URL));
 
