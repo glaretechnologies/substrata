@@ -39,6 +39,9 @@ Copyright Glare Technologies Limited 2023 -
 #endif
 
 
+static const float detail_mask_map_width_m = 256.f; // NOTE: needs to match DETAIL_MASK_MAP_WIDTH_M define in shaders\build_imposters_compute_shader.glsl
+static const size_t detail_mask_map_width_px = 512;
+
 static const float LARGE_TREE_CHUNK_W = 256; // metres
 static const int LARGE_TREE_CHUNK_GRID_RES = 17;
 
@@ -148,6 +151,18 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 	}
 
 	//grass_texture = opengl_engine->getTexture("N:\\substrata\\trunk\\resources\\obstacle.png");
+
+	{
+		ImageMapUInt8Ref default_mask_map = new ImageMapUInt8(1, 1, 4);
+		default_mask_map->getPixel(0, 0)[0] = 0;
+		default_mask_map->getPixel(0, 0)[1] = 0;
+		default_mask_map->getPixel(0, 0)[2] = 0;
+		default_mask_map->getPixel(0, 0)[3] = 0;
+		this->default_detail_mask_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_detail_mask_tex__"), *default_mask_map);
+	}
+
+	for(int i=0; i<DETAIL_MASK_MAP_SECTION_RES*DETAIL_MASK_MAP_SECTION_RES; ++i)
+		detail_mask_map_sections[i].gl_tex_valid = false;
 
 
 	//{
@@ -309,9 +324,10 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 			opengl_engine->getPreprocessorDefinesWithCommonVertStructs(), GL_COMPUTE_SHADER);
 		build_imposters_prog = new OpenGLProgram("build imposters", build_imposters_compute_shader, /*frag shader=*/NULL, opengl_engine->getAndIncrNextProgramIndex());
 
-		terrain_height_map_location = build_imposters_prog->getUniformLocation("terrain_height_map");
-		terrain_mask_tex_location   = build_imposters_prog->getUniformLocation("terrain_mask_tex");
-		terrain_fbm_tex_location    = build_imposters_prog->getUniformLocation("fbm_tex");
+		terrain_height_map_location       = build_imposters_prog->getUniformLocation("terrain_height_map");
+		terrain_mask_tex_location         = build_imposters_prog->getUniformLocation("terrain_mask_tex");
+		terrain_fbm_tex_location          = build_imposters_prog->getUniformLocation("fbm_tex");
+		terrain_detail_mask_tex_location  = build_imposters_prog->getUniformLocation("detail_mask_tex");
 
 		// Build chunk_info_ssbo
 		chunk_info_ssbo = new SSBO();
@@ -383,6 +399,77 @@ void TerrainScattering::rebuild()
 }
 
 
+
+void TerrainScattering::invalidateVegetationMap(const js::AABBox& aabb_ws)
+{
+	// conPrint("TerrainScattering::invalidateVegetationMap()");
+
+	last_centre_x = -100000;
+	last_centre_y = -100000;
+
+	last_ob_centre_i = Vec2i(-100000);
+
+	for(size_t i=0; i<grid_scatters.size(); ++i)
+		grid_scatters[i]->last_centre = Vec2i(-100000);
+
+
+	const int start_x = myClamp(Maths::floorToInt(aabb_ws.min_[0] / detail_mask_map_width_m)     + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
+	const int start_y = myClamp(Maths::floorToInt(aabb_ws.min_[1] / detail_mask_map_width_m)     + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
+	const int end_x   = myClamp(Maths::floorToInt(aabb_ws.max_[0] / detail_mask_map_width_m) + 1 + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES); // exclusive
+	const int end_y   = myClamp(Maths::floorToInt(aabb_ws.max_[1] / detail_mask_map_width_m) + 1 + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
+
+	for(int y=start_y; y<end_y; ++y)
+	for(int x=start_x; x<end_x; ++x)
+	{
+		// conPrint("invalidating section " + toString(x) + ", " + toString(y));
+
+		detail_mask_map_sections[x + y*DETAIL_MASK_MAP_SECTION_RES].gl_tex_valid = false;
+	}
+}
+
+
+void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y)
+{
+	// conPrint("TerrainScattering::rebuildDetailMaskMapSection: section_x: " + toString(section_x) + ", section_y: " + toString(section_y));
+
+	DetailMaskMapSection& section = detail_mask_map_sections[section_x + section_y*DETAIL_MASK_MAP_SECTION_RES];
+	if(section.mask_map_gl_tex.isNull())
+	{
+		section.mask_map_gl_tex = new OpenGLTexture(detail_mask_map_width_px, detail_mask_map_width_px, /*opengl_engine=*/opengl_engine,
+			ArrayRef<uint8>(NULL, 0),
+			OpenGLTexture::Format_RGB_Linear_Uint8, // Format_Greyscale_Uint8 doesn't seem to work. (Framebuffer not complete)
+			OpenGLTexture::Filtering_Bilinear
+		);
+	}
+
+
+	const Vec2f botleft_ws(
+		(section_x - DETAIL_MASK_MAP_SECTION_RES/2) * detail_mask_map_width_m,
+		(section_y - DETAIL_MASK_MAP_SECTION_RES/2) * detail_mask_map_width_m
+	);
+
+	// Do pass to render detail vegetation mask
+	opengl_engine->renderMaskMap(*section.mask_map_gl_tex, botleft_ws, /*world capture width=*/detail_mask_map_width_m);
+	section.gl_tex_valid = true;
+
+	// Read texture back to main memory
+	if(section.detail_mask_map.isNull())
+		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 3);
+
+	//Timer timer;
+	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(section.detail_mask_map->getData(), section.detail_mask_map->getDataSize()));
+	//conPrint("\nreadBackTexture took " + timer.elapsedStringMSWIthNSigFigs(4) + "");
+
+
+	// Build non-zero mipmap
+	//timer.reset();
+	section.non_zero_mip_map.build(*section.detail_mask_map, /*channel=*/0);
+	//conPrint("non_zero_mip_map.build " + timer.elapsedStringMSWIthNSigFigs(4) + "\n");
+
+	//PNGDecoder::write(*section.detail_mask_map, "detail_mask_map_" + toString(section_x) + "_" + toString(section_y) + ".png");
+}
+
+
 /*
                    large chunk (0, 0)                                     large chunk (1, 0)
 ==============================================================================================================
@@ -421,6 +508,15 @@ static int num_imposter_obs_inserted = 0;
 
 void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator)
 {
+	// Build detail mask maps for any invalid sections.
+	for(int y=0; y<DETAIL_MASK_MAP_SECTION_RES; ++y)
+	for(int x=0; x<DETAIL_MASK_MAP_SECTION_RES; ++x)
+	{
+		if(!detail_mask_map_sections[x + y*DETAIL_MASK_MAP_SECTION_RES].gl_tex_valid)
+			rebuildDetailMaskMapSection(x, y);
+	}
+
+
 #if 1
 	const int large_chunk_centre_x = Maths::floorToInt(campos.x / LARGE_TREE_CHUNK_W);
 	const int large_chunk_centre_y = Maths::floorToInt(campos.y / LARGE_TREE_CHUNK_W);
@@ -486,8 +582,8 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& 
 		last_centre_x = large_chunk_centre_x;
 		last_centre_y = large_chunk_centre_y;
 
-		conPrint("Updating imposter chunks took " + timer.elapsedString());
-		printVar(num_imposter_obs_inserted);
+		//conPrint("Updating imposter chunks took " + timer.elapsedString());
+		//printVar(num_imposter_obs_inserted);
 	}
 
 	// Update individual tree info (small chunks)
@@ -932,6 +1028,18 @@ void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_inde
 	locations_out.resize(0);
 	locations_out.reserve(N);
 
+	// Work out which detail mask map covers this chunk
+	const ImageMapUInt8* detail_mask_map = NULL;
+	{
+		const int detail_mask_section_x = Maths::floorToInt(((chunk_x_index + 0.5f) * chunk_w_m) / detail_mask_map_width_m) + DETAIL_MASK_MAP_SECTION_RES/2;
+		const int detail_mask_section_y = Maths::floorToInt(((chunk_y_index + 0.5f) * chunk_w_m) / detail_mask_map_width_m) + DETAIL_MASK_MAP_SECTION_RES/2;
+		if( detail_mask_section_x >= 0 && detail_mask_section_x < DETAIL_MASK_MAP_SECTION_RES &&
+			detail_mask_section_y >= 0 && detail_mask_section_y < DETAIL_MASK_MAP_SECTION_RES)
+		{
+			detail_mask_map = detail_mask_map_sections[detail_mask_section_x + detail_mask_section_y*DETAIL_MASK_MAP_SECTION_RES].detail_mask_map.ptr();
+		}
+	}
+
 	const TerrainSystem* const terrain_system_  = terrain_system;
 	for(int q=0; q<N; ++q)
 	{
@@ -946,9 +1054,18 @@ void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_inde
 
 		// Lookup terrain mask to see if this is vegetation
 		const Colour4f mask = terrain_system_->evalTerrainMask(pos[0], pos[1]);
-		const float vegetation_mask = mask[2];
+		float vegetation_mask = mask[2];
+
+		// Look up our detail_mask_map, if non-null.
+		if(detail_mask_map)
+		{
+			// Flip y coord since this texture is from OpenGL and hence flipped in y.
+			const float val = detail_mask_map->sampleSingleChannelTiled(pos[0] / detail_mask_map_width_m, 1.f - pos[1] / detail_mask_map_width_m, /*channel=*/0);
+			vegetation_mask = myMax(vegetation_mask, val);
+		}
+
 		if(vegetation_mask < 0.5f)
-		 	continue;
+			continue;
 
 		const Vec4i begin = truncateToVec4i((pos - Vec4f(min_dist)) * recip_cell_w);
 		const Vec4i end   = truncateToVec4i((pos + Vec4f(min_dist)) * recip_cell_w);
@@ -1506,6 +1623,39 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 		}
 	}
 
+
+	// Work out which detail mask map (if any) covers this chunk
+	const OpenGLTexture* detail_mask_map_gl_tex = NULL;
+	{
+		const int detail_mask_section_x = Maths::floorToInt(centre_p_x / detail_mask_map_width_m) + DETAIL_MASK_MAP_SECTION_RES/2;
+		const int detail_mask_section_y = Maths::floorToInt(centre_p_y / detail_mask_map_width_m) + DETAIL_MASK_MAP_SECTION_RES/2;
+		if( detail_mask_section_x >= 0 && detail_mask_section_x < DETAIL_MASK_MAP_SECTION_RES &&
+			detail_mask_section_y >= 0 && detail_mask_section_y < DETAIL_MASK_MAP_SECTION_RES)
+		{
+			const DetailMaskMapSection& detail_section = detail_mask_map_sections[detail_mask_section_x + detail_mask_section_y*DETAIL_MASK_MAP_SECTION_RES];
+			if(detail_section.gl_tex_valid)
+			{
+				detail_mask_map_gl_tex = detail_section.mask_map_gl_tex.ptr();
+
+				const float detail_section_botleft_x_ws = (detail_mask_section_x - DETAIL_MASK_MAP_SECTION_RES/2) * detail_mask_map_width_m;
+				const float detail_section_botleft_y_ws = (detail_mask_section_y - DETAIL_MASK_MAP_SECTION_RES/2) * detail_mask_map_width_m;
+
+				const float chunk_botleft_x_ws = chunk_x_index * grid_scatter.chunk_width;
+				const float chunk_botleft_y_ws = chunk_y_index * grid_scatter.chunk_width;
+
+				// Compute normalised coordinates inside detail section of the grid chunk botleft.
+				const float region_nx = (chunk_botleft_x_ws - detail_section_botleft_x_ws) / detail_mask_map_width_m;
+				const float region_ny = (chunk_botleft_y_ws - detail_section_botleft_y_ws) / detail_mask_map_width_m;
+
+				const float region_nw = grid_scatter.chunk_width / detail_mask_map_width_m;
+
+				const bool detail_mask_map_nonzero = detail_section.non_zero_mip_map.isRegionNonZero(region_nx, region_ny, region_nw, region_nw);
+				if(detail_mask_map_nonzero)
+					max_vegetation_val = 1;
+			}
+		}
+	}
+
 	if(max_vegetation_val == 0)
 	{
 		if(chunk.imposters_gl_ob->mesh_data->batches[0].num_indices != 0)
@@ -1558,6 +1708,8 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 		}
 
 		bindTextureUnitToSampler(opengl_engine->getFBMTex(), /*texture unit index=*/2, terrain_fbm_tex_location);
+
+		bindTextureUnitToSampler(detail_mask_map_gl_tex ? *detail_mask_map_gl_tex : *default_detail_mask_tex, /*texture unit index=*/3, terrain_detail_mask_tex_location);
 
 #if !defined(OSX)
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/VERTEX_DATA_BINDING_POINT_INDEX,        chunk.imposters_gl_ob->mesh_data->vbo_handle.vbo->bufferName());

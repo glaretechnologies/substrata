@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "OpenGLEngine.h"
 #include "PhysicsObject.h"
+#include <graphics/NonZeroMipMap.h>
 #include "../utils/RefCounted.h"
 #include "../utils/Reference.h"
 #include "../utils/Array2D.h"
@@ -43,6 +44,8 @@ public:
 	void shutdown();
 
 	void rebuild();
+
+	void invalidateVegetationMap(const js::AABBox& aabb_ws);
 
 	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
 
@@ -135,6 +138,7 @@ private:
 
 	void buildVegLocationInfo(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::BumpAllocator& bump_allocator, js::Vector<VegetationLocationInfo, 16>& locations_out);
 	//void buildVegLocationInfoWithPrecomputedPoints(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::BumpAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>& points, js::Vector<VegetationLocationInfo, 16>& locations_out);
+	void rebuildDetailMaskMapSection(int section_x, int section_y);
 
 	GLARE_DISABLE_COPY(TerrainScattering);
 
@@ -172,8 +176,25 @@ private:
 	int terrain_height_map_location;
 	int terrain_mask_tex_location;
 	int terrain_fbm_tex_location;
+	int terrain_detail_mask_tex_location;
 
 	Reference<SSBO> chunk_info_ssbo;
 
 	GLuint timer_query_ids[2];
+
+	struct DetailMaskMapSection
+	{
+		Reference<OpenGLTexture> mask_map_gl_tex;
+		ImageMapUInt8Ref detail_mask_map;
+		bool gl_tex_valid;
+
+		NonZeroMipMap non_zero_mip_map;
+	};
+
+	static const int DETAIL_MASK_MAP_SECTION_RES = 8;
+	DetailMaskMapSection detail_mask_map_sections[DETAIL_MASK_MAP_SECTION_RES*DETAIL_MASK_MAP_SECTION_RES];
+
+
+	OpenGLTextureRef default_detail_mask_tex;
+
 };

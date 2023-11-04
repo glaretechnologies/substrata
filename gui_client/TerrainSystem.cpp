@@ -235,6 +235,19 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 
 	next_id = 0;
 
+
+	ImageMapUInt8Ref default_height_map = new ImageMapUInt8(1, 1, 1);
+	default_height_map->getPixel(0, 0)[0] = 0;
+	OpenGLTextureRef default_height_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_height_tex__"), *default_height_map);
+
+	ImageMapUInt8Ref default_mask_map = new ImageMapUInt8(1, 1, 4);
+	default_mask_map->getPixel(0, 0)[0] = 255;
+	default_mask_map->getPixel(0, 0)[1] = 0;
+	default_mask_map->getPixel(0, 0)[2] = 0;
+	default_mask_map->getPixel(0, 0)[3] = 0;
+	OpenGLTextureRef default_mask_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_mask_tex__"), *default_mask_map);
+
+
 	// Set terrain_data_sections paths from spec
 	for(size_t i=0; i<spec.section_specs.size(); ++i)
 	{
@@ -249,6 +262,8 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 		}
 		else
 		{
+			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].heightmap_gl_tex = default_height_tex;
+			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].mask_gl_tex      = default_mask_tex;
 			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].heightmap_path = section_spec.heightmap_path;
 			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].mask_map_path  = section_spec.mask_map_path;
 		}
@@ -256,12 +271,6 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 
 	// Set some default OpenGL terrain textures, to use before proper textures are loaded.
 	{
-		ImageMapUInt8Ref default_mask_map = new ImageMapUInt8(1, 1, 4);
-		default_mask_map->getPixel(0, 0)[0] = 255;
-		default_mask_map->getPixel(0, 0)[1] = 0;
-		default_mask_map->getPixel(0, 0)[2] = 0;
-		default_mask_map->getPixel(0, 0)[3] = 0;
-		OpenGLTextureRef default_mask_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_mask_tex__"), *default_mask_map);
 		for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
 		for(int y=0; y<TERRAIN_DATA_SECTION_RES; ++y)
 			terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES].mask_gl_tex = default_mask_tex;
@@ -435,6 +444,18 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 	removeSubtree(root_node.ptr(), root_node->old_subtree_gl_obs, root_node->old_subtree_phys_obs);
 
 	terrain_scattering.rebuild();
+}
+
+
+void TerrainSystem::rebuildScattering()
+{
+	terrain_scattering.rebuild();
+}
+
+
+void TerrainSystem::invalidateVegetationMap(const js::AABBox& aabb_ws)
+{
+	terrain_scattering.invalidateVegetationMap(aabb_ws);
 }
 
 
