@@ -51,6 +51,7 @@ struct TerrainPathSpec
 	std::string detail_height_map_paths[4];
 
 	float terrain_section_width_m;
+	float default_terrain_z;
 	float water_z;
 	uint32 flags;
 };

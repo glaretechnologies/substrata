@@ -637,10 +637,10 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 	const int section_x = Maths::floorToInt(nx) + TERRAIN_SECTION_OFFSET;
 	const int section_y = Maths::floorToInt(ny) + TERRAIN_SECTION_OFFSET;
 	if(section_x < 0 || section_x >= 8 || section_y < 0 || section_y >= 8)
-		return MIN_TERRAIN_Z;
+		return spec.default_terrain_z;
 	const TerrainDataSection& section = terrain_data_sections[section_x + section_y*TERRAIN_DATA_SECTION_RES]; // terrain_data_sections.elem(section_x, section_y);
 	if(section.heightmap.isNull())
-		return MIN_TERRAIN_Z;
+		return spec.default_terrain_z;
 
 
 	//const float dist_from_origin = Vec2f(p_x, p_y).length();

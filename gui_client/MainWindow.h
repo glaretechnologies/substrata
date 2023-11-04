@@ -452,13 +452,6 @@ public:
 	Reference<OpenGLMeshRenderData> ground_quad_mesh_opengl_data;
 	PhysicsShape ground_quad_shape;
 
-	struct GroundQuad
-	{
-		GLObjectRef gl_ob;
-		Reference<PhysicsObject> phy_ob;
-	};
-	std::map<Vec2i, GroundQuad> ground_quads;
-
 	ProximityLoader proximity_loader;
 
 	float load_distance, load_distance2;
