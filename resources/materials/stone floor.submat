@@ -3,7 +3,7 @@
 <!-- based on https://www.indigorenderer.com/materials/materials/689 -->
 
 <material>
-	<name>Parquet wood</name>
+	<name>Stone Floor</name>
 
 	<colour_texture_url>stone floor/stone floor.jpg</colour_texture_url>
 
