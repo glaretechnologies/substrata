@@ -146,6 +146,10 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 		vm_args.floating_point_literals_default_to_double = false;
 		vm_args.try_coerce_int_to_double_first = false;
 		vm_args.real_is_double = false;
+		vm_args.allow_AVX = false; // Disable AVX use, to avoid possible vzeroupper-related perf penalties (see https://stackoverflow.com/questions/41303780/why-is-this-sse-code-6-times-slower-without-vzeroupper-on-skylake)
+		// and also to work around a crash where vbroadcastss was being emitted on a machine that doesn't support it.  (See https://discourse.llvm.org/t/llvm-jit-emitting-vbroadcastss-on-a-machine-that-doesnt-support-it/74674/1)
+		// TODO: Re-enable AVX when we target AVX CPUs by default?
+
 		Winter::MathsFuncs::appendExternalMathsFuncs(vm_args.external_functions);
 
 
