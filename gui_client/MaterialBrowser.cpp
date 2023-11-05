@@ -38,9 +38,9 @@ Copyright Glare Technologies Limited 2019 -
 
 
 MaterialBrowser::MaterialBrowser()
-:	fbo(NULL),
-	context(NULL),
-	offscreen_surface(NULL),
+:	//fbo(NULL),
+	//context(NULL),
+	//offscreen_surface(NULL),
 	print_output(NULL)
 {
 }
@@ -51,6 +51,7 @@ MaterialBrowser::~MaterialBrowser()
 }
 
 
+#if 0
 // Set up offscreen rendering and OpenGL engine
 // Throws glare::Exception on failure
 void MaterialBrowser::createOpenGLEngineAndSurface()
@@ -161,6 +162,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	opengl_engine->setMaxDrawDistance(100.f);
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 }
+#endif
 
 
 void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, const std::string& appdata_path_, TextureServer* texture_server_ptr_, PrintOutput* print_output_)
@@ -175,12 +177,26 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 	flow_layout = new FlowLayout(this);
 
 	// Scan for all materials on disk, make preview buttons for them.
+
+	// NOTE: disabled rendering of previews for now, just use pre-computed JPGs instead.
+	// Rendering was slow, seldom tested, and prone to crashing.
+
 	try
 	{
 		const std::vector<std::string> filepaths = FileUtils::getFilesInDirWithExtensionFullPaths(basedir_path + "/resources/materials", "submat");
 
 		for(size_t i=0; i<filepaths.size(); ++i)
 		{
+			const std::string mat_name = ::removeDotAndExtension(FileUtils::getFilename(filepaths[i]));
+
+			const std::string mat_dir = ::removeDotAndExtension(filepaths[i]);
+			const std::string preview_path = mat_dir + "/preview.jpg";
+			
+			QImage image;
+			image.load(QtUtils::toQString(preview_path));
+
+
+#if 0
 			const std::string EPOCH_STRING = "_4"; // Can change to invalidate cache.
 			const std::string cache_key_input = FileUtils::getFilename(filepaths[i]) + EPOCH_STRING;
 			const uint64 cache_hashkey = XXH64(cache_key_input.data(), cache_key_input.size(), 1);
@@ -191,7 +207,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 			QImage image;
 			if(FileUtils::fileExists(cachefile_path))
 			{
-				image.load(QtUtils::toQString(cachefile_path));
+				// TEMP image.load(QtUtils::toQString(cachefile_path));
 			}
 
 			if(image.isNull()) // If image on disk was not found, or failed to load:
@@ -235,8 +251,9 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 				// Save image to disk.
 				try
 				{
-					FileUtils::createDirsForPath(cachefile_path);
-					QImageWriter writer(QtUtils::toQString(cachefile_path));
+					const std::string path = ::eatExtension(FileUtils::getFilename(filepaths[i])) + "jpg"; // TEMP
+					//FileUtils::createDirsForPath(cachefile_path);
+					QImageWriter writer(QtUtils::toQString(path/*cachefile_path*/));
 					writer.setQuality(95);
 					const bool saved = writer.write(image);
 					if(!saved)
@@ -247,7 +264,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 					conPrint("Warning: failed to save cached material preview image to '" + cachefile_path + "': " + e.what());
 				}
 			}
-
+#endif
 			QPushButton* button = new QPushButton();
 
 			button->setFixedWidth(PREVIEW_SIZE);
@@ -256,12 +273,15 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 			button->setIcon(QPixmap::fromImage(image));
 
+			button->setToolTip(QtUtils::toQString(mat_name));
+
 			flow_layout->addWidget(button);
 
 			connect(button, SIGNAL(clicked()), this, SLOT(buttonClicked()));
 
 			browser_buttons.push_back(button);
 			mat_paths.push_back(filepaths[i]);
+
 		}
 	}
 	catch(glare::Exception& e)
@@ -271,6 +291,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 		conPrint("Error: " + e.what());
 	}
 
+#if 0
 	// Free OpenGL engine, offscreen surfaces etc. if they were allocated.
 	if(this->frame_buffer.nonNull())
 		this->frame_buffer->buffer_name = 0; // Don't let our FrameBufferRef delete the fbo.
@@ -279,6 +300,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 	opengl_engine = NULL;
 	delete this->offscreen_surface;
 	delete this->context;
+#endif
 }
 
 

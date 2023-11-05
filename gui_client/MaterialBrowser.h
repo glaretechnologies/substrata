@@ -51,13 +51,13 @@ private:
 	std::vector<QPushButton *>	browser_buttons;
 	std::vector<std::string>	mat_paths;
 
-	QOpenGLFramebufferObject* fbo;
-	QOpenGLContext* context;
-	QOffscreenSurface* offscreen_surface;
+	// QOpenGLFramebufferObject* fbo;
+	// QOpenGLContext* context;
+	// QOffscreenSurface* offscreen_surface;
 
-	Reference<FrameBuffer> frame_buffer;
+	// Reference<FrameBuffer> frame_buffer;
 	
-	Reference<OpenGLEngine> opengl_engine;
+	// Reference<OpenGLEngine> opengl_engine;
 	std::string basedir_path, appdata_path;
 	PrintOutput* print_output;
 };
