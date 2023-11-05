@@ -27,7 +27,7 @@ AboutDialog::AboutDialog(QWidget* parent, const std::string& appdata_path)
 	this->text->setText(QtUtils::toQString(display_str));
 	this->text->setOpenExternalLinks(true);
 
-#if 1 // BUILD_TESTS
+#if BUILD_TESTS
 	this->generateCrashLabel->setText("<p><a href=\"#\">Generate Crash</a></p>");
 #else
 	this->generateCrashLabel->hide();
