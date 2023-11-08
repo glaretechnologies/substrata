@@ -2732,8 +2732,8 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 			ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
 
 		// Place hit marker
-		Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
-		Matrix4f orientation; orientation.constructFromVector(lower_hit_normal);
+		const Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
+		const Matrix4f orientation = Matrix4f::constructFromVectorStatic(lower_hit_normal);
 		ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) *
 			orientation * marker_scale_matrix;
 		if(ui->glWidget->opengl_engine->isObjectAdded(ob_placement_marker))
@@ -2755,8 +2755,7 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 					const float phi   = Maths::get2Pi<float>() * x / 8;
 					const float theta = Maths::pi<float>() * y / 5;
 					const Vec4f dir = GeometrySampling::dirForSphericalCoords(phi, theta);
-					Matrix4f rot_m;
-					rot_m.constructFromVector(dir);
+					const Matrix4f rot_m = Matrix4f::constructFromVectorStatic(dir);
 
 					const Vec4f translation((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z, 0.f);
 
@@ -3128,8 +3127,8 @@ void MainWindow::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_
 		for(size_t i=0; i<ob_denied_move_markers.size(); ++i)
 		{
 			const float use_scale = myMax(0.5f, edge_markers[i].scale * 1.4f);
-			Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(use_scale, use_scale, 0.01f);
-			Matrix4f orientation; orientation.constructFromVector(edge_markers[i].normal);
+			const Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(use_scale, use_scale, 0.01f);
+			const Matrix4f orientation = Matrix4f::constructFromVectorStatic(edge_markers[i].normal);
 
 			ob_denied_move_markers[i]->ob_to_world_matrix = Matrix4f::translationMatrix(edge_markers[i].pos) * 
 				orientation * marker_scale_matrix;
@@ -12551,7 +12550,7 @@ void MainWindow::createPathControlledPathVisObjects(const WorldObject& ob)
 
 				GLObjectRef edge_gl_ob = ui->glWidget->opengl_engine->allocateObject();
 
-				Matrix4f dir_matrix; dir_matrix.constructFromVector(normalise(end_pos - begin_pos));
+				const Matrix4f dir_matrix = Matrix4f::constructFromVectorStatic(normalise(end_pos - begin_pos));
 				const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, begin_pos.getDist(end_pos));
 				const Matrix4f ob_to_world = Matrix4f::translationMatrix(begin_pos) * dir_matrix * scale_matrix;
 
@@ -12817,8 +12816,10 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	else if(e->key() == Qt::Key::Key_P)
 	{
 		// TEMP HACK: play materialise effect on selected object.
-		if(selected_ob.nonNull())
-			enableMaterialisationEffectOnOb(*selected_ob);
+		//if(selected_ob.nonNull())
+		//	enableMaterialisationEffectOnOb(*selected_ob);
+
+		ui->glWidget->opengl_engine->add_debug_obs = true;
 	}
 	else if(e->key() == Qt::Key::Key_E)
 	{
