@@ -46,6 +46,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseQuery.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #endif
 #include <HashSet.h>
 #include <fstream>
@@ -273,7 +274,8 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 :	activated_obs(/*empty_key_=*/NULL),
 	newly_activated_obs(/*empty_key_=*/NULL),
 	water_buoyancy_enabled(false),
-	water_z(0)
+	water_z(0),
+	event_listener(NULL)
 #if !USE_JOLT
 	,ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
 	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
@@ -329,8 +331,7 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 	// A contact listener gets notified when bodies (are about to) collide, and when they separate again.
 	// Note that this is called from a job so whatever you do here needs to be thread safe.
 	// Registering one is entirely optional.
-	//MyContactListener contact_listener;
-	//physics_system.SetContactListener(&contact_listener);
+	physics_system->SetContactListener(this);
 #endif
 }
 
@@ -914,6 +915,23 @@ PhysicsShape PhysicsWorld::createGroundQuadShape(float ground_quad_w)
 }
 
 
+PhysicsShape PhysicsWorld::createCOMOffsetShapeForShape(const PhysicsShape& original_shape, const Vec4f& COM_offset)
+{
+	JPH::Result<JPH::Ref<JPH::Shape>> result = JPH::OffsetCenterOfMassShapeSettings(
+		toJoltVec3(COM_offset),
+		original_shape.jolt_shape
+	).Create();
+
+	if(result.HasError())
+		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+
+	PhysicsShape offset_shape;
+	offset_shape.jolt_shape = result.Get();
+	offset_shape.size_B = original_shape.size_B;
+	return offset_shape;
+}
+
+
 void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 {
 	assert(object->pos.isFinite());
@@ -1084,27 +1102,59 @@ void PhysicsWorld::think(double dt)
 			PhysicsObject* physics_ob = *it;
 
 			JPH::Body* body = lock_interface.TryGetBody(physics_ob->jolt_body_id);
-			if((body->GetMotionType() == JPH::EMotionType::Dynamic) && // Don't want to apply to our kinematic scripted objects.
-				(body->GetWorldSpaceBounds().mMin.GetZ() < this->water_z)) // If bottom of object is < water_z.  (use as quick test for in water)
+			if((body->GetMotionType() == JPH::EMotionType::Dynamic)) // Don't want to apply to our kinematic scripted objects.
 			{
-				const float fluid_density = 1020.f; // kg/m^3, see https://en.wikipedia.org/wiki/Seawater
+				if(body->GetWorldSpaceBounds().mMin.GetZ() < this->water_z) // If bottom of object is < water_z.  (use as quick test for in water)
+				{
+					const float fluid_density = 1020.f; // water density, kg/m^3, see https://en.wikipedia.org/wiki/Seawater
 
-				// From ApplyBuoyancyImpulse: 
-				// fluid_density = buoyancy / (total_volume * inverse_mass)
-				// buoyancy = fluid_density * total_volume * inverse_mass
-				// buoyancy = fluid_density * total_volume / mass
-				const float buoyancy = fluid_density * body->GetShape()->GetVolume() / physics_ob->mass;
+					// From ApplyBuoyancyImpulse: 
+					// fluid_density = buoyancy / (total_volume * inverse_mass)
+					// buoyancy = fluid_density * total_volume * inverse_mass
+					// buoyancy = fluid_density * total_volume / mass
+					const float buoyancy = fluid_density * body->GetShape()->GetVolume() / physics_ob->mass;
 
-				body->ApplyBuoyancyImpulse(
-					JPH::RVec3Arg(0,0, this->water_z), // inSurfacePosition
-					JPH::RVec3Arg(0,0,1), // inSurfaceNormal
-					buoyancy, // inBuoyancy
-					0.5, // inLinearDrag
-					0.1, // inAngularDrag
-					JPH::Vec3Arg(0,0,0), // inFluidVelocity
-					JPH::Vec3Arg(0,0,-9.81), // inGravity
-					(float)dt // inDeltaTime
-				);
+					float total_volume, submerged_volume;
+					const bool impulse_applied = body->ApplyBuoyancyImpulse(
+						JPH::RVec3Arg(0,0, this->water_z), // inSurfacePosition
+						JPH::RVec3Arg(0,0,1), // inSurfaceNormal
+						buoyancy, // inBuoyancy
+						physics_ob->use_zero_linear_drag ? 0.f : 0.1f, // inLinearDrag
+						0.2f, // inAngularDrag
+						JPH::Vec3Arg(0,0,0), // inFluidVelocity
+						JPH::Vec3Arg(0,0,-9.81f), // inGravity
+						(float)dt, // inDeltaTime
+						total_volume,
+						submerged_volume
+					);
+
+					// conPrint("submerged_volume: " + ::doubleToStringNSigFigs(submerged_volume, 4) + ", total_volume: " + ::doubleToStringNSigFigs(total_volume, 4));
+
+					if(impulse_applied)
+					{
+						if(!physics_ob->underwater)
+						{
+							if(event_listener)
+								event_listener->physicsObjectEnteredWater(*physics_ob);
+							physics_ob->underwater = true;
+						}
+
+						physics_ob->last_submerged_volume = submerged_volume;
+					}
+					else
+					{
+						physics_ob->underwater = false;
+						physics_ob->last_submerged_volume = 0;
+					}
+				}
+				else 
+				{
+					if(physics_ob->underwater)
+					{
+						physics_ob->underwater = false;
+						physics_ob->last_submerged_volume = 0;
+					}
+				}
 			}
 		}
 		//conPrint("Applying buoyancy took " + timer.elapsedStringMSWIthNSigFigs(5));
@@ -1152,6 +1202,40 @@ void PhysicsWorld::OnBodyDeactivated(const JPH::BodyID& inBodyID, uint64 inBodyU
 		}
 	}
 	//activated_obs.erase(inBodyID);
+}
+
+
+/// Called whenever a new contact point is detected.
+/// Note that this callback is called when all bodies are locked, so don't use any locking functions!
+/// Body 1 and 2 will be sorted such that body 1 ID < body 2 ID, so body 1 may not be dynamic.
+/// Note that only active bodies will report contacts, as soon as a body goes to sleep the contacts between that body and all other
+/// bodies will receive an OnContactRemoved callback, if this is the case then Body::IsActive() will return false during the callback.
+/// When contacts are added, the constraint solver has not run yet, so the collision impulse is unknown at that point.
+/// The velocities of inBody1 and inBody2 are the velocities before the contact has been resolved, so you can use this to
+/// estimate the collision impulse to e.g. determine the volume of the impact sound to play (see: EstimateCollisionResponse).
+
+// Note that this is called from a job so whatever you do here needs to be thread safe.
+void PhysicsWorld::OnContactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings)
+{
+	if(event_listener)
+		event_listener->contactAdded(inBody1, inBody2, inManifold);
+}
+
+
+/// Called whenever a contact is detected that was also detected last update.
+/// Note that this callback is called when all bodies are locked, so don't use any locking functions!
+/// Body 1 and 2 will be sorted such that body 1 ID < body 2 ID, so body 1 may not be dynamic.
+/// If the structure of the shape of a body changes between simulation steps (e.g. by adding/removing a child shape of a compound shape),
+/// it is possible that the same sub shape ID used to identify the removed child shape is now reused for a different child shape. The physics
+/// system cannot detect this, so may send a 'contact persisted' callback even though the contact is now on a different child shape. You can
+/// detect this by keeping the old shape (before adding/removing a part) around until the next PhysicsSystem::Update (when the OnContactPersisted
+/// callbacks are triggered) and resolving the sub shape ID against both the old and new shape to see if they still refer to the same child shape.
+
+// Note that this is called from a job so whatever you do here needs to be thread safe.
+void PhysicsWorld::OnContactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings)
+{
+	if(event_listener)
+		event_listener->contactPersisted(inBody1, inBody2, inManifold);
 }
 
 
@@ -1269,7 +1353,7 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 		{
 			results_out.hit_object = (PhysicsObject*)user_data;
 			results_out.coords = Vec2f(0.f);
-			results_out.hitdist_ws = hit_result.mFraction * max_t;
+			results_out.hit_t = hit_result.mFraction * max_t;
 			results_out.hit_normal_ws = toVec4fVec(body->GetWorldSpaceSurfaceNormal(hit_result.mSubShapeID2, ray.GetPointOnRay(hit_result.mFraction)));
 
 			const JPH::PhysicsMaterial* mat = body->GetShape()->GetMaterial(hit_result.mSubShapeID2);

@@ -120,6 +120,8 @@ public:
 	void performGesture(double cur_time, const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGesture(double cur_time/*, const std::string& gesture_name*/);
 
+	const Vec3d& getLastVel() const { return last_vel; }
+
 	Reference<GLObject> selected_ob_beam;
 	
 	Reference<GLObject> skinned_gl_ob;

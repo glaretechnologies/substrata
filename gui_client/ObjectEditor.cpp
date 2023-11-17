@@ -88,6 +88,11 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->frictionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->restitutionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
+	connect(this->COMOffsetXDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->COMOffsetYDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->COMOffsetZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+
+
 	connect(this->luminousFluxDoubleSpinBox,SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	connect(this->show3DControlsCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(posAndRot3DControlsToggled()));
@@ -224,6 +229,10 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	SignalBlocker::setValue(this->massDoubleSpinBox,		ob.mass);
 	SignalBlocker::setValue(this->frictionDoubleSpinBox,	ob.friction);
 	SignalBlocker::setValue(this->restitutionDoubleSpinBox, ob.restitution);
+
+	SignalBlocker::setValue(COMOffsetXDoubleSpinBox, ob.centre_of_mass_offset_os.x);
+	SignalBlocker::setValue(COMOffsetYDoubleSpinBox, ob.centre_of_mass_offset_os.y);
+	SignalBlocker::setValue(COMOffsetZDoubleSpinBox, ob.centre_of_mass_offset_os.z);
 
 	
 	SignalBlocker::setChecked(this->autoplayCheckBox, BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_AUTOPLAY));
@@ -403,15 +412,21 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.setDynamic(new_dynamic);
 
 	const float new_mass		= (float)this->massDoubleSpinBox->value();
-	const float new_friction	= (float)this->frictionDoubleSpinBox->value(); 
-	const float new_restitution	= (float)this->restitutionDoubleSpinBox->value(); 
+	const float new_friction	= (float)this->frictionDoubleSpinBox->value();
+	const float new_restitution	= (float)this->restitutionDoubleSpinBox->value();
+	const Vec3f new_COM_offset(
+		(float)this->COMOffsetXDoubleSpinBox->value(),
+		(float)this->COMOffsetYDoubleSpinBox->value(),
+		(float)this->COMOffsetZDoubleSpinBox->value()
+	);
 
-	if(new_mass != ob_out.mass || new_friction != ob_out.friction || new_restitution != ob_out.restitution)
+	if(new_mass != ob_out.mass || new_friction != ob_out.friction || new_restitution != ob_out.restitution || new_COM_offset != ob_out.centre_of_mass_offset_os)
 		ob_out.changed_flags |= WorldObject::PHYSICS_VALUE_CHANGED;
 
 	ob_out.mass = new_mass;
 	ob_out.friction = new_friction;
 	ob_out.restitution = new_restitution;
+	ob_out.centre_of_mass_offset_os = new_COM_offset;
 
 
 	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_AUTOPLAY, this->autoplayCheckBox->isChecked());

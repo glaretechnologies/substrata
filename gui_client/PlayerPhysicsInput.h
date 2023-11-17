@@ -24,7 +24,7 @@ public:
 
 	void clear()
 	{
-		SHIFT_down = CTRL_down = A_down = W_down = S_down = D_down = space_down = C_down = left_down = right_down = up_down = down_down = false;
+		SHIFT_down = CTRL_down = A_down = W_down = S_down = D_down = space_down = B_down = C_down = left_down = right_down = up_down = down_down = false;
 	}
 
 	uint32 toBitFlags() const
@@ -41,7 +41,8 @@ public:
 			((left_down  ? 1 : 0) <<  8) | 
 			((right_down ? 1 : 0) <<  9) | 
 			((up_down    ? 1 : 0) << 10) |
-			((down_down  ? 1 : 0) << 11);
+			((down_down  ? 1 : 0) << 11) | 
+			((B_down     ? 1 : 0) << 12);
 	}
 
 	void setFromBitFlags(uint32 bitmask)
@@ -58,8 +59,9 @@ public:
 		right_down = ((bitmask >>  9) & 0x1) != 0;
 		up_down    = ((bitmask >> 10) & 0x1) != 0;
 		down_down  = ((bitmask >> 11) & 0x1) != 0;
+		B_down     = ((bitmask >> 12) & 0x1) != 0;
 	}
 
 
-	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down;
+	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down, B_down;
 };

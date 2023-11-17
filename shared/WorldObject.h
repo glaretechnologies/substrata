@@ -286,6 +286,7 @@ public:
 	float mass; // For physics engine: Mass of object in kg.
 	float friction; // "Friction of the body (dimensionless number, usually between 0 and 1, 0 = no friction, 1 = friction force equals force that presses the two bodies together)"
 	float restitution; // "Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response)"
+	Vec3f centre_of_mass_offset_os;
 
 	uint32 physics_owner_id;
 	double last_physics_ownership_change_global_time; // Last change or renwewal time.

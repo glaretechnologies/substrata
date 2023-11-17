@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2018 -
 
 
 #include "PhysicsWorld.h"
+#include "ParticleManager.h"
 #include "ModelLoading.h"
 #include "PlayerPhysics.h"
 #include "CarPhysics.h"
@@ -69,6 +70,8 @@ class ObjectPathController;
 namespace glare { class PoolAllocator; }
 class VehiclePhysics;
 class TerrainSystem;
+class TerrainDecalManager;
+class ParticleManager;
 
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
@@ -88,7 +91,7 @@ struct DownloadingResourceInfo
 };
 
 
-class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput, public GLUITextRendererCallback
+class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput, public GLUITextRendererCallback, public PhysicsWorldEventListener
 {
 	Q_OBJECT
 public:
@@ -349,6 +352,16 @@ public:
 	void updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mouse_event);
 	void enableMaterialisationEffectOnOb(WorldObject& ob);
 	void enableMaterialisationEffectOnAvatar(Avatar& ob);
+
+public:
+	//	PhysicsWorldEventListener:
+	virtual void physicsObjectEnteredWater(PhysicsObject& ob);
+
+	// NOTE: called off main thread, needs to be threadsafe
+	virtual void contactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold);
+
+	// NOTE: called off main thread, needs to be threadsafe
+	virtual void contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold);
 	
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
@@ -719,6 +732,14 @@ public:
 	Timer discovery_udp_packet_timer;
 
 	Reference<TerrainSystem> terrain_system;
+	Reference<TerrainDecalManager> terrain_decal_manager;
+
+	Reference<ParticleManager> particle_manager;
 
 	glare::BumpAllocator bump_allocator;
+
+	Reference<OpenGLEngine> opengl_engine;
+
+	Mutex particles_creation_buf_mutex;
+	js::Vector<Particle, 16> particles_creation_buf GUARDED_BY(particles_creation_buf_mutex);
 };

@@ -710,7 +710,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 						//physics_ob->traceRay(Ray(/*startpos=*/ray_trace_start_pos, /*unitdir=*/trace_dir, /*min_t=*/0, /*max_t=*/10000), result);
 						if(result.hit_object != NULL)
 						{
-							const Vec4f hitpos_ws = ray_trace_start_pos + trace_dir * result.hitdist_ws;
+							const Vec4f hitpos_ws = ray_trace_start_pos + trace_dir * result.hit_t;
 							const float rot_z = Maths::get2Pi<float>() * rng.unitRandom();
 							const Vec3f scale = base_scale + (rng.unitRandom() * rng.unitRandom() * rng.unitRandom()) * scale_variation;
 							instance_matrices_temp[num_scatter_points] = instanceObToWorldMatrix(hitpos_ws, rot_z, scale) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
