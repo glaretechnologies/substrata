@@ -108,6 +108,10 @@ public:
 	bool dynamic;
 	bool kinematic;
 
+	bool use_zero_linear_drag; // For buoyancy drag calculations for submerged objects.  Can be set to true to do custom drag calculations.
+	bool underwater; // Is object at least partially underwater?
+	float last_submerged_volume; // Volume of shape that is submerged.
+
 	float mass;
 	float friction;
 	float restitution;

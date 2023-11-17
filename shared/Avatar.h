@@ -137,6 +137,9 @@ public:
 	Reference<glare::AudioSource> audio_source; // audio source for voice chat
 	uint32 audio_stream_sampling_rate; // NOTE: remote-user controlled data.
 	uint32 audio_stream_id;
+
+	bool underwater;
+	double last_foam_decal_creation_time;
 #endif
 
 	/*
@@ -151,8 +154,6 @@ public:
 	double snapshot_times[HISTORY_BUF_SIZE]; // Time as measured by Clock::getTimeSinceInit().
 	//double last_snapshot_time;
 	uint32 next_snapshot_i;
-private:
-
 };
 
 

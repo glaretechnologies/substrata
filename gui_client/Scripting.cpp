@@ -158,6 +158,40 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 			}
 		}
 
+		// ----------- boat -----------
+		{
+			pugi::xml_node boat_elem = root_elem.child("boat");
+			if(boat_elem)
+			{
+				Reference<BoatScript> boat_script = new BoatScript();
+
+				boat_script->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+				boat_script->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+
+				for(pugi::xml_node seat_elem = boat_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
+				{
+					SeatSettings seat_settings;
+					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
+					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
+					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
+					seat_settings.upper_leg_rot_around_thigh_bone_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_around_thigh_bone_angle", 0.0);
+					seat_settings.upper_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_apart_angle", 0.0);
+					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
+					seat_settings.lower_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_apart_angle", 0.0);
+					seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", 0.0);
+					seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", 2.1);
+					seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", 0.3);
+
+					boat_script->settings.seat_settings.push_back(seat_settings);
+				}
+			
+				if(boat_script->settings.seat_settings.empty())
+					throw glare::Exception("boat element must have at least one seat element");
+
+				vehicle_script_out = boat_script;
+			}
+		}
+
 		// ----------- bike -----------
 		{
 			pugi::xml_node bike_elem = root_elem.child("bike");

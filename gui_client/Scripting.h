@@ -75,6 +75,15 @@ public:
 };
 
 
+class BoatScript : public VehicleScript
+{
+public:
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	virtual bool isRightable() const override { return true; }
+};
+
+
 class BikeScript : public VehicleScript
 {
 public:

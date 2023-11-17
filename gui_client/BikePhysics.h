@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../physics/jscol_boundingsphere.h"
 #include "../maths/Vec4f.h"
 #include "../maths/vec3.h"
+#include "../maths/PCG32.h"
 #include <vector>
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
@@ -23,6 +24,7 @@ Copyright Glare Technologies Limited 2023 -
 
 class CameraController;
 class PhysicsWorld;
+class ParticleManager;
 
 
 struct BikePhysicsSettings
@@ -44,7 +46,8 @@ class BikePhysics : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	BikePhysics(WorldObjectRef object, BikePhysicsSettings settings, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path);
+	BikePhysics(WorldObjectRef object, BikePhysicsSettings settings, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path,
+		ParticleManager* particle_manager);
 	~BikePhysics();
 
 	WorldObject* getControlledObject() override { return world_object; }
@@ -89,7 +92,10 @@ private:
 	PhysicsWorld* m_physics_world;
 	OpenGLEngine* m_opengl_engine;
 	glare::AudioEngine* m_audio_engine;
+	ParticleManager* particle_manager;
 	JPH::BodyID bike_body_id;
+
+	PCG32 rng;
 
 	Reference<glare::AudioSource> engine_audio_source;
 	Reference<glare::AudioSource> wheel_audio_source[2];

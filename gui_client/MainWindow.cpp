@@ -24,6 +24,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "MeshBuilding.h"
 #include "ThreadMessages.h"
 #include "TerrainSystem.h"
+#include "TerrainDecalManager.h"
 #include "LoadScriptTask.h"
 #include "CredentialManager.h"
 #include "UploadResourceThread.h"
@@ -56,6 +57,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "BrowserVidPlayer.h"
 #include "AnimatedTextureManager.h"
 #include "CEF.h"
+#include "ParticleManager.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -160,6 +162,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "Scripting.h"
 #include "HoverCarPhysics.h"
 #include "BikePhysics.h"
+#include "BoatPhysics.h"
 
 #include <tracy/Tracy.hpp>
 
@@ -620,6 +623,9 @@ void MainWindow::afterGLInitInitialise()
 		logMessage("Setting MSAA to " + boolToString(MSAA));
 		//ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
 	}
+
+	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, opengl_engine.ptr());
+	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr());
 }
 
 
@@ -805,7 +811,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 	mesh_manager.clear(); // Mesh manager has references to cached/unused meshes, so need to zero out the references before we shut down the OpenGL engine.
 
-
+	this->opengl_engine = NULL;
 	ui->glWidget->shutdown(); // Shuts down OpenGL Engine.
 
 
@@ -1854,7 +1860,12 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						if(ob->physics_object.isNull()) // if object was dynamic, we may not have unloaded its physics object above.
 						{
 							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-							ob->physics_object->shape = physics_shape_data->physics_shape;
+
+							PhysicsShape use_shape = physics_shape_data->physics_shape;
+							if(ob->centre_of_mass_offset_os != Vec3f(0.f))
+								use_shape = PhysicsWorld::createCOMOffsetShapeForShape(physics_shape_data->physics_shape, ob->centre_of_mass_offset_os.toVec4fVector());
+
+							ob->physics_object->shape = use_shape;
 							ob->physics_object->userdata = ob;
 							ob->physics_object->userdata_type = 0;
 							ob->physics_object->ob_uid = ob->uid;
@@ -2715,12 +2726,12 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
 		//this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e5f), trace_results);
 		this->physics_world->traceRay(start_trace_pos, Vec4f(0, 0, 1, 0), 1.0e5f, trace_results);
-		const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
+		const float up_beam_len = trace_results.hit_object ? trace_results.hit_t : new_aabb_ws.axisLength(2) * 0.5f;
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
 		const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0, 0, 1, 0) * (up_beam_len - 0.001f);
 		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e5f, trace_results);
-		const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
+		const float down_beam_len = trace_results.hit_object ? trace_results.hit_t : 1000.0f;
 		const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0, 0, 1, 0);
 
 		const Vec4f down_beam_hitpos = down_beam_startpos + Vec4f(0, 0, -1, 0) * down_beam_len;
@@ -3520,7 +3531,12 @@ void MainWindow::processLoading()
 											if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload its physics object above.
 											{
 												ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-												ob->physics_object->shape = this->cur_loading_physics_shape;
+
+												PhysicsShape use_shape = this->cur_loading_physics_shape;
+												if(ob->centre_of_mass_offset_os != Vec3f(0.f))
+													use_shape = PhysicsWorld::createCOMOffsetShapeForShape(this->cur_loading_physics_shape, ob->centre_of_mass_offset_os.toVec4fVector());
+
+												ob->physics_object->shape = use_shape;
 												ob->physics_object->userdata = ob;
 												ob->physics_object->userdata_type = 0;
 												ob->physics_object->ob_uid = ob->uid;
@@ -3718,7 +3734,12 @@ void MainWindow::processLoading()
 							if(voxel_ob->physics_object.isNull())
 							{
 								PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
-								physics_ob->shape = cur_loading_physics_shape;
+
+								PhysicsShape use_shape = cur_loading_physics_shape;
+								if(voxel_ob->centre_of_mass_offset_os != Vec3f(0.f))
+									use_shape = PhysicsWorld::createCOMOffsetShapeForShape(cur_loading_physics_shape, voxel_ob->centre_of_mass_offset_os.toVec4fVector());
+
+								physics_ob->shape = use_shape;
 
 								physics_ob->userdata = voxel_ob.ptr();
 								physics_ob->userdata_type = 0;
@@ -4126,6 +4147,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	mesh_manager.trimMeshMemoryUsage();
+
+
+	{
+		Lock lock(particles_creation_buf_mutex);
+		
+		for(size_t i=0; i<this->particles_creation_buf.size(); ++i)
+			this->particle_manager->addParticle(this->particles_creation_buf[i]);
+		
+		this->particles_creation_buf.clear();
+	}
+
+
 
 	processLoading();
 	
@@ -5755,7 +5788,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 #endif
 					WorldObject* ob = (WorldObject*)physics_ob->userdata;
 					assert(ob->physics_object == physics_ob);
-					
+
 					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
 					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
 					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
@@ -6365,7 +6398,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							if(trace_results.hit_object)
 							{
-								const float use_dist = myClamp(initial_ignore_dist + trace_results.hitdist_ws - 0.05f, 0.5f, cam_back_dir.length());
+								const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, cam_back_dir.length());
 								cam_back_dir = normalise(cam_back_dir) * use_dist;
 							}
 
@@ -6431,6 +6464,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 												new_controller = new HoverCarPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, hover_car_physics_settings);
 											}
+											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BoatScript>())
+											{
+												const Scripting::BoatScript* boat_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BoatScript>();
+
+												BoatPhysicsSettings physics_settings;
+												physics_settings.boat_mass = avatar->entered_vehicle->mass;
+												physics_settings.script_settings = boat_script->settings;
+
+												new_controller = new BoatPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
+											}
 											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BikeScript>())
 											{
 												const Scripting::BikeScript* bike_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BikeScript>();
@@ -6439,7 +6482,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
 												bike_physics_settings.script_settings = bike_script->settings;
 
-												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world, &audio_engine, base_dir_path);
+												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
 											}
 											else
 											{
@@ -6611,6 +6654,47 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ui->glWidget->opengl_engine->objectMaterialsUpdated(*avatar->speaker_gl_ob);
 							}
 						}
+					}
+
+					// Make foam decal if object just entered water
+					if(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG) &&
+						(pos.z - PlayerPhysics::getEyeHeight()) < this->connected_world_settings.terrain_spec.water_z)
+					{
+						// Avatar is partially or completely in water
+
+						const float foam_width = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 0.2f, 3.f);
+
+						if(!avatar->underwater) // If just entered water:
+						{
+							// Create a big 'splash' foam decal
+							Vec4f foam_pos = pos.toVec4fPoint();
+							foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
+
+							terrain_decal_manager->addFoamDecal(foam_pos, foam_width, /*opacity=*/1.f);
+
+							avatar->underwater = true;
+						}
+
+						if(pos.z + 0.1 > this->connected_world_settings.terrain_spec.water_z) // If avatar intersects the surface (approximately)
+						{
+							if(avatar->graphics.getLastVel().length() > 5) // If avatar is roughly going above walking speed: walking speed is ~2.9 m/s, running ~14 m/s
+							{
+								if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
+								{
+									Vec4f foam_pos = pos.toVec4fPoint();
+									foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
+
+									terrain_decal_manager->addFoamDecal(foam_pos, 0.75f, /*opacity=*/0.4f);
+
+									avatar->last_foam_decal_creation_time = cur_time;
+								}
+							}
+						}
+					}
+					else
+					{
+						if(avatar->underwater)
+							avatar->underwater = false;
 					}
 
 					// Update avatar audio source position
@@ -7343,6 +7427,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(terrain_system.nonNull())
 		terrain_system->updateCampos(this->cam_controller.getPosition(), bump_allocator);
 
+	if(terrain_decal_manager.nonNull())
+		terrain_decal_manager->think((float)dt);
+	if(particle_manager.nonNull())
+		particle_manager->think((float)dt);
+
 	if(ui->glWidget->opengl_engine.nonNull())
 	{
 		ui->glWidget->opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
@@ -7380,6 +7469,66 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	frame_num++;
+}
+
+
+void MainWindow::physicsObjectEnteredWater(PhysicsObject& physics_ob)
+{
+	const float ob_width = physics_ob.getAABBoxWS().longestLength();
+
+	Vec4f foam_pos = physics_ob.getAABBoxWS().centroid();
+	foam_pos[2] = physics_world->getWaterZ();
+
+	terrain_decal_manager->addFoamDecal(foam_pos, ob_width, /*opacity=*/1.f);
+}
+
+
+// NOTE: called from threads other than the main thread, needs to be threadsafe
+void MainWindow::contactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
+{
+	const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
+
+	for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
+	{
+		Particle particle;
+		particle.pos = toVec4fPos(contact_manifold.mBaseOffset + contact_manifold.mRelativeContactPointsOn1[i]);
+		particle.area = 0.0001f;
+		particle.vel = av_vel + Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 2, 0) * 1.f;
+		particle.colour = Colour3f(0.6f, 0.4f, 0.3f);
+		particle.width = 0.1f;
+	
+		// Add to particles_creation_buf to create in main thread later
+		{
+			Lock lock(particles_creation_buf_mutex);
+			this->particles_creation_buf.push_back(particle);
+		}
+	}
+}
+
+
+// NOTE: called from threads other than the main thread, needs to be threadsafe
+void MainWindow::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
+{
+	const JPH::Vec3 relative_vel = inBody1.GetLinearVelocity() - inBody2.GetLinearVelocity();
+	if(relative_vel.LengthSq() > Maths::square(3.0f))
+	{
+		const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
+		for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
+		{
+			Particle particle;
+			particle.pos = toVec4fPos(contact_manifold.mBaseOffset + contact_manifold.mRelativeContactPointsOn1[i]);
+			particle.area = 0.0001f;
+			particle.vel = av_vel + Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 2, 0) * 1.f;
+			particle.colour = Colour3f(0.6f, 0.4f, 0.3f);
+			particle.width = 0.1f;
+
+			// Add to particles_creation_buf to create in main thread later
+			{
+				Lock lock(particles_creation_buf_mutex);
+				this->particles_creation_buf.push_back(particle);
+			}
+		}
+	}
 }
 
 
@@ -7503,7 +7652,7 @@ void MainWindow::updateVoxelEditMarkers()
 			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 			if(results.hit_object)
 			{
-				const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
+				const Vec4f hitpos_ws = origin + dir*results.hit_t;
 
 				if(selected_ob.nonNull())
 				{
@@ -10298,7 +10447,12 @@ void MainWindow::objectEditedSlot()
 					// Make new physics object
 					assert(selected_ob->physics_object.isNull());
 					selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
-					selected_ob->physics_object->shape = physics_shape;
+
+					PhysicsShape use_shape = physics_shape;
+					if(selected_ob->centre_of_mass_offset_os != Vec3f(0.f))
+						use_shape = PhysicsWorld::createCOMOffsetShapeForShape(physics_shape, selected_ob->centre_of_mass_offset_os.toVec4fVector());
+
+					selected_ob->physics_object->shape = use_shape;
 					selected_ob->physics_object->userdata = selected_ob.ptr();
 					selected_ob->physics_object->userdata_type = 0;
 					selected_ob->physics_object->ob_uid = selected_ob->uid;
@@ -10388,7 +10542,12 @@ void MainWindow::objectEditedSlot()
 					// Make new physics object
 					assert(selected_ob->physics_object.isNull());
 					selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
-					selected_ob->physics_object->shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
+
+					PhysicsShape use_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
+					if(selected_ob->centre_of_mass_offset_os != Vec3f(0.f))
+						use_shape = PhysicsWorld::createCOMOffsetShapeForShape(use_shape, selected_ob->centre_of_mass_offset_os.toVec4fVector());
+
+					selected_ob->physics_object->shape = use_shape;
 					selected_ob->physics_object->userdata = selected_ob.ptr();
 					selected_ob->physics_object->userdata_type = 0;
 					selected_ob->physics_object->ob_uid = selected_ob->uid;
@@ -11075,6 +11234,19 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	cur_loading_voxel_ob = NULL;
 	cur_loading_mesh_data = NULL;
 
+
+	if(terrain_decal_manager.nonNull())
+	{
+		terrain_decal_manager->clear();
+		terrain_decal_manager = NULL;
+	}
+
+	if(particle_manager.nonNull())
+	{
+		particle_manager->clear();
+		particle_manager = NULL;;
+	}
+
 	if(terrain_system.nonNull())
 	{
 		terrain_system->shutdown();
@@ -11171,6 +11343,7 @@ void MainWindow::connectToServer(const std::string& URL)
 	if(physics_world.isNull())
 	{
 		physics_world = new PhysicsWorld();
+		physics_world->event_listener = this;
 		player_physics.init(*physics_world, spawn_pos);
 
 		//car_physics.init(*physics_world);
@@ -11179,6 +11352,12 @@ void MainWindow::connectToServer(const std::string& URL)
 	{
 		this->player_physics.setPosition(spawn_pos);
 	}
+
+	assert(terrain_decal_manager.isNull());
+	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, opengl_engine.ptr());
+
+	assert(particle_manager.isNull());
+	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr());
 
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
@@ -11599,7 +11778,7 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 		{
 			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
-			const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+			const Vec4f hitpos_ws = origin + dir * results.hit_t;
 			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
 
 			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
@@ -11751,7 +11930,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		{
 			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
-			const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+			const Vec4f hitpos_ws = origin + dir * results.hit_t;
 			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
 
 			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
@@ -11778,7 +11957,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 		if(results.hit_object)
 		{
-			const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
+			const Vec4f hitpos_ws = origin + dir*results.hit_t;
 
 			Vec2f pixel_coords;
 			/*const bool visible = */getPixelForPoint(hitpos_ws, pixel_coords);
@@ -11928,7 +12107,12 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		}
 
 		Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-		physics_ob->shape = physics_shape;
+
+		PhysicsShape use_shape = physics_shape;
+		if(ob->centre_of_mass_offset_os != Vec3f(0.f))
+			use_shape = PhysicsWorld::createCOMOffsetShapeForShape(use_shape, ob->centre_of_mass_offset_os.toVec4fVector());
+
+		physics_ob->shape = use_shape;
 		physics_ob->pos = ob->pos.toVec4fPoint();
 		physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 		physics_ob->scale = useScaleForWorldOb(ob->scale);
@@ -12089,7 +12273,7 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 			ui->objectEditor->setEnabled(false);
 		}
 
-		const Vec4f selection_point_ws = origin + dir*results.hitdist_ws;
+		const Vec4f selection_point_ws = origin + dir*results.hit_t;
 
 		// Store the object-space selection point.  This will be used for moving the object.
 		// Note: we set this after the selectObject() call above, which sets selection_point_os to (0,0,0).
@@ -12167,7 +12351,7 @@ void MainWindow::updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mo
 			{
 				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
-				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+				const Vec4f hitpos_ws = origin + dir * results.hit_t;
 				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
 
 				const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
@@ -12815,11 +12999,71 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	}
 	else if(e->key() == Qt::Key::Key_P)
 	{
+		// Spawn particle for testing
+		for(int i=0; i<1; ++i)
+		{
+			Particle particle;
+			particle.pos = (cam_controller.getFirstPersonPosition() + cam_controller.getForwardsVec()).toVec4fPoint(); // Vec4f(0,0,1.5,1);
+
+			particle.vel = Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(),rng.unitRandom() * 2,0) * 1.f;
+		
+			particle.area = 0.01; // 0.000001f;
+
+			particle.colour = Colour3f(0.25, 0.25, 0.25);
+
+			particle_manager->addParticle(particle);
+		}
+
+
+#if 0
 		// TEMP HACK: play materialise effect on selected object.
 		//if(selected_ob.nonNull())
 		//	enableMaterialisationEffectOnOb(*selected_ob);
 
-		ui->glWidget->opengl_engine->add_debug_obs = true;
+		//ui->glWidget->opengl_engine->add_debug_obs = true;
+
+		//-------------------------------- Add a test decal object ----------------------------------------
+		const QPoint widget_pos = ui->glWidget->mapFromGlobal(QCursor::pos());
+
+		// conPrint("glWidgetKeyPressed: widget_pos: " + toString(widget_pos.x()) + ", " + toString(widget_pos.y()));
+
+		// Trace ray through scene
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(widget_pos.x(), widget_pos.y());
+
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+
+		const Planef waterplane(Vec4f(0,0, this->connected_world_settings.terrain_spec.water_z, 1), Vec4f(0,0,1,0));
+
+		if(waterplane.rayIntersect(origin, dir) > 0 && waterplane.rayIntersect(origin, dir) < results.hitdist_ws)
+		{
+			results.hitdist_ws = waterplane.rayIntersect(origin, dir);
+			results.hit_normal_ws = Vec4f(0,0,1,0);
+		}
+
+		if(results.hit_object)
+		{
+			const Vec4f hitpos = origin + dir * results.hitdist_ws;
+			const Vec4f hitnormal = results.hit_normal_ws;
+
+			// Add plane quad
+			GLObjectRef ob = new GLObject();
+			ob->decal = true;
+			ob->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
+			ob->materials.resize(1);
+			ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
+			ob->materials[0].alpha = 1;
+			ob->materials[0].transparent = false;
+			ob->materials[0].double_sided = true;
+			ob->materials[0].decal = true;
+			ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture("C:\\programming\\cyberspace\\output\\vs2022\\cyberspace_x64\\RelWithDebInfo\\foam.png");
+			ob->ob_to_world_matrix = Matrix4f::translationMatrix(hitpos) * Matrix4f::constructFromVectorStatic(hitnormal) * 
+				Matrix4f::scaleMatrix(1, 1, 0.1f) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+			ui->glWidget->opengl_engine->addObject(ob);
+		}
+		//-------------------------------- End add a test decal object ----------------------------------------
+#endif
 	}
 	else if(e->key() == Qt::Key::Key_E)
 	{
@@ -12910,6 +13154,17 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 											controller_for_ob = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
 											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
 										}
+										else if(ob->vehicle_script.isType<Scripting::BoatScript>())
+										{
+											const Scripting::BoatScript* boat_script = ob->vehicle_script.downcastToPtr<Scripting::BoatScript>();
+
+											BoatPhysicsSettings physics_settings;
+											physics_settings.boat_mass = ob->mass;
+											physics_settings.script_settings = boat_script->settings;
+
+											controller_for_ob = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
+											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
+										}
 										else if(ob->vehicle_script.isType<Scripting::BikeScript>())
 										{
 											const Scripting::BikeScript* bike_script = ob->vehicle_script.downcastToPtr<Scripting::BikeScript>();
@@ -12918,7 +13173,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 											bike_physics_settings.bike_mass = ob->mass;
 											bike_physics_settings.script_settings = bike_script->settings;
 
-											controller_for_ob = new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path);
+											controller_for_ob = new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
 											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
 										}
 										else
@@ -13100,7 +13355,7 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 		{
 			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 	
-			const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+			const Vec4f hitpos_ws = origin + dir * results.hit_t;
 			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
 
 			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
@@ -13891,6 +14146,7 @@ int main(int argc, char *argv[])
 				
 				QtUtils::showErrorMessageDialog(msg, &mw);
 			}
+			mw.opengl_engine = mw.ui->glWidget->opengl_engine;
 
 			mw.cam_controller.setPosition(Vec3d(0,0,4.7));
 			mw.ui->glWidget->setCameraController(&mw.cam_controller);

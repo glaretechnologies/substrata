@@ -123,6 +123,7 @@ GlWidget::GlWidget(QWidget *parent)
 	right_down = false;
 	up_down = false;
 	down_down = false;
+	B_down = false;
 
 	viewport_w = viewport_h = 100;
 
@@ -401,6 +402,10 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 		{
 			down_down = true;
 		}
+		else if(e->key() == Qt::Key::Key_B)
+		{
+			B_down = true;
+		}
 	}
 }
 
@@ -454,6 +459,10 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 		{
 			down_down = false;
 		}
+		else if(e->key() == Qt::Key::Key_B)
+		{
+			B_down = false;
+		}
 	}
 }
 
@@ -476,6 +485,7 @@ void GlWidget::focusOutEvent(QFocusEvent* e)
 	right_down = false;
 	up_down = false;
 	down_down = false;
+	B_down = false;
 }
 
 
@@ -527,6 +537,7 @@ void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out
 	input_out.right_down =	false;
 	input_out.up_down =		false;
 	input_out.down_down =	false;
+	input_out.B_down =		false;
 
 
 	// On Windows we will use GetAsyncKeyState() to test if a key is down.
@@ -548,6 +559,7 @@ void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out
 		right_down =	GetAsyncKeyState(VK_RIGHT);
 		up_down =		GetAsyncKeyState(VK_UP);
 		down_down =		GetAsyncKeyState(VK_DOWN);
+		B_down = 		GetAsyncKeyState('B');
 #else
 		CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
 #endif
@@ -590,6 +602,7 @@ void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out
 		input_out.right_down =	right_down;
 		input_out.up_down =		up_down;
 		input_out.down_down =	down_down;
+		input_out.B_down	=	B_down;
 	}
 
 #if 0

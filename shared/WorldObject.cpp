@@ -97,6 +97,7 @@ WorldObject::WorldObject() noexcept
 	mass = 50.f;
 	friction = 0.5f;
 	restitution = 0.2f;
+	centre_of_mass_offset_os = Vec3f(0.f);
 
 	audio_volume = 1;
 
@@ -395,7 +396,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 19;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 20;
 /*
 Version history:
 9: introduced voxels
@@ -409,6 +410,7 @@ Version history:
 17: Added mass, friction, restitution
 18: Storing aabb_os instead of aabb_ws.
 19: Added last_modified_time
+20: Added centre_of_mass_offset_os
 */
 
 
@@ -465,6 +467,7 @@ void WorldObject::writeToStream(OutStream& stream) const
 	stream.writeFloat(mass);
 	stream.writeFloat(friction);
 	stream.writeFloat(restitution);
+	::writeToStream(centre_of_mass_offset_os, stream); // New in v20
 }
 
 
@@ -620,6 +623,9 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		ob.restitution = stream.readFloat();
 	}
 
+	if(v >= 20)
+		ob.centre_of_mass_offset_os = readVec3FromStream<float>(stream);
+
 	// Set ephemeral state
 	ob.state = WorldObject::State_Alive;
 }
@@ -678,6 +684,9 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 	// Physics owner id has to be transmitted, or a new client joining will not be aware of who the physics owner of a moving object is, and will incorrectly take ownership of it.
 	stream.writeUInt32(physics_owner_id);
 	stream.writeDouble(last_physics_ownership_change_global_time);
+
+	// New in v20:
+	::writeToStream(centre_of_mass_offset_os, stream);
 }
 
 
@@ -719,6 +728,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	mass = other.mass;
 	friction = other.friction;
 	restitution = other.restitution;
+	centre_of_mass_offset_os = other.centre_of_mass_offset_os;
 
 	physics_owner_id = other.physics_owner_id;
 	last_physics_ownership_change_global_time = other.last_physics_ownership_change_global_time;
@@ -828,6 +838,9 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 	
 	if(!stream.endOfStream())
 		ob.last_physics_ownership_change_global_time = stream.readDouble();
+
+	if(!stream.endOfStream())
+		ob.centre_of_mass_offset_os = readVec3FromStream<float>(stream);
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;

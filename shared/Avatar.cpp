@@ -69,6 +69,8 @@ Avatar::Avatar()
 
 	vehicle_seat_index = 0;
 	pending_vehicle_transition = VehicleNoChange;
+	underwater = false;
+	last_foam_decal_creation_time = 0;
 #endif
 	anim_state = 0;
 	last_physics_input_bitflags = 0;

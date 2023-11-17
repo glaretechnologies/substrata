@@ -36,6 +36,9 @@ PhysicsObject::PhysicsObject(bool collidable_)
 	mass = 100.f;
 	friction = 0.5f;
 	restitution = 0.3f;
+	use_zero_linear_drag = false;
+	underwater = false;
+	last_submerged_volume = 0;
 }
 
 
@@ -52,6 +55,9 @@ PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void*
 	mass = 100.f;
 	friction = 0.5f;
 	restitution = 0.3f;
+	use_zero_linear_drag = false;
+	underwater = false;
+	last_submerged_volume = 0;
 }
 
 
@@ -113,7 +119,7 @@ void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 {
 	assert(0); // Disabled for now
 
-	results_out.hitdist_ws = -1;
+	results_out.hit_t = -1;
 	results_out.hit_object = NULL;
 
 #if !USE_JOLT

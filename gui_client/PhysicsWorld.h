@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Body/BodyID.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
+#include <Jolt/Physics/Collision/ContactListener.h>
 #endif
 
 namespace Indigo { class TaskManager; }
@@ -42,7 +43,7 @@ class RayTraceResult
 public:
 	Vec4f hit_normal_ws;
 	const PhysicsObject* hit_object;
-	float hitdist_ws;
+	float hit_t;
 	//unsigned int hit_tri_index;
 	unsigned int hit_mat_index;
 	Vec2f coords; // hit object barycentric coords
@@ -74,6 +75,19 @@ namespace Layers
 };
 
 
+class PhysicsWorldEventListener
+{
+public:
+	virtual void physicsObjectEnteredWater(PhysicsObject& ob) {} // Called on main thread
+
+	// Called off main thread, needs to be threadsafe
+	virtual void contactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold) {}
+
+	// Called off main thread, needs to be threadsafe
+	virtual void contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold) {}
+};
+
+
 
 void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale, Matrix4f& ob_to_world_out, Matrix4f& world_to_ob_out);
 
@@ -84,7 +98,7 @@ PhysicsWorld
 =====================================================================*/
 class PhysicsWorld : public ThreadSafeRefCounted
 #if USE_JOLT
-	, public JPH::BodyActivationListener
+	, public JPH::BodyActivationListener, public JPH::ContactListener
 #endif
 {
 public:
@@ -94,7 +108,9 @@ public:
 	static void init();
 
 	void setWaterBuoyancyEnabled(bool enabled);
+	bool getWaterBuoyancyEnabled() const { return water_buoyancy_enabled; }
 	void setWaterZ(float water_z);
+	float getWaterZ() const { return water_z; }
 		
 	void addObject(const Reference<PhysicsObject>& object);
 	
@@ -108,12 +124,18 @@ public:
 	// Creates a box, centered at (0,0,0), with x and y extent = ground_quad_w, and z extent = 1.
 	static PhysicsShape createGroundQuadShape(float ground_quad_w);
 
+	static PhysicsShape createCOMOffsetShapeForShape(const PhysicsShape& shape, const Vec4f& COM_offset);
+
 	void think(double dt);
 
-	// BodyActivationListener interface:
 #if USE_JOLT
+	// BodyActivationListener interface:
 	virtual void OnBodyActivated(const JPH::BodyID& inBodyID, uint64 inBodyUserData) override;
 	virtual void OnBodyDeactivated(const JPH::BodyID& inBodyID, uint64 inBodyUserData) override;
+
+	// ContactListener interface:
+	virtual void OnContactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override;
+	virtual void OnContactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override;
 #endif
 
 	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale);
@@ -159,6 +181,7 @@ public:
 	
 	HashSet<PhysicsObject*> newly_activated_obs GUARDED_BY(activated_obs_mutex); // Objects that have become activated recently.
 	
+	PhysicsWorldEventListener* event_listener;
 //private:
 public:
 

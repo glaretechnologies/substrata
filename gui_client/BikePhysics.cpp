@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
+#include "ParticleManager.h"
 #include "JoltUtils.h"
 #include <opengl/OpenGLEngine.h>
 #include <StringUtils.h>
@@ -40,8 +41,10 @@ static const float lean_spring_constant = 2000.f;
 static const float lean_spring_damping = 500.f; // This seems to cause the instability
 
 
-BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path)
-:	m_opengl_engine(NULL)
+BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world, 
+	glare::AudioEngine* audio_engine, const std::string& base_dir_path, ParticleManager* particle_manager_)
+:	m_opengl_engine(NULL),
+	particle_manager(particle_manager_)
 	//last_roll_error(0)
 {
 	world_object = object.ptr();
@@ -143,7 +146,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	front_wheel->mRadius				= wheel_radius;
 	front_wheel->mWidth					= wheel_width;
 	front_wheel->mMaxSteerAngle			= max_steering_angle;
-	front_wheel->mMaxHandBrakeTorque	= 0;
+	front_wheel->mMaxHandBrakeTorque	= 40000.f; // handbrake = Front brake
 	front_wheel->mMaxBrakeTorque		= 500.f;
 	// Typical front wheel weight without tire is 6kg (https://www.amazon.com/Arashi-Z900-Z650-Ninja-650/dp/B0952XBB4V), front tire is 8.8 lb (4kg) (https://www.amazon.com/Pirelli-Diablo-Rosso-70ZR-17-D-Spec/dp/B06X6J4LXM)
 	// Using solid cylinder moment of inertia for front wheel: 1/2 * 6 kg * 0.3 m^2 = 0.27 kg m^2
@@ -175,9 +178,9 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	for (JPH::WheelSettings *w : vehicle.mWheels)
 	{
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[0].mY *= 5.;
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[1].mY *= 5.;
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[2].mY *= 5.;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[0].mY *= 0.5f; // 5.;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[1].mY *= 0.5f; // 5.;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[2].mY *= 0.5f; // 5.;
 
 		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[0].mY *= 5.;
 		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[1].mY *= 5.;
@@ -197,11 +200,11 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	// Front wheel drive:
 	controller_settings->mDifferentials.resize(1);
-	controller_settings->mDifferentials[0].mLeftWheel = 1; // set to rear wheel index
-	controller_settings->mDifferentials[0].mRightWheel = -1; // no right wheel.
-	controller_settings->mDifferentials[0].mLeftRightSplit = 0; // Apply all torque to 'left' (front) wheel.
+	controller_settings->mDifferentials[0].mLeftWheel = 0; // left = front wheel
+	controller_settings->mDifferentials[0].mRightWheel = 1; // right = rear wheel
+	controller_settings->mDifferentials[0].mLeftRightSplit = 1.f; // Apply all torque to 'right' (rear) wheel //0; // Apply all torque to 'left' (front) wheel.
 
-	controller_settings->mEngine.mMaxTorque = 290; // Approximately the smallest value that allows wheelies.
+	controller_settings->mEngine.mMaxTorque = 890; // Approximately the smallest value that allows wheelies.
 	controller_settings->mEngine.mMaxRPM = 10000;//30000; // If only 1 gear, allow a higher max RPM
 	controller_settings->mEngine.mInertia = 0.2;
 
@@ -342,7 +345,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	const float speed = getLinearVel(physics_world).length();
 
-	float forward = 0.0f, right = 0.0f, up_input = 0.f, brake = 0.0f;
+	float forward = 0.0f, right = 0.0f, up_input = 0.f, brake = 0.0f, handbrake = 0.f;
 	// Determine acceleration and brake
 	if (physics_input.W_down || physics_input.up_down)
 		forward = 0.5f;
@@ -354,6 +357,11 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	{
 		brake = 1.f;
 		up_input = 1.f;
+	}
+
+	if(physics_input.B_down)
+	{
+		handbrake = 1.f;
 	}
 
 	if(physics_input.SHIFT_down) // boost!
@@ -428,7 +436,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	// Pass the input on to the constraint 
 	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController());
-	controller->SetDriverInput(forward, right, brake, /*hand_brake=*/0.f);
+	controller->SetDriverInput(forward, right, brake, handbrake);
 
 
 
@@ -749,7 +757,21 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			JPH::Vec3 wheel_forward_os, wheel_up_os, wheel_right_os;
 			vehicle_constraint->GetWheelLocalBasis(vehicle_constraint->GetWheel(i), wheel_forward_os, wheel_up_os, wheel_right_os);
 			const Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
-			const Vec4f contact_point_ws = getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
+			
+			const Vec4f contact_point_ws = to_world * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
+
+			// Spawn some smoke particles if skidding
+			if(skid_speed > 1.f)
+			{
+				Particle particle;
+				particle.pos = contact_point_ws;
+				particle.area = 0.001f;
+				particle.vel = Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 3, 0) * 2.f;
+				particle.colour = Colour3f(0.5f);
+				particle.cur_opacity = 0.4f;
+				particle.opacity_rate_of_change_mag = 0.1f;
+				particle_manager->addParticle(particle);
+			}
 
 			const float skid_volume = myMin(3.f, skid_speed * 1.f);
 

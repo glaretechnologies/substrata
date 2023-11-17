@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>618</width>
-    <height>1304</height>
+    <height>1330</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -844,6 +844,59 @@
         </property>
         <property name="singleStep">
          <double>0.050000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <layout class="QHBoxLayout" name="horizontalLayout_10">
+        <item>
+         <widget class="IndigoDoubleSpinBox" name="COMOffsetXDoubleSpinBox">
+          <property name="minimum">
+           <double>-10000000.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>10000000.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.020000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="IndigoDoubleSpinBox" name="COMOffsetYDoubleSpinBox">
+          <property name="minimum">
+           <double>-10000000.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>10000000.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.020000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="IndigoDoubleSpinBox" name="COMOffsetZDoubleSpinBox">
+          <property name="minimum">
+           <double>-10000000.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>10000000.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.020000000000000</double>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_11">
+        <property name="toolTip">
+         <string>Centre of mass offset in object space</string>
+        </property>
+        <property name="text">
+         <string>Centre of mass offset</string>
         </property>
        </widget>
       </item>
