@@ -204,7 +204,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	controller_settings->mDifferentials[0].mRightWheel = 1; // right = rear wheel
 	controller_settings->mDifferentials[0].mLeftRightSplit = 1.f; // Apply all torque to 'right' (rear) wheel //0; // Apply all torque to 'left' (front) wheel.
 
-	controller_settings->mEngine.mMaxTorque = 890; // Approximately the smallest value that allows wheelies.
+	controller_settings->mEngine.mMaxTorque = 390; // Approximately the smallest value that allows wheelies.
 	controller_settings->mEngine.mMaxRPM = 10000;//30000; // If only 1 gear, allow a higher max RPM
 	controller_settings->mEngine.mInertia = 0.2;
 
