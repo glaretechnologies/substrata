@@ -1365,7 +1365,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 
 
 	GLObjectRef gl_ob = new GLObject();
-	gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, 0);
+	gl_ob->ob_to_world_matrix = Matrix4f::identity();
 	gl_ob->mesh_data = mesh_data;
 
 	gl_ob->materials.resize(1);
@@ -1490,7 +1490,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocato
 	meshdata.indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(indices, temp_index_data.size);
 
 	GLObjectRef gl_ob = new GLObject();
-	gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, 0);
+	gl_ob->ob_to_world_matrix = Matrix4f::identity();
 	gl_ob->mesh_data = mesh_data;
 
 	gl_ob->materials.resize(1);
