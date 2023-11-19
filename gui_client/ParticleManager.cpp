@@ -72,6 +72,10 @@ void ParticleManager::addParticle(const Particle& particle_)
 	ob->materials[0].emission_texture           = smoke_sprite_right;
 	ob->materials[0].backface_albedo_texture    = smoke_sprite_rear;
 	ob->materials[0].transmission_texture       = smoke_sprite_front;
+
+	ob->materials[0].materialise_start_time = opengl_engine->getCurrentTime(); // For participating media and decals: materialise_start_time = spawn time
+	ob->materials[0].materialise_upper_z = -particle_.opacity_rate_of_change_mag; // For participating media and decals: materialise_upper_z = dopacity/dt
+
 	ob->ob_to_world_matrix = Matrix4f::translationMatrix(particle_.pos) * Matrix4f::uniformScaleMatrix(particle_.width);
 	opengl_engine->addObject(ob);
 
@@ -84,7 +88,7 @@ void ParticleManager::addParticle(const Particle& particle_)
 
 void ParticleManager::think(const float dt)
 {
-	Timer timer;
+	//Timer timer;
 
 	const bool water_buoyancy_enabled = physics_world->getWaterBuoyancyEnabled();
 	const float water_z = physics_world->getWaterZ();
@@ -176,8 +180,9 @@ void ParticleManager::think(const float dt)
 		particle.gl_ob->ob_to_world_matrix = translationMulUniformScaleMatrix(/*translation=*/particle.pos, /*scale=*/particle.width);
 		opengl_engine->updateObjectTransformData(*particle.gl_ob);
 
-		particle.gl_ob->materials[0].alpha = particle.cur_opacity;
-		opengl_engine->updateAllMaterialDataOnGPU(*particle.gl_ob); // Since opacity changed.  TODO: this call is slow, do not every frame.
+		// NOTE: changing alpha directly in shader based on particle lifetime now.
+		//particle.gl_ob->materials[0].alpha = particle.cur_opacity;
+		//opengl_engine->updateAllMaterialDataOnGPU(*particle.gl_ob); // Since opacity changed.
 
 		if(particle.cur_opacity <= 0)
 		{
@@ -194,5 +199,5 @@ void ParticleManager::think(const float dt)
 			++i;
 	}
 
-	//conPrint("ParticleManager::think() took " + timer.elapsedStringMSWIthNSigFigs(4));
+	//conPrint("ParticleManager::think() took " + timer.elapsedStringMSWIthNSigFigs(4) + " for " + toString(particles.size()) + " particles.");
 }
