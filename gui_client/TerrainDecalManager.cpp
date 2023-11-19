@@ -36,6 +36,9 @@ static inline Matrix4f foamTransform(const FoamDecal& decal)
 }
 
 
+static const float opacity_rate_of_change_mag = 0.3f;
+
+
 void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, float opacity)
 {
 	const size_t MAX_NUM_DECALS = 512;
@@ -67,11 +70,15 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 	ob->mesh_data = opengl_engine->getCubeMeshData();
 	ob->materials.resize(1);
 	ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
-	ob->materials[0].alpha = 1;
+	ob->materials[0].alpha = opacity;
 	ob->materials[0].double_sided = true;
 	ob->materials[0].decal = true;
 	ob->materials[0].albedo_texture = foam_texture;
 	ob->ob_to_world_matrix = foamTransform(decal);
+
+	ob->materials[0].materialise_start_time = opengl_engine->getCurrentTime(); // For participating media and decals: materialise_start_time = spawn time
+	ob->materials[0].materialise_upper_z = -opacity_rate_of_change_mag; // For participating media and decals: materialise_upper_z = dopacity/dt
+
 	opengl_engine->addObject(ob);
 
 	decal.decal_ob = ob;
@@ -88,13 +95,14 @@ void TerrainDecalManager::think(float dt)
 
 		decal.cur_width += 0.5f * dt;
 
-		decal.cur_opacity -= 0.3f * dt;
+		decal.cur_opacity -= opacity_rate_of_change_mag * dt;
 
 		decal.decal_ob->ob_to_world_matrix = foamTransform(decal);
 		opengl_engine->updateObjectTransformData(*decal.decal_ob);
 
-		decal.decal_ob->materials[0].alpha = decal.cur_opacity;
-		opengl_engine->updateAllMaterialDataOnGPU(*decal.decal_ob); // Since opacity changed
+		// NOTE: changing alpha directly in shader based on decal lifetime now.
+		//decal.decal_ob->materials[0].alpha = decal.cur_opacity;
+		//opengl_engine->updateAllMaterialDataOnGPU(*decal.decal_ob); // Since opacity changed
 
 		if(decal.cur_opacity <= 0)
 		{
