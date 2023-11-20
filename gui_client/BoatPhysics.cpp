@@ -162,13 +162,21 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 			const Vec4f positions[2] = { propellor_point - right_vec_ws * propellor_offset, propellor_point + right_vec_ws * propellor_offset };
 			for(int i=0; i<2; ++i)
 			{
-				Particle particle;
-				particle.pos = positions[i];
-				particle.area = 0.000001f;
-				const float xy_spread = 1.f;
-				particle.vel = forward_vec_ws * (forward * -5.f) + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * 5.f;
-				particle.colour = Colour3f(0.4f);
-				particle_manager->addParticle(particle);
+				for(int z=0; z<4; ++z)
+				{
+					Particle particle;
+					particle.pos = positions[i];
+					particle.area = 0.000001f;
+					const float xy_spread = 1.f;
+					particle.vel = forward_vec_ws * (forward * -5.f) + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * 5.f;
+					particle.colour = Colour3f(0.7f);
+					particle.particle_type = Particle::ParticleType_Foam;
+					particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+					particle.width = 1;
+					particle.dwidth_dt = 1;
+					particle.die_when_hit_surface = true;
+					particle_manager->addParticle(particle);
+				}
 			}
 		}
 

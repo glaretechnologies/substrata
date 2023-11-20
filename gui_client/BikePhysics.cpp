@@ -769,7 +769,9 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 				particle.vel = Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 3, 0) * 2.f;
 				particle.colour = Colour3f(0.5f);
 				particle.cur_opacity = 0.4f;
-				particle.opacity_rate_of_change_mag = 0.1f;
+				particle.dopacity_dt = -0.1f;
+				particle.particle_type = Particle::ParticleType_Smoke;
+				particle.width = 0.75f;
 				particle_manager->addParticle(particle);
 			}
 

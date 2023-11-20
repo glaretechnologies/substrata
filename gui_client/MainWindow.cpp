@@ -625,7 +625,7 @@ void MainWindow::afterGLInitInitialise()
 	}
 
 	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, opengl_engine.ptr());
-	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr());
+	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
 }
 
 
@@ -6662,7 +6662,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						// Avatar is partially or completely in water
 
-						const float foam_width = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 0.2f, 3.f);
+						const float foam_width = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 0.5f, 3.f);
 
 						if(!avatar->underwater) // If just entered water:
 						{
@@ -6672,6 +6672,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							terrain_decal_manager->addFoamDecal(foam_pos, foam_width, /*opacity=*/1.f);
 
+							// Add splash particle(s)
+							for(int i=0; i<10; ++i)
+							{
+								Particle particle;
+								particle.pos = foam_pos;
+								particle.area = 0.000001f;
+								const float xy_spread = 1.f;
+								const float splash_particle_speed = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 1.f, 6.f);
+								particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * splash_particle_speed;
+								particle.colour = Colour3f(1.f);
+								particle.particle_type = Particle::ParticleType_Foam;
+								particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+								particle.width = 0.5f;
+								particle.dwidth_dt = 1.f;
+								particle.die_when_hit_surface = true;
+								particle_manager->addParticle(particle);
+							}
+
 							avatar->underwater = true;
 						}
 
@@ -6679,12 +6697,28 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						{
 							if(avatar->graphics.getLastVel().length() > 5) // If avatar is roughly going above walking speed: walking speed is ~2.9 m/s, running ~14 m/s
 							{
-								if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
+								//if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
 								{
 									Vec4f foam_pos = pos.toVec4fPoint();
 									foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
 
 									terrain_decal_manager->addFoamDecal(foam_pos, 0.75f, /*opacity=*/0.4f);
+
+
+									// Add splash particle(s)
+									Particle particle;
+									particle.pos = foam_pos;
+									particle.area = 0.000001f;
+									const float xy_spread = 1.f;
+									particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * 2.f;
+									particle.colour = Colour3f(0.7f);
+									particle.particle_type = Particle::ParticleType_Foam;
+									particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+									particle.width = 0.5f;
+									particle.dwidth_dt = 1.f;
+									particle.die_when_hit_surface = true;
+									particle_manager->addParticle(particle);
+
 
 									avatar->last_foam_decal_creation_time = cur_time;
 								}
@@ -7474,12 +7508,39 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 void MainWindow::physicsObjectEnteredWater(PhysicsObject& physics_ob)
 {
-	const float ob_width = physics_ob.getAABBoxWS().longestLength();
+	const float ob_width = myMax(physics_ob.getAABBoxWS().axisLength(0), physics_ob.getAABBoxWS().axisLength(1));
 
 	Vec4f foam_pos = physics_ob.getAABBoxWS().centroid();
 	foam_pos[2] = physics_world->getWaterZ();
 
 	terrain_decal_manager->addFoamDecal(foam_pos, ob_width, /*opacity=*/1.f);
+
+	const float ob_speed = physics_world->getObjectLinearVelocity(physics_ob).length();
+
+	// Add splash particle(s)
+	for(int i=0; i<40; ++i)
+	{
+		Vec4f splash_pos = foam_pos + Vec4f(
+			(-0.5f + rng.unitRandom()) * physics_ob.getAABBoxWS().axisLength(0),
+			(-0.5f + rng.unitRandom()) * physics_ob.getAABBoxWS().axisLength(1),
+			0,0
+		);
+
+		Particle particle;
+		particle.pos = splash_pos;
+		particle.area = 0.000001f;
+		const float xy_spread = 1.f;
+		const float splash_particle_speed = ob_speed * 0.5f;
+		particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * splash_particle_speed;
+		particle.colour = Colour3f(0.7f);
+		particle.dopacity_dt = -0.6f;
+		particle.particle_type = Particle::ParticleType_Foam;
+		particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+		particle.width = 0.5f;
+		particle.dwidth_dt = splash_particle_speed * 0.5f;
+		particle.die_when_hit_surface = true;
+		particle_manager->addParticle(particle);
+	}
 }
 
 
@@ -11357,7 +11418,7 @@ void MainWindow::connectToServer(const std::string& URL)
 	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, opengl_engine.ptr());
 
 	assert(particle_manager.isNull());
-	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr());
+	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
 
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
@@ -13010,6 +13071,10 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 			particle.area = 0.01; // 0.000001f;
 
 			particle.colour = Colour3f(0.25, 0.25, 0.25);
+
+			particle.particle_type = Particle::ParticleType_Foam;
+
+			particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
 
 			particle_manager->addParticle(particle);
 		}

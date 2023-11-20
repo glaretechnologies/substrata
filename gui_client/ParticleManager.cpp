@@ -7,10 +7,11 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "PhysicsWorld.h"
+#include "TerrainDecalManager.h"
 
 
-ParticleManager::ParticleManager(const std::string& base_dir_path_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_)
-:	base_dir_path(base_dir_path_), opengl_engine(opengl_engine_), physics_world(physics_world_)
+ParticleManager::ParticleManager(const std::string& base_dir_path_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, TerrainDecalManager* terrain_decal_manager_)
+:	base_dir_path(base_dir_path_), opengl_engine(opengl_engine_), physics_world(physics_world_), terrain_decal_manager(terrain_decal_manager_)
 {
 	smoke_sprite_top	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/smoke_sprite_top.ktx2");
 	smoke_sprite_bottom = opengl_engine->getTexture(base_dir_path + "/resources/sprites/smoke_sprite_bottom.ktx2");
@@ -18,6 +19,13 @@ ParticleManager::ParticleManager(const std::string& base_dir_path_, OpenGLEngine
 	smoke_sprite_right	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/smoke_sprite_right.ktx2");
 	smoke_sprite_rear	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/smoke_sprite_rear.ktx2");
 	smoke_sprite_front	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/smoke_sprite_front.ktx2");
+
+	foam_sprite_top	    = opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_top.ktx2");
+	foam_sprite_bottom  = opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_bottom.ktx2");
+	foam_sprite_left	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_left.ktx2");
+	foam_sprite_right	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_right.ktx2");
+	foam_sprite_rear	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_rear.ktx2");
+	foam_sprite_front	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_front.ktx2");
 }
 
 
@@ -66,17 +74,30 @@ void ParticleManager::addParticle(const Particle& particle_)
 	ob->materials[0].albedo_linear_rgb = particle_.colour;
 	ob->materials[0].alpha = particle_.cur_opacity;
 	ob->materials[0].participating_media = true;
-	ob->materials[0].albedo_texture             = smoke_sprite_top;
-	ob->materials[0].metallic_roughness_texture = smoke_sprite_bottom;
-	ob->materials[0].lightmap_texture           = smoke_sprite_left;
-	ob->materials[0].emission_texture           = smoke_sprite_right;
-	ob->materials[0].backface_albedo_texture    = smoke_sprite_rear;
-	ob->materials[0].transmission_texture       = smoke_sprite_front;
+	if(particle_.particle_type == Particle::ParticleType_Smoke)
+	{
+		ob->materials[0].albedo_texture             = smoke_sprite_top;
+		ob->materials[0].metallic_roughness_texture = smoke_sprite_bottom;
+		ob->materials[0].lightmap_texture           = smoke_sprite_left;
+		ob->materials[0].emission_texture           = smoke_sprite_right;
+		ob->materials[0].backface_albedo_texture    = smoke_sprite_rear;
+		ob->materials[0].transmission_texture       = smoke_sprite_front;
+	}
+	else if(particle_.particle_type == Particle::ParticleType_Foam)
+	{
+		ob->materials[0].albedo_texture             = foam_sprite_top;
+		ob->materials[0].metallic_roughness_texture = foam_sprite_bottom;
+		ob->materials[0].lightmap_texture           = foam_sprite_left;
+		ob->materials[0].emission_texture           = foam_sprite_right;
+		ob->materials[0].backface_albedo_texture    = foam_sprite_rear;
+		ob->materials[0].transmission_texture       = foam_sprite_front;
+	}
 
 	ob->materials[0].materialise_start_time = opengl_engine->getCurrentTime(); // For participating media and decals: materialise_start_time = spawn time
-	ob->materials[0].materialise_upper_z = -particle_.opacity_rate_of_change_mag; // For participating media and decals: materialise_upper_z = dopacity/dt
+	ob->materials[0].materialise_upper_z = particle_.dopacity_dt; // For participating media and decals: materialise_upper_z = dopacity/dt
 
 	ob->ob_to_world_matrix = Matrix4f::translationMatrix(particle_.pos) * Matrix4f::uniformScaleMatrix(particle_.width);
+	ob->ob_to_world_matrix.e[1] = particle_.theta; // Since object-space vert positions are just (0,0,0) for particle geometry, we can store info in the model matrix.
 	opengl_engine->addObject(ob);
 
 	Particle particle = particle_;
@@ -129,6 +150,9 @@ void ParticleManager::think(const float dt)
 
 			assert(particle.pos.isFinite());
 			assert(particle.vel.isFinite());
+
+			if(particle.die_when_hit_surface)
+				particle.cur_opacity = -1;
 		}
 		else
 		{
@@ -136,6 +160,16 @@ void ParticleManager::think(const float dt)
 
 			if(water_buoyancy_enabled && (particle.pos[2] < water_z))
 			{
+				if(particle.die_when_hit_surface && (particle.vel[2] < 0)) // If should die when hit surface, and are moving downwards:
+				{
+					particle.cur_opacity = -1;
+
+					// Create foam decal at hit position
+					Vec4f foam_pos = particle.pos;
+					foam_pos[2] = water_z;
+					terrain_decal_manager->addFoamDecal(foam_pos, /*width=*/particle.width, /*opacity=*/0.4f);
+				}
+
 				// underwater
 				particle.vel[2] = myMax(particle.vel[2], 0.5f); // apply buoyancy in a hacky way while not limiting positive z velocity (e.g. for water spray shooting out of water)
 			}
@@ -175,9 +209,12 @@ void ParticleManager::think(const float dt)
 		assert(particle.pos.isFinite());
 		assert(particle.vel.isFinite());
 		
-		particle.cur_opacity -= particle.opacity_rate_of_change_mag * dt;
+		particle.cur_opacity += particle.dopacity_dt * dt;
+		particle.width       += particle.dwidth_dt   * dt;
 
 		particle.gl_ob->ob_to_world_matrix = translationMulUniformScaleMatrix(/*translation=*/particle.pos, /*scale=*/particle.width);
+		particle.gl_ob->ob_to_world_matrix.e[1] = particle.theta; // Since object-space vert positions are just (0,0,0) for particle geometry, we can store info in the model matrix.
+
 		opengl_engine->updateObjectTransformData(*particle.gl_ob);
 
 		// NOTE: changing alpha directly in shader based on particle lifetime now.

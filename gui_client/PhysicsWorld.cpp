@@ -424,6 +424,19 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 }
 
 
+Vec4f PhysicsWorld::getObjectLinearVelocity(const PhysicsObject& object) const
+{
+	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
+	{
+		JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+
+		return toVec4fVec(body_interface.GetLinearVelocity(object.jolt_body_id));
+	}
+	else
+		return Vec4f(0);
+}
+
+
 void PhysicsWorld::setLinearAndAngularVelToZero(PhysicsObject& object)
 {
 	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:

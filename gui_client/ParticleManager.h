@@ -18,13 +18,21 @@ class OpenGLMeshRenderData;
 class VertexBufferAllocator;
 class PhysicsWorld;
 class BiomeManager;
+class TerrainDecalManager;
 
 
 struct Particle
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	Particle() : restitution(0.5f), width(0.1f), cur_opacity(1.f), opacity_rate_of_change_mag(0.3f), colour(0.8f), mass(1.0e-6f), area(1.0e-6f) {}
+	enum ParticleType
+	{
+		ParticleType_Smoke,
+		ParticleType_Foam
+	};
+
+	Particle() : restitution(0.5f), width(1.f), dwidth_dt(0.5f), cur_opacity(1.f), dopacity_dt(-0.3f), theta(0.f), colour(0.8f), mass(1.0e-6f), area(1.0e-6f), 
+		die_when_hit_surface(false), particle_type(ParticleType_Smoke) {}
 
 	Vec4f pos;
 	Vec4f vel;
@@ -38,8 +46,16 @@ struct Particle
 	float restitution; // "Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response)"
 
 	float width;
+	float dwidth_dt;
+
 	float cur_opacity;
-	float opacity_rate_of_change_mag; // dopacity / dt = -opacity_rate_of_change_mag
+	float dopacity_dt;
+
+	float theta; // rotation around axis to camera
+
+	bool die_when_hit_surface;
+
+	ParticleType particle_type;
 };
 
 
@@ -55,7 +71,7 @@ class ParticleManager : public RefCounted
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	ParticleManager(const std::string& base_dir_path, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world);
+	ParticleManager(const std::string& base_dir_path, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, TerrainDecalManager* terrain_decal_manager);
 	~ParticleManager();
 
 	void clear();
@@ -68,6 +84,7 @@ private:
 	std::string base_dir_path;
 	OpenGLEngine* opengl_engine;
 	PhysicsWorld* physics_world;
+	TerrainDecalManager* terrain_decal_manager;
 	PCG32 rng;
 	std::vector<Particle> particles;
 
@@ -77,4 +94,11 @@ private:
 	Reference<OpenGLTexture> smoke_sprite_right;
 	Reference<OpenGLTexture> smoke_sprite_rear;
 	Reference<OpenGLTexture> smoke_sprite_front;
+
+	Reference<OpenGLTexture> foam_sprite_top;
+	Reference<OpenGLTexture> foam_sprite_bottom;
+	Reference<OpenGLTexture> foam_sprite_left;
+	Reference<OpenGLTexture> foam_sprite_right;
+	Reference<OpenGLTexture> foam_sprite_rear;
+	Reference<OpenGLTexture> foam_sprite_front;
 };
