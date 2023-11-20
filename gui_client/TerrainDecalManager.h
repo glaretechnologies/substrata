@@ -31,6 +31,7 @@ struct FoamDecal
 
 	float cur_width;
 	float cur_opacity;
+	float dopacity_dt;
 };
 
 /*=====================================================================

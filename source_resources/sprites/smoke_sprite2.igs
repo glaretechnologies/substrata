@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="utf-8"?>
+<scene>
+	<renderer_settings>
+		<uid>1</uid>
+		<name>Render Settings</name>
+		<bidirectional>false</bidirectional>
+		<render_foreground_alpha>true</render_foreground_alpha>
+		<width>512</width>
+		<height>512</height>
+
+
+		<layer_setting>
+			<name>front light</name>
+		</layer_setting>
+		<layer_setting>
+			<name>rear light</name>
+		</layer_setting>
+		<layer_setting>
+			<name>left light</name>
+		</layer_setting>
+		<layer_setting>
+			<name>right light</name>
+		</layer_setting>
+		<layer_setting>
+			<name>top light</name>
+		</layer_setting>
+		<layer_setting>
+			<name>bottom light</name>
+		</layer_setting>
+
+	</renderer_settings>
+
+
+
+	<camera>
+		<uid>2</uid>
+		<name>Camera</name>
+		<aperture_radius>0.0001</aperture_radius>
+		<focus_distance>3</focus_distance>
+		<sensor_width>0.036</sensor_width>
+		<lens_sensor_dist>0.095</lens_sensor_dist>
+		<exposure_duration>0.03333333333333333</exposure_duration>
+		<lens_shift_up_distance>0</lens_shift_up_distance>
+		<lens_shift_right_distance>0</lens_shift_right_distance>
+		<world_time>0</world_time>
+		<aperture_shape>
+			<circular/>
+		</aperture_shape>
+		<keyframe>
+			<time>0</time>
+			<pos>0 -3 0</pos>
+		</keyframe>
+		<up>0 0 1</up>
+		<forwards>0 1 0</forwards>
+		<camera_type>thin-lens-perspective</camera_type>
+		<omnidirectional_stereo>false</omnidirectional_stereo>
+		<IPD>0.064</IPD>
+		<left_eye>true</left_eye>
+		<top_merge>false</top_merge>
+		<bottom_merge>false</bottom_merge>
+	</camera>
+
+	<tonemapping>
+		<uid>3</uid>
+		<name>Tone Mapping</name>
+		<linear>
+			<scale>400</scale>
+		</linear>
+	</tonemapping>
+
+	<mesh>
+		<uid>4</uid>
+		<name>mesh1</name>
+		<normal_smoothing>false</normal_smoothing>
+		<external>
+			<path>smoke_sprite2_meshes\mesh_12940483997708273320.igmesh</path>
+		</external>
+	</mesh>
+
+
+	<!-- front light -->
+	<material>
+		<uid>5</uid>
+		<name>mat1</name>
+		
+		<diffuse>
+			<layer>0</layer>
+			<base_emission>
+				<constant>
+					<rgb>
+						<rgb>2000000000 2000000000 2000000000</rgb>
+						<gamma>1</gamma>
+					</rgb>
+				</constant>
+			</base_emission>
+		</diffuse>
+	</material>
+
+	<model2>
+		<uid>6</uid>
+		<name>mesh1 instance</name>
+		<geometry_uid>4</geometry_uid>
+		<rotation>
+			<axis_rotation>
+				<axis>0 0 1</axis>
+				<angle>3.14159</angle>
+			</axis_rotation>
+		</rotation>
+		<pos>2 -4 -2</pos>
+		<scale>4</scale>
+		<materials>
+			<uid>5</uid>
+		</materials>
+		<emission_scale>
+			<measure>luminous_flux</measure>
+			<value>1000000</value>
+			<material_uid>5</material_uid>
+		</emission_scale>
+	</model2>
+
+	<!-- rear light -->
+	<material>
+		<uid>105</uid>
+		<name>mat2</name>
+		
+		<diffuse>
+			<layer>1</layer>
+			<base_emission>
+				<constant>
+					<rgb>
+						<rgb>2000000000 2000000000 2000000000</rgb>
+						<gamma>1</gamma>
+					</rgb>
+				</constant>
+			</base_emission>
+		</diffuse>
+	</material>
+
+	<model2>
+		<uid>106</uid>
+		<name>mesh1 instance</name>
+
+		<invisible_to_camera>true</invisible_to_camera>
+
+		<geometry_uid>4</geometry_uid>
+		<rotation>
+			<axis_rotation>
+				<axis>0 0 1</axis>
+				<angle>0</angle>
+			</axis_rotation>
+		</rotation>
+		<pos>-2 4 -2</pos>
+		<scale>4</scale>
+		<materials>
+			<uid>105</uid>
+		</materials>
+		<emission_scale>
+			<measure>luminous_flux</measure>
+			<value>1000000</value>
+			<material_uid>105</material_uid>
+		</emission_scale>
+	</model2>
+
+
+	<!-- left light -->
+	<material>
+		<uid>205</uid>
+		<name>mat3</name>
+		
+		<diffuse>
+			<layer>2</layer>
+			<base_emission>
+				<constant>
+					<rgb>
+						<rgb>2000000000 2000000000 2000000000</rgb>
+						<gamma>1</gamma>
+					</rgb>
+				</constant>
+			</base_emission>
+		</diffuse>
+	</material>
+
+	<model2>
+		<uid>206</uid>
+		<name>mesh1 instance</name>
+		<geometry_uid>4</geometry_uid>
+		<rotation>
+			<axis_rotation>
+				<axis>0 0 1</axis>
+				<angle>1.57</angle>
+			</axis_rotation>
+		</rotation>
+		<pos>-4 -2 -2</pos>
+		<scale>4</scale>
+		<materials>
+			<uid>205</uid>
+		</materials>
+		<emission_scale>
+			<measure>luminous_flux</measure>
+			<value>1000000</value>
+			<material_uid>205</material_uid>
+		</emission_scale>
+	</model2>
+
+
+	<!-- right light -->
+	<material>
+		<uid>305</uid>
+		<name>mat3</name>
+		
+		<diffuse>
+			<layer>3</layer>
+			<base_emission>
+				<constant>
+					<rgb>
+						<rgb>2000000000 2000000000 2000000000</rgb>
+						<gamma>1</gamma>
+					</rgb>
+				</constant>
+			</base_emission>
+		</diffuse>
+	</material>
+
+	<model2>
+		<uid>306</uid>
+		<name>mesh1 instance</name>
+
+		<geometry_uid>4</geometry_uid>
+		<rotation>
+			<axis_rotation>
+				<axis>0 0 1</axis>
+				<angle>-1.57</angle>
+			</axis_rotation>
+		</rotation>
+		<pos>4 2 -2</pos>
+		<scale>4</scale>
+		<materials>
+			<uid>305</uid>
+		</materials>
+		<emission_scale>
+			<measure>luminous_flux</measure>
+			<value>1000000</value>
+			<material_uid>305</material_uid>
+		</emission_scale>
+	</model2>
+
+	<!-- top light -->
+	<material>
+		<uid>405</uid>
+		<name>mat3</name>
+		
+		<diffuse>
+			<layer>4</layer>
+			<base_emission>
+				<constant>
+					<rgb>
+						<rgb>2000000000 2000000000 2000000000</rgb>
+						<gamma>1</gamma>
+					</rgb>
+				</constant>
+			</base_emission>
+		</diffuse>
+	</material>
+
+	<model2>
+		<uid>406</uid>
+		<name>mesh1 instance</name>
+
+		<geometry_uid>4</geometry_uid>
+		<rotation>
+			<axis_rotation>
+				<axis>1 0 0</axis>
+				<angle>1.57</angle>
+			</axis_rotation>
+		</rotation>
+		<pos>-2 2 4</pos>
+		<scale>4</scale>
+		<materials>
+			<uid>405</uid>
+		</materials>
+		<emission_scale>
+			<measure>luminous_flux</measure>
+			<value>1000000</value>
+			<material_uid>405</material_uid>
+		</emission_scale>
+	</model2>
+
+	<!-- bottom light -->
+	<material>
+		<uid>505</uid>
+		<name>mat3</name>
+		
+		<diffuse>
+			<layer>5</layer>
+			<base_emission>
+				<constant>
+					<rgb>
+						<rgb>2000000000 2000000000 2000000000</rgb>
+						<gamma>1</gamma>
+					</rgb>
+				</constant>
+			</base_emission>
+		</diffuse>
+	</material>
+
+	<model2>
+		<uid>506</uid>
+		<name>mesh1 instance</name>
+
+		<geometry_uid>4</geometry_uid>
+		<rotation>
+			<axis_rotation>
+				<axis>1 0 0</axis>
+				<angle>-1.57</angle>
+			</axis_rotation>
+		</rotation>
+		<pos>-2 -2 -4</pos>
+		<scale>4</scale>
+		<materials>
+			<uid>505</uid>
+		</materials>
+		<emission_scale>
+			<measure>luminous_flux</measure>
+			<value>1000000</value>
+			<material_uid>505</material_uid>
+		</emission_scale>
+	</model2>
+
+
+
+
+	<medium>
+		<uid>7</uid>
+		<name>medium1</name>
+			<precedence>2</precedence>
+			<basic>
+				<ior>1</ior>
+				<cauchy_b_coeff>0</cauchy_b_coeff>
+				<max_extinction_coeff>230</max_extinction_coeff>
+				<fast_sss>false</fast_sss>
+				<absorption_coefficient>
+					<shader>
+							<shader><![CDATA[	
+          
+				def eval(vec3 pos) vec3 :
+					let
+						rad = dist(pos, vec3(0, 0, 0))
+						#env = 1.0 - smoothstep(0.1, 0.5, rad)
+						env = exp(-rad*rad * 25.0)
+
+
+						#v = max(0.0, pos.x)
+						v = fbm(pos * 7.0, 7) * 35 * env
+
+						
+					in
+						vec3(v)
+					
+					]]></shader>
+						<wavelength_dependent>false</wavelength_dependent>
+					</shader>
+				</absorption_coefficient>
+				<subsurface_scattering>
+						<scattering_coefficient>
+							<shader>
+									<shader><![CDATA[	
+          
+				def eval(vec3 pos) vec3 :
+					let
+						rad = dist(pos, vec3(0, 0, 0))
+						#env = 1.0 - smoothstep(0.1, 0.5, rad)
+						env = exp(-rad*rad * 25.0)
+
+
+						#v = max(0.0, pos.x)
+						v = fbm(pos * 7.0, 7) * 200 * env
+
+						
+					in
+						vec3(v)
+					
+					]]></shader>
+								<wavelength_dependent>false</wavelength_dependent>
+							</shader>
+						</scattering_coefficient>
+						<phase_function>
+							<!--<henyey_greenstein>
+								<g_spectrum>
+									<uniform>
+										<value>0.84</value>
+									</uniform>
+								</g_spectrum>
+							</henyey_greenstein>-->
+						<uniform/>
+						</phase_function>
+				</subsurface_scattering>
+			</basic>
+	</medium>
+
+	<model2>
+		<uid>9</uid>
+		<name>1 instance</name>
+		<geometry_uid>13</geometry_uid>
+		<pos>-0.65 -1 -0.5</pos>
+		<materials>
+			<uid>10</uid>
+		</materials>
+	</model2>
+
+	<material>
+		<uid>10</uid>
+		<name>dummy</name>
+		<specular>
+			<internal_medium_uid>7</internal_medium_uid>
+			<transparent>true</transparent>
+			<arch_glass>false</arch_glass>
+			<single_face>false</single_face>
+		</specular>
+	</material>
+
+	<mesh>
+		<uid>13</uid>
+		<name>1</name>
+		<external>
+			<path>smoke_sprite2_meshes\mesh_1597988415561797897.igmesh</path>
+		</external>
+	</mesh>
+
+	<!--<background_settings>
+		<uid>14</uid>
+		<name>Background Settings</name>
+	</background_settings>-->
+
+
+<!--<background>
+    <spectrum>
+      <uniform>
+        <value>10000000</value>
+      </uniform>
+    </spectrum>
+  </background>-->
+</scene>

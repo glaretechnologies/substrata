@@ -36,9 +36,6 @@ static inline Matrix4f foamTransform(const FoamDecal& decal)
 }
 
 
-static const float opacity_rate_of_change_mag = 0.3f;
-
-
 void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, float opacity)
 {
 	const size_t MAX_NUM_DECALS = 512;
@@ -63,6 +60,7 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 	decal.rot_matrix = Matrix4f::rotationAroundZAxis(rng.unitRandom() * Maths::get2Pi<float>());
 	decal.cur_width = ob_width * 0.85f;
 	decal.cur_opacity = opacity;
+	decal.dopacity_dt = opacity * -0.1f; // last 10 seconds
 
 	// Add decal
 	GLObjectRef ob = new GLObject();
@@ -77,7 +75,7 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 	ob->ob_to_world_matrix = foamTransform(decal);
 
 	ob->materials[0].materialise_start_time = opengl_engine->getCurrentTime(); // For participating media and decals: materialise_start_time = spawn time
-	ob->materials[0].materialise_upper_z = -opacity_rate_of_change_mag; // For participating media and decals: materialise_upper_z = dopacity/dt
+	ob->materials[0].materialise_upper_z = decal.dopacity_dt; // For participating media and decals: materialise_upper_z = dopacity/dt
 
 	opengl_engine->addObject(ob);
 
@@ -95,7 +93,7 @@ void TerrainDecalManager::think(float dt)
 
 		decal.cur_width += 0.5f * dt;
 
-		decal.cur_opacity -= opacity_rate_of_change_mag * dt;
+		decal.cur_opacity += decal.dopacity_dt * dt;
 
 		decal.decal_ob->ob_to_world_matrix = foamTransform(decal);
 		opengl_engine->updateObjectTransformData(*decal.decal_ob);
