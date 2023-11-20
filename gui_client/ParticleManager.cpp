@@ -167,7 +167,7 @@ void ParticleManager::think(const float dt)
 					// Create foam decal at hit position
 					Vec4f foam_pos = particle.pos;
 					foam_pos[2] = water_z;
-					terrain_decal_manager->addFoamDecal(foam_pos, /*width=*/particle.width, /*opacity=*/0.4f);
+					terrain_decal_manager->addFoamDecal(foam_pos, /*width=*/particle.width, /*opacity=*/1.f, TerrainDecalManager::DecalType_SparseFoam);
 				}
 
 				// underwater

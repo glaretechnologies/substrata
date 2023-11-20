@@ -48,12 +48,19 @@ public:
 
 	void clear();
 
-	void addFoamDecal(const Vec4f& foam_pos, float ob_width, float opacity);
+	enum DecalType
+	{
+		DecalType_ThickFoam,
+		DecalType_SparseFoam
+	};
+
+	void addFoamDecal(const Vec4f& foam_pos, float ob_width, float opacity, DecalType decal_type);
 
 	void think(float dt);
 private:
 	PCG32 rng;
 	OpenGLEngine* opengl_engine;
 	Reference<OpenGLTexture> foam_texture;
+	Reference<OpenGLTexture> foam_sprite_front;
 	std::vector<FoamDecal> foam_decals;
 };

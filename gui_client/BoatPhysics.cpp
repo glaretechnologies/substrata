@@ -169,7 +169,7 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 					particle.area = 0.000001f;
 					const float xy_spread = 1.f;
 					particle.vel = forward_vec_ws * (forward * -5.f) + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * 5.f;
-					particle.colour = Colour3f(0.7f);
+					particle.colour = Colour3f(0.6f);
 					particle.particle_type = Particle::ParticleType_Foam;
 					particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
 					particle.width = 1;
@@ -313,8 +313,8 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 		righting_time_remaining -= dtime;
 	}
 
-	const float speed_km_h = v_mag * (3600.0f / 1000.f);
-	conPrint("speed (km/h): " + doubleToStringNDecimalPlaces(speed_km_h, 1));
+	//const float speed_km_h = v_mag * (3600.0f / 1000.f);
+	//conPrint("speed (km/h): " + doubleToStringNDecimalPlaces(speed_km_h, 1));
 
 	return events;
 }

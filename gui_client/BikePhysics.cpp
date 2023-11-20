@@ -772,6 +772,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 				particle.dopacity_dt = -0.1f;
 				particle.particle_type = Particle::ParticleType_Smoke;
 				particle.width = 0.75f;
+				particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
 				particle_manager->addParticle(particle);
 			}
 
