@@ -247,16 +247,16 @@ public:
 	bool connectedToUsersPersonalWorldOrGodUser();
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
 	// Action will be printed in error message, could be "modify" or "delete"
-	bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob);
+	bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob) const;
 private:
 
 	void updateOnlineUsersList(); // Works off world state avatars.
-	bool areEditingVoxels();
-	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y);
+	bool areEditingVoxels() const;
+	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const;
 
-	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out); // Returns true if point is visible from camera.
-	bool getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out); // Returns true if point is visible from camera.
-	Vec4f pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords);
+	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const; // Returns true if point is visible from camera.
+	bool getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) const; // Returns true if point is visible from camera.
+	Vec4f pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords) const;
 
 	void updateVoxelEditMarkers();
 	void pickUpSelectedObject();
@@ -316,7 +316,7 @@ public:
 	void setSelfieModeEnabled(bool enabled);
 	void setMicForVoiceChatEnabled(bool enabled);
 
-	QPoint getGlWidgetPosInGlobalSpace(); // Get top left of the GLWidget in global screen coordinates.
+	QPoint getGlWidgetPosInGlobalSpace() const; // Get top left of the GLWidget in global screen coordinates.
 
 	void createObject(const std::string& mesh_path, BatchedMeshRef loaded_mesh, bool loaded_mesh_is_image_cube,
 		const js::Vector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials);
@@ -335,11 +335,11 @@ public:
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
 	void createPathControlledPathVisObjects(const WorldObject& ob);
 	
-	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time);
-	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time);
+	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time) const;
+	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time) const;
 	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
 	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob) REQUIRES(world_state->mutex);
-	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) REQUIRES(world_state->mutex);
+	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) const REQUIRES(world_state->mutex);
 	void destroyVehiclePhysicsControllingObject(WorldObject* ob);
 	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
