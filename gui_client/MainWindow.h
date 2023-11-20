@@ -1,23 +1,16 @@
 /*=====================================================================
 MainWindow.h
 ------------
-Copyright Glare Technologies Limited 2018 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
 
 #include "PhysicsWorld.h"
-#include "ParticleManager.h"
-#include "ModelLoading.h"
 #include "PlayerPhysics.h"
-#include "CarPhysics.h"
-#include "ClientThread.h"
-#include "WorldState.h"
 #include "CameraController.h"
 #include "ProximityLoader.h"
-#include "AnimatedTextureManager.h"
 #include "UndoBuffer.h"
-#include "LogWindow.h"
 #include "GestureUI.h"
 #include "ObInfoUI.h"
 #include "MiscInfoUI.h"
@@ -25,34 +18,28 @@ Copyright Glare Technologies Limited 2018 -
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
 #include "../shared/WorldSettings.h"
-#include "../audio/MicReadThread.h"
-#include "../opengl/OpenGLEngine.h"
-#include "../opengl/TextureLoading.h"
-//#include "../opengl/WGL.h"
-#include "../shared/ResourceManager.h"
-#include "../shared/WorldObject.h"
-#include "../utils/ArgumentParser.h"
-#include "../utils/Timer.h"
-#include "../utils/BumpAllocator.h"
-#include "../utils/TaskManager.h"
-#include "../utils/StandardPrintOutput.h"
-#include "../utils/CircularBuffer.h"
-#include "../utils/ComObHandle.h"
-#include "../maths/PCG32.h"
-#include "../maths/LineSegment4f.h"
-#include "../video/VideoReader.h"
 #include "../audio/AudioEngine.h"
+#include "../audio/MicReadThread.h" // For MicReadStatus
+#include "../opengl/TextureLoading.h"
+#include "../shared/WorldObject.h"
+#include <utils/ArgumentParser.h>
+#include <utils/Timer.h>
+#include <utils/BumpAllocator.h>
+#include <utils/TaskManager.h>
+#include <utils/StandardPrintOutput.h>
+#include <utils/ComObHandle.h>
+#include <utils/SocketBufferOutStream.h>
+#include <maths/PCG32.h>
+#include <maths/LineSegment4f.h>
+#include <networking/IPAddress.h>
 #include <QtCore/QEvent>
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtWidgets/QMainWindow>
 #include <string>
-#include <fstream>
 #include <unordered_set>
-#include <unordered_map>
 #include <deque>
 class UDPSocket;
-class ArgumentParser;
 namespace Ui { class MainWindow; }
 class TextureServer;
 class QSettings;
@@ -72,7 +59,13 @@ class VehiclePhysics;
 class TerrainSystem;
 class TerrainDecalManager;
 class ParticleManager;
-
+class Particle;
+class ClientThread;
+class WorldState;
+class MySocket;
+class LogWindow;
+class ResourceManager;
+class QMimeData;
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 
@@ -381,7 +374,7 @@ public:
 	Reference<PhysicsWorld> physics_world;
 
 	PlayerPhysics player_physics;
-	CarPhysics car_physics;
+	//CarPhysics car_physics;
 
 	std::map<WorldObject*, Reference<VehiclePhysics>> vehicle_controllers; // Map from controlled object to vehicle controller for that object.
 	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
@@ -614,7 +607,7 @@ public:
 	bool run_as_screenshot_slave;
 	bool taking_map_screenshot;
 	bool test_screenshot_taking;
-	MySocketRef screenshot_command_socket;
+	Reference<MySocket> screenshot_command_socket;
 	Timer time_since_last_screenshot;
 	Timer time_since_last_waiting_msg;
 
