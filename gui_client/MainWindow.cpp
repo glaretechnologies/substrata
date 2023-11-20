@@ -2851,7 +2851,7 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 }
 
 
-bool MainWindow::objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob)
+bool MainWindow::objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob) const
 {
 	assert(this->logged_in_user_id.valid());
 
@@ -7627,7 +7627,7 @@ void MainWindow::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inB
 
 static const double PHYSICS_ONWERSHIP_PERIOD = 10.0;
 
-bool MainWindow::isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time)
+bool MainWindow::isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time) const
 {
 	return (ob.physics_owner_id == (uint32)this->client_avatar_uid.value()) && 
 		((global_time - ob.last_physics_ownership_change_global_time) < PHYSICS_ONWERSHIP_PERIOD);
@@ -7635,7 +7635,7 @@ bool MainWindow::isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time)
 
 
 
-bool MainWindow::isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time)
+bool MainWindow::isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time) const
 {
 	return (ob.physics_owner_id != std::numeric_limits<uint32>::max()) && // If the owner is a valid UID,
 		(ob.physics_owner_id != (uint32)this->client_avatar_uid.value()) && // and the owner is not us,
@@ -7656,7 +7656,7 @@ bool MainWindow::isObjectVehicleBeingDrivenByOther(WorldObject& ob)
 }
 
 
-bool MainWindow::doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index)
+bool MainWindow::doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) const
 {
 	// Iterate over all avatars (slow linear time of course!), see if any are in the drivers seat of this vehicle object.
 	for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
@@ -8817,7 +8817,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 }
 
 
-bool MainWindow::areEditingVoxels()
+bool MainWindow::areEditingVoxels() const
 {
 	return this->selected_ob.nonNull() && this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup;
 }
@@ -11481,7 +11481,7 @@ void MainWindow::connectToServer(const std::string& URL)
 }
 
 
-Vec4f MainWindow::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y)
+Vec4f MainWindow::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const
 {
 	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
 	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
@@ -11581,7 +11581,7 @@ t = (-D - AC) / (BC + E)
 
 */
 
-Vec4f MainWindow::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords)
+Vec4f MainWindow::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords) const
 {
 	const Vec4f cam_origin = cam_controller.getPosition().toVec4fPoint();
 	const Vec4f cam_forw   = cam_controller.getForwardsVec().toVec4fVector();
@@ -11647,7 +11647,7 @@ pixel_x = gl_w * (lens_sensor_dist * r_x + sensor_width / 2) / sensor_width;
 pixel_x = gl_w * (lens_sensor_dist * r_x / sensor_width + 1/2);
 pixel_x = gl_w * (lens_sensor_dist / sensor_width * r_x + 1/2);
 */
-bool MainWindow::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) // Returns true if point is visible from camera.
+bool MainWindow::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const// Returns true if point is visible from camera.
 {
 	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
 	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
@@ -11687,7 +11687,7 @@ Let normalised coord left on sensor  n_x = s_x / (sensor_width/2)
 
 so n_x = (r_x lens_sensor_dist) / (sensor_width/2) = 2 r_x lens_sensor_dist / sensor_width
 */
-bool MainWindow::getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) // Returns true if point is visible from camera.
+bool MainWindow::getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) const// Returns true if point is visible from camera.
 {
 	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
 	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
@@ -11713,7 +11713,7 @@ bool MainWindow::getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out)
 
 // See https://math.stackexchange.com/questions/1036959/midpoint-of-the-shortest-distance-between-2-rays-in-3d
 // In particular this answer: https://math.stackexchange.com/a/2371053
-inline Vec4f closestPointOnLineToRay(const LineSegment4f& line, const Vec4f& origin, const Vec4f& unitdir)
+static inline Vec4f closestPointOnLineToRay(const LineSegment4f& line, const Vec4f& origin, const Vec4f& unitdir)
 {
 	const Vec4f a = line.a;
 	const Vec4f b = normalise(line.b - line.a);
@@ -13893,7 +13893,7 @@ void MainWindow::setMicForVoiceChatEnabled(bool enabled)
 }
 
 
-QPoint MainWindow::getGlWidgetPosInGlobalSpace()
+QPoint MainWindow::getGlWidgetPosInGlobalSpace() const
 {
 	return this->ui->glWidget->mapToGlobal(this->ui->glWidget->pos());
 }
