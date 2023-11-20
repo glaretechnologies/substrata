@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "MainWindow.h"
+#include "ClientThread.h"
 #include "../qt/SignalBlocker.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/Protocol.h"

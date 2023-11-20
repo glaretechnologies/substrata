@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "MainWindow.h"
+#include "WorldState.h"
 #include "EmbeddedBrowser.h"
 #include "CEF.h"
 #include "URLWhitelist.h"

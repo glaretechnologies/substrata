@@ -11,7 +11,9 @@ Copyright Glare Technologies Limited 2020 -
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
+#include "ClientThread.h"
 #include "GoToPositionDialog.h"
+#include "LogWindow.h"
 #include "UserDetailsWidget.h"
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
@@ -5995,6 +5997,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//this->cam_controller.setPosition(toVec3d(campos));
 
 		// Update car visualisation
+#if 0
 		if(false)
 		{
 			wheel_gl_objects.resize(4);
@@ -6077,7 +6080,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			ui->glWidget->opengl_engine->updateObjectTransformData(*car_body_gl_object);
 		}
 		//--------------------------- END Car controller and graphics -------------------------------
-
+#endif
 
 		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
 		{

@@ -7,9 +7,11 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "MainWindow.h"
+#include "WorldState.h"
 #include "CEFInternal.h"
 #include "CEF.h"
 #include "../shared/WorldObject.h"
+#include "../shared/ResourceManager.h"
 #include "../audio/AudioEngine.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
@@ -19,9 +21,11 @@ Copyright Glare Technologies Limited 2023 -
 #include <qt/QtUtils.h>
 #include <utils/FileInStream.h>
 #include <utils/PlatformUtils.h>
+#include <utils/BufferInStream.h>
 #include <utils/Base64.h>
 #include "superluminal/PerformanceAPI.h"
 #include <QtGui/QPainter>
+#include <QtGui/QMouseEvent>
 
 
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).

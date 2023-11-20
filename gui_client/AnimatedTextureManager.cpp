@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "MainWindow.h"
 #include "EmbeddedBrowser.h"
 #include "CEF.h"
+#include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
 #include <qt/QtUtils.h>
 #include <opengl/OpenGLEngine.h>
