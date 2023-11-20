@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
+#include "WorldState.h"
 #include "../shared/WorldSettings.h"
 #include "../audio/AudioEngine.h"
 #include "../audio/MicReadThread.h" // For MicReadStatus
@@ -61,7 +62,6 @@ class TerrainDecalManager;
 class ParticleManager;
 class Particle;
 class ClientThread;
-class WorldState;
 class MySocket;
 class LogWindow;
 class ResourceManager;
