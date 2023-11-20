@@ -4310,136 +4310,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_ws_vis_gl_ob);
 	}
 
-	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
-	{
-		ZoneScopedN("diagnostics"); // Tracy profiler
-
-		//const double fps = num_frames / (double)fps_display_timer.elapsed();
-		
-		std::string msg;
-
-		if(ui->glWidget->opengl_engine.nonNull() && ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked())
-		{
-			msg += "\n------------Graphics------------\n";
-			msg += ui->glWidget->opengl_engine->getDiagnostics() + "\n";
-			msg += "GL widget valid: " + boolToString(ui->glWidget->isValid()) + "\n";
-			//msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
-			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
-			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
-			msg += "--------------------------------\n";
-		}
-
-		// Only show physics details when physicsDiagnosticsCheckBox is checked.  Works around problem of physics_world->getDiagnostics() being slow, which causes stutters.
-		if(physics_world.nonNull() && ui->diagnosticsWidget->physicsDiagnosticsCheckBox->isChecked())
-		{
-			msg += "\n------------Physics------------\n";
-			msg += physics_world->getDiagnostics();
-			msg += "-------------------------------\n";
-		}
-
-		if(terrain_system.nonNull())
-		{
-			msg += "\n------------Terrain------------\n";
-			msg += terrain_system->getDiagnostics();
-			msg += "--------------------------------\n";
-		}
-
-		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
-		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
-		msg += "main loop updateGL time: " + doubleToStringNSigFigs(this->last_updateGL_time * 1000, 3) + " ms\n";
-		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
-		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
-		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
-		msg += "last_eval_script_time: " + doubleToStringNSigFigs(last_eval_script_time * 1000, 3) + "ms\n";
-		msg += "num obs with scripts: " + toString(obs_with_scripts.size()) + "\n";
-		msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
-		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
-		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
-		msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
-		msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
-		msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
-
-		if(texture_server)
-			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
-
-		msg += this->mesh_manager.getDiagnostics();
-
-
-		{
-			msg += "\nAudio engine:\n";
-			{
-				Lock lock(audio_engine.mutex);
-				msg += "Num audio obs: " + toString(audio_obs.size()) + "\n";
-				msg += "Num active audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
-			}
-			/*msg += "Audio sources\n";
-			Lock lock(audio_engine.mutex);
-			for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
-			{
-			msg += (*it)->debugname + "\n";
-			}*/
-		}
-
-		/*{ // Proximity loader is currently disabled.
-			msg += "Proximity loader:\n";
-			msg += proximity_loader.getDiagnostics() + "\n";
-		}*/
-
-		if(selected_ob.nonNull())
-		{
-			msg += std::string("\nSelected object: \n");
-
-			msg += "pos: " + selected_ob->pos.toStringMaxNDecimalPlaces(3) + "\n";
-			msg += "centroid: " + selected_ob->getCentroidWS().toStringMaxNDecimalPlaces(3) + "\n";
-			msg += "aabb os: " + selected_ob->getAABBOS().toStringMaxNDecimalPlaces(3) + "\n";
-			msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
-			msg += "aabb_ws_longest_len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getAABBWSLongestLength(), 2) + "\n";
-			msg += "biased aabb longest len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getBiasedAABBLength(), 2) + "\n";
-
-			msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
-			msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
-			msg += "loaded_model_lod_level: " + toString(selected_ob->loaded_model_lod_level) + "\n";
-
-			if(selected_ob->opengl_engine_ob.nonNull())
-			{
-				msg += 
-					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
-					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
-					"num batches (draw calls): " + toString(selected_ob->opengl_engine_ob->mesh_data->batches.size()) + "\n" +
-					"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n" +
-					"shading normals: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_shading_normals) + "\n" + 
-					"vert colours: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_vert_colours) + "\n";
-
-				if(!selected_ob->opengl_engine_ob->materials.empty() && !selected_ob->materials.empty())
-				{
-					OpenGLMaterial& mat0 = selected_ob->opengl_engine_ob->materials[0];
-					if(mat0.albedo_texture.nonNull())
-					{
-						if(!selected_ob->materials.empty() && selected_ob->materials[0].nonNull())
-							msg += "mat0 min lod level: " + toString(selected_ob->materials[0]->minLODLevel()) + "\n";
-						msg += "mat0 tex: " + toString(mat0.albedo_texture->xRes()) + "x" + toString(mat0.albedo_texture->yRes()) + " (" + getNiceByteSize(mat0.albedo_texture->getByteSize()) + ")\n";
-					}
-					msg += "mat0 colourTexHasAlpha(): " + toString(selected_ob->materials[0]->colourTexHasAlpha()) + "\n";
-
-					if(mat0.lightmap_texture.nonNull())
-					{
-						msg += "\n";
-						msg += "lightmap: " + toString(mat0.lightmap_texture->xRes()) + "x" + toString(mat0.lightmap_texture->yRes()) + " (" + getNiceByteSize(mat0.lightmap_texture->getByteSize()) + ")\n";
-					}
-				}
-				if(selected_ob->materials.size() >= 2)
-				{
-					msg += "mat1 colourTexHasAlpha(): " + toString(selected_ob->materials[1]->colourTexHasAlpha()) + "\n";
-				}
-			}
-		}
-
-
-		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
-		if(!ui->diagnosticsWidget->diagnosticsTextEdit->textCursor().hasSelection())
-			ui->diagnosticsWidget->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
-	}
-
+	updateDiagnostics();
 	
 	updateStatusBar();
 	
@@ -4520,201 +4391,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
-	if(run_as_screenshot_slave || test_screenshot_taking)
-	{
-		if(screenshot_output_path.empty()) // If we don't have a screenshot command we are currently executing:
-		{
-			try
-			{
-				if(test_screenshot_taking || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
-				{
-					conPrint("Reading command from screenshot_command_socket etc...");
-					const std::string command = test_screenshot_taking ? "takescreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
-					conPrint("Read screenshot command: " + command);
-					if(command == "takescreenshot")
-					{
-						if(test_screenshot_taking)
-						{
-							screenshot_campos = Vec3d(0, -1, 100);
-							screenshot_camangles = Vec3d(0, 2.5f, 0); // (heading, pitch, roll).
-							screenshot_width_px = 1024;
-							screenshot_highlight_parcel_id = 10;
-							screenshot_output_path = "test_screenshot.jpg";
-
-							screenshot_ortho_sensor_width_m = 100;
-							taking_map_screenshot = false;
-						}
-						else
-						{
-							screenshot_campos.x = screenshot_command_socket->readDouble();
-							screenshot_campos.y = screenshot_command_socket->readDouble();
-							screenshot_campos.z = screenshot_command_socket->readDouble();
-							screenshot_camangles.x = screenshot_command_socket->readDouble();
-							screenshot_camangles.y = screenshot_command_socket->readDouble();
-							screenshot_camangles.z = screenshot_command_socket->readDouble();
-							screenshot_width_px = screenshot_command_socket->readInt32();
-							screenshot_highlight_parcel_id = screenshot_command_socket->readInt32();
-							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
-							taking_map_screenshot = false;
-						}
-					}
-					else if(command == "takemapscreenshot")
-					{
-						int tile_x, tile_y, tile_z;
-						if(test_screenshot_taking)
-						{
-							tile_x = 0;
-							tile_y = 0;
-							tile_z = 7;
-							screenshot_output_path = "test_screenshot.jpg";
-						}
-						else
-						{
-							tile_x = screenshot_command_socket->readInt32();
-							tile_y = screenshot_command_socket->readInt32();
-							tile_z = screenshot_command_socket->readInt32();
-							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
-						}
-
-						const int TILE_WIDTH_PX = 256; // Works the easiest with leaflet.js
-						const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
-						screenshot_campos = Vec3d(
-							(tile_x + 0.5) * TILE_WIDTH_M,
-							(tile_y + 0.5) * TILE_WIDTH_M,
-							150.0
-						);
-						screenshot_camangles = Vec3d(
-							0, // Heading
-							3.14, // pitch
-							0 // roll
-						);
-						screenshot_ortho_sensor_width_m = TILE_WIDTH_M;
-						screenshot_width_px = TILE_WIDTH_PX;
-						screenshot_highlight_parcel_id = -1;
-						taking_map_screenshot = true;
-					}
-					else if(command == "quit")
-					{
-						conPrint("Received quit command, exiting...");
-						exit(1);
-					}
-					else
-						throw glare::Exception("received invalid screenshot command.");
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what() + ", exiting!");
-				//QMessageBox msgBox;
-				//msgBox.setWindowTitle("Error");
-				//msgBox.setText(QtUtils::toQString("Excep while reading screenshot command from screenshot_command_socket: " + e.what()));
-				//msgBox.exec();
-				exit(1);
-			}
-		}
-	}
-	if(!screenshot_output_path.empty() && world_state.nonNull())
-	{
-		if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
-		{
-			this->cam_controller.setPosition(screenshot_campos);
-			this->cam_controller.setAngles(screenshot_camangles);
-			this->player_physics.setPosition(screenshot_campos);
-
-			// Enable fly mode so we don't just fall to the ground
-			ui->actionFly_Mode->setChecked(true);
-			this->player_physics.setFlyModeEnabled(true);
-			this->cam_controller.setThirdPersonEnabled(false);
-			ui->actionThird_Person_Camera->setChecked(false);
-		}
-
-		size_t num_obs;
-		{
-			Lock lock(this->world_state->mutex);
-			num_obs = world_state->objects.size();
-		}
-
-		const bool map_screenshot = taking_map_screenshot;//parsed_args.isArgPresent("--takemapscreenshot");
-
-		ui->glWidget->take_map_screenshot = map_screenshot;
-		ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
-
-		const size_t num_model_and_tex_tasks = load_item_queue.size() + model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
-
-		if(time_since_last_waiting_msg.elapsed() > 2.0)
-		{
-			conPrint("---------------Waiting for loading to be done for screenshot ---------------");
-			printVar(num_obs);
-			printVar(num_model_and_tex_tasks);
-			printVar(num_non_net_resources_downloading);
-			printVar(num_net_resources_downloading);
-
-			time_since_last_waiting_msg.reset();
-		}
-
-		const bool loaded_all =
-			(time_since_last_screenshot.elapsed() > 4.0) && // Bit of a hack to allow time for the shadow mapping to render properly
-			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
-			(total_timer.elapsed() >= 8) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
-			(num_model_and_tex_tasks == 0) &&
-			(num_non_net_resources_downloading == 0) &&
-			(num_net_resources_downloading == 0);
-
-		if(loaded_all)
-		{
-			if(!done_screenshot_setup)
-			{
-				conPrint("Setting up for screenshot...");
-
-				ui->editorDockWidget->hide();
-				ui->chatDockWidget->hide();
-				ui->diagnosticsDockWidget->hide();
-
-				const int target_viewport_w = map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
-				const int target_viewport_h = map_screenshot ? (screenshot_width_px * 2) : (437 * 2);
-
-				conPrint("Setting geometry size...");
-				// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
-				ui->glWidget->setGeometry(0, 0, target_viewport_w, target_viewport_h);
-				setUpForScreenshot();
-			}
-			else
-			{
-				try
-				{
-					saveScreenshot();
-
-					// Reset screenshot state
-					screenshot_output_path.clear();
-					done_screenshot_setup = false;
-
-					time_since_last_screenshot.reset();
-
-					if(screenshot_command_socket.nonNull())
-					{
-						screenshot_command_socket->writeInt32(0); // Write success msg
-						screenshot_command_socket->writeStringLengthFirst("Success!");
-					}
-				}
-				catch(glare::Exception& e)
-				{
-					conPrint("Excep while saving screenshot: " + e.what());
-
-					// Reset screenshot state
-					screenshot_output_path.clear();
-					done_screenshot_setup = false;
-
-					time_since_last_screenshot.reset();
-
-					if(screenshot_command_socket.nonNull())
-					{
-						screenshot_command_socket->writeInt32(1); // Write failure msg
-						screenshot_command_socket->writeStringLengthFirst("Exception encountered: " + e.what());
-					}
-				}
-			}
-		}
-	}
+	runScreenshotCode();
 
 	
 	// NOTE: goes after sceeenshot code, which might update campos.
@@ -4784,7 +4461,1928 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
+	handleMessages(global_time, cur_time);
 	
+	// Evaluate scripts on objects
+	{
+		ZoneScopedN("script eval"); // Tracy profiler
+
+		Timer timer;
+		Scripting::evaluateObjectScripts(this->obs_with_scripts, global_time, dt, world_state.ptr(), ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), &this->audio_engine,
+			/*num_scripts_processed_out=*/this->last_num_scripts_processed
+		);
+		this->last_eval_script_time = timer.elapsed();
+	}
+
+
+	ui->glWidget->opengl_engine->setCurrentTime((float)cur_time);
+
+	if(this->world_state.nonNull())
+	{
+		ZoneScopedN("path_controllers eval"); // Tracy profiler
+
+		Lock lock(this->world_state->mutex);
+		for(size_t i=0; i<path_controllers.size(); ++i)
+			path_controllers[i]->update(*world_state, *physics_world, ui->glWidget->opengl_engine.ptr(), (float)dt);
+	}
+
+	UpdateEvents physics_events;
+
+	PlayerPhysicsInput physics_input;
+	{
+		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
+		ui->glWidget->processPlayerPhysicsInput((float)dt, /*input_out=*/physics_input); // sets player physics move impulse.
+	}
+
+	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
+
+	// Advance physics sim and player physics with a maximum timestep size.
+	// We advance both together, otherwise if there is a large dt, the physics engine can advance objects past what the player physics can keep up with.
+	// This prevents stuff like the player falling off the back of a train when loading stutters occur.
+	const double MAX_SUBSTEP_DT = 1.0 / 60.0;
+	const int unclamped_num_substeps = (int)std::ceil(dt / MAX_SUBSTEP_DT); // May get very large.
+	const int num_substeps  = myMin(unclamped_num_substeps, 60); // Only do up to 60 steps
+	const double substep_dt = myMin(dt / num_substeps, MAX_SUBSTEP_DT); // Don't make the substep time > 1/60s.
+
+	assert(substep_dt <= MAX_SUBSTEP_DT);
+	//printVar(num_substeps);
+	//conPrint("substep_dt: " + doubleToStringMaxNDecimalPlaces(substep_dt * 1000.0, 3) + " ms");
+
+	{
+		PERFORMANCEAPI_INSTRUMENT("physics sim");
+		ZoneScopedN("physics sim"); // Tracy profiler
+
+		for(int i=0; i<num_substeps; ++i)
+		{
+			if(physics_world.nonNull())
+			{
+				physics_world->think(substep_dt); // Advance physics simulation
+
+				if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+				{
+					if(this->cur_seat_index == 0) // If we are driving it:
+						vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
+				}
+				else
+				{
+					// Process player physics
+					UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
+					physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
+
+					// Process contact events for objects that the player touched.
+					// Take physics ownership of any such object if needed.
+					{
+						Lock world_state_lock(this->world_state->mutex);
+						for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+						{
+							PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+							if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+							{
+								WorldObject* ob = (WorldObject*)physics_ob->userdata;
+						
+								if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+								{
+									// conPrint("==Taking ownership of physics object from avatar physics contact...==");
+									takePhysicsOwnershipOfObject(*ob, global_time);
+								}
+							}
+						}
+					}
+					player_physics.contacted_events.resize(0);
+				}
+
+
+				// Process vehicle controllers for any vehicles we are not driving:
+				for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
+				{
+					VehiclePhysics* controller = it->second.ptr();
+					if((controller != vehicle_controller_inside.ptr()) || (this->cur_seat_index != 0)) // If this is not the controller for the vehicle we are inside of, or if we are not driving it:
+					{
+						PlayerPhysicsInput controller_physics_input;
+						controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
+						controller->update(*this->physics_world, controller_physics_input, (float)substep_dt);
+					}
+				}
+			}
+		}
+	}
+
+	player_physics.zeroMoveDesiredVel();
+
+
+	// Force player above terrain surface.
+	// Useful to prevent player falling down to infinity if they fall below the terrain surface before it is loaded.
+	if(terrain_system.nonNull())
+	{
+		const Vec3d player_pos = player_physics.getBottomPosition();
+
+		const float terrain_h = terrain_system->evalTerrainHeight((float)player_pos.x, (float)player_pos.y, 1.0);
+
+		if((float)player_pos.z < (terrain_h - 0.5f))
+		{
+			logMessage("Player was below terrain, moving up");
+			Vec3d new_player_pos = player_pos;
+			new_player_pos.z = terrain_h + player_physics.getEyeHeight() + 0.5f;
+			player_physics.setPosition(new_player_pos, player_physics.getLinearVel());
+		}
+	}
+
+
+	// Compute Doppler-effect factor for vehicle controllers, also set wind audio source volume.
+	if(physics_world.nonNull())
+	{
+		const Vec4f listener_linear_vel = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getLinearVel(*this->physics_world) : player_physics.getLinearVel();
+
+		for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
+		{
+			VehiclePhysics* controller = it->second.ptr();
+			controller->updateDopplerEffect(/*listener linear vel=*/listener_linear_vel, /*listener pos=*/cam_controller.getFirstPersonPosition().toVec4fPoint());
+		}
+
+		if(wind_audio_source.nonNull())
+		{
+			const float old_volume = wind_audio_source->volume;
+
+			// Increase wind volume as speed increases, but only once we exceed a certain speed, since we don't really want wind sounds playing when we run + jump around (approx < 20 m/s).
+			const float WIND_VOLUME_FACTOR = 0.7f;
+			wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.015f * WIND_VOLUME_FACTOR, 0.f, WIND_VOLUME_FACTOR);
+
+			if(wind_audio_source->volume != old_volume)
+				audio_engine.sourceVolumeUpdated(*wind_audio_source);
+		}
+	}
+
+
+	if(physics_world.nonNull())
+	{
+		Lock world_state_lock(this->world_state->mutex);
+
+		// Update transforms in OpenGL of objects the physics engine has moved.
+		JPH::BodyInterface& body_interface = physics_world->physics_system->GetBodyInterface();
+
+		{
+			Lock lock(physics_world->activated_obs_mutex);
+			for(auto it = physics_world->activated_obs.begin(); it != physics_world->activated_obs.end(); ++it)
+			{
+				PhysicsObject* physics_ob = *it;
+
+				JPH::Vec3 pos;
+				JPH::Quat rot;
+				body_interface.GetPositionAndRotation(physics_ob->jolt_body_id, pos, rot);
+
+				//conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
+
+				const Vec4f new_pos = toVec4fPos(pos);
+				const Quatf new_rot = toQuat(rot);
+
+				physics_ob->rot = new_rot;
+				physics_ob->pos = new_pos;
+
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+				{
+#ifndef NDEBUG
+					if(world_state->objects.find(physics_ob->ob_uid) == world_state->objects.end())
+					{
+						conPrint("Error: UID " + physics_ob->ob_uid.toString() + " not found for physics ob");
+						assert(0);
+					}
+#endif
+					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+					assert(ob->physics_object == physics_ob);
+
+					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
+					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
+					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
+					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine.
+					if(physics_ob->dynamic || (physics_ob->kinematic && ob->is_path_controlled))
+					{
+						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
+
+						const bool ob_picked_up = (this->selected_ob.ptr() == ob) && this->selected_ob_picked_up;
+
+						if(!ob_picked_up || getPathControllerForOb(*ob)) // Don't update selected object with physics engine state, unless it is path controlled.
+						{
+							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
+							// We will also reduce smooth_translation and smooth_rotation over time here.
+							if(physics_ob->dynamic)
+							{
+								Vec4f unit_axis;
+								float angle;
+								physics_ob->rot.toAxisAndAngle(unit_axis, angle);
+
+								ob->pos = Vec3d(pos.GetX(), pos.GetY(), pos.GetZ());
+								ob->axis = Vec3f(unit_axis);
+								ob->angle = angle;
+
+								// Reduce smooth_translation and smooth_rotation over time to zero / identity rotation.  NOTE: This is deliberately before the getSmoothedObToWorldMatrix() call below,
+								// so that getSmoothedObToWorldMatrix() result is unchanged over the rest of this frame.
+								const float smooth_change_factor = (1 - 3.f * myMin(0.1f, (float)dt));
+								assert(smooth_change_factor >= 0 && smooth_change_factor < 1);
+								physics_ob->smooth_translation *= smooth_change_factor;
+								physics_ob->smooth_rotation = Quatf::nlerp(Quatf::identity(), physics_ob->smooth_rotation, smooth_change_factor);
+							}
+
+							const Matrix4f ob_to_world = physics_ob->getSmoothedObToWorldMatrix();
+
+							// Update OpenGL object
+							if(ob->opengl_engine_ob.nonNull())
+							{
+								ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
+
+								const js::AABBox prev_gl_aabb_ws = ob->opengl_engine_ob->aabb_ws;
+								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+
+								// For objects with instances (which will have a non-null instance_matrix_vbo), we want to use the AABB we computed in evalObjectScript(), which contains all the instance AABBs,
+								// and will have been overwritten in updateObjectTransformData().
+								if(ob->opengl_engine_ob->instance_matrix_vbo.nonNull())
+									ob->opengl_engine_ob->aabb_ws = prev_gl_aabb_ws;
+								else
+								{
+									ob->doTransformChanged(ob_to_world, ob->scale.toVec4fVector()); // Update info used for computing LOD level.
+								}
+							}
+
+							// Update audio source for the object, if it has one.
+							if(ob->audio_source.nonNull())
+							{
+								ob->audio_source->pos = ob->getCentroidWS();
+								audio_engine.sourcePositionUpdated(*ob->audio_source);
+							}
+
+							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
+							if(physics_ob->dynamic && isObjectPhysicsOwnedBySelf(*ob, global_time))
+							{
+								JPH::Vec3 linear_vel, angular_vel;
+								body_interface.GetLinearAndAngularVelocity(physics_ob->jolt_body_id, linear_vel, angular_vel);
+
+								ob->linear_vel = toVec4fVec(linear_vel);
+								ob->angular_vel = toVec4fVec(angular_vel);
+
+								// Mark as from-local-physics-dirty to send a physics transform updated message to the server
+								ob->from_local_physics_dirty = true;
+								this->world_state->dirty_from_local_objects.insert(ob);
+
+								// Check for sending of renewal of object physics ownership message
+								checkRenewalOfPhysicsOwnershipOfObject(*ob, global_time);
+							}
+
+							if(this->selected_ob.ptr() == ob)
+							{
+								updateSelectedObjectPlacementBeam();
+							}
+						}
+					}
+				}
+				// Note that for instances, their OpenGL ob transform has effectively been set when instance_matrices was updated when evaluating scripts.
+				// So we don't need to set it from the physics object.
+			}
+
+			// Process newly activated physics objects
+			for(auto it = physics_world->newly_activated_obs.begin(); it != physics_world->newly_activated_obs.end(); ++it)
+			{
+				PhysicsObject* physics_ob = *it;
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+				{
+#ifndef NDEBUG
+					if(world_state->objects.find(physics_ob->ob_uid) == world_state->objects.end())
+					{
+						conPrint("Error: UID " + physics_ob->ob_uid.toString() + " not found for physics ob");
+						assert(0);
+					}
+#endif
+					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+
+					if(ob->isDynamic())
+					{
+						// If this object is already owned by another user, let them continue to own it. 
+						// If it is unowned, however, take ownership of it.
+						if(!isObjectPhysicsOwned(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+						{
+							// conPrint("==Taking ownership of physics object...==");
+							takePhysicsOwnershipOfObject(*ob, global_time);
+						}
+					}
+
+					// If the showPhysicsObOwnershipCheckBox is checked, show an AABB visualisation.
+					if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
+						obs_with_diagnostic_vis.insert(ob);
+				}
+			}
+			physics_world->newly_activated_obs.clear();
+
+		} // End activated_obs_mutex scope
+
+
+		// Get camera position, if we are in a vehicle.
+		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+		{
+			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
+			const bool use_smoothed_network_transform = cur_seat_index != 0;
+			campos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
+		}
+
+		this->cam_controller.setPosition(toVec3d(campos));
+
+		// Show vehicle speed on UI: Disabled until we can not create a zillion textures for this.
+		if(false)
+		{
+			if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+			{
+				//const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
+				//misc_info_ui.showVehicleSpeed(speed_km_h);
+				misc_info_ui.showVehicleInfo(vehicle_controller_inside->getUIInfoMsg());
+			}
+			else
+				misc_info_ui.hideVehicleSpeed();
+		}
+
+		// Update debug player-physics visualisation spheres
+		if(false)
+		{
+			for(size_t i=0; i<player_phys_debug_spheres.size(); ++i)
+			{
+				if(player_phys_debug_spheres[i].nonNull())
+					ui->glWidget->opengl_engine->removeObject(player_phys_debug_spheres[i]);
+
+				player_phys_debug_spheres[i] = NULL;
+			}
+			player_phys_debug_spheres.resize(0);
+
+			std::vector<js::BoundingSphere> spheres;
+			player_physics.debugGetCollisionSpheres(campos, spheres);
+
+
+			player_phys_debug_spheres.resize(spheres.size());
+			
+			
+			for(size_t i=0; i<spheres.size(); ++i)
+			{
+				if(player_phys_debug_spheres[i].isNull())
+				{
+					player_phys_debug_spheres[i] = ui->glWidget->opengl_engine->allocateObject();
+					player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::identity();
+					player_phys_debug_spheres[i]->mesh_data = ui->glWidget->opengl_engine->getSphereMeshData();
+
+					OpenGLMaterial material;
+					material.albedo_linear_rgb = (i < 3) ? Colour3f(0.3f, 0.8f, 0.3f) : Colour3f(0.8f, 0.3f, 0.3f);
+					
+					material.alpha = 0.5f;
+					material.transparent = true;
+					/*if(i >= 4)
+					{
+						material.albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
+						material.transparent = false;
+					}*/
+
+					player_phys_debug_spheres[i]->setSingleMaterial(material);
+
+					ui->glWidget->opengl_engine->addObject(player_phys_debug_spheres[i]);
+				}
+
+				player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::translationMatrix(spheres[i].getCenter()) * Matrix4f::uniformScaleMatrix(spheres[i].getRadius());
+				ui->glWidget->opengl_engine->updateObjectTransformData(*player_phys_debug_spheres[i]);
+			}
+		}
+
+
+		if(vehicle_controller_inside.nonNull())
+		{
+			const bool should_show = ui->diagnosticsWidget->showVehiclePhysicsVisCheckBox->isChecked();
+			vehicle_controller_inside->updateDebugVisObjects(*ui->glWidget->opengl_engine, should_show);
+		}
+
+		//--------------------------- Car controller and graphics -------------------------------
+		//car_physics.update(*this->physics_world, physics_input, (float)dt, /*campos_out=*/campos);
+		//this->cam_controller.setPosition(toVec3d(campos));
+
+		// Update car visualisation
+#if 0
+		if(false)
+		{
+			wheel_gl_objects.resize(4);
+
+			for(size_t i=0; i<wheel_gl_objects.size(); ++i)
+			{
+				if(wheel_gl_objects[i].isNull())
+				{
+					wheel_gl_objects[i] = ui->glWidget->opengl_engine->allocateObject();
+					wheel_gl_objects[i]->ob_to_world_matrix = Matrix4f::identity();
+					//wheel_gl_objects[i]->mesh_data = ui->glWidget->opengl_engine->getCylinderMesh();
+
+					GLTFLoadedData gltf_data;
+					BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_wheel.glb", gltf_data);
+					wheel_gl_objects[i]->mesh_data = GLMeshBuilding::buildBatchedMesh(ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
+					wheel_gl_objects[i]->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
+
+
+					OpenGLMaterial material;
+					material.albedo_linear_rgb = Colour3f(0.2f, 0.2f, 0.2f);
+					//material.tex_path = "resources/obstacle.png";
+
+					
+				//	wheel_gl_objects[i]->materials = SmallArray<OpenGLMaterial, 2>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
+
+					wheel_gl_objects[i]->materials[2].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+					wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
+					wheel_gl_objects[i]->materials[2].roughness = 0.2f;
+					wheel_gl_objects[i]->materials[4].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+					wheel_gl_objects[i]->materials[4].metallic_frac = 1.f; // spokes
+					wheel_gl_objects[i]->materials[4].roughness = 0.2f;
+
+
+					ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(wheel_gl_objects[i]);
+				}
+
+				//wheel_gl_objects[i]->ob_to_world_matrix = bike_physics.getWheelTransform((int)i) *
+				//	Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::scaleMatrix(0.3f, 0.3f, 0.1f) * Matrix4f::translationMatrix(0, 0, -0.5f);
+
+				wheel_gl_objects[i]->ob_to_world_matrix = car_physics.getWheelTransform((int)i) * Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * ((i == 0 || i == 2) ?  Matrix4f::rotationAroundZAxis(Maths::pi<float>()) : Matrix4f::identity());
+
+				ui->glWidget->opengl_engine->updateObjectTransformData(*wheel_gl_objects[i]);
+			}
+
+			if(car_body_gl_object.isNull())
+			{
+				car_body_gl_object = ui->glWidget->opengl_engine->allocateObject();
+				car_body_gl_object->ob_to_world_matrix = Matrix4f::identity();
+				//car_body_gl_object->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
+
+				GLTFLoadedData gltf_data;
+				BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_body.glb", gltf_data);
+				car_body_gl_object->mesh_data = GLMeshBuilding::buildBatchedMesh(ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
+				car_body_gl_object->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
+				car_body_gl_object->mesh_data->animation_data = batched_mesh->animation_data;
+
+				OpenGLMaterial material;
+				material.albedo_linear_rgb = Colour3f(115 / 255.f, 187 / 255.f, 202 / 255.f);
+				material.roughness = 0.6;
+				material.metallic_frac = 0.0;
+					
+				//car_body_gl_object->materials = SmallArray<OpenGLMaterial, 2>(car_body_gl_object->mesh_data->num_materials_referenced, material);
+
+				car_body_gl_object->materials[12].alpha = 0.5f;
+				car_body_gl_object->materials[12].transparent = true;
+
+				ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(car_body_gl_object);
+			}
+
+
+			car_body_gl_object->ob_to_world_matrix = car_physics.getBodyTransform() * Matrix4f::translationMatrix(0, 0.2f, -0.2f) * Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+			
+			//const float half_vehicle_length = 2.0f;
+			//const float half_vehicle_width = 0.9f;
+			//const float half_vehicle_height = 0.2f;
+			// 
+			// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+			//car_body_gl_object->ob_to_world_matrix = bike_physics.getBodyTransform();// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+
+			ui->glWidget->opengl_engine->updateObjectTransformData(*car_body_gl_object);
+		}
+		//--------------------------- END Car controller and graphics -------------------------------
+#endif
+
+		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
+		{
+			const Vec3d cam_back_dir = cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2;
+			this->cam_controller.third_person_cam_position = toVec3d(campos) + Vec3d(cam_back_dir);
+		}
+
+
+		// TODO: If we are using 3rd person can, use animation events from the walk/run cycle animations to trigger sounds.
+		// Adapted from AvatarGraphics::setOverallTransform():
+		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
+		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
+		const Vec3f xyplane_vel = player_physics.getLastXYPlaneVelRelativeToGround();
+		float xyplane_speed = xyplane_vel.length();
+
+		if(player_physics.onGroundRecently() && our_move_impulse_zero && !player_physics.flyModeEnabled()) // Suppress footsteps when on ground and not trying to move (walk anims should not be played in this case)
+			xyplane_speed = 0;
+
+		if((xyplane_speed > 0.1f) && vehicle_controller_inside.isNull()) // Don't play footstep sounds if sitting in vehicle.
+		{
+			ui->indigoView->cameraUpdated(this->cam_controller);
+
+			const float walk_run_cycle_period = player_physics.isRunPressed() ? AvatarGraphics::runCyclePeriod() : AvatarGraphics::walkCyclePeriod();
+			if(player_physics.onGroundRecently() && (last_footstep_timer.elapsed() > (walk_run_cycle_period * 0.5f)))
+			{
+				last_foostep_side = (last_foostep_side + 1) % 2;
+
+				// 4cm left/right, 40cm forwards.
+				const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) +
+					cam_controller.getForwardsVec().toVec4fVector() * 0.4f +
+					cam_controller.getRightVec().toVec4fVector() * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
+				
+				// conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3) + ", playing " + last_footstep_timer.elapsedStringNSigFigs(3) + " after last footstep");
+
+				const int rnd_src_i = rng.nextUInt(4);
+				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
+
+				last_footstep_timer.reset();
+			}
+		}
+
+		if(physics_events.jumped)
+		{
+			const Vec4f jump_sound_pos = campos - Vec4f(0, 0, 0.1f, 0) +
+				cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
+
+			const int rnd_src_i = rng.nextUInt(4);
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
+		}
+	}
+	proximity_loader.updateCamPos(campos);
+
+	const Vec3d cam_angles = this->cam_controller.getAngles();
+
+	// Find out which parcel we are in, if any.
+	ParcelID in_parcel_id = ParcelID::invalidParcelID();
+	bool mute_outside_audio = false;
+	if(world_state.nonNull())
+	{
+		//Timer timer;
+		bool in_parcel = false;
+		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
+		Lock lock(world_state->mutex);
+		const Parcel* parcel = world_state->getParcelPointIsIn(campos_vec3d);
+		if(parcel)
+		{
+			// Set audio source room effects
+			audio_engine.setCurentRoomDimensions(js::AABBox(
+				Vec4f((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.f),
+				Vec4f((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.f)));
+
+			in_parcel_id = parcel->id;
+			in_parcel = true;
+
+			if(BitUtils::isBitSet(parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
+				mute_outside_audio = true;
+		}
+
+		audio_engine.setRoomEffectsEnabled(in_parcel);
+
+		//conPrint("Setting room effects took " + timer.elapsedStringNSigFigs(4));
+	}
+
+	//printVar(in_parcel_id.value());
+
+	// Set audio source occlusions and check for muting audio sources not in current parcel.
+	if(physics_world.nonNull())
+	{
+		PERFORMANCEAPI_INSTRUMENT("audio occlusions");
+		ZoneScopedN("audio occlusions"); // Tracy profiler
+
+		Lock lock(audio_engine.mutex);
+		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
+		{
+			glare::AudioSource* source = it->ptr();
+
+			const float dist = source->pos.getDist(campos); // Dist from camera to source position
+			if(dist < maxAudioDistForSourceVolFactor(source->volume)) // Only do tracing for nearby objects
+			{
+				const Vec4f trace_dir = (dist == 0) ? Vec4f(1,0,0,0) : ((source->pos - campos) / dist); // Trace from camera to source position
+				assert(trace_dir.isUnitLength());
+
+				const float max_trace_dist = 60.f; // Limit the distance we trace, so that very loud sources very far away don't do expensive traces right through the world.
+
+				const float trace_dist = myClamp(dist - 1.f, 0.f, max_trace_dist); // Ignore intersections with x metres of the source.  This is so meshes that contain the source (e.g. speaker models)
+				// don't occlude the source.
+
+				const Vec4f trace_start = campos;
+
+				const bool hit_object = physics_world->doesRayHitAnything(trace_start, trace_dir, trace_dist);
+				if(hit_object)
+				{
+					//conPrint("hit aabb: " + results.hit_object->aabb_ws.toStringNSigFigs(4));
+					//printVar(results.hit_object->userdata_type);
+					source->num_occlusions = 1;
+				}
+				else
+					source->num_occlusions = 0;
+
+				//conPrint("source: " + toString((uint64)source) + ", hit_object: " + boolToString(hit_object) + ", source parcel: " + toString(source->userdata_1));
+
+				
+				if(source->type != glare::AudioSource::SourceType_OneShot) // We won't be muting footsteps etc.
+				{
+					const float old_mute_volume_factor = source->getMuteVolumeFactor();
+					if(mute_outside_audio) // If we are in a parcel, which has the mute-outside-audio option enabled:
+					{
+						if(source->userdata_1 != in_parcel_id.value()) // And the source is in another parcel (or not in any parcel):
+							source->startMuting(cur_time, 1);
+						else
+							source->startUnmuting(cur_time, 1);
+					}
+					else
+						source->startUnmuting(cur_time, 1);
+
+					source->updateCurrentMuteVolumeFactor(cur_time);
+
+					if(old_mute_volume_factor != source->getMuteVolumeFactor())
+						audio_engine.sourceVolumeUpdated(*source);
+				}
+
+
+				// printVar(source->num_occlusions);
+				audio_engine.sourceNumOcclusionsUpdated(*source);
+			}
+		}
+	}
+
+
+	updateAvatarGraphics(cur_time, dt, cam_angles, our_move_impulse_zero);
+	
+
+	// Resonance seems to want a to-world transformation
+	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
+
+	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)cam_angles.x - Maths::pi_2<float>());
+	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
+	const Quatf q = z_axis_rot_q * x_axis_rot_q;
+	audio_engine.setHeadTransform(cam_controller.thirdPersonEnabled() ? this->cam_controller.third_person_cam_position.toVec4fPoint() : this->cam_controller.getFirstPersonPosition().toVec4fPoint(), q);
+
+
+	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
+	// This is so any new player joining the world after we entered the vehicle can receive the information that we are inside it.
+	if(vehicle_controller_inside.nonNull() && ((cur_time - last_vehicle_renewal_msg_time) > 4.0))
+	{
+		// conPrint("sending AvatarEnteredVehicle renewal msg");
+
+		// Send AvatarEnteredVehicle message to server
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
+		writeToStream(this->client_avatar_uid, scratch_packet);
+		writeToStream(this->vehicle_controller_inside->getControlledObject()->uid, scratch_packet); // Write vehicle object UID
+		scratch_packet.writeUInt32(this->cur_seat_index); // Seat index.
+		scratch_packet.writeUInt32(1); // Write flags.  Set renewal bit.
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+		last_vehicle_renewal_msg_time = cur_time;
+	}
+
+	//TEMP
+#if 0
+	for(size_t i=0; i<test_avatars.size(); ++i)
+	{
+		AvatarRef test_avatar = test_avatars[i];
+		
+		/*double phase_speed = 0.5;
+		if((int)(cur_time * 0.2) % 2 == 0)
+		{
+			phase_speed = 0;
+		}*/
+		//double phase_speed = 0;
+
+
+		PoseConstraint pose_constraint;
+		pose_constraint.sitting = false;
+		pose_constraint.seat_to_world = Matrix4f::translationMatrix(0,0,1.7f);
+
+		AnimEvents anim_events;
+		//test_avatar_phase += phase_speed * dt;
+		const double r = 20;
+		//Vec3d pos(0, 0, 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
+		const double phase = Maths::get2Pi<double>() * i / test_avatars.size() + cur_time * 0.1;
+		Vec3d pos(r * cos(phase), r * sin(phase), 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
+		const int anim_state = 0;
+		float xyplane_speed_rel_ground = 0;
+		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, 
+			Vec3f(0, /*pitch=*/Maths::pi_2<float>(), (float)phase + Maths::pi_2<float>()), 
+			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, pose_constraint, anim_events);
+		if(anim_events.footstrike)
+		{
+			//conPrint("footstrike");
+			//footstep_source->cur_read_i = 0;
+			//audio_engine.setSourcePosition(footstep_source, anim_events.footstrike_pos.toVec4fPoint());
+			const int rnd_src_i = rng.nextUInt(4);// (uint32)footstep_sources.size());
+			//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
+			//footstep_sources[rnd_src_i]->cur_read_i = 0;
+
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
+		}
+	}
+#endif
+
+
+	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
+	if(world_state.nonNull())
+	{
+		PERFORMANCEAPI_INSTRUMENT("object graphics");
+		ZoneScopedN("object graphics"); // Tracy profiler
+
+		try
+		{
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
+			{
+				WorldObject* ob = it->ptr();
+
+				assert((this->world_state->objects.find(ob->uid) != this->world_state->objects.end()) && (this->world_state->objects.find(ob->uid).getValue().ptr() == ob)); // Make sure this object in the dirty set is in our set of objects.
+
+				// conPrint("Processing dirty object.");
+
+				if(ob->from_remote_other_dirty || ob->from_remote_model_url_dirty)
+				{
+					if(ob->state == WorldObject::State_Dead)
+					{
+						print("Removing WorldObject.");
+
+						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+						//proximity_loader.removeObject(ob);
+
+						ui->indigoView->objectRemoved(*ob);
+
+						ob->web_view_data = NULL;
+						ob->browser_vid_player = NULL;
+
+						if(ob->audio_source.nonNull())
+						{
+							audio_engine.removeSource(ob->audio_source);
+							ob->audio_source = NULL;
+							ob->audio_state = WorldObject::AudioState_NotLoaded;
+						}
+
+						removeInstancesOfObject(ob);
+						//removeObScriptingInfo(ob);
+
+						this->world_state->objects.erase(ob->uid);
+
+						active_objects.erase(ob);
+						obs_with_animated_tex.erase(ob);
+						web_view_obs.erase(ob);
+						browser_vid_player_obs.erase(ob);
+						audio_obs.erase(ob);
+						obs_with_scripts.erase(ob);
+						obs_with_diagnostic_vis.erase(ob);
+					}
+					else // Else if not dead:
+					{
+						// Decompress voxel group
+						//ob->decompressVoxels();
+
+						//proximity_loader.checkAddObject(ob); // Calls loadModelForObject() and loadAudioForObject() if it is within load distance.
+
+						if(ob->state == WorldObject::State_JustCreated)
+							enableMaterialisationEffectOnOb(*ob); // Enable materialisation effect before we call loadModelForObject() below.
+
+						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
+
+						if(ob->getCentroidWS().getDist2(campos) < this->load_distance2)
+						{
+							loadModelForObject(ob);
+							loadAudioForObject(ob);
+						}
+
+						//bool reload_opengl_model = false; // Do we need to load or reload model?
+						//if(ob->opengl_engine_ob.isNull())
+						//	reload_opengl_model = true;
+						//
+						//if(ob->object_type == WorldObject::ObjectType_Generic)
+						//{
+						//	if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
+						//		reload_opengl_model = true;
+						//}
+						//else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+						//{
+						//	reload_opengl_model = true;
+						//}
+						//else if(ob->object_type == WorldObject::ObjectType_Hypercard)
+						//{
+						//	if(ob->loaded_content != ob->content)
+						//		reload_opengl_model = true;
+						//}
+						//else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+						//{
+						//	// no reload needed
+						//}
+
+						//if(reload_opengl_model)
+						//{
+						//	// loadModelForObject(ob);
+						//}
+						//else
+						//{
+						
+						if(!ob->audio_source_url.empty() || ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video)
+							this->audio_obs.insert(ob);
+
+
+						if((ob->state != WorldObject::State_JustCreated) && (ob->state != WorldObject::State_InitialSend)) // Don't reload materials when we just created the object locally.
+						{
+							// Update transform for object and object materials in OpenGL engine
+							if(ob->opengl_engine_ob.nonNull() && (ob != selected_ob.getPointer())) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
+							{
+								GLObjectRef opengl_ob = ob->opengl_engine_ob;
+
+								// Update transform
+								opengl_ob->ob_to_world_matrix = ob->obToWorldMatrix();
+								ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+								// Update materials in opengl engine.
+								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+								for(size_t i=0; i<ob->materials.size(); ++i)
+									if(i < opengl_ob->materials.size())
+										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
+
+								updateInstancedCopiesOfObject(ob);
+							}
+
+							if(ob == selected_ob.ptr())
+								ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
+
+							loadAudioForObject(ob); // Check for re-loading audio if audio URL changed.
+						}
+						//}
+
+
+						if(ob->state == WorldObject::State_JustCreated)
+						{
+							// Got just created object
+
+							if(last_restored_ob_uid_in_edit.valid())
+							{
+								//conPrint("Adding mapping from " + last_restored_ob_uid_in_edit.toString() + " to " + ob->uid.toString());
+								recreated_ob_uid[last_restored_ob_uid_in_edit] = ob->uid;
+								last_restored_ob_uid_in_edit = UID::invalidUID();
+							}
+
+							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects by checking numSecondsAgo().
+							// Don't select summoned vehicles though, as the intent is probably to ride them, not edit them.
+							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30) && !BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG))
+								selectObject(ob, /*selected_mat_index=*/0); // select it
+
+							ob->state = WorldObject::State_Alive;
+						}
+						else if(ob->state == WorldObject::State_InitialSend)
+						{
+							ob->state = WorldObject::State_Alive;
+						}
+
+						ob->from_remote_other_dirty = false;
+						ob->from_remote_model_url_dirty = false;
+					}
+				}
+				else if(ob->from_remote_lightmap_url_dirty)
+				{
+					// Try and download any resources we don't have for this object
+					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+					startDownloadingResourcesForObject(ob, ob_lod_level);
+
+					// Update materials in opengl engine, so it picks up the new lightmap URL
+					GLObjectRef opengl_ob = ob->opengl_engine_ob;
+					if(opengl_ob.nonNull())
+					{
+						for(size_t i=0; i<ob->materials.size(); ++i)
+							if(i < opengl_ob->materials.size())
+								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+						ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
+					}
+
+					ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
+
+					if(ob == selected_ob.ptr())
+						ui->objectEditor->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
+
+					ob->from_remote_lightmap_url_dirty = false;
+				}
+				else if(ob->from_remote_physics_ownership_dirty)
+				{
+					if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
+						obs_with_diagnostic_vis.insert(ob);
+
+					ob->from_remote_physics_ownership_dirty = false;
+				}
+				
+				if(ob->from_remote_transform_dirty)
+				{
+					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
+
+					ob->from_remote_transform_dirty = false;
+				}
+
+				if(ob->from_remote_physics_transform_dirty)
+				{
+					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
+
+					ob->from_remote_physics_transform_dirty = false;
+				}
+
+				if(ob->from_remote_summoned_dirty)
+				{
+					enableMaterialisationEffectOnOb(*ob);
+
+					// Set physics and object transforms here explictly instead of relying on interpolation or whatever.
+					// This is because summoning moves objects discontinuously, so we don't want to interpolate.
+					if(ob->physics_object.nonNull())
+					{
+						physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), 
+							Vec4f(0), Vec4f(0));
+
+						ob->physics_object->smooth_rotation = Quatf::identity(); // We don't want to smooth the transformation change.
+						ob->physics_object->smooth_translation = Vec4f(0);
+					}
+
+					if(ob->opengl_engine_ob.nonNull())
+					{
+						ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
+						ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+					}
+
+					ob->from_remote_summoned_dirty = false;
+				}
+			}
+
+			this->world_state->dirty_from_remote_objects.clear();
+		}
+		catch(glare::Exception& e)
+		{
+			print("Error while Updating object graphics: " + e.what());
+		}
+
+
+		updateParcelGraphics();
+		
+
+		// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
+		{
+			Lock lock(this->world_state->mutex);
+			for(auto it = active_objects.begin(); it != active_objects.end();)
+			{
+				WorldObject* ob = it->ptr();
+
+				// See if object should be removed from the active set - an object should be removed if it has been a while since the last transform snapshot has been received.
+				const uint32 last_snapshot_mod_i = Maths::intMod(ob->next_snapshot_i - 1, WorldObject::HISTORY_BUF_SIZE);
+				const bool inactive = (cur_time - ob->snapshots[last_snapshot_mod_i].local_time) > 1.0;
+				if(inactive)
+				{
+					// conPrint("------Removing inactive object-------");
+					// Object is not active any more, remove from active_objects set.
+					auto to_erase = it;
+					it++;
+					active_objects.erase(to_erase);
+				}
+				else
+				{
+					if(ob->isDynamic() && isObjectPhysicsOwnedBySelf(*ob, global_time)) // If this is a dynamic physics object that we are the current physics owner of:
+					{
+						// Don't update its transform from physics snapshots, let the physics engine set it directly.
+						// conPrint("Skipping interpolation of dynamic ob - we own it");
+					}
+					else
+					{
+						if(ob->snapshots_are_physics_snapshots)
+						{
+							// See if it's time to feed a physics snapshot into the physics system.  See 'docs\networked physics.txt' for more details.
+							const double padding_delay = 0.1;
+
+							// conPrint("next_insertable_snapshot_i: " + toString(ob->next_insertable_snapshot_i) + ", next_snapshot_i: " + toString(ob->next_snapshot_i));
+
+							if(ob->next_insertable_snapshot_i < ob->next_snapshot_i) // If we have at least one snapshot that has not been inserted:
+							{
+								const uint32 next_insertable_snapshot_mod_i = Maths::intMod(ob->next_insertable_snapshot_i, WorldObject::HISTORY_BUF_SIZE);
+								const WorldObject::Snapshot& snapshot = ob->snapshots[next_insertable_snapshot_mod_i];
+								const double desired_insertion_time = snapshot.client_time + ob->transmission_time_offset + padding_delay;
+								// conPrint("------------------------------------");
+								// conPrint("snapshot.client_time: " + toString(snapshot.client_time));
+								// conPrint("ob->transmission_time_offset: " + toString(ob->transmission_time_offset));
+								// conPrint("desired_insertion_time: " + toString(desired_insertion_time) + ", global_time: " + toString(global_time) + "(" + toString(desired_insertion_time - global_time) + " s in future)");
+								if(global_time >= desired_insertion_time)
+								{
+									// conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
+									if(ob->physics_object.nonNull())
+									{
+										const Vec4f old_effective_pos = ob->physics_object->smooth_translation + ob->physics_object->pos;
+										const Quatf old_effective_rot = ob->physics_object->smooth_rotation    * ob->physics_object->rot;
+										physics_world->setNewObToWorldTransform(*ob->physics_object, snapshot.pos, snapshot.rotation, snapshot.linear_vel, snapshot.angular_vel);
+
+										// Compute smoothing translation and rotation transforms that will map the snapshot position to the current effective position.
+										ob->physics_object->smooth_translation = old_effective_pos - snapshot.pos;
+										ob->physics_object->smooth_rotation    = old_effective_rot * snapshot.rotation.conjugate();
+									}
+
+									ob->next_insertable_snapshot_i++;
+								}
+							}
+						}
+						else
+						{
+							// conPrint("Getting interpolated transform");
+							Vec3d pos;
+							Quatf rot;
+							ob->getInterpolatedTransform(cur_time, pos, rot);
+
+							if(ob->opengl_engine_ob.nonNull())
+							{
+								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+									rot.toMatrix() *
+									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+
+								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+							}
+
+							if(ob->physics_object.nonNull())
+							{
+								// Update in physics engine
+								physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), rot, useScaleForWorldOb(ob->scale).toVec4fVector());
+							}
+
+							if(ob->audio_source.nonNull())
+							{
+								// Update in audio engine
+								ob->audio_source->pos = ob->getCentroidWS();
+								audio_engine.sourcePositionUpdated(*ob->audio_source);
+							}
+						}
+
+						if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
+							obs_with_diagnostic_vis.insert(ob);
+					}
+					it++;
+				}
+			}
+		}
+	} // end if(world_state.nonNull())
+
+
+	// Move selected object if there is one and it is picked up, based on direction camera is currently facing.
+	if(this->selected_ob.nonNull() && selected_ob_picked_up)
+	{
+		const bool allow_modification = objectModificationAllowedWithMsg(*this->selected_ob, "move");
+		if(allow_modification)
+		{
+			// Get direction for current mouse cursor position
+			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+			const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+			const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+			const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+
+			// Convert selection vector from camera space to world space
+			const Vec4f selection_vec_ws = right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2];
+
+			// Get the target position for the new selection point in world space.
+			const Vec4f new_sel_point_ws = origin + selection_vec_ws;
+
+			// Get the current position for the selection point on the object in world-space.
+			const Vec4f selection_point_ws = obToWorldMatrix(*this->selected_ob) * this->selection_point_os;
+
+			const Vec4f desired_new_ob_pos = this->selected_ob->pos.toVec4fPoint() + (new_sel_point_ws - selection_point_ws);
+
+			assert(desired_new_ob_pos.isFinite());
+
+			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
+			//tentative_new_to_world.setColumn(3, desired_new_ob_pos);
+			//tryToMoveObject(tentative_new_to_world);
+			tryToMoveObject(this->selected_ob, desired_new_ob_pos);
+		}
+	}
+
+	updateVoxelEditMarkers();
+
+	// Send an AvatarTransformUpdate packet to the server if needed.
+	if(client_thread.nonNull() && (time_since_update_packet_sent.elapsed() > 0.1))
+	{
+		PERFORMANCEAPI_INSTRUMENT("sending packets");
+		ZoneScopedN("sending packets"); // Tracy profiler
+
+		// Send AvatarTransformUpdate packet
+		{
+			const uint32 anim_state = 
+				(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
+				(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) |
+				(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
+
+			const uint32 input_bitmask = physics_input.toBitFlags();
+
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
+			writeToStream(this->client_avatar_uid, scratch_packet);
+			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
+			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), scratch_packet);
+			scratch_packet.writeUInt32(anim_state | (input_bitmask << 16));
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+
+		
+		if(world_state.nonNull())
+		{
+			Lock lock(this->world_state->mutex);
+
+			//============ Send any object updates needed ===========
+			for(auto it = this->world_state->dirty_from_local_objects.begin(); it != this->world_state->dirty_from_local_objects.end(); ++it)
+			{
+				WorldObject* world_ob = it->getPointer();
+				if(world_ob->from_local_other_dirty)
+				{
+					// Enqueue ObjectFullUpdate
+					MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
+					world_ob->writeToNetworkStream(scratch_packet);
+
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+					world_ob->from_local_other_dirty = false;
+					world_ob->from_local_transform_dirty = false; // We sent all information, including transform, so transform is no longer dirty.
+					world_ob->from_local_physics_dirty = false;
+				}
+				else if(world_ob->from_local_transform_dirty)
+				{
+					// Enqueue ObjectTransformUpdate
+					MessageUtils::initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
+					writeToStream(world_ob->uid, scratch_packet);
+					writeToStream(Vec3d(world_ob->pos), scratch_packet);
+					writeToStream(Vec3f(world_ob->axis), scratch_packet);
+					scratch_packet.writeFloat(world_ob->angle);
+					writeToStream(Vec3f(world_ob->scale), scratch_packet);
+
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+					world_ob->from_local_transform_dirty = false;
+				}
+				else if(world_ob->from_local_physics_dirty)
+				{
+					// Send ObjectPhysicsTransformUpdate packet
+					MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsTransformUpdate);
+					writeToStream(world_ob->uid, scratch_packet);
+					writeToStream(world_ob->pos, scratch_packet);
+
+					const Quatf rot = Quatf::fromAxisAndAngle(world_ob->axis, world_ob->angle);
+					scratch_packet.writeData(&rot.v.x, sizeof(float) * 4);
+
+					scratch_packet.writeData(world_ob->linear_vel.x, sizeof(float) * 3);
+					scratch_packet.writeData(world_ob->angular_vel.x, sizeof(float) * 3);
+
+					scratch_packet.writeDouble(global_time); // Write last_transform_client_time
+
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+					world_ob->from_local_physics_dirty = false;
+				}
+			}
+
+			this->world_state->dirty_from_local_objects.clear();
+
+			//============ Send any parcel updates needed ===========
+			for(auto it = this->world_state->dirty_from_local_parcels.begin(); it != this->world_state->dirty_from_local_parcels.end(); ++it)
+			{
+				const Parcel* parcel= it->getPointer();
+			
+				// Enqueue ParcelFullUpdate
+				MessageUtils::initPacket(scratch_packet, Protocol::ParcelFullUpdate);
+				writeToNetworkStream(*parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
+
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
+			}
+
+			this->world_state->dirty_from_local_parcels.clear();
+		}
+
+
+		time_since_update_packet_sent.reset();
+	}
+
+	{
+		// Show a decibel level: http://msp.ucsd.edu/techniques/v0.08/book-html/node6.html
+		// cur_level = 0.01 gives log_10(0.01 / 0.01) = 0.
+		// cur_level = 1 gives log_10(1 / 0.01) = 2.  We want to map this to 1 so multiply by 0.5.
+		const float a_0 = 1.0e-2f;
+		const float d = 0.5f * std::log10(mic_read_status.cur_level / a_0);
+		const float display_level = myClamp(d, 0.f, 1.f);
+		gesture_ui.setCurrentMicLevel(mic_read_status.cur_level, display_level);
+	}
+
+	if(frame_num % 8 == 0)
+		checkForAudioRangeChanges();
+
+	if(terrain_system.nonNull())
+		terrain_system->updateCampos(this->cam_controller.getPosition(), bump_allocator);
+
+	if(terrain_decal_manager.nonNull())
+		terrain_decal_manager->think((float)dt);
+	if(particle_manager.nonNull())
+		particle_manager->think((float)dt);
+
+	if(ui->glWidget->opengl_engine.nonNull())
+	{
+		ui->glWidget->opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
+	}
+
+
+	last_timerEvent_CPU_work_elapsed = timerEvent_timer.elapsed();
+
+
+	/*if(last_timerEvent_CPU_work_elapsed > 0.010)
+	{
+		logMessage("=============Long frame==================");
+		logMessage("Frame CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1.0e3, 4) + " ms");
+		logMessage("loading time: " + doubleToStringNSigFigs(frame_loading_time * 1.0e3, 4) + " ms");
+		for(size_t i=0; i<loading_times.size(); ++i)
+			logMessage("\t" + loading_times[i]);
+		//conPrint("\tprocessing animated textures took " + doubleToStringNSigFigs(animated_tex_time * 1.0e3, 4) + " ms");
+	}*/
+
+	ui->glWidget->makeCurrent();
+
+	//Timer timer;
+	{
+		Timer timer2;
+		PERFORMANCEAPI_INSTRUMENT("updateGL()");
+		ZoneScopedN("updateGL"); // Tracy profiler
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+		ui->glWidget->update();
+#else
+		ui->glWidget->updateGL();
+#endif
+		//if(timer.elapsed() > 0.020)
+		//	conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": updateGL() took " + timer.elapsedStringNSigFigs(4));
+		this->last_updateGL_time = timer2.elapsed();
+	}
+
+	frame_num++;
+}
+
+
+void MainWindow::updateParcelGraphics()
+{
+	// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
+	try
+	{
+		PERFORMANCEAPI_INSTRUMENT("parcel graphics");
+		ZoneScopedN("parcel graphics"); // Tracy profiler
+
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->dirty_from_remote_parcels.begin(); it != this->world_state->dirty_from_remote_parcels.end(); ++it)
+		{
+			Parcel* parcel = it->getPointer();
+			if(parcel->from_remote_dirty)
+			{
+				if(parcel->state == Parcel::State_Dead)
+				{
+					print("Removing Parcel.");
+					
+					// Remove any OpenGL object for it
+					if(parcel->opengl_engine_ob.nonNull())
+						ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
+
+					// Remove physics object
+					if(parcel->physics_object.nonNull())
+					{
+						physics_world->removeObject(parcel->physics_object);
+						parcel->physics_object = NULL;
+					}
+
+					this->world_state->parcels.erase(parcel->id);
+				}
+				else
+				{
+					const Vec4f aabb_min((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.0f);
+					const Vec4f aabb_max((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.0f);
+
+					if(ui->actionShow_Parcels->isChecked())
+					{
+						if(parcel->opengl_engine_ob.isNull())
+						{
+							// Make OpenGL model for parcel:
+							const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
+
+							bool use_write_perms = write_perms;
+							if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
+								use_write_perms = false;
+
+							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
+							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+							parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
+							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
+
+							// Make physics object for parcel:
+							assert(parcel->physics_object.isNull());
+							parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
+							physics_world->addObject(parcel->physics_object);
+						}
+						else // else if opengl ob is not null:
+						{
+							// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
+							//const Vec4f span = aabb_max - aabb_min;
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
+							//ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
+							//
+							//// Update in physics engine
+							//parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+							//physics_world->updateObjectTransformData(*parcel->physics_object);
+						}
+					}
+
+					// If we want to move to this parcel based on the URL entered:
+					if(this->url_parcel_uid == (int)parcel->id.value())
+					{
+						cam_controller.setPosition(parcel->getVisitPosition());
+						player_physics.setPosition(parcel->getVisitPosition());
+						this->url_parcel_uid = -1;
+
+						showInfoNotification("Jumped to parcel " + parcel->id.toString());
+					}
+
+
+					parcel->from_remote_dirty = false;
+				}
+			} // end if(parcel->from_remote_dirty)
+		}
+
+		this->world_state->dirty_from_remote_parcels.clear();
+	}
+	catch(glare::Exception& e)
+	{
+		print("Error while updating parcel graphics: " + e.what());
+	}
+}
+
+
+void MainWindow::updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero)
+{
+	// Update avatar graphics
+	temp_av_positions.clear();
+	if(world_state.nonNull())
+	{
+		PERFORMANCEAPI_INSTRUMENT("avatar graphics");
+		ZoneScopedN("avatar graphics"); // Tracy profiler
+
+		try
+		{
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
+			{
+				Avatar* avatar = it->second.getPointer();
+				const bool our_avatar = avatar->isOurAvatar();
+
+				if(avatar->state == Avatar::State_Dead)
+				{
+					print("Removing avatar.");
+
+					ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
+						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
+						web::Escaping::HTMLEscape(avatar->name) + "</span> left.</i>"));
+
+					// Remove any OpenGL object for it
+					avatar->graphics.destroy(*ui->glWidget->opengl_engine);
+
+					// Remove nametag OpenGL object
+					if(avatar->nametag_gl_ob.nonNull())
+						ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
+					avatar->nametag_gl_ob = NULL;
+					if(avatar->speaker_gl_ob.nonNull())
+						ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
+					avatar->speaker_gl_ob = NULL;
+
+					// Remove avatar from avatar map
+					auto old_avatar_iterator = it;
+					it++;
+					this->world_state->avatars.erase(old_avatar_iterator);
+
+					updateOnlineUsersList();
+
+					world_state->avatars_changed = 1;
+				}
+				else
+				{
+					bool reload_opengl_model = false; // load or reload model?
+
+					if(avatar->state == Avatar::State_JustCreated)
+					{
+						enableMaterialisationEffectOnAvatar(*avatar); // Enable materialisation effect before we call loadModelForAvatar() below.
+
+						//// Add audio source for voice chat
+						//if(!our_avatar)
+						//{
+						//	avatar->audio_source = new glare::AudioSource();
+						//	avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
+						//	avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+
+						//	audio_engine.addSource(avatar->audio_source);
+						//}
+					}
+
+					if(avatar->other_dirty)
+					{
+						reload_opengl_model = true;
+
+						updateOnlineUsersList();
+					}
+
+					if((cam_controller.thirdPersonEnabled() || !our_avatar) && reload_opengl_model) // Don't load graphics for our avatar unless we are in third-person cam view mode
+					{
+						print("(Re)Loading avatar model. model URL: " + avatar->avatar_settings.model_url + ", Avatar name: " + avatar->name);
+
+						// Remove any existing model and nametag
+						avatar->graphics.destroy(*ui->glWidget->opengl_engine);
+						
+						if(avatar->nametag_gl_ob.nonNull()) // Remove nametag ob
+							ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
+						avatar->nametag_gl_ob = NULL;
+						if(avatar->speaker_gl_ob.nonNull())
+							ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
+						avatar->speaker_gl_ob = NULL;
+
+						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
+
+						loadModelForAvatar(avatar);
+
+						if(!our_avatar)
+						{
+							// Add nametag object for avatar
+							avatar->nametag_gl_ob = makeNameTagGLObject(avatar->name);
+
+							// Set transform to be above avatar.  This transform will be updated later.
+							avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
+
+							ui->glWidget->opengl_engine->addObject(avatar->nametag_gl_ob); // Add to 3d engine
+
+							// Play entry teleport sound
+							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
+						}
+					} // End if reload_opengl_model
+
+
+					// Update transform if we have an avatar or placeholder OpenGL model.
+					Vec3d pos;
+					Vec3f rotation;
+					avatar->getInterpolatedTransform(cur_time, pos, rotation);
+
+					bool use_xyplane_speed_rel_ground_override = false;
+					float xyplane_speed_rel_ground_override = 0;
+
+					// Do 3rd person cam stuff for our avatar:
+					if(our_avatar)
+					{
+						pos = cam_controller.getFirstPersonPosition();
+						rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+
+						use_xyplane_speed_rel_ground_override = true;
+						xyplane_speed_rel_ground_override = player_physics.getLastXYPlaneVelRelativeToGround().length();
+
+						const bool selfie_mode = this->cam_controller.selfieModeEnabled();
+
+						Vec4f use_target_pos;
+						if(selfie_mode)
+							use_target_pos = avatar->graphics.getLastHeadPosition();
+						else
+						{
+							const Vec4f vertical_offset = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getThirdPersonCamTargetTranslation() : Vec4f(0);
+							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + vertical_offset;
+						}
+
+						//rotation = Vec3f(0, 0, 0); // just for testing
+						//pos = Vec3d(0,0,1.7);
+
+						avatar->anim_state = 
+							(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
+							(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) | 
+							(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
+
+						if(cam_controller.thirdPersonEnabled())
+						{
+							Vec4f cam_back_dir;
+							if(selfie_mode)
+							{
+								// Slowly blend towards use_target_pos as in selfie mode it comes from getLastHeadPosition() which can vary rapidly frame to frame.
+								const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
+								cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
+
+								cam_back_dir = (cam_controller.getForwardsVec() * cam_controller.getThirdPersonCamDist()).toVec4fVector();
+							}
+							else
+							{
+								cam_controller.current_third_person_target_pos = Vec3d(use_target_pos);
+
+								cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist() + cam_controller.getUpVec() * 0.2).toVec4fVector();
+							}
+
+
+							//printVar(cam_back_dir);
+
+							// Don't start tracing the ray back immediately or we may hit the vehicle.
+							const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), vehicle_controller_inside->getThirdPersonCamTraceSelfAvoidanceDist()) : 0.f;
+							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
+							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
+							RayTraceResult trace_results;
+							physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
+								/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, trace_results);
+
+							if(trace_results.hit_object)
+							{
+								const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, cam_back_dir.length());
+								cam_back_dir = normalise(cam_back_dir) * use_dist;
+							}
+
+							//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
+							cam_controller.third_person_cam_position = cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir);
+						}
+					}
+
+					{
+						// Seat to world = object to world * seat to object
+						PoseConstraint pose_constraint;
+						pose_constraint.sitting = false;
+						if(our_avatar)
+						{
+							if(vehicle_controller_inside.nonNull())
+							{
+								if(cur_seat_index < vehicle_controller_inside->getSettings().seat_settings.size())
+								{
+									// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that the avatar position is consistent with the vehicle model.
+									const bool use_smoothed_network_transform = cur_seat_index != 0;
+									pose_constraint.sitting = true;
+									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
+									pose_constraint.model_to_y_forwards_rot_1				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_1;
+									pose_constraint.model_to_y_forwards_rot_2				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_2;
+									pose_constraint.upper_body_rot_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_body_rot_angle;
+									pose_constraint.upper_leg_rot_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_rot_angle;
+									pose_constraint.upper_leg_rot_around_thigh_bone_angle	= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_rot_around_thigh_bone_angle;
+									pose_constraint.upper_leg_apart_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_apart_angle;
+									pose_constraint.lower_leg_rot_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_leg_rot_angle;
+									pose_constraint.lower_leg_apart_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_leg_apart_angle;
+									pose_constraint.rotate_foot_out_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].rotate_foot_out_angle;
+									pose_constraint.arm_down_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_down_angle;
+									pose_constraint.arm_out_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_out_angle;
+								}
+								else
+								{
+									assert(0); // Invalid seat index
+								}
+							}
+						}
+						else
+						{
+							if(avatar->pending_vehicle_transition == Avatar::EnterVehicle)
+							{
+								assert(avatar->entered_vehicle.nonNull());
+								if(avatar->entered_vehicle.nonNull()) // If the other avatar is, or should be in a vehicle:
+								{
+									// If the physics object, opengl object and script are all loaded:
+									if(avatar->entered_vehicle->physics_object.nonNull() && avatar->entered_vehicle->opengl_engine_ob.nonNull() && avatar->entered_vehicle->vehicle_script.nonNull())
+									{
+										const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr());
+										if(controller_res == vehicle_controllers.end()) // if there is no vehicle controller for this object :
+										{
+											// Create Vehicle controller
+											Reference<VehiclePhysics> new_controller;
+											if(avatar->entered_vehicle->vehicle_script.isType<Scripting::HoverCarScript>())
+											{
+												const Scripting::HoverCarScript* hover_car_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
+
+												HoverCarPhysicsSettings hover_car_physics_settings;
+												hover_car_physics_settings.hovercar_mass = avatar->entered_vehicle->mass;
+												hover_car_physics_settings.script_settings = hover_car_script->settings;
+
+												new_controller = new HoverCarPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, hover_car_physics_settings);
+											}
+											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BoatScript>())
+											{
+												const Scripting::BoatScript* boat_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BoatScript>();
+
+												BoatPhysicsSettings physics_settings;
+												physics_settings.boat_mass = avatar->entered_vehicle->mass;
+												physics_settings.script_settings = boat_script->settings;
+
+												new_controller = new BoatPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
+											}
+											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BikeScript>())
+											{
+												const Scripting::BikeScript* bike_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BikeScript>();
+
+												BikePhysicsSettings bike_physics_settings;
+												bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
+												bike_physics_settings.script_settings = bike_script->settings;
+
+												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
+											}
+											else
+											{
+												assert(0);
+											}
+
+											if(new_controller.nonNull())
+											{
+												vehicle_controllers.insert(std::make_pair(avatar->entered_vehicle.ptr(), new_controller));
+												new_controller->userEnteredVehicle(avatar->vehicle_seat_index);
+
+												conPrint("Avatar entered vehicle with new physics controller in seat " + toString(avatar->vehicle_seat_index));
+											}
+										}
+										else // Else if there is already a vehicle controller for the object:
+										{
+											conPrint("Avatar entered vehicle with existing physics controller in seat " + toString(avatar->vehicle_seat_index));
+
+											VehiclePhysics* controller = controller_res->second.ptr();
+											controller->userEnteredVehicle(avatar->vehicle_seat_index);
+										}
+
+										avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
+									}
+								}
+							}
+
+
+							if(avatar->entered_vehicle.nonNull()) // If the other avatar is, or should be in a vehicle:
+							{
+								const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
+								if(controller_res != vehicle_controllers.end())
+								{
+									VehiclePhysics* controller = controller_res->second.ptr();
+
+									if(avatar->vehicle_seat_index == 0) // If avatar is driving vehicle:
+										controller->last_physics_input_bitflags = avatar->last_physics_input_bitflags; // Pass last physics input flags to the controller.
+
+									if(avatar->vehicle_seat_index < controller->getSettings().seat_settings.size())
+									{
+										pose_constraint.sitting = true;
+										pose_constraint.seat_to_world							= controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
+										pose_constraint.model_to_y_forwards_rot_1				= controller->getSettings().model_to_y_forwards_rot_1;
+										pose_constraint.model_to_y_forwards_rot_2				= controller->getSettings().model_to_y_forwards_rot_2;
+										pose_constraint.upper_body_rot_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_body_rot_angle;
+										pose_constraint.upper_leg_rot_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_rot_angle;
+										pose_constraint.upper_leg_rot_around_thigh_bone_angle	= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_rot_around_thigh_bone_angle;
+										pose_constraint.upper_leg_apart_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_apart_angle;
+										pose_constraint.lower_leg_rot_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_leg_rot_angle;
+										pose_constraint.lower_leg_apart_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_leg_apart_angle;
+										pose_constraint.rotate_foot_out_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].rotate_foot_out_angle;
+										pose_constraint.arm_down_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_down_angle;
+										pose_constraint.arm_out_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_out_angle;
+									}
+									else
+									{
+										assert(0); // Seat index was invalid.
+									}
+								}
+
+
+								if(avatar->pending_vehicle_transition == Avatar::ExitVehicle)
+								{
+									conPrint("Avatar exited vehicle from seat " + toString(avatar->vehicle_seat_index));
+									if(controller_res != vehicle_controllers.end())
+										controller_res->second->userExitedVehicle(avatar->vehicle_seat_index);
+									avatar->entered_vehicle = NULL;
+									avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
+								}
+							}
+						}
+						 
+						AnimEvents anim_events;
+						avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
+							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, pose_constraint, anim_events);
+						
+						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike && !pose_constraint.sitting) // If avatar is on ground, and the anim played a footstrike
+						{
+							//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
+							//footstep_sources[rnd_src_i]->cur_read_i = 0;
+							//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
+							const int rnd_src_i = rng.nextUInt(4);
+							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
+						}
+
+						for(int i=0; i<anim_events.num_blobs; ++i)
+							temp_av_positions.push_back(anim_events.blob_sphere_positions[i]);
+					}
+
+					
+					// Update nametag transform also
+					if(avatar->nametag_gl_ob.nonNull())
+					{
+						// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
+						Vec4f use_nametag_pos = pos.toVec4fPoint();
+						if(avatar->entered_vehicle.nonNull())
+						{
+							const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
+							if(controller_res != vehicle_controllers.end())
+							{
+								VehiclePhysics* controller = controller_res->second.ptr();
+								const Matrix4f seat_to_world = controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
+
+								use_nametag_pos = seat_to_world * Vec4f(0,0,1.0f,1);
+							}
+						}
+
+						// We want to rotate the nametag towards the camera.
+						Vec4f to_cam = normalise(use_nametag_pos - this->cam_controller.getPosition().toVec4fPoint());
+						if(!isFinite(to_cam[0]))
+							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
+
+						const Vec4f axis_k = Vec4f(0, 0, 1, 0);
+						if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
+							to_cam[0] += 0.1;
+
+						const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
+						const Vec4f axis_i = crossProduct(axis_j, axis_k);
+						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
+
+						const float ws_height = 0.2f; // world space height of nametag in metres
+						const float ws_width = ws_height * avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(0) / avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(2);
+
+						const float total_w = ws_width + (avatar->speaker_gl_ob.nonNull() ? (0.05f + ws_height) : 0.f); // Width of nametag and speaker icon (and spacing between them).
+
+						// If avatar is flying (e.g playing floating anim) move nametag up so it isn't blocked by the avatar head, which is higher in floating anim.
+						const float flying_z_offset = ((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) != 0) ? 0.3f : 0.f;
+
+						// Blend in new z offset, don't immediately jump to it.
+						const float blend_speed = 0.1f;
+						avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
+
+						// Rotate around z-axis, then translate to just above the avatar's head.
+						avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.45f + avatar->nametag_z_offset, 0)) *
+							rot_matrix * Matrix4f::translationMatrix(-total_w/2, 0.f, 0.f) * Matrix4f::uniformScaleMatrix(ws_width);
+
+						assert(isFinite(avatar->nametag_gl_ob->ob_to_world_matrix.e[0]));
+						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->nametag_gl_ob); // Update transform in 3d engine
+
+						// Set speaker icon transform and colour
+						if(avatar->speaker_gl_ob.nonNull())
+						{
+							const float vol_padding_frac = 0.f;
+							const float vol_h = ws_height * (1 - vol_padding_frac * 2);
+							const float vol_padding = ws_height * vol_padding_frac;
+							avatar->speaker_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.45f + avatar->nametag_z_offset, 0)) *
+								rot_matrix * Matrix4f::translationMatrix(-total_w/2 + ws_width + 0.05f, 0.f, vol_padding) * Matrix4f::scaleMatrix(vol_h, 1, vol_h);
+
+							ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->speaker_gl_ob); // Update transform in 3d engine
+
+							if(avatar->audio_source.nonNull())
+							{
+								const float a_0 = 1.0e-2f;
+								const float d = 0.5f * std::log10(avatar->audio_source->smoothed_cur_level / a_0);
+								const float display_level = myClamp(d, 0.f, 1.f);
+
+								// Show a white/grey icon that changes to green when the user is speaking, and changes to red if the amplitude gets too close to 1.
+								const Colour3f default_col = toLinearSRGB(Colour3f(0.8f));
+								const Colour3f green       = toLinearSRGB(Colour3f(0, 54.5f/100, 8.6f/100));
+								const Colour3f red         = toLinearSRGB(Colour3f(78.7f / 100, 0, 0));
+
+								const Colour3f col = Maths::uncheckedLerp(
+									Maths::uncheckedLerp(default_col, green, display_level),
+									red,
+									Maths::smoothStep(0.97f, 1.f, avatar->audio_source->smoothed_cur_level)
+								);
+
+								avatar->speaker_gl_ob->materials[0].albedo_linear_rgb = col;
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(*avatar->speaker_gl_ob);
+							}
+						}
+					}
+
+					// Make foam decal if object just entered water
+					if(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG) &&
+						(pos.z - PlayerPhysics::getEyeHeight()) < this->connected_world_settings.terrain_spec.water_z)
+					{
+						// Avatar is partially or completely in water
+
+						const float foam_width = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 0.5f, 3.f);
+
+						if(!avatar->underwater) // If just entered water:
+						{
+							// Create a big 'splash' foam decal
+							Vec4f foam_pos = pos.toVec4fPoint();
+							foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
+
+							terrain_decal_manager->addFoamDecal(foam_pos, foam_width, /*opacity=*/1.f, TerrainDecalManager::DecalType_ThickFoam);
+
+							// Add splash particle(s)
+							for(int i=0; i<10; ++i)
+							{
+								Particle particle;
+								particle.pos = foam_pos;
+								particle.area = 0.000001f;
+								const float xy_spread = 1.f;
+								const float splash_particle_speed = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 1.f, 6.f);
+								particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * splash_particle_speed;
+								particle.colour = Colour3f(1.f);
+								particle.particle_type = Particle::ParticleType_Foam;
+								particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+								particle.width = 0.5f;
+								particle.dwidth_dt = 1.f;
+								particle.die_when_hit_surface = true;
+								particle_manager->addParticle(particle);
+							}
+
+							avatar->underwater = true;
+						}
+
+						if(pos.z + 0.1 > this->connected_world_settings.terrain_spec.water_z) // If avatar intersects the surface (approximately)
+						{
+							if(avatar->graphics.getLastVel().length() > 5) // If avatar is roughly going above walking speed: walking speed is ~2.9 m/s, running ~14 m/s
+							{
+								if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
+								{
+									Vec4f foam_pos = pos.toVec4fPoint();
+									foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
+
+									terrain_decal_manager->addFoamDecal(foam_pos, 0.75f, /*opacity=*/0.4f, TerrainDecalManager::DecalType_ThickFoam);
+
+
+									// Add splash particle(s)
+									Particle particle;
+									particle.pos = foam_pos;
+									particle.area = 0.000001f;
+									const float xy_spread = 1.f;
+									particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * 2.f;
+									particle.colour = Colour3f(0.7f);
+									particle.particle_type = Particle::ParticleType_Foam;
+									particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+									particle.width = 0.5f;
+									particle.dwidth_dt = 1.f;
+									particle.die_when_hit_surface = true;
+									particle_manager->addParticle(particle);
+
+
+									avatar->last_foam_decal_creation_time = cur_time;
+								}
+							}
+						}
+					}
+					else
+					{
+						if(avatar->underwater)
+							avatar->underwater = false;
+					}
+
+					// Update avatar audio source position
+					if(avatar->audio_source.nonNull())
+					{
+						avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+						audio_engine.sourcePositionUpdated(*avatar->audio_source);
+					}
+
+					// Update selected object beam for the avatar, if it has an object selected
+					// TEMP: Disabled this code as it was messing with objects being edited.
+					/*if(avatar->selected_object_uid.valid())
+					{
+						auto selected_it = world_state->objects.find(avatar->selected_object_uid);
+						if(selected_it != world_state->objects.end())
+						{
+							WorldObject* their_selected_ob = selected_it->second.getPointer();
+							Vec3d selected_pos;
+							Vec3f axis;
+							float angle;
+							their_selected_ob->getInterpolatedTransform(cur_time, selected_pos, axis, angle);
+
+							// Replace pos with the centre of the AABB (instead of the object space origin)
+							if(their_selected_ob->opengl_engine_ob.nonNull())
+							{
+								their_selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)selected_pos.x, (float)selected_pos.y, (float)selected_pos.z) *
+									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
+									Matrix4f::scaleMatrix(their_selected_ob->scale.x, their_selected_ob->scale.y, their_selected_ob->scale.z);
+
+								ui->glWidget->opengl_engine->updateObjectTransformData(*their_selected_ob->opengl_engine_ob);
+
+								selected_pos = toVec3d(their_selected_ob->opengl_engine_ob->aabb_ws.centroid());
+							}
+
+							avatar->graphics.setSelectedObBeam(*ui->glWidget->opengl_engine, selected_pos);
+						}
+					}
+					else
+					{
+						avatar->graphics.hideSelectedObBeam(*ui->glWidget->opengl_engine);
+					}*/
+
+					avatar->other_dirty = false;
+					avatar->transform_dirty = false;
+
+					assert(avatar->state == Avatar::State_JustCreated || avatar->state == Avatar::State_Alive);
+					if(avatar->state == Avatar::State_JustCreated)
+					{
+						avatar->state = Avatar::State_Alive;
+
+						world_state->avatars_changed = 1;
+					}
+
+					++it;
+				} // End if avatar state != dead.
+			} // end for each avatar
+
+			// Sort avatar positions based on distance from camera
+			CloserToCamComparator comparator(cam_controller.getPosition().toVec4fPoint());
+			std::sort(temp_av_positions.begin(), temp_av_positions.end(), comparator);
+
+			const size_t use_num_av_positions = myMin((size_t)8, temp_av_positions.size());
+			ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations.resize(use_num_av_positions);
+			for(size_t i=0; i<use_num_av_positions; ++i)
+				ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations[i] = temp_av_positions[i];
+
+			ui->glWidget->opengl_engine->getCurrentScene()->grass_pusher_sphere_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + Vec4f(0, 0, -PlayerPhysics::getEyeHeight(), 0);
+		}
+		catch(glare::Exception& e)
+		{
+			print("Error while Updating avatar graphics: " + e.what());
+		}
+	}
+}
+
+
+void MainWindow::handleMessages(double global_time, double cur_time)
+{
 	// Handle any messages (chat messages etc..)
 	{
 		PERFORMANCEAPI_INSTRUMENT("handle msgs");
@@ -5603,1909 +7201,340 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 		}
 	}
+}
 
-	// Evaluate scripts on objects
+
+void MainWindow::updateDiagnostics()
+{
+	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
 	{
-		ZoneScopedN("script eval"); // Tracy profiler
+		ZoneScopedN("diagnostics"); // Tracy profiler
 
-		Timer timer;
-		Scripting::evaluateObjectScripts(this->obs_with_scripts, global_time, dt, world_state.ptr(), ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), &this->audio_engine,
-			/*num_scripts_processed_out=*/this->last_num_scripts_processed
-		);
-		this->last_eval_script_time = timer.elapsed();
-	}
+		//const double fps = num_frames / (double)fps_display_timer.elapsed();
+		
+		std::string msg;
 
-
-	ui->glWidget->opengl_engine->setCurrentTime((float)cur_time);
-
-	if(this->world_state.nonNull())
-	{
-		ZoneScopedN("path_controllers eval"); // Tracy profiler
-
-		Lock lock(this->world_state->mutex);
-		for(size_t i=0; i<path_controllers.size(); ++i)
-			path_controllers[i]->update(*world_state, *physics_world, ui->glWidget->opengl_engine.ptr(), (float)dt);
-	}
-
-	UpdateEvents physics_events;
-
-	PlayerPhysicsInput physics_input;
-	{
-		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
-		ui->glWidget->processPlayerPhysicsInput((float)dt, /*input_out=*/physics_input); // sets player physics move impulse.
-	}
-
-	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
-
-	// Advance physics sim and player physics with a maximum timestep size.
-	// We advance both together, otherwise if there is a large dt, the physics engine can advance objects past what the player physics can keep up with.
-	// This prevents stuff like the player falling off the back of a train when loading stutters occur.
-	const double MAX_SUBSTEP_DT = 1.0 / 60.0;
-	const int unclamped_num_substeps = (int)std::ceil(dt / MAX_SUBSTEP_DT); // May get very large.
-	const int num_substeps  = myMin(unclamped_num_substeps, 60); // Only do up to 60 steps
-	const double substep_dt = myMin(dt / num_substeps, MAX_SUBSTEP_DT); // Don't make the substep time > 1/60s.
-
-	assert(substep_dt <= MAX_SUBSTEP_DT);
-	//printVar(num_substeps);
-	//conPrint("substep_dt: " + doubleToStringMaxNDecimalPlaces(substep_dt * 1000.0, 3) + " ms");
-
-	{
-		PERFORMANCEAPI_INSTRUMENT("physics sim");
-		ZoneScopedN("physics sim"); // Tracy profiler
-
-		for(int i=0; i<num_substeps; ++i)
+		if(ui->glWidget->opengl_engine.nonNull() && ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked())
 		{
-			if(physics_world.nonNull())
+			msg += "\n------------Graphics------------\n";
+			msg += ui->glWidget->opengl_engine->getDiagnostics() + "\n";
+			msg += "GL widget valid: " + boolToString(ui->glWidget->isValid()) + "\n";
+			//msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
+			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
+			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
+			msg += "--------------------------------\n";
+		}
+
+		// Only show physics details when physicsDiagnosticsCheckBox is checked.  Works around problem of physics_world->getDiagnostics() being slow, which causes stutters.
+		if(physics_world.nonNull() && ui->diagnosticsWidget->physicsDiagnosticsCheckBox->isChecked())
+		{
+			msg += "\n------------Physics------------\n";
+			msg += physics_world->getDiagnostics();
+			msg += "-------------------------------\n";
+		}
+
+		if(terrain_system.nonNull())
+		{
+			msg += "\n------------Terrain------------\n";
+			msg += terrain_system->getDiagnostics();
+			msg += "--------------------------------\n";
+		}
+
+		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
+		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
+		msg += "main loop updateGL time: " + doubleToStringNSigFigs(this->last_updateGL_time * 1000, 3) + " ms\n";
+		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
+		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
+		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
+		msg += "last_eval_script_time: " + doubleToStringNSigFigs(last_eval_script_time * 1000, 3) + "ms\n";
+		msg += "num obs with scripts: " + toString(obs_with_scripts.size()) + "\n";
+		msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
+		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
+		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
+		msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
+		msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
+		msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
+
+		if(texture_server)
+			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
+
+		msg += this->mesh_manager.getDiagnostics();
+
+
+		{
+			msg += "\nAudio engine:\n";
 			{
-				physics_world->think(substep_dt); // Advance physics simulation
+				Lock lock(audio_engine.mutex);
+				msg += "Num audio obs: " + toString(audio_obs.size()) + "\n";
+				msg += "Num active audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
+			}
+			/*msg += "Audio sources\n";
+			Lock lock(audio_engine.mutex);
+			for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
+			{
+			msg += (*it)->debugname + "\n";
+			}*/
+		}
 
-				if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
-				{
-					if(this->cur_seat_index == 0) // If we are driving it:
-						vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
-				}
-				else
-				{
-					// Process player physics
-					UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
-					physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
+		/*{ // Proximity loader is currently disabled.
+			msg += "Proximity loader:\n";
+			msg += proximity_loader.getDiagnostics() + "\n";
+		}*/
 
-					// Process contact events for objects that the player touched.
-					// Take physics ownership of any such object if needed.
+		if(selected_ob.nonNull())
+		{
+			msg += std::string("\nSelected object: \n");
+
+			msg += "pos: " + selected_ob->pos.toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "centroid: " + selected_ob->getCentroidWS().toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "aabb os: " + selected_ob->getAABBOS().toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "aabb_ws_longest_len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getAABBWSLongestLength(), 2) + "\n";
+			msg += "biased aabb longest len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getBiasedAABBLength(), 2) + "\n";
+
+			msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
+			msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
+			msg += "loaded_model_lod_level: " + toString(selected_ob->loaded_model_lod_level) + "\n";
+
+			if(selected_ob->opengl_engine_ob.nonNull())
+			{
+				msg += 
+					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
+					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
+					"num batches (draw calls): " + toString(selected_ob->opengl_engine_ob->mesh_data->batches.size()) + "\n" +
+					"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n" +
+					"shading normals: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_shading_normals) + "\n" + 
+					"vert colours: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_vert_colours) + "\n";
+
+				if(!selected_ob->opengl_engine_ob->materials.empty() && !selected_ob->materials.empty())
+				{
+					OpenGLMaterial& mat0 = selected_ob->opengl_engine_ob->materials[0];
+					if(mat0.albedo_texture.nonNull())
 					{
-						Lock world_state_lock(this->world_state->mutex);
-						for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
-						{
-							PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
-							if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
-							{
-								WorldObject* ob = (WorldObject*)physics_ob->userdata;
-						
-								if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
-								{
-									// conPrint("==Taking ownership of physics object from avatar physics contact...==");
-									takePhysicsOwnershipOfObject(*ob, global_time);
-								}
-							}
-						}
+						if(!selected_ob->materials.empty() && selected_ob->materials[0].nonNull())
+							msg += "mat0 min lod level: " + toString(selected_ob->materials[0]->minLODLevel()) + "\n";
+						msg += "mat0 tex: " + toString(mat0.albedo_texture->xRes()) + "x" + toString(mat0.albedo_texture->yRes()) + " (" + getNiceByteSize(mat0.albedo_texture->getByteSize()) + ")\n";
 					}
-					player_physics.contacted_events.resize(0);
-				}
+					msg += "mat0 colourTexHasAlpha(): " + toString(selected_ob->materials[0]->colourTexHasAlpha()) + "\n";
 
-
-				// Process vehicle controllers for any vehicles we are not driving:
-				for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
-				{
-					VehiclePhysics* controller = it->second.ptr();
-					if((controller != vehicle_controller_inside.ptr()) || (this->cur_seat_index != 0)) // If this is not the controller for the vehicle we are inside of, or if we are not driving it:
+					if(mat0.lightmap_texture.nonNull())
 					{
-						PlayerPhysicsInput controller_physics_input;
-						controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
-						controller->update(*this->physics_world, controller_physics_input, (float)substep_dt);
+						msg += "\n";
+						msg += "lightmap: " + toString(mat0.lightmap_texture->xRes()) + "x" + toString(mat0.lightmap_texture->yRes()) + " (" + getNiceByteSize(mat0.lightmap_texture->getByteSize()) + ")\n";
 					}
+				}
+				if(selected_ob->materials.size() >= 2)
+				{
+					msg += "mat1 colourTexHasAlpha(): " + toString(selected_ob->materials[1]->colourTexHasAlpha()) + "\n";
 				}
 			}
 		}
+
+
+		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
+		if(!ui->diagnosticsWidget->diagnosticsTextEdit->textCursor().hasSelection())
+			ui->diagnosticsWidget->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
 	}
+}
 
-	player_physics.zeroMoveDesiredVel();
 
-
-	// Force player above terrain surface.
-	// Useful to prevent player falling down to infinity if they fall below the terrain surface before it is loaded.
-	if(terrain_system.nonNull())
+void MainWindow::runScreenshotCode()
+{
+	if(run_as_screenshot_slave || test_screenshot_taking)
 	{
-		const Vec3d player_pos = player_physics.getBottomPosition();
-
-		const float terrain_h = terrain_system->evalTerrainHeight((float)player_pos.x, (float)player_pos.y, 1.0);
-
-		if((float)player_pos.z < (terrain_h - 0.5f))
+		if(screenshot_output_path.empty()) // If we don't have a screenshot command we are currently executing:
 		{
-			logMessage("Player was below terrain, moving up");
-			Vec3d new_player_pos = player_pos;
-			new_player_pos.z = terrain_h + player_physics.getEyeHeight() + 0.5f;
-			player_physics.setPosition(new_player_pos, player_physics.getLinearVel());
-		}
-	}
-
-
-	// Compute Doppler-effect factor for vehicle controllers, also set wind audio source volume.
-	if(physics_world.nonNull())
-	{
-		const Vec4f listener_linear_vel = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getLinearVel(*this->physics_world) : player_physics.getLinearVel();
-
-		for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
-		{
-			VehiclePhysics* controller = it->second.ptr();
-			controller->updateDopplerEffect(/*listener linear vel=*/listener_linear_vel, /*listener pos=*/cam_controller.getFirstPersonPosition().toVec4fPoint());
-		}
-
-		if(wind_audio_source.nonNull())
-		{
-			const float old_volume = wind_audio_source->volume;
-
-			// Increase wind volume as speed increases, but only once we exceed a certain speed, since we don't really want wind sounds playing when we run + jump around (approx < 20 m/s).
-			const float WIND_VOLUME_FACTOR = 0.7f;
-			wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.015f * WIND_VOLUME_FACTOR, 0.f, WIND_VOLUME_FACTOR);
-
-			if(wind_audio_source->volume != old_volume)
-				audio_engine.sourceVolumeUpdated(*wind_audio_source);
-		}
-	}
-
-
-	if(physics_world.nonNull())
-	{
-		Lock world_state_lock(this->world_state->mutex);
-
-		// Update transforms in OpenGL of objects the physics engine has moved.
-		JPH::BodyInterface& body_interface = physics_world->physics_system->GetBodyInterface();
-
-		{
-			Lock lock(physics_world->activated_obs_mutex);
-			for(auto it = physics_world->activated_obs.begin(); it != physics_world->activated_obs.end(); ++it)
+			try
 			{
-				PhysicsObject* physics_ob = *it;
-
-				JPH::Vec3 pos;
-				JPH::Quat rot;
-				body_interface.GetPositionAndRotation(physics_ob->jolt_body_id, pos, rot);
-
-				//conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
-
-				const Vec4f new_pos = toVec4fPos(pos);
-				const Quatf new_rot = toQuat(rot);
-
-				physics_ob->rot = new_rot;
-				physics_ob->pos = new_pos;
-
-				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+				if(test_screenshot_taking || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
 				{
-#ifndef NDEBUG
-					if(world_state->objects.find(physics_ob->ob_uid) == world_state->objects.end())
+					conPrint("Reading command from screenshot_command_socket etc...");
+					const std::string command = test_screenshot_taking ? "takescreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
+					conPrint("Read screenshot command: " + command);
+					if(command == "takescreenshot")
 					{
-						conPrint("Error: UID " + physics_ob->ob_uid.toString() + " not found for physics ob");
-						assert(0);
-					}
-#endif
-					WorldObject* ob = (WorldObject*)physics_ob->userdata;
-					assert(ob->physics_object == physics_ob);
-
-					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
-					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
-					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
-					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine.
-					if(physics_ob->dynamic || (physics_ob->kinematic && ob->is_path_controlled))
-					{
-						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
-
-						const bool ob_picked_up = (this->selected_ob.ptr() == ob) && this->selected_ob_picked_up;
-
-						if(!ob_picked_up || getPathControllerForOb(*ob)) // Don't update selected object with physics engine state, unless it is path controlled.
+						if(test_screenshot_taking)
 						{
-							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
-							// We will also reduce smooth_translation and smooth_rotation over time here.
-							if(physics_ob->dynamic)
-							{
-								Vec4f unit_axis;
-								float angle;
-								physics_ob->rot.toAxisAndAngle(unit_axis, angle);
+							screenshot_campos = Vec3d(0, -1, 100);
+							screenshot_camangles = Vec3d(0, 2.5f, 0); // (heading, pitch, roll).
+							screenshot_width_px = 1024;
+							screenshot_highlight_parcel_id = 10;
+							screenshot_output_path = "test_screenshot.jpg";
 
-								ob->pos = Vec3d(pos.GetX(), pos.GetY(), pos.GetZ());
-								ob->axis = Vec3f(unit_axis);
-								ob->angle = angle;
-
-								// Reduce smooth_translation and smooth_rotation over time to zero / identity rotation.  NOTE: This is deliberately before the getSmoothedObToWorldMatrix() call below,
-								// so that getSmoothedObToWorldMatrix() result is unchanged over the rest of this frame.
-								const float smooth_change_factor = (1 - 3.f * myMin(0.1f, (float)dt));
-								assert(smooth_change_factor >= 0 && smooth_change_factor < 1);
-								physics_ob->smooth_translation *= smooth_change_factor;
-								physics_ob->smooth_rotation = Quatf::nlerp(Quatf::identity(), physics_ob->smooth_rotation, smooth_change_factor);
-							}
-
-							const Matrix4f ob_to_world = physics_ob->getSmoothedObToWorldMatrix();
-
-							// Update OpenGL object
-							if(ob->opengl_engine_ob.nonNull())
-							{
-								ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
-
-								const js::AABBox prev_gl_aabb_ws = ob->opengl_engine_ob->aabb_ws;
-								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
-
-								// For objects with instances (which will have a non-null instance_matrix_vbo), we want to use the AABB we computed in evalObjectScript(), which contains all the instance AABBs,
-								// and will have been overwritten in updateObjectTransformData().
-								if(ob->opengl_engine_ob->instance_matrix_vbo.nonNull())
-									ob->opengl_engine_ob->aabb_ws = prev_gl_aabb_ws;
-								else
-								{
-									ob->doTransformChanged(ob_to_world, ob->scale.toVec4fVector()); // Update info used for computing LOD level.
-								}
-							}
-
-							// Update audio source for the object, if it has one.
-							if(ob->audio_source.nonNull())
-							{
-								ob->audio_source->pos = ob->getCentroidWS();
-								audio_engine.sourcePositionUpdated(*ob->audio_source);
-							}
-
-							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
-							if(physics_ob->dynamic && isObjectPhysicsOwnedBySelf(*ob, global_time))
-							{
-								JPH::Vec3 linear_vel, angular_vel;
-								body_interface.GetLinearAndAngularVelocity(physics_ob->jolt_body_id, linear_vel, angular_vel);
-
-								ob->linear_vel = toVec4fVec(linear_vel);
-								ob->angular_vel = toVec4fVec(angular_vel);
-
-								// Mark as from-local-physics-dirty to send a physics transform updated message to the server
-								ob->from_local_physics_dirty = true;
-								this->world_state->dirty_from_local_objects.insert(ob);
-
-								// Check for sending of renewal of object physics ownership message
-								checkRenewalOfPhysicsOwnershipOfObject(*ob, global_time);
-							}
-
-							if(this->selected_ob.ptr() == ob)
-							{
-								updateSelectedObjectPlacementBeam();
-							}
+							screenshot_ortho_sensor_width_m = 100;
+							taking_map_screenshot = false;
+						}
+						else
+						{
+							screenshot_campos.x = screenshot_command_socket->readDouble();
+							screenshot_campos.y = screenshot_command_socket->readDouble();
+							screenshot_campos.z = screenshot_command_socket->readDouble();
+							screenshot_camangles.x = screenshot_command_socket->readDouble();
+							screenshot_camangles.y = screenshot_command_socket->readDouble();
+							screenshot_camangles.z = screenshot_command_socket->readDouble();
+							screenshot_width_px = screenshot_command_socket->readInt32();
+							screenshot_highlight_parcel_id = screenshot_command_socket->readInt32();
+							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+							taking_map_screenshot = false;
 						}
 					}
-				}
-				// Note that for instances, their OpenGL ob transform has effectively been set when instance_matrices was updated when evaluating scripts.
-				// So we don't need to set it from the physics object.
-			}
-
-			// Process newly activated physics objects
-			for(auto it = physics_world->newly_activated_obs.begin(); it != physics_world->newly_activated_obs.end(); ++it)
-			{
-				PhysicsObject* physics_ob = *it;
-				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
-				{
-#ifndef NDEBUG
-					if(world_state->objects.find(physics_ob->ob_uid) == world_state->objects.end())
+					else if(command == "takemapscreenshot")
 					{
-						conPrint("Error: UID " + physics_ob->ob_uid.toString() + " not found for physics ob");
-						assert(0);
-					}
-#endif
-					WorldObject* ob = (WorldObject*)physics_ob->userdata;
-
-					if(ob->isDynamic())
-					{
-						// If this object is already owned by another user, let them continue to own it. 
-						// If it is unowned, however, take ownership of it.
-						if(!isObjectPhysicsOwned(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+						int tile_x, tile_y, tile_z;
+						if(test_screenshot_taking)
 						{
-							// conPrint("==Taking ownership of physics object...==");
-							takePhysicsOwnershipOfObject(*ob, global_time);
+							tile_x = 0;
+							tile_y = 0;
+							tile_z = 7;
+							screenshot_output_path = "test_screenshot.jpg";
 						}
-					}
+						else
+						{
+							tile_x = screenshot_command_socket->readInt32();
+							tile_y = screenshot_command_socket->readInt32();
+							tile_z = screenshot_command_socket->readInt32();
+							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+						}
 
-					// If the showPhysicsObOwnershipCheckBox is checked, show an AABB visualisation.
-					if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
-						obs_with_diagnostic_vis.insert(ob);
+						const int TILE_WIDTH_PX = 256; // Works the easiest with leaflet.js
+						const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
+						screenshot_campos = Vec3d(
+							(tile_x + 0.5) * TILE_WIDTH_M,
+							(tile_y + 0.5) * TILE_WIDTH_M,
+							150.0
+						);
+						screenshot_camangles = Vec3d(
+							0, // Heading
+							3.14, // pitch
+							0 // roll
+						);
+						screenshot_ortho_sensor_width_m = TILE_WIDTH_M;
+						screenshot_width_px = TILE_WIDTH_PX;
+						screenshot_highlight_parcel_id = -1;
+						taking_map_screenshot = true;
+					}
+					else if(command == "quit")
+					{
+						conPrint("Received quit command, exiting...");
+						exit(1);
+					}
+					else
+						throw glare::Exception("received invalid screenshot command.");
 				}
 			}
-			physics_world->newly_activated_obs.clear();
-
-		} // End activated_obs_mutex scope
-
-
-		// Get camera position, if we are in a vehicle.
-		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+			catch(glare::Exception& e)
+			{
+				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what() + ", exiting!");
+				//QMessageBox msgBox;
+				//msgBox.setWindowTitle("Error");
+				//msgBox.setText(QtUtils::toQString("Excep while reading screenshot command from screenshot_command_socket: " + e.what()));
+				//msgBox.exec();
+				exit(1);
+			}
+		}
+	}
+	if(!screenshot_output_path.empty() && world_state.nonNull())
+	{
+		if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
 		{
-			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
-			const bool use_smoothed_network_transform = cur_seat_index != 0;
-			campos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
+			this->cam_controller.setPosition(screenshot_campos);
+			this->cam_controller.setAngles(screenshot_camangles);
+			this->player_physics.setPosition(screenshot_campos);
+
+			// Enable fly mode so we don't just fall to the ground
+			ui->actionFly_Mode->setChecked(true);
+			this->player_physics.setFlyModeEnabled(true);
+			this->cam_controller.setThirdPersonEnabled(false);
+			ui->actionThird_Person_Camera->setChecked(false);
 		}
 
-		this->cam_controller.setPosition(toVec3d(campos));
-
-		// Show vehicle speed on UI: Disabled until we can not create a zillion textures for this.
-		if(false)
+		size_t num_obs;
 		{
-			if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+			Lock lock(this->world_state->mutex);
+			num_obs = world_state->objects.size();
+		}
+
+		const bool map_screenshot = taking_map_screenshot;//parsed_args.isArgPresent("--takemapscreenshot");
+
+		ui->glWidget->take_map_screenshot = map_screenshot;
+		ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
+
+		const size_t num_model_and_tex_tasks = load_item_queue.size() + model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
+
+		if(time_since_last_waiting_msg.elapsed() > 2.0)
+		{
+			conPrint("---------------Waiting for loading to be done for screenshot ---------------");
+			printVar(num_obs);
+			printVar(num_model_and_tex_tasks);
+			printVar(num_non_net_resources_downloading);
+			printVar(num_net_resources_downloading);
+
+			time_since_last_waiting_msg.reset();
+		}
+
+		const bool loaded_all =
+			(time_since_last_screenshot.elapsed() > 4.0) && // Bit of a hack to allow time for the shadow mapping to render properly
+			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
+			(total_timer.elapsed() >= 8) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
+			(num_model_and_tex_tasks == 0) &&
+			(num_non_net_resources_downloading == 0) &&
+			(num_net_resources_downloading == 0);
+
+		if(loaded_all)
+		{
+			if(!done_screenshot_setup)
 			{
-				//const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
-				//misc_info_ui.showVehicleSpeed(speed_km_h);
-				misc_info_ui.showVehicleInfo(vehicle_controller_inside->getUIInfoMsg());
+				conPrint("Setting up for screenshot...");
+
+				ui->editorDockWidget->hide();
+				ui->chatDockWidget->hide();
+				ui->diagnosticsDockWidget->hide();
+
+				const int target_viewport_w = map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
+				const int target_viewport_h = map_screenshot ? (screenshot_width_px * 2) : (437 * 2);
+
+				conPrint("Setting geometry size...");
+				// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
+				ui->glWidget->setGeometry(0, 0, target_viewport_w, target_viewport_h);
+				setUpForScreenshot();
 			}
 			else
-				misc_info_ui.hideVehicleSpeed();
-		}
-
-		// Update debug player-physics visualisation spheres
-		if(false)
-		{
-			for(size_t i=0; i<player_phys_debug_spheres.size(); ++i)
 			{
-				if(player_phys_debug_spheres[i].nonNull())
-					ui->glWidget->opengl_engine->removeObject(player_phys_debug_spheres[i]);
-
-				player_phys_debug_spheres[i] = NULL;
-			}
-			player_phys_debug_spheres.resize(0);
-
-			std::vector<js::BoundingSphere> spheres;
-			player_physics.debugGetCollisionSpheres(campos, spheres);
-
-
-			player_phys_debug_spheres.resize(spheres.size());
-			
-			
-			for(size_t i=0; i<spheres.size(); ++i)
-			{
-				if(player_phys_debug_spheres[i].isNull())
+				try
 				{
-					player_phys_debug_spheres[i] = ui->glWidget->opengl_engine->allocateObject();
-					player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::identity();
-					player_phys_debug_spheres[i]->mesh_data = ui->glWidget->opengl_engine->getSphereMeshData();
+					saveScreenshot();
 
-					OpenGLMaterial material;
-					material.albedo_linear_rgb = (i < 3) ? Colour3f(0.3f, 0.8f, 0.3f) : Colour3f(0.8f, 0.3f, 0.3f);
-					
-					material.alpha = 0.5f;
-					material.transparent = true;
-					/*if(i >= 4)
+					// Reset screenshot state
+					screenshot_output_path.clear();
+					done_screenshot_setup = false;
+
+					time_since_last_screenshot.reset();
+
+					if(screenshot_command_socket.nonNull())
 					{
-						material.albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
-						material.transparent = false;
-					}*/
-
-					player_phys_debug_spheres[i]->setSingleMaterial(material);
-
-					ui->glWidget->opengl_engine->addObject(player_phys_debug_spheres[i]);
-				}
-
-				player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::translationMatrix(spheres[i].getCenter()) * Matrix4f::uniformScaleMatrix(spheres[i].getRadius());
-				ui->glWidget->opengl_engine->updateObjectTransformData(*player_phys_debug_spheres[i]);
-			}
-		}
-
-
-		if(vehicle_controller_inside.nonNull())
-		{
-			const bool should_show = ui->diagnosticsWidget->showVehiclePhysicsVisCheckBox->isChecked();
-			vehicle_controller_inside->updateDebugVisObjects(*ui->glWidget->opengl_engine, should_show);
-		}
-
-		//--------------------------- Car controller and graphics -------------------------------
-		//car_physics.update(*this->physics_world, physics_input, (float)dt, /*campos_out=*/campos);
-		//this->cam_controller.setPosition(toVec3d(campos));
-
-		// Update car visualisation
-#if 0
-		if(false)
-		{
-			wheel_gl_objects.resize(4);
-
-			for(size_t i=0; i<wheel_gl_objects.size(); ++i)
-			{
-				if(wheel_gl_objects[i].isNull())
-				{
-					wheel_gl_objects[i] = ui->glWidget->opengl_engine->allocateObject();
-					wheel_gl_objects[i]->ob_to_world_matrix = Matrix4f::identity();
-					//wheel_gl_objects[i]->mesh_data = ui->glWidget->opengl_engine->getCylinderMesh();
-
-					GLTFLoadedData gltf_data;
-					BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_wheel.glb", gltf_data);
-					wheel_gl_objects[i]->mesh_data = GLMeshBuilding::buildBatchedMesh(ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
-					wheel_gl_objects[i]->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
-
-
-					OpenGLMaterial material;
-					material.albedo_linear_rgb = Colour3f(0.2f, 0.2f, 0.2f);
-					//material.tex_path = "resources/obstacle.png";
-
-					
-				//	wheel_gl_objects[i]->materials = SmallArray<OpenGLMaterial, 2>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
-
-					wheel_gl_objects[i]->materials[2].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
-					wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
-					wheel_gl_objects[i]->materials[2].roughness = 0.2f;
-					wheel_gl_objects[i]->materials[4].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
-					wheel_gl_objects[i]->materials[4].metallic_frac = 1.f; // spokes
-					wheel_gl_objects[i]->materials[4].roughness = 0.2f;
-
-
-					ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(wheel_gl_objects[i]);
-				}
-
-				//wheel_gl_objects[i]->ob_to_world_matrix = bike_physics.getWheelTransform((int)i) *
-				//	Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::scaleMatrix(0.3f, 0.3f, 0.1f) * Matrix4f::translationMatrix(0, 0, -0.5f);
-
-				wheel_gl_objects[i]->ob_to_world_matrix = car_physics.getWheelTransform((int)i) * Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * ((i == 0 || i == 2) ?  Matrix4f::rotationAroundZAxis(Maths::pi<float>()) : Matrix4f::identity());
-
-				ui->glWidget->opengl_engine->updateObjectTransformData(*wheel_gl_objects[i]);
-			}
-
-			if(car_body_gl_object.isNull())
-			{
-				car_body_gl_object = ui->glWidget->opengl_engine->allocateObject();
-				car_body_gl_object->ob_to_world_matrix = Matrix4f::identity();
-				//car_body_gl_object->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
-
-				GLTFLoadedData gltf_data;
-				BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_body.glb", gltf_data);
-				car_body_gl_object->mesh_data = GLMeshBuilding::buildBatchedMesh(ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
-				car_body_gl_object->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
-				car_body_gl_object->mesh_data->animation_data = batched_mesh->animation_data;
-
-				OpenGLMaterial material;
-				material.albedo_linear_rgb = Colour3f(115 / 255.f, 187 / 255.f, 202 / 255.f);
-				material.roughness = 0.6;
-				material.metallic_frac = 0.0;
-					
-				//car_body_gl_object->materials = SmallArray<OpenGLMaterial, 2>(car_body_gl_object->mesh_data->num_materials_referenced, material);
-
-				car_body_gl_object->materials[12].alpha = 0.5f;
-				car_body_gl_object->materials[12].transparent = true;
-
-				ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(car_body_gl_object);
-			}
-
-
-			car_body_gl_object->ob_to_world_matrix = car_physics.getBodyTransform() * Matrix4f::translationMatrix(0, 0.2f, -0.2f) * Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
-			
-			//const float half_vehicle_length = 2.0f;
-			//const float half_vehicle_width = 0.9f;
-			//const float half_vehicle_height = 0.2f;
-			// 
-			// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-			//car_body_gl_object->ob_to_world_matrix = bike_physics.getBodyTransform();// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-
-			ui->glWidget->opengl_engine->updateObjectTransformData(*car_body_gl_object);
-		}
-		//--------------------------- END Car controller and graphics -------------------------------
-#endif
-
-		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
-		{
-			const Vec3d cam_back_dir = cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2;
-			this->cam_controller.third_person_cam_position = toVec3d(campos) + Vec3d(cam_back_dir);
-		}
-
-
-		// TODO: If we are using 3rd person can, use animation events from the walk/run cycle animations to trigger sounds.
-		// Adapted from AvatarGraphics::setOverallTransform():
-		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
-		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
-		const Vec3f xyplane_vel = player_physics.getLastXYPlaneVelRelativeToGround();
-		float xyplane_speed = xyplane_vel.length();
-
-		if(player_physics.onGroundRecently() && our_move_impulse_zero && !player_physics.flyModeEnabled()) // Suppress footsteps when on ground and not trying to move (walk anims should not be played in this case)
-			xyplane_speed = 0;
-
-		if((xyplane_speed > 0.1f) && vehicle_controller_inside.isNull()) // Don't play footstep sounds if sitting in vehicle.
-		{
-			ui->indigoView->cameraUpdated(this->cam_controller);
-
-			const float walk_run_cycle_period = player_physics.isRunPressed() ? AvatarGraphics::runCyclePeriod() : AvatarGraphics::walkCyclePeriod();
-			if(player_physics.onGroundRecently() && (last_footstep_timer.elapsed() > (walk_run_cycle_period * 0.5f)))
-			{
-				last_foostep_side = (last_foostep_side + 1) % 2;
-
-				// 4cm left/right, 40cm forwards.
-				const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) +
-					cam_controller.getForwardsVec().toVec4fVector() * 0.4f +
-					cam_controller.getRightVec().toVec4fVector() * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
-				
-				// conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3) + ", playing " + last_footstep_timer.elapsedStringNSigFigs(3) + " after last footstep");
-
-				const int rnd_src_i = rng.nextUInt(4);
-				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
-
-				last_footstep_timer.reset();
-			}
-		}
-
-		if(physics_events.jumped)
-		{
-			const Vec4f jump_sound_pos = campos - Vec4f(0, 0, 0.1f, 0) +
-				cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
-
-			const int rnd_src_i = rng.nextUInt(4);
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
-		}
-	}
-	proximity_loader.updateCamPos(campos);
-
-	const Vec3d cam_angles = this->cam_controller.getAngles();
-
-	// Find out which parcel we are in, if any.
-	ParcelID in_parcel_id = ParcelID::invalidParcelID();
-	bool mute_outside_audio = false;
-	if(world_state.nonNull())
-	{
-		//Timer timer;
-		bool in_parcel = false;
-		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
-		Lock lock(world_state->mutex);
-		const Parcel* parcel = world_state->getParcelPointIsIn(campos_vec3d);
-		if(parcel)
-		{
-			// Set audio source room effects
-			audio_engine.setCurentRoomDimensions(js::AABBox(
-				Vec4f((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.f),
-				Vec4f((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.f)));
-
-			in_parcel_id = parcel->id;
-			in_parcel = true;
-
-			if(BitUtils::isBitSet(parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
-				mute_outside_audio = true;
-		}
-
-		audio_engine.setRoomEffectsEnabled(in_parcel);
-
-		//conPrint("Setting room effects took " + timer.elapsedStringNSigFigs(4));
-	}
-
-	//printVar(in_parcel_id.value());
-
-	// Set audio source occlusions and check for muting audio sources not in current parcel.
-	if(physics_world.nonNull())
-	{
-		PERFORMANCEAPI_INSTRUMENT("audio occlusions");
-		ZoneScopedN("audio occlusions"); // Tracy profiler
-
-		Lock lock(audio_engine.mutex);
-		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
-		{
-			glare::AudioSource* source = it->ptr();
-
-			const float dist = source->pos.getDist(campos); // Dist from camera to source position
-			if(dist < maxAudioDistForSourceVolFactor(source->volume)) // Only do tracing for nearby objects
-			{
-				const Vec4f trace_dir = (dist == 0) ? Vec4f(1,0,0,0) : ((source->pos - campos) / dist); // Trace from camera to source position
-				assert(trace_dir.isUnitLength());
-
-				const float max_trace_dist = 60.f; // Limit the distance we trace, so that very loud sources very far away don't do expensive traces right through the world.
-
-				const float trace_dist = myClamp(dist - 1.f, 0.f, max_trace_dist); // Ignore intersections with x metres of the source.  This is so meshes that contain the source (e.g. speaker models)
-				// don't occlude the source.
-
-				const Vec4f trace_start = campos;
-
-				const bool hit_object = physics_world->doesRayHitAnything(trace_start, trace_dir, trace_dist);
-				if(hit_object)
-				{
-					//conPrint("hit aabb: " + results.hit_object->aabb_ws.toStringNSigFigs(4));
-					//printVar(results.hit_object->userdata_type);
-					source->num_occlusions = 1;
-				}
-				else
-					source->num_occlusions = 0;
-
-				//conPrint("source: " + toString((uint64)source) + ", hit_object: " + boolToString(hit_object) + ", source parcel: " + toString(source->userdata_1));
-
-				
-				if(source->type != glare::AudioSource::SourceType_OneShot) // We won't be muting footsteps etc.
-				{
-					const float old_mute_volume_factor = source->getMuteVolumeFactor();
-					if(mute_outside_audio) // If we are in a parcel, which has the mute-outside-audio option enabled:
-					{
-						if(source->userdata_1 != in_parcel_id.value()) // And the source is in another parcel (or not in any parcel):
-							source->startMuting(cur_time, 1);
-						else
-							source->startUnmuting(cur_time, 1);
+						screenshot_command_socket->writeInt32(0); // Write success msg
+						screenshot_command_socket->writeStringLengthFirst("Success!");
 					}
-					else
-						source->startUnmuting(cur_time, 1);
-
-					source->updateCurrentMuteVolumeFactor(cur_time);
-
-					if(old_mute_volume_factor != source->getMuteVolumeFactor())
-						audio_engine.sourceVolumeUpdated(*source);
 				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Excep while saving screenshot: " + e.what());
 
+					// Reset screenshot state
+					screenshot_output_path.clear();
+					done_screenshot_setup = false;
 
-				// printVar(source->num_occlusions);
-				audio_engine.sourceNumOcclusionsUpdated(*source);
+					time_since_last_screenshot.reset();
+
+					if(screenshot_command_socket.nonNull())
+					{
+						screenshot_command_socket->writeInt32(1); // Write failure msg
+						screenshot_command_socket->writeStringLengthFirst("Exception encountered: " + e.what());
+					}
+				}
 			}
 		}
 	}
-
-	
-	// Update avatar graphics
-	temp_av_positions.clear();
-	if(world_state.nonNull())
-	{
-		PERFORMANCEAPI_INSTRUMENT("avatar graphics");
-		ZoneScopedN("avatar graphics"); // Tracy profiler
-
-		try
-		{
-			Lock lock(this->world_state->mutex);
-
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
-			{
-				Avatar* avatar = it->second.getPointer();
-				const bool our_avatar = avatar->isOurAvatar();
-
-				if(avatar->state == Avatar::State_Dead)
-				{
-					print("Removing avatar.");
-
-					ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
-						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
-						web::Escaping::HTMLEscape(avatar->name) + "</span> left.</i>"));
-
-					// Remove any OpenGL object for it
-					avatar->graphics.destroy(*ui->glWidget->opengl_engine);
-
-					// Remove nametag OpenGL object
-					if(avatar->nametag_gl_ob.nonNull())
-						ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
-					avatar->nametag_gl_ob = NULL;
-					if(avatar->speaker_gl_ob.nonNull())
-						ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
-					avatar->speaker_gl_ob = NULL;
-
-					// Remove avatar from avatar map
-					auto old_avatar_iterator = it;
-					it++;
-					this->world_state->avatars.erase(old_avatar_iterator);
-
-					updateOnlineUsersList();
-
-					world_state->avatars_changed = 1;
-				}
-				else
-				{
-					bool reload_opengl_model = false; // load or reload model?
-
-					if(avatar->state == Avatar::State_JustCreated)
-					{
-						enableMaterialisationEffectOnAvatar(*avatar); // Enable materialisation effect before we call loadModelForAvatar() below.
-
-						//// Add audio source for voice chat
-						//if(!our_avatar)
-						//{
-						//	avatar->audio_source = new glare::AudioSource();
-						//	avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
-						//	avatar->audio_source->pos = avatar->pos.toVec4fPoint();
-
-						//	audio_engine.addSource(avatar->audio_source);
-						//}
-					}
-
-					if(avatar->other_dirty)
-					{
-						reload_opengl_model = true;
-
-						updateOnlineUsersList();
-					}
-
-					if((cam_controller.thirdPersonEnabled() || !our_avatar) && reload_opengl_model) // Don't load graphics for our avatar unless we are in third-person cam view mode
-					{
-						print("(Re)Loading avatar model. model URL: " + avatar->avatar_settings.model_url + ", Avatar name: " + avatar->name);
-
-						// Remove any existing model and nametag
-						avatar->graphics.destroy(*ui->glWidget->opengl_engine);
-						
-						if(avatar->nametag_gl_ob.nonNull()) // Remove nametag ob
-							ui->glWidget->opengl_engine->removeObject(avatar->nametag_gl_ob);
-						avatar->nametag_gl_ob = NULL;
-						if(avatar->speaker_gl_ob.nonNull())
-							ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
-						avatar->speaker_gl_ob = NULL;
-
-						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
-
-						loadModelForAvatar(avatar);
-
-						if(!our_avatar)
-						{
-							// Add nametag object for avatar
-							avatar->nametag_gl_ob = makeNameTagGLObject(avatar->name);
-
-							// Set transform to be above avatar.  This transform will be updated later.
-							avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
-
-							ui->glWidget->opengl_engine->addObject(avatar->nametag_gl_ob); // Add to 3d engine
-
-							// Play entry teleport sound
-							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
-						}
-					} // End if reload_opengl_model
-
-
-					// Update transform if we have an avatar or placeholder OpenGL model.
-					Vec3d pos;
-					Vec3f rotation;
-					avatar->getInterpolatedTransform(cur_time, pos, rotation);
-
-					bool use_xyplane_speed_rel_ground_override = false;
-					float xyplane_speed_rel_ground_override = 0;
-
-					// Do 3rd person cam stuff for our avatar:
-					if(our_avatar)
-					{
-						pos = cam_controller.getFirstPersonPosition();
-						rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-
-						use_xyplane_speed_rel_ground_override = true;
-						xyplane_speed_rel_ground_override = player_physics.getLastXYPlaneVelRelativeToGround().length();
-
-						const bool selfie_mode = this->cam_controller.selfieModeEnabled();
-
-						Vec4f use_target_pos;
-						if(selfie_mode)
-							use_target_pos = avatar->graphics.getLastHeadPosition();
-						else
-						{
-							const Vec4f vertical_offset = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getThirdPersonCamTargetTranslation() : Vec4f(0);
-							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + vertical_offset;
-						}
-
-						//rotation = Vec3f(0, 0, 0); // just for testing
-						//pos = Vec3d(0,0,1.7);
-
-						avatar->anim_state = 
-							(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
-							(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) | 
-							(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
-
-						if(cam_controller.thirdPersonEnabled())
-						{
-							Vec4f cam_back_dir;
-							if(selfie_mode)
-							{
-								// Slowly blend towards use_target_pos as in selfie mode it comes from getLastHeadPosition() which can vary rapidly frame to frame.
-								const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
-								cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
-
-								cam_back_dir = (cam_controller.getForwardsVec() * cam_controller.getThirdPersonCamDist()).toVec4fVector();
-							}
-							else
-							{
-								cam_controller.current_third_person_target_pos = Vec3d(use_target_pos);
-
-								cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist() + cam_controller.getUpVec() * 0.2).toVec4fVector();
-							}
-
-
-							//printVar(cam_back_dir);
-
-							// Don't start tracing the ray back immediately or we may hit the vehicle.
-							const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), vehicle_controller_inside->getThirdPersonCamTraceSelfAvoidanceDist()) : 0.f;
-							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
-							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
-							RayTraceResult trace_results;
-							physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
-								/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, trace_results);
-
-							if(trace_results.hit_object)
-							{
-								const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, cam_back_dir.length());
-								cam_back_dir = normalise(cam_back_dir) * use_dist;
-							}
-
-							//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
-							cam_controller.third_person_cam_position = cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir);
-						}
-					}
-
-					{
-						// Seat to world = object to world * seat to object
-						PoseConstraint pose_constraint;
-						pose_constraint.sitting = false;
-						if(our_avatar)
-						{
-							if(vehicle_controller_inside.nonNull())
-							{
-								if(cur_seat_index < vehicle_controller_inside->getSettings().seat_settings.size())
-								{
-									// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that the avatar position is consistent with the vehicle model.
-									const bool use_smoothed_network_transform = cur_seat_index != 0;
-									pose_constraint.sitting = true;
-									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
-									pose_constraint.model_to_y_forwards_rot_1				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_1;
-									pose_constraint.model_to_y_forwards_rot_2				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_2;
-									pose_constraint.upper_body_rot_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_body_rot_angle;
-									pose_constraint.upper_leg_rot_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_rot_angle;
-									pose_constraint.upper_leg_rot_around_thigh_bone_angle	= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_rot_around_thigh_bone_angle;
-									pose_constraint.upper_leg_apart_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_apart_angle;
-									pose_constraint.lower_leg_rot_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_leg_rot_angle;
-									pose_constraint.lower_leg_apart_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_leg_apart_angle;
-									pose_constraint.rotate_foot_out_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].rotate_foot_out_angle;
-									pose_constraint.arm_down_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_down_angle;
-									pose_constraint.arm_out_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_out_angle;
-								}
-								else
-								{
-									assert(0); // Invalid seat index
-								}
-							}
-						}
-						else
-						{
-							if(avatar->pending_vehicle_transition == Avatar::EnterVehicle)
-							{
-								assert(avatar->entered_vehicle.nonNull());
-								if(avatar->entered_vehicle.nonNull()) // If the other avatar is, or should be in a vehicle:
-								{
-									// If the physics object, opengl object and script are all loaded:
-									if(avatar->entered_vehicle->physics_object.nonNull() && avatar->entered_vehicle->opengl_engine_ob.nonNull() && avatar->entered_vehicle->vehicle_script.nonNull())
-									{
-										const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr());
-										if(controller_res == vehicle_controllers.end()) // if there is no vehicle controller for this object :
-										{
-											// Create Vehicle controller
-											Reference<VehiclePhysics> new_controller;
-											if(avatar->entered_vehicle->vehicle_script.isType<Scripting::HoverCarScript>())
-											{
-												const Scripting::HoverCarScript* hover_car_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
-
-												HoverCarPhysicsSettings hover_car_physics_settings;
-												hover_car_physics_settings.hovercar_mass = avatar->entered_vehicle->mass;
-												hover_car_physics_settings.script_settings = hover_car_script->settings;
-
-												new_controller = new HoverCarPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, hover_car_physics_settings);
-											}
-											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BoatScript>())
-											{
-												const Scripting::BoatScript* boat_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BoatScript>();
-
-												BoatPhysicsSettings physics_settings;
-												physics_settings.boat_mass = avatar->entered_vehicle->mass;
-												physics_settings.script_settings = boat_script->settings;
-
-												new_controller = new BoatPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
-											}
-											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BikeScript>())
-											{
-												const Scripting::BikeScript* bike_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BikeScript>();
-
-												BikePhysicsSettings bike_physics_settings;
-												bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
-												bike_physics_settings.script_settings = bike_script->settings;
-
-												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
-											}
-											else
-											{
-												assert(0);
-											}
-
-											if(new_controller.nonNull())
-											{
-												vehicle_controllers.insert(std::make_pair(avatar->entered_vehicle.ptr(), new_controller));
-												new_controller->userEnteredVehicle(avatar->vehicle_seat_index);
-
-												conPrint("Avatar entered vehicle with new physics controller in seat " + toString(avatar->vehicle_seat_index));
-											}
-										}
-										else // Else if there is already a vehicle controller for the object:
-										{
-											conPrint("Avatar entered vehicle with existing physics controller in seat " + toString(avatar->vehicle_seat_index));
-
-											VehiclePhysics* controller = controller_res->second.ptr();
-											controller->userEnteredVehicle(avatar->vehicle_seat_index);
-										}
-
-										avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
-									}
-								}
-							}
-
-
-							if(avatar->entered_vehicle.nonNull()) // If the other avatar is, or should be in a vehicle:
-							{
-								const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
-								if(controller_res != vehicle_controllers.end())
-								{
-									VehiclePhysics* controller = controller_res->second.ptr();
-
-									if(avatar->vehicle_seat_index == 0) // If avatar is driving vehicle:
-										controller->last_physics_input_bitflags = avatar->last_physics_input_bitflags; // Pass last physics input flags to the controller.
-
-									if(avatar->vehicle_seat_index < controller->getSettings().seat_settings.size())
-									{
-										pose_constraint.sitting = true;
-										pose_constraint.seat_to_world							= controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
-										pose_constraint.model_to_y_forwards_rot_1				= controller->getSettings().model_to_y_forwards_rot_1;
-										pose_constraint.model_to_y_forwards_rot_2				= controller->getSettings().model_to_y_forwards_rot_2;
-										pose_constraint.upper_body_rot_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_body_rot_angle;
-										pose_constraint.upper_leg_rot_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_rot_angle;
-										pose_constraint.upper_leg_rot_around_thigh_bone_angle	= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_rot_around_thigh_bone_angle;
-										pose_constraint.upper_leg_apart_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_apart_angle;
-										pose_constraint.lower_leg_rot_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_leg_rot_angle;
-										pose_constraint.lower_leg_apart_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_leg_apart_angle;
-										pose_constraint.rotate_foot_out_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].rotate_foot_out_angle;
-										pose_constraint.arm_down_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_down_angle;
-										pose_constraint.arm_out_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_out_angle;
-									}
-									else
-									{
-										assert(0); // Seat index was invalid.
-									}
-								}
-
-
-								if(avatar->pending_vehicle_transition == Avatar::ExitVehicle)
-								{
-									conPrint("Avatar exited vehicle from seat " + toString(avatar->vehicle_seat_index));
-									if(controller_res != vehicle_controllers.end())
-										controller_res->second->userExitedVehicle(avatar->vehicle_seat_index);
-									avatar->entered_vehicle = NULL;
-									avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
-								}
-							}
-						}
-						 
-						AnimEvents anim_events;
-						avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
-							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, pose_constraint, anim_events);
-						
-						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike && !pose_constraint.sitting) // If avatar is on ground, and the anim played a footstrike
-						{
-							//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
-							//footstep_sources[rnd_src_i]->cur_read_i = 0;
-							//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
-							const int rnd_src_i = rng.nextUInt(4);
-							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
-						}
-
-						for(int i=0; i<anim_events.num_blobs; ++i)
-							temp_av_positions.push_back(anim_events.blob_sphere_positions[i]);
-					}
-
-					
-					// Update nametag transform also
-					if(avatar->nametag_gl_ob.nonNull())
-					{
-						// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
-						Vec4f use_nametag_pos = pos.toVec4fPoint();
-						if(avatar->entered_vehicle.nonNull())
-						{
-							const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
-							if(controller_res != vehicle_controllers.end())
-							{
-								VehiclePhysics* controller = controller_res->second.ptr();
-								const Matrix4f seat_to_world = controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
-
-								use_nametag_pos = seat_to_world * Vec4f(0,0,1.0f,1);
-							}
-						}
-
-						// We want to rotate the nametag towards the camera.
-						Vec4f to_cam = normalise(use_nametag_pos - this->cam_controller.getPosition().toVec4fPoint());
-						if(!isFinite(to_cam[0]))
-							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
-
-						const Vec4f axis_k = Vec4f(0, 0, 1, 0);
-						if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
-							to_cam[0] += 0.1;
-
-						const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
-						const Vec4f axis_i = crossProduct(axis_j, axis_k);
-						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
-
-						const float ws_height = 0.2f; // world space height of nametag in metres
-						const float ws_width = ws_height * avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(0) / avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(2);
-
-						const float total_w = ws_width + (avatar->speaker_gl_ob.nonNull() ? (0.05f + ws_height) : 0.f); // Width of nametag and speaker icon (and spacing between them).
-
-						// If avatar is flying (e.g playing floating anim) move nametag up so it isn't blocked by the avatar head, which is higher in floating anim.
-						const float flying_z_offset = ((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) != 0) ? 0.3f : 0.f;
-
-						// Blend in new z offset, don't immediately jump to it.
-						const float blend_speed = 0.1f;
-						avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
-
-						// Rotate around z-axis, then translate to just above the avatar's head.
-						avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.45f + avatar->nametag_z_offset, 0)) *
-							rot_matrix * Matrix4f::translationMatrix(-total_w/2, 0.f, 0.f) * Matrix4f::uniformScaleMatrix(ws_width);
-
-						assert(isFinite(avatar->nametag_gl_ob->ob_to_world_matrix.e[0]));
-						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->nametag_gl_ob); // Update transform in 3d engine
-
-						// Set speaker icon transform and colour
-						if(avatar->speaker_gl_ob.nonNull())
-						{
-							const float vol_padding_frac = 0.f;
-							const float vol_h = ws_height * (1 - vol_padding_frac * 2);
-							const float vol_padding = ws_height * vol_padding_frac;
-							avatar->speaker_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.45f + avatar->nametag_z_offset, 0)) *
-								rot_matrix * Matrix4f::translationMatrix(-total_w/2 + ws_width + 0.05f, 0.f, vol_padding) * Matrix4f::scaleMatrix(vol_h, 1, vol_h);
-
-							ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->speaker_gl_ob); // Update transform in 3d engine
-
-							if(avatar->audio_source.nonNull())
-							{
-								const float a_0 = 1.0e-2f;
-								const float d = 0.5f * std::log10(avatar->audio_source->smoothed_cur_level / a_0);
-								const float display_level = myClamp(d, 0.f, 1.f);
-
-								// Show a white/grey icon that changes to green when the user is speaking, and changes to red if the amplitude gets too close to 1.
-								const Colour3f default_col = toLinearSRGB(Colour3f(0.8f));
-								const Colour3f green       = toLinearSRGB(Colour3f(0, 54.5f/100, 8.6f/100));
-								const Colour3f red         = toLinearSRGB(Colour3f(78.7f / 100, 0, 0));
-
-								const Colour3f col = Maths::uncheckedLerp(
-									Maths::uncheckedLerp(default_col, green, display_level),
-									red,
-									Maths::smoothStep(0.97f, 1.f, avatar->audio_source->smoothed_cur_level)
-								);
-
-								avatar->speaker_gl_ob->materials[0].albedo_linear_rgb = col;
-								ui->glWidget->opengl_engine->objectMaterialsUpdated(*avatar->speaker_gl_ob);
-							}
-						}
-					}
-
-					// Make foam decal if object just entered water
-					if(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG) &&
-						(pos.z - PlayerPhysics::getEyeHeight()) < this->connected_world_settings.terrain_spec.water_z)
-					{
-						// Avatar is partially or completely in water
-
-						const float foam_width = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 0.5f, 3.f);
-
-						if(!avatar->underwater) // If just entered water:
-						{
-							// Create a big 'splash' foam decal
-							Vec4f foam_pos = pos.toVec4fPoint();
-							foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
-
-							terrain_decal_manager->addFoamDecal(foam_pos, foam_width, /*opacity=*/1.f, TerrainDecalManager::DecalType_ThickFoam);
-
-							// Add splash particle(s)
-							for(int i=0; i<10; ++i)
-							{
-								Particle particle;
-								particle.pos = foam_pos;
-								particle.area = 0.000001f;
-								const float xy_spread = 1.f;
-								const float splash_particle_speed = myClamp((float)avatar->graphics.getLastVel().length() * 0.1f, 1.f, 6.f);
-								particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * splash_particle_speed;
-								particle.colour = Colour3f(1.f);
-								particle.particle_type = Particle::ParticleType_Foam;
-								particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
-								particle.width = 0.5f;
-								particle.dwidth_dt = 1.f;
-								particle.die_when_hit_surface = true;
-								particle_manager->addParticle(particle);
-							}
-
-							avatar->underwater = true;
-						}
-
-						if(pos.z + 0.1 > this->connected_world_settings.terrain_spec.water_z) // If avatar intersects the surface (approximately)
-						{
-							if(avatar->graphics.getLastVel().length() > 5) // If avatar is roughly going above walking speed: walking speed is ~2.9 m/s, running ~14 m/s
-							{
-								if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
-								{
-									Vec4f foam_pos = pos.toVec4fPoint();
-									foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
-
-									terrain_decal_manager->addFoamDecal(foam_pos, 0.75f, /*opacity=*/0.4f, TerrainDecalManager::DecalType_ThickFoam);
-
-
-									// Add splash particle(s)
-									Particle particle;
-									particle.pos = foam_pos;
-									particle.area = 0.000001f;
-									const float xy_spread = 1.f;
-									particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * 2.f;
-									particle.colour = Colour3f(0.7f);
-									particle.particle_type = Particle::ParticleType_Foam;
-									particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
-									particle.width = 0.5f;
-									particle.dwidth_dt = 1.f;
-									particle.die_when_hit_surface = true;
-									particle_manager->addParticle(particle);
-
-
-									avatar->last_foam_decal_creation_time = cur_time;
-								}
-							}
-						}
-					}
-					else
-					{
-						if(avatar->underwater)
-							avatar->underwater = false;
-					}
-
-					// Update avatar audio source position
-					if(avatar->audio_source.nonNull())
-					{
-						avatar->audio_source->pos = avatar->pos.toVec4fPoint();
-						audio_engine.sourcePositionUpdated(*avatar->audio_source);
-					}
-
-					// Update selected object beam for the avatar, if it has an object selected
-					// TEMP: Disabled this code as it was messing with objects being edited.
-					/*if(avatar->selected_object_uid.valid())
-					{
-						auto selected_it = world_state->objects.find(avatar->selected_object_uid);
-						if(selected_it != world_state->objects.end())
-						{
-							WorldObject* their_selected_ob = selected_it->second.getPointer();
-							Vec3d selected_pos;
-							Vec3f axis;
-							float angle;
-							their_selected_ob->getInterpolatedTransform(cur_time, selected_pos, axis, angle);
-
-							// Replace pos with the centre of the AABB (instead of the object space origin)
-							if(their_selected_ob->opengl_engine_ob.nonNull())
-							{
-								their_selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)selected_pos.x, (float)selected_pos.y, (float)selected_pos.z) *
-									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
-									Matrix4f::scaleMatrix(their_selected_ob->scale.x, their_selected_ob->scale.y, their_selected_ob->scale.z);
-
-								ui->glWidget->opengl_engine->updateObjectTransformData(*their_selected_ob->opengl_engine_ob);
-
-								selected_pos = toVec3d(their_selected_ob->opengl_engine_ob->aabb_ws.centroid());
-							}
-
-							avatar->graphics.setSelectedObBeam(*ui->glWidget->opengl_engine, selected_pos);
-						}
-					}
-					else
-					{
-						avatar->graphics.hideSelectedObBeam(*ui->glWidget->opengl_engine);
-					}*/
-
-					avatar->other_dirty = false;
-					avatar->transform_dirty = false;
-
-					assert(avatar->state == Avatar::State_JustCreated || avatar->state == Avatar::State_Alive);
-					if(avatar->state == Avatar::State_JustCreated)
-					{
-						avatar->state = Avatar::State_Alive;
-
-						world_state->avatars_changed = 1;
-					}
-
-					++it;
-				} // End if avatar state != dead.
-			} // end for each avatar
-
-			// Sort avatar positions based on distance from camera
-			CloserToCamComparator comparator(cam_controller.getPosition().toVec4fPoint());
-			std::sort(temp_av_positions.begin(), temp_av_positions.end(), comparator);
-
-			const size_t use_num_av_positions = myMin((size_t)8, temp_av_positions.size());
-			ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations.resize(use_num_av_positions);
-			for(size_t i=0; i<use_num_av_positions; ++i)
-				ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations[i] = temp_av_positions[i];
-
-			ui->glWidget->opengl_engine->getCurrentScene()->grass_pusher_sphere_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + Vec4f(0, 0, -PlayerPhysics::getEyeHeight(), 0);
-		}
-		catch(glare::Exception& e)
-		{
-			print("Error while Updating avatar graphics: " + e.what());
-		}
-	}
-
-
-	// Resonance seems to want a to-world transformation
-	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
-
-	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)cam_angles.x - Maths::pi_2<float>());
-	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
-	const Quatf q = z_axis_rot_q * x_axis_rot_q;
-	audio_engine.setHeadTransform(cam_controller.thirdPersonEnabled() ? this->cam_controller.third_person_cam_position.toVec4fPoint() : this->cam_controller.getFirstPersonPosition().toVec4fPoint(), q);
-
-
-	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
-	// This is so any new player joining the world after we entered the vehicle can receive the information that we are inside it.
-	if(vehicle_controller_inside.nonNull() && ((cur_time - last_vehicle_renewal_msg_time) > 4.0))
-	{
-		// conPrint("sending AvatarEnteredVehicle renewal msg");
-
-		// Send AvatarEnteredVehicle message to server
-		MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
-		writeToStream(this->client_avatar_uid, scratch_packet);
-		writeToStream(this->vehicle_controller_inside->getControlledObject()->uid, scratch_packet); // Write vehicle object UID
-		scratch_packet.writeUInt32(this->cur_seat_index); // Seat index.
-		scratch_packet.writeUInt32(1); // Write flags.  Set renewal bit.
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-		last_vehicle_renewal_msg_time = cur_time;
-	}
-
-	//TEMP
-	for(size_t i=0; i<test_avatars.size(); ++i)
-	{
-		AvatarRef test_avatar = test_avatars[i];
-		
-		/*double phase_speed = 0.5;
-		if((int)(cur_time * 0.2) % 2 == 0)
-		{
-			phase_speed = 0;
-		}*/
-		//double phase_speed = 0;
-
-
-		PoseConstraint pose_constraint;
-		pose_constraint.sitting = false;
-		pose_constraint.seat_to_world = Matrix4f::translationMatrix(0,0,1.7f);
-
-		AnimEvents anim_events;
-		//test_avatar_phase += phase_speed * dt;
-		const double r = 20;
-		//Vec3d pos(0, 0, 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
-		const double phase = Maths::get2Pi<double>() * i / test_avatars.size() + cur_time * 0.1;
-		Vec3d pos(r * cos(phase), r * sin(phase), 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
-		const int anim_state = 0;
-		float xyplane_speed_rel_ground = 0;
-		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, 
-			Vec3f(0, /*pitch=*/Maths::pi_2<float>(), (float)phase + Maths::pi_2<float>()), 
-			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, pose_constraint, anim_events);
-		if(anim_events.footstrike)
-		{
-			//conPrint("footstrike");
-			//footstep_source->cur_read_i = 0;
-			//audio_engine.setSourcePosition(footstep_source, anim_events.footstrike_pos.toVec4fPoint());
-			const int rnd_src_i = rng.nextUInt(4);// (uint32)footstep_sources.size());
-			//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
-			//footstep_sources[rnd_src_i]->cur_read_i = 0;
-
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
-		}
-	}
-
-
-	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
-	if(world_state.nonNull())
-	{
-		PERFORMANCEAPI_INSTRUMENT("object graphics");
-		ZoneScopedN("object graphics"); // Tracy profiler
-
-		try
-		{
-			Lock lock(this->world_state->mutex);
-
-			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
-			{
-				WorldObject* ob = it->ptr();
-
-				assert((this->world_state->objects.find(ob->uid) != this->world_state->objects.end()) && (this->world_state->objects.find(ob->uid).getValue().ptr() == ob)); // Make sure this object in the dirty set is in our set of objects.
-
-				// conPrint("Processing dirty object.");
-
-				if(ob->from_remote_other_dirty || ob->from_remote_model_url_dirty)
-				{
-					if(ob->state == WorldObject::State_Dead)
-					{
-						print("Removing WorldObject.");
-
-						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-						//proximity_loader.removeObject(ob);
-
-						ui->indigoView->objectRemoved(*ob);
-
-						ob->web_view_data = NULL;
-						ob->browser_vid_player = NULL;
-
-						if(ob->audio_source.nonNull())
-						{
-							audio_engine.removeSource(ob->audio_source);
-							ob->audio_source = NULL;
-							ob->audio_state = WorldObject::AudioState_NotLoaded;
-						}
-
-						removeInstancesOfObject(ob);
-						//removeObScriptingInfo(ob);
-
-						this->world_state->objects.erase(ob->uid);
-
-						active_objects.erase(ob);
-						obs_with_animated_tex.erase(ob);
-						web_view_obs.erase(ob);
-						browser_vid_player_obs.erase(ob);
-						audio_obs.erase(ob);
-						obs_with_scripts.erase(ob);
-						obs_with_diagnostic_vis.erase(ob);
-					}
-					else // Else if not dead:
-					{
-						// Decompress voxel group
-						//ob->decompressVoxels();
-
-						//proximity_loader.checkAddObject(ob); // Calls loadModelForObject() and loadAudioForObject() if it is within load distance.
-
-						if(ob->state == WorldObject::State_JustCreated)
-							enableMaterialisationEffectOnOb(*ob); // Enable materialisation effect before we call loadModelForObject() below.
-
-						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
-
-						if(ob->getCentroidWS().getDist2(campos) < this->load_distance2)
-						{
-							loadModelForObject(ob);
-							loadAudioForObject(ob);
-						}
-
-						//bool reload_opengl_model = false; // Do we need to load or reload model?
-						//if(ob->opengl_engine_ob.isNull())
-						//	reload_opengl_model = true;
-						//
-						//if(ob->object_type == WorldObject::ObjectType_Generic)
-						//{
-						//	if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
-						//		reload_opengl_model = true;
-						//}
-						//else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
-						//{
-						//	reload_opengl_model = true;
-						//}
-						//else if(ob->object_type == WorldObject::ObjectType_Hypercard)
-						//{
-						//	if(ob->loaded_content != ob->content)
-						//		reload_opengl_model = true;
-						//}
-						//else if(ob->object_type == WorldObject::ObjectType_Spotlight)
-						//{
-						//	// no reload needed
-						//}
-
-						//if(reload_opengl_model)
-						//{
-						//	// loadModelForObject(ob);
-						//}
-						//else
-						//{
-						
-						if(!ob->audio_source_url.empty() || ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video)
-							this->audio_obs.insert(ob);
-
-
-						if((ob->state != WorldObject::State_JustCreated) && (ob->state != WorldObject::State_InitialSend)) // Don't reload materials when we just created the object locally.
-						{
-							// Update transform for object and object materials in OpenGL engine
-							if(ob->opengl_engine_ob.nonNull() && (ob != selected_ob.getPointer())) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
-							{
-								GLObjectRef opengl_ob = ob->opengl_engine_ob;
-
-								// Update transform
-								opengl_ob->ob_to_world_matrix = ob->obToWorldMatrix();
-								ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
-
-								// Update materials in opengl engine.
-								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-								for(size_t i=0; i<ob->materials.size(); ++i)
-									if(i < opengl_ob->materials.size())
-										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
-
-								ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
-
-								updateInstancedCopiesOfObject(ob);
-							}
-
-							if(ob == selected_ob.ptr())
-								ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
-
-							loadAudioForObject(ob); // Check for re-loading audio if audio URL changed.
-						}
-						//}
-
-
-						if(ob->state == WorldObject::State_JustCreated)
-						{
-							// Got just created object
-
-							if(last_restored_ob_uid_in_edit.valid())
-							{
-								//conPrint("Adding mapping from " + last_restored_ob_uid_in_edit.toString() + " to " + ob->uid.toString());
-								recreated_ob_uid[last_restored_ob_uid_in_edit] = ob->uid;
-								last_restored_ob_uid_in_edit = UID::invalidUID();
-							}
-
-							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects by checking numSecondsAgo().
-							// Don't select summoned vehicles though, as the intent is probably to ride them, not edit them.
-							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30) && !BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG))
-								selectObject(ob, /*selected_mat_index=*/0); // select it
-
-							ob->state = WorldObject::State_Alive;
-						}
-						else if(ob->state == WorldObject::State_InitialSend)
-						{
-							ob->state = WorldObject::State_Alive;
-						}
-
-						ob->from_remote_other_dirty = false;
-						ob->from_remote_model_url_dirty = false;
-					}
-				}
-				else if(ob->from_remote_lightmap_url_dirty)
-				{
-					// Try and download any resources we don't have for this object
-					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-					startDownloadingResourcesForObject(ob, ob_lod_level);
-
-					// Update materials in opengl engine, so it picks up the new lightmap URL
-					GLObjectRef opengl_ob = ob->opengl_engine_ob;
-					if(opengl_ob.nonNull())
-					{
-						for(size_t i=0; i<ob->materials.size(); ++i)
-							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
-						ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
-					}
-
-					ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
-
-					if(ob == selected_ob.ptr())
-						ui->objectEditor->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
-
-					ob->from_remote_lightmap_url_dirty = false;
-				}
-				else if(ob->from_remote_physics_ownership_dirty)
-				{
-					if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
-						obs_with_diagnostic_vis.insert(ob);
-
-					ob->from_remote_physics_ownership_dirty = false;
-				}
-				
-				if(ob->from_remote_transform_dirty)
-				{
-					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
-
-					ob->from_remote_transform_dirty = false;
-				}
-
-				if(ob->from_remote_physics_transform_dirty)
-				{
-					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
-
-					ob->from_remote_physics_transform_dirty = false;
-				}
-
-				if(ob->from_remote_summoned_dirty)
-				{
-					enableMaterialisationEffectOnOb(*ob);
-
-					// Set physics and object transforms here explictly instead of relying on interpolation or whatever.
-					// This is because summoning moves objects discontinuously, so we don't want to interpolate.
-					if(ob->physics_object.nonNull())
-					{
-						physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), 
-							Vec4f(0), Vec4f(0));
-
-						ob->physics_object->smooth_rotation = Quatf::identity(); // We don't want to smooth the transformation change.
-						ob->physics_object->smooth_translation = Vec4f(0);
-					}
-
-					if(ob->opengl_engine_ob.nonNull())
-					{
-						ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
-						ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
-					}
-
-					ob->from_remote_summoned_dirty = false;
-				}
-			}
-
-			this->world_state->dirty_from_remote_objects.clear();
-		}
-		catch(glare::Exception& e)
-		{
-			print("Error while Updating object graphics: " + e.what());
-		}
-
-
-
-		// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
-		try
-		{
-			PERFORMANCEAPI_INSTRUMENT("parcel graphics");
-			ZoneScopedN("parcel graphics"); // Tracy profiler
-
-			Lock lock(this->world_state->mutex);
-
-			for(auto it = this->world_state->dirty_from_remote_parcels.begin(); it != this->world_state->dirty_from_remote_parcels.end(); ++it)
-			{
-				Parcel* parcel = it->getPointer();
-				if(parcel->from_remote_dirty)
-				{
-					if(parcel->state == Parcel::State_Dead)
-					{
-						print("Removing Parcel.");
-					
-						// Remove any OpenGL object for it
-						if(parcel->opengl_engine_ob.nonNull())
-							ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
-
-						// Remove physics object
-						if(parcel->physics_object.nonNull())
-						{
-							physics_world->removeObject(parcel->physics_object);
-							parcel->physics_object = NULL;
-						}
-
-						this->world_state->parcels.erase(parcel->id);
-					}
-					else
-					{
-						const Vec4f aabb_min((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.0f);
-						const Vec4f aabb_max((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.0f);
-
-						if(ui->actionShow_Parcels->isChecked())
-						{
-							if(parcel->opengl_engine_ob.isNull())
-							{
-								// Make OpenGL model for parcel:
-								const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
-
-								bool use_write_perms = write_perms;
-								if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
-									use_write_perms = false;
-
-								parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
-								parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
-								parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
-								ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
-
-								// Make physics object for parcel:
-								assert(parcel->physics_object.isNull());
-								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
-								physics_world->addObject(parcel->physics_object);
-							}
-							else // else if opengl ob is not null:
-							{
-								// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
-								//const Vec4f span = aabb_max - aabb_min;
-								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
-								//ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
-								//
-								//// Update in physics engine
-								//parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-								//physics_world->updateObjectTransformData(*parcel->physics_object);
-							}
-						}
-
-						// If we want to move to this parcel based on the URL entered:
-						if(this->url_parcel_uid == (int)parcel->id.value())
-						{
-							cam_controller.setPosition(parcel->getVisitPosition());
-							player_physics.setPosition(parcel->getVisitPosition());
-							this->url_parcel_uid = -1;
-
-							showInfoNotification("Jumped to parcel " + parcel->id.toString());
-						}
-
-
-						parcel->from_remote_dirty = false;
-					}
-				} // end if(parcel->from_remote_dirty)
-			}
-
-			this->world_state->dirty_from_remote_parcels.clear();
-		}
-		catch(glare::Exception& e)
-		{
-			print("Error while updating parcel graphics: " + e.what());
-		}
-
-
-		// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
-		{
-			Lock lock(this->world_state->mutex);
-			for(auto it = active_objects.begin(); it != active_objects.end();)
-			{
-				WorldObject* ob = it->ptr();
-
-				// See if object should be removed from the active set - an object should be removed if it has been a while since the last transform snapshot has been received.
-				const uint32 last_snapshot_mod_i = Maths::intMod(ob->next_snapshot_i - 1, WorldObject::HISTORY_BUF_SIZE);
-				const bool inactive = (cur_time - ob->snapshots[last_snapshot_mod_i].local_time) > 1.0;
-				if(inactive)
-				{
-					// conPrint("------Removing inactive object-------");
-					// Object is not active any more, remove from active_objects set.
-					auto to_erase = it;
-					it++;
-					active_objects.erase(to_erase);
-				}
-				else
-				{
-					if(ob->isDynamic() && isObjectPhysicsOwnedBySelf(*ob, global_time)) // If this is a dynamic physics object that we are the current physics owner of:
-					{
-						// Don't update its transform from physics snapshots, let the physics engine set it directly.
-						// conPrint("Skipping interpolation of dynamic ob - we own it");
-					}
-					else
-					{
-						if(ob->snapshots_are_physics_snapshots)
-						{
-							// See if it's time to feed a physics snapshot into the physics system.  See 'docs\networked physics.txt' for more details.
-							const double padding_delay = 0.1;
-
-							// conPrint("next_insertable_snapshot_i: " + toString(ob->next_insertable_snapshot_i) + ", next_snapshot_i: " + toString(ob->next_snapshot_i));
-
-							if(ob->next_insertable_snapshot_i < ob->next_snapshot_i) // If we have at least one snapshot that has not been inserted:
-							{
-								const uint32 next_insertable_snapshot_mod_i = Maths::intMod(ob->next_insertable_snapshot_i, WorldObject::HISTORY_BUF_SIZE);
-								const WorldObject::Snapshot& snapshot = ob->snapshots[next_insertable_snapshot_mod_i];
-								const double desired_insertion_time = snapshot.client_time + ob->transmission_time_offset + padding_delay;
-								// conPrint("------------------------------------");
-								// conPrint("snapshot.client_time: " + toString(snapshot.client_time));
-								// conPrint("ob->transmission_time_offset: " + toString(ob->transmission_time_offset));
-								// conPrint("desired_insertion_time: " + toString(desired_insertion_time) + ", global_time: " + toString(global_time) + "(" + toString(desired_insertion_time - global_time) + " s in future)");
-								if(global_time >= desired_insertion_time)
-								{
-									// conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
-									if(ob->physics_object.nonNull())
-									{
-										const Vec4f old_effective_pos = ob->physics_object->smooth_translation + ob->physics_object->pos;
-										const Quatf old_effective_rot = ob->physics_object->smooth_rotation    * ob->physics_object->rot;
-										physics_world->setNewObToWorldTransform(*ob->physics_object, snapshot.pos, snapshot.rotation, snapshot.linear_vel, snapshot.angular_vel);
-
-										// Compute smoothing translation and rotation transforms that will map the snapshot position to the current effective position.
-										ob->physics_object->smooth_translation = old_effective_pos - snapshot.pos;
-										ob->physics_object->smooth_rotation    = old_effective_rot * snapshot.rotation.conjugate();
-									}
-
-									ob->next_insertable_snapshot_i++;
-								}
-							}
-						}
-						else
-						{
-							// conPrint("Getting interpolated transform");
-							Vec3d pos;
-							Quatf rot;
-							ob->getInterpolatedTransform(cur_time, pos, rot);
-
-							if(ob->opengl_engine_ob.nonNull())
-							{
-								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
-									rot.toMatrix() *
-									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-
-								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
-							}
-
-							if(ob->physics_object.nonNull())
-							{
-								// Update in physics engine
-								physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), rot, useScaleForWorldOb(ob->scale).toVec4fVector());
-							}
-
-							if(ob->audio_source.nonNull())
-							{
-								// Update in audio engine
-								ob->audio_source->pos = ob->getCentroidWS();
-								audio_engine.sourcePositionUpdated(*ob->audio_source);
-							}
-						}
-
-						if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
-							obs_with_diagnostic_vis.insert(ob);
-					}
-					it++;
-				}
-			}
-		}
-	} // end if(world_state.nonNull())
-
-
-	// Move selected object if there is one and it is picked up, based on direction camera is currently facing.
-	if(this->selected_ob.nonNull() && selected_ob_picked_up)
-	{
-		const bool allow_modification = objectModificationAllowedWithMsg(*this->selected_ob, "move");
-		if(allow_modification)
-		{
-			// Get direction for current mouse cursor position
-			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-			const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-			const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-			const Vec4f up = cam_controller.getUpVec().toVec4fVector();
-
-			// Convert selection vector from camera space to world space
-			const Vec4f selection_vec_ws = right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2];
-
-			// Get the target position for the new selection point in world space.
-			const Vec4f new_sel_point_ws = origin + selection_vec_ws;
-
-			// Get the current position for the selection point on the object in world-space.
-			const Vec4f selection_point_ws = obToWorldMatrix(*this->selected_ob) * this->selection_point_os;
-
-			const Vec4f desired_new_ob_pos = this->selected_ob->pos.toVec4fPoint() + (new_sel_point_ws - selection_point_ws);
-
-			assert(desired_new_ob_pos.isFinite());
-
-			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
-			//tentative_new_to_world.setColumn(3, desired_new_ob_pos);
-			//tryToMoveObject(tentative_new_to_world);
-			tryToMoveObject(this->selected_ob, desired_new_ob_pos);
-		}
-	}
-
-	updateVoxelEditMarkers();
-
-	// Send an AvatarTransformUpdate packet to the server if needed.
-	if(client_thread.nonNull() && (time_since_update_packet_sent.elapsed() > 0.1))
-	{
-		PERFORMANCEAPI_INSTRUMENT("sending packets");
-		ZoneScopedN("sending packets"); // Tracy profiler
-
-		// Send AvatarTransformUpdate packet
-		{
-			const uint32 anim_state = 
-				(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
-				(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) |
-				(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
-
-			const uint32 input_bitmask = physics_input.toBitFlags();
-
-			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
-			writeToStream(this->client_avatar_uid, scratch_packet);
-			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
-			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), scratch_packet);
-			scratch_packet.writeUInt32(anim_state | (input_bitmask << 16));
-
-			enqueueMessageToSend(*this->client_thread, scratch_packet);
-		}
-
-		
-		if(world_state.nonNull())
-		{
-			Lock lock(this->world_state->mutex);
-
-			//============ Send any object updates needed ===========
-			for(auto it = this->world_state->dirty_from_local_objects.begin(); it != this->world_state->dirty_from_local_objects.end(); ++it)
-			{
-				WorldObject* world_ob = it->getPointer();
-				if(world_ob->from_local_other_dirty)
-				{
-					// Enqueue ObjectFullUpdate
-					MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
-					world_ob->writeToNetworkStream(scratch_packet);
-
-					enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-					world_ob->from_local_other_dirty = false;
-					world_ob->from_local_transform_dirty = false; // We sent all information, including transform, so transform is no longer dirty.
-					world_ob->from_local_physics_dirty = false;
-				}
-				else if(world_ob->from_local_transform_dirty)
-				{
-					// Enqueue ObjectTransformUpdate
-					MessageUtils::initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
-					writeToStream(world_ob->uid, scratch_packet);
-					writeToStream(Vec3d(world_ob->pos), scratch_packet);
-					writeToStream(Vec3f(world_ob->axis), scratch_packet);
-					scratch_packet.writeFloat(world_ob->angle);
-					writeToStream(Vec3f(world_ob->scale), scratch_packet);
-
-					enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-					world_ob->from_local_transform_dirty = false;
-				}
-				else if(world_ob->from_local_physics_dirty)
-				{
-					// Send ObjectPhysicsTransformUpdate packet
-					MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsTransformUpdate);
-					writeToStream(world_ob->uid, scratch_packet);
-					writeToStream(world_ob->pos, scratch_packet);
-
-					const Quatf rot = Quatf::fromAxisAndAngle(world_ob->axis, world_ob->angle);
-					scratch_packet.writeData(&rot.v.x, sizeof(float) * 4);
-
-					scratch_packet.writeData(world_ob->linear_vel.x, sizeof(float) * 3);
-					scratch_packet.writeData(world_ob->angular_vel.x, sizeof(float) * 3);
-
-					scratch_packet.writeDouble(global_time); // Write last_transform_client_time
-
-					enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-					world_ob->from_local_physics_dirty = false;
-				}
-			}
-
-			this->world_state->dirty_from_local_objects.clear();
-
-			//============ Send any parcel updates needed ===========
-			for(auto it = this->world_state->dirty_from_local_parcels.begin(); it != this->world_state->dirty_from_local_parcels.end(); ++it)
-			{
-				const Parcel* parcel= it->getPointer();
-			
-				// Enqueue ParcelFullUpdate
-				MessageUtils::initPacket(scratch_packet, Protocol::ParcelFullUpdate);
-				writeToNetworkStream(*parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
-
-				enqueueMessageToSend(*this->client_thread, scratch_packet);
-			}
-
-			this->world_state->dirty_from_local_parcels.clear();
-		}
-
-
-		time_since_update_packet_sent.reset();
-	}
-
-	{
-		// Show a decibel level: http://msp.ucsd.edu/techniques/v0.08/book-html/node6.html
-		// cur_level = 0.01 gives log_10(0.01 / 0.01) = 0.
-		// cur_level = 1 gives log_10(1 / 0.01) = 2.  We want to map this to 1 so multiply by 0.5.
-		const float a_0 = 1.0e-2f;
-		const float d = 0.5f * std::log10(mic_read_status.cur_level / a_0);
-		const float display_level = myClamp(d, 0.f, 1.f);
-		gesture_ui.setCurrentMicLevel(mic_read_status.cur_level, display_level);
-	}
-
-	if(frame_num % 8 == 0)
-		checkForAudioRangeChanges();
-
-	if(terrain_system.nonNull())
-		terrain_system->updateCampos(this->cam_controller.getPosition(), bump_allocator);
-
-	if(terrain_decal_manager.nonNull())
-		terrain_decal_manager->think((float)dt);
-	if(particle_manager.nonNull())
-		particle_manager->think((float)dt);
-
-	if(ui->glWidget->opengl_engine.nonNull())
-	{
-		ui->glWidget->opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
-	}
-
-
-	last_timerEvent_CPU_work_elapsed = timerEvent_timer.elapsed();
-
-
-	/*if(last_timerEvent_CPU_work_elapsed > 0.010)
-	{
-		logMessage("=============Long frame==================");
-		logMessage("Frame CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1.0e3, 4) + " ms");
-		logMessage("loading time: " + doubleToStringNSigFigs(frame_loading_time * 1.0e3, 4) + " ms");
-		for(size_t i=0; i<loading_times.size(); ++i)
-			logMessage("\t" + loading_times[i]);
-		//conPrint("\tprocessing animated textures took " + doubleToStringNSigFigs(animated_tex_time * 1.0e3, 4) + " ms");
-	}*/
-
-	ui->glWidget->makeCurrent();
-
-	//Timer timer;
-	{
-		Timer timer2;
-		PERFORMANCEAPI_INSTRUMENT("updateGL()");
-		ZoneScopedN("updateGL"); // Tracy profiler
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-		ui->glWidget->update();
-#else
-		ui->glWidget->updateGL();
-#endif
-		//if(timer.elapsed() > 0.020)
-		//	conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": updateGL() took " + timer.elapsedStringNSigFigs(4));
-		this->last_updateGL_time = timer2.elapsed();
-	}
-
-	frame_num++;
 }
 
 
