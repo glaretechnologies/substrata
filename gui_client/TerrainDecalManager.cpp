@@ -9,7 +9,8 @@ Copyright Glare Technologies Limited 2023 -
 TerrainDecalManager::TerrainDecalManager(const std::string& base_dir_path, OpenGLEngine* opengl_engine_)
 :	opengl_engine(opengl_engine_)
 {
-	foam_texture = opengl_engine->getTexture(base_dir_path + "/resources/foam_windowed.ktx2"); 
+	foam_texture        = opengl_engine->getTexture(base_dir_path + "/resources/foam_windowed.ktx2");
+	foam_sprite_front	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_front.ktx2");
 }
 
 
@@ -36,7 +37,7 @@ static inline Matrix4f foamTransform(const FoamDecal& decal)
 }
 
 
-void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, float opacity)
+void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, float opacity, DecalType decal_type)
 {
 	const size_t MAX_NUM_DECALS = 512;
 
@@ -71,7 +72,11 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 	ob->materials[0].alpha = opacity;
 	ob->materials[0].double_sided = true;
 	ob->materials[0].decal = true;
-	ob->materials[0].albedo_texture = foam_texture;
+	if(decal_type == DecalType_ThickFoam)
+		ob->materials[0].albedo_texture = foam_texture;
+	else if(decal_type == DecalType_SparseFoam)
+		ob->materials[0].albedo_texture = foam_sprite_front;
+
 	ob->ob_to_world_matrix = foamTransform(decal);
 
 	ob->materials[0].materialise_start_time = opengl_engine->getCurrentTime(); // For participating media and decals: materialise_start_time = spawn time

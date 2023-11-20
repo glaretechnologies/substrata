@@ -6670,7 +6670,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							Vec4f foam_pos = pos.toVec4fPoint();
 							foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
 
-							terrain_decal_manager->addFoamDecal(foam_pos, foam_width, /*opacity=*/1.f);
+							terrain_decal_manager->addFoamDecal(foam_pos, foam_width, /*opacity=*/1.f, TerrainDecalManager::DecalType_ThickFoam);
 
 							// Add splash particle(s)
 							for(int i=0; i<10; ++i)
@@ -6697,12 +6697,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						{
 							if(avatar->graphics.getLastVel().length() > 5) // If avatar is roughly going above walking speed: walking speed is ~2.9 m/s, running ~14 m/s
 							{
-								//if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
+								if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
 								{
 									Vec4f foam_pos = pos.toVec4fPoint();
 									foam_pos[2] = this->connected_world_settings.terrain_spec.water_z;
 
-									terrain_decal_manager->addFoamDecal(foam_pos, 0.75f, /*opacity=*/0.4f);
+									terrain_decal_manager->addFoamDecal(foam_pos, 0.75f, /*opacity=*/0.4f, TerrainDecalManager::DecalType_ThickFoam);
 
 
 									// Add splash particle(s)
@@ -7513,7 +7513,7 @@ void MainWindow::physicsObjectEnteredWater(PhysicsObject& physics_ob)
 	Vec4f foam_pos = physics_ob.getAABBoxWS().centroid();
 	foam_pos[2] = physics_world->getWaterZ();
 
-	terrain_decal_manager->addFoamDecal(foam_pos, ob_width, /*opacity=*/1.f);
+	terrain_decal_manager->addFoamDecal(foam_pos, ob_width, /*opacity=*/1.f, TerrainDecalManager::DecalType_ThickFoam);
 
 	const float ob_speed = physics_world->getObjectLinearVelocity(physics_ob).length();
 
