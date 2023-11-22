@@ -1361,6 +1361,10 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 
 	meshdata.indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(indices, temp_index_data.size);
 
+#if DO_INDIVIDUAL_VAO_ALLOC
+	meshdata.individual_vao = new VAO(meshdata.vbo_handle.vbo, meshdata.indices_vbo_handle.index_vbo, meshdata.vertex_spec);
+#endif
+
 	meshdata.aabb_os = aabb_os;
 
 
@@ -1488,6 +1492,10 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocato
 	}
 
 	meshdata.indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(indices, temp_index_data.size);
+
+#if DO_INDIVIDUAL_VAO_ALLOC
+	meshdata.individual_vao = new VAO(meshdata.vbo_handle.vbo, meshdata.indices_vbo_handle.index_vbo, meshdata.vertex_spec);
+#endif
 
 	GLObjectRef gl_ob = new GLObject();
 	gl_ob->ob_to_world_matrix = Matrix4f::identity();
