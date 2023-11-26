@@ -149,7 +149,7 @@ static const uint32 USER_SERIALISATION_VERSION = 5;
 // Version 3: Added controlled_eth_address
 
 
-void writeToStream(const User& user, OutStream& stream)
+void writeToStream(const User& user, OutStream& stream, glare::Allocator& temp_allocator)
 {
 	// Write version
 	stream.writeUInt32(USER_SERIALISATION_VERSION);
@@ -171,13 +171,13 @@ void writeToStream(const User& user, OutStream& stream)
 	for(size_t i=0; i<user.password_resets.size(); ++i)
 		writeToStream(user.password_resets[i], stream);
 
-	writeToStream(user.avatar_settings, stream);
+	writeToStream(user.avatar_settings, stream, temp_allocator);
 
 	stream.writeUInt32(user.flags);
 }
 
 
-void readFromStream(InStream& stream, User& user)
+void readFromStream(InStream& stream, User& user, glare::BumpAllocator& bump_allocator)
 {
 	// Read version
 	const uint32 v = stream.readUInt32();
@@ -211,7 +211,7 @@ void readFromStream(InStream& stream, User& user)
 	}
 
 	if(v >= 4)
-		readFromStream(stream, user.avatar_settings);
+		readFromStream(stream, user.avatar_settings, bump_allocator);
 
 	if(v >= 5)
 		user.flags = stream.readUInt32();

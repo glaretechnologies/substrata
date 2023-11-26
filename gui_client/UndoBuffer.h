@@ -11,6 +11,8 @@ Copyright Glare Technologies Limited 2021 -
 #include "../shared/Parcel.h"
 #include <ThreadSafeRefCounted.h>
 #include <Mutex.h>
+#include <ArenaAllocator.h>
+#include <AllocatorVector.h>
 #include <map>
 #include <unordered_set>
 
@@ -33,8 +35,8 @@ class UndoBufferEdit
 {
 public:
 	// State at start and end of edit:
-	std::vector<unsigned char> start;
-	std::vector<unsigned char> end;
+	glare::AllocatorVector<unsigned char, 16> start;
+	glare::AllocatorVector<unsigned char, 16> end;
 };
 
 
@@ -49,12 +51,14 @@ public:
 
 	void replaceFinishWorldObjectEdit(const WorldObject& ob);
 
-	WorldObjectRef getUndoWorldObject();
-	WorldObjectRef getRedoWorldObject();
+	WorldObjectRef getUndoWorldObject(glare::BumpAllocator& bump_allocator);
+	WorldObjectRef getRedoWorldObject(glare::BumpAllocator& bump_allocator);
 
 private:
 	UndoBufferEdit current_edit;
 
 	std::vector<UndoBufferEdit> chunks;
 	int index; // Chunks < index will be restored on Undo, chunks >= index will be restored on redo.
+
+	Reference<glare::ArenaAllocator> arena_allocator;
 };

@@ -1,7 +1,7 @@
 /*=====================================================================
 Protocol.h
 ----------
-Copyright Glare Technologies Limited 2017 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
@@ -31,13 +31,15 @@ CyberspaceProtocolVersion
 37: Not sending aabb_ws with various messages, sending aabb_os in WorldObject.
 	Added last_modified_time to WorldObject.
 	Added scale to ObjectTransformUpdate message.
+38: Use length-prefixed serialisation for WorldMaterial, sending server version to client.
 */
 namespace Protocol
 {
 
-
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 37;
+
+const uint32 CyberspaceProtocolVersion = 38;
+
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -147,6 +149,5 @@ const uint32 EthTransactionSubmitted			= 12002;
 const uint32 EthTransactionSubmissionFailed		= 12003;
 
 const uint32 KeepAlive				= 13000; // A message that doesn't do anything apart from provide a means for the client or server to check a connection is still working by making a socket call.
-
 
 } // end namespace Protocol

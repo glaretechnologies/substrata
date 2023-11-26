@@ -42,6 +42,8 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 	connect(this->hologramCheckBox,					SIGNAL(toggled(bool)),				this, SIGNAL(materialChanged()));
 
 	connect(this->metallicRoughnessFileSelectWidget,SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
+	
+	connect(this->normalMapFileSelectWidget,		SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
 
 	connect(this->emissionTextureFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
 	connect(this->luminanceDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
@@ -107,6 +109,8 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 	SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, mat.metallic_fraction.val);
 
 	this->metallicRoughnessFileSelectWidget->setFilename(QtUtils::toQString(mat.roughness.texture_url));
+	
+	this->normalMapFileSelectWidget->setFilename(QtUtils::toQString(mat.normal_map_url));
 
 	SignalBlocker::setChecked(this->hologramCheckBox, (mat.flags & WorldMaterial::HOLOGRAM_FLAG) != 0);
 
@@ -141,6 +145,8 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 
 	mat_out.roughness.texture_url = QtUtils::toIndString(this->metallicRoughnessFileSelectWidget->filename());
 
+	mat_out.normal_map_url = QtUtils::toIndString(this->normalMapFileSelectWidget->filename());
+
 	mat_out.emission_rgb = emission_col;
 	mat_out.emission_texture_url = QtUtils::toIndString(this->emissionTextureFileSelectWidget->filename());
 
@@ -169,6 +175,8 @@ void MaterialEditor::setControlsEditable(bool editable)
 	this->opacityDoubleSpinBox->setReadOnly(!editable);
 
 	this->metallicRoughnessFileSelectWidget->setReadOnly(!editable);
+
+	this->normalMapFileSelectWidget->setReadOnly(!editable);
 
 	this->emissionTextureFileSelectWidget->setReadOnly(!editable);
 

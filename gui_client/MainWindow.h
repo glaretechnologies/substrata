@@ -56,6 +56,7 @@ class BiomeManager;
 class ScriptLoadedThreadMessage;
 class ObjectPathController;
 namespace glare { class PoolAllocator; }
+namespace glare { class ArenaAllocator; }
 class VehiclePhysics;
 class TerrainSystem;
 class TerrainDecalManager;
@@ -289,7 +290,8 @@ public:
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
 
-	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB);
+	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, 
+		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
 	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
@@ -735,6 +737,7 @@ public:
 	Reference<ParticleManager> particle_manager;
 
 	glare::BumpAllocator bump_allocator;
+	Reference<glare::ArenaAllocator> arena_allocator;
 
 	Reference<OpenGLEngine> opengl_engine;
 

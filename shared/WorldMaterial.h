@@ -1,7 +1,7 @@
 /*=====================================================================
 WorldMaterial.h
 ---------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
@@ -20,6 +20,8 @@ struct GLObject;
 class PhysicsObject;
 class ResourceManager;
 namespace pugi { class xml_node; }
+namespace glare { class Allocator; }
+namespace glare { class BumpAllocator; }
 
 
 struct ScalarVal
@@ -66,6 +68,8 @@ public:
 	Colour3f emission_rgb; // Non-linear sRGB
 	std::string emission_texture_url;
 
+	std::string normal_map_url;
+
 	ScalarVal roughness; // Metallic-roughness texture URL will be stored in roughness.texture_url.
 	ScalarVal metallic_fraction;
 	ScalarVal opacity;
@@ -84,8 +88,6 @@ public:
 	uint32 flags;
 
 	
-	
-
 	inline bool colourTexHasAlpha() const { return BitUtils::isBitSet(flags, COLOUR_TEX_HAS_ALPHA_FLAG); }
 
 	inline int minLODLevel() const { return BitUtils::isBitSet(flags, MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0; }
@@ -99,6 +101,7 @@ public:
 		m->colour_texture_url = colour_texture_url;
 		m->emission_rgb = emission_rgb;
 		m->emission_texture_url = emission_texture_url;
+		m->normal_map_url = normal_map_url;
 		m->roughness = roughness;
 		m->metallic_fraction = metallic_fraction;
 		m->opacity = opacity;
@@ -116,6 +119,7 @@ public:
 			colour_texture_url == b.colour_texture_url &&
 			emission_rgb == b.emission_rgb &&
 			emission_texture_url == b.emission_texture_url &&
+			normal_map_url == b.normal_map_url &&
 			roughness == b.roughness &&
 			metallic_fraction == b.metallic_fraction &&
 			opacity == b.opacity &&
@@ -147,9 +151,11 @@ private:
 typedef Reference<WorldMaterial> WorldMaterialRef;
 
 
-void writeToStream(const WorldMaterial& world_ob, OutStream& stream);
-void readFromStream(InStream& stream, WorldMaterial& ob);
+// WorldMaterial serialisation
+void writeWorldMaterialToStream(const WorldMaterial& world_ob, OutStream& stream, glare::Allocator& temp_allocator);
+void readWorldMaterialFromStream(InStream& stream, WorldMaterial& ob, glare::BumpAllocator& bump_allocator);
 
-void writeToStream(const ScalarVal& val, OutStream& stream);
-void readFromStreamOld(InStream& stream, ScalarVal& ob);
-void readFromStream(InStream& stream, ScalarVal& ob);
+// ScalarVal serialisation
+void writeScalarValToStream(const ScalarVal& val, OutStream& stream);
+void readScalarValFromStreamOld(InStream& stream, ScalarVal& ob);
+void readScalarValFromStream(InStream& stream, ScalarVal& ob);

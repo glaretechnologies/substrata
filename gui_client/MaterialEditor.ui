@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>581</width>
-    <height>374</height>
+    <height>393</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -124,14 +124,14 @@
    <item row="8" column="1">
     <widget class="RealControl" name="metallicFractionDoubleSpinBox"/>
    </item>
-   <item row="10" column="0">
+   <item row="11" column="0">
     <widget class="QLabel" name="label_7">
      <property name="text">
       <string>Opacity</string>
      </property>
     </widget>
    </item>
-   <item row="10" column="1">
+   <item row="11" column="1">
     <widget class="RealControl" name="opacityDoubleSpinBox"/>
    </item>
    <item row="0" column="1">
@@ -163,14 +163,14 @@
    <item row="9" column="1">
     <widget class="FileSelectWidget" name="metallicRoughnessFileSelectWidget"/>
    </item>
-   <item row="12" column="0">
+   <item row="14" column="0">
     <widget class="QLabel" name="label_2">
      <property name="text">
       <string>Emission Colour</string>
      </property>
     </widget>
    </item>
-   <item row="12" column="1">
+   <item row="14" column="1">
     <widget class="QPushButton" name="emissionColourPushButton">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -189,24 +189,24 @@
      </property>
     </widget>
    </item>
-   <item row="13" column="1">
+   <item row="15" column="1">
     <widget class="FileSelectWidget" name="emissionTextureFileSelectWidget"/>
    </item>
-   <item row="13" column="0">
+   <item row="15" column="0">
     <widget class="QLabel" name="label_3">
      <property name="text">
       <string>Emission Texture</string>
      </property>
     </widget>
    </item>
-   <item row="14" column="0">
+   <item row="16" column="0">
     <widget class="QLabel" name="label_11">
      <property name="text">
       <string>Luminance</string>
      </property>
     </widget>
    </item>
-   <item row="14" column="1">
+   <item row="16" column="1">
     <widget class="IndigoDoubleSpinBox" name="luminanceDoubleSpinBox">
      <property name="suffix">
       <string> nits</string>
@@ -216,47 +216,57 @@
      </property>
     </widget>
    </item>
-   <item row="11" column="1">
+   <item row="12" column="1">
     <widget class="QCheckBox" name="hologramCheckBox">
      <property name="text">
       <string/>
      </property>
     </widget>
    </item>
-   <item row="11" column="0">
+   <item row="12" column="0">
     <widget class="QLabel" name="label_12">
      <property name="text">
       <string>Hologram</string>
      </property>
     </widget>
    </item>
-   <item row="15" column="1">
+   <item row="17" column="1">
     <widget class="QCheckBox" name="windCheckBox">
      <property name="text">
       <string/>
      </property>
     </widget>
    </item>
-   <item row="15" column="0">
+   <item row="17" column="0">
     <widget class="QLabel" name="label_13">
      <property name="text">
       <string>Use vert colours for wind</string>
      </property>
     </widget>
    </item>
-   <item row="16" column="1">
+   <item row="18" column="1">
     <widget class="QCheckBox" name="doubleSidedCheckBox">
      <property name="text">
       <string/>
      </property>
     </widget>
    </item>
-   <item row="16" column="0">
+   <item row="18" column="0">
     <widget class="QLabel" name="label_14">
      <property name="text">
       <string>Double sided</string>
      </property>
     </widget>
+   </item>
+   <item row="10" column="0">
+    <widget class="QLabel" name="label_15">
+     <property name="text">
+      <string>Normal map</string>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="1">
+    <widget class="FileSelectWidget" name="normalMapFileSelectWidget"/>
    </item>
   </layout>
  </widget>

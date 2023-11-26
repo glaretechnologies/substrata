@@ -111,6 +111,8 @@ ${UTILS_DIR}/AESEncryption.h
 ${UTILS_DIR}/AllocatorVectorUnitTests.cpp
 ${UTILS_DIR}/AllocatorVectorUnitTests.h
 ${UTILS_DIR}/AllocatorVector.h
+${UTILS_DIR}/ArenaAllocator.cpp
+${UTILS_DIR}/ArenaAllocator.h
 ${UTILS_DIR}/ArgumentParser.cpp
 ${UTILS_DIR}/ArgumentParser.h
 ${UTILS_DIR}/Array2D.h
