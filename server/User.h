@@ -19,6 +19,9 @@ Copyright Glare Technologies Limited 2017 -
 #include <DatabaseKey.h>
 
 
+namespace glare { class BumpAllocator; }
+
+
 struct EmailSendingInfo
 {
 	std::string smtp_servername;
@@ -86,8 +89,8 @@ public:
 typedef Reference<User> UserRef;
 
 
-void writeToStream(const User& user, OutStream& stream);
-void readFromStream(InStream& stream, User& userob);
+void writeToStream(const User& user, OutStream& stream, glare::Allocator& temp_allocator);
+void readFromStream(InStream& stream, User& userob, glare::BumpAllocator& bump_allocator);
 
 
 struct UserRefHash

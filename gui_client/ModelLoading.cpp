@@ -89,6 +89,7 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.metallic_roughness_tex_path = mat.roughness.texture_url;
+	opengl_mat.normal_map_path = mat.normal_map_url;
 	opengl_mat.transparent = (mat.opacity.val < 1.0f) || BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG); // Hologram is done with transparent material shader.
 
 	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
@@ -141,6 +142,11 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 		opengl_mat.metallic_roughness_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.roughness.texture_url, lod_level, /*has alpha=*/false), resource_manager);
 	else
 		opengl_mat.metallic_roughness_tex_path.clear();
+
+	if(!mat.normal_map_url.empty())
+		opengl_mat.normal_map_path = toLocalPath(mat.getLODTextureURLForLevel(mat.normal_map_url, lod_level, /*has alpha=*/false), resource_manager);
+	else
+		opengl_mat.normal_map_path.clear();
 
 	if(!lightmap_url.empty())
 		opengl_mat.lightmap_path = toLocalPath(WorldObject::getLODLightmapURL(lightmap_url, lod_level), resource_manager);
@@ -650,6 +656,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			const std::string tex_path = gltf_mat.diffuse_map.path;
 			const std::string metallic_roughness_tex_path = gltf_mat.metallic_roughness_map.path;
 			const std::string emission_tex_path = gltf_mat.emissive_map.path;
+			const std::string normal_map_path = gltf_mat.normal_map.path;
 
 			// NOTE: gltf has (0,0) at the upper left of the image, as opposed to the Indigo/substrata/opengl convention of (0,0) being at the lower left
 			// (See https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#images)
@@ -664,6 +671,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			gl_ob->materials[i].tex_path                        = tex_path;
 			gl_ob->materials[i].metallic_roughness_tex_path     = metallic_roughness_tex_path;
 			gl_ob->materials[i].emission_tex_path               = emission_tex_path;
+			gl_ob->materials[i].normal_map_path                 = normal_map_path;
 			gl_ob->materials[i].emission_linear_rgb             = sanitiseEmissionColour(gltf_mat.emissive_factor); // Note that gltf_mat.emissive_factor is already linear.
 			gl_ob->materials[i].emission_scale                  = use_emission ? L_e : 0.f;
 			gl_ob->materials[i].roughness                       = gltf_mat.roughness;
@@ -675,6 +683,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			results_out.materials[i]->colour_texture_url        = tex_path;
 			results_out.materials[i]->roughness.texture_url     = metallic_roughness_tex_path; // HACK: just assign to roughness URL
 			results_out.materials[i]->emission_texture_url      = emission_tex_path;
+			results_out.materials[i]->normal_map_url            = normal_map_path;
 			results_out.materials[i]->emission_rgb              = toNonLinearSRGB(gltf_mat.emissive_factor);
 			results_out.materials[i]->emission_lum_flux_or_lum  = use_emission ? L_v : 0.f;
 			results_out.materials[i]->opacity                   = ScalarVal(gl_ob->materials[i].alpha);

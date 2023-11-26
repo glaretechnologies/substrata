@@ -1,7 +1,7 @@
 /*=====================================================================
 WorldMaterial.cpp
----------------
-Copyright Glare Technologies Limited 2016 -
+-----------------
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #include "WorldMaterial.h"
 
@@ -14,6 +14,12 @@ Copyright Glare Technologies Limited 2016 -
 #include <IndigoXMLDoc.h>
 #include <XMLParseUtils.h>
 #include <Parser.h>
+#include <BufferInStream.h>
+#include <BufferOutStream.h>
+#include <BufferViewInStream.h>
+#include <RuntimeCheck.h>
+#include <BumpAllocator.h>
+#include <FixedLengthViewInStream.h>
 
 
 WorldMaterial::WorldMaterial()
@@ -107,6 +113,9 @@ void WorldMaterial::appendDependencyURLs(int lod_level, std::vector<DependencyUR
 	if(!emission_texture_url.empty())
 		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(emission_texture_url, lod_level, /*has alpha=*/false)));
 
+	if(!normal_map_url.empty())
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, lod_level, /*has alpha=*/false)));
+
 	const int min_lod_level = this->minLODLevel();
 	roughness.			appendDependencyURLs(/*use sRGB=*/false, min_lod_level, lod_level, paths_out);
 	metallic_fraction.	appendDependencyURLs(/*use sRGB=*/false, min_lod_level, lod_level, paths_out);
@@ -132,6 +141,13 @@ void WorldMaterial::appendDependencyURLsAllLODLevels(std::vector<DependencyURL>&
 			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(emission_texture_url, i, /*has alpha=*/false)));
 	}
 
+	if(!normal_map_url.empty())
+	{
+		paths_out.push_back(DependencyURL(normal_map_url));
+		for(int i=min_lod_level+1; i <=2; ++i)
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, i, /*has alpha=*/false)));
+	}
+
 	roughness.			appendDependencyURLsAllLODLevels(/*use sRGB=*/false, min_lod_level, paths_out);
 	metallic_fraction.	appendDependencyURLsAllLODLevels(/*use sRGB=*/false, min_lod_level, paths_out);
 	opacity.			appendDependencyURLsAllLODLevels(/*use sRGB=*/false, min_lod_level, paths_out);
@@ -146,6 +162,9 @@ void WorldMaterial::appendDependencyURLsBaseLevel(std::vector<DependencyURL>& pa
 	if(!emission_texture_url.empty())
 		paths_out.push_back(DependencyURL(emission_texture_url));
 
+	if(!normal_map_url.empty())
+		paths_out.push_back(DependencyURL(normal_map_url));
+
 	roughness.			appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
 	metallic_fraction.	appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
 	opacity.			appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
@@ -159,6 +178,9 @@ void WorldMaterial::convertLocalPathsToURLS(ResourceManager& resource_manager)
 	
 	if(FileUtils::fileExists(this->emission_texture_url)) // If the URL is a local path:
 		this->emission_texture_url = resource_manager.URLForPathAndHash(this->emission_texture_url, FileChecksum::fileChecksum(this->emission_texture_url));
+	
+	if(FileUtils::fileExists(this->normal_map_url)) // If the URL is a local path:
+		this->normal_map_url = resource_manager.URLForPathAndHash(this->normal_map_url, FileChecksum::fileChecksum(this->normal_map_url));
 
 	roughness.convertLocalPathsToURLS(resource_manager);
 	metallic_fraction.convertLocalPathsToURLS(resource_manager);
@@ -278,6 +300,8 @@ Reference<WorldMaterial> WorldMaterial::loadFromXMLElem(const std::string& mat_f
 	if(convert_rel_paths_to_abs_disk_paths)
 		convertRelPathToAbsolute(mat_file_path, mat->metallic_fraction.texture_url);
 
+	mat->normal_map_url = XMLParseUtils::parseStringWithDefault(material_elem, "normal_map_url", "");
+
 	mat->opacity = parseScalarVal(material_elem, "opacity", ScalarVal(1.0f));
 	if(convert_rel_paths_to_abs_disk_paths)
 		convertRelPathToAbsolute(mat_file_path, mat->opacity.texture_url);
@@ -333,6 +357,8 @@ std::string WorldMaterial::serialiseToXML(int tab_depth) const
 
 	writeColour3fToXML(s, "emission_rgb", emission_rgb, tab_depth + 1);
 	writeStringElemToXML(s, "emission_texture_url", emission_texture_url, tab_depth + 1);
+	
+	writeStringElemToXML(s, "normal_map_url", normal_map_url, tab_depth + 1);
 
 	writeScalarValToXML(s, "roughness", roughness, tab_depth + 1);
 	writeScalarValToXML(s, "metallic_fraction", metallic_fraction, tab_depth + 1);
@@ -375,117 +401,167 @@ static Colour3f readColour3fFromStream(InStream& stream)
 }
 
 
-static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 7;
+static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 8;
 
 // v5: added emission_lum_flux
 // v6: added flags
 // v7: added emission_rgb, emission_texture_url
+// v8: added length prefix and normal_map_url
 
 
-void writeToStream(const WorldMaterial& mat, OutStream& stream)
+void writeWorldMaterialToStream(const WorldMaterial& mat, OutStream& stream_, glare::Allocator& temp_allocator)
 {
+	// Write to stream with a length prefix.  Do this by writing to a temporary buffer first, then writing the length of that buffer.
+	// Writing a length prefix allows for adding more fields later, while retaining backwards compatibility with older code that can just skip over the new fields.
+	BufferOutStream buffer;
+	buffer.buf.setAllocator(&temp_allocator);
+	buffer.buf.reserve(4096);
+
 	// Write version
-	stream.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
+	buffer.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
+	buffer.writeUInt32(0); // Size of buffer will be written here later
 
-	writeToStream(stream, mat.colour_rgb);
-	stream.writeStringLengthFirst(mat.colour_texture_url);
+	writeToStream(buffer, mat.colour_rgb);
+	buffer.writeStringLengthFirst(mat.colour_texture_url);
 
-	writeToStream(stream, mat.emission_rgb);
-	stream.writeStringLengthFirst(mat.emission_texture_url);
+	writeToStream(buffer, mat.emission_rgb);
+	buffer.writeStringLengthFirst(mat.emission_texture_url);
 
-	writeToStream(mat.roughness, stream);
-	writeToStream(mat.metallic_fraction, stream);
-	writeToStream(mat.opacity, stream);
+	writeScalarValToStream(mat.roughness, buffer);
+	writeScalarValToStream(mat.metallic_fraction, buffer);
+	writeScalarValToStream(mat.opacity, buffer);
 
-	writeToStream(mat.tex_matrix, stream);
+	writeToStream(mat.tex_matrix, buffer);
 
-	stream.writeFloat(mat.emission_lum_flux_or_lum);
+	buffer.writeFloat(mat.emission_lum_flux_or_lum);
 
-	stream.writeUInt32(mat.flags);
+	buffer.writeUInt32(mat.flags);
+
+	buffer.writeStringLengthFirst(mat.normal_map_url);
+
+
+	// Go back and write size of buffer to buffer size field
+	const uint32 buffer_size = (uint32)buffer.buf.size();
+	std::memcpy(buffer.buf.data() + sizeof(uint32), &buffer_size, sizeof(uint32));
+
+	// Write buffer to actual output stream
+	stream_.writeData(buffer.buf.data(), buffer.buf.size());
 }
 
 
-void readFromStream(InStream& stream, WorldMaterial& mat)
+void readWorldMaterialFromStream(InStream& stream, WorldMaterial& mat, glare::BumpAllocator& bump_allocator)
 {
 	// Read version
 	const uint32 v = stream.readUInt32();
-	if(v > WORLD_MATERIAL_SERIALISATION_VERSION)
-		throw glare::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".");
 
-	if(v == 1)
+	if(v >= 8) // If length-prefixed:
 	{
-		const uint32 id = stream.readUInt32();
-		switch(id)
-		{
-		case 200:
-		{
-			mat.colour_rgb.r = stream.readFloat();
-			mat.colour_rgb.g = stream.readFloat();
-			mat.colour_rgb.b = stream.readFloat();
-			break;
-		}
-		case 201:
-		{
-			mat.colour_texture_url = stream.readStringLengthFirst(10000);
-			break;
-		}
-		default:
-			throw glare::Exception("Invalid spectrum material value.");
-		};
-	}
-	else
-	{
-		mat.colour_rgb = readColour3fFromStream(stream);
-		try
-		{
-			mat.colour_texture_url = stream.readStringLengthFirst(20000);
-		}
-		catch(glare::Exception& e)
-		{
-			throw glare::Exception("Error while reading colour_texture_url: " + e.what());
-		}
-	}
+		const uint32 buffer_size = stream.readUInt32();
 
-	if(v >= 7)
-	{
-		mat.emission_rgb = readColour3fFromStream(stream);
-		mat.emission_texture_url = stream.readStringLengthFirst(20000);
-	}
+		checkProperty(buffer_size >= 8ul, "readWorldMaterialFromStream: buffer_size was too small");
+		checkProperty(buffer_size <= 65536ul, "readWorldMaterialFromStream: buffer_size was too large");
+
+		// Read rest of data to buffer
+		const uint32 remaining_buffer_size = buffer_size - sizeof(uint32)*2;
+
+		glare::BumpAllocation buffer(remaining_buffer_size, 16, bump_allocator); // Allocate buffer
 	
-	if(v <= 2)
-	{
-		readFromStreamOld(stream, mat.roughness);
-		readFromStreamOld(stream, mat.metallic_fraction);
-		readFromStreamOld(stream, mat.opacity);
+		stream.readData(buffer.ptr, remaining_buffer_size); // Read from stream to buffer
+
+		BufferViewInStream buffer_stream(ArrayRef<uint8>((uint8*)buffer.ptr, buffer.size)); // Create stream view on buffer
+
+		mat.colour_rgb = readColour3fFromStream(buffer_stream);
+		mat.colour_texture_url = buffer_stream.readStringLengthFirst(20000);
+		mat.emission_rgb = readColour3fFromStream(buffer_stream);
+		mat.emission_texture_url = buffer_stream.readStringLengthFirst(20000);
+		readScalarValFromStream(buffer_stream, mat.roughness);
+		readScalarValFromStream(buffer_stream, mat.metallic_fraction);
+		readScalarValFromStream(buffer_stream, mat.opacity);
+		mat.tex_matrix = readMatrix2FromStream<float>(buffer_stream);
+		mat.emission_lum_flux_or_lum = buffer_stream.readFloat();
+		mat.flags = buffer_stream.readUInt32();
+		mat.normal_map_url = buffer_stream.readStringLengthFirst(20000);
 	}
-	else
+	else // Else if we are reading older version before length-prefixing:
 	{
-		readFromStream(stream, mat.roughness);
-		readFromStream(stream, mat.metallic_fraction);
-		readFromStream(stream, mat.opacity);
+		if(v > WORLD_MATERIAL_SERIALISATION_VERSION)
+			throw glare::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".");
+
+		if(v == 1)
+		{
+			const uint32 id = stream.readUInt32();
+			switch(id)
+			{
+			case 200:
+			{
+				mat.colour_rgb.r = stream.readFloat();
+				mat.colour_rgb.g = stream.readFloat();
+				mat.colour_rgb.b = stream.readFloat();
+				break;
+			}
+			case 201:
+			{
+				mat.colour_texture_url = stream.readStringLengthFirst(10000);
+				break;
+			}
+			default:
+				throw glare::Exception("Invalid spectrum material value.");
+			};
+		}
+		else
+		{
+			mat.colour_rgb = readColour3fFromStream(stream);
+			try
+			{
+				mat.colour_texture_url = stream.readStringLengthFirst(20000);
+			}
+			catch(glare::Exception& e)
+			{
+				throw glare::Exception("Error while reading colour_texture_url: " + e.what());
+			}
+		}
+
+		if(v >= 7)
+		{
+			mat.emission_rgb = readColour3fFromStream(stream);
+			mat.emission_texture_url = stream.readStringLengthFirst(20000);
+		}
+	
+		if(v <= 2)
+		{
+			readScalarValFromStreamOld(stream, mat.roughness);
+			readScalarValFromStreamOld(stream, mat.metallic_fraction);
+			readScalarValFromStreamOld(stream, mat.opacity);
+		}
+		else
+		{
+			readScalarValFromStream(stream, mat.roughness);
+			readScalarValFromStream(stream, mat.metallic_fraction);
+			readScalarValFromStream(stream, mat.opacity);
+		}
+
+		if(v >= 4)
+			mat.tex_matrix = readMatrix2FromStream<float>(stream);
+		else
+			mat.tex_matrix = Matrix2f(1, 0, 0, -1); // Needed for existing object objects etc..
+
+		if(v >= 5)
+			mat.emission_lum_flux_or_lum = stream.readFloat();
+
+		if(v >= 6)
+			mat.flags = stream.readUInt32();
 	}
-
-	if(v >= 4)
-		mat.tex_matrix = readMatrix2FromStream<float>(stream);
-	else
-		mat.tex_matrix = Matrix2f(1, 0, 0, -1); // Needed for existing object objects etc..
-
-	if(v >= 5)
-		mat.emission_lum_flux_or_lum = stream.readFloat();
-
-	if(v >= 6)
-		mat.flags = stream.readUInt32();
 }
 
 
-void writeToStream(const ScalarVal& val, OutStream& stream)
+void writeScalarValToStream(const ScalarVal& val, OutStream& stream)
 {
 	stream.writeFloat(val.val);
 	stream.writeStringLengthFirst(val.texture_url);
 }
 
 
-void readFromStreamOld(InStream& stream, ScalarVal& ob)
+void readScalarValFromStreamOld(InStream& stream, ScalarVal& ob)
 {
 	const uint32 id = stream.readUInt32();
 	switch(id)
@@ -507,7 +583,7 @@ void readFromStreamOld(InStream& stream, ScalarVal& ob)
 }
 
 
-void readFromStream(InStream& stream, ScalarVal& ob)
+void readScalarValFromStream(InStream& stream, ScalarVal& ob)
 {
 	ob.val = stream.readFloat();
 	ob.texture_url = stream.readStringLengthFirst(10000);
@@ -521,6 +597,9 @@ void readFromStream(InStream& stream, ScalarVal& ob)
 #include <FileUtils.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
+#include <BufferOutStream.h>
+#include <Timer.h>
+#include <ArenaAllocator.h>
 
 
 static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_tex, bool expected_use_sRGB)
@@ -723,6 +802,11 @@ void WorldMaterial::test()
 		mat.roughness.texture_url = "sometex.png"; // roughness-metallic texture
 		doAppendDependencyURLsTestForMat(mat, /*is_colour_tex=*/false, /*expected_use_sRGB=*/false);
 	}
+	{
+		WorldMaterial mat;
+		mat.normal_map_url = "sometex.png";
+		doAppendDependencyURLsTestForMat(mat, /*is_colour_tex=*/false, /*expected_use_sRGB=*/false);
+	}
 
 
 
@@ -747,6 +831,95 @@ void WorldMaterial::test()
 		urls.clear();
 		mat.appendDependencyURLs(/*lod level=*/2, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.jpg");
+	}
+
+
+	// Perf test
+	{
+		int iters = 1000;
+		WorldMaterial mat;
+		mat.colour_texture_url = "sometex.png";
+		mat.metallic_fraction.texture_url = "othertex.jpg";
+
+		/*{
+			BufferOutStream buf;
+
+			Timer timer;
+			for(int i=0; i<iters; ++i)
+			{
+				buf.buf.resize(0);
+				writeWorldMaterialToStream(mat, buf);
+			}
+			double time_per_iter = timer.elapsed() / iters;
+			conPrint("writeToStream time_per_iter: " + doubleToStringNSigFigs(time_per_iter * 1.0e9, 4) + " ns");
+		}*/
+
+		{
+			Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+			BufferOutStream buf;
+			//buf.buf.setAllocator(arena_allocator);
+
+			Timer timer;
+			for(int i=0; i<iters; ++i)
+			{
+				buf.buf.resize(0);
+				writeWorldMaterialToStream(mat, buf, *arena_allocator);
+
+				arena_allocator->clear();
+			}
+			double time_per_iter = timer.elapsed() / iters;
+			conPrint("writeWorldMaterialToStream length prefixed time_per_iter: " + doubleToStringNSigFigs(time_per_iter * 1.0e9, 4) + " ns");
+		}
+
+
+		{
+			Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+			BufferOutStream buf;
+			writeWorldMaterialToStream(mat, buf, *arena_allocator);
+
+			BufferInStream instreambuf;
+			instreambuf.buf.resize(buf.buf.size());
+			BitUtils::checkedMemcpy(instreambuf.buf.data(), buf.buf.data(), buf.buf.size());
+
+			glare::BumpAllocator bump_allocator(1024 * 1024);
+
+			Timer timer;
+			for(int i=0; i<iters; ++i)
+			{
+				instreambuf.setReadIndex(0);
+
+				WorldMaterial mat2;
+				readWorldMaterialFromStream(instreambuf, mat2, bump_allocator);
+
+				testAssert(mat2.colour_texture_url == mat.colour_texture_url);
+			}
+			double time_per_iter = timer.elapsed() / iters;
+			conPrint("readWorldMaterialFromStream time_per_iter: " + doubleToStringNSigFigs(time_per_iter * 1.0e9, 4) + " ns");
+		}
+		/*{
+			Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+
+			BufferOutStream buf;
+			writeWorldMaterialToStreamLengthPrefixed(mat, buf, *arena_allocator);
+
+			BufferInStream instreambuf;
+			instreambuf.buf.resize(buf.buf.size());
+			BitUtils::checkedMemcpy(instreambuf.buf.data(), buf.buf.data(), buf.buf.size());
+
+			glare::BumpAllocator bump_allocator(1024 * 1024);
+			Timer timer;
+			for(int i=0; i<iters; ++i)
+			{
+				instreambuf.setReadIndex(0);
+
+				WorldMaterial mat2;
+				readFromStreamLengthPrefixed(instreambuf, mat2, bump_allocator);
+
+				testAssert(mat2.colour_texture_url == mat.colour_texture_url);
+			}
+			double time_per_iter = timer.elapsed() / iters;
+			conPrint("readFromStreamLenPrefix time_per_iter: " + doubleToStringNSigFigs(time_per_iter * 1.0e9, 4) + " ns");
+		}*/
 	}
 
 

@@ -417,7 +417,7 @@ Version history:
 static_assert(sizeof(Voxel) == sizeof(int)*4, "sizeof(Voxel) == sizeof(int)*4");
 
 
-void WorldObject::writeToStream(OutStream& stream) const
+void WorldObject::writeToStream(OutStream& stream, glare::Allocator& temp_allocator) const
 {
 	// Write version
 	stream.writeUInt32(WORLD_OBJECT_SERIALISATION_VERSION);
@@ -429,7 +429,7 @@ void WorldObject::writeToStream(OutStream& stream) const
 	// Write materials
 	stream.writeUInt32((uint32)materials.size());
 	for(size_t i=0; i<materials.size(); ++i)
-		::writeToStream(*materials[i], stream);
+		::writeWorldMaterialToStream(*materials[i], stream, temp_allocator);
 
 	stream.writeStringLengthFirst(lightmap_url); // new in v13
 
@@ -471,7 +471,7 @@ void WorldObject::writeToStream(OutStream& stream) const
 }
 
 
-void readFromStream(InStream& stream, WorldObject& ob)
+void readFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator)
 {
 	// Read version
 	const uint32 v = stream.readUInt32();
@@ -494,7 +494,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		{
 			if(ob.materials[i].isNull())
 				ob.materials[i] = new WorldMaterial();
-			::readFromStream(stream, *ob.materials[i]);
+			::readWorldMaterialFromStream(stream, *ob.materials[i], bump_allocator);
 		}
 	}
 
@@ -631,7 +631,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 }
 
 
-void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without version
+void WorldObject::writeToNetworkStream(OutStream& stream, glare::Allocator& temp_allocator) const // Write without version
 {
 	::writeToStream(uid, stream);
 	stream.writeUInt32((uint32)object_type);
@@ -640,7 +640,7 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 	// Write materials
 	stream.writeUInt32((uint32)materials.size());
 	for(size_t i=0; i<materials.size(); ++i)
-		::writeToStream(*materials[i], stream);
+		::writeWorldMaterialToStream(*materials[i], stream, temp_allocator);
 
 	stream.writeStringLengthFirst(lightmap_url); // new in v13
 
@@ -735,7 +735,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 }
 
 
-void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID will have been read already
+void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator) // UID will have been read already
 {
 	// NOTE: The data in here needs to match that in copyNetworkStateFrom()
 
@@ -752,7 +752,7 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 		{
 			if(ob.materials[i].isNull())
 				ob.materials[i] = new WorldMaterial();
-			readFromStream(stream, *ob.materials[i]);
+			readWorldMaterialFromStream(stream, *ob.materials[i], bump_allocator);
 		}
 	}
 

@@ -32,6 +32,7 @@ struct GLLight;
 class PhysicsObject;
 namespace glare { class AudioSource; }
 namespace glare { class PoolAllocator; }
+namespace glare { class BumpAllocator; }
 namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
@@ -202,8 +203,8 @@ public:
 	//void getCompressedVoxels() const { return compressed_voxels; }
 
 
-	void writeToStream(OutStream& stream) const;
-	void writeToNetworkStream(OutStream& stream) const; // Write without version
+	void writeToStream(OutStream& stream, glare::Allocator& temp_allocator) const;
+	void writeToNetworkStream(OutStream& stream, glare::Allocator& temp_allocator) const; // Write without version
 
 	void copyNetworkStateFrom(const WorldObject& other);
 
@@ -484,8 +485,8 @@ void WorldObject::setDynamic(bool c)
 }
 
 
-void readFromStream(InStream& stream, WorldObject& ob);
-void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID will have been read already
+void readFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator);
+void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator); // UID will have been read already
 
 
 const Matrix4f obToWorldMatrix(const WorldObject& ob);

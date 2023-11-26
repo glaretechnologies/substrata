@@ -75,6 +75,9 @@ void UploadResourceThread::doRun()
 		else
 			throw glare::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
+		// Read server protocol version
+		/*const uint32 server_protocol_version =*/ socket->readUInt32();
+
 		// Send login details
 		socket->writeStringLengthFirst(username);
 		socket->writeStringLengthFirst(password);

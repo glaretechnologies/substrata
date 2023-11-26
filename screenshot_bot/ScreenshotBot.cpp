@@ -107,6 +107,8 @@ int main(int argc, char* argv[])
 				else
 					throw glare::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
+				// Read server protocol version
+				/*const uint32 server_protocol_version =*/ socket->readUInt32();
 
 				glare::Process* process = NULL;
 				MySocketRef to_gui_socket;

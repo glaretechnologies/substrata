@@ -418,6 +418,9 @@ void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& 
 
 		if(!mat->emission_texture_url.empty())
 			generateLODTexturesForTexURL(mat->emission_texture_url, /*texture_has_alpha=*/false, mat, resource_manager, task_manager);
+
+		if(!mat->normal_map_url.empty())
+			generateLODTexturesForTexURL(mat->normal_map_url, /*texture_has_alpha=*/false, mat, resource_manager, task_manager);
 	}
 }
 

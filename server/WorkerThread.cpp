@@ -43,6 +43,8 @@ Copyright Glare Technologies Limited 2018 -
 #include <algorithm>
 #include <RuntimeCheck.h>
 #include <Timer.h>
+#include <BumpAllocator.h>
+#include <ArenaAllocator.h>
 
 
 static const bool VERBOSE = false;
@@ -773,6 +775,8 @@ void WorkerThread::doRun()
 	if(CAPTURE_TRACES)
 		socket.downcastToPtr<RecordingSocket>()->clearRecordBuf();
 
+	glare::BumpAllocator bump_allocator(1024 * 1024);
+	Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
 
 	ServerAllWorldsState* world_state = server->world_state.getPointer();
 
@@ -798,7 +802,7 @@ void WorkerThread::doRun()
 		// Read protocol version
 		const uint32 client_protocol_version = socket->readUInt32();
 		conPrintIfNotFuzzing("client protocol version: " + toString(client_protocol_version));
-		if(client_protocol_version < 37) // We can't handle protocol versions < 37
+		if(client_protocol_version < 38) // We can't handle protocol versions < 38
 		{
 			socket->writeUInt32(Protocol::ClientProtocolTooOld);
 			socket->writeStringLengthFirst("Sorry, your Substrata client is too old. Please download and install an updated client from https://substrata.info/.");
@@ -816,6 +820,8 @@ void WorkerThread::doRun()
 		{
 			socket->writeUInt32(Protocol::ClientProtocolOK);
 		}
+
+		socket->writeUInt32(Protocol::CyberspaceProtocolVersion);
 
 		const uint32 connection_type = socket->readUInt32();
 	
@@ -888,7 +894,8 @@ void WorkerThread::doRun()
 				MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 				writeToStream(client_user_id, scratch_packet);
 				scratch_packet.writeStringLengthFirst(client_user_name);
-				writeToStream(client_user_avatar_settings, scratch_packet);
+				writeToStream(client_user_avatar_settings, scratch_packet, *arena_allocator);
+				arena_allocator->clear();
 				scratch_packet.writeUInt32(client_user_flags);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
@@ -943,7 +950,8 @@ void WorkerThread::doRun()
 
 						// Write AvatarIsHere message
 						MessageUtils::initPacket(scratch_packet, Protocol::AvatarIsHere);
-						writeToNetworkStream(*avatar, scratch_packet);
+						writeToNetworkStream(*avatar, scratch_packet, *arena_allocator);
+						arena_allocator->clear();
 						MessageUtils::updatePacketLengthField(scratch_packet);
 
 						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1186,7 +1194,7 @@ void WorkerThread::doRun()
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 							Avatar temp_avatar;
-							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar, bump_allocator); // Read message data before grabbing lock
 
 							// Look up existing avatar in world state
 							{
@@ -1243,7 +1251,7 @@ void WorkerThread::doRun()
 						
 							Avatar temp_avatar;
 							temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
-							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar, bump_allocator); // Read message data before grabbing lock
 
 							temp_avatar.name = client_user_id.valid() ? client_user_name : "Anonymous";
 
@@ -1537,7 +1545,7 @@ void WorkerThread::doRun()
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
 							WorldObject temp_ob;
-							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, temp_ob); // Read rest of ObjectFullUpdate message.
+							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, temp_ob, bump_allocator); // Read rest of ObjectFullUpdate message.
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -1724,7 +1732,7 @@ void WorkerThread::doRun()
 
 							WorldObjectRef new_ob = new WorldObject();
 							new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
-							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *new_ob);
+							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *new_ob, bump_allocator);
 
 							conPrintIfNotFuzzing("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 
@@ -1832,7 +1840,8 @@ void WorkerThread::doRun()
 
 									// Build ObjectInitialSend message
 									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-									ob->writeToNetworkStream(scratch_packet);
+									ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+									arena_allocator->clear();
 									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1904,7 +1913,8 @@ void WorkerThread::doRun()
 									{
 										// Send ObjectInitialSend packet
 										MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-										ob->writeToNetworkStream(scratch_packet);
+										ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+										arena_allocator->clear();
 										MessageUtils::updatePacketLengthField(scratch_packet);
 
 										packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
@@ -1996,7 +2006,8 @@ void WorkerThread::doRun()
 
 									// Create ObjectInitialSend packet
 									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-									ob->writeToNetworkStream(scratch_packet);
+									ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+									arena_allocator->clear();
 									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with ObjectInitialSend message to packet.
@@ -2200,7 +2211,8 @@ void WorkerThread::doRun()
 								MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 								writeToStream(client_user_id, scratch_packet);
 								scratch_packet.writeStringLengthFirst(username);
-								writeToStream(client_user_avatar_settings, scratch_packet);
+								writeToStream(client_user_avatar_settings, scratch_packet, *arena_allocator);
+								arena_allocator->clear();
 								scratch_packet.writeUInt32(client_user_flags);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 

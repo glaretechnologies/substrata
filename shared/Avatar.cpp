@@ -332,20 +332,20 @@ bool AvatarSettings::operator == (const AvatarSettings& other) const
 }
 
 
-void writeToStream(const AvatarSettings& settings, OutStream& stream)
+void writeToStream(const AvatarSettings& settings, OutStream& stream, glare::Allocator& temp_allocator)
 {
 	stream.writeStringLengthFirst(settings.model_url);
 
 	// Write materials
 	stream.writeUInt32((uint32)settings.materials.size());
 	for(size_t i=0; i<settings.materials.size(); ++i)
-		::writeToStream(*settings.materials[i], stream);
+		::writeWorldMaterialToStream(*settings.materials[i], stream, temp_allocator);
 
 	stream.writeData(settings.pre_ob_to_world_matrix.e, sizeof(float)*16);
 }
 
 
-void readFromStream(InStream& stream, AvatarSettings& settings)
+void readFromStream(InStream& stream, AvatarSettings& settings, glare::BumpAllocator& bump_allocator)
 {
 	settings.model_url	= stream.readStringLengthFirst(10000);
 
@@ -360,7 +360,7 @@ void readFromStream(InStream& stream, AvatarSettings& settings)
 		{
 			if(settings.materials[i].isNull())
 				settings.materials[i] = new WorldMaterial();
-			readFromStream(stream, *settings.materials[i]);
+			readWorldMaterialFromStream(stream, *settings.materials[i], bump_allocator);
 		}
 	}
 
@@ -369,20 +369,20 @@ void readFromStream(InStream& stream, AvatarSettings& settings)
 
 
 
-void writeToNetworkStream(const Avatar& avatar, OutStream& stream) // Write without version
+void writeToNetworkStream(const Avatar& avatar, OutStream& stream, glare::Allocator& temp_allocator) // Write without version
 {
 	writeToStream(avatar.uid, stream);
 	stream.writeStringLengthFirst(avatar.name);
 	writeToStream(avatar.pos, stream);
 	writeToStream(avatar.rotation, stream);
-	writeToStream(avatar.avatar_settings, stream);
+	writeToStream(avatar.avatar_settings, stream, temp_allocator);
 }
 
 
-void readFromNetworkStreamGivenUID(InStream& stream, Avatar& avatar) // UID will have been read already
+void readFromNetworkStreamGivenUID(InStream& stream, Avatar& avatar, glare::BumpAllocator& bump_allocator) // UID will have been read already
 {
 	avatar.name			= stream.readStringLengthFirst(10000);
 	avatar.pos			= readVec3FromStream<double>(stream);
 	avatar.rotation		= readVec3FromStream<float>(stream);
-	readFromStream(stream, avatar.avatar_settings);
+	readFromStream(stream, avatar.avatar_settings, bump_allocator);
 }

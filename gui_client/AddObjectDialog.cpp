@@ -308,6 +308,24 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 				world_materials[i]->emission_texture_url = ""; // Clear texture in WorldMaterial
 			}
 		}
+
+		const std::string normal_map_path = preview_gl_ob->materials[i].normal_map_path;
+		if(!normal_map_path.empty() && !hasExtension(normal_map_path, "mp4"))
+		{
+			try
+			{
+				TextureParams params;
+				params.use_sRGB = false;
+				preview_gl_ob->materials[i].normal_map = opengl_engine->getTexture(normal_map_path, params);
+			}
+			catch(glare::Exception& e)
+			{
+				QtUtils::showErrorMessageDialog(QtUtils::toQString("Error while loading model texture: '" + normal_map_path + "': " + e.what() +
+					"\nLoading will continue without this texture"), parent_widget);
+
+				world_materials[i]->normal_map_url = ""; // Clear texture in WorldMaterial
+			}
+		}
 	}
 }
 

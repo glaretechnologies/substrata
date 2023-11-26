@@ -344,6 +344,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 			URLs.push_back(mat->colour_texture_url);
 			URLs.push_back(mat->emission_texture_url);
 			URLs.push_back(mat->roughness.texture_url);
+			URLs.push_back(mat->normal_map_url);
 
 			for(size_t q=0; q<URLs.size(); ++q)
 			{
@@ -404,6 +405,7 @@ static void checkForKTXTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 			URLs.push_back(mat->colour_texture_url);
 			URLs.push_back(mat->emission_texture_url);
 			URLs.push_back(mat->roughness.texture_url);
+			URLs.push_back(mat->normal_map_url);
 
 			for(size_t q=0; q<URLs.size(); ++q)
 			{

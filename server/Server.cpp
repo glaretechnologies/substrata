@@ -46,6 +46,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/SocketBufferOutStream.h>
 #include <utils/OpenSSL.h>
 #include <tls.h>
+#include <ArenaAllocator.h>
 
 
 static bool isParcelInCurrentAuction(ServerAllWorldsState& world_state, const Parcel* parcel, TimeStamp now) REQUIRES(world_state.mutex)
@@ -676,6 +677,8 @@ int main(int argc, char *argv[])
 		// A map from world name to a vector of packets to send to clients connected to that world.
 		std::map<std::string, std::vector<std::string>> broadcast_packets;
 
+		Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+
 		// Main server loop
 		uint64 loop_iter = 0;
 		while(1)
@@ -704,7 +707,8 @@ int main(int argc, char *argv[])
 							{
 								// Send AvatarFullUpdate packet
 								MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-								writeToNetworkStream(*avatar, scratch_packet);
+								writeToNetworkStream(*avatar, scratch_packet, *arena_allocator);
+								arena_allocator->clear();
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -716,7 +720,8 @@ int main(int argc, char *argv[])
 							{
 								// Send AvatarCreated packet
 								MessageUtils::initPacket(scratch_packet, Protocol::AvatarCreated);
-								writeToNetworkStream(*avatar, scratch_packet);
+								writeToNetworkStream(*avatar, scratch_packet, *arena_allocator);
+								arena_allocator->clear();
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -782,7 +787,8 @@ int main(int argc, char *argv[])
 							{
 								// Send ObjectFullUpdate packet
 								MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
-								ob->writeToNetworkStream(scratch_packet);
+								ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+								arena_allocator->clear();
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -794,7 +800,8 @@ int main(int argc, char *argv[])
 							{
 								// Send ObjectCreated packet
 								MessageUtils::initPacket(scratch_packet, Protocol::ObjectCreated);
-								ob->writeToNetworkStream(scratch_packet);
+								ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+								arena_allocator->clear();
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 

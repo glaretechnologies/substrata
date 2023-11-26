@@ -247,6 +247,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	main_timer_id(0),
 	bump_allocator(/*size (B)=*/16 * 1024 * 1024)
 {
+	arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	this->world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
@@ -984,7 +986,8 @@ static inline bool isValidLightMapURL(const std::string& URL)
 }
 
 
-void MainWindow::startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
+void MainWindow::startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, 
+	const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression)
 {
 	if(isValidImageTextureURL(texture_url))
 	{
@@ -1000,7 +1003,7 @@ void MainWindow::startLoadingTextureForObject(const Vec4f& centroid_ws, float aa
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
 					load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB, /*allow compression=*/true, /*is_terrain_map=*/false), 
+						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB, /*allow compression=*/allow_compression, /*is_terrain_map=*/false), 
 						max_dist_for_ob_lod_level, importance_factor);
 			}
 		}
@@ -1013,9 +1016,10 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
 	}
 
 	// Start loading lightmap
@@ -1047,9 +1051,10 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_leve
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
 	}
 }
 
@@ -1357,6 +1362,25 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			}
 		}
 
+		if(isNonEmptyAndNotMp4(opengl_mat.normal_map_path))
+		{
+			try
+			{
+				const OpenGLTexture* prev_tex = opengl_mat.normal_map.ptr();
+
+				opengl_mat.normal_map = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.normal_map_path));
+				if(opengl_mat.normal_map.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+					opengl_mat.normal_map = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->normal_map_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+
+				if(opengl_mat.normal_map.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
+			}
+		}
+
 		if(isValidLightMapURL(opengl_mat.lightmap_path))
 		{
 			try
@@ -1442,6 +1466,25 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
 
 				if(opengl_mat.metallic_roughness_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
+			}
+		}
+
+		if(isNonEmptyAndNotMp4(opengl_mat.normal_map_path))
+		{
+			try
+			{
+				const OpenGLTexture* prev_tex = opengl_mat.normal_map.ptr();
+
+				opengl_mat.normal_map = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.normal_map_path));
+				if(opengl_mat.normal_map.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+					opengl_mat.normal_map = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->normal_map_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+
+				if(opengl_mat.normal_map.ptr() != prev_tex)
 					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
@@ -5577,7 +5620,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				{
 					// Enqueue ObjectFullUpdate
 					MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
-					world_ob->writeToNetworkStream(scratch_packet);
+					world_ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+					arena_allocator->clear();
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -6600,7 +6644,8 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 					avatar.uid = this->client_avatar_uid;
 					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 					avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-					writeToNetworkStream(avatar, scratch_packet);
+					writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
+					arena_allocator->clear();
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
@@ -6886,7 +6931,8 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = m->username;
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet);
+				writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
+				arena_allocator->clear();
 				
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -6910,7 +6956,8 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = "Anonymous";
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet);
+				writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
+				arena_allocator->clear();
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -6937,7 +6984,8 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = m->username;
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet);
+				writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
+				arena_allocator->clear();
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -7996,7 +8044,8 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 			// Send AvatarFullUpdate message to server
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-			writeToNetworkStream(avatar, scratch_packet);
+			writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
+			arena_allocator->clear();
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -8357,7 +8406,8 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+		arena_allocator->clear();
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8466,7 +8516,8 @@ void MainWindow::on_actionAddHypercard_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+		arena_allocator->clear();
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8517,7 +8568,8 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+		arena_allocator->clear();
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8568,7 +8620,8 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+		arena_allocator->clear();
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8652,7 +8705,8 @@ void MainWindow::on_actionAdd_Video_triggered()
 			// Send CreateObject message to server
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(scratch_packet);
+				new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+				arena_allocator->clear();
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -8753,7 +8807,8 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			// Send CreateObject message to server
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(scratch_packet);
+				new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+				arena_allocator->clear();
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -8805,7 +8860,8 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+		arena_allocator->clear();
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8831,7 +8887,8 @@ void MainWindow::on_actionCopy_Object_triggered()
 		QMimeData* mime_data = new QMimeData();
 
 		BufferOutStream temp_buf;
-		this->selected_ob->writeToStream(temp_buf);
+		this->selected_ob->writeToStream(temp_buf, *arena_allocator);
+		arena_allocator->clear();
 
 		mime_data->setData(/*mime-type:*/"x-substrata-object-binary", QByteArray((const char*)temp_buf.buf.data(), (int)temp_buf.buf.size()));
 		clipboard->setMimeData(mime_data);
@@ -8962,7 +9019,8 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 
 	// Send CreateObject message to server
 	MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-	new_world_object->writeToNetworkStream(scratch_packet);
+	new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+	arena_allocator->clear();
 	enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 	showInfoNotification("Object created.");
@@ -9041,7 +9099,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 				{
 					// Deserialise object
 					WorldObjectRef pasted_ob = new WorldObject();
-					readFromStream(in_stream_buf, *pasted_ob);
+					readFromStream(in_stream_buf, *pasted_ob, bump_allocator);
 
 					// Choose a position for the pasted object.
 					Vec3d new_ob_pos;
@@ -9094,7 +9152,8 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					// Note that the recreated object will have a different ID than in the clipboard.
 					{
 						MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-						pasted_ob->writeToNetworkStream(scratch_packet);
+						pasted_ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+						arena_allocator->clear();
 
 						enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -9192,7 +9251,8 @@ void MainWindow::on_actionCloneObject_triggered()
 		// Send CreateObject message to server
 		{
 			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(scratch_packet);
+			new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+			arena_allocator->clear();
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
@@ -9878,7 +9938,8 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 				// To apply more undo edits to the recreated object, use recreated_ob_uid to map from edit UID to recreated object UID.
 				{
 					MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-					restored_ob->writeToNetworkStream(scratch_packet);
+					restored_ob->writeToNetworkStream(scratch_packet, *arena_allocator);
+					arena_allocator->clear();
 
 					this->last_restored_ob_uid_in_edit = restored_ob->uid; // Store edit UID, will be used when receiving new object to add entry to recreated_ob_uid map.
 
@@ -9896,7 +9957,7 @@ void MainWindow::on_actionUndo_triggered()
 {
 	try
 	{
-		WorldObjectRef ob = undo_buffer.getUndoWorldObject();
+		WorldObjectRef ob = undo_buffer.getUndoWorldObject(bump_allocator);
 		applyUndoOrRedoObject(ob);
 	}
 	catch(glare::Exception& e)
@@ -9910,7 +9971,7 @@ void MainWindow::on_actionRedo_triggered()
 {
 	try
 	{
-		WorldObjectRef ob = undo_buffer.getRedoWorldObject();
+		WorldObjectRef ob = undo_buffer.getRedoWorldObject(bump_allocator);
 		applyUndoOrRedoObject(ob);
 	}
 	catch(glare::Exception& e)
@@ -10169,7 +10230,8 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		// Send CreateObject message to server
 		{
 			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(scratch_packet);
+			new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+			arena_allocator->clear();
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
@@ -10302,7 +10364,8 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 		// Send CreateObject message to server
 		{
 			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(scratch_packet);
+			new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
+			arena_allocator->clear();
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
@@ -13102,11 +13165,14 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		
 			particle.area = 0.01; // 0.000001f;
 
-			particle.colour = Colour3f(0.25, 0.25, 0.25);
+			particle.colour = Colour3f(0.75f);
 
-			particle.particle_type = Particle::ParticleType_Foam;
+			particle.particle_type = Particle::ParticleType_Smoke;
 
+			particle.dwidth_dt = 0;
 			particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+
+			particle.dopacity_dt = 0;//-0.01f;
 
 			particle_manager->addParticle(particle);
 		}

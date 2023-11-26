@@ -19,6 +19,8 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Database.h>
 #include <BufferOutStream.h>
 #include <BufferInStream.h>
+#include <BumpAllocator.h>
+#include <ArenaAllocator.h>
 
 
 ServerAllWorldsState::ServerAllWorldsState()
@@ -100,6 +102,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 	Lock lock(mutex);
 
+	glare::BumpAllocator bump_allocator(1024 * 1024);
+
 	Timer timer;
 
 	size_t num_obs = 0;
@@ -156,7 +160,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					// Deserialise object
 					WorldObjectRef world_ob = new WorldObject();
-					readFromStream(stream, *world_ob);
+					readFromStream(stream, *world_ob, bump_allocator);
 
 					//TEMP HACK: clear lightmap needed flag
 					BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
@@ -171,7 +175,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				{
 					// Deserialise user
 					UserRef user = new User();
-					readFromStream(stream, *user);
+					readFromStream(stream, *user, bump_allocator);
 
 					user->database_key = database_key;
 					user_id_to_users[user->id] = user; // Add to user map
@@ -379,7 +383,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				// Deserialise object
 				WorldObjectRef world_ob = new WorldObject();
-				readFromStream(stream, *world_ob);
+				readFromStream(stream, *world_ob, bump_allocator);
 
 				//TEMP HACK: clear lightmap needed flag
 				BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
@@ -393,7 +397,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				// Deserialise user
 				UserRef user = new User();
-				readFromStream(stream, *user);
+				readFromStream(stream, *user, bump_allocator);
 
 				user_id_to_users[user->id] = user; // Add to user map
 				name_to_users[user->name] = user; // Add to user map
@@ -837,6 +841,7 @@ void ServerAllWorldsState::serialiseToDisk()
 
 		
 		BufferOutStream temp_buf;
+		Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
 
 		// Iterate over all objects, if they are dirty, write to the DB
 
@@ -854,12 +859,13 @@ void ServerAllWorldsState::serialiseToDisk()
 					temp_buf.clear();
 					temp_buf.writeUInt32(WORLD_OBJECT_CHUNK);
 					temp_buf.writeStringLengthFirst(world_name); // Write world name
-					ob->writeToStream(temp_buf); // Write object
+					ob->writeToStream(temp_buf, *arena_allocator); // Write object
+					arena_allocator->clear();
 
 					if(!ob->database_key.valid())
 						ob->database_key = database.allocUnusedKey(); // Get a new key
 
-					database.updateRecord(ob->database_key, temp_buf.buf);
+					database.updateRecord(ob->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 					num_obs++;
 				}
@@ -880,7 +886,7 @@ void ServerAllWorldsState::serialiseToDisk()
 					if(!parcel->database_key.valid())
 						parcel->database_key = database.allocUnusedKey(); // Get a new key
 
-					database.updateRecord(parcel->database_key, temp_buf.buf);
+					database.updateRecord(parcel->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 					num_parcels++;
 				}
@@ -899,7 +905,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				if(!world_state->world_settings.database_key.valid())
 					world_state->world_settings.database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(world_state->world_settings.database_key, temp_buf.buf);
+				database.updateRecord(world_state->world_settings.database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				world_state->world_settings.db_dirty = false;
 
@@ -914,12 +920,13 @@ void ServerAllWorldsState::serialiseToDisk()
 				User* user = it->ptr();
 				temp_buf.clear();
 				temp_buf.writeUInt32(USER_CHUNK);
-				writeToStream(*user, temp_buf);
+				writeToStream(*user, temp_buf, *arena_allocator);
+				arena_allocator->clear();
 
 				if(!user->database_key.valid())
 					user->database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(user->database_key, temp_buf.buf);
+				database.updateRecord(user->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				num_users++;
 			}
@@ -939,7 +946,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				if(!resource->database_key.valid())
 					resource->database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(resource->database_key, temp_buf.buf);
+				database.updateRecord(resource->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				num_resources++;
 			}
@@ -959,7 +966,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				if(!order->database_key.valid())
 					order->database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(order->database_key, temp_buf.buf);
+				database.updateRecord(order->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				num_orders++;
 			}
@@ -979,7 +986,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				if(!session->database_key.valid())
 					session->database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(session->database_key, temp_buf.buf);
+				database.updateRecord(session->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				num_sessions++;
 			}
@@ -999,7 +1006,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				if(!auction->database_key.valid())
 					auction->database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(auction->database_key, temp_buf.buf);
+				database.updateRecord(auction->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				num_auctions++;
 			}
@@ -1019,7 +1026,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				if(!shot->database_key.valid())
 					shot->database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(shot->database_key, temp_buf.buf);
+				database.updateRecord(shot->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				num_screenshots++;
 			}
@@ -1039,7 +1046,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				if(!trans->database_key.valid())
 					trans->database_key = database.allocUnusedKey(); // Get a new key
 
-				database.updateRecord(trans->database_key, temp_buf.buf);
+				database.updateRecord(trans->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 				num_sub_eth_transactions++;
 			}
@@ -1075,7 +1082,7 @@ void ServerAllWorldsState::serialiseToDisk()
 			if(!map_tile_info.database_key.valid())
 				map_tile_info.database_key = database.allocUnusedKey(); // Get a new key
 
-			database.updateRecord(map_tile_info.database_key, temp_buf.buf);
+			database.updateRecord(map_tile_info.database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 			map_tile_info.db_dirty = false;
 
@@ -1095,7 +1102,7 @@ void ServerAllWorldsState::serialiseToDisk()
 			if(!last_parcel_update_info.database_key.valid())
 				last_parcel_update_info.database_key = database.allocUnusedKey(); // Get a new key
 
-			database.updateRecord(last_parcel_update_info.database_key, temp_buf.buf);
+			database.updateRecord(last_parcel_update_info.database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 			last_parcel_update_info.db_dirty = false;
 		}
@@ -1111,7 +1118,7 @@ void ServerAllWorldsState::serialiseToDisk()
 			if(!eth_info.database_key.valid())
 				eth_info.database_key = database.allocUnusedKey(); // Get a new key
 
-			database.updateRecord(eth_info.database_key, temp_buf.buf);
+			database.updateRecord(eth_info.database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 			eth_info.db_dirty = false;
 		}
