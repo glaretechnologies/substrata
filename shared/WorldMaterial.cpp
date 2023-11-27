@@ -19,7 +19,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <BufferViewInStream.h>
 #include <RuntimeCheck.h>
 #include <BumpAllocator.h>
-#include <FixedLengthViewInStream.h>
 
 
 WorldMaterial::WorldMaterial()
