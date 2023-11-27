@@ -266,12 +266,15 @@ SET(audio
 
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver)
 
-SET(doc_files
-)
 
-if(ENABLE_GLARE_PARCEL_AUCTION_CODE)
-	FILE(GLOB doc_files 
-	"${SUBSTRATA_PRIVATE_REPO_PATH}/docs/*.*" 
+#===================================== Docs =====================================
+
+FILE(GLOB doc_files "../docs/*.txt")
+if(NOT SUBSTRATA_PRIVATE_REPO_PATH STREQUAL "")
+	FILE(GLOB private_docs "${SUBSTRATA_PRIVATE_REPO_PATH}/docs/*.txt")
+	SET(doc_files
+		${doc_files}
+		${private_docs}
 	)
 endif()
 
