@@ -1,0 +1,59 @@
+Fuzzing code in Substrata
+=========================
+
+Instructions for fuzzing on Windows, in Visual Studio
+-----------------------------------------------------
+
+Create solution with CMake with fuzzing enabled, for example:
+
+cmake N:\substrata\trunk -DFUZZING=ON
+
+
+Step 1: Enable fuzzing entry-point code
+------------------------------------------
+
+For example, in FormatDecoderGLTF.cpp,
+
+Change 
+#if 0
+to
+#if 1
+above
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+
+
+Step 1: Enable fuzzing build settings
+-------------------------------------
+This has to be done manually due to what appears to be a bug in visual studio (or cmake): we specify /fsanitize=address etc. in cmake but it doesn't enable
+the settings properly in Visual studio
+ 
+project properties -> C++ -> General 
+Set
+Enable Address Sanitizer to 
+
+Yes (/fsanitize=address)
+and
+Enable Fuzzer Support (Experimental)
+to
+
+Yes (/fsanitize=fuzzer)
+
+
+Step 3: Pass in fuzz corpus dir as command line
+-----------------------------------------------
+For example, if fuzzing the GLTF loader, pass
+
+C:\fuzz_corpus\glb -max_len=1000000
+
+on the command line.  This directory is where all the generated fuzz examples will be placed.
+
+max_len overrides the default max len of 4096 which is too small
+
+
+To use the same RNG seed:
+
+ -seed=1
+ 
+To run parallel fuzzing:
+
+-jobs=16

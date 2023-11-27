@@ -667,7 +667,9 @@ if(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
 	
-	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/ZI") # ZI = Set debug info format to 'Program Database for Edit & Continue'  for debug builds.
+	if(NOT FUZZING)
+		SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/ZI") # ZI = Set debug info format to 'Program Database for Edit & Continue'  for debug builds.
+	endif()
 	# It slows down the code too much to use for RelWithDebInfo builds.
 	
 	# Enable Tracy profiler for RELEASE and RELWITHDEBINFO configs.  Can't enable for Debug config because it clashes with Edit & Continue (/ZI).

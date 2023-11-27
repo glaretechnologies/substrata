@@ -136,6 +136,16 @@ if(WIN32)
 		add_definitions(-DPERFORMANCEAPI_ENABLED=0) # We need to set it to 0 explicitly to disable.
 	endif()
 	
+	if(FUZZING)
+		add_definitions(-DFUZZING=1)
+		
+		MESSAGE("================================ Enabling /fsanitize=fuzzer ============================")
+		add_definitions(/fsanitize=address)
+		add_definitions(/fsanitize=fuzzer)
+		add_definitions(-D_DISABLE_VECTOR_ANNOTATION)
+		add_definitions(-D_DISABLE_STRING_ANNOTATION)
+	endif()
+	
 	# Consider some options.
 	if(NO_WHOLE_PROGRAM_OPT)
 		SET(GL_OPT)
