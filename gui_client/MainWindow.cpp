@@ -6073,49 +6073,12 @@ void MainWindow::updateAvatarGraphics(double cur_time, double dt, const Vec3d& c
 										if(controller_res == vehicle_controllers.end()) // if there is no vehicle controller for this object :
 										{
 											// Create Vehicle controller
-											Reference<VehiclePhysics> new_controller;
-											if(avatar->entered_vehicle->vehicle_script.isType<Scripting::HoverCarScript>())
-											{
-												const Scripting::HoverCarScript* hover_car_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
+											Reference<VehiclePhysics> new_controller = createVehicleControllerForScript(avatar->entered_vehicle.ptr());
+											vehicle_controllers.insert(std::make_pair(avatar->entered_vehicle.ptr(), new_controller));
 
-												HoverCarPhysicsSettings hover_car_physics_settings;
-												hover_car_physics_settings.hovercar_mass = avatar->entered_vehicle->mass;
-												hover_car_physics_settings.script_settings = hover_car_script->settings;
+											new_controller->userEnteredVehicle(avatar->vehicle_seat_index);
 
-												new_controller = new HoverCarPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, hover_car_physics_settings);
-											}
-											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BoatScript>())
-											{
-												const Scripting::BoatScript* boat_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BoatScript>();
-
-												BoatPhysicsSettings physics_settings;
-												physics_settings.boat_mass = avatar->entered_vehicle->mass;
-												physics_settings.script_settings = boat_script->settings;
-
-												new_controller = new BoatPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
-											}
-											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BikeScript>())
-											{
-												const Scripting::BikeScript* bike_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BikeScript>();
-
-												BikePhysicsSettings bike_physics_settings;
-												bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
-												bike_physics_settings.script_settings = bike_script->settings;
-
-												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
-											}
-											else
-											{
-												assert(0);
-											}
-
-											if(new_controller.nonNull())
-											{
-												vehicle_controllers.insert(std::make_pair(avatar->entered_vehicle.ptr(), new_controller));
-												new_controller->userEnteredVehicle(avatar->vehicle_seat_index);
-
-												conPrint("Avatar entered vehicle with new physics controller in seat " + toString(avatar->vehicle_seat_index));
-											}
+											conPrint("Avatar entered vehicle with new physics controller in seat " + toString(avatar->vehicle_seat_index));
 										}
 										else // Else if there is already a vehicle controller for the object:
 										{
@@ -10932,7 +10895,31 @@ void MainWindow::objectEditedSlot()
 			{
 				try
 				{
+					// Try loading script first
 					loadScriptForObject(this->selected_ob.ptr());
+
+					// If we got here, new script was valid and loaded successfully.
+					
+					// If we were controlling a vehicle whose script just changed, we want to update the vehicle controller.  We will do this by destroying it and creating a new one,
+					// then making the user enter the vehicle again.
+					// If the script failed to load, due to e.g. a syntax error, then we don't want to destroy the vehicle controller, hence this code is after loadScriptForObject().
+					// See if we were in a vehicle whose script just changed.  Set prev_seat_index to the seat we were in if so.
+					int prev_seat_index = -1;
+					if(vehicle_controller_inside.nonNull() && vehicle_controller_inside->getControlledObject() == selected_ob.ptr())
+						prev_seat_index = cur_seat_index;
+
+					destroyVehiclePhysicsControllingObject(selected_ob.ptr()); // Destroy old vehicle controller for object
+
+					if(prev_seat_index >= 0) // If we were in the vehicle for this object:
+					{
+						if(this->selected_ob->vehicle_script.nonNull())
+						{
+							Reference<VehiclePhysics> controller = createVehicleControllerForScript(this->selected_ob.ptr());
+							vehicle_controllers.insert(std::make_pair(this->selected_ob.ptr(), controller));
+							this->vehicle_controller_inside = controller;
+							this->vehicle_controller_inside->userEnteredVehicle(/*seat index=*/prev_seat_index);
+						}
+					}
 				}
 				catch(glare::Exception& e)
 				{
@@ -10966,6 +10953,43 @@ void MainWindow::objectEditedSlot()
 		msgBox.setText(QtUtils::toQString(e.what()));
 		msgBox.exec();
 	}
+}
+
+
+Reference<VehiclePhysics> MainWindow::createVehicleControllerForScript(WorldObject* ob)
+{
+	if(ob->vehicle_script.isType<Scripting::HoverCarScript>())
+	{
+		const Scripting::HoverCarScript* hover_car_script = ob->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
+
+		HoverCarPhysicsSettings hover_car_physics_settings;
+		hover_car_physics_settings.hovercar_mass = ob->mass;
+		hover_car_physics_settings.script_settings = hover_car_script->settings;
+
+		return new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
+	}
+	else if(ob->vehicle_script.isType<Scripting::BoatScript>())
+	{
+		const Scripting::BoatScript* boat_script = ob->vehicle_script.downcastToPtr<Scripting::BoatScript>();
+
+		BoatPhysicsSettings physics_settings;
+		physics_settings.boat_mass = ob->mass;
+		physics_settings.script_settings = boat_script->settings;
+
+		return new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
+	}
+	else if(ob->vehicle_script.isType<Scripting::BikeScript>())
+	{
+		const Scripting::BikeScript* bike_script = ob->vehicle_script.downcastToPtr<Scripting::BikeScript>();
+
+		BikePhysicsSettings bike_physics_settings;
+		bike_physics_settings.bike_mass = ob->mass;
+		bike_physics_settings.script_settings = bike_script->settings;
+
+		return new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
+	}
+	else
+		throw glare::Exception("invalid vehicle_script type");
 }
 
 
@@ -13306,43 +13330,8 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 									const auto controller_res = vehicle_controllers.find(ob);
 									if(controller_res == vehicle_controllers.end()) // If there is not a vehicle controller for this object yet:
 									{
-										if(ob->vehicle_script.isType<Scripting::HoverCarScript>())
-										{
-											const Scripting::HoverCarScript* hover_car_script = ob->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
-
-											HoverCarPhysicsSettings hover_car_physics_settings;
-											hover_car_physics_settings.hovercar_mass = ob->mass;
-											hover_car_physics_settings.script_settings = hover_car_script->settings;
-
-											controller_for_ob = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
-											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
-										}
-										else if(ob->vehicle_script.isType<Scripting::BoatScript>())
-										{
-											const Scripting::BoatScript* boat_script = ob->vehicle_script.downcastToPtr<Scripting::BoatScript>();
-
-											BoatPhysicsSettings physics_settings;
-											physics_settings.boat_mass = ob->mass;
-											physics_settings.script_settings = boat_script->settings;
-
-											controller_for_ob = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
-											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
-										}
-										else if(ob->vehicle_script.isType<Scripting::BikeScript>())
-										{
-											const Scripting::BikeScript* bike_script = ob->vehicle_script.downcastToPtr<Scripting::BikeScript>();
-
-											BikePhysicsSettings bike_physics_settings;
-											bike_physics_settings.bike_mass = ob->mass;
-											bike_physics_settings.script_settings = bike_script->settings;
-
-											controller_for_ob = new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
-											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
-										}
-										else
-										{
-											assert(0);
-										}
+										controller_for_ob = createVehicleControllerForScript(ob);
+										vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
 									}
 									else // Else if there is already a vehicle controller for this object:
 									{

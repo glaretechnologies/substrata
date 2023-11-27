@@ -336,6 +336,7 @@ public:
 	void processLoading();
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
 	void createPathControlledPathVisObjects(const WorldObject& ob);
+	Reference<VehiclePhysics> createVehicleControllerForScript(WorldObject* ob);
 	
 	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time) const;
 	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time) const;
