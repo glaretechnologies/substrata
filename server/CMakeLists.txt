@@ -9,7 +9,7 @@ include_directories("${winterdir}") # Just put winter dir on include path so we 
 
 
 FILE(GLOB docs "../docs/*.txt")
-if(ENABLE_GLARE_PARCEL_AUCTION_CODE)
+if(NOT SUBSTRATA_PRIVATE_REPO_PATH STREQUAL "")
 	FILE(GLOB private_docs "${SUBSTRATA_PRIVATE_REPO_PATH}/docs/*.txt")
 	SET(docs
 		${docs}
