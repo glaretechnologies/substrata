@@ -14078,6 +14078,8 @@ static bool shouldEnableBugSplat()
 }
 #endif
 
+#ifndef FUZZING
+
 
 int main(int argc, char *argv[])
 {
@@ -14637,3 +14639,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 }
+
+
+#endif // End #ifndef FUZZING

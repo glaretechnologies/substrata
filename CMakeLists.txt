@@ -173,6 +173,10 @@ MESSAGE("TRACY_ENABLED (Tracy profiler instrumentation support): ${TRACY_ENABLED
 SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")
 MESSAGE("USE_SANITIZER: ${USE_SANITIZER}")
 
+SET(FUZZING OFF CACHE BOOL "Enable fuzzing")
+MESSAGE("FUZZING: ${FUZZING}")
+
+
 if(WIN32)
 	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-${SUBSTRATA_JPEGTURBO_VERSION}-vs${CYBERSPACE_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
