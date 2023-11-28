@@ -320,13 +320,13 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 		// Ideally the trace origin is just under the object, not inside the object itself.
 		const Vec4f trace_origin = to_world * Vec4f(0, -0.2f, 0, 1);
 
-		const Vec4f trace_dir = normalise(-up_vec_ws + 
-			right_vec_ws   * (-0.5f + rng.unitRandom()) * 0.8f + 
-			forward_vec_ws * (-0.5f + rng.unitRandom()) * 0.8f
-		);
+		const Vec4f side_vec  =
+			right_vec_ws   * (-0.5f + rng.unitRandom()) + 
+			forward_vec_ws * (-0.5f + rng.unitRandom());
+		const Vec4f trace_dir = normalise(-up_vec_ws + side_vec * 0.8f);
 
 		RayTraceResult trace_results;
-		const float max_trace_dist = 10.f;
+		const float max_trace_dist = 12.f;
 		physics_world.traceRay(trace_origin, trace_dir, max_trace_dist, trace_results);
 
 		if(trace_results.hit_object)
@@ -335,12 +335,12 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 			for(int z=0; z<1; ++z)
 			{
-				const float vel = Maths::lerp(10.f, 1.f, trace_results.hit_t / max_trace_dist);
+				const float vel = Maths::lerp(20.f, 6.f, trace_results.hit_t / max_trace_dist);
 				Particle particle;
 				particle.pos = hitpos;
 				particle.area = 0.00001f;
-				const float xy_spread = 3.f;
-				particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 0.2f, 0) * vel;
+				const float xy_spread = 0.f;
+				particle.vel = (side_vec + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 0.2f, 0)) * vel;
 				particle.colour = Colour3f(0.6f, 0.4f, 0.3f); // Reddish col
 				particle.cur_opacity = 0.5f;
 				particle.dopacity_dt = -0.06f;
