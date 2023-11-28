@@ -315,6 +315,7 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 
 		// ---------------------- Shoot a ray down, spawn dust particles where it hits ----------------------
+		// TODO: make work for over water as well, currently water surface is not an intersectable object.
 
 		// Ideally the trace origin is just under the object, not inside the object itself.
 		const Vec4f trace_origin = to_world * Vec4f(0, -0.2f, 0, 1);
@@ -334,12 +335,12 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 			for(int z=0; z<1; ++z)
 			{
-				const float vel = Maths::lerp(10, 1, trace_results.hit_t / max_trace_dist);
+				const float vel = Maths::lerp(10.f, 1.f, trace_results.hit_t / max_trace_dist);
 				Particle particle;
 				particle.pos = hitpos;
 				particle.area = 0.00001f;
 				const float xy_spread = 3.f;
-				particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 0.2, 0) * vel;
+				particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 0.2f, 0) * vel;
 				particle.colour = Colour3f(0.6f, 0.4f, 0.3f); // Reddish col
 				particle.cur_opacity = 0.5f;
 				particle.dopacity_dt = -0.06f;
