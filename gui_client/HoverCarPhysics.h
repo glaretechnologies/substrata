@@ -28,7 +28,7 @@ struct HoverCarPhysicsSettings
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	Scripting::VehicleScriptedSettings script_settings;
+	Reference<Scripting::HoverCarScriptSettings> script_settings;
 	float hovercar_mass;
 };
 
@@ -69,7 +69,7 @@ public:
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
-	const Scripting::VehicleScriptedSettings& getSettings() const override { return settings.script_settings; }
+	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 
 private:
 	WorldObject* world_object;

@@ -10964,7 +10964,7 @@ Reference<VehiclePhysics> MainWindow::createVehicleControllerForScript(WorldObje
 
 		HoverCarPhysicsSettings hover_car_physics_settings;
 		hover_car_physics_settings.hovercar_mass = ob->mass;
-		hover_car_physics_settings.script_settings = hover_car_script->settings;
+		hover_car_physics_settings.script_settings = hover_car_script->settings.downcast<Scripting::HoverCarScriptSettings>();
 
 		return new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
 	}
@@ -10974,7 +10974,7 @@ Reference<VehiclePhysics> MainWindow::createVehicleControllerForScript(WorldObje
 
 		BoatPhysicsSettings physics_settings;
 		physics_settings.boat_mass = ob->mass;
-		physics_settings.script_settings = boat_script->settings;
+		physics_settings.script_settings = boat_script->settings.downcast<Scripting::BoatScriptSettings>();
 
 		return new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
 	}
@@ -10984,7 +10984,7 @@ Reference<VehiclePhysics> MainWindow::createVehicleControllerForScript(WorldObje
 
 		BikePhysicsSettings bike_physics_settings;
 		bike_physics_settings.bike_mass = ob->mass;
-		bike_physics_settings.script_settings = bike_script->settings;
+		bike_physics_settings.script_settings = bike_script->settings.downcast<Scripting::BikeScriptSettings>();
 
 		return new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
 	}
@@ -13314,7 +13314,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 
 								// See if there are any spare seats
 								int free_seat_index = -1;
-								for(size_t z=0; z<ob->vehicle_script->settings.seat_settings.size(); ++z)
+								for(size_t z=0; z<ob->vehicle_script->settings->seat_settings.size(); ++z)
 								{
 									if(!doesVehicleHaveAvatarInSeat(*ob, (uint32)z))
 									{

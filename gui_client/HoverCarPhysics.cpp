@@ -123,9 +123,9 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 		// The particular R will depend on the space the modeller chose.
 
-		const JPH::Quat R_quat = toJoltQuat(settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1);
+		const JPH::Quat R_quat = toJoltQuat(settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1);
 	
-		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 
 		const Vec4f forwards_os = R_inv * forwards_y_for;
@@ -355,9 +355,9 @@ Matrix4f HoverCarPhysics::getBodyTransform(PhysicsWorld& physics_world) const
 // Seat_to_world = object_to_world * seat_translation_model_space * R^1
 Matrix4f HoverCarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 { 
-	if(seat_index < settings.script_settings.seat_settings.size())
+	if(seat_index < settings.script_settings->seat_settings.size())
 	{
-		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 		Matrix4f ob_to_world_no_scale;
 		if(use_smoothed_network_transform && world_object->physics_object.nonNull())
@@ -366,7 +366,7 @@ Matrix4f HoverCarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, u
 			ob_to_world_no_scale = getBodyTransform(physics_world);
 
 		// Seat to world = object to world * seat to object
-		return ob_to_world_no_scale * Matrix4f::translationMatrix(settings.script_settings.seat_settings[seat_index].seat_position) * R_inv;
+		return ob_to_world_no_scale * Matrix4f::translationMatrix(settings.script_settings->seat_settings[seat_index].seat_position) * R_inv;
 	}
 	else
 	{

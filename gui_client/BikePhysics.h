@@ -31,7 +31,7 @@ struct BikePhysicsSettings
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	Scripting::VehicleScriptedSettings script_settings;
+	Reference<Scripting::BikeScriptSettings> script_settings;
 	float bike_mass;
 };
 
@@ -75,7 +75,7 @@ public:
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
-	const Scripting::VehicleScriptedSettings& getSettings() const override { return settings.script_settings; }
+	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 
 	void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) override;
 
