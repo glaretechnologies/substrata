@@ -22,8 +22,9 @@ Copyright Glare Technologies Limited 2023 -
 #include "../webserver/WebDataStore.h"
 #include "../webserver/WebDataFileWatcherThread.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
-#include "../webserver/CoinbasePollerThread.h"
-#include "../webserver/OpenSeaPollerThread.h"
+#include <webserver/CoinbasePollerThread.h>
+#include <webserver/OpenSeaPollerThread.h>
+#include <server/AuctionManagement.h>
 #endif
 #include <webserver/WebListenerThread.h>
 #include <networking/Networking.h>
@@ -47,214 +48,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/OpenSSL.h>
 #include <tls.h>
 #include <ArenaAllocator.h>
-
-
-static bool isParcelInCurrentAuction(ServerAllWorldsState& world_state, const Parcel* parcel, TimeStamp now) REQUIRES(world_state.mutex)
-{
-	for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
-	{
-		auto res = world_state.parcel_auctions.find(parcel->parcel_auction_ids[i]);
-		if(res != world_state.parcel_auctions.end())
-		{
-			const ParcelAuction* auction = res->second.ptr();
-			if(auction->currentlyForSale(now))
-				return true;
-		}
-	}
-
-	return false;
-}
-
-
-static bool isTowerParcel(const ParcelID& parcel_id)
-{
-	return parcel_id.value() >= 1320 && parcel_id.value() <= 1385;
-}
-
-
-static void updateParcelSales(ServerAllWorldsState& world_state)
-{
-	// conPrint("updateParcelSales()");
-
-	{
-		Lock lock(world_state.mutex);
-
-		// Work out the number of current auctions
-		int num_for_sale = 0;
-		int num_tower_for_sale = 0;
-		TimeStamp now = TimeStamp::currentTime();
-		for(auto it = world_state.parcel_auctions.begin(); it != world_state.parcel_auctions.end(); ++it)
-		{
-			const ParcelAuction* auction = it->second.ptr();
-			if(auction->currentlyForSale(now))
-			{
-				num_for_sale++;
-				if(isTowerParcel(auction->parcel_id))
-					num_tower_for_sale++;
-			}
-		}
-
-		const int target_num_for_sale = 2;
-		if(num_for_sale < target_num_for_sale)
-		{
-			// We have less than the desired number of parcels up for sale, so list some:
-
-			PCG32 rng((uint64)Clock::getSecsSince1970() + (uint64)(Clock::getTimeSinceInit() * 1000.0)); // Poor seeding but not too important
-
-			// Get list of sellable parcels
-			//std::vector<Parcel*> sellable_parcels;
-			std::vector<Parcel*> sellable_tower_parcels;
-			std::vector<Parcel*> sellable_nontower_parcels;
-			for(auto pit = world_state.getRootWorldState()->parcels.begin(); pit != world_state.getRootWorldState()->parcels.end(); ++pit)
-			{
-				Parcel* parcel = pit->second.ptr();
-				if((parcel->owner_id == UserID(0)) && // If owned my MrAdmin
-					(parcel->id.value() >= 90) && // and not on the blocks by the central square (so ID >= 90)
-					!isParcelInCurrentAuction(world_state, parcel, now) && // And not already in a currently running auction
-					(parcel->nft_status == Parcel::NFTStatus_NotNFT) && // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
-					(!(parcel->id.value() >= 426 && parcel->id.value() < 430)) && // Don't auction off new park parcels (parcels 426...429)
-					(!(parcel->id.value() >= 954 && parcel->id.value() <= 955)) // Don't auction off Zombot's parcels
-					)
-				{
-					// sellable_parcels.push_back(parcel);
-					if(isTowerParcel(parcel->id))
-						sellable_tower_parcels.push_back(parcel);
-					else
-						sellable_nontower_parcels.push_back(parcel);
-				}
-			}
-
-			// Permute parcels (Fisher-Yates shuffle).  NOTE: kinda slow if we have lots of sellable parcels.
-			/*for(int i=(int)sellable_parcels.size()-1; i>0; --i)
-			{
-				const uint32 k = rng.nextUInt((uint32)i + 1);
-				mySwap(sellable_parcels[i], sellable_parcels[k]);
-			}*/
-
-			//const int desired_num_to_add = target_num_for_sale - num_for_sale;
-			//assert(desired_num_to_add > 0);
-			//const int num_to_add = myMin(desired_num_to_add, (int)sellable_parcels.size());
-
-			std::vector<Parcel*> new_auction_parcels;
-
-			// Add any tower sales needed
-			if((num_tower_for_sale < 1) && !sellable_tower_parcels.empty())
-			{
-				new_auction_parcels.push_back(sellable_tower_parcels[rng.nextUInt((uint32)sellable_tower_parcels.size())]);
-			}
-
-			// Add any non-tower sales needed
-			const int num_nontower_for_sale = num_for_sale - num_tower_for_sale;
-			if((num_nontower_for_sale < 1) && !sellable_nontower_parcels.empty())
-			{
-				new_auction_parcels.push_back(sellable_nontower_parcels[rng.nextUInt((uint32)sellable_nontower_parcels.size())]);
-			}
-
-
-
-			for(size_t i=0; i<new_auction_parcels.size(); ++i)
-			{
-				Parcel* parcel = new_auction_parcels[i];
-
-				conPrint("updateParcelSales(): Putting parcel " + parcel->id.toString() + " up for auction");
-
-				// Make a parcel auction for this parcel
-
-				const int auction_duration_hours = 48;
-
-				double auction_start_price, auction_end_price;
-				if(parcel->id.value() >= 430 && parcel->id.value() <= 726) // If this is a market parcel:
-				{
-					auction_start_price = 1000;
-					auction_end_price = 50;
-				}
-				else
-				{
-					// If parcel is a tower parcel in the top few floors of a tower block, use higher prices.
-					if((parcel->id.value() >= 1362 && parcel->id.value() <= 1365) || (parcel->id.value() >= 1382 && parcel->id.value() <= 1385) || (parcel->id.value() >= 1337 && parcel->id.value() <= 1343))
-					{
-						auction_start_price = 4000; // EUR
-						auction_end_price = 400; // EUR
-					}
-					else
-					{
-						auction_start_price = 2000; // EUR
-						auction_end_price = 200; // EUR
-					}
-				}
-
-				//TEMP: scan over all ParcelAuctions and find highest used ID.
-				uint32 highest_auction_id = 0;
-				for(auto it = world_state.parcel_auctions.begin(); it != world_state.parcel_auctions.end(); ++it)
-					highest_auction_id = myMax(highest_auction_id, it->first);
-
-				ParcelAuctionRef auction = new ParcelAuction();
-				auction->id = highest_auction_id + 1;
-				auction->parcel_id = parcel->id;
-				auction->auction_state = ParcelAuction::AuctionState_ForSale;
-				auction->auction_start_time  = now;
-				auction->auction_end_time    = TimeStamp((uint64)(now.time + auction_duration_hours * 3600 - 60)); // Make the auction end slightly before the regen time, for if parcels hit the reserve price.
-				auction->auction_start_price = auction_start_price;
-				auction->auction_end_price   = auction_end_price;
-
-				world_state.parcel_auctions[auction->id] = auction;
-
-				// Set screenshot ids for parcel auction
-				// If the parcel already has screenshots, just use those.
-				if(parcel->screenshot_ids.size() >= 2)
-				{
-					auction->screenshot_ids = parcel->screenshot_ids; // Use the parcel screenshots
-				}
-				else
-				{
-					// Make new screenshots
-					uint64 next_shot_id = world_state.getNextScreenshotUID();
-
-					// Close-in screenshot
-					{
-						ScreenshotRef shot = new Screenshot();
-						shot->id = next_shot_id++;
-						parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
-						shot->width_px = 650;
-						shot->highlight_parcel_id = (int)parcel->id.value();
-						shot->created_time = TimeStamp::currentTime();
-						shot->state = Screenshot::ScreenshotState_notdone;
-
-						world_state.screenshots[shot->id] = shot;
-
-						auction->screenshot_ids.push_back(shot->id);
-
-						world_state.addScreenshotAsDBDirty(shot);
-					}
-					// Zoomed-out screenshot
-					{
-						ScreenshotRef shot = new Screenshot();
-						shot->id = next_shot_id++;
-						parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
-						shot->width_px = 650;
-						shot->highlight_parcel_id = (int)parcel->id.value();
-						shot->created_time = TimeStamp::currentTime();
-						shot->state = Screenshot::ScreenshotState_notdone;
-
-						world_state.screenshots[shot->id] = shot;
-
-						auction->screenshot_ids.push_back(shot->id);
-
-						world_state.addScreenshotAsDBDirty(shot);
-					}
-				}
-
-				parcel->parcel_auction_ids.push_back(auction->id);
-
-				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
-
-				world_state.addParcelAuctionAsDBDirty(auction);
-			}
-
-			conPrint("updateParcelSales(): Put " + toString(new_auction_parcels.size()) + " parcels up for auction.");
-		}
-	} // End lock scope
-}
 
 
 void updateMapTiles(ServerAllWorldsState& world_state)
@@ -332,8 +125,6 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 		}*/
 	}
 }
-
-
 
 
 static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
@@ -980,10 +771,10 @@ int main(int argc, char *argv[])
 				}
 			}
 
-
+#if USE_GLARE_PARCEL_AUCTION_CODE
 			if(server_config.update_parcel_sales && ((loop_iter % 512) == 0)) // Approx every 50 s.
 			{
-				updateParcelSales(*server.world_state);
+				AuctionManagement::updateParcelSales(*server.world_state);
 
 				// Want want to list new parcels (to bring the total number being listed up to our target number) every day at midnight UTC.
 				/*int hour, day, year;
@@ -1006,7 +797,7 @@ int main(int argc, char *argv[])
 					server.world_state->markAsChanged();
 				}*/
 			}
-
+#endif
 
 			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 10.0))
 			{

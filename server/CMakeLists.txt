@@ -180,7 +180,12 @@ if(ENABLE_GLARE_PARCEL_AUCTION_CODE)
 	"${SUBSTRATA_PRIVATE_REPO_PATH}/webserver/*.h"
 	)
 	
-	include_directories(${SUBSTRATA_PRIVATE_REPO_PATH}/webserver)
+	FILE(GLOB substrata_private_server
+	"${SUBSTRATA_PRIVATE_REPO_PATH}/server/*.cpp" 
+	"${SUBSTRATA_PRIVATE_REPO_PATH}/server/*.h"
+	)
+	
+	include_directories(${SUBSTRATA_PRIVATE_REPO_PATH})
 endif()
 
 
@@ -188,6 +193,7 @@ endif()
 SOURCE_GROUP(server FILES ${server})
 SOURCE_GROUP(webserver FILES ${webserver})
 SOURCE_GROUP(substrata_private_webserver FILES ${substrata_private_webserver})
+SOURCE_GROUP(substrata_private_server FILES ${substrata_private_server})
 SOURCE_GROUP(webserver_core_files FILES ${webserver_core_files})
 SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
@@ -242,6 +248,7 @@ ${ethereum_files}
 ${meshoptimizer}
 ${webclient_files}
 ${substrata_private_webserver}
+${substrata_private_server}
 ${basisu_files}
 )
 
