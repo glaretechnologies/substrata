@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../physics/jscol_boundingsphere.h"
 #include "../maths/Vec4f.h"
 #include "../maths/vec3.h"
+#include "../maths/PCG32.h"
 #include <vector>
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
@@ -22,6 +23,7 @@ Copyright Glare Technologies Limited 2023 -
 
 class CameraController;
 class PhysicsWorld;
+class ParticleManager;
 
 
 struct HoverCarPhysicsSettings
@@ -43,7 +45,7 @@ class HoverCarPhysics : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id, HoverCarPhysicsSettings settings);
+	HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id, HoverCarPhysicsSettings settings, ParticleManager* particle_manager);
 	~HoverCarPhysics();
 
 	WorldObject* getControlledObject() override { return world_object; }
@@ -77,4 +79,7 @@ private:
 	JPH::BodyID car_body_id;
 	float unflip_up_force_time_remaining;
 	bool user_in_driver_seat;
+
+	PCG32 rng;
+	ParticleManager* particle_manager;
 };

@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
 #include "JoltUtils.h"
+#include "ParticleManager.h"
 #include <StringUtils.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
@@ -16,7 +17,8 @@ Copyright Glare Technologies Limited 2023 -
 #include <Jolt/Physics/PhysicsSystem.h>
 
 
-HoverCarPhysics::HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, HoverCarPhysicsSettings settings_)
+HoverCarPhysics::HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, HoverCarPhysicsSettings settings_, ParticleManager* particle_manager_)
+:	particle_manager(particle_manager_)
 {
 	world_object = object.ptr();
 	car_body_id = car_body_id_;
@@ -126,6 +128,7 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 		const JPH::Quat R_quat = toJoltQuat(settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1);
 	
 		const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		const Matrix4f R = ((settings.script_settings->model_to_y_forwards_rot_1 * settings.script_settings->model_to_y_forwards_rot_2)).toMatrix();
 
 
 		const Vec4f forwards_os = R_inv * forwards_y_for;
@@ -309,6 +312,47 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 				}
 			}
 		}
+
+
+		// ---------------------- Shoot a ray down, spawn dust particles where it hits ----------------------
+
+		// Ideally the trace origin is just under the object, not inside the object itself.
+		const Vec4f trace_origin = to_world * Vec4f(0, -0.2f, 0, 1);
+
+		const Vec4f trace_dir = normalise(-up_vec_ws + 
+			right_vec_ws   * (-0.5f + rng.unitRandom()) * 0.8f + 
+			forward_vec_ws * (-0.5f + rng.unitRandom()) * 0.8f
+		);
+
+		RayTraceResult trace_results;
+		const float max_trace_dist = 10.f;
+		physics_world.traceRay(trace_origin, trace_dir, max_trace_dist, trace_results);
+
+		if(trace_results.hit_object)
+		{
+			const Vec4f hitpos = trace_origin + trace_dir * trace_results.hit_t;
+
+			for(int z=0; z<1; ++z)
+			{
+				const float vel = Maths::lerp(10, 1, trace_results.hit_t / max_trace_dist);
+				Particle particle;
+				particle.pos = hitpos;
+				particle.area = 0.00001f;
+				const float xy_spread = 3.f;
+				particle.vel = Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 0.2, 0) * vel;
+				particle.colour = Colour3f(0.6f, 0.4f, 0.3f); // Reddish col
+				particle.cur_opacity = 0.5f;
+				particle.dopacity_dt = -0.06f;
+				particle.particle_type = Particle::ParticleType_Smoke;
+				particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+				particle.width = 2;
+				particle.dwidth_dt = 1;
+				particle.die_when_hit_surface = false;
+				particle_manager->addParticle(particle);
+			}
+		}
+		// --------------------------------------------------------------------------------------------------
+
 	} // end if user_in_driver_seat
 
 	// const float speed_km_h = v_mag * (3600.0f / 1000.f);
