@@ -209,6 +209,7 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 }
 
 
+#if 0
 static void makeTowerParcels(const Vec2d& botleft, int& next_id, Reference<ServerWorldState> world_state, double parcel_w, double story_height, int num_stories)
 {
 	for(int i=0; i<num_stories; ++i)
@@ -236,7 +237,7 @@ static void makeTowerParcels(const Vec2d& botleft, int& next_id, Reference<Serve
 		world_state->addParcelAsDBDirty(test_parcel);
 	}
 }
-
+#endif
 
 
 static WorldObjectRef findObWithModelURL(Reference<ServerAllWorldsState> world_state, const std::string& URL)
