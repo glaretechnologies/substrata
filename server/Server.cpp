@@ -468,7 +468,7 @@ int main(int argc, char *argv[])
 		// A map from world name to a vector of packets to send to clients connected to that world.
 		std::map<std::string, std::vector<std::string>> broadcast_packets;
 
-		Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+		Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(4 * 1024 * 1024);
 
 		// Main server loop
 		uint64 loop_iter = 0;

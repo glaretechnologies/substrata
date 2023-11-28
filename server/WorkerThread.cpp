@@ -776,7 +776,7 @@ void WorkerThread::doRun()
 		socket.downcastToPtr<RecordingSocket>()->clearRecordBuf();
 
 	glare::BumpAllocator bump_allocator(1024 * 1024);
-	Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+	Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(4 * 1024 * 1024);
 
 	ServerAllWorldsState* world_state = server->world_state.getPointer();
 

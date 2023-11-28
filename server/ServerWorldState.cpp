@@ -841,7 +841,7 @@ void ServerAllWorldsState::serialiseToDisk()
 
 		
 		BufferOutStream temp_buf;
-		Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
+		Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(4 * 1024 * 1024);
 
 		// Iterate over all objects, if they are dirty, write to the DB
 
