@@ -21,6 +21,8 @@ struct SeatSettings
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
+	SeatSettings();
+
 	Vec4f seat_position; // in model/object space
 	float upper_body_rot_angle; // radians
 
@@ -37,9 +39,11 @@ struct SeatSettings
 };
 
 
-struct VehicleScriptedSettings
+struct VehicleScriptedSettings : public RefCounted
 {
 	GLARE_ALIGNED_16_NEW_DELETE
+
+	virtual ~VehicleScriptedSettings() {}
 
 	Quatf model_to_y_forwards_rot_1;
 	Quatf model_to_y_forwards_rot_2;
@@ -59,10 +63,15 @@ public:
 
 	Matrix4f getZUpToModelSpaceTransform() const
 	{
-		return ((settings.model_to_y_forwards_rot_2 * settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		return ((settings->model_to_y_forwards_rot_2 * settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 	}
 
-	VehicleScriptedSettings settings;
+	Reference<VehicleScriptedSettings> settings;
+};
+
+
+struct HoverCarScriptSettings : public VehicleScriptedSettings
+{
 };
 
 
@@ -75,6 +84,21 @@ public:
 };
 
 
+struct BoatScriptSettings : public VehicleScriptedSettings
+{
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	float thrust_force;
+	Vec4f propellor_point_os;
+	float propellor_sideways_offset;
+	float rudder_deflection_force_factor;
+	
+	float front_cross_sectional_area;
+	float side_cross_sectional_area;
+	float top_cross_sectional_area;
+};
+
+
 class BoatScript : public VehicleScript
 {
 public:
@@ -83,6 +107,11 @@ public:
 	virtual bool isRightable() const override { return true; }
 };
 
+
+
+struct BikeScriptSettings : public VehicleScriptedSettings
+{
+};
 
 class BikeScript : public VehicleScript
 {

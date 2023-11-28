@@ -63,7 +63,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	last_force_vec = Vec4f(0,0,0,0);
 
 
-	const Matrix4f z_up_to_model_space = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+	const Matrix4f z_up_to_model_space = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 	const Vec4f cur_pos = object->physics_object->pos;
 	const Quatf cur_rot = object->physics_object->rot;
@@ -450,9 +450,9 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	// The particular R will depend on the space the modeller chose.
 
-	const JPH::Quat R_quat = toJoltQuat(settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1);
+	const JPH::Quat R_quat = toJoltQuat(settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1);
 
-	const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+	const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 	const Matrix4f z_up_to_model_space = R_inv;
 
 
@@ -848,9 +848,9 @@ Matrix4f BikePhysics::getWheelToWorldTransform(PhysicsWorld& physics_world, int 
 // Seat_to_world = object_to_world * seat_translation_model_space * R^1
 Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 { 
-	if(seat_index < settings.script_settings.seat_settings.size())
+	if(seat_index < settings.script_settings->seat_settings.size())
 	{
-		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 		Matrix4f ob_to_world_no_scale;
 		if(use_smoothed_network_transform && world_object->physics_object.nonNull())
@@ -859,7 +859,7 @@ Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint3
 			ob_to_world_no_scale = getBodyTransform(physics_world);
 
 		// Seat to world = object to world * seat to object
-		return ob_to_world_no_scale * Matrix4f::translationMatrix(settings.script_settings.seat_settings[seat_index].seat_position) * R_inv;
+		return ob_to_world_no_scale * Matrix4f::translationMatrix(settings.script_settings->seat_settings[seat_index].seat_position) * R_inv;
 	}
 	else
 	{
@@ -909,7 +909,7 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should
 
 	if(should_show)
 	{
-		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 		const Matrix4f z_up_to_model_space = R_inv;
 
 		//------------------ body ------------------

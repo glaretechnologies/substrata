@@ -79,30 +79,23 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 	VehiclePhysicsUpdateEvents events;
 
 	
-	float forward = 0.0f, right = 0.0f, up = 0.f, brake = 0.0f, hand_brake = 0.0f;
-	// Determine acceleration and brake
+	float forward = 0.0f, right = 0.0f;
+
+	// Determine acceleration
 	if (physics_input.W_down || physics_input.up_down)
 		forward = 1.0f;
 	else if(physics_input.S_down || physics_input.down_down)
 		forward = -1.0f;
 
-
-	// Hand brake will cancel gas pedal
-	if(physics_input.space_down)
-	{
-		hand_brake = 1.0f;
-		up = 1.f;
-	}
-
-	if(physics_input.C_down)
-		up = -1.f;
+	if(physics_input.SHIFT_down) // boost!
+		forward *= 2.f;
 
 	// Steering
 	if(physics_input.A_down)
 		right = -1.0f;
 	else if(physics_input.D_down)
 		right = 1.0f;
-	
+
 
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 
@@ -125,9 +118,9 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 
 	// The particular R will depend on the space the modeller chose.
 
-	const JPH::Quat R_quat = toJoltQuat(settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1);
+	const JPH::Quat R_quat = toJoltQuat(settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1);
 	
-	const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+	const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 
 	const Vec4f forwards_os = R_inv * forwards_y_for;
@@ -146,19 +139,19 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 	if(user_in_driver_seat)
 	{
 		// On user input, assure that the car is active
-		if (right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
+		if (right != 0.0f || forward != 0.0f)
 			body_interface.ActivateBody(body_id);
+
+		const Vec4f propellor_point = to_world * settings.script_settings->propellor_point_os;
 
 		if(forward != 0)
 		{
-			const Vec4f forwards_control_force = forward_vec_ws * settings.boat_mass * 5 * forward;
-
-			const Vec4f propellor_point = to_world * Vec4f(0,0,0,1) - forward_vec_ws * 6.2f + up_vec_ws * 0.2f; // TEMP HACK TODO position where rudder should be
+			const Vec4f forwards_control_force = forward_vec_ws * settings.script_settings->thrust_force * forward;
 
 			body_interface.AddForce(body_id, toJoltVec3(forwards_control_force), toJoltVec3(propellor_point));
 
 			// Add some foam
-			const float propellor_offset = 1.f;
+			const float propellor_offset = settings.script_settings->propellor_sideways_offset;
 			const Vec4f positions[2] = { propellor_point - right_vec_ws * propellor_offset, propellor_point + right_vec_ws * propellor_offset };
 			for(int i=0; i<2; ++i)
 			{
@@ -168,7 +161,8 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 					particle.pos = positions[i];
 					particle.area = 0.000001f;
 					const float xy_spread = 1.f;
-					particle.vel = forward_vec_ws * (forward * -5.f) + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * 5.f;
+					const float vel = physics_input.SHIFT_down ? 7.f : 5.f; //std::fabs(forward) * 5.0f; // Use 'forward' input magnitude for more spray when boosting
+					particle.vel = forward_vec_ws * (forward * -5.f) + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * vel;
 					particle.colour = Colour3f(0.6f);
 					particle.particle_type = Particle::ParticleType_Foam;
 					particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
@@ -182,10 +176,10 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 
 		if(right != 0)
 		{
-			const Vec4f rudder_deflection_force = right_vec_ws * settings.boat_mass * -0.07 * right * fowards_vel;
-			const Vec4f thruster_force = right_vec_ws * settings.boat_mass * -0.2 * right;
+			const Vec4f rudder_deflection_force = right_vec_ws * -right * fowards_vel * settings.script_settings->rudder_deflection_force_factor;
+			//const Vec4f thruster_force = right_vec_ws * settings.boat_mass * -0.2 * right;
 			const Vec4f total_force = rudder_deflection_force;//TEMP + thruster_force;
-			const Vec4f steering_point = to_world * Vec4f(0,0,0,1) - forward_vec_ws * 3.0f; // TEMP HACK TODO position where rudder should be
+			const Vec4f steering_point = propellor_point; // to_world * Vec4f(0,0,0,1) - forward_vec_ws * 3.0f; // TEMP HACK TODO position where rudder should be
 			body_interface.AddForce(body_id, toJoltVec3(total_force), toJoltVec3(steering_point));
 
 			//const JPH::Vec3 steering_torque = (desired_angular_vel - angular_vel) * settings.boat_mass * 3.5f;
@@ -212,19 +206,19 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 		const float rho = 1020.f; // water density, kg m^-3
 
 		// Compute drag force on front/back of vehicle
-		const float forwards_area = 2.f; // TEMP HACK APPROX
+		const float forwards_area = settings.script_settings->front_cross_sectional_area; // 2.f; // TEMP HACK APPROX
 		const float projected_forwards_area = absDot(normed_linear_vel, forward_vec_ws) * forwards_area;
 		const float forwards_C_d = 0.1f; // drag coefficient  (Tesla model S drag coeffcient is about 0.2 apparently)
 		const float forwards_F_d = 0.5f * rho * v_mag*v_mag * forwards_C_d * projected_forwards_area;
 
 		// Compute drag force on side of vehicle
-		const float side_area = 4.f; // TEMP HACK APPROX
+		const float side_area = settings.script_settings->side_cross_sectional_area; // 4.f; // TEMP HACK APPROX
 		const float projected_side_area = absDot(normed_linear_vel, right_vec_ws) * side_area;
 		const float side_C_d = 0.5f; // drag coefficient - roughly that of a sphere
 		const float side_F_d = 0.5f * rho * v_mag*v_mag * side_C_d * projected_side_area;
 
 		// Compute drag force on top of vehicle
-		const float top_area = 8.f; // TEMP HACK APPROX
+		const float top_area = settings.script_settings->top_cross_sectional_area; // 8.f; // TEMP HACK APPROX
 		const float projected_top_bottom_area = absDot(normed_linear_vel, up_vec_ws) * top_area;
 		const float top_C_d = 0.75f; // drag coefficient
 		const float top_F_d = 0.5f * rho * v_mag*v_mag * top_C_d * projected_top_bottom_area;
@@ -357,9 +351,9 @@ Matrix4f BoatPhysics::getBodyTransform(PhysicsWorld& physics_world) const
 // Seat_to_world = object_to_world * seat_translation_model_space * R^1
 Matrix4f BoatPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 { 
-	if(seat_index < settings.script_settings.seat_settings.size())
+	if(seat_index < settings.script_settings->seat_settings.size())
 	{
-		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 		Matrix4f ob_to_world_no_scale;
 		if(use_smoothed_network_transform && world_object->physics_object.nonNull())
@@ -368,7 +362,7 @@ Matrix4f BoatPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint3
 			ob_to_world_no_scale = getBodyTransform(physics_world);
 
 		// Seat to world = object to world * seat to object
-		return ob_to_world_no_scale * Matrix4f::translationMatrix(settings.script_settings.seat_settings[seat_index].seat_position) * R_inv;
+		return ob_to_world_no_scale * Matrix4f::translationMatrix(settings.script_settings->seat_settings[seat_index].seat_position) * R_inv;
 	}
 	else
 	{

@@ -25,13 +25,9 @@ namespace Scripting
 {
 
 
-const Vec3d parseVec3(pugi::xml_node elem, const char* elemname)
+const Vec3d parseVec3Directly(pugi::xml_node elem)
 {
-	pugi::xml_node childnode = elem.child(elemname);
-	if(!childnode)
-		throw glare::Exception(std::string("could not find element '") + elemname + "'." + XMLParseUtils::elemContext(elem));
-
-	const char* const child_text = childnode.child_value();
+	const char* const child_text = elem.child_value();
 
 	Parser parser(child_text, std::strlen(child_text));
 
@@ -39,20 +35,40 @@ const Vec3d parseVec3(pugi::xml_node elem, const char* elemname)
 
 	Vec3d v;
 	if(!parser.parseDouble(v.x))
-		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(elem));
 	parser.parseWhiteSpace();
 	if(!parser.parseDouble(v.y))
-		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(elem));
 	parser.parseWhiteSpace();
 	if(!parser.parseDouble(v.z))
-		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(elem));
 	parser.parseWhiteSpace();
 
 	// We should be at the end of the string now
 	if(parser.notEOF())
-		throw glare::Exception("Parse error while parsing Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Parse error while parsing Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(elem));
 
 	return v;
+}
+
+
+const Vec3d parseVec3(pugi::xml_node elem, const char* elemname)
+{
+	pugi::xml_node childnode = elem.child(elemname);
+	if(!childnode)
+		throw glare::Exception(std::string("could not find element '") + elemname + "'." + XMLParseUtils::elemContext(elem));
+
+	return parseVec3Directly(childnode);
+}
+
+
+const Vec3d parseVec3WithDefault(pugi::xml_node elem, const char* elemname, const Vec3d& defualt)
+{
+	pugi::xml_node childnode = elem.child(elemname);
+	if(childnode)
+		return parseVec3Directly(childnode);
+	else
+		return defualt;
 }
 
 
@@ -68,6 +84,42 @@ Quatf parseRotationWithDefault(pugi::xml_node elem, const char* elemname, const 
 		return Quatf::identity();
 	else
 		return Quatf::fromAxisAndAngle(normalise(v.toVec4fVector()), (float)v.length());
+}
+
+
+SeatSettings::SeatSettings()
+{
+	seat_position = Vec4f(0,0,0,1);
+	upper_body_rot_angle = 0.4;
+
+	upper_leg_rot_angle = 1.3;
+	upper_leg_rot_around_thigh_bone_angle = 0;
+	upper_leg_apart_angle = 0;
+
+	lower_leg_rot_angle = -0.5;
+	lower_leg_apart_angle = 0.0;
+	rotate_foot_out_angle = 0.0;
+
+	arm_down_angle = 2.1;
+	arm_out_angle = 0.3;
+}
+
+
+static SeatSettings parseSeatSettings(pugi::xml_node seat_elem, const SeatSettings& default_seat_settings)
+{
+	SeatSettings seat_settings;
+	seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
+	seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", default_seat_settings.upper_body_rot_angle);
+	seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", default_seat_settings.upper_leg_rot_angle);
+	seat_settings.upper_leg_rot_around_thigh_bone_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_around_thigh_bone_angle", default_seat_settings.upper_leg_rot_around_thigh_bone_angle);
+	seat_settings.upper_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_apart_angle", default_seat_settings.upper_leg_apart_angle);
+	seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", default_seat_settings.lower_leg_rot_angle);
+	seat_settings.lower_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_apart_angle", default_seat_settings.lower_leg_apart_angle);
+	seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", default_seat_settings.rotate_foot_out_angle);
+	seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", default_seat_settings.arm_down_angle);
+	seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", default_seat_settings.arm_out_angle);
+
+	return seat_settings;
 }
 
 
@@ -131,27 +183,20 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 			{
 				Reference<HoverCarScript> hover_car_script = new HoverCarScript();
 
-				hover_car_script->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_1", Quatf::identity());
-				hover_car_script->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+				hover_car_script->settings = new HoverCarScriptSettings();
+
+				hover_car_script->settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+				hover_car_script->settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_2", Quatf::identity());
 
 				for(pugi::xml_node seat_elem = hover_car_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
 				{
-					SeatSettings seat_settings;
-					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
-					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
-					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
-					seat_settings.upper_leg_rot_around_thigh_bone_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_around_thigh_bone_angle", 0.0);
-					seat_settings.upper_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_apart_angle", 0.0);
-					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
-					seat_settings.lower_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_apart_angle", 0.0);
-					seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", 0.0);
-					seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", 2.1);
-					seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", 0.3);
+					SeatSettings default_seat_settings;
+					SeatSettings seat_settings = parseSeatSettings(seat_elem, default_seat_settings);
 
-					hover_car_script->settings.seat_settings.push_back(seat_settings);
+					hover_car_script->settings->seat_settings.push_back(seat_settings);
 				}
 			
-				if(hover_car_script->settings.seat_settings.empty())
+				if(hover_car_script->settings->seat_settings.empty())
 					throw glare::Exception("hover_car element must have at least one seat element");
 
 				vehicle_script_out = hover_car_script;
@@ -165,27 +210,30 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 			{
 				Reference<BoatScript> boat_script = new BoatScript();
 
-				boat_script->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_1", Quatf::identity());
-				boat_script->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+				Reference<BoatScriptSettings> boat_settings = new BoatScriptSettings();
+				boat_script->settings = boat_settings;
+
+				boat_settings->thrust_force = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "thrust_force", 40000.0);
+				boat_settings->propellor_point_os = parseVec3WithDefault(boat_elem, "propellor_point_os", Vec3d(0, 0.2, -6.2)).toVec4fPoint(); // +z is backwards in beatminer boat model
+				boat_settings->propellor_sideways_offset = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "propellor_sideways_offset", 1.0);
+				boat_settings->rudder_deflection_force_factor = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "rudder_deflection_force_factor", 500.0);
+				
+				boat_settings->front_cross_sectional_area = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "front_cross_sectional_area", 2.0);
+				boat_settings->side_cross_sectional_area = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "side_cross_sectional_area", 4.0);
+				boat_settings->top_cross_sectional_area = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "top_cross_sectional_area", 8.0);
+
+				boat_settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+				boat_settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_2", Quatf::identity());
 
 				for(pugi::xml_node seat_elem = boat_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
 				{
-					SeatSettings seat_settings;
-					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
-					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
-					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
-					seat_settings.upper_leg_rot_around_thigh_bone_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_around_thigh_bone_angle", 0.0);
-					seat_settings.upper_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_apart_angle", 0.0);
-					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
-					seat_settings.lower_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_apart_angle", 0.0);
-					seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", 0.0);
-					seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", 2.1);
-					seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", 0.3);
+					SeatSettings default_seat_settings;
+					SeatSettings seat_settings = parseSeatSettings(seat_elem, default_seat_settings);
 
-					boat_script->settings.seat_settings.push_back(seat_settings);
+					boat_settings->seat_settings.push_back(seat_settings);
 				}
 			
-				if(boat_script->settings.seat_settings.empty())
+				if(boat_settings->seat_settings.empty())
 					throw glare::Exception("boat element must have at least one seat element");
 
 				vehicle_script_out = boat_script;
@@ -199,27 +247,26 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 			{
 				Reference<BikeScript> bike_script = new BikeScript();
 
-				bike_script->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(bike_elem, "model_to_y_forwards_rot_1", Quatf::identity());
-				bike_script->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(bike_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+				bike_script->settings = new BikeScriptSettings();
+
+				bike_script->settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(bike_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+				bike_script->settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(bike_elem, "model_to_y_forwards_rot_2", Quatf::identity());
 
 				for(pugi::xml_node seat_elem = bike_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
 				{
-					SeatSettings seat_settings;
-					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
-					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
-					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
-					seat_settings.upper_leg_rot_around_thigh_bone_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_around_thigh_bone_angle", 0.27);
-					seat_settings.upper_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_apart_angle", 0.17);
-					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
-					seat_settings.lower_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_apart_angle", 0.1);
-					seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", 0.5);
-					seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", 2.7);
-					seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", 0.2);
+					SeatSettings default_seat_settings;
+					default_seat_settings.upper_leg_rot_around_thigh_bone_angle = 0.27;
+					default_seat_settings.upper_leg_apart_angle = 0.17;
+					default_seat_settings.lower_leg_apart_angle = 0.1;
+					default_seat_settings.rotate_foot_out_angle = 0.5;
+					default_seat_settings.arm_down_angle = 2.7;
+					default_seat_settings.arm_out_angle = 0.2;
+					SeatSettings seat_settings = parseSeatSettings(seat_elem, default_seat_settings);
 
-					bike_script->settings.seat_settings.push_back(seat_settings);
+					bike_script->settings->seat_settings.push_back(seat_settings);
 				}
 
-				if(bike_script->settings.seat_settings.empty())
+				if(bike_script->settings->seat_settings.empty())
 					throw glare::Exception("bike element must have at least one seat element");
 
 				vehicle_script_out = bike_script;
