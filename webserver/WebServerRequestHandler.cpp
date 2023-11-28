@@ -17,10 +17,10 @@ Copyright Glare Technologies Limited 2021 -
 #include "RequestHandler.h"
 #include "ResourceHandlers.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
-#include "PayPalHandlers.h"
-#include "CoinbaseHandlers.h"
-#include "AuctionHandlers.h"
-#include "OrderHandlers.h"
+#include <webserver/PayPalHandlers.h>
+#include <webserver/CoinbaseHandlers.h>
+#include <webserver/AuctionHandlers.h>
+#include <webserver/OrderHandlers.h>
 #endif
 #include "ScreenshotHandlers.h"
 #include "ParcelHandlers.h"
