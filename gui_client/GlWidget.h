@@ -132,4 +132,7 @@ public:
 
 	bool take_map_screenshot;
 	float screenshot_ortho_sensor_width_m;
+
+	bool allow_bindless_textures;
+	bool allow_multi_draw_indirect;
 };
