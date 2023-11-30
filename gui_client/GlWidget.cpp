@@ -103,7 +103,9 @@ GlWidget::GlWidget(QWidget *parent)
 	settings(NULL),
 	player_physics(NULL),
 	take_map_screenshot(false),
-	screenshot_ortho_sensor_width_m(10)
+	screenshot_ortho_sensor_width_m(10),
+	allow_bindless_textures(true),
+	allow_multi_draw_indirect(true)
 {
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	setFormat(makeFormat());
@@ -268,6 +270,9 @@ void GlWidget::initializeGL()
 	//engine_settings.use_final_image_buffer = bloom;
 	engine_settings.msaa_samples = use_MSAA ? 4 : -1;
 	engine_settings.max_tex_mem_usage = 1536 * 1024 * 1024ull; // Should be large enough that we have some spare room for the LRU texture cache.
+	engine_settings.allow_multi_draw_indirect = this->allow_multi_draw_indirect;
+	engine_settings.allow_bindless_textures = this->allow_bindless_textures;
+
 
 	opengl_engine = new OpenGLEngine(engine_settings);
 
