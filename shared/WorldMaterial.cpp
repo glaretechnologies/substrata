@@ -408,6 +408,7 @@ static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 8;
 // v8: added length prefix and normal_map_url
 
 
+// We need a general allocator here, as opposed to a bump allocator, since we will be creating an AllocatorVector, and then possibly resizing it, which has memory allocation/free patterns that are not FIFO.
 void writeWorldMaterialToStream(const WorldMaterial& mat, OutStream& stream_, glare::Allocator& temp_allocator)
 {
 	// Write to stream with a length prefix.  Do this by writing to a temporary buffer first, then writing the length of that buffer.
