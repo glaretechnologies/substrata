@@ -594,9 +594,10 @@ void MainWindow::afterGLInitInitialise()
 	//	throw glare::Exception("wglDXOpenDeviceNV failed.");
 #endif
 
+	const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, which have twice the density of qt pixel coordinates.
 
 	gl_ui = new GLUI();
-	gl_ui->create(ui->glWidget->opengl_engine, /*text_renderer=*/this);
+	gl_ui->create(ui->glWidget->opengl_engine, (float)device_pixel_ratio, /*text_renderer=*/this);
 
 	gesture_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
@@ -608,7 +609,6 @@ void MainWindow::afterGLInitInitialise()
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
 	if(!settings->contains(MainOptionsDialog::MSAAKey())) // If the MSAA key has not been set:
 	{
-		const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
 		const bool is_retina = device_pixel_ratio > 1;
 
 		// We won't use MSAA by default in two cases:
@@ -9661,6 +9661,10 @@ void MainWindow::on_actionExport_view_to_Indigo_triggered()
 
 void MainWindow::on_actionTake_Screenshot_triggered()
 {
+	this->gesture_ui.setVisible(false); // Hide gesture UI
+
+	ui->glWidget->updateGL(); // Draw again now that the gesture UI is hidden.
+
 #if QT_VERSION_MAJOR >= 6
 	QImage framebuffer = ui->glWidget->grabFramebuffer();
 #else
@@ -9688,6 +9692,8 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 		msgBox.setText(QtUtils::toQString("Saving screenshot to '" + path + "' failed: " + e.what()));
 		msgBox.exec();
 	}
+
+	this->gesture_ui.setVisible(true); // Restore showing gesture UI
 }
 
 

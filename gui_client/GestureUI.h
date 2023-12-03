@@ -35,6 +35,8 @@ public:
 	//bool handleMouseMoved(const Vec2f& gl_coords);
 	void viewportResized(int w, int h);
 
+	void setVisible(bool visible);
+
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 
 	// Get the current gesture being performed, according to the UI state (i.e. which button is toggled).

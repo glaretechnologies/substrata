@@ -214,9 +214,10 @@ void GestureUI::updateWidgetPositions()
 	{
 		const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
 
-		const float SPACING = 0.02f;
-		const float BUTTON_W = 0.07f;
-		const float BUTTON_H = 0.07f;
+		const float BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(50);
+
+		const float BUTTON_H = BUTTON_W;
+		const float SPACING = BUTTON_W * 0.28f;
 
 		const int NUM_BUTTONS_PER_ROW = 7;
 		const float GESTURES_LEFT_X = gestures_visible ? (1 - (BUTTON_W * NUM_BUTTONS_PER_ROW + SPACING * NUM_BUTTONS_PER_ROW)) : 1000;
@@ -230,7 +231,8 @@ void GestureUI::updateWidgetPositions()
 
 		if(right_tab_button.nonNull())
 		{
-			const float TAB_BUTTON_W = 0.05f;
+			const float TAB_BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(35);
+
 			right_tab_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
 
 			if(!gestures_visible)
@@ -254,6 +256,22 @@ void GestureUI::viewportResized(int w, int h)
 	if(gl_ui.nonNull())
 	{
 		updateWidgetPositions();
+	}
+}
+
+
+void GestureUI::setVisible(bool visible)
+{
+	if(gl_ui.nonNull())
+	{
+		for(size_t i=0; i<gesture_buttons.size(); ++i)
+			gesture_buttons[i]->setVisible(visible);
+
+		right_tab_button->setVisible(visible);
+		left_tab_button->setVisible(visible);
+		selfie_button->setVisible(visible);
+		microphone_button->setVisible(visible);
+		mic_level_image->setVisible(visible);
 	}
 }
 
