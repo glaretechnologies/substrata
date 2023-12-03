@@ -61,7 +61,7 @@ class VehiclePhysics;
 class TerrainSystem;
 class TerrainDecalManager;
 class ParticleManager;
-class Particle;
+struct Particle;
 class ClientThread;
 class MySocket;
 class LogWindow;
