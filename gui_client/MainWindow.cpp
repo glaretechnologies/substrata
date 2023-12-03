@@ -2410,6 +2410,7 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 // Object model has been loaded, now do biome scattering over it, if not done already for this object
 void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 {
+#if 0
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 	ZoneScoped; // Tracy profiler
 
@@ -2418,67 +2419,9 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 		if(!biome_manager->isObjectInBiome(ob))
 		{
 			biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager);
-
-			//TEMP: start manually loading needed textures
-
-
-			{
-				const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
-
-				ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
-				if(resource.nonNull() && (resource->getState() == Resource::State_Present)) // If the texture is present on disk:
-				{
-					const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
-
-					if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
-					{
-						const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
-						if(just_added)
-							//load_item_queue.enqueueItem(aabb_ws.centroid(), aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level);
-							load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/tex_path, /*use_sRGB=*/true, /*allow compression=*/true, /*is_terrain_map=*/false), 
-								/*task max dist=*/std::numeric_limits<float>::infinity());
-					}
-				}
-				else
-				{
-					DownloadingResourceInfo info;
-					info.use_sRGB = true;
-					info.build_dynamic_physics_ob = false;
-					info.pos = ob->pos;
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance factor=*/1.f);
-
-					startDownloadingResource(URL, ob->getCentroidWS(), ob->getAABBWSLongestLength(), info);
-				}
-
-
-
-				//if(resource_manager->isFileForURLPresent(URL))
-				//{
-				//	const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
-				//	if(just_added)
-				//		load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/resource_manager->pathForURL(URL), /*use_sRGB=*/true), /*task max dist=*/std::numeric_limits<float>::infinity());
-				//}
-				//else
-				//{
-				//	DownloadingResourceInfo info;
-				//	info.use_sRGB = true;
-				//	info.pos = ob->pos;
-				//	info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
-
-				//	startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
-				//}
-			}
-			//{
-			//	const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
-			//	if(resource_manager->isFileForURLPresent(URL))
-			//		this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
-			//	else
-			//		startDownloadingResource(URL);
-			//}
-
-			biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, *ui->glWidget->opengl_engine, *resource_manager);
 		}
 	}
+#endif
 }
 
 
@@ -4326,10 +4269,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		this->download_queue.sortQueue(cam_controller.getPosition());
 		download_queue_sort_timer.reset();
 	}
-
-	if(biome_manager)
-		biome_manager->update(cam_controller.getPosition().toVec4fPoint(), cam_controller.getForwardsVec().toVec4fVector(), cam_controller.getRightVec().toVec4fVector(), 
-			ui->glWidget->opengl_engine->getSunDir(), *ui->glWidget->opengl_engine);
 
 	checkForLODChanges();
 	
@@ -13695,7 +13634,19 @@ void MainWindow::updateGroundPlane()
 
 	if(terrain_system.isNull())
 	{
-		biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager); // TEMP NEW
+		try
+		{
+			biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager); // TEMP NEW
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint(e.what());
+			QMessageBox msgBox;
+			msgBox.setText(QtUtils::toQString(e.what()));
+			msgBox.exec();
+			return;
+		}
+
 
 		// Convert URL-based terrain spec to path-based spec
 		const TerrainSpec& spec = this->connected_world_settings.terrain_spec;
