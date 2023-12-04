@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Base64.h>
 #include <Clock.h>
 #include <CryptoRNG.h>
+#include <RandomAccessOutStream.h>
 
 
 User::User()
@@ -149,7 +150,7 @@ static const uint32 USER_SERIALISATION_VERSION = 5;
 // Version 3: Added controlled_eth_address
 
 
-void writeToStream(const User& user, OutStream& stream, glare::Allocator& temp_allocator)
+void writeToStream(const User& user, RandomAccessOutStream& stream)
 {
 	// Write version
 	stream.writeUInt32(USER_SERIALISATION_VERSION);
@@ -171,7 +172,7 @@ void writeToStream(const User& user, OutStream& stream, glare::Allocator& temp_a
 	for(size_t i=0; i<user.password_resets.size(); ++i)
 		writeToStream(user.password_resets[i], stream);
 
-	writeToStream(user.avatar_settings, stream, temp_allocator);
+	writeToStream(user.avatar_settings, stream);
 
 	stream.writeUInt32(user.flags);
 }

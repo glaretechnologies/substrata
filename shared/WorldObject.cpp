@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Sort.h>
 #include <BufferInStream.h>
 #include <PoolAllocator.h>
+#include <RandomAccessOutStream.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
@@ -31,7 +32,6 @@ Copyright Glare Technologies Limited 2016 -
 #endif // GUI_CLIENT
 #include "../shared/ResourceManager.h"
 #include <zstd.h>
-#include <ArenaAllocator.h>
 
 
 InstanceInfo::~InstanceInfo()
@@ -434,7 +434,7 @@ struct ScopedRefIncrementor
 
 
 
-void WorldObject::writeToStream(OutStream& stream, glare::ArenaAllocator& arena_allocator) const
+void WorldObject::writeToStream(RandomAccessOutStream& stream) const
 {
 	// Write version
 	stream.writeUInt32(WORLD_OBJECT_SERIALISATION_VERSION);
@@ -446,13 +446,7 @@ void WorldObject::writeToStream(OutStream& stream, glare::ArenaAllocator& arena_
 	// Write materials
 	stream.writeUInt32((uint32)materials.size());
 	for(size_t i=0; i<materials.size(); ++i)
-	{
-		glare::ArenaAllocator mat_sub_allocator = arena_allocator.getFreeAreaArenaAllocator();
-		ScopedRefIncrementor incrementor(mat_sub_allocator); // Manually increment as writeWorldMaterialToStream will create a reference to it, and it needs > 0 refcount before that to avoid being deleted.
-		// Use a RAII object so it's exception safe.
-
-		::writeWorldMaterialToStream(*materials[i], stream, mat_sub_allocator);
-	}
+		::writeWorldMaterialToStream(*materials[i], stream);
 
 	stream.writeStringLengthFirst(lightmap_url); // new in v13
 
@@ -654,7 +648,7 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 }
 
 
-void WorldObject::writeToNetworkStream(OutStream& stream, glare::ArenaAllocator& arena_allocator) const // Write without version
+void WorldObject::writeToNetworkStream(RandomAccessOutStream& stream) const // Write without version
 {
 	::writeToStream(uid, stream);
 	stream.writeUInt32((uint32)object_type);
@@ -663,13 +657,7 @@ void WorldObject::writeToNetworkStream(OutStream& stream, glare::ArenaAllocator&
 	// Write materials
 	stream.writeUInt32((uint32)materials.size());
 	for(size_t i=0; i<materials.size(); ++i)
-	{
-		glare::ArenaAllocator mat_sub_allocator = arena_allocator.getFreeAreaArenaAllocator();
-		ScopedRefIncrementor incrementor(mat_sub_allocator); // Manually increment as writeWorldMaterialToStream will create a reference to it, and it needs > 0 refcount before that to avoid being deleted.
-		// Use a RAII object so it's exception safe.
-
-		::writeWorldMaterialToStream(*materials[i], stream, mat_sub_allocator);
-	}
+		::writeWorldMaterialToStream(*materials[i], stream);
 
 	stream.writeStringLengthFirst(lightmap_url); // new in v13
 
@@ -1240,14 +1228,8 @@ void WorldObject::test()
 
 			ob.script = "abc";
 
-			Reference<glare::ArenaAllocator> allocator = new glare::ArenaAllocator(32 * 1024);
-
 			BufferOutStream buf;
-			ob.writeToStream(buf, *allocator);
-			allocator->clear();
-
-			printVar(allocator->highWaterMark());
-			testAssert(allocator->currentOffset() == 0);
+			ob.writeToStream(buf);
 
 			// Test reading back object works
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
@@ -1262,25 +1244,21 @@ void WorldObject::test()
 			ob.materials.push_back(new WorldMaterial());
 			ob.materials.back()->normal_map_url = std::string(8192, 'A');
 			ob.materials.push_back(new WorldMaterial());
-			ob.materials.back()->normal_map_url = std::string(8192, 'A');
+			ob.materials.back()->normal_map_url = std::string(8192, 'B');
 			ob.materials.push_back(new WorldMaterial());
 
 			ob.script = "abc";
 
-			Reference<glare::ArenaAllocator> allocator = new glare::ArenaAllocator(32 * 1024);
-
 			BufferOutStream buf;
-			ob.writeToStream(buf, *allocator);
-			allocator->clear();
-
-			printVar(allocator->highWaterMark());
-			testAssert(allocator->currentOffset() == 0);
+			ob.writeToStream(buf);
 
 			// Test reading back object works
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
 			readWorldObjectFromStream(instream, ob2);
-			testAssert(ob2.materials.size() == ob.materials.size());
+			testAssert(ob.materials.size() == ob2.materials.size());
+			testAssert(ob.materials[0]->normal_map_url == ob2.materials[0]->normal_map_url);
+			testAssert(ob.materials[1]->normal_map_url == ob2.materials[1]->normal_map_url);
 		}
 
 		// Test that an object with lots of materials serialises without using too much mem
@@ -1291,14 +1269,8 @@ void WorldObject::test()
 
 			ob.script = "abc";
 
-			Reference<glare::ArenaAllocator> allocator = new glare::ArenaAllocator(32 * 1024);
-
 			BufferOutStream buf;
-			ob.writeToStream(buf, *allocator);
-			allocator->clear();
-
-			printVar(allocator->highWaterMark());
-			testAssert(allocator->currentOffset() == 0);
+			ob.writeToStream(buf);
 
 			// Test reading back object works
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));

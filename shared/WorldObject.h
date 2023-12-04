@@ -31,9 +31,9 @@ struct GLObject;
 struct GLLight;
 class PhysicsObject;
 class RandomAccessInStream;
+class RandomAccessOutStream;
 namespace glare { class AudioSource; }
 namespace glare { class PoolAllocator; }
-namespace glare { class ArenaAllocator; }
 namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
@@ -204,8 +204,8 @@ public:
 	//void getCompressedVoxels() const { return compressed_voxels; }
 
 
-	void writeToStream(OutStream& stream, glare::ArenaAllocator& arena_allocator) const;
-	void writeToNetworkStream(OutStream& stream, glare::ArenaAllocator& arena_allocator) const; // Write without version
+	void writeToStream(RandomAccessOutStream& stream) const;
+	void writeToNetworkStream(RandomAccessOutStream& stream) const; // Write without version
 
 	void copyNetworkStateFrom(const WorldObject& other);
 

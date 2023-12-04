@@ -247,8 +247,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	main_timer_id(0),
 	bump_allocator(/*size (B)=*/16 * 1024 * 1024)
 {
-	arena_allocator = new glare::ArenaAllocator(1024 * 1024);
-
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	this->world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
@@ -5564,8 +5562,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				{
 					// Enqueue ObjectFullUpdate
 					MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
-					world_ob->writeToNetworkStream(scratch_packet, *arena_allocator);
-					arena_allocator->clear();
+					world_ob->writeToNetworkStream(scratch_packet);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -6551,8 +6548,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 					avatar.uid = this->client_avatar_uid;
 					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 					avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-					writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
-					arena_allocator->clear();
+					writeToNetworkStream(avatar, scratch_packet);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
@@ -6838,8 +6834,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = m->username;
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
-				arena_allocator->clear();
+				writeToNetworkStream(avatar, scratch_packet);
 				
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -6863,8 +6858,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = "Anonymous";
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
-				arena_allocator->clear();
+				writeToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -6891,8 +6885,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = m->username;
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
-				arena_allocator->clear();
+				writeToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -7951,8 +7944,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 			// Send AvatarFullUpdate message to server
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-			writeToNetworkStream(avatar, scratch_packet, *arena_allocator);
-			arena_allocator->clear();
+			writeToNetworkStream(avatar, scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -8313,8 +8305,7 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-		arena_allocator->clear();
+		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8423,8 +8414,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-		arena_allocator->clear();
+		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8475,8 +8465,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-		arena_allocator->clear();
+		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8527,8 +8516,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-		arena_allocator->clear();
+		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8612,8 +8600,7 @@ void MainWindow::on_actionAdd_Video_triggered()
 			// Send CreateObject message to server
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-				arena_allocator->clear();
+				new_world_object->writeToNetworkStream(scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -8714,8 +8701,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			// Send CreateObject message to server
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-				arena_allocator->clear();
+				new_world_object->writeToNetworkStream(scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -8767,8 +8753,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-		arena_allocator->clear();
+		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -8794,8 +8779,7 @@ void MainWindow::on_actionCopy_Object_triggered()
 		QMimeData* mime_data = new QMimeData();
 
 		BufferOutStream temp_buf;
-		this->selected_ob->writeToStream(temp_buf, *arena_allocator);
-		arena_allocator->clear();
+		this->selected_ob->writeToStream(temp_buf);
 
 		mime_data->setData(/*mime-type:*/"x-substrata-object-binary", QByteArray((const char*)temp_buf.buf.data(), (int)temp_buf.buf.size()));
 		clipboard->setMimeData(mime_data);
@@ -8926,8 +8910,7 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 
 	// Send CreateObject message to server
 	MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-	new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-	arena_allocator->clear();
+	new_world_object->writeToNetworkStream(scratch_packet);
 	enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 	showInfoNotification("Object created.");
@@ -9059,8 +9042,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					// Note that the recreated object will have a different ID than in the clipboard.
 					{
 						MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-						pasted_ob->writeToNetworkStream(scratch_packet, *arena_allocator);
-						arena_allocator->clear();
+						pasted_ob->writeToNetworkStream(scratch_packet);
 
 						enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -9158,8 +9140,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		// Send CreateObject message to server
 		{
 			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-			arena_allocator->clear();
+			new_world_object->writeToNetworkStream(scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
@@ -9851,8 +9832,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 				// To apply more undo edits to the recreated object, use recreated_ob_uid to map from edit UID to recreated object UID.
 				{
 					MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-					restored_ob->writeToNetworkStream(scratch_packet, *arena_allocator);
-					arena_allocator->clear();
+					restored_ob->writeToNetworkStream(scratch_packet);
 
 					this->last_restored_ob_uid_in_edit = restored_ob->uid; // Store edit UID, will be used when receiving new object to add entry to recreated_ob_uid map.
 
@@ -10143,8 +10123,7 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		// Send CreateObject message to server
 		{
 			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-			arena_allocator->clear();
+			new_world_object->writeToNetworkStream(scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
@@ -10277,8 +10256,7 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 		// Send CreateObject message to server
 		{
 			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(scratch_packet, *arena_allocator);
-			arena_allocator->clear();
+			new_world_object->writeToNetworkStream(scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}

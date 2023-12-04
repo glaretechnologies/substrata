@@ -18,7 +18,6 @@ Copyright Glare Technologies Limited 2021 -
 UndoBuffer::UndoBuffer()
 :	index(0)
 {
-	arena_allocator = new glare::ArenaAllocator(1024 * 1024);
 }
 
 
@@ -32,8 +31,7 @@ void UndoBuffer::startWorldObjectEdit(const WorldObject& ob)
 	//conPrint("UndoBuffer::startWorldObjectEdit()");
 
 	BufferOutStream temp_buf;
-	ob.writeToStream(temp_buf, *arena_allocator);
-	arena_allocator->clear();
+	ob.writeToStream(temp_buf);
 	current_edit.start = temp_buf.buf;
 }
 
@@ -43,8 +41,7 @@ void UndoBuffer::finishWorldObjectEdit(const WorldObject& ob)
 	//conPrint("UndoBuffer::finishWorldObjectEdit()");
 
 	BufferOutStream temp_buf;
-	ob.writeToStream(temp_buf, *arena_allocator);
-	arena_allocator->clear();
+	ob.writeToStream(temp_buf);
 
 	current_edit.end = temp_buf.buf;
 
@@ -68,8 +65,7 @@ void UndoBuffer::replaceFinishWorldObjectEdit(const WorldObject& ob)
 		return;
 
 	BufferOutStream temp_buf;
-	ob.writeToStream(temp_buf, *arena_allocator);
-	arena_allocator->clear();
+	ob.writeToStream(temp_buf);
 
 	//conPrint("replacing edit " + toString(index_to_replace) + " end");
 	chunks[index_to_replace].end = temp_buf.buf;

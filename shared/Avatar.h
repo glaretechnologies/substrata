@@ -26,6 +26,7 @@ struct MeshData;
 class WorldObject;
 class VehiclePhysics;
 class RandomAccessInStream;
+class RandomAccessOutStream;
 namespace glare { class AudioSource; }
 
 
@@ -169,9 +170,9 @@ typedef Reference<Avatar> AvatarRef;
 const Matrix4f obToWorldMatrix(const Avatar& ob);
 
 
-void writeToStream(const AvatarSettings& settings, OutStream& stream, glare::Allocator& temp_allocator);
+void writeToStream(const AvatarSettings& settings, RandomAccessOutStream& stream);
 void readFromStream(RandomAccessInStream& stream, AvatarSettings& settings);
 
 
-void writeToNetworkStream(const Avatar& world_ob, OutStream& stream, glare::Allocator& temp_allocator); // Write without version.  Writes UID.
+void writeToNetworkStream(const Avatar& world_ob, RandomAccessOutStream& stream); // Write without version.  Writes UID.
 void readFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& ob); // UID will have been read already

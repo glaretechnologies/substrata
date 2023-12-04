@@ -11,7 +11,6 @@ Copyright Glare Technologies Limited 2021 -
 #include "../shared/Parcel.h"
 #include <ThreadSafeRefCounted.h>
 #include <Mutex.h>
-#include <ArenaAllocator.h>
 #include <AllocatorVector.h>
 #include <map>
 #include <unordered_set>
@@ -59,6 +58,4 @@ private:
 
 	std::vector<UndoBufferEdit> chunks;
 	int index; // Chunks < index will be restored on Undo, chunks >= index will be restored on redo.
-
-	Reference<glare::ArenaAllocator> arena_allocator;
 };

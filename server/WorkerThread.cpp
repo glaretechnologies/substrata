@@ -43,7 +43,6 @@ Copyright Glare Technologies Limited 2018 -
 #include <algorithm>
 #include <RuntimeCheck.h>
 #include <Timer.h>
-#include <ArenaAllocator.h>
 
 
 static const bool VERBOSE = false;
@@ -774,8 +773,6 @@ void WorkerThread::doRun()
 	if(CAPTURE_TRACES)
 		socket.downcastToPtr<RecordingSocket>()->clearRecordBuf();
 
-	Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(4 * 1024 * 1024);
-
 	ServerAllWorldsState* world_state = server->world_state.getPointer();
 
 	UID client_avatar_uid(0);
@@ -892,8 +889,7 @@ void WorkerThread::doRun()
 				MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 				writeToStream(client_user_id, scratch_packet);
 				scratch_packet.writeStringLengthFirst(client_user_name);
-				writeToStream(client_user_avatar_settings, scratch_packet, *arena_allocator);
-				arena_allocator->clear();
+				writeToStream(client_user_avatar_settings, scratch_packet);
 				scratch_packet.writeUInt32(client_user_flags);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
@@ -948,8 +944,7 @@ void WorkerThread::doRun()
 
 						// Write AvatarIsHere message
 						MessageUtils::initPacket(scratch_packet, Protocol::AvatarIsHere);
-						writeToNetworkStream(*avatar, scratch_packet, *arena_allocator);
-						arena_allocator->clear();
+						writeToNetworkStream(*avatar, scratch_packet);
 						MessageUtils::updatePacketLengthField(scratch_packet);
 
 						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1838,8 +1833,7 @@ void WorkerThread::doRun()
 
 									// Build ObjectInitialSend message
 									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-									ob->writeToNetworkStream(scratch_packet, *arena_allocator);
-									arena_allocator->clear();
+									ob->writeToNetworkStream(scratch_packet);
 									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1911,8 +1905,7 @@ void WorkerThread::doRun()
 									{
 										// Send ObjectInitialSend packet
 										MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-										ob->writeToNetworkStream(scratch_packet, *arena_allocator);
-										arena_allocator->clear();
+										ob->writeToNetworkStream(scratch_packet);
 										MessageUtils::updatePacketLengthField(scratch_packet);
 
 										packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
@@ -2004,8 +1997,7 @@ void WorkerThread::doRun()
 
 									// Create ObjectInitialSend packet
 									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-									ob->writeToNetworkStream(scratch_packet, *arena_allocator);
-									arena_allocator->clear();
+									ob->writeToNetworkStream(scratch_packet);
 									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with ObjectInitialSend message to packet.
@@ -2209,8 +2201,7 @@ void WorkerThread::doRun()
 								MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 								writeToStream(client_user_id, scratch_packet);
 								scratch_packet.writeStringLengthFirst(username);
-								writeToStream(client_user_avatar_settings, scratch_packet, *arena_allocator);
-								arena_allocator->clear();
+								writeToStream(client_user_avatar_settings, scratch_packet);
 								scratch_packet.writeUInt32(client_user_flags);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 

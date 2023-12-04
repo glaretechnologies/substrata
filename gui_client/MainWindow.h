@@ -738,7 +738,6 @@ public:
 	Reference<ParticleManager> particle_manager;
 
 	glare::BumpAllocator bump_allocator;
-	Reference<glare::ArenaAllocator> arena_allocator;
 
 	Reference<OpenGLEngine> opengl_engine;
 
