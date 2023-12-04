@@ -99,4 +99,14 @@ export class BufferOut {
 
         web_socket.send(trimmed);
     }
+
+    writeBufferOut(buffer: BufferOut) {
+        let write_i = this.size;
+        this.checkForResize(/*newsize=*/this.size + buffer.size);
+
+        for (let i = 0; i < buffer.size; ++i)
+            this.data_view.setUint8(write_i + i, buffer.data_view.getUint8(i)); // NOTE: can no doubt be optimised to avoid doing this byte by byte
+
+        this.size += buffer.size;
+    }
 }

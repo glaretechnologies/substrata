@@ -27,6 +27,7 @@ export class WorldMaterial {
 	tex_matrix: Matrix2f;
 	emission_lum_flux: number;
 	flags: number;
+	normal_map_url: string;
 
 
 	loaded_colour_texture_URL: string | null; // The URL of the loaded colour texture.  This can be different from colour_texture_url as it may have a LOD suffix.
@@ -39,24 +40,33 @@ export class WorldMaterial {
 		return ((this.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) != 0) ? -1 : 0;
 	}
 
-	writeToStream(stream: BufferOut) {
-		stream.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
+	writeToStream(stream_: BufferOut) {
 
-		this.colour_rgb.writeToStream(stream);
-		stream.writeStringLengthFirst(this.colour_texture_url);
+		const buffer_out = new BufferOut();
+		buffer_out.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
+		buffer_out.writeUInt32(0); // will be updated with length
 
-		this.emission_rgb.writeToStream(stream);
-		stream.writeStringLengthFirst(this.emission_texture_url);
+		this.colour_rgb.writeToStream(buffer_out);
+		buffer_out.writeStringLengthFirst(this.colour_texture_url);
 
-		this.roughness.writeToStream(stream);
-		this.metallic_fraction.writeToStream(stream);
-		this.opacity.writeToStream(stream);
+		this.emission_rgb.writeToStream(buffer_out);
+		buffer_out.writeStringLengthFirst(this.emission_texture_url);
 
-		this.tex_matrix.writeToStream(stream);
+		this.roughness.writeToStream(buffer_out);
+		this.metallic_fraction.writeToStream(buffer_out);
+		this.opacity.writeToStream(buffer_out);
 
-		stream.writeFloat(this.emission_lum_flux);
+		this.tex_matrix.writeToStream(buffer_out);
 
-		stream.writeUInt32(this.flags);
+		buffer_out.writeFloat(this.emission_lum_flux);
+
+		buffer_out.writeUInt32(this.flags);
+
+		buffer_out.writeStringLengthFirst(this.normal_map_url);
+
+		buffer_out.updateMessageLengthField();
+
+		stream_.writeBufferOut(buffer_out);
 	}
 
 	setDefaults() {
@@ -70,6 +80,7 @@ export class WorldMaterial {
 		this.tex_matrix = new Matrix2f(1, 0, 0, 1);
 		this.emission_lum_flux = 0;
 		this.flags = 0;
+		this.normal_map_url = "";
 	}
 
 	getLODTextureURLForLevel(base_texture_url: string, level: number, has_alpha: boolean): string {
@@ -144,6 +155,8 @@ export function readWorldMaterialFromStream(buffer_in: BufferIn) {
 	mat.emission_lum_flux = readFloat(buffer_in);
 
 	mat.flags = readUInt32(buffer_in);
+
+	mat.normal_map_url = readStringFromStream(buffer_in);
 
 	// Discard any remaining unread data
 	let read_B = buffer_in.getReadIndex() - initial_read_index;
