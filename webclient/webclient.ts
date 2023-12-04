@@ -1,7 +1,7 @@
 /*=====================================================================
 webclient.ts
 ------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 
 
@@ -103,11 +103,12 @@ const physics_world = new PhysicsWorld();
 const STATE_INITIAL = 0;
 const STATE_READ_HELLO_RESPONSE = 1;
 const STATE_READ_PROTOCOL_RESPONSE = 2;
-const STATE_READ_CLIENT_AVATAR_UID = 3;
+const STATE_READ_SERVER_PROTOCOL_VERSION = 3;
+const STATE_READ_CLIENT_AVATAR_UID = 4;
 
 let protocol_state = 0;
 
-const CyberspaceProtocolVersion = 37;
+const CyberspaceProtocolVersion = 38;
 const CyberspaceHello = 1357924680;
 const ClientProtocolOK = 10000;
 const ClientProtocolTooOld = 10001;
@@ -235,6 +236,15 @@ ws.onmessage = function (event: MessageEvent) {
 			protocol_state = STATE_READ_PROTOCOL_RESPONSE;
 		}
 		else if (protocol_state == STATE_READ_PROTOCOL_RESPONSE) {
+			// Read server protocol version
+			let server_protocol_version = readUInt32(buffer);
+
+			console.log("Read server_protocol_version from server: " + server_protocol_version.toString());
+
+			protocol_state = STATE_READ_SERVER_PROTOCOL_VERSION;
+		}
+		else if (protocol_state == STATE_READ_SERVER_PROTOCOL_VERSION) {
+
 			// Read client_avatar_uid
 			client_avatar_uid = readUIDFromStream(buffer);
 			client_avatar.uid = client_avatar_uid;
