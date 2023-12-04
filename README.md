@@ -43,13 +43,13 @@ Substrata uses the Glare engine (https://github.com/glaretechnologies/glare-core
 We have integrated the Jolt physics engine (https://github.com/jrouwe/JoltPhysics), and have implemented a networked physics simulation on top of it. 
 What that means is that multiple players can interact with objects in a world, drive vehicles, push objects etc. in a realistic way.
 
-Physics-based vehicles: 
+Physics-based vehicles: (Image links are to videos on YouTube)
 
-<a href="https://www.youtube.com/watch?v=Hc79sDi3f0U"><img src="https://github.com/glaretechnologies/substrata/assets/30285/18703540-58ae-4e18-bf28-635784cd6c9a" width="600"></a>
+<a href="https://youtu.be/-E3J8kaqolQ"><img src="https://github.com/glaretechnologies/substrata/assets/30285/18703540-58ae-4e18-bf28-635784cd6c9a" width="600"></a>
 
 Networked physics:
 
-<a href="https://www.youtube.com/watch?v=Hc79sDi3f0U"><img src="https://github.com/glaretechnologies/substrata/assets/30285/37eaacef-0f1b-48af-a820-1dcc9c17466e" width="600"></a>
+<a href="https://youtu.be/_rECxiwVteY"><img src="https://github.com/glaretechnologies/substrata/assets/30285/37eaacef-0f1b-48af-a820-1dcc9c17466e" width="600"></a>
 
 
 Handling lots of interactive objects:
@@ -66,7 +66,7 @@ Substrata has built-in spatial audio and voice chat, without using any third-par
 
 The substrata client has controls for creating and editing objects, as well as for editing voxels
 
-<img src="https://github.com/glaretechnologies/substrata/assets/30285/6956d5a7-33f4-4c79-947c-951a2fe3cb18" width="600">
+<img src="https://github.com/glaretechnologies/substrata/assets/30285/1680739d-b7ae-4e8f-9ba8-48769643e27b" width="600">
 
 
 <img src="https://github.com/glaretechnologies/substrata/assets/30285/3e3fb2f5-de3a-4132-9b86-b275b89c5dbd" width="600">
