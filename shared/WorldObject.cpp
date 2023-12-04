@@ -494,7 +494,7 @@ void WorldObject::writeToStream(OutStream& stream, glare::ArenaAllocator& arena_
 }
 
 
-void readFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator)
+void readWorldObjectFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator)
 {
 	// Read version
 	const uint32 v = stream.readUInt32();
@@ -1254,7 +1254,7 @@ void WorldObject::test()
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
 			glare::BumpAllocator bump_allocator(32 * 1024);
-			readFromStream(instream, ob2, bump_allocator);
+			readWorldObjectFromStream(instream, ob2, bump_allocator);
 			testAssert(ob2.materials.size() == ob.materials.size());
 		}
 
@@ -1282,7 +1282,7 @@ void WorldObject::test()
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
 			glare::BumpAllocator bump_allocator(32 * 1024);
-			readFromStream(instream, ob2, bump_allocator);
+			readWorldObjectFromStream(instream, ob2, bump_allocator);
 			testAssert(ob2.materials.size() == ob.materials.size());
 		}
 
@@ -1307,7 +1307,7 @@ void WorldObject::test()
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
 			glare::BumpAllocator bump_allocator(32 * 1024);
-			readFromStream(instream, ob2, bump_allocator);
+			readWorldObjectFromStream(instream, ob2, bump_allocator);
 			testAssert(ob2.materials.size() == ob.materials.size());
 		}
 	}

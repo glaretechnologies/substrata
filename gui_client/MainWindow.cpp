@@ -9006,7 +9006,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 				{
 					// Deserialise object
 					WorldObjectRef pasted_ob = new WorldObject();
-					readFromStream(in_stream_buf, *pasted_ob, bump_allocator);
+					readWorldObjectFromStream(in_stream_buf, *pasted_ob, bump_allocator);
 
 					// Choose a position for the pasted object.
 					Vec3d new_ob_pos;

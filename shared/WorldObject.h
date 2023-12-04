@@ -488,7 +488,7 @@ void WorldObject::setDynamic(bool c)
 }
 
 
-void readFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator);
+void readWorldObjectFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator);
 void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator); // UID will have been read already
 
 
