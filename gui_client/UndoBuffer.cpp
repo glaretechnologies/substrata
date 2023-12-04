@@ -76,7 +76,7 @@ void UndoBuffer::replaceFinishWorldObjectEdit(const WorldObject& ob)
 }
 
 
-WorldObjectRef UndoBuffer::getUndoWorldObject(glare::BumpAllocator& bump_allocator)
+WorldObjectRef UndoBuffer::getUndoWorldObject()
 {
 	//conPrint("UndoBuffer::getUndoWorldObject()");
 
@@ -99,12 +99,12 @@ WorldObjectRef UndoBuffer::getUndoWorldObject(glare::BumpAllocator& bump_allocat
 	index--;
 
 	WorldObjectRef ob = new WorldObject();
-	readWorldObjectFromStream(stream, *ob, bump_allocator);
+	readWorldObjectFromStream(stream, *ob);
 	return ob;
 }
 
 
-WorldObjectRef UndoBuffer::getRedoWorldObject(glare::BumpAllocator& bump_allocator)
+WorldObjectRef UndoBuffer::getRedoWorldObject()
 {
 	if(index >= (int)chunks.size())
 		return NULL;
@@ -120,6 +120,6 @@ WorldObjectRef UndoBuffer::getRedoWorldObject(glare::BumpAllocator& bump_allocat
 	index++;
 
 	WorldObjectRef ob = new WorldObject();
-	readWorldObjectFromStream(stream, *ob, bump_allocator);
+	readWorldObjectFromStream(stream, *ob);
 	return ob;
 }

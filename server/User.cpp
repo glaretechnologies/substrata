@@ -177,7 +177,7 @@ void writeToStream(const User& user, OutStream& stream, glare::Allocator& temp_a
 }
 
 
-void readFromStream(InStream& stream, User& user, glare::BumpAllocator& bump_allocator)
+void readFromStream(RandomAccessInStream& stream, User& user)
 {
 	// Read version
 	const uint32 v = stream.readUInt32();
@@ -211,7 +211,7 @@ void readFromStream(InStream& stream, User& user, glare::BumpAllocator& bump_all
 	}
 
 	if(v >= 4)
-		readFromStream(stream, user.avatar_settings, bump_allocator);
+		readFromStream(stream, user.avatar_settings);
 
 	if(v >= 5)
 		user.flags = stream.readUInt32();

@@ -25,8 +25,8 @@ class AvatarGraphics;
 struct MeshData;
 class WorldObject;
 class VehiclePhysics;
+class RandomAccessInStream;
 namespace glare { class AudioSource; }
-namespace glare { class BumpAllocator; }
 
 
 #ifdef _WIN32
@@ -170,8 +170,8 @@ const Matrix4f obToWorldMatrix(const Avatar& ob);
 
 
 void writeToStream(const AvatarSettings& settings, OutStream& stream, glare::Allocator& temp_allocator);
-void readFromStream(InStream& stream, AvatarSettings& settings, glare::BumpAllocator& bump_allocator);
+void readFromStream(RandomAccessInStream& stream, AvatarSettings& settings);
 
 
 void writeToNetworkStream(const Avatar& world_ob, OutStream& stream, glare::Allocator& temp_allocator); // Write without version.  Writes UID.
-void readFromNetworkStreamGivenUID(InStream& stream, Avatar& ob, glare::BumpAllocator& bump_allocator); // UID will have been read already
+void readFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& ob); // UID will have been read already

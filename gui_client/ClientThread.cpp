@@ -25,7 +25,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <Clock.h>
 #include <PoolAllocator.h>
 #include <Timer.h>
-#include <BumpAllocator.h>
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
@@ -100,8 +99,6 @@ WorldObjectRef ClientThread::allocWorldObject()
 void ClientThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("ClientThread");
-
-	glare::BumpAllocator bump_allocator(1024 * 1024);
 
 	try
 	{
@@ -291,7 +288,7 @@ void ClientThread::doRun()
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar, bump_allocator); // Read message data before grabbing lock
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -313,7 +310,7 @@ void ClientThread::doRun()
 
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar, bump_allocator); // Read message data before grabbing lock
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -344,7 +341,7 @@ void ClientThread::doRun()
 
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar, bump_allocator); // Read message data before grabbing lock
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -648,7 +645,7 @@ void ClientThread::doRun()
 								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
 #endif
 								{
-									readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob, bump_allocator);
+									readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 									read = true;
 									ob->from_remote_other_dirty = true;
 									world_state->dirty_from_remote_objects.insert(ob);
@@ -659,7 +656,7 @@ void ClientThread::doRun()
 							if(!read)
 							{
 								WorldObject dummy;
-								readWorldObjectFromNetworkStreamGivenUID(msg_buffer, dummy, bump_allocator);
+								readWorldObjectFromNetworkStreamGivenUID(msg_buffer, dummy);
 							}
 
 						}
@@ -787,7 +784,7 @@ void ClientThread::doRun()
 						// Read from network
 						WorldObjectRef ob = allocWorldObject();
 						ob->uid = object_uid;
-						readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob, bump_allocator);
+						readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 
 						ob->state = WorldObject::State_JustCreated;
 						ob->from_remote_other_dirty = true;
@@ -813,7 +810,7 @@ void ClientThread::doRun()
 						// Read from network
 						WorldObjectRef ob = allocWorldObject();
 						ob->uid = object_uid;
-						readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob, bump_allocator);
+						readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 
 						if(!isFinite(ob->angle))
 							ob->angle = 0;
@@ -988,7 +985,7 @@ void ClientThread::doRun()
 						const std::string logged_in_username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						Reference<LoggedInMessage> msg = new LoggedInMessage(logged_in_user_id, logged_in_username);
 						
-						readFromStream(msg_buffer, msg->avatar_settings, bump_allocator);
+						readFromStream(msg_buffer, msg->avatar_settings);
 
 						uint32 logged_in_user_flags = 0;
 						if(msg_buffer.canReadNBytes(sizeof(uint32))) // Added sending flags after avatar settings

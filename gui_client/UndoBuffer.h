@@ -51,8 +51,8 @@ public:
 
 	void replaceFinishWorldObjectEdit(const WorldObject& ob);
 
-	WorldObjectRef getUndoWorldObject(glare::BumpAllocator& bump_allocator);
-	WorldObjectRef getRedoWorldObject(glare::BumpAllocator& bump_allocator);
+	WorldObjectRef getUndoWorldObject();
+	WorldObjectRef getRedoWorldObject();
 
 private:
 	UndoBufferEdit current_edit;

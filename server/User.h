@@ -19,7 +19,7 @@ Copyright Glare Technologies Limited 2017 -
 #include <DatabaseKey.h>
 
 
-namespace glare { class BumpAllocator; }
+class RandomAccessInStream;
 
 
 struct EmailSendingInfo
@@ -90,7 +90,7 @@ typedef Reference<User> UserRef;
 
 
 void writeToStream(const User& user, OutStream& stream, glare::Allocator& temp_allocator);
-void readFromStream(InStream& stream, User& userob, glare::BumpAllocator& bump_allocator);
+void readFromStream(RandomAccessInStream& stream, User& userob);
 
 
 struct UserRefHash

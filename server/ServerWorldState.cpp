@@ -19,7 +19,6 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Database.h>
 #include <BufferOutStream.h>
 #include <BufferInStream.h>
-#include <BumpAllocator.h>
 #include <ArenaAllocator.h>
 
 
@@ -102,8 +101,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 	Lock lock(mutex);
 
-	glare::BumpAllocator bump_allocator(1024 * 1024);
-
 	Timer timer;
 
 	size_t num_obs = 0;
@@ -160,7 +157,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					// Deserialise object
 					WorldObjectRef world_ob = new WorldObject();
-					readWorldObjectFromStream(stream, *world_ob, bump_allocator);
+					readWorldObjectFromStream(stream, *world_ob);
 
 					//TEMP HACK: clear lightmap needed flag
 					BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
@@ -175,7 +172,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				{
 					// Deserialise user
 					UserRef user = new User();
-					readFromStream(stream, *user, bump_allocator);
+					readFromStream(stream, *user);
 
 					user->database_key = database_key;
 					user_id_to_users[user->id] = user; // Add to user map
@@ -383,7 +380,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				// Deserialise object
 				WorldObjectRef world_ob = new WorldObject();
-				readWorldObjectFromStream(stream, *world_ob, bump_allocator);
+				readWorldObjectFromStream(stream, *world_ob);
 
 				//TEMP HACK: clear lightmap needed flag
 				BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
@@ -397,7 +394,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				// Deserialise user
 				UserRef user = new User();
-				readFromStream(stream, *user, bump_allocator);
+				readFromStream(stream, *user);
 
 				user_id_to_users[user->id] = user; // Add to user map
 				name_to_users[user->name] = user; // Add to user map

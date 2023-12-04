@@ -9006,7 +9006,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 				{
 					// Deserialise object
 					WorldObjectRef pasted_ob = new WorldObject();
-					readWorldObjectFromStream(in_stream_buf, *pasted_ob, bump_allocator);
+					readWorldObjectFromStream(in_stream_buf, *pasted_ob);
 
 					// Choose a position for the pasted object.
 					Vec3d new_ob_pos;
@@ -9870,7 +9870,7 @@ void MainWindow::on_actionUndo_triggered()
 {
 	try
 	{
-		WorldObjectRef ob = undo_buffer.getUndoWorldObject(bump_allocator);
+		WorldObjectRef ob = undo_buffer.getUndoWorldObject();
 		applyUndoOrRedoObject(ob);
 	}
 	catch(glare::Exception& e)
@@ -9884,7 +9884,7 @@ void MainWindow::on_actionRedo_triggered()
 {
 	try
 	{
-		WorldObjectRef ob = undo_buffer.getRedoWorldObject(bump_allocator);
+		WorldObjectRef ob = undo_buffer.getRedoWorldObject();
 		applyUndoOrRedoObject(ob);
 	}
 	catch(glare::Exception& e)
