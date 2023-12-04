@@ -89,7 +89,7 @@ public:
 typedef Reference<User> UserRef;
 
 
-void writeToStream(const User& user, OutStream& stream, glare::Allocator& temp_allocator);
+void writeToStream(const User& user, RandomAccessOutStream& stream);
 void readFromStream(RandomAccessInStream& stream, User& userob);
 
 

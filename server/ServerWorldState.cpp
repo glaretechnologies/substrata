@@ -19,7 +19,6 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Database.h>
 #include <BufferOutStream.h>
 #include <BufferInStream.h>
-#include <ArenaAllocator.h>
 
 
 ServerAllWorldsState::ServerAllWorldsState()
@@ -838,7 +837,6 @@ void ServerAllWorldsState::serialiseToDisk()
 
 		
 		BufferOutStream temp_buf;
-		Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(4 * 1024 * 1024);
 
 		// Iterate over all objects, if they are dirty, write to the DB
 
@@ -856,8 +854,7 @@ void ServerAllWorldsState::serialiseToDisk()
 					temp_buf.clear();
 					temp_buf.writeUInt32(WORLD_OBJECT_CHUNK);
 					temp_buf.writeStringLengthFirst(world_name); // Write world name
-					ob->writeToStream(temp_buf, *arena_allocator); // Write object
-					arena_allocator->clear();
+					ob->writeToStream(temp_buf); // Write object
 
 					if(!ob->database_key.valid())
 						ob->database_key = database.allocUnusedKey(); // Get a new key
@@ -917,8 +914,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				User* user = it->ptr();
 				temp_buf.clear();
 				temp_buf.writeUInt32(USER_CHUNK);
-				writeToStream(*user, temp_buf, *arena_allocator);
-				arena_allocator->clear();
+				writeToStream(*user, temp_buf);
 
 				if(!user->database_key.valid())
 					user->database_key = database.allocUnusedKey(); // Get a new key

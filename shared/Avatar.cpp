@@ -22,6 +22,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include <utils/FileUtils.h>
 #include <utils/FileChecksum.h>
 #include <utils/RandomAccessInStream.h>
+#include <utils/RandomAccessOutStream.h>
 #include <physics/jscol_aabbox.h>
 
 
@@ -333,14 +334,14 @@ bool AvatarSettings::operator == (const AvatarSettings& other) const
 }
 
 
-void writeToStream(const AvatarSettings& settings, OutStream& stream, glare::Allocator& temp_allocator)
+void writeToStream(const AvatarSettings& settings, RandomAccessOutStream& stream)
 {
 	stream.writeStringLengthFirst(settings.model_url);
 
 	// Write materials
 	stream.writeUInt32((uint32)settings.materials.size());
 	for(size_t i=0; i<settings.materials.size(); ++i)
-		::writeWorldMaterialToStream(*settings.materials[i], stream, temp_allocator);
+		::writeWorldMaterialToStream(*settings.materials[i], stream);
 
 	stream.writeData(settings.pre_ob_to_world_matrix.e, sizeof(float)*16);
 }
@@ -370,13 +371,13 @@ void readFromStream(RandomAccessInStream& stream, AvatarSettings& settings)
 
 
 
-void writeToNetworkStream(const Avatar& avatar, OutStream& stream, glare::Allocator& temp_allocator) // Write without version
+void writeToNetworkStream(const Avatar& avatar, RandomAccessOutStream& stream) // Write without version
 {
 	writeToStream(avatar.uid, stream);
 	stream.writeStringLengthFirst(avatar.name);
 	writeToStream(avatar.pos, stream);
 	writeToStream(avatar.rotation, stream);
-	writeToStream(avatar.avatar_settings, stream, temp_allocator);
+	writeToStream(avatar.avatar_settings, stream);
 }
 
 

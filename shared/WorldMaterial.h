@@ -20,6 +20,7 @@ struct GLObject;
 class PhysicsObject;
 class ResourceManager;
 class RandomAccessInStream;
+class RandomAccessOutStream;
 namespace pugi { class xml_node; }
 namespace glare { class Allocator; }
 
@@ -152,7 +153,7 @@ typedef Reference<WorldMaterial> WorldMaterialRef;
 
 
 // WorldMaterial serialisation
-void writeWorldMaterialToStream(const WorldMaterial& world_ob, OutStream& stream, glare::Allocator& temp_allocator);
+void writeWorldMaterialToStream(const WorldMaterial& world_ob, RandomAccessOutStream& stream);
 void readWorldMaterialFromStream(RandomAccessInStream& stream, WorldMaterial& ob);
 
 // ScalarVal serialisation

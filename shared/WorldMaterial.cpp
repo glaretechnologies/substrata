@@ -407,44 +407,40 @@ static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 8;
 // v8: added length prefix and normal_map_url
 
 
-// We need a general allocator here, as opposed to a bump allocator, since we will be creating an AllocatorVector, and then possibly resizing it, which has memory allocation/free patterns that are not FIFO.
-void writeWorldMaterialToStream(const WorldMaterial& mat, OutStream& stream_, glare::Allocator& temp_allocator)
+void writeWorldMaterialToStream(const WorldMaterial& mat, RandomAccessOutStream& stream)
 {
-	// Write to stream with a length prefix.  Do this by writing to a temporary buffer first, then writing the length of that buffer.
+	// Write to stream with a length prefix.  Do this by writing to the stream, them going back and writing the length of the data we wrote.
 	// Writing a length prefix allows for adding more fields later, while retaining backwards compatibility with older code that can just skip over the new fields.
-	BufferOutStream buffer;
-	buffer.buf.setAllocator(&temp_allocator);
-	buffer.buf.reserve(4096);
+
+	const size_t initial_write_index = stream.getWriteIndex();
 
 	// Write version
-	buffer.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
-	buffer.writeUInt32(0); // Size of buffer will be written here later
+	stream.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
+	stream.writeUInt32(0); // Size of buffer will be written here later
 
-	writeToStream(buffer, mat.colour_rgb);
-	buffer.writeStringLengthFirst(mat.colour_texture_url);
+	writeToStream(stream, mat.colour_rgb);
+	stream.writeStringLengthFirst(mat.colour_texture_url);
 
-	writeToStream(buffer, mat.emission_rgb);
-	buffer.writeStringLengthFirst(mat.emission_texture_url);
+	writeToStream(stream, mat.emission_rgb);
+	stream.writeStringLengthFirst(mat.emission_texture_url);
 
-	writeScalarValToStream(mat.roughness, buffer);
-	writeScalarValToStream(mat.metallic_fraction, buffer);
-	writeScalarValToStream(mat.opacity, buffer);
+	writeScalarValToStream(mat.roughness, stream);
+	writeScalarValToStream(mat.metallic_fraction, stream);
+	writeScalarValToStream(mat.opacity, stream);
 
-	writeToStream(mat.tex_matrix, buffer);
+	writeToStream(mat.tex_matrix, stream);
 
-	buffer.writeFloat(mat.emission_lum_flux_or_lum);
+	stream.writeFloat(mat.emission_lum_flux_or_lum);
 
-	buffer.writeUInt32(mat.flags);
+	stream.writeUInt32(mat.flags);
 
-	buffer.writeStringLengthFirst(mat.normal_map_url);
+	stream.writeStringLengthFirst(mat.normal_map_url);
 
 
 	// Go back and write size of buffer to buffer size field
-	const uint32 buffer_size = (uint32)buffer.buf.size();
-	std::memcpy(buffer.buf.data() + sizeof(uint32), &buffer_size, sizeof(uint32));
+	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
 
-	// Write buffer to actual output stream
-	stream_.writeData(buffer.buf.data(), buffer.buf.size());
+	std::memcpy(stream.getWritePtrAtIndex(initial_write_index + sizeof(uint32)), &buffer_size, sizeof(uint32));
 }
 
 
@@ -852,17 +848,13 @@ void WorldMaterial::test()
 		}*/
 
 		{
-			Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
 			BufferOutStream buf;
-			//buf.buf.setAllocator(arena_allocator);
 
 			Timer timer;
 			for(int i=0; i<iters; ++i)
 			{
 				buf.buf.resize(0);
-				writeWorldMaterialToStream(mat, buf, *arena_allocator);
-
-				arena_allocator->clear();
+				writeWorldMaterialToStream(mat, buf);
 			}
 			double time_per_iter = timer.elapsed() / iters;
 			conPrint("writeWorldMaterialToStream length prefixed time_per_iter: " + doubleToStringNSigFigs(time_per_iter * 1.0e9, 4) + " ns");
@@ -870,9 +862,8 @@ void WorldMaterial::test()
 
 
 		{
-			Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(1024 * 1024);
 			BufferOutStream buf;
-			writeWorldMaterialToStream(mat, buf, *arena_allocator);
+			writeWorldMaterialToStream(mat, buf);
 
 			BufferInStream instreambuf;
 			instreambuf.buf.resize(buf.buf.size());
