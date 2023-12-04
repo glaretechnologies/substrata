@@ -9,6 +9,18 @@ You can build the Substrata client or Substrata server from this repository.
 ![main screenshot](https://github.com/glaretechnologies/substrata/assets/30285/38a6db93-e729-4f15-8561-5c848eb5391c)
 
 
+## Usage examples
+
+You can always visit the main Substrata world at substrata.info - this is the server that we run, and the main gathering point for Substrata users.  However you are also welcome to run your own server!  You can do this using by building the server from this repository, or using one of the prebuilt binaries.
+
+### 3D model Visualisation
+
+Substrata is perfect for multi-user visualisation of 3d models.  Walk around a digital twin model with your team, hosted on an on-premises server!
+
+### Education
+
+Because Substrata is open source, you can build and run your own world for students without paying any licensing fees.
+
 ## Get Involved
 
 We welcome contributions from people!
@@ -16,6 +28,8 @@ We welcome contributions from people!
 Chat about Substrata on the Substrata discord here: https://discord.gg/3Ds9cxyEnZ
 
 Feel free to drop a message on the discord if you are having trouble building Substrata, or have any questions about it.
+
+
 
 ## Building
 
@@ -76,4 +90,10 @@ The substrata client has controls for creating and editing objects, as well as f
 
 You can add objects to the world from your local machine, and they will be automatically uploaded to the server and be visible to other users.
 
+## Get help
 
+Chat about Substrata on the Substrata discord here: https://discord.gg/3Ds9cxyEnZ
+
+Feel free to drop a message on the discord if you are having trouble building Substrata, or have any questions about it.
+
+Alternatively, feel free to create a github issue.
