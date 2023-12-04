@@ -1,6 +1,9 @@
 
 Substrata is an open-source metaverse, developed by Glare Technologies Limited, see https://substrata.info/.
 
+The Substrata client and server are native apps written in C++, that support Windows, Mac and Linux.
+There is also an in-development web-client.
+
 You can build the Substrata client or Substrata server from this repository.
 
 ![main screenshot](https://github.com/glaretechnologies/substrata/assets/30285/38a6db93-e729-4f15-8561-5c848eb5391c)
