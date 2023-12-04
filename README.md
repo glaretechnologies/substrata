@@ -54,7 +54,7 @@ Networked physics:
 
 Handling lots of interactive objects:
 
-<a href="https://youtu.be/CzGz6voUE_8"><img src="https://github.com/glaretechnologies/substrata/assets/30285/6956d5a7-33f4-4c79-947c-951a2fe3cb18" width="600"></a>
+<a href="https://youtu.be/CzGz6voUE_8?t=8"><img src="https://github.com/glaretechnologies/substrata/assets/30285/6956d5a7-33f4-4c79-947c-951a2fe3cb18" width="600"></a>
 
 
 ### Spatial Audio and Voice Chat
