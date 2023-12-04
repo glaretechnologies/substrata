@@ -212,6 +212,7 @@ ${UTILS_DIR}/PoolMap.cpp
 ${UTILS_DIR}/PoolMap.h
 ${UTILS_DIR}/GlareProcess.cpp
 ${UTILS_DIR}/GlareProcess.h
+${UTILS_DIR}/RandomAccessInStream.h
 ${UTILS_DIR}/RefCounted.h
 ${UTILS_DIR}/Reference.h
 ${UTILS_DIR}/ReferenceTest.cpp

@@ -18,7 +18,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <BufferOutStream.h>
 #include <BufferViewInStream.h>
 #include <RuntimeCheck.h>
-#include <BumpAllocator.h>
 
 
 WorldMaterial::WorldMaterial()
@@ -449,8 +448,10 @@ void writeWorldMaterialToStream(const WorldMaterial& mat, OutStream& stream_, gl
 }
 
 
-void readWorldMaterialFromStream(InStream& stream, WorldMaterial& mat, glare::BumpAllocator& bump_allocator)
+void readWorldMaterialFromStream(RandomAccessInStream& stream, WorldMaterial& mat)
 {
+	const size_t initial_read_index = stream.getReadIndex();
+
 	// Read version
 	const uint32 v = stream.readUInt32();
 
@@ -461,26 +462,22 @@ void readWorldMaterialFromStream(InStream& stream, WorldMaterial& mat, glare::Bu
 		checkProperty(buffer_size >= 8ul, "readWorldMaterialFromStream: buffer_size was too small");
 		checkProperty(buffer_size <= 65536ul, "readWorldMaterialFromStream: buffer_size was too large");
 
-		// Read rest of data to buffer
-		const uint32 remaining_buffer_size = buffer_size - sizeof(uint32)*2;
+		mat.colour_rgb = readColour3fFromStream(stream);
+		mat.colour_texture_url = stream.readStringLengthFirst(20000);
+		mat.emission_rgb = readColour3fFromStream(stream);
+		mat.emission_texture_url = stream.readStringLengthFirst(20000);
+		readScalarValFromStream(stream, mat.roughness);
+		readScalarValFromStream(stream, mat.metallic_fraction);
+		readScalarValFromStream(stream, mat.opacity);
+		mat.tex_matrix = readMatrix2FromStream<float>(stream);
+		mat.emission_lum_flux_or_lum = stream.readFloat();
+		mat.flags = stream.readUInt32();
+		mat.normal_map_url = stream.readStringLengthFirst(20000);
 
-		glare::BumpAllocation buffer(remaining_buffer_size, 16, bump_allocator); // Allocate buffer
-	
-		stream.readData(buffer.ptr, remaining_buffer_size); // Read from stream to buffer
-
-		BufferViewInStream buffer_stream(ArrayRef<uint8>((uint8*)buffer.ptr, buffer.size)); // Create stream view on buffer
-
-		mat.colour_rgb = readColour3fFromStream(buffer_stream);
-		mat.colour_texture_url = buffer_stream.readStringLengthFirst(20000);
-		mat.emission_rgb = readColour3fFromStream(buffer_stream);
-		mat.emission_texture_url = buffer_stream.readStringLengthFirst(20000);
-		readScalarValFromStream(buffer_stream, mat.roughness);
-		readScalarValFromStream(buffer_stream, mat.metallic_fraction);
-		readScalarValFromStream(buffer_stream, mat.opacity);
-		mat.tex_matrix = readMatrix2FromStream<float>(buffer_stream);
-		mat.emission_lum_flux_or_lum = buffer_stream.readFloat();
-		mat.flags = buffer_stream.readUInt32();
-		mat.normal_map_url = buffer_stream.readStringLengthFirst(20000);
+		// Discard any remaining unread data
+		const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
+		if(read_B < (size_t)buffer_size)
+			stream.advanceReadIndex((size_t)buffer_size - read_B);
 	}
 	else // Else if we are reading older version before length-prefixing:
 	{
@@ -881,15 +878,13 @@ void WorldMaterial::test()
 			instreambuf.buf.resize(buf.buf.size());
 			BitUtils::checkedMemcpy(instreambuf.buf.data(), buf.buf.data(), buf.buf.size());
 
-			glare::BumpAllocator bump_allocator(1024 * 1024);
-
 			Timer timer;
 			for(int i=0; i<iters; ++i)
 			{
 				instreambuf.setReadIndex(0);
 
 				WorldMaterial mat2;
-				readWorldMaterialFromStream(instreambuf, mat2, bump_allocator);
+				readWorldMaterialFromStream(instreambuf, mat2);
 
 				testAssert(mat2.colour_texture_url == mat.colour_texture_url);
 			}

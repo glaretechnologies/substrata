@@ -43,7 +43,6 @@ Copyright Glare Technologies Limited 2018 -
 #include <algorithm>
 #include <RuntimeCheck.h>
 #include <Timer.h>
-#include <BumpAllocator.h>
 #include <ArenaAllocator.h>
 
 
@@ -775,7 +774,6 @@ void WorkerThread::doRun()
 	if(CAPTURE_TRACES)
 		socket.downcastToPtr<RecordingSocket>()->clearRecordBuf();
 
-	glare::BumpAllocator bump_allocator(1024 * 1024);
 	Reference<glare::ArenaAllocator> arena_allocator = new glare::ArenaAllocator(4 * 1024 * 1024);
 
 	ServerAllWorldsState* world_state = server->world_state.getPointer();
@@ -1194,7 +1192,7 @@ void WorkerThread::doRun()
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 							Avatar temp_avatar;
-							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar, bump_allocator); // Read message data before grabbing lock
+							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 							// Look up existing avatar in world state
 							{
@@ -1251,7 +1249,7 @@ void WorkerThread::doRun()
 						
 							Avatar temp_avatar;
 							temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
-							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar, bump_allocator); // Read message data before grabbing lock
+							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 							temp_avatar.name = client_user_id.valid() ? client_user_name : "Anonymous";
 
@@ -1545,7 +1543,7 @@ void WorkerThread::doRun()
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
 							WorldObject temp_ob;
-							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, temp_ob, bump_allocator); // Read rest of ObjectFullUpdate message.
+							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, temp_ob); // Read rest of ObjectFullUpdate message.
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -1732,7 +1730,7 @@ void WorkerThread::doRun()
 
 							WorldObjectRef new_ob = new WorldObject();
 							new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
-							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *new_ob, bump_allocator);
+							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *new_ob);
 
 							conPrintIfNotFuzzing("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 

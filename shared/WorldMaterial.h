@@ -19,9 +19,9 @@ Copyright Glare Technologies Limited 2023 -
 struct GLObject;
 class PhysicsObject;
 class ResourceManager;
+class RandomAccessInStream;
 namespace pugi { class xml_node; }
 namespace glare { class Allocator; }
-namespace glare { class BumpAllocator; }
 
 
 struct ScalarVal
@@ -153,7 +153,7 @@ typedef Reference<WorldMaterial> WorldMaterialRef;
 
 // WorldMaterial serialisation
 void writeWorldMaterialToStream(const WorldMaterial& world_ob, OutStream& stream, glare::Allocator& temp_allocator);
-void readWorldMaterialFromStream(InStream& stream, WorldMaterial& ob, glare::BumpAllocator& bump_allocator);
+void readWorldMaterialFromStream(RandomAccessInStream& stream, WorldMaterial& ob);
 
 // ScalarVal serialisation
 void writeScalarValToStream(const ScalarVal& val, OutStream& stream);

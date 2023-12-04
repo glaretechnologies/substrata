@@ -21,6 +21,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include <utils/IncludeXXHash.h>
 #include <utils/FileUtils.h>
 #include <utils/FileChecksum.h>
+#include <utils/RandomAccessInStream.h>
 #include <physics/jscol_aabbox.h>
 
 
@@ -345,7 +346,7 @@ void writeToStream(const AvatarSettings& settings, OutStream& stream, glare::All
 }
 
 
-void readFromStream(InStream& stream, AvatarSettings& settings, glare::BumpAllocator& bump_allocator)
+void readFromStream(RandomAccessInStream& stream, AvatarSettings& settings)
 {
 	settings.model_url	= stream.readStringLengthFirst(10000);
 
@@ -360,7 +361,7 @@ void readFromStream(InStream& stream, AvatarSettings& settings, glare::BumpAlloc
 		{
 			if(settings.materials[i].isNull())
 				settings.materials[i] = new WorldMaterial();
-			readWorldMaterialFromStream(stream, *settings.materials[i], bump_allocator);
+			readWorldMaterialFromStream(stream, *settings.materials[i]);
 		}
 	}
 
@@ -379,10 +380,10 @@ void writeToNetworkStream(const Avatar& avatar, OutStream& stream, glare::Alloca
 }
 
 
-void readFromNetworkStreamGivenUID(InStream& stream, Avatar& avatar, glare::BumpAllocator& bump_allocator) // UID will have been read already
+void readFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& avatar) // UID will have been read already
 {
 	avatar.name			= stream.readStringLengthFirst(10000);
 	avatar.pos			= readVec3FromStream<double>(stream);
 	avatar.rotation		= readVec3FromStream<float>(stream);
-	readFromStream(stream, avatar.avatar_settings, bump_allocator);
+	readFromStream(stream, avatar.avatar_settings);
 }

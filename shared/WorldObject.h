@@ -30,9 +30,9 @@ Copyright Glare Technologies Limited 2016 -
 struct GLObject;
 struct GLLight;
 class PhysicsObject;
+class RandomAccessInStream;
 namespace glare { class AudioSource; }
 namespace glare { class PoolAllocator; }
-namespace glare { class BumpAllocator; }
 namespace glare { class ArenaAllocator; }
 namespace Scripting { class VehicleScript; }
 class ResourceManager;
@@ -488,8 +488,8 @@ void WorldObject::setDynamic(bool c)
 }
 
 
-void readWorldObjectFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator);
-void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator); // UID will have been read already
+void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob);
+void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, WorldObject& ob); // UID will have been read already
 
 
 const Matrix4f obToWorldMatrix(const WorldObject& ob);

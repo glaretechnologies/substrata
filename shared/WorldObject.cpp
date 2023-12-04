@@ -494,7 +494,7 @@ void WorldObject::writeToStream(OutStream& stream, glare::ArenaAllocator& arena_
 }
 
 
-void readWorldObjectFromStream(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator)
+void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 {
 	// Read version
 	const uint32 v = stream.readUInt32();
@@ -517,7 +517,7 @@ void readWorldObjectFromStream(InStream& stream, WorldObject& ob, glare::BumpAll
 		{
 			if(ob.materials[i].isNull())
 				ob.materials[i] = new WorldMaterial();
-			::readWorldMaterialFromStream(stream, *ob.materials[i], bump_allocator);
+			::readWorldMaterialFromStream(stream, *ob.materials[i]);
 		}
 	}
 
@@ -764,7 +764,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 }
 
 
-void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob, glare::BumpAllocator& bump_allocator) // UID will have been read already
+void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, WorldObject& ob) // UID will have been read already
 {
 	// NOTE: The data in here needs to match that in copyNetworkStateFrom()
 
@@ -781,7 +781,7 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob,
 		{
 			if(ob.materials[i].isNull())
 				ob.materials[i] = new WorldMaterial();
-			readWorldMaterialFromStream(stream, *ob.materials[i], bump_allocator);
+			readWorldMaterialFromStream(stream, *ob.materials[i]);
 		}
 	}
 
@@ -1224,7 +1224,6 @@ void doDestroyOb(WorldObject* ob)
 
 #include <utils/BufferOutStream.h>
 #include <utils/TestUtils.h>
-#include <utils/BumpAllocator.h>
 
 
 void WorldObject::test()
@@ -1253,8 +1252,7 @@ void WorldObject::test()
 			// Test reading back object works
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
-			glare::BumpAllocator bump_allocator(32 * 1024);
-			readWorldObjectFromStream(instream, ob2, bump_allocator);
+			readWorldObjectFromStream(instream, ob2);
 			testAssert(ob2.materials.size() == ob.materials.size());
 		}
 
@@ -1281,8 +1279,7 @@ void WorldObject::test()
 			// Test reading back object works
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
-			glare::BumpAllocator bump_allocator(32 * 1024);
-			readWorldObjectFromStream(instream, ob2, bump_allocator);
+			readWorldObjectFromStream(instream, ob2);
 			testAssert(ob2.materials.size() == ob.materials.size());
 		}
 
@@ -1306,8 +1303,7 @@ void WorldObject::test()
 			// Test reading back object works
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
-			glare::BumpAllocator bump_allocator(32 * 1024);
-			readWorldObjectFromStream(instream, ob2, bump_allocator);
+			readWorldObjectFromStream(instream, ob2);
 			testAssert(ob2.materials.size() == ob.materials.size());
 		}
 	}
