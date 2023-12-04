@@ -99,7 +99,7 @@ WorldObjectRef UndoBuffer::getUndoWorldObject(glare::BumpAllocator& bump_allocat
 	index--;
 
 	WorldObjectRef ob = new WorldObject();
-	readFromStream(stream, *ob, bump_allocator);
+	readWorldObjectFromStream(stream, *ob, bump_allocator);
 	return ob;
 }
 
@@ -120,6 +120,6 @@ WorldObjectRef UndoBuffer::getRedoWorldObject(glare::BumpAllocator& bump_allocat
 	index++;
 
 	WorldObjectRef ob = new WorldObject();
-	readFromStream(stream, *ob, bump_allocator);
+	readWorldObjectFromStream(stream, *ob, bump_allocator);
 	return ob;
 }

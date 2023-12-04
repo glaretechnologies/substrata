@@ -160,7 +160,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					// Deserialise object
 					WorldObjectRef world_ob = new WorldObject();
-					readFromStream(stream, *world_ob, bump_allocator);
+					readWorldObjectFromStream(stream, *world_ob, bump_allocator);
 
 					//TEMP HACK: clear lightmap needed flag
 					BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
@@ -383,7 +383,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				// Deserialise object
 				WorldObjectRef world_ob = new WorldObject();
-				readFromStream(stream, *world_ob, bump_allocator);
+				readWorldObjectFromStream(stream, *world_ob, bump_allocator);
 
 				//TEMP HACK: clear lightmap needed flag
 				BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
