@@ -13,7 +13,7 @@ import { hasExtension, hasPrefix, filenameExtension, removeDotAndExtension } fro
 const COLOUR_TEX_HAS_ALPHA_FLAG = 1;
 const MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
 
-const WORLD_MATERIAL_SERIALISATION_VERSION = 7;
+const WORLD_MATERIAL_SERIALISATION_VERSION = 8;
 
 export class WorldMaterial {
 
@@ -121,9 +121,13 @@ export function readScalarValFromStream(buffer_in: BufferIn) {
 export function readWorldMaterialFromStream(buffer_in: BufferIn) {
 	let mat = new WorldMaterial();
 
+	let initial_read_index = buffer_in.getReadIndex();
+
 	let version = readUInt32(buffer_in);
-	if (version > WORLD_MATERIAL_SERIALISATION_VERSION)
+	if (version != WORLD_MATERIAL_SERIALISATION_VERSION)
 		throw "Unsupported version " + version.toString() + ", expected " + WORLD_MATERIAL_SERIALISATION_VERSION.toString() + ".";
+
+	let buffer_size = readUInt32(buffer_in);
 
 	mat.colour_rgb = readColour3fFromStream(buffer_in);
 	mat.colour_texture_url = readStringFromStream(buffer_in);
@@ -140,6 +144,11 @@ export function readWorldMaterialFromStream(buffer_in: BufferIn) {
 	mat.emission_lum_flux = readFloat(buffer_in);
 
 	mat.flags = readUInt32(buffer_in);
+
+	// Discard any remaining unread data
+	let read_B = buffer_in.getReadIndex() - initial_read_index;
+	if (read_B < buffer_size)
+		buffer_in.setReadIndex(initial_read_index + buffer_size);
 
 	return mat;
 }
