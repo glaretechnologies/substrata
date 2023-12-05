@@ -14112,7 +14112,7 @@ int main(int argc, char *argv[])
 
 		if(parsed_args.isArgPresent("--test"))
 		{
-			TestSuite::test(appdata_path);
+			TestSuite::test();
 			return 0;
 		}
 

@@ -1418,7 +1418,7 @@ void PhysicsWorld::test()
 {
 	conPrint("PhysicsWorld::test()");
 
-	PhysicsWorld::init();
+	// PhysicsWorld::init() needs to have been called already.
 
 	try
 	{
@@ -1455,7 +1455,7 @@ void PhysicsWorld::test()
 
 
 		double min_time = 1.0e10;
-		for(int i=0; i<1000; ++i)
+		for(int i=0; i<1; ++i)
 		{
 			Timer timer;
 			auto res = createJoltShapeForBatchedMesh(*mesh, /*is dynamic=*/false);
@@ -1467,7 +1467,6 @@ void PhysicsWorld::test()
 	{
 		failTest(e.what());
 	}
-
 
 	conPrint("PhysicsWorld::test() done");
 }

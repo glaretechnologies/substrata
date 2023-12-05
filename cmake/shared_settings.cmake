@@ -65,6 +65,10 @@ ${GRAPHICS_DIR}/Map2D.cpp
 ${GRAPHICS_DIR}/Map2D.h
 ${GRAPHICS_DIR}/MeshSimplification.cpp
 ${GRAPHICS_DIR}/MeshSimplification.h
+${GRAPHICS_DIR}/SRGBUtils.cpp
+${GRAPHICS_DIR}/SRGBUtils.h
+${GRAPHICS_DIR}/NonZeroMipMap.cpp
+${GRAPHICS_DIR}/NonZeroMipMap.h
 ${GRAPHICS_DIR}/PerlinNoise.cpp
 ${GRAPHICS_DIR}/PerlinNoise.h
 ${GRAPHICS_DIR}/PNGDecoder.cpp
