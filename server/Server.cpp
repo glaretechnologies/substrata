@@ -495,7 +495,7 @@ int main(int argc, char *argv[])
 							{
 								// Send AvatarFullUpdate packet
 								MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-								writeToNetworkStream(*avatar, scratch_packet);
+								writeAvatarToNetworkStream(*avatar, scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -507,7 +507,7 @@ int main(int argc, char *argv[])
 							{
 								// Send AvatarCreated packet
 								MessageUtils::initPacket(scratch_packet, Protocol::AvatarCreated);
-								writeToNetworkStream(*avatar, scratch_packet);
+								writeAvatarToNetworkStream(*avatar, scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 

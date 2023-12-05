@@ -889,7 +889,7 @@ void WorkerThread::doRun()
 				MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 				writeToStream(client_user_id, scratch_packet);
 				scratch_packet.writeStringLengthFirst(client_user_name);
-				writeToStream(client_user_avatar_settings, scratch_packet);
+				writeAvatarSettingsToStream(client_user_avatar_settings, scratch_packet);
 				scratch_packet.writeUInt32(client_user_flags);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
@@ -944,7 +944,7 @@ void WorkerThread::doRun()
 
 						// Write AvatarIsHere message
 						MessageUtils::initPacket(scratch_packet, Protocol::AvatarIsHere);
-						writeToNetworkStream(*avatar, scratch_packet);
+						writeAvatarToNetworkStream(*avatar, scratch_packet);
 						MessageUtils::updatePacketLengthField(scratch_packet);
 
 						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1187,7 +1187,7 @@ void WorkerThread::doRun()
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 							Avatar temp_avatar;
-							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+							readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 							// Look up existing avatar in world state
 							{
@@ -1244,7 +1244,7 @@ void WorkerThread::doRun()
 						
 							Avatar temp_avatar;
 							temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
-							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+							readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 							temp_avatar.name = client_user_id.valid() ? client_user_name : "Anonymous";
 
@@ -2201,7 +2201,7 @@ void WorkerThread::doRun()
 								MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 								writeToStream(client_user_id, scratch_packet);
 								scratch_packet.writeStringLengthFirst(username);
-								writeToStream(client_user_avatar_settings, scratch_packet);
+								writeAvatarSettingsToStream(client_user_avatar_settings, scratch_packet);
 								scratch_packet.writeUInt32(client_user_flags);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 

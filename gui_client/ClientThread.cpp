@@ -288,7 +288,7 @@ void ClientThread::doRun()
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+						readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -310,7 +310,7 @@ void ClientThread::doRun()
 
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+						readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -341,7 +341,7 @@ void ClientThread::doRun()
 
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+						readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -985,7 +985,7 @@ void ClientThread::doRun()
 						const std::string logged_in_username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						Reference<LoggedInMessage> msg = new LoggedInMessage(logged_in_user_id, logged_in_username);
 						
-						readFromStream(msg_buffer, msg->avatar_settings);
+						readAvatarSettingsFromStream(msg_buffer, msg->avatar_settings);
 
 						uint32 logged_in_user_flags = 0;
 						if(msg_buffer.canReadNBytes(sizeof(uint32))) // Added sending flags after avatar settings

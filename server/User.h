@@ -89,8 +89,8 @@ public:
 typedef Reference<User> UserRef;
 
 
-void writeToStream(const User& user, RandomAccessOutStream& stream);
-void readFromStream(RandomAccessInStream& stream, User& userob);
+void writeUserToStream(const User& user, RandomAccessOutStream& stream);
+void readUserFromStream(RandomAccessInStream& stream, User& userob);
 
 
 struct UserRefHash

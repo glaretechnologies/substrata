@@ -334,7 +334,7 @@ bool AvatarSettings::operator == (const AvatarSettings& other) const
 }
 
 
-void writeToStream(const AvatarSettings& settings, RandomAccessOutStream& stream)
+void writeAvatarSettingsToStream(const AvatarSettings& settings, RandomAccessOutStream& stream)
 {
 	stream.writeStringLengthFirst(settings.model_url);
 
@@ -347,7 +347,7 @@ void writeToStream(const AvatarSettings& settings, RandomAccessOutStream& stream
 }
 
 
-void readFromStream(RandomAccessInStream& stream, AvatarSettings& settings)
+void readAvatarSettingsFromStream(RandomAccessInStream& stream, AvatarSettings& settings)
 {
 	settings.model_url	= stream.readStringLengthFirst(10000);
 
@@ -371,20 +371,20 @@ void readFromStream(RandomAccessInStream& stream, AvatarSettings& settings)
 
 
 
-void writeToNetworkStream(const Avatar& avatar, RandomAccessOutStream& stream) // Write without version
+void writeAvatarToNetworkStream(const Avatar& avatar, RandomAccessOutStream& stream) // Write without version
 {
 	writeToStream(avatar.uid, stream);
 	stream.writeStringLengthFirst(avatar.name);
 	writeToStream(avatar.pos, stream);
 	writeToStream(avatar.rotation, stream);
-	writeToStream(avatar.avatar_settings, stream);
+	writeAvatarSettingsToStream(avatar.avatar_settings, stream);
 }
 
 
-void readFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& avatar) // UID will have been read already
+void readAvatarFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& avatar) // UID will have been read already
 {
 	avatar.name			= stream.readStringLengthFirst(10000);
 	avatar.pos			= readVec3FromStream<double>(stream);
 	avatar.rotation		= readVec3FromStream<float>(stream);
-	readFromStream(stream, avatar.avatar_settings);
+	readAvatarSettingsFromStream(stream, avatar.avatar_settings);
 }
