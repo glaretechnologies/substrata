@@ -1426,7 +1426,8 @@ void PhysicsWorld::test()
 		
 		//BatchedMesh::readFromFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", mesh);
 		GLTFLoadedData data;
-		BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", data);
+		//BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", data);
+		BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/2CylinderEngine.glb", data);
 
 
 		glare::TaskManager task_manager(0);
