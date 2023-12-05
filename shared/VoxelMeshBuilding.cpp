@@ -1200,7 +1200,7 @@ void VoxelMeshBuilding::test()
 	}
 
 	// Performance test
-	if(true)
+	if(false)
 	{
 		try
 		{
