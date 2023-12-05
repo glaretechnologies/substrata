@@ -112,7 +112,7 @@ void WorldMaterial::appendDependencyURLs(int lod_level, std::vector<DependencyUR
 		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(emission_texture_url, lod_level, /*has alpha=*/false)));
 
 	if(!normal_map_url.empty())
-		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, lod_level, /*has alpha=*/false)));
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, lod_level, /*has alpha=*/false), /*use sRGB=*/false));
 
 	const int min_lod_level = this->minLODLevel();
 	roughness.			appendDependencyURLs(/*use sRGB=*/false, min_lod_level, lod_level, paths_out);
@@ -141,9 +141,9 @@ void WorldMaterial::appendDependencyURLsAllLODLevels(std::vector<DependencyURL>&
 
 	if(!normal_map_url.empty())
 	{
-		paths_out.push_back(DependencyURL(normal_map_url));
+		paths_out.push_back(DependencyURL(normal_map_url, /*use sRGB=*/false));
 		for(int i=min_lod_level+1; i <=2; ++i)
-			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, i, /*has alpha=*/false)));
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, i, /*has alpha=*/false), /*use sRGB=*/false));
 	}
 
 	roughness.			appendDependencyURLsAllLODLevels(/*use sRGB=*/false, min_lod_level, paths_out);
@@ -161,7 +161,7 @@ void WorldMaterial::appendDependencyURLsBaseLevel(std::vector<DependencyURL>& pa
 		paths_out.push_back(DependencyURL(emission_texture_url));
 
 	if(!normal_map_url.empty())
-		paths_out.push_back(DependencyURL(normal_map_url));
+		paths_out.push_back(DependencyURL(normal_map_url, /*use sRGB=*/false));
 
 	roughness.			appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
 	metallic_fraction.	appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
