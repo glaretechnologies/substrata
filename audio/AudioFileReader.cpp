@@ -59,7 +59,7 @@ void glare::AudioFileReader::test()
 
 	try
 	{
-		{
+		/*{
 			const std::vector<std::string> paths = FileUtils::getFilesInDirWithExtensionFullPaths("D:\\audio\\substrata_mp3s", "mp3");
 			for(size_t i = 0; i<paths.size(); ++i)
 			{
@@ -70,10 +70,8 @@ void glare::AudioFileReader::test()
 				testAssert(sound_file->sample_rate == 44100 || sound_file->sample_rate == 48000);
 				conPrint(timer.elapsedStringNSigFigs(4) + ": " + paths[i]);
 			}
-		}
+		}*/
 
-		return;
-		
 
 		// AAC (m4a)
 		/*{
