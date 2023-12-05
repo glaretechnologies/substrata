@@ -503,6 +503,7 @@ void LODGeneration::test()
 		}
 
 
+#if !GUI_CLIENT  // generateKTXTexture is disabled in gui_client.
 		//------------------------------------------- Test KTX texture generation -------------------------------------------
 		// Test writing an 8 bit RGB KTX image.
 		{
@@ -540,6 +541,7 @@ void LODGeneration::test()
 
 			testAssert(FileUtils::fileExists(lod_tex_path));
 		}
+#endif
 
 	}
 	catch(glare::Exception& e)

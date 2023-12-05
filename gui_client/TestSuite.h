@@ -1,7 +1,7 @@
 /*=====================================================================
 TestSuite.h
 -----------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
@@ -17,6 +17,5 @@ TestSuite
 class TestSuite
 {
 public:
-
-	static void test(const std::string& appdata_path);
+	static void test();
 };

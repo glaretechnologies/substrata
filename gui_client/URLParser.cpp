@@ -241,9 +241,9 @@ void URLParser::test()
 	}
 
 	testInvalidURL("ub://substrata.info");
-	testInvalidURL("sub//substrata.info");
-	testInvalidURL("sub/substrata.info");
-	testInvalidURL("subsubstrata.info");
+	//testInvalidURL("sub//substrata.info"); // We handle missing ':' now.
+	//testInvalidURL("sub/substrata.info");
+	//testInvalidURL("subsubstrata.info");
 	testInvalidURL("sub://substrata.info?");
 	testInvalidURL("sub://substrata.info?x");
 	testInvalidURL("sub://substrata.info?x=");
