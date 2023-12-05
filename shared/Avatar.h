@@ -170,9 +170,9 @@ typedef Reference<Avatar> AvatarRef;
 const Matrix4f obToWorldMatrix(const Avatar& ob);
 
 
-void writeToStream(const AvatarSettings& settings, RandomAccessOutStream& stream);
-void readFromStream(RandomAccessInStream& stream, AvatarSettings& settings);
+void writeAvatarSettingsToStream(const AvatarSettings& settings, RandomAccessOutStream& stream);
+void readAvatarSettingsFromStream(RandomAccessInStream& stream, AvatarSettings& settings);
 
 
-void writeToNetworkStream(const Avatar& world_ob, RandomAccessOutStream& stream); // Write without version.  Writes UID.
-void readFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& ob); // UID will have been read already
+void writeAvatarToNetworkStream(const Avatar& world_ob, RandomAccessOutStream& stream); // Write without version.  Writes UID.
+void readAvatarFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& ob); // UID will have been read already

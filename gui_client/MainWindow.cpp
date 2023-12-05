@@ -6548,7 +6548,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 					avatar.uid = this->client_avatar_uid;
 					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 					avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-					writeToNetworkStream(avatar, scratch_packet);
+					writeAvatarToNetworkStream(avatar, scratch_packet);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
@@ -6834,7 +6834,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = m->username;
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet);
+				writeAvatarToNetworkStream(avatar, scratch_packet);
 				
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -6858,7 +6858,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = "Anonymous";
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet);
+				writeAvatarToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -6885,7 +6885,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 				avatar.name = m->username;
 
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, scratch_packet);
+				writeAvatarToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
@@ -7944,7 +7944,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 			// Send AvatarFullUpdate message to server
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-			writeToNetworkStream(avatar, scratch_packet);
+			writeAvatarToNetworkStream(avatar, scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 

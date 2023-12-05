@@ -171,7 +171,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				{
 					// Deserialise user
 					UserRef user = new User();
-					readFromStream(stream, *user);
+					readUserFromStream(stream, *user);
 
 					user->database_key = database_key;
 					user_id_to_users[user->id] = user; // Add to user map
@@ -393,7 +393,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				// Deserialise user
 				UserRef user = new User();
-				readFromStream(stream, *user);
+				readUserFromStream(stream, *user);
 
 				user_id_to_users[user->id] = user; // Add to user map
 				name_to_users[user->name] = user; // Add to user map
@@ -914,7 +914,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				User* user = it->ptr();
 				temp_buf.clear();
 				temp_buf.writeUInt32(USER_CHUNK);
-				writeToStream(*user, temp_buf);
+				writeUserToStream(*user, temp_buf);
 
 				if(!user->database_key.valid())
 					user->database_key = database.allocUnusedKey(); // Get a new key
