@@ -226,6 +226,7 @@ public:
 	inline void doTransformChanged(const Matrix4f& ob_to_world, const Vec4f& use_scale); // Rebuild centroid_ws, aabb_ws_longest_len, biased_aabb_len
 	inline void doTransformChangedIgnoreRotation(const Vec4f& position, const Vec4f& use_scale); // Rebuild centroid_ws, aabb_ws_longest_len, biased_aabb_len
 
+	inline static size_t maxNumMaterials() { return 2048; } // There's an object in the cryptovoxels world with 1398 materials.
 
 	enum ObjectType
 	{
