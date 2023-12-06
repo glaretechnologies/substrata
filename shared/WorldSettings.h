@@ -60,11 +60,15 @@ public:
 
 	void writeToStream(OutStream& stream) const;
 
+	void copyNetworkStateFrom(const WorldSettings& other);
 
 	TerrainSpec terrain_spec;
 
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.
+
+private:
+	GLARE_DISABLE_COPY(WorldSettings)
 };
 
 
