@@ -506,6 +506,8 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 	if(v >= 2)
 	{
 		const size_t num_mats = stream.readUInt32();
+		if(num_mats > WorldObject::maxNumMaterials())
+			throw glare::Exception("Too many materials: " + toString(num_mats));
 		ob.materials.resize(num_mats);
 		for(size_t i=0; i<ob.materials.size(); ++i)
 		{
@@ -579,6 +581,23 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 
 		if(!aabb.min_.isFinite() || !aabb.max_.isFinite())
 			aabb = js::AABBox(Vec4f(0,0,0,1), Vec4f(0,0,0,1));
+
+
+		// Some code for allowing fuzzing to proceed without hitting asserts:
+		/*if(ob.axis.length2() < Maths::square(1.0e-10f))
+		{
+			ob.axis = Vec3f(0,0,1);
+			ob.angle = 0;
+		}
+
+		if(!(ob.axis.isFinite() && isFinite(ob.angle) && ob.scale.isFinite() && ob.translation.isFinite()))
+		{
+			ob.axis = Vec3f(0,0,1);
+			ob.angle = 0;
+			ob.scale = Vec3f(1.f);
+			ob.translation = Vec4f(0,0,0,1);
+		}*/
+
 
 		if(v >= 18)
 		{
@@ -761,8 +780,7 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 	//if(v >= 2)
 	{
 		const size_t num_mats = stream.readUInt32();
-		const uint32 MAX_NUM_MATS = 2048; // There's an object in the cryptovoxels world with 1398 materials.
-		if(num_mats > MAX_NUM_MATS)
+		if(num_mats > WorldObject::maxNumMaterials())
 			throw glare::Exception("Too many materials: " + toString(num_mats));
 		ob.materials.resize(num_mats);
 		for(size_t i=0; i<ob.materials.size(); ++i)
@@ -1211,7 +1229,55 @@ void doDestroyOb(WorldObject* ob)
 
 
 #include <utils/BufferOutStream.h>
+#include <utils/BufferViewInStream.h>
 #include <utils/TestUtils.h>
+#include <utils/FileOutStream.h>
+
+
+#if 0
+// Command line:
+// C:\fuzz_corpus\worldobject N:\substrata\testfiles\fuzz_seeds\worldobject
+
+extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv)
+{
+	return 0;
+}
+
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+	//TEMP: Write out an object with voxels for a fuzz seed
+	/*{
+		WorldObject ob;
+		ob.object_type = WorldObject::ObjectType_VoxelGroup;
+		ob.getDecompressedVoxels().push_back(Voxel(Vec3<int>(0,1,2), 0));
+		ob.getDecompressedVoxels().push_back(Voxel(Vec3<int>(4,5,6), 1));
+		ob.compressVoxels();
+
+		{
+			BufferOutStream outstream;
+			ob.writeToStream(outstream);
+
+			FileOutStream file("ob_with_voxels.worldobject");
+			file.writeData(outstream.buf.data(), outstream.buf.size());
+		}
+	}*/
+
+
+	try
+	{
+		BufferViewInStream stream(ArrayRef<uint8>(data, size));
+
+		WorldObject ob;
+		readWorldObjectFromStream(stream, ob);
+	}
+	catch(glare::Exception&)
+	{
+	}
+	
+	return 0;  // Non-zero return values are reserved for future use.
+}
+#endif
 
 
 void WorldObject::test()

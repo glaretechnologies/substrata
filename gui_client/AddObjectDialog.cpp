@@ -212,6 +212,9 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				results
 			);
 
+			if(results.materials.size() > WorldObject::maxNumMaterials())
+				throw glare::Exception("Model had too many materials (" + toString(results.materials.size()) + "), max number allowed is " + toString(WorldObject::maxNumMaterials()) + ".");
+
 			this->preview_gl_ob = results.gl_ob;
 
 			this->loaded_mesh = results.batched_mesh;
