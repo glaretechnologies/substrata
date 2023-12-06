@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "GestureUI.h"
 #include "ObInfoUI.h"
 #include "MiscInfoUI.h"
+#include "HeadUpDisplayUI.h"
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
@@ -254,11 +255,11 @@ private:
 	void updateOnlineUsersList(); // Works off world state avatars.
 	bool areEditingVoxels() const;
 	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const;
-
-	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const; // Returns true if point is visible from camera.
+public:
+	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const; // Get screen-space coordinates for a world-space point.  Returns true if point is visible from camera.
 	bool getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) const; // Returns true if point is visible from camera.
 	Vec4f pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords) const;
-
+private:
 	void updateVoxelEditMarkers();
 	void pickUpSelectedObject();
 	void dropSelectedObject();
@@ -667,6 +668,7 @@ public:
 	GestureUI gesture_ui;
 	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
 	MiscInfoUI misc_info_ui; // For showing messages from the server etc.
+	HeadUpDisplayUI hud_ui;
 
 	bool running_destructor;
 

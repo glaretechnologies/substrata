@@ -602,6 +602,8 @@ void MainWindow::afterGLInitInitialise()
 	ob_info_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
 	misc_info_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
+	
+	hud_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
@@ -783,6 +785,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	ob_info_ui.destroy();
 
 	gesture_ui.destroy();
+	
+	hud_ui.destroy();
 
 	if(gl_ui.nonNull())
 	{
@@ -4927,6 +4931,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 #endif
 
 		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
+		if(false)
 		{
 			const Vec3d cam_back_dir = cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2;
 			this->cam_controller.third_person_cam_position = toVec3d(campos) + Vec3d(cam_back_dir);
@@ -5823,6 +5828,9 @@ void MainWindow::updateAvatarGraphics(double cur_time, double dt, const Vec3d& c
 						ui->glWidget->opengl_engine->removeObject(avatar->speaker_gl_ob);
 					avatar->speaker_gl_ob = NULL;
 
+					// Remove any marker for the avatar from the HUD
+					hud_ui.removeMarkerForAvatar(avatar);
+
 					// Remove avatar from avatar map
 					auto old_avatar_iterator = it;
 					it++;
@@ -6294,6 +6302,11 @@ void MainWindow::updateAvatarGraphics(double cur_time, double dt, const Vec3d& c
 					{
 						avatar->graphics.hideSelectedObBeam(*ui->glWidget->opengl_engine);
 					}*/
+
+
+					if(!our_avatar)
+						hud_ui.updateMarkerForAvatar(avatar, pos); // Update marker on HUD
+
 
 					avatar->other_dirty = false;
 					avatar->transform_dirty = false;
