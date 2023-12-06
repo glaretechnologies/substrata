@@ -34,7 +34,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../graphics/TextureProcessing.h"
 #include "../graphics/DXTCompression.h"
 #include "../graphics/TextureProcessingTests.h"
-#include "../graphics/jpegdecoder.h
+#include "../graphics/jpegdecoder.h"
 #include "../opengl/TextureLoadingTests.h"
 #include "../indigo/UVUnwrapper.h"
 #include "../audio/AudioFileReader.h"
