@@ -1756,7 +1756,7 @@ void WorkerThread::doRun()
 								for(auto it = URLs.begin(); it != URLs.end(); ++it)
 									sendGetFileMessageIfNeeded(it->URL);
 
-								// Look up existing object in world state
+								// Insert object into world state
 								{
 									::Lock lock(world_state->mutex);
 
