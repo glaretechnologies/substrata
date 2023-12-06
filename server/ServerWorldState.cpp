@@ -18,7 +18,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Timer.h>
 #include <Database.h>
 #include <BufferOutStream.h>
-#include <BufferInStream.h>
+#include <BufferViewInStream.h>
 
 
 ServerAllWorldsState::ServerAllWorldsState()
@@ -126,7 +126,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		// Using database
 		database.startReadingFromDisk(path);
 
-		BufferInStream stream;
 		for(auto it = database.getRecordMap().begin(); it != database.getRecordMap().end(); ++it)
 		{
 			const DatabaseKey database_key = it->first;
@@ -134,10 +133,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 			if(record.isRecordValid())
 			{
-				stream.clear();
-				stream.buf.resizeNoCopy(record.len);
-				if(record.len > 0)
-					std::memcpy(stream.buf.data(), database.getInitialRecordData(record), record.len); // Copy from DB to our temp buffer
+				BufferViewInStream stream(ArrayRef<uint8>(database.getInitialRecordData(record), record.len));
 
 				// Now deserialise from our temp buffer
 				const uint32 chunk = stream.readUInt32();
