@@ -2414,7 +2414,7 @@ void WorkerThread::doRun()
 							{
 								{
 									Lock lock(server->world_state->mutex);
-									cur_world_state->world_settings = world_settings;
+									cur_world_state->world_settings.copyNetworkStateFrom(world_settings);
 									cur_world_state->world_settings.db_dirty = true;
 									world_state->markAsChanged();
 								}

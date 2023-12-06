@@ -203,10 +203,18 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					if(world_states.count(world_name) == 0) 
 						world_states[world_name] = new ServerWorldState();
 
-					// Deserialise world settings
-					readWorldSettingsFromStream(stream, world_states[world_name]->world_settings);
+					// NOTE: There was a bug with multiple world settings for the same world getting saved to the database.  Resolve ambiguity of which one to use by choosing the setting with the largest database key value.
+					// Use these new settings iff the existing settings are either uninitialised (in which case database_key will be invalid), or the settings we are reading from the DB have a greater key 
+					// value than the existing settings.
+					const bool use_settings = !world_states[world_name]->world_settings.database_key.valid() || (database_key.value() > world_states[world_name]->world_settings.database_key.value());
+					if(use_settings)
+					{	
+						// Deserialise world settings
+						readWorldSettingsFromStream(stream, world_states[world_name]->world_settings);
 
-					world_states[world_name]->world_settings.database_key = database_key;
+						world_states[world_name]->world_settings.database_key = database_key;
+					}
+
 					num_world_settings++;
 				}
 				else if(chunk == RESOURCE_CHUNK)

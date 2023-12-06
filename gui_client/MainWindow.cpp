@@ -6899,7 +6899,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 			{
 				const WorldSettingsReceivedMessage* m = static_cast<const WorldSettingsReceivedMessage*>(msg.getPointer());
 
-				this->connected_world_settings = m->world_settings; // Store world settings to be used later
+				this->connected_world_settings.copyNetworkStateFrom(m->world_settings); // Store world settings to be used later
 
 				this->ui->worldSettingsWidget->setFromWorldSettings(this->connected_world_settings); // Update UI
 

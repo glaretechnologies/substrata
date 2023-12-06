@@ -94,6 +94,12 @@ void WorldSettings::writeToStream(OutStream& stream) const
 }
 
 
+void WorldSettings::copyNetworkStateFrom(const WorldSettings& other)
+{
+	terrain_spec = other.terrain_spec;
+}
+
+
 void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 {
 	const uint32 version = stream_.readUInt32();
