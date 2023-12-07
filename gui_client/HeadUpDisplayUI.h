@@ -31,14 +31,12 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
 	void destroy();
 
-	void updateMarkerForAvatar(const Avatar* avatar, const Vec3d& avatar_pos);
-	void removeMarkerForAvatar(const Avatar* avatar);
+	void updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos);
+	void removeMarkerForAvatar(Avatar* avatar);
 
 	virtual void eventOccurred(GLUICallbackEvent& event);
 private:
 	MainWindow* main_window;
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
-
-	std::map<const Avatar*, GLUIImageRef> avatar_markers;
 };
