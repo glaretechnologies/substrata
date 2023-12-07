@@ -11,6 +11,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
+#include "opengl/ui/GLUIImage.h"
 #include "../gui_client/MeshManager.h"
 #include "../gui_client/AvatarGraphics.h"
 #include "../gui_client/HoverCarPhysics.h"

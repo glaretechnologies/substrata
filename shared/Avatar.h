@@ -23,6 +23,7 @@ Generated at 2016-01-12 12:24:54 +1300
 struct GLObject;
 class AvatarGraphics;
 struct MeshData;
+class GLUIImage;
 class WorldObject;
 class VehiclePhysics;
 class RandomAccessInStream;
@@ -119,6 +120,8 @@ public:
 	Reference<GLObject> speaker_gl_ob;
 
 	AvatarGraphics graphics;
+	Reference<GLUIImage> hud_marker;
+	Reference<GLUIImage> hud_marker_arrow;
 
 	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
