@@ -208,13 +208,15 @@ void GestureUI::think()
 //}
 
 
+static const float BUTTON_W_PIXELS = 50;
+
 void GestureUI::updateWidgetPositions()
 {
 	if(gl_ui.nonNull())
 	{
 		const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
 
-		const float BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(50);
+		const float BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS);
 
 		const float BUTTON_H = BUTTON_W;
 		const float SPACING = BUTTON_W * 0.28f;
@@ -243,9 +245,10 @@ void GestureUI::updateWidgetPositions()
 
 			selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
-			microphone_button->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+			const float mic_button_x = -1 + SPACING + BUTTON_W + SPACING;
+			microphone_button->setPosAndDims(Vec2f(mic_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
-			mic_level_image->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING + BUTTON_W + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_H * 0.2f, BUTTON_H));
+			mic_level_image->setPosAndDims(Vec2f(mic_button_x + BUTTON_W * 0.8f, -min_max_y + SPACING + BUTTON_H * 0.2f), Vec2f(BUTTON_H * 0.2f, 0));
 		}
 	}
 }
@@ -406,13 +409,10 @@ void GestureUI::setCurrentMicLevel(float linear_level, float display_level)
 {
 	if(mic_level_image.nonNull())
 	{
-		const float SPACING = 0.02f;
-		const float BUTTON_W = 0.07f;
-		const float BUTTON_H = 0.07f;
+		const float BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS);
+		const float BUTTON_H = BUTTON_W;
 
-		const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
-
-		mic_level_image->setPosAndDims(Vec2f(-1 + SPACING + BUTTON_W + SPACING + BUTTON_W * 0.8f, -min_max_y + SPACING + BUTTON_H * 0.2f), Vec2f(BUTTON_W * 0.14f, BUTTON_H * display_level * 0.6f), /*z=*/-0.9f);
+		mic_level_image->setDims(Vec2f(BUTTON_W * 0.14f, BUTTON_H * display_level * 0.6f));
 
 		// Show a green bar that changes to red if the amplitude gets too close to 1.
 		const Colour3f green = toLinearSRGB(Colour3f(0, 54.5f/100, 8.6f/100));
