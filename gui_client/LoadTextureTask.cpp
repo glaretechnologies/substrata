@@ -25,8 +25,9 @@ Copyright Glare Technologies Limited 2019 -
 
 
 LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
-	bool use_sRGB_, bool allow_compression_, bool is_terrain_map_)
-:	opengl_engine(opengl_engine_), texture_server(texture_server_), result_msg_queue(result_msg_queue_), path(path_), use_sRGB(use_sRGB_), allow_compression(allow_compression_), is_terrain_map(is_terrain_map_)
+	bool use_sRGB_, bool allow_compression_, bool is_terrain_map_, bool is_minimap_tile_)
+:	opengl_engine(opengl_engine_), texture_server(texture_server_), result_msg_queue(result_msg_queue_), path(path_), use_sRGB(use_sRGB_), allow_compression(allow_compression_), is_terrain_map(is_terrain_map_),
+	is_minimap_tile(is_minimap_tile_)
 {}
 
 
@@ -87,6 +88,7 @@ void LoadTextureTask::run(size_t thread_index)
 		msg->texture_data = texture_data;
 		if(is_terrain_map)
 			msg->terrain_map = map;
+		msg->is_minimap_tile = is_minimap_tile;
 		result_msg_queue->enqueue(msg);
 	}
 	catch(TextureServerExcep& e)

@@ -164,6 +164,8 @@ public:
 
 	void invalidateVegetationMap(const js::AABBox& aabb_ws);
 
+	bool isTerrainFullyBuilt();
+
 	std::string getDiagnostics() const;
 
 

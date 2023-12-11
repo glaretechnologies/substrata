@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "ObInfoUI.h"
 #include "MiscInfoUI.h"
 #include "HeadUpDisplayUI.h"
+#include "MiniMap.h"
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
@@ -74,12 +75,13 @@ struct IMFDXGIDeviceManager;
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : use_sRGB(true), allow_compression(true), build_dynamic_physics_ob(false), is_terrain_map(false) {}
+	DownloadingResourceInfo() : use_sRGB(true), allow_compression(true), build_dynamic_physics_ob(false), is_terrain_map(false), is_minimap_tile(false) {}
 
 	bool use_sRGB; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
 	bool allow_compression; // For downloading textures.
 	bool build_dynamic_physics_ob; // For downloading meshes.  Once the mesh is downloaded we need to know if we want to build the dynamic or static physics shape for it.
 	bool is_terrain_map;
+	bool is_minimap_tile;
 
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
@@ -224,7 +226,9 @@ private:
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
+public:
 	void startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
+private:
 	void evalObjectScript(WorldObject* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out);
 	void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out);
 	void updateStatusBar();
@@ -290,7 +294,8 @@ public:
 	bool checkAddAudioToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
-
+	void startLoadingTexture(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+		bool use_sRGB, bool allow_compression, bool is_terrain_map, bool is_minimap_tile);
 	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, 
 		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
@@ -669,6 +674,7 @@ public:
 	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
 	MiscInfoUI misc_info_ui; // For showing messages from the server etc.
 	HeadUpDisplayUI hud_ui;
+	MiniMap minimap;
 
 	bool running_destructor;
 
@@ -711,6 +717,7 @@ public:
 	int cur_loading_voxel_ob_model_lod_level;
 
 	Map2DRef cur_loading_terrain_map; // Non-null iff we are currently loading a map used for the terrain system into OpenGL.
+	bool cur_loading_tex_is_minimap_tile;
 
 	OpenGLTextureLoadingProgress tex_loading_progress;
 
@@ -722,6 +729,7 @@ public:
 	std::vector<Reference<ObjectPathController>> path_controllers;
 
 	UID client_avatar_uid; // When we connect to a server, the server assigns a UID to the client/avatar.
+	uint32 server_protocol_version;
 
 	uint64 frame_num;
 

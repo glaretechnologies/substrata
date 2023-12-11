@@ -127,8 +127,9 @@ public:
 class ClientConnectedToServerMessage : public ThreadMessage
 {
 public:
-	ClientConnectedToServerMessage(const UID client_avatar_uid_) : client_avatar_uid(client_avatar_uid_) {}
+	ClientConnectedToServerMessage(const UID client_avatar_uid_, uint32 server_protocol_version_) : client_avatar_uid(client_avatar_uid_), server_protocol_version(server_protocol_version_) {}
 	UID client_avatar_uid;
+	uint32 server_protocol_version;
 };
 
 
@@ -213,6 +214,15 @@ public:
 	WorldSettingsReceivedMessage(bool is_initial_send_) : is_initial_send(is_initial_send_) {}
 	WorldSettings world_settings;
 	bool is_initial_send;
+};
+
+
+class MapTilesResultReceivedMessage : public ThreadMessage
+{
+public:
+	MapTilesResultReceivedMessage() {}
+	std::vector<Vec3i> tile_indices;
+	std::vector<std::string> tile_URLS;
 };
 
 

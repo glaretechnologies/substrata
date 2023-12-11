@@ -265,7 +265,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				{
 					// Deserialise Screenshot
 					ScreenshotRef shot = new Screenshot();
-					readFromStream(stream, *shot);
+					readScreenshotFromStream(stream, *shot);
 
 					shot->database_key = database_key;
 					screenshots[shot->id] = shot;
@@ -321,13 +321,13 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 						if(cur_tile_screenshot_non_null)
 						{
 							tile_info.cur_tile_screenshot = new Screenshot();
-							readFromStream(stream, *tile_info.cur_tile_screenshot);
+							readScreenshotFromStream(stream, *tile_info.cur_tile_screenshot);
 						}
 						const bool prev_tile_screenshot_non_null = stream.readInt32() != 0;
 						if(prev_tile_screenshot_non_null)
 						{
 							tile_info.prev_tile_screenshot = new Screenshot();
-							readFromStream(stream, *tile_info.prev_tile_screenshot);
+							readScreenshotFromStream(stream, *tile_info.prev_tile_screenshot);
 						}
 
 						map_tile_info.info[Vec3<int>(x, y, z)] = tile_info; // Insert
@@ -454,7 +454,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				// Deserialise Screenshot
 				ScreenshotRef shot = new Screenshot();
-				readFromStream(stream, *shot);
+				readScreenshotFromStream(stream, *shot);
 
 				screenshots[shot->id] = shot;
 				num_screenshots++;
@@ -505,13 +505,13 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					if(cur_tile_screenshot_non_null)
 					{
 						tile_info.cur_tile_screenshot = new Screenshot();
-						readFromStream(stream, *tile_info.cur_tile_screenshot);
+						readScreenshotFromStream(stream, *tile_info.cur_tile_screenshot);
 					}
 					const bool prev_tile_screenshot_non_null = stream.readInt32() != 0;
 					if(prev_tile_screenshot_non_null)
 					{
 						tile_info.prev_tile_screenshot = new Screenshot();
-						readFromStream(stream, *tile_info.prev_tile_screenshot);
+						readScreenshotFromStream(stream, *tile_info.prev_tile_screenshot);
 					}
 
 					map_tile_info.info[Vec3<int>(x, y, z)] = tile_info; // Insert
@@ -1018,7 +1018,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				Screenshot* shot = it->ptr();
 				temp_buf.clear();
 				temp_buf.writeUInt32(SCREENSHOT_CHUNK);
-				writeToStream(*shot, temp_buf);
+				writeScreenshotToStream(*shot, temp_buf);
 
 				if(!shot->database_key.valid())
 					shot->database_key = database.allocUnusedKey(); // Get a new key
@@ -1069,11 +1069,11 @@ void ServerAllWorldsState::serialiseToDisk()
 
 				temp_buf.writeInt32(tile_info.cur_tile_screenshot.nonNull() ? 1 : 0);
 				if(tile_info.cur_tile_screenshot.nonNull())
-					writeToStream(*tile_info.cur_tile_screenshot, temp_buf);
+					writeScreenshotToStream(*tile_info.cur_tile_screenshot, temp_buf);
 
 				temp_buf.writeInt32(tile_info.prev_tile_screenshot.nonNull() ? 1 : 0);
 				if(tile_info.prev_tile_screenshot.nonNull())
-					writeToStream(*tile_info.prev_tile_screenshot, temp_buf);
+					writeScreenshotToStream(*tile_info.prev_tile_screenshot, temp_buf);
 			}
 
 			if(!map_tile_info.database_key.valid())
