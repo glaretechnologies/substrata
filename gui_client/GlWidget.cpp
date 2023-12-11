@@ -221,9 +221,9 @@ void GlWidget::resizeGL(int width_, int height_)
 
 	viewport_aspect_ratio = (double)width_ / (double)height_;
 
-	this->opengl_engine->setViewport(viewport_w, viewport_h);
+	this->opengl_engine->setViewportDims(viewport_w, viewport_h);
 
-	this->opengl_engine->setMainViewport(viewport_w, viewport_h);
+	this->opengl_engine->setMainViewportDims(viewport_w, viewport_h);
 
 #if QT_VERSION_MAJOR >= 6
 	// In Qt6, the GL widget uses a custom framebuffer (defaultFramebufferObject).  We want to make sure we draw to this.
@@ -318,10 +318,11 @@ void GlWidget::paintGL()
 
 		const Matrix4f world_to_camera_space_matrix = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::translationMatrix(-(cam_pos.toVec4fVector()));
 
-		opengl_engine->setViewport(viewport_w, viewport_h);
+		opengl_engine->setViewportDims(viewport_w, viewport_h);
 		opengl_engine->setNearDrawDistance(near_draw_dist);
 		opengl_engine->setMaxDrawDistance(max_draw_dist);
 		opengl_engine->setDiagonalOrthoCameraTransform(world_to_camera_space_matrix, /*sensor_width*/screenshot_ortho_sensor_width_m, /*render_aspect_ratio=*/1.f);
+		//opengl_engine->setOrthoCameraTransform(world_to_camera_space_matrix, /*sensor_width*/screenshot_ortho_sensor_width_m, /*render_aspect_ratio=*/1.f, 0, 0);
 		opengl_engine->draw();
 		return;
 	}
@@ -342,7 +343,7 @@ void GlWidget::paintGL()
 		const float sensor_width = sensorWidth();
 		const float lens_sensor_dist = lensSensorDist();
 		const float render_aspect_ratio = viewport_aspect_ratio;
-		opengl_engine->setViewport(viewport_w, viewport_h);
+		opengl_engine->setViewportDims(viewport_w, viewport_h);
 		opengl_engine->setNearDrawDistance(near_draw_dist);
 		opengl_engine->setMaxDrawDistance(max_draw_dist);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
