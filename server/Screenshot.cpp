@@ -23,12 +23,13 @@ Screenshot::~Screenshot()
 {}
 
 
-static const uint32 SCREENSHOT_SERIALISATION_VERSION = 4;
+static const uint32 SCREENSHOT_SERIALISATION_VERSION = 5;
 // v2: added width_px
 // v3: added highlight_parcel_id
 // v4: Added is_map_tile, tile_x etc.
+// v5: Added URL
 
-void writeToStream(const Screenshot& shot, OutStream& stream)
+void writeScreenshotToStream(const Screenshot& shot, OutStream& stream)
 {
 	// Write version
 	stream.writeUInt32(SCREENSHOT_SERIALISATION_VERSION);
@@ -51,10 +52,12 @@ void writeToStream(const Screenshot& shot, OutStream& stream)
 	stream.writeStringLengthFirst(shot.local_path);
 
 	stream.writeUInt32((uint32)shot.state);
+
+	stream.writeStringLengthFirst(shot.URL);
 }
 
 
-void readFromStream(InStream& stream, Screenshot& shot)
+void readScreenshotFromStream(InStream& stream, Screenshot& shot)
 {
 	// Read version
 	const uint32 v = stream.readUInt32();
@@ -88,4 +91,7 @@ void readFromStream(InStream& stream, Screenshot& shot)
 		throw glare::Exception("Invalid state");
 
 	shot.state = (Screenshot::ScreenshotState)s;
+
+	if(v >= 5)
+		shot.URL = stream.readStringLengthFirst(10000);
 }
