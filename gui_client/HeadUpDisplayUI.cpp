@@ -34,6 +34,25 @@ void HeadUpDisplayUI::destroy()
 }
 
 
+void HeadUpDisplayUI::think()
+{
+}
+
+
+void HeadUpDisplayUI::viewportResized(int w, int h)
+{
+	if(gl_ui.nonNull())
+	{
+		updateWidgetPositions();
+	}
+}
+
+
+void HeadUpDisplayUI::updateWidgetPositions()
+{
+}
+
+
 void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 {
 	// We want to show a marker for the avatar if it is in front of the camera, and the avatar is sufficiently far away from camera.

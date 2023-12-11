@@ -31,11 +31,17 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
 	void destroy();
 
+	void think();
+
+	void viewportResized(int w, int h);
+
 	void updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos);
 	void removeMarkerForAvatar(Avatar* avatar);
 
 	virtual void eventOccurred(GLUICallbackEvent& event);
 private:
+	void updateWidgetPositions();
+
 	MainWindow* main_window;
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
