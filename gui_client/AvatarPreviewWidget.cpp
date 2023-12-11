@@ -97,9 +97,9 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 	viewport_w = width_;
 	viewport_h = height_;
 
-	this->opengl_engine->setViewport(viewport_w, viewport_h);
+	this->opengl_engine->setViewportDims(viewport_w, viewport_h);
 
-	this->opengl_engine->setMainViewport(viewport_w, viewport_h);
+	this->opengl_engine->setMainViewportDims(viewport_w, viewport_h);
 
 	viewport_aspect_ratio = (double)width_ / (double)height_;
 
@@ -208,7 +208,7 @@ void AvatarPreviewWidget::paintGL()
 	const float lens_sensor_dist = 0.03f;
 	const float render_aspect_ratio = viewport_aspect_ratio;
 
-	opengl_engine->setViewport(viewport_w, viewport_h);
+	opengl_engine->setViewportDims(viewport_w, viewport_h);
 	opengl_engine->setMaxDrawDistance(100.f);
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 	opengl_engine->setCurrentTime((float)timer.elapsed());
