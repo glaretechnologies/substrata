@@ -25,6 +25,7 @@ public:
 	Reference<TextureData> texture_data;
 	
 	Reference<Map2D> terrain_map; // Non-null iff we are loading a terrain map (e.g. is_terrain_map is true)
+	bool is_minimap_tile;
 };
 
 
@@ -36,7 +37,8 @@ LoadTextureTask
 class LoadTextureTask : public glare::Task
 {
 public:
-	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, bool use_sRGB, bool allow_compression, bool is_terrain_map);
+	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
+		bool use_sRGB, bool allow_compression, bool is_terrain_map, bool is_minimap_tile);
 
 	virtual void run(size_t thread_index);
 
@@ -47,4 +49,5 @@ public:
 	bool use_sRGB;
 	bool allow_compression;
 	bool is_terrain_map;
+	bool is_minimap_tile;
 };

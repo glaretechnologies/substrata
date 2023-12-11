@@ -32,13 +32,14 @@ CyberspaceProtocolVersion
 	Added last_modified_time to WorldObject.
 	Added scale to ObjectTransformUpdate message.
 38: Use length-prefixed serialisation for WorldMaterial, sending server version to client.
+39: Added QueryMapTiles, MapTilesResult
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 38;
+const uint32 CyberspaceProtocolVersion = 39;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -102,6 +103,9 @@ const uint32 AllObjectsSent			= 3601; // Server has sent all objects
 
 const uint32 WorldSettingsInitialSendMessage	= 3700;
 const uint32 WorldSettingsUpdate	= 3701;
+
+const uint32 QueryMapTiles			= 3800; // Client wants to query map tile image URLs
+const uint32 MapTilesResult			= 3801; // Server is sending back a list of tile image URLs to the client.
 
 
 //TEMP HACK move elsewhere

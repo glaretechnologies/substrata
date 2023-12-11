@@ -459,6 +459,12 @@ void TerrainSystem::invalidateVegetationMap(const js::AABBox& aabb_ws)
 }
 
 
+bool TerrainSystem::isTerrainFullyBuilt()
+{
+	return root_node->subtree_built;
+}
+
+
 // Remove any opengl and physics objects inserted into the opengl and physics engines, in the subtree with given root node.
 void TerrainSystem::removeAllNodeDataForSubtree(TerrainNode* node)
 {

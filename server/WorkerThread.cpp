@@ -544,6 +544,29 @@ void WorkerThread::handleScreenshotBotConnection()
 
 					conPrint("Saved to disk at " + screenshot_path);
 
+
+					// Add map tile as a resource too, for access by embedded minimap on client.
+					if(screenshot->is_map_tile)
+					{
+						// Copy screenshot into resource dir and add as a resource
+						const std::string URL = screenshot_filename;
+						ResourceRef resource = server->world_state->resource_manager->getOrCreateResourceForURL(URL); // Will create a new Resource ob if not already inserted.
+						const std::string local_abs_path = server->world_state->resource_manager->getLocalAbsPathForResource(*resource);
+
+						FileUtils::copyFile(screenshot_path, local_abs_path); 
+
+						resource->owner_id = UserID::invalidUserID();
+						resource->setState(Resource::State_Present);
+
+						{
+							Lock lock(server->world_state->mutex);
+							server->world_state->addResourcesAsDBDirty(resource);
+						}
+
+						screenshot->URL = URL;
+					}
+
+
 					screenshot->state = Screenshot::ScreenshotState_done;
 					screenshot->local_path = screenshot_path;
 
@@ -805,14 +828,10 @@ void WorkerThread::doRun()
 			//socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_protocol_version) + ") is too old, require version " + 
 			//	toString(Protocol::CyberspaceProtocolVersion) + ".  Please install an updated client from https://substrata.info/.");
 		}
-		else if(client_protocol_version > Protocol::CyberspaceProtocolVersion)
-		{
-			socket->writeUInt32(Protocol::ClientProtocolTooNew);
-			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_protocol_version) + ") is too new, require version " + 
-				toString(Protocol::CyberspaceProtocolVersion) + ".  Please use an older client.");
-		}
 		else
 		{
+			// For versions newer than our current version, consider them OK.  We will send back our current version below, which will then be used by the client.
+
 			socket->writeUInt32(Protocol::ClientProtocolOK);
 		}
 
@@ -2451,7 +2470,76 @@ void WorkerThread::doRun()
 
 							break;
 						}
-					default:			
+					case Protocol::QueryMapTiles:
+						{
+							conPrintIfNotFuzzing("QueryMapTiles");
+						
+							const uint32 num_tiles = msg_buffer.readUInt32();
+							if(num_tiles > 1000)
+								throw glare::Exception("QueryMapTiles: too many tiles: " + toString(num_tiles));
+
+							// conPrint("QueryMapTiles, num_tiles=" + toString(num_tiles));
+					
+							// Read tile coords
+							std::vector<Vec3i> tile_coords(num_tiles);
+							for(uint32 i=0; i<num_tiles; ++i)
+							{
+								tile_coords[i].x = msg_buffer.readInt32();
+								tile_coords[i].y = msg_buffer.readInt32();
+								tile_coords[i].z = msg_buffer.readInt32();
+							}
+
+
+							std::vector<std::string> result_URLs(num_tiles);
+							{
+								Lock lock(world_state->mutex);
+
+								for(size_t i=0; i<tile_coords.size(); ++i)
+								{
+									auto res = world_state->map_tile_info.info.find(tile_coords[i]);
+									if(res != world_state->map_tile_info.info.end())
+									{
+										const TileInfo& tile_info = res->second;
+										if(tile_info.cur_tile_screenshot.nonNull())
+										{
+											result_URLs[i] = tile_info.cur_tile_screenshot->URL;
+										}
+										else if(tile_info.prev_tile_screenshot.nonNull())
+										{
+											result_URLs[i] = tile_info.prev_tile_screenshot->URL;
+										}
+
+										// conPrint("QueryMapTiles: Found result_URLs[i]: " + result_URLs[i]);
+									}
+								}
+							}
+
+							// Send result URLs back
+							MessageUtils::initPacket(scratch_packet, Protocol::MapTilesResult);
+							scratch_packet.writeUInt32(num_tiles);
+
+							// Write tile coords
+							for(size_t i=0; i<tile_coords.size(); ++i)
+							{
+								scratch_packet.writeInt32(tile_coords[i].x);
+								scratch_packet.writeInt32(tile_coords[i].y);
+								scratch_packet.writeInt32(tile_coords[i].z);
+							}
+
+							// Write URLS
+							for(size_t i=0; i<result_URLs.size(); ++i)
+							{
+								scratch_packet.writeStringLengthFirst(result_URLs[i]);
+							}
+
+							MessageUtils::updatePacketLengthField(scratch_packet);
+
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
+
+							break;
+						}
+					default:
 						{
 							//conPrint("Unknown message id: " + toString(msg_type));
 							throw glare::Exception("Unknown message id: " + toString(msg_type));

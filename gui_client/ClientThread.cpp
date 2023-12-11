@@ -161,7 +161,7 @@ void ClientThread::doRun()
 		// Read assigned client avatar UID
 		this->client_avatar_uid = readUIDFromStream(*socket);
 
-		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid));
+		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version));
 
 
 		// Now that we have finished the initial query-response part of protocol, start client_sender_thread, which will do the sending of data on the socket.
@@ -1034,6 +1034,30 @@ void ClientThread::doRun()
 					{
 						Reference<WorldSettingsReceivedMessage> msg = new WorldSettingsReceivedMessage(/*is_initial_send=*/false);
 						readWorldSettingsFromStream(msg_buffer, msg->world_settings); // Read from msg_buffer, write to msg->world_settings
+						out_msg_queue->enqueue(msg);
+						break;
+					}
+				case Protocol::MapTilesResult:
+					{
+						Reference<MapTilesResultReceivedMessage> msg = new MapTilesResultReceivedMessage();
+						const uint32 num_tiles = msg_buffer.readUInt32();
+						if(num_tiles > 1000)
+							throw glare::Exception("MapTilesResult: too many tiles: " + toString(num_tiles));
+
+						// Read tile coords
+						msg->tile_indices.resize(num_tiles);
+						for(uint32 i=0; i<num_tiles; ++i)
+						{
+							msg->tile_indices[i].x = msg_buffer.readInt32();
+							msg->tile_indices[i].y = msg_buffer.readInt32();
+							msg->tile_indices[i].z = msg_buffer.readInt32();
+						}
+
+						// Read URLS
+						msg->tile_URLS.resize(num_tiles);
+						for(uint32 i=0; i<num_tiles; ++i)
+							msg->tile_URLS[i] = msg_buffer.readStringLengthFirst(1000);
+
 						out_msg_queue->enqueue(msg);
 						break;
 					}
