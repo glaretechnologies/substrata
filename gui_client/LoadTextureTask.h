@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2019 -
 #pragma once
 
 
+#include "OpenGLTexture.h"
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <ThreadSafeQueue.h>
@@ -21,11 +22,10 @@ class TextureLoadedThreadMessage : public ThreadMessage
 public:
 	std::string tex_path;
 	std::string tex_key;
-	bool use_sRGB;
+	TextureParams tex_params;
 	Reference<TextureData> texture_data;
 	
 	Reference<Map2D> terrain_map; // Non-null iff we are loading a terrain map (e.g. is_terrain_map is true)
-	bool is_minimap_tile;
 };
 
 
@@ -38,7 +38,7 @@ class LoadTextureTask : public glare::Task
 {
 public:
 	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
-		bool use_sRGB, bool allow_compression, bool is_terrain_map, bool is_minimap_tile);
+		const TextureParams& tex_params, bool is_terrain_map);
 
 	virtual void run(size_t thread_index);
 
@@ -46,8 +46,6 @@ public:
 	TextureServer* texture_server;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 	std::string path;
-	bool use_sRGB;
-	bool allow_compression;
+	TextureParams tex_params;
 	bool is_terrain_map;
-	bool is_minimap_tile;
 };

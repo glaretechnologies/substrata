@@ -359,18 +359,23 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 			{
 				const Vec3d tile_pos(0.0); // TEMP HACK could use tile position in world space? or cam position?
 
+				TextureParams tex_params;
+				tex_params.wrapping = OpenGLTexture::Wrapping_Clamp;
+				tex_params.allow_compression = false;
+				tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
+				tex_params.use_mipmaps = false;
+
 				// Start loading or downloading this tile image (if not already downloaded)
 				DownloadingResourceInfo downloading_info;
+				downloading_info.texture_params = tex_params;
 				downloading_info.pos = tile_pos;
 				downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(tile_w_ws, /*importance_factor=*/1.f);
-				downloading_info.is_minimap_tile = true;
 
 				main_window->startDownloadingResource(URL, tile_pos.toVec4fPoint(), tile_w_ws, downloading_info);
 
 
 				// Start loading the texture (if not already loaded)
-				main_window->startLoadingTexture(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, 
-					/*use_sRGB=*/true, /*allow_compression=*/true, /*is_terrain_map=*/false, /*is_minimap_tile=*/true);
+				main_window->startLoadingTexture(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
 			}
 		}
 		else
@@ -423,7 +428,7 @@ void MiniMap::mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event)
 
 	const int last_tile_z = getTileZForMapWidthWS(map_width_ws);
 
-	map_width_ws = myClamp(map_width_ws * (1.0f - event.wheel_event->angle_delta_y * 0.002f), 50.f, 10000.f);
+	map_width_ws = myClamp(map_width_ws * (1.0f - event.wheel_event->angle_delta_y * 0.002f), 80.f, 10000.f);
 
 	const int new_tile_z = getTileZForMapWidthWS(map_width_ws);
 	if(new_tile_z != last_tile_z)

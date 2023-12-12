@@ -999,7 +999,7 @@ static inline bool isValidLightMapURL(const std::string& URL)
 
 
 void MainWindow::startLoadingTexture(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
-	bool use_sRGB, bool allow_compression, bool is_terrain_map, bool is_minimap_tile)
+	const TextureParams& tex_params, bool is_terrain_map)
 {
 	if(isValidImageTextureURL(tex_url))
 	{
@@ -1013,7 +1013,7 @@ void MainWindow::startLoadingTexture(const std::string& tex_url, const Vec4f& ce
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
 				{
-					Reference<LoadTextureTask> task = new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, use_sRGB, allow_compression, is_terrain_map, is_minimap_tile);
+					Reference<LoadTextureTask> task = new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, tex_params, is_terrain_map);
 
 					load_item_queue.enqueueItem(
 						centroid_ws, 
@@ -1034,7 +1034,10 @@ void MainWindow::startLoadingTextureForObject(const Vec4f& centroid_ws, float aa
 {
 	const std::string lod_tex_url = world_mat.getLODTextureURLForLevel(texture_url, ob_lod_level, tex_has_alpha);
 
-	startLoadingTexture(lod_tex_url,centroid_ws, aabb_ws_longest_len, max_dist_for_ob_lod_level, importance_factor, use_sRGB, allow_compression, /*is_terrain_map=*/false, /*is_minimap_tile=*/false);
+	TextureParams tex_params;
+	tex_params.use_sRGB = use_sRGB;
+	tex_params.allow_compression = allow_compression;
+	startLoadingTexture(lod_tex_url,centroid_ws, aabb_ws_longest_len, max_dist_for_ob_lod_level, importance_factor, tex_params, /*is_terrain_map=*/false);
 }
 
 
@@ -1063,8 +1066,12 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, 
-						/*use_sRGB=*/true, /*allow compression=*/true, /*is_terrain_map=*/false, /*is_minimap_tile=*/false), max_dist_for_ob_lod_level);
+				{
+					TextureParams tex_params;
+					load_item_queue.enqueueItem(ob, 
+						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, tex_params, /*is_terrain_map=*/false), 
+						max_dist_for_ob_lod_level);
+				}
 			}
 		}
 	}
@@ -1235,7 +1242,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 			{
 				DownloadingResourceInfo info;
-				info.use_sRGB = url_info.use_sRGB;
+				info.texture_params.use_sRGB = url_info.use_sRGB;
 				info.build_dynamic_physics_ob = ob->isDynamic();
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance_factor=*/1.f);
@@ -1274,7 +1281,7 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 				const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
 				DownloadingResourceInfo info;
-				info.use_sRGB = url_info.use_sRGB;
+				info.texture_params.use_sRGB = url_info.use_sRGB;
 				info.build_dynamic_physics_ob = false;
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor);
@@ -3964,15 +3971,10 @@ void MainWindow::processLoading()
 					num_textures_loaded++;
 
 					this->cur_loading_terrain_map = message->terrain_map;
-					this->cur_loading_tex_is_minimap_tile = message->is_minimap_tile;
 
 					try
 					{
-						// NOTE: bit of a hack, assuming fancy filtering (trilinear) is wanted if we have mip levels.
-						const OpenGLTexture::Filtering filtering = (message->texture_data->num_mip_levels > 1) ? OpenGLTexture::Filtering_Fancy : OpenGLTexture::Filtering_Bilinear;
-						const OpenGLTexture::Wrapping wrapping = message->is_minimap_tile ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat; // Assume repeating in general
-
-						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, ui->glWidget->opengl_engine, OpenGLTextureKey(message->tex_key), message->use_sRGB, filtering, wrapping,
+						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, ui->glWidget->opengl_engine, OpenGLTextureKey(message->tex_key), message->tex_params,
 							message->texture_data, this->tex_loading_progress);
 					}
 					catch(glare::Exception&)
@@ -7102,25 +7104,21 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 						// in the net download case.
 						const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-						bool use_SRGB = true;
-						bool allow_compression = true;
+						TextureParams texture_params;
 						Vec3d pos(0, 0, 0);
 						float size_factor = 1;
 						bool build_dynamic_physics_ob = false;
 						bool is_terrain_map = false;
-						bool is_minimap_tile = false;
 						// Look up in our map of downloading resources
 						auto res = URL_to_downloading_info.find(URL);
 						if(res != URL_to_downloading_info.end())
 						{
 							const DownloadingResourceInfo& info = res->second;
-							use_SRGB = info.use_sRGB;
-							allow_compression = info.allow_compression;
+							texture_params = info.texture_params;
 							pos = info.pos;
 							size_factor = info.size_factor;
 							build_dynamic_physics_ob = info.build_dynamic_physics_ob;
 							is_terrain_map = info.is_terrain_map;
-							is_minimap_tile = info.is_minimap_tile;
 						}
 						else
 						{
@@ -7140,7 +7138,7 @@ void MainWindow::handleMessages(double global_time, double cur_time)
 								const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 								if(just_added)
 									load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, 
-										new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, use_SRGB, allow_compression, is_terrain_map, is_minimap_tile),
+										new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, texture_params, is_terrain_map),
 										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 							}
 						}
@@ -13736,6 +13734,18 @@ void MainWindow::updateGroundPlane()
 		const float aabb_ws_longest_len = terrain_section_width_m;
 
 		//----------------------------- Start downloading textures, if not already present on disk in resource manager -----------------------------
+		TextureParams heightmap_tex_params;
+		heightmap_tex_params.use_sRGB = false;
+		heightmap_tex_params.allow_compression = false;
+		heightmap_tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
+		heightmap_tex_params.use_mipmaps = false;
+
+		TextureParams maskmap_tex_params;
+		maskmap_tex_params.use_sRGB = false;
+		maskmap_tex_params.allow_compression = false;
+
+		TextureParams detail_colourmap_tex_params;
+
 		for(size_t i=0; i<spec.section_specs.size(); ++i)
 		{
 			const TerrainSpecSection& section_spec = spec.section_specs[i];
@@ -13744,8 +13754,7 @@ void MainWindow::updateGroundPlane()
 			if(!section_spec.heightmap_URL.empty())
 			{
 				DownloadingResourceInfo info;
-				info.use_sRGB = false;
-				info.allow_compression = false;
+				info.texture_params = heightmap_tex_params;
 				info.is_terrain_map = true;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
@@ -13754,8 +13763,7 @@ void MainWindow::updateGroundPlane()
 			if(!section_spec.mask_map_URL.empty())
 			{
 				DownloadingResourceInfo info;
-				info.use_sRGB = false;
-				info.allow_compression = false;
+				info.texture_params = maskmap_tex_params;
 				info.is_terrain_map = true;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
@@ -13768,8 +13776,7 @@ void MainWindow::updateGroundPlane()
 			if(!spec.detail_col_map_URLs[i].empty())
 			{
 				DownloadingResourceInfo info;
-				info.use_sRGB = true;
-				info.allow_compression = true;
+				info.texture_params = detail_colourmap_tex_params;
 				info.is_terrain_map = true;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
@@ -13778,8 +13785,7 @@ void MainWindow::updateGroundPlane()
 			if(!spec.detail_height_map_URLs[i].empty())
 			{
 				DownloadingResourceInfo info;
-				info.use_sRGB = false;
-				info.allow_compression = false;
+				info.texture_params = heightmap_tex_params;
 				info.is_terrain_map = true;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
@@ -13799,12 +13805,12 @@ void MainWindow::updateGroundPlane()
 			
 			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
 				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.heightmap_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true, /*is_minimap_tile=*/false), 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.heightmap_path, heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.mask_map_URL.empty())
 				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.mask_map_path, /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true, /*is_minimap_tile=*/false), 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_section.mask_map_path, maskmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 
@@ -13812,12 +13818,12 @@ void MainWindow::updateGroundPlane()
 		{
 			if(!spec.detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_col_map_URLs[i]))
 				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_col_map_paths[i], /*use_sRGB=*/true, /*allow compression=*/true, /*is terrain map=*/true, /*is_minimap_tile=*/false), 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_col_map_paths[i], detail_colourmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!spec.detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_height_map_URLs[i]))
 				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_height_map_paths[i], /*use_sRGB=*/false, /*allow compression=*/false, /*is terrain map=*/true, /*is_minimap_tile=*/false), 
+					new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_height_map_paths[i], heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------

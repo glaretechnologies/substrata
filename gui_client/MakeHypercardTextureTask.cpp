@@ -58,7 +58,6 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
 		msg->tex_path = tex_key;
 		msg->tex_key = tex_key;
-		msg->use_sRGB = true;
 		msg->texture_data = texture_data;
 
 		result_msg_queue->enqueue(msg);
