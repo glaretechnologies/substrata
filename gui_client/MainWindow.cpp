@@ -5857,6 +5857,7 @@ void MainWindow::updateAvatarGraphics(double cur_time, double dt, const Vec3d& c
 					avatar->speaker_gl_ob = NULL;
 
 					hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
+					minimap.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 
 					// Remove avatar from avatar map
 					auto old_avatar_iterator = it;
@@ -5908,6 +5909,7 @@ void MainWindow::updateAvatarGraphics(double cur_time, double dt, const Vec3d& c
 						avatar->speaker_gl_ob = NULL;
 
 						hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
+						minimap.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 
 						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
 
@@ -6334,7 +6336,10 @@ void MainWindow::updateAvatarGraphics(double cur_time, double dt, const Vec3d& c
 
 
 					if(!our_avatar)
+					{
 						hud_ui.updateMarkerForAvatar(avatar, pos); // Update marker on HUD
+						minimap.updateMarkerForAvatar(avatar, pos); // Update marker on minimap
+					}
 
 
 					avatar->other_dirty = false;
@@ -11366,6 +11371,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 			avatar->graphics.destroy(*ui->glWidget->opengl_engine);
 
 			hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
+			minimap.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 		}
 	}
 

@@ -31,7 +31,15 @@ MiniMap::~MiniMap()
 static const float minimap_width = 0.29f; // Width in UI coordinates
 static const float margin = 0.03f; // margin around map in UI coordinates
 
+static const float arrow_width_px = 22;
+
 static const int TILE_GRID_RES = 7; // There will be a TILE_GRID_RES x TILE_GRID_RES grid of tiles centered on the camera
+
+// -1 is near clip plane, +1 is the far clip plane.
+static const float MINIMAP_Z = -0.9f;
+static const float ARROW_IMAGE_Z = -0.95f;
+static const float AVATAR_MARKER_IMAGE_Z = -0.93f;
+static const float AVATAR_MARKER_ARROW_IMAGE_Z = -0.94f; // Slightly behind the marker dot
 
 
 static int getTileZForMapWidthWS(float map_width_ws)
@@ -67,14 +75,21 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_w
 	
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
-	// Create marker dot
+	// Create minimap image
 	minimap_image = new GLUIImage();
-	minimap_image->create(*gl_ui, opengl_engine, "", Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY(opengl_engine) - minimap_width - margin), Vec2f(minimap_width), /*tooltip=*/"minimap");
+	minimap_image->create(*gl_ui, opengl_engine, "", Vec2f(1 - margin - minimap_width, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
 	minimap_image->overlay_ob->material.albedo_texture = minimap_texture;
 	minimap_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	minimap_image->handler = this;
-
 	gl_ui->addWidget(minimap_image);
+
+	// Create facing arrow image
+	arrow_image = new GLUIImage();
+	arrow_image->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2), Vec2f(0.005f), 
+		/*tooltip=*/"You", ARROW_IMAGE_Z);
+	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
+	arrow_image->handler = this;
+	gl_ui->addWidget(arrow_image);
 
 	//--------------------- Create minimap tile scene ------------------------
 	Reference<OpenGLScene> last_scene = opengl_engine->getCurrentScene();
@@ -150,6 +165,14 @@ void MiniMap::destroy()
 		{
 			gl_ui->removeWidget(minimap_image);
 			minimap_image->destroy();
+			minimap_image = NULL;
+		}
+		
+		if(arrow_image.nonNull())
+		{
+			gl_ui->removeWidget(arrow_image);
+			arrow_image->destroy();
+			arrow_image = NULL;
 		}
 	}
 
@@ -226,6 +249,15 @@ void MiniMap::think()
 	opengl_engine->setCurrentScene(last_scene);
 	opengl_engine->setViewportDims(last_viewport);
 	opengl_engine->setTargetFrameBuffer(last_target_framebuffer);
+
+
+	const float heading = main_window->cam_controller.getAngles().x;
+
+	const float arrow_width = gl_ui->getUIWidthForDevIndepPixelWidth(arrow_width_px);
+	arrow_image->setTransform(Vec2f(1 - margin - minimap_width/2 - arrow_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2 - arrow_width/2), 
+		/*dims=*/Vec2f(arrow_width), 
+		/*rotation=*/heading,
+		/*z=*/ARROW_IMAGE_Z);
 }
 
 
@@ -326,7 +358,7 @@ void MiniMap::renderTilesToTexture()
 
 	opengl_engine->setIdentityCameraTransform(); // Since we are just rendering overlays, camera transformation doesn't really matter
 
-	this->scene->overlay_world_to_camera_space_matrix = Matrix4f::scaleMatrix(2.f/map_width_ws, 2.f/map_width_ws, 0) * Matrix4f::translationMatrix(-campos.x, -campos.y, 0);
+	this->scene->overlay_world_to_camera_space_matrix = Matrix4f::scaleMatrix(2.f/map_width_ws, 2.f/map_width_ws, 1) * Matrix4f::translationMatrix(-campos.x, -campos.y, 0);
 
 	opengl_engine->setTargetFrameBufferAndViewport(frame_buffer);
 
@@ -404,7 +436,141 @@ void MiniMap::updateWidgetPositions()
 {
 	if(minimap_image.nonNull())
 	{
-		minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY(opengl_engine) - minimap_width - margin), Vec2f(minimap_width));
+		minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY(opengl_engine) - minimap_width - margin), Vec2f(minimap_width), MINIMAP_Z);
+	}
+}
+
+
+Vec2f MiniMap::mapUICoordsForWorldSpacePos(const Vec3d& pos)
+{
+	const Vec3d cam_to_pos_ws = pos - main_window->cam_controller.getFirstPersonPosition();
+
+	const Vec2f cam_to_pos_xy_ws((float)cam_to_pos_ws.x, (float)cam_to_pos_ws.y);
+
+	const Vec2f map_centre_ui(1 - margin - minimap_width/2,  gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2);
+
+	return map_centre_ui + minimap_width * cam_to_pos_xy_ws / map_width_ws;
+}
+
+
+void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
+{
+	const Vec2f ui_coords = mapUICoordsForWorldSpacePos(avatar_pos);
+
+	// Clamp marker to screen.
+	const float in_map_margin_w = 0.02f;
+	const float map_min_x = 1 - margin - minimap_width + in_map_margin_w;
+	const float map_max_x = 1 - margin - in_map_margin_w;
+	const float map_min_y = gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width + in_map_margin_w;
+	const float map_max_y = gl_ui->getViewportMinMaxY(opengl_engine) - margin - in_map_margin_w;
+
+	Vec2f clamped_ui_coords;
+	clamped_ui_coords.x = myClamp(ui_coords.x, map_min_x, map_max_x);
+	clamped_ui_coords.y = myClamp(ui_coords.y, map_min_y, map_max_y);
+
+	// Work out arrow pos and rotation
+	Vec2f arrow_pos(-1000.f); // By default arrow is off-screen
+	float arrow_rotation = 0; // Rotation of right-pointing arrow image.
+	if(clamped_ui_coords.x > ui_coords.x) // If marker was clamped to left side of screen:
+	{
+		arrow_pos = clamped_ui_coords - Vec2f(in_map_margin_w * 0.5f, 0); // Just to left of marker
+		arrow_rotation = Maths::pi<float>();
+	}
+	else if(clamped_ui_coords.x < ui_coords.x) // If was clamped to right side of screen:
+	{
+		arrow_pos = clamped_ui_coords + Vec2f(in_map_margin_w * 0.5f, 0);
+	}
+
+	if(clamped_ui_coords.y > ui_coords.y) // If was clamped to bottom side of screen:
+	{
+		arrow_pos = clamped_ui_coords - Vec2f(0, in_map_margin_w * 0.5f);
+		arrow_rotation = -Maths::pi<float>() / 2;
+	}
+	else if(clamped_ui_coords.y < ui_coords.y) // If was clamped to top side of screen:
+	{
+		arrow_pos = clamped_ui_coords + Vec2f(0, in_map_margin_w * 0.5f);
+		arrow_rotation = Maths::pi<float>() / 2;
+	}
+
+	// Handle case where marker ends up in corner of screen, in this case we want the arrow to be diagonally pointed.
+	const float edge_move_x = in_map_margin_w * 0.4f;
+	if(clamped_ui_coords.x > ui_coords.x && clamped_ui_coords.y < ui_coords.y) // If was clamped to left side and top of screen:
+	{
+		arrow_pos = clamped_ui_coords + Vec2f(-edge_move_x, edge_move_x);
+		arrow_rotation = Maths::pi<float>() * (3 / 4.f);
+	}
+	else if(clamped_ui_coords.x > ui_coords.x && clamped_ui_coords.y > ui_coords.y) // If was clamped to left side and bottom of screen:
+	{
+		arrow_pos = clamped_ui_coords + Vec2f(-edge_move_x, -edge_move_x);
+		arrow_rotation = Maths::pi<float>() * (5 / 4.f);
+	}
+	else if(clamped_ui_coords.x < ui_coords.x && clamped_ui_coords.y > ui_coords.y) // If was clamped to right side and bottom of screen:
+	{
+		arrow_pos = clamped_ui_coords + Vec2f(edge_move_x, -edge_move_x);
+		arrow_rotation = -Maths::pi<float>() * (1 / 4.f);
+	}
+	else if(clamped_ui_coords.x < ui_coords.x && clamped_ui_coords.y < ui_coords.y) // If was clamped to right side and top of screen:
+	{
+		arrow_pos = clamped_ui_coords + Vec2f(edge_move_x, edge_move_x);
+		arrow_rotation = Maths::pi<float>() * (1 / 4.f);
+	}
+
+	/*const bool on_map = 
+		(ui_coords.x >= 1 - margin - minimap_width) && 
+		(ui_coords.y >= gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width) && 
+		(ui_coords.x < 1 - margin) && 
+		(ui_coords.y < gl_ui->getViewportMinMaxY(opengl_engine) - margin);*/
+
+	// Create (if needed) and/or position marker dot.
+	const float im_width = gl_ui->getUIWidthForDevIndepPixelWidth(8);
+	const Vec2f dot_corner_pos = clamped_ui_coords - Vec2f(im_width/2);
+	if(avatar->minimap_marker.isNull()) // If marker does not exist yet:
+	{
+		// Create marker dot
+		GLUIImageRef im = new GLUIImage();
+		im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
+		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
+		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
+
+		gl_ui->addWidget(im);
+		avatar->minimap_marker = im;
+	}
+	else
+		avatar->minimap_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width), /*z=*/AVATAR_MARKER_IMAGE_Z);
+
+	// Create (if needed) and/or position marker arrow.
+	const float arrow_im_width = gl_ui->getUIWidthForDevIndepPixelWidth(14);
+	const Vec2f arrow_corner_pos = arrow_pos - Vec2f(arrow_im_width/2);
+	if(avatar->minimap_marker_arrow.isNull()) // If marker arrow does not exist yet:
+	{
+		// Create marker arrow
+		GLUIImageRef im = new GLUIImage();
+		im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
+		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
+		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
+			
+		gl_ui->addWidget(im);
+		avatar->minimap_marker_arrow = im;
+	}
+	else
+		avatar->minimap_marker_arrow->setTransform(arrow_corner_pos, Vec2f(arrow_im_width), arrow_rotation, /*z=*/AVATAR_MARKER_ARROW_IMAGE_Z);
+
+	//avatar->minimap_marker->setVisible(on_map);
+}
+
+
+void MiniMap::removeMarkerForAvatar(Avatar* avatar)
+{
+	if(avatar->minimap_marker.nonNull())
+	{
+		gl_ui->removeWidget(avatar->minimap_marker);
+		avatar->minimap_marker = NULL;
+	}
+
+	if(avatar->minimap_marker_arrow.nonNull())
+	{
+		gl_ui->removeWidget(avatar->minimap_marker_arrow);
+		avatar->minimap_marker_arrow = NULL;
 	}
 }
 
