@@ -75,13 +75,12 @@ struct IMFDXGIDeviceManager;
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : use_sRGB(true), allow_compression(true), build_dynamic_physics_ob(false), is_terrain_map(false), is_minimap_tile(false) {}
+	DownloadingResourceInfo() : build_dynamic_physics_ob(false), is_terrain_map(false) {}
 
-	bool use_sRGB; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
-	bool allow_compression; // For downloading textures.
+	TextureParams texture_params; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
+
 	bool build_dynamic_physics_ob; // For downloading meshes.  Once the mesh is downloaded we need to know if we want to build the dynamic or static physics shape for it.
 	bool is_terrain_map;
-	bool is_minimap_tile;
 
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
@@ -295,7 +294,7 @@ public:
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
 	void startLoadingTexture(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
-		bool use_sRGB, bool allow_compression, bool is_terrain_map, bool is_minimap_tile);
+		const TextureParams& tex_params, bool is_terrain_map);
 	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, 
 		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
@@ -717,7 +716,6 @@ public:
 	int cur_loading_voxel_ob_model_lod_level;
 
 	Map2DRef cur_loading_terrain_map; // Non-null iff we are currently loading a map used for the terrain system into OpenGL.
-	bool cur_loading_tex_is_minimap_tile;
 
 	OpenGLTextureLoadingProgress tex_loading_progress;
 
