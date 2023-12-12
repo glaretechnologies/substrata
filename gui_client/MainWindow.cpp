@@ -13470,6 +13470,22 @@ void MainWindow::glWidgetkeyReleased(QKeyEvent* e)
 
 void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 {
+	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+
+	if(gl_ui.nonNull())
+	{
+		GLUIMouseWheelEvent wheel_event;
+		wheel_event.angle_delta_y = e->angleDelta().y();
+
+		const bool accepted = gl_ui->handleMouseWheelEvent(gl_coords, wheel_event);
+		if(accepted)
+		{
+			e->accept();
+			return;
+		}
+	}
+
 	// Trace through scene to see if the mouse is over a web-view
 	if(this->physics_world.nonNull())
 	{
