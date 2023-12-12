@@ -122,6 +122,8 @@ public:
 	AvatarGraphics graphics;
 	Reference<GLUIImage> hud_marker;
 	Reference<GLUIImage> hud_marker_arrow;
+	Reference<GLUIImage> minimap_marker;
+	Reference<GLUIImage> minimap_marker_arrow;
 
 	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 

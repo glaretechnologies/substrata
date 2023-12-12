@@ -78,6 +78,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 	const bool should_display = visible && (avatar_pos.getDist(main_window->cam_controller.getPosition()) > 20.0);
 	if(should_display)
 	{
+#if 0
 		const float margin_w = 0.03f;
 		float x_edge_mag = 1 - margin_w;
 		float y_edge_mag = gl_ui->getViewportMinMaxY(opengl_engine) - margin_w;
@@ -92,7 +93,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		float arrow_rotation = 0; // Rotation of right-pointing arrow image.
 		if(clamped_ui_coords.x > ui_coords.x) // If marker was clamped to left side of screen:
 		{
-			arrow_pos = clamped_ui_coords - Vec2f(margin_w * 0.5f, 0); // Just to right of marker
+			arrow_pos = clamped_ui_coords - Vec2f(margin_w * 0.5f, 0); // Just to left of marker
 			arrow_rotation = Maths::pi<float>();
 		}
 		else if(clamped_ui_coords.x < ui_coords.x) // If was clamped to right side of screen:
@@ -133,8 +134,12 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 			arrow_pos = clamped_ui_coords + Vec2f(edge_move_x, edge_move_x);
 			arrow_rotation = Maths::pi<float>() * (1 / 4.f);
 		}
+#else
+		// Don't clamp marker to screen, just hide if off screen.
+		Vec2f clamped_ui_coords = ui_coords;
+		const bool on_screen = (ui_coords.x >= -1) || (ui_coords.x <= 1) || (ui_coords.y >= gl_ui->getViewportMinMaxY(opengl_engine)) || (ui_coords.y <= gl_ui->getViewportMinMaxY(opengl_engine));
+#endif
 		
-
 		// Create (if needed) and/or position marker dot.
 		const float im_width = gl_ui->getUIWidthForDevIndepPixelWidth(10);
 		const Vec2f dot_corner_pos = clamped_ui_coords - Vec2f(im_width/2);
@@ -150,8 +155,11 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 			avatar->hud_marker = im;
 		}
 		else
-			avatar->hud_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width));
+			avatar->hud_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width), /*z=*/0.95f);
 
+		avatar->hud_marker->setVisible(on_screen);
+
+#if 0
 		// Create (if needed) and/or position marker arrow.
 		const float arrow_im_width = gl_ui->getUIWidthForDevIndepPixelWidth(14);
 		const Vec2f arrow_corner_pos = arrow_pos - Vec2f(arrow_im_width/2);
@@ -168,6 +176,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		}
 		else
 			avatar->hud_marker_arrow->setTransform(arrow_corner_pos, Vec2f(arrow_im_width), arrow_rotation);
+#endif
 	}
 	else // Else if shouldn't display marker:
 	{

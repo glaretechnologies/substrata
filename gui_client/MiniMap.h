@@ -52,6 +52,9 @@ public:
 
 	void viewportResized(int w, int h);
 
+	void updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos);
+	void removeMarkerForAvatar(Avatar* avatar);
+
 	//virtual bool doHandleMouseMoved(const Vec2f& coords) override;
 
 	// GLUICallbackHandler interface:
@@ -63,12 +66,15 @@ private:
 	void checkUpdateTilesForCurCamPosition();
 	void updateWidgetPositions();
 	void renderTilesToTexture();
+	Vec2f mapUICoordsForWorldSpacePos(const Vec3d& pos);
 
 	MainWindow* main_window;
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
 
 	GLUIImageRef minimap_image;
+	GLUIImageRef arrow_image;
+
 
 	Array2D<MapTile> tiles;
 	int last_centre_x, last_centre_y;
