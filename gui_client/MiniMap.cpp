@@ -18,7 +18,9 @@ Copyright Glare Technologies Limited 2023 -
 
 MiniMap::MiniMap()
 :	main_window(NULL),
-	last_requested_campos(Vec3d(-1000000))
+	last_requested_campos(Vec3d(-1000000)),
+	last_requested_tile_z(-1000),
+	map_width_ws(500.f)
 {}
 
 
@@ -26,17 +28,36 @@ MiniMap::~MiniMap()
 {}
 
 
-static const float minimap_width = 0.29f;
-static const float margin = 0.03f;
+static const float minimap_width = 0.29f; // Width in UI coordinates
+static const float margin = 0.03f; // margin around map in UI coordinates
 
-static const int TILE_GRID_RES = 9;
+static const int TILE_GRID_RES = 7; // There will be a TILE_GRID_RES x TILE_GRID_RES grid of tiles centered on the camera
 
 
-static const float tile_w = 160;
+static int getTileZForMapWidthWS(float map_width_ws)
+{
+	/*
+	Lets say we want ~= 2 tiles to span the map (tiles are 256 pixels wide):
+	map_width_ws = 2 * tile_w
+	and
+	tile_w = 5120 / (2 ^ tile_z)
+	so 
+	map_width_ws = 2 * 5120 / (2 ^ tile_z)    [See updateMapTiles() in server.cpp]
 
-//const float TILE_WIDTH_M = 5120.f / (1 << z); //TILE_WIDTH_PX * metres_per_pixel;   See updateMapTiles() in server.cpp
-// If z = 5: 
-// TILE_WIDTH_M = 5120 / 32 = 160
+	2 ^ tile_z = 2 * 5120 / map_width_ws;
+	tile_z = log_2(2 * 5120 / map_width_ws)
+	*/
+
+	return myClamp((int)std::log2(2 * 5120 / map_width_ws), 0, 6);
+}
+
+
+// See updateMapTiles() in server.cpp
+static float getTileWidthWSForTileZ(int tile_z)
+{
+	return 5120.f / (1 << tile_z);
+}
+
 
 void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_)
 {
@@ -51,6 +72,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_w
 	minimap_image->create(*gl_ui, opengl_engine, "", Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY(opengl_engine) - minimap_width - margin), Vec2f(minimap_width), /*tooltip=*/"minimap");
 	minimap_image->overlay_ob->material.albedo_texture = minimap_texture;
 	minimap_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
+	minimap_image->handler = this;
 
 	gl_ui->addWidget(minimap_image);
 
@@ -71,6 +93,9 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_w
 	last_centre_x = -1000000;
 	last_centre_y = -1000000;
 
+	const int tile_z = getTileZForMapWidthWS(map_width_ws);
+	const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
+
 	for(int y=0; y<TILE_GRID_RES; ++y)
 	for(int x=0; x<TILE_GRID_RES; ++x)
 	{
@@ -78,7 +103,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_w
 		ob->mesh_data = opengl_engine->getUnitQuadMeshData();
 		ob->material.tex_matrix = Matrix2f(1,0,0,-1);
 		ob->material.tex_translation = Vec2f(0, 1);
-		ob->ob_to_world_matrix = Matrix4f::translationMatrix(x * tile_w, y * tile_w, 0) *  Matrix4f::scaleMatrix(tile_w, tile_w, 1);
+		ob->ob_to_world_matrix = Matrix4f::translationMatrix(x * tile_w_ws, y * tile_w_ws, 0) *  Matrix4f::scaleMatrix(tile_w_ws, tile_w_ws, 1);
 
 		opengl_engine->addOverlayObject(ob);
 
@@ -142,14 +167,17 @@ void MiniMap::think()
 
 	if((main_window->connection_state == MainWindow::ServerConnectionState_Connected) && (main_window->server_protocol_version >= 39)) // QueryMapTiles message was introduced in protocol version 39.
 	{
-		if(campos.getDist(last_requested_campos) > 300.0)
+		const int tile_z = getTileZForMapWidthWS(map_width_ws);
+		const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
+
+		if((campos.getDist(last_requested_campos) > 300.0) || (tile_z != last_requested_tile_z))
 		{
 			// Send request to server to get map tile image URLS
 
 			// Send QueryObjectsInAABB for initial volume around camera to server
 			{
-				const int new_centre_x = Maths::floorToInt((float)campos.x / tile_w);
-				const int new_centre_y = Maths::floorToInt((float)campos.y / tile_w);
+				const int new_centre_x = Maths::floorToInt((float)campos.x / tile_w_ws);
+				const int new_centre_y = Maths::floorToInt((float)campos.y / tile_w_ws);
 
 			
 				const int query_rad = 4;
@@ -159,7 +187,7 @@ void MiniMap::think()
 				for(int x=new_centre_x - query_rad; x <= new_centre_x + query_rad; ++x)
 				for(int y=new_centre_y - query_rad; y <= new_centre_y + query_rad; ++y)
 				{
-					query_indices.push_back(Vec3i(x, y, 5));
+					query_indices.push_back(Vec3i(x, y, tile_z));
 				}
 
 				SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -180,6 +208,7 @@ void MiniMap::think()
 			}
 
 			last_requested_campos = campos;
+			last_requested_tile_z = tile_z;
 		}
 	}
 
@@ -207,8 +236,11 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 
 	const Vec3d campos = main_window->cam_controller.getFirstPersonPosition();
 
-	const int new_centre_x = Maths::floorToInt((float)campos.x / tile_w);
-	const int new_centre_y = Maths::floorToInt((float)campos.y / tile_w);
+	const int tile_z = getTileZForMapWidthWS(map_width_ws);
+	const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
+
+	const int new_centre_x = Maths::floorToInt((float)campos.x / tile_w_ws);
+	const int new_centre_y = Maths::floorToInt((float)campos.y / tile_w_ws);
 	
 	// Update tree info and imposters
 	if(new_centre_x != last_centre_x || new_centre_y != last_centre_y)
@@ -248,8 +280,10 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 				assert(x >= x0 && x < x0 + TILE_GRID_RES);
 				assert(y >= y0 && y < y0 + TILE_GRID_RES);
 
+				tile.ob->material.albedo_texture = NULL;
+
 				// Look up our tile info for these coordinates
-				auto res = tile_infos.find(Vec3i(x, y, 5));
+				auto res = tile_infos.find(Vec3i(x, y, tile_z));
 				if(res != tile_infos.end())
 				{
 					const MapTileInfo& info = res->second;
@@ -269,10 +303,10 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 				}
 
 				// Visualise individual tiles by colouring them differently
-				//	tile.ob->material.albedo_linear_rgb.r = 0.5 + x * 0.1f;
-				//	tile.ob->material.albedo_linear_rgb.g = 0.5 + y * 0.1f;
+				// tile.ob->material.albedo_linear_rgb.r = 0.5 + x * 0.15f;
+				// tile.ob->material.albedo_linear_rgb.g = 0.5 + y * 0.15f;
 
-				tile.ob->ob_to_world_matrix = Matrix4f::translationMatrix(x * tile_w, y * tile_w, 0) *  Matrix4f::scaleMatrix(tile_w, tile_w, 1);
+				tile.ob->ob_to_world_matrix = Matrix4f::translationMatrix(x * tile_w_ws, y * tile_w_ws, 0) *  Matrix4f::scaleMatrix(tile_w_ws, tile_w_ws, 1);
 			}
 		}
 
@@ -286,14 +320,13 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 
 void MiniMap::renderTilesToTexture()
 {
-	const Vec3d campos = main_window->cam_controller.getPosition();
+	const Vec3d campos = main_window->cam_controller.getFirstPersonPosition();
 
-	const float map_w_ws = 500;
-	Vec3d botleft_pos = campos - Vec3d(map_w_ws/2, map_w_ws/2, 0);
+	Vec3d botleft_pos = campos - Vec3d(map_width_ws/2, map_width_ws/2, 0);
 
-	opengl_engine->setOrthoCameraTransform(Matrix4f::translationMatrix(-campos.x, -campos.y, -10), /*sensor width=*/map_w_ws, /*render aspect ratio=*/1, 0, 0);
+	opengl_engine->setIdentityCameraTransform(); // Since we are just rendering overlays, camera transformation doesn't really matter
 
-	this->scene->overlay_world_to_camera_space_matrix = Matrix4f::scaleMatrix(2.f/map_w_ws, 2.f/map_w_ws, 0) * Matrix4f::translationMatrix(-campos.x, -campos.y, 0);
+	this->scene->overlay_world_to_camera_space_matrix = Matrix4f::scaleMatrix(2.f/map_width_ws, 2.f/map_width_ws, 0) * Matrix4f::translationMatrix(-campos.x, -campos.y, 0);
 
 	opengl_engine->setTargetFrameBufferAndViewport(frame_buffer);
 
@@ -306,6 +339,9 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 	// conPrint("MiniMap::handleMapTilesResultReceivedMessage");
 
 	runtimeCheck(msg.tile_indices.size() == msg.tile_URLS.size());
+
+	const int tile_z = getTileZForMapWidthWS(map_width_ws);
+	const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
 
 	for(size_t i=0; i<msg.tile_indices.size(); ++i)
 	{
@@ -326,14 +362,14 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 				// Start loading or downloading this tile image (if not already downloaded)
 				DownloadingResourceInfo downloading_info;
 				downloading_info.pos = tile_pos;
-				downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(tile_w, /*importance_factor=*/1.f);
+				downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(tile_w_ws, /*importance_factor=*/1.f);
 				downloading_info.is_minimap_tile = true;
 
-				main_window->startDownloadingResource(URL, tile_pos.toVec4fPoint(), tile_w, downloading_info);
+				main_window->startDownloadingResource(URL, tile_pos.toVec4fPoint(), tile_w_ws, downloading_info);
 
 
 				// Start loading the texture (if not already loaded)
-				main_window->startLoadingTexture(URL, tile_pos.toVec4fPoint(), tile_w, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, 
+				main_window->startLoadingTexture(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, 
 					/*use_sRGB=*/true, /*allow_compression=*/true, /*is_terrain_map=*/false, /*is_minimap_tile=*/true);
 			}
 		}
@@ -377,4 +413,24 @@ void MiniMap::updateWidgetPositions()
 void MiniMap::eventOccurred(GLUICallbackEvent& event)
 {
 	conPrint("MiniMap::eventOccurred");
+}
+
+
+void MiniMap::mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event)
+{
+	//conPrint("MiniMap::mouseWheelEventOccurred, angle_delta_y: " + toString(event.wheel_event->angle_delta_y));
+	event.accepted = true;
+
+	const int last_tile_z = getTileZForMapWidthWS(map_width_ws);
+
+	map_width_ws = myClamp(map_width_ws * (1.0f - event.wheel_event->angle_delta_y * 0.002f), 50.f, 10000.f);
+
+	const int new_tile_z = getTileZForMapWidthWS(map_width_ws);
+	if(new_tile_z != last_tile_z)
+	{
+		// Force reassignment of tile textures, now that tile_z changed
+		last_centre_x = -10000;
+		last_centre_y = -10000;
+		checkUpdateTilesForCurCamPosition();
+	}
 }

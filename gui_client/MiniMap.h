@@ -54,7 +54,9 @@ public:
 
 	//virtual bool doHandleMouseMoved(const Vec2f& coords) override;
 
+	// GLUICallbackHandler interface:
 	void eventOccurred(GLUICallbackEvent& event) override;
+	void mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event) override;
 
 	void handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMessage& msg);
 private:
@@ -80,4 +82,7 @@ private:
 	Reference<OpenGLScene> scene;
 
 	Vec3d last_requested_campos;
+	int last_requested_tile_z;
+
+	float map_width_ws;
 };
