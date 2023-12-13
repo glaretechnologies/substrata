@@ -10,6 +10,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <graphics/SRGBUtils.h>
 
 
+static const float AVATAR_MARKER_DOT_Z = -0.8f;
+
+
 HeadUpDisplayUI::HeadUpDisplayUI()
 :	main_window(NULL)
 {}
@@ -147,7 +150,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		{
 			// Create marker dot
 			GLUIImageRef im = new GLUIImage();
-			im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
+			im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name, AVATAR_MARKER_DOT_Z);
 			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 			im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
@@ -155,7 +158,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 			avatar->hud_marker = im;
 		}
 		else
-			avatar->hud_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width), /*z=*/0.95f);
+			avatar->hud_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width), /*z=*/AVATAR_MARKER_DOT_Z);
 
 		avatar->hud_marker->setVisible(on_screen);
 
