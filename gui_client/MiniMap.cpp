@@ -314,23 +314,124 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 
 				tile.ob->material.albedo_texture = NULL;
 
-				// Look up our tile info for these coordinates
-				auto res = tile_infos.find(Vec3i(x, y, tile_z));
-				if(res != tile_infos.end())
+				// Look up our tile info for these coordinates.
+				// If we don't have a tile image for these coordinates, zoom out by decreasing tile z, until we find a tile we do actually have, then use that.
+				// See diagrams below.
+				bool found_image = false;
+				int tile_x = x;
+				int tile_y = y;
+				Vec2f lower_left_coords(0.f);
+				float scale = 1;
+				for(int z = tile_z; z >= 0 && !found_image; --z)
 				{
-					const MapTileInfo& info = res->second;
-					if(!info.image_URL.empty())
+					auto res = tile_infos.find(Vec3i(tile_x, tile_y, z));
+					if(res != tile_infos.end())
 					{
-						ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(info.image_URL);
-						if(resource.nonNull())
+						const MapTileInfo& info = res->second;
+						if(!info.image_URL.empty())
 						{
-							const std::string local_path = resource->getLocalAbsPath(main_window->resources_dir);
+							// conPrint("Found tile (" + toString(tile_x) + ", " + toString(tile_y) + ", " + toString(z) + "), lower_left_coords: " + lower_left_coords.toString());
 
-							tile.ob->material.albedo_texture = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(local_path));
+							ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(info.image_URL);
+							if(resource.nonNull())
+							{
+								const std::string local_path = resource->getLocalAbsPath(main_window->resources_dir);
+
+								tile.ob->material.albedo_texture = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(local_path));
+
+								tile.ob->material.tex_matrix = Matrix2f(scale, 0, 0, -scale);  // See diagrams below for explanation
+								tile.ob->material.tex_translation = Vec2f(lower_left_coords.x, 1 - lower_left_coords.y);
 				
-							if(tile.ob->material.albedo_texture.isNull())
-								tile.ob->material.tex_path = local_path; // Store path so texture will be assigned later when loaded.
+								if(tile.ob->material.albedo_texture.isNull())
+									tile.ob->material.tex_path = local_path; // Store path so texture will be assigned later when loaded.
+							}
+
+							found_image = true; // We have found a tile image, break loop
 						}
+					}
+					
+					if(!found_image)
+					{
+						// conPrint("tile (" + toString(tile_x) + ", " + toString(tile_y) + ", " + toString(z) + ") not found");
+
+						/*
+						-----------------------------
+						|             |             |
+						|             |             |
+						|             |             |
+						|   (4, 5, 2) |   (5, 5, 2) |
+						|             |             |
+						|             |             |
+						-----------------------------
+						|             |             |
+						|             |             |
+						|   (4, 4, 2) |   (5, 4, 2) |
+						|             |             |
+						|             |             |
+						|             |             |
+						-----------------------------
+						           (2, 2, 1)
+						
+						Suppose we don't have a tile for x=4, y=4 and z=2.
+						Then instead we can use the next level zoomed out tile, i.e. x=2, y=2, z=1
+						We need to adjust tex coords so it shows the expected texture.
+
+
+						          (0, 1, 1)                    (1, 1, 1)
+						---------------------------------------------------------
+						|             |             |             |             |
+						|             |             |             |             |
+						|             |             |             |             |
+						|   (0, 3, 2) |   (1, 3, 2) |   (2, 3, 2) |   (3, 3, 2) |
+						|             |             |     X       |             |
+						|             |             |             |             |
+						---------------------------------------------------------
+						|             |             |             |             |
+						|             |             |             |             |
+						|   (0, 2, 2) |   (1, 2, 2) |   (2, 2, 2) |   (3, 2, 2) |
+						|             |             |             |             |
+						|             |             |             |             |
+						|             |             |             |             |
+						---------------------------------------------------------   (0, 0, 0)
+						|             |             |             |             |
+						|             |             |             |             |
+						|             |             |             |             |
+						|   (0, 1, 2) |   (1, 1, 2) |   (2, 1, 2) |   (3, 1, 2) |
+						|             |             |             |             |
+						|             |             |             |             |
+						---------------------------------------------------------
+						|             |             |             |             |
+						|             |             |             |             |
+						|   (0, 0, 2) |   (1, 0, 2) |   (2, 0, 2) |   (3, 0, 2) |
+						|             |             |             |             |
+						|             |             |             |             |
+						|             |             |             |             |
+						----------------------------------------------------------
+						           (0, 0, 1)                   (1,0 1)
+
+						Take X square (2, 3, 2)
+						We want lower_left_coords = (0.5, 0.75), scale = 1/4
+						And final tex matrix (considering we need to flip texture upside down due to opengl texture loading)
+						(1/4    0)
+						(0   -1/4)
+						and translation (0.5, 1 - 0.75) = (0.5, 0.25)
+
+						examples:  
+						(u, v) = (0, 0):
+						tex coords = (0.5, 0.25)
+						(u, v) = (1, 1):
+						tex coords = (1/4, -1/4) + (0.5, 0.25) = (0.75, 0)
+						*/
+						lower_left_coords *= 0.5f;
+
+						const int x_mod_2 = Maths::intMod(tile_x, 2);
+						const int y_mod_2 = Maths::intMod(tile_y, 2);
+						lower_left_coords.x += (float)x_mod_2 * 0.5f;
+						lower_left_coords.y += (float)y_mod_2 * 0.5f;
+
+						tile_x = (tile_x - x_mod_2) / 2; // Divide by 2 rounding down, handling negative numbers as well
+						tile_y = (tile_y - y_mod_2) / 2;
+						scale *= 0.5f;
 					}
 				}
 
