@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <opengl/ui/GLUIImage.h>
 #include <maths/vec3.h>
 #include <utils/Array2D.h>
+#include <utils/SocketBufferOutStream.h>
 #include <map>
 
 
@@ -79,6 +80,7 @@ private:
 	Array2D<MapTile> tiles;
 	int last_centre_x, last_centre_y;
 
+	std::set<Vec3i> queried_tile_coords;
 	std::map<Vec3i, MapTileInfo> tile_infos;
 
 	Reference<FrameBuffer> frame_buffer;
@@ -91,4 +93,6 @@ private:
 	int last_requested_tile_z;
 
 	float map_width_ws;
+
+	SocketBufferOutStream scratch_packet;
 };

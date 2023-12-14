@@ -1006,24 +1006,31 @@ void MainWindow::startLoadingTexture(const std::string& tex_url, const Vec4f& ce
 		ResourceRef resource = resource_manager->getExistingResourceForURL(tex_url);
 		if(resource.nonNull() && (resource->getState() == Resource::State_Present)) // If the texture is present on disk:
 		{
-			const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
+			const std::string local_abs_tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
-			{
-				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
-				if(just_added)
-				{
-					Reference<LoadTextureTask> task = new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, tex_params, is_terrain_map);
+			startLoadingTextureForLocalPath(local_abs_tex_path, centroid_ws, aabb_ws_longest_len, max_task_dist, importance_factor, tex_params, is_terrain_map);
+		}
+	}
+}
 
-					load_item_queue.enqueueItem(
-						centroid_ws, 
-						aabb_ws_longest_len, 
-						task,
-						max_task_dist, 
-						importance_factor
-					);
-				}
-			}
+
+void MainWindow::startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+		const TextureParams& tex_params, bool is_terrain_map)
+{
+	if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(local_abs_tex_path)))) // If texture is not uploaded to GPU already:
+	{
+		const bool just_added = checkAddTextureToProcessingSet(local_abs_tex_path); // If not being loaded already:
+		if(just_added)
+		{
+			Reference<LoadTextureTask> task = new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, local_abs_tex_path, tex_params, is_terrain_map);
+
+			load_item_queue.enqueueItem(
+				centroid_ws, 
+				aabb_ws_longest_len, 
+				task,
+				max_task_dist, 
+				importance_factor
+			);
 		}
 	}
 }

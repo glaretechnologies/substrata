@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/Protocol.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/ResourceManager.h"
+#include "../shared/ImageDecoding.h"
 #include <graphics/SRGBUtils.h>
 #include <utils/RuntimeCheck.h>
 
@@ -20,7 +21,8 @@ MiniMap::MiniMap()
 :	main_window(NULL),
 	last_requested_campos(Vec3d(-1000000)),
 	last_requested_tile_z(-1000),
-	map_width_ws(500.f)
+	map_width_ws(500.f),
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
 {}
 
 
@@ -195,39 +197,46 @@ void MiniMap::think()
 
 		if((campos.getDist(last_requested_campos) > 300.0) || (tile_z != last_requested_tile_z))
 		{
-			// Send request to server to get map tile image URLS
-
-			// Send QueryObjectsInAABB for initial volume around camera to server
+			// Send request to server to get map tile image URLs, for any nearby tiles that we have not already done a request to the server for.
 			{
 				const int new_centre_x = Maths::floorToInt((float)campos.x / tile_w_ws);
 				const int new_centre_y = Maths::floorToInt((float)campos.y / tile_w_ws);
 
-			
-				const int query_rad = 4;
+				const int query_rad = 2; // Query 'radius'
 				std::vector<Vec3i> query_indices;
-				query_indices.reserve(Maths::square(2*query_rad + 1));
+				query_indices.reserve(Maths::square(2*query_rad + 1) * 2);
 			
 				for(int x=new_centre_x - query_rad; x <= new_centre_x + query_rad; ++x)
 				for(int y=new_centre_y - query_rad; y <= new_centre_y + query_rad; ++y)
 				{
-					query_indices.push_back(Vec3i(x, y, tile_z));
+					Vec3i tile_coords = Vec3i(x, y, tile_z);
+					
+					// Walk out zoom levels and query those tiles as well, in case we don't have a tile at this level and we need to use the zoomed-out tile
+					while(tile_coords.z >= 0)
+					{
+						if(queried_tile_coords.count(tile_coords) == 0) // If we haven't queried this tile yet:
+						{
+							query_indices.push_back(tile_coords);
+							queried_tile_coords.insert(tile_coords); // Mark tile as queried
+						}
+
+						tile_coords.x = Maths::divideByTwoRoundedDown(tile_coords.x);
+						tile_coords.y = Maths::divideByTwoRoundedDown(tile_coords.y);
+						tile_coords.z--;
+					}
 				}
 
-				SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-
-				// Make QueryMapTiles packet and enqueue to send
-				MessageUtils::initPacket(scratch_packet, Protocol::QueryMapTiles);
-			
-				scratch_packet.writeUInt32((uint32)query_indices.size());
-				for(size_t i=0; i<query_indices.size(); ++i)
+				if(!query_indices.empty()) // If we actually have some tile coords we haven't queried yet:
 				{
-					scratch_packet.writeInt32(query_indices[i].x);
-					scratch_packet.writeInt32(query_indices[i].y);
-					scratch_packet.writeInt32(query_indices[i].z);
-				}
+					// Make QueryMapTiles packet and enqueue to send
+					MessageUtils::initPacket(scratch_packet, Protocol::QueryMapTiles);
+			
+					scratch_packet.writeUInt32((uint32)query_indices.size());
+					scratch_packet.writeData(query_indices.data(), query_indices.size() * sizeof(Vec3i));
 
-				MessageUtils::updatePacketLengthField(scratch_packet);
-				main_window->client_thread->enqueueDataToSend(scratch_packet.buf);
+					MessageUtils::updatePacketLengthField(scratch_packet);
+					main_window->client_thread->enqueueDataToSend(scratch_packet.buf);
+				}
 			}
 
 			last_requested_campos = campos;
@@ -343,7 +352,21 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 								tile.ob->material.tex_translation = Vec2f(lower_left_coords.x, 1 - lower_left_coords.y);
 				
 								if(tile.ob->material.albedo_texture.isNull())
+								{
 									tile.ob->material.tex_path = local_path; // Store path so texture will be assigned later when loaded.
+
+									// Start loading the texture again (may have been unloaded if wasn't used for a while)
+
+									const Vec3d tile_pos(0.0); // TEMP HACK could use tile position in world space? or cam position?
+
+									TextureParams tex_params;
+									tex_params.wrapping = OpenGLTexture::Wrapping_Clamp;
+									tex_params.allow_compression = false;
+									tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
+									tex_params.use_mipmaps = false;
+
+									main_window->startLoadingTextureForLocalPath(local_path, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
+								}
 							}
 
 							found_image = true; // We have found a tile image, break loop
@@ -429,8 +452,8 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 						lower_left_coords.x += (float)x_mod_2 * 0.5f;
 						lower_left_coords.y += (float)y_mod_2 * 0.5f;
 
-						tile_x = (tile_x - x_mod_2) / 2; // Divide by 2 rounding down, handling negative numbers as well
-						tile_y = (tile_y - y_mod_2) / 2;
+						tile_x = Maths::divideByTwoRoundedDown(tile_x);
+						tile_y = Maths::divideByTwoRoundedDown(tile_y);
 						scale *= 0.5f;
 					}
 				}
@@ -488,7 +511,7 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 			info.image_URL = URL;
 			tile_infos[indices] = info;
 
-			if(!URL.empty())
+			if(!URL.empty() && ImageDecoding::hasSupportedImageExtension(URL))
 			{
 				const Vec3d tile_pos(0.0); // TEMP HACK could use tile position in world space? or cam position?
 
@@ -535,9 +558,12 @@ void MiniMap::viewportResized(int w, int h)
 
 void MiniMap::updateWidgetPositions()
 {
-	if(minimap_image.nonNull())
+	if(gl_ui.nonNull())
 	{
-		minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY(opengl_engine) - minimap_width - margin), Vec2f(minimap_width), MINIMAP_Z);
+		if(minimap_image.nonNull())
+		{
+			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY(opengl_engine) - minimap_width - margin), Vec2f(minimap_width), MINIMAP_Z);
+		}
 	}
 }
 
@@ -556,6 +582,9 @@ Vec2f MiniMap::mapUICoordsForWorldSpacePos(const Vec3d& pos)
 
 void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 {
+	if(gl_ui.isNull())
+		return;
+
 	const Vec2f ui_coords = mapUICoordsForWorldSpacePos(avatar_pos);
 
 	// Clamp marker to screen.
@@ -662,6 +691,9 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 
 void MiniMap::removeMarkerForAvatar(Avatar* avatar)
 {
+	if(gl_ui.isNull())
+		return;
+
 	if(avatar->minimap_marker.nonNull())
 	{
 		gl_ui->removeWidget(avatar->minimap_marker);
@@ -690,6 +722,9 @@ void MiniMap::eventOccurred(GLUICallbackEvent& event)
 
 void MiniMap::mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event)
 {
+	if(gl_ui.isNull())
+		return;
+
 	//conPrint("MiniMap::mouseWheelEventOccurred, angle_delta_y: " + toString(event.wheel_event->angle_delta_y));
 	event.accepted = true;
 
