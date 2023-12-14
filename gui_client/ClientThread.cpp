@@ -1046,12 +1046,7 @@ void ClientThread::doRun()
 
 						// Read tile coords
 						msg->tile_indices.resize(num_tiles);
-						for(uint32 i=0; i<num_tiles; ++i)
-						{
-							msg->tile_indices[i].x = msg_buffer.readInt32();
-							msg->tile_indices[i].y = msg_buffer.readInt32();
-							msg->tile_indices[i].z = msg_buffer.readInt32();
-						}
+						msg_buffer.readData(msg->tile_indices.data(), num_tiles * sizeof(Vec3i));
 
 						// Read URLS
 						msg->tile_URLS.resize(num_tiles);
