@@ -2482,13 +2482,7 @@ void WorkerThread::doRun()
 					
 							// Read tile coords
 							std::vector<Vec3i> tile_coords(num_tiles);
-							for(uint32 i=0; i<num_tiles; ++i)
-							{
-								tile_coords[i].x = msg_buffer.readInt32();
-								tile_coords[i].y = msg_buffer.readInt32();
-								tile_coords[i].z = msg_buffer.readInt32();
-							}
-
+							msg_buffer.readData(tile_coords.data(), num_tiles * sizeof(Vec3i));
 
 							std::vector<std::string> result_URLs(num_tiles);
 							{
@@ -2519,18 +2513,11 @@ void WorkerThread::doRun()
 							scratch_packet.writeUInt32(num_tiles);
 
 							// Write tile coords
-							for(size_t i=0; i<tile_coords.size(); ++i)
-							{
-								scratch_packet.writeInt32(tile_coords[i].x);
-								scratch_packet.writeInt32(tile_coords[i].y);
-								scratch_packet.writeInt32(tile_coords[i].z);
-							}
+							scratch_packet.writeData(tile_coords.data(), tile_coords.size() * sizeof(Vec3i));
 
 							// Write URLS
 							for(size_t i=0; i<result_URLs.size(); ++i)
-							{
 								scratch_packet.writeStringLengthFirst(result_URLs[i]);
-							}
 
 							MessageUtils::updatePacketLengthField(scratch_packet);
 
