@@ -95,4 +95,6 @@ private:
 	float map_width_ws;
 
 	SocketBufferOutStream scratch_packet;
+
+	OpenGLTextureRef tile_placeholder_tex;
 };
