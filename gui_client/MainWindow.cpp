@@ -1075,6 +1075,11 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 				if(just_added)
 				{
 					TextureParams tex_params;
+					// For lightmaps, don't use mipmaps, for a couple of reasons:
+					// If we use trilinear filtering, we get leaking of colours past geometry edges at lower mip levels.
+					// Also we don't have code to generate mipmaps for floating point data currently, and hence have to rely on the OpenGL driver which can be slow.
+					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
+					tex_params.use_mipmaps = false;
 					load_item_queue.enqueueItem(ob, 
 						new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, tex_params, /*is_terrain_map=*/false), 
 						max_dist_for_ob_lod_level);
