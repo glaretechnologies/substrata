@@ -606,7 +606,8 @@ void MainWindow::afterGLInitInitialise()
 	
 	hud_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
-	minimap.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
+	if(MainOptionsDialog::showMinimap(this->settings))
+		minimap.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
@@ -9784,6 +9785,16 @@ void MainWindow::on_actionOptions_triggered()
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
+
+		// Create or destroy minimap if minimap option has changed.
+		if(d.showMinimap(this->settings) && !minimap.isCreated())
+		{
+			minimap.create(opengl_engine, this, gl_ui);
+		}
+		else if(!d.showMinimap(this->settings) && minimap.isCreated())
+		{
+			minimap.destroy();
+		}
 	}
 
 	mic_read_thread_manager.enqueueMessage(new InputVolumeScaleChangedMessage(

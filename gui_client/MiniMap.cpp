@@ -197,6 +197,12 @@ void MiniMap::destroy()
 }
 
 
+bool MiniMap::isCreated()
+{
+	return gl_ui.nonNull();
+}
+
+
 void MiniMap::think()
 {
 	if(gl_ui.isNull())
@@ -527,6 +533,9 @@ void MiniMap::renderTilesToTexture()
 
 void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMessage& msg)
 {
+	if(gl_ui.isNull())
+		return;
+
 	// conPrint("MiniMap::handleMapTilesResultReceivedMessage");
 
 	runtimeCheck(msg.tile_indices.size() == msg.tile_URLS.size());

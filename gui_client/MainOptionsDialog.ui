@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>611</width>
-    <height>431</height>
+    <width>624</width>
+    <height>489</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -121,6 +121,22 @@
           </widget>
          </item>
         </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox_6">
+     <property name="title">
+      <string>Minimap</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_4">
+      <item row="0" column="0">
+       <widget class="QCheckBox" name="showMinimapCheckBox">
+        <property name="text">
+         <string>Show minimap</string>
+        </property>
        </widget>
       </item>
      </layout>
