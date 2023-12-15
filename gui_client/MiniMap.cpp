@@ -203,6 +203,16 @@ bool MiniMap::isCreated()
 }
 
 
+void MiniMap::setVisible(bool visible)
+{
+	if(gl_ui.nonNull())
+	{
+		minimap_image->setVisible(visible);
+		arrow_image->setVisible(visible);
+	}
+}
+
+
 void MiniMap::think()
 {
 	if(gl_ui.isNull())

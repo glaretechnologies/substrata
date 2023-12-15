@@ -51,6 +51,8 @@ public:
 
 	bool isCreated();
 
+	void setVisible(bool visible);
+
 	void think();
 
 	void viewportResized(int w, int h);
