@@ -9709,8 +9709,9 @@ void MainWindow::on_actionExport_view_to_Indigo_triggered()
 void MainWindow::on_actionTake_Screenshot_triggered()
 {
 	this->gesture_ui.setVisible(false); // Hide gesture UI
+	this->minimap.setVisible(false); // Hide minimap
 
-	ui->glWidget->updateGL(); // Draw again now that the gesture UI is hidden.
+	ui->glWidget->updateGL(); // Draw again now that the gesture UI and minimap are hidden.
 
 #if QT_VERSION_MAJOR >= 6
 	QImage framebuffer = ui->glWidget->grabFramebuffer();
@@ -9741,6 +9742,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 	}
 
 	this->gesture_ui.setVisible(true); // Restore showing gesture UI
+	this->minimap.setVisible(true); // Restore showing minimap
 }
 
 
