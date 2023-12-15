@@ -93,6 +93,15 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_w
 	arrow_image->handler = this;
 	gl_ui->addWidget(arrow_image);
 
+	{
+		ImageMapUInt8Ref default_detail_col_map = new ImageMapUInt8(1, 1, 4);
+		default_detail_col_map->getPixel(0, 0)[0] = 150;
+		default_detail_col_map->getPixel(0, 0)[1] = 150;
+		default_detail_col_map->getPixel(0, 0)[2] = 150;
+		default_detail_col_map->getPixel(0, 0)[3] = 255;
+		tile_placeholder_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__tile_placeholder_tex__"), *default_detail_col_map);
+	}
+
 	//--------------------- Create minimap tile scene ------------------------
 	Reference<OpenGLScene> last_scene = opengl_engine->getCurrentScene();
 
@@ -118,6 +127,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_w
 	{
 		Reference<OverlayObject> ob = new OverlayObject();
 		ob->mesh_data = opengl_engine->getUnitQuadMeshData();
+		ob->material.albedo_texture = tile_placeholder_tex;
 		ob->material.tex_matrix = Matrix2f(1,0,0,-1);
 		ob->material.tex_translation = Vec2f(0, 1);
 		ob->ob_to_world_matrix = Matrix4f::translationMatrix(x * tile_w_ws, y * tile_w_ws, 0) *  Matrix4f::scaleMatrix(tile_w_ws, tile_w_ws, 1);
@@ -146,6 +156,10 @@ void MiniMap::destroy()
 {
 	if(gl_ui.nonNull())
 	{
+		frame_buffer = NULL;
+		minimap_texture = NULL;
+		tile_placeholder_tex = NULL;
+
 		//------------------- Destroy the minimap tile scene ------------------------
 		Reference<OpenGLScene> last_scene = opengl_engine->getCurrentScene();
 		opengl_engine->setCurrentScene(scene);
@@ -270,6 +284,20 @@ void MiniMap::think()
 }
 
 
+#define VISUALISE_TILES 0
+#if VISUALISE_TILES
+static inline uint32_t uint32Hash(uint32_t a)
+{
+	a = (a ^ 61) ^ (a >> 16);
+	a = a + (a << 3);
+	a = a ^ (a >> 4);
+	a = a * 0x27d4eb2d;
+	a = a ^ (a >> 15);
+	return a;
+}
+#endif
+
+
 void MiniMap::checkUpdateTilesForCurCamPosition()
 {
 	Reference<OpenGLScene> last_scene = opengl_engine->getCurrentScene();
@@ -321,7 +349,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 				assert(x >= x0 && x < x0 + TILE_GRID_RES);
 				assert(y >= y0 && y < y0 + TILE_GRID_RES);
 
-				tile.ob->material.albedo_texture = NULL;
+				tile.ob->material.albedo_texture = tile_placeholder_tex;
 
 				// Look up our tile info for these coordinates.
 				// If we don't have a tile image for these coordinates, zoom out by decreasing tile z, until we find a tile we do actually have, then use that.
@@ -344,18 +372,22 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 							ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(info.image_URL);
 							if(resource.nonNull())
 							{
-								const std::string local_path = resource->getLocalAbsPath(main_window->resources_dir);
-
-								tile.ob->material.albedo_texture = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(local_path));
-
 								tile.ob->material.tex_matrix = Matrix2f(scale, 0, 0, -scale);  // See diagrams below for explanation
 								tile.ob->material.tex_translation = Vec2f(lower_left_coords.x, 1 - lower_left_coords.y);
-				
-								if(tile.ob->material.albedo_texture.isNull())
-								{
-									tile.ob->material.tex_path = local_path; // Store path so texture will be assigned later when loaded.
 
-									// Start loading the texture again (may have been unloaded if wasn't used for a while)
+								const std::string local_path = resource->getLocalAbsPath(main_window->resources_dir);
+
+								OpenGLTextureRef tile_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(local_path));
+								if(tile_tex.nonNull())
+								{
+									tile.ob->material.albedo_texture = tile_tex;
+								}
+								else
+								{
+									// If tile_tex is null, keep placeholder texture assigned to tile object for now.
+									// Start loading the texture (may never have been loaded, or may have been unloaded if wasn't used for a while)
+
+									tile.ob->material.tex_path = local_path; // Store path so texture will be assigned later when loaded.
 
 									const Vec3d tile_pos(0.0); // TEMP HACK could use tile position in world space? or cam position?
 
@@ -458,9 +490,12 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 					}
 				}
 
+#if VISUALISE_TILES
 				// Visualise individual tiles by colouring them differently
-				// tile.ob->material.albedo_linear_rgb.r = 0.5 + x * 0.15f;
-				// tile.ob->material.albedo_linear_rgb.g = 0.5 + y * 0.15f;
+				tile.ob->material.albedo_linear_rgb.r = 0.3 + 0.7f * uint32Hash(x)    * (1.f / 4294967296.f);
+				tile.ob->material.albedo_linear_rgb.g = 0.3 + 0.7f * uint32Hash(y)    * (1.f / 4294967296.f);
+				tile.ob->material.albedo_linear_rgb.b = 0.3 + 0.7f * uint32Hash(x+10) * (1.f / 4294967296.f);
+#endif
 
 				tile.ob->ob_to_world_matrix = Matrix4f::translationMatrix(x * tile_w_ws, y * tile_w_ws, 0) *  Matrix4f::scaleMatrix(tile_w_ws, tile_w_ws, 1);
 			}
