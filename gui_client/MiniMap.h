@@ -49,6 +49,8 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
 	void destroy();
 
+	bool isCreated();
+
 	void think();
 
 	void viewportResized(int w, int h);

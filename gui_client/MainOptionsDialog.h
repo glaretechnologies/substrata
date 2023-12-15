@@ -47,8 +47,12 @@ public:
 
 	static const QString inputScaleFactorNameKey() { return "setting/input_scale_factor_name"; }
 
+	static const QString showMinimapKey() { return "setting/show_minimap"; }
+
 	static std::string getInputDeviceName(const QSettings* settings);
 	static float getInputScaleFactor(const QSettings* settings);
+
+	static bool showMinimap(const QSettings* settings);
 
 private slots:;
 	void accepted();
