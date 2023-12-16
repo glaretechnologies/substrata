@@ -293,7 +293,7 @@ public:
 	bool checkAddAudioToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
-	void startLoadingTexture(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params, bool is_terrain_map);
 	void startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params, bool is_terrain_map);

@@ -999,7 +999,8 @@ static inline bool isValidLightMapURL(const std::string& URL)
 }
 
 
-void MainWindow::startLoadingTexture(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+// Start loading texture, if present
+void MainWindow::startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 	const TextureParams& tex_params, bool is_terrain_map)
 {
 	if(isValidImageTextureURL(tex_url))
@@ -1018,11 +1019,13 @@ void MainWindow::startLoadingTexture(const std::string& tex_url, const Vec4f& ce
 void MainWindow::startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params, bool is_terrain_map)
 {
+	assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
 	if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(local_abs_tex_path)))) // If texture is not uploaded to GPU already:
 	{
 		const bool just_added = checkAddTextureToProcessingSet(local_abs_tex_path); // If not being loaded already:
 		if(just_added)
 		{
+			// conPrint("Adding LoadTextureTask for texture '" + local_abs_tex_path + "'...");
 			Reference<LoadTextureTask> task = new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, local_abs_tex_path, tex_params, is_terrain_map);
 
 			load_item_queue.enqueueItem(
@@ -1045,7 +1048,7 @@ void MainWindow::startLoadingTextureForObject(const Vec4f& centroid_ws, float aa
 	TextureParams tex_params;
 	tex_params.use_sRGB = use_sRGB;
 	tex_params.allow_compression = allow_compression;
-	startLoadingTexture(lod_tex_url,centroid_ws, aabb_ws_longest_len, max_dist_for_ob_lod_level, importance_factor, tex_params, /*is_terrain_map=*/false);
+	startLoadingTextureIfPresent(lod_tex_url,centroid_ws, aabb_ws_longest_len, max_dist_for_ob_lod_level, importance_factor, tex_params, /*is_terrain_map=*/false);
 }
 
 
