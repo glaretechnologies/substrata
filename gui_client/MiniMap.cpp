@@ -413,7 +413,8 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 									tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 									tex_params.use_mipmaps = false;
 
-									main_window->startLoadingTextureForLocalPath(local_path, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
+									if(resource->getState() == Resource::State_Present)
+										main_window->startLoadingTextureForLocalPath(local_path, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
 								}
 							}
 
@@ -581,11 +582,12 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 				downloading_info.pos = tile_pos;
 				downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(tile_w_ws, /*importance_factor=*/1.f);
 
+				// conPrint("Starting to download screenshot '" + URL + "'...");
 				main_window->startDownloadingResource(URL, tile_pos.toVec4fPoint(), tile_w_ws, downloading_info);
 
 
 				// Start loading the texture (if not already loaded)
-				main_window->startLoadingTexture(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
+				main_window->startLoadingTextureIfPresent(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
 			}
 		}
 		else
