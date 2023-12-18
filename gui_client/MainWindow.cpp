@@ -1019,7 +1019,7 @@ void MainWindow::startLoadingTextureIfPresent(const std::string& tex_url, const 
 void MainWindow::startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params, bool is_terrain_map)
 {
-	assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
+	//assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
 	if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(local_abs_tex_path)))) // If texture is not uploaded to GPU already:
 	{
 		const bool just_added = checkAddTextureToProcessingSet(local_abs_tex_path); // If not being loaded already:
@@ -3004,6 +3004,8 @@ void MainWindow::setUpForScreenshot()
 	gesture_ui.destroy();
 
 	minimap.destroy();
+
+	opengl_engine->getCurrentScene()->cloud_shadows = false;
 
 	done_screenshot_setup = true;
 }
