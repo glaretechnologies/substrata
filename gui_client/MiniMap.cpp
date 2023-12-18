@@ -157,6 +157,7 @@ void MiniMap::destroy()
 	if(gl_ui.nonNull())
 	{
 		// Remove any existing avatar markers
+		if(main_window->world_state.nonNull())
 		{
 			Lock lock(main_window->world_state->mutex);
 			for(auto it = main_window->world_state->avatars.begin(); it != main_window->world_state->avatars.end(); ++it)
@@ -218,6 +219,7 @@ void MiniMap::setVisible(bool visible)
 		arrow_image->setVisible(visible);
 
 		// Set visibility of avatar markers
+		if(main_window->world_state.nonNull())
 		{
 			Lock lock(main_window->world_state->mutex);
 			for(auto it = main_window->world_state->avatars.begin(); it != main_window->world_state->avatars.end(); ++it)
