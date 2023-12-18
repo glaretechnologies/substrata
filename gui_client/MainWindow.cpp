@@ -7380,7 +7380,7 @@ void MainWindow::runScreenshotCode()
 							screenshot_output_path = "test_screenshot.jpg";
 
 							screenshot_ortho_sensor_width_m = 100;
-							taking_map_screenshot = false;
+							taking_map_screenshot = true;
 						}
 						else
 						{
@@ -7419,7 +7419,7 @@ void MainWindow::runScreenshotCode()
 						screenshot_campos = Vec3d(
 							(tile_x + 0.5) * TILE_WIDTH_M,
 							(tile_y + 0.5) * TILE_WIDTH_M,
-							450.0
+							200.0
 						);
 						screenshot_camangles = Vec3d(
 							0, // Heading
