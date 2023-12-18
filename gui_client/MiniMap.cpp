@@ -156,6 +156,13 @@ void MiniMap::destroy()
 {
 	if(gl_ui.nonNull())
 	{
+		// Remove any existing avatar markers
+		{
+			Lock lock(main_window->world_state->mutex);
+			for(auto it = main_window->world_state->avatars.begin(); it != main_window->world_state->avatars.end(); ++it)
+				removeMarkerForAvatar(it->second.ptr());
+		}
+
 		frame_buffer = NULL;
 		minimap_texture = NULL;
 		tile_placeholder_tex = NULL;
@@ -209,6 +216,19 @@ void MiniMap::setVisible(bool visible)
 	{
 		minimap_image->setVisible(visible);
 		arrow_image->setVisible(visible);
+
+		// Set visibility of avatar markers
+		{
+			Lock lock(main_window->world_state->mutex);
+			for(auto it = main_window->world_state->avatars.begin(); it != main_window->world_state->avatars.end(); ++it)
+			{
+				if(it->second->minimap_marker.nonNull())
+					it->second->minimap_marker->setVisible(visible);
+
+				if(it->second->minimap_marker_arrow.nonNull())
+					it->second->minimap_marker_arrow->setVisible(visible);
+			}
+		}
 	}
 }
 
