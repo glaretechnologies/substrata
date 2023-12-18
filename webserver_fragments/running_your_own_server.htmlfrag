@@ -8,13 +8,13 @@
 
 <p>Download the server distribution for your operating system:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.1.2.7z">SubstrataServer_v1.1.2.7z</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.2.15.7z">SubstrataServer_v1.2.15.7z</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServerMacOS_v1.1.2_x64.tar.gz">SubstrataServerMacOS_v1.1.2_x64.tar.gz</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServerMacOS_v1.2.15_x64.tar.gz">SubstrataServerMacOS_v1.2.15_x64.tar.gz</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.1.2.tar.gz">SubstrataServer_v1.1.2.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.2.15.tar.gz">SubstrataServer_v1.2.15.tar.gz</a>
 </p>
 
 <p>Extract the contents into a convenient directory, e.g. c:/substrata_server</p>
