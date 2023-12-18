@@ -56,6 +56,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/FastIterMap.h"
 #include "../utils/ArenaAllocator.h"
 #include "../utils/FileUtils.h"
+#include "../utils/DatabaseTests.h"
 #include "../audio/AudioResampler.h"
 #include "../networking/URL.h"
 #include "../networking/TLSSocketTests.h"
@@ -117,6 +118,8 @@ void TestSuite::test()
 	conPrint("==============Doing Substrata unit tests ====================");
 	Timer timer;
 
+	runTest([&]() { Maths::test(); });
+	runTest([&]() { DatabaseTests::test(); });
 	runTest([&]() { WorldObject::test(); });
 	runTest([&]() { WorldMaterial::test(); });
 	runTest([&]() { glare::ArenaAllocator::test(); });
