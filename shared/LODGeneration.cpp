@@ -44,7 +44,7 @@ namespace LODGeneration
 
 BatchedMeshRef loadModel(const std::string& model_path)
 {
-	BatchedMeshRef batched_mesh = new BatchedMesh();
+	BatchedMeshRef batched_mesh;
 
 	if(hasExtension(model_path, "obj"))
 	{
@@ -53,7 +53,7 @@ BatchedMeshRef loadModel(const std::string& model_path)
 		MLTLibMaterials mats;
 		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
 
-		batched_mesh->buildFromIndigoMesh(*mesh);
+		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "stl"))
 	{
@@ -61,7 +61,7 @@ BatchedMeshRef loadModel(const std::string& model_path)
 
 		FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
 
-		batched_mesh->buildFromIndigoMesh(*mesh);
+		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "gltf"))
 	{
@@ -81,11 +81,11 @@ BatchedMeshRef loadModel(const std::string& model_path)
 			throw glare::Exception(toStdString(e.what()));
 		}
 
-		batched_mesh->buildFromIndigoMesh(*mesh);
+		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		BatchedMesh::readFromFile(model_path, *batched_mesh);
+		batched_mesh = BatchedMesh::readFromFile(model_path);
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
