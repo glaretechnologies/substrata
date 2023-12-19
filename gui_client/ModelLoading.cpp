@@ -608,8 +608,7 @@ void ModelLoading::makeGLObjectForModelFile(
 
 			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
-		results_out.batched_mesh = new BatchedMesh();
-		results_out.batched_mesh->buildFromIndigoMesh(*mesh);
+		results_out.batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 		results_out.gl_ob = ob;
 	}
 	else if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
@@ -732,8 +731,7 @@ void ModelLoading::makeGLObjectForModelFile(
 				results_out.materials[i] = new WorldMaterial();
 			}
 
-			results_out.batched_mesh = new BatchedMesh();
-			results_out.batched_mesh->buildFromIndigoMesh(*mesh);
+			results_out.batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 			results_out.gl_ob = ob;
 		}
 		catch(Indigo::IndigoException& e)
@@ -773,8 +771,7 @@ void ModelLoading::makeGLObjectForModelFile(
 				results_out.materials[i]->roughness = ScalarVal(0.5f);
 			}
 			
-			results_out.batched_mesh = new BatchedMesh();
-			results_out.batched_mesh->buildFromIndigoMesh(*mesh);
+			results_out.batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 			results_out.gl_ob = ob;
 		}
 		catch(Indigo::IndigoException& e)
@@ -784,8 +781,7 @@ void ModelLoading::makeGLObjectForModelFile(
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		BatchedMeshRef bmesh = new BatchedMesh();
-		BatchedMesh::readFromFile(model_path, *bmesh);
+		BatchedMeshRef bmesh = BatchedMesh::readFromFile(model_path);
 
 		bmesh->checkValidAndSanitiseMesh();
 
@@ -879,8 +875,7 @@ GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAll
 	world_materials_out[1]->opacity = ScalarVal(1.f);
 	world_materials_out[1]->roughness = ScalarVal(0.5f);
 
-	mesh_out = new BatchedMesh();
-	mesh_out->buildFromIndigoMesh(*results.indigo_mesh);
+	mesh_out = BatchedMesh::buildFromIndigoMesh(*results.indigo_mesh);
 
 	return preview_gl_ob;
 }
@@ -956,7 +951,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 	// Load mesh from disk:
 	const std::string model_path = resource_manager.pathForURL(lod_model_URL);
 
-	BatchedMeshRef batched_mesh = new BatchedMesh();
+	BatchedMeshRef batched_mesh;
 
 	if(hasExtension(model_path, "obj"))
 	{
@@ -965,7 +960,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 		MLTLibMaterials mats;
 		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
 
-		batched_mesh->buildFromIndigoMesh(*mesh);
+		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "stl"))
 	{
@@ -973,7 +968,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 
 		FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
 
-		batched_mesh->buildFromIndigoMesh(*mesh);
+		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "gltf"))
 	{
@@ -998,11 +993,11 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 			throw glare::Exception(toStdString(e.what()));
 		}
 
-		batched_mesh->buildFromIndigoMesh(*mesh);
+		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		BatchedMesh::readFromFile(model_path, *batched_mesh);
+		batched_mesh = BatchedMesh::readFromFile(model_path);
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
