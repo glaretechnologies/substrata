@@ -1288,6 +1288,9 @@ void WorldObject::test()
 
 		{
 			WorldObject ob;
+			ob.pos = Vec3d(0.0);
+			ob.axis = Vec3f(0,0,1);
+			ob.angle = 0;
 			ob.materials.push_back(new WorldMaterial());
 			ob.materials.push_back(new WorldMaterial());
 			ob.materials.push_back(new WorldMaterial());
@@ -1307,6 +1310,9 @@ void WorldObject::test()
 		// Test with some large materials
 		{
 			WorldObject ob;
+			ob.pos = Vec3d(0.0);
+			ob.axis = Vec3f(0,0,1);
+			ob.angle = 0;
 			ob.materials.push_back(new WorldMaterial());
 			ob.materials.back()->normal_map_url = std::string(8192, 'A');
 			ob.materials.push_back(new WorldMaterial());
@@ -1330,6 +1336,10 @@ void WorldObject::test()
 		// Test that an object with lots of materials serialises without using too much mem
 		{
 			WorldObject ob;
+			ob.pos = Vec3d(0.0);
+			ob.axis = Vec3f(0,0,1);
+			ob.angle = 0;
+
 			for(int i=0; i<1024; ++i)
 				ob.materials.push_back(new WorldMaterial());
 
