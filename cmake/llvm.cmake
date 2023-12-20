@@ -58,6 +58,12 @@ endif()
 #MESSAGE("---------------Adding link dir ${WINTER_LLVM_DIR}/lib--------------------")
 #link_directories(${WINTER_LLVM_DIR}/lib)
 
-target_link_libraries(${CURRENT_TARGET}
-	PRIVATE ${WINTER_LLVM_LIBS}  # WINTER_LLVM_LIBS is set by embed_winter.cmake.
-)
+if(WIN32)
+	target_link_libraries(${CURRENT_TARGET}
+		${WINTER_LLVM_LIBS}  # WINTER_LLVM_LIBS is set by embed_winter.cmake.
+	)
+else()
+	target_link_libraries(${CURRENT_TARGET}
+		PRIVATE ${WINTER_LLVM_LIBS}  # WINTER_LLVM_LIBS is set by embed_winter.cmake.
+	)
+endif()
