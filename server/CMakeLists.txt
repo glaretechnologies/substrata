@@ -274,7 +274,7 @@ elseif(APPLE)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++11 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices -framework Security")
 	
-	target_link_libraries(${CURRENT_TARGET}
+	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		libs
 		${jpegturbodir}/lib/libjpeg.a
 	)
