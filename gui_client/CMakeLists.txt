@@ -789,7 +789,7 @@ elseif(APPLE)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
 	if(CEF_SUPPORT)
-		target_link_libraries(${CURRENT_TARGET}
+		target_link_libraries(${CURRENT_TARGET} PRIVATE
 			# Chromium embedded framework
 			#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
 			#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
@@ -799,7 +799,7 @@ elseif(APPLE)
 		)
 	endif()
 	
-	target_link_libraries(${CURRENT_TARGET}
+	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		Jolt # Jolt physics
 		Opus
 		curses # Used by some LLVM code
