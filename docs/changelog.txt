@@ -1,3 +1,17 @@
+1.2
+===
+Added minimap
+Added red dot markers for other avatars
+Added terrain
+Added grass
+Added water
+Added boats
+Added particle system - smoke, splashes etc.
+Made time of day configurable with Window > Environment dialog
+Added World Settings widget
+Fixed microphone input on Mac.
+Open-sourced most of the code: https://github.com/glaretechnologies/substrata
+
 1.1
 ===
 General optimisations to reduce CPU load, for main game loop and for rendering:
