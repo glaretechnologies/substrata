@@ -35,7 +35,7 @@ if(WIN32)
 		Bcrypt.lib # Needed for BCryptGenRandom that crypto-xx uses
 		)
 else()
-	target_link_libraries(${CURRENT_TARGET} 
+	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		"${libressldir}/lib/libtls.a"
 		"${libressldir}/lib/libssl.a"
 		"${libressldir}/lib/libcrypto.a")
