@@ -289,7 +289,7 @@ else() # linux
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib'")
 	
-	target_link_libraries(${CURRENT_TARGET}
+	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		libs
 		${jpegturbodir}/lib/libjpeg.a
 	)

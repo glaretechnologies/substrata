@@ -53,7 +53,12 @@ else()
 	# Note that the server target doesn't include this cmake file, so the -no-pie won't apply to it.
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "-std=c++17 ${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
 	
-	target_link_libraries(${CURRENT_TARGET}
+	# Use a linker script to make symbols private (or something like that)
+	# Solves problem with LLVM command line options being loaded twice, see
+	# https://discourse.llvm.org/t/can-something-be-done-with-the-inconsistency-in-registered-commandline-options-error/1720/8
+	target_link_options(${CURRENT_TARGET} PRIVATE "LINKER:--version-script,${CMAKE_SOURCE_DIR}/scripts/linker_script.txt")
+		
+	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		libs
 		${jpegturbodir}/lib/libjpeg.a
 	)

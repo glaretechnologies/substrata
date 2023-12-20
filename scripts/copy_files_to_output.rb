@@ -93,7 +93,7 @@ elsif OS.mac?
 else # else Linux:
 	output_dir = getCmakeBuildDir(0, "Debug")
 	puts "output_dir: #{output_dir}"
-	copyCyberspaceResources(output_dir)
+	copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 	
 	copyCEFRedistLinux(output_dir,
 		false # strip_symbols
