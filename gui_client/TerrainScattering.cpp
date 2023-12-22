@@ -985,7 +985,7 @@ void TerrainScattering::buildPrecomputedPoints(float chunk_w_m, float density, g
 scatterpos_invalid: ; // Null statement for goto label.
 	}
 
-	conPrint("============== Built " + toString(precomputed_points.size()) + " precomputed points");
+	// conPrint("============== Built " + toString(precomputed_points.size()) + " precomputed points");
 }
 
 
