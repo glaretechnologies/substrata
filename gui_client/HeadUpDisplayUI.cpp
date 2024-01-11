@@ -78,7 +78,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 
 	Vec2f ui_coords;
 	bool visible = main_window->getGLUICoordsForPoint(moved_avatar_pos.toVec4fPoint(), ui_coords);
-	const bool should_display = visible && (avatar_pos.getDist(main_window->cam_controller.getPosition()) > 20.0);
+	const bool should_display = visible && (avatar_pos.getDist(main_window->cam_controller.getPosition()) > 40.0);
 	if(should_display)
 	{
 #if 0
