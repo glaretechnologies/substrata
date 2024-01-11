@@ -341,6 +341,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 		this->ui->environmentDockWidget->hide();
 		this->ui->worldSettingsWidget->hide();
 		this->ui->diagnosticsDockWidget->hide();
+		this->ui->worldSettingsDockWidget->hide();
 	}
 
 	ui->worldSettingsWidget->init(this);
