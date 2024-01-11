@@ -2974,6 +2974,7 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 }
 
 
+// Set up for screenshot-bot type screenshot
 void MainWindow::setUpForScreenshot()
 {
 	if(taking_map_screenshot)
@@ -9715,6 +9716,18 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 {
 	this->gesture_ui.setVisible(false); // Hide gesture UI
 	this->minimap.setVisible(false); // Hide minimap
+
+	 // Remove any avatar markers from the HUD UI
+	if(world_state.nonNull())
+	{
+		Lock lock(this->world_state->mutex);
+		for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
+		{
+			Avatar* avatar = it->second.ptr();
+			hud_ui.removeMarkerForAvatar(avatar);
+		}
+	}
+
 
 	ui->glWidget->updateGL(); // Draw again now that the gesture UI and minimap are hidden.
 
