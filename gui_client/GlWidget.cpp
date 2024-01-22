@@ -300,10 +300,9 @@ void GlWidget::initializeGL()
 			conPrint("Error: " + e.what());
 		}
 		
-		//TEMP:
 		try
 		{
-			opengl_engine->setSnowIceTexture(opengl_engine->getTexture(base_dir_path + "/resources/snow-ice-01-normal.png"));
+			// opengl_engine->setSnowIceTexture(opengl_engine->getTexture(base_dir_path + "/resources/snow-ice-01-normal.png"));
 		}
 		catch(glare::Exception& e)
 		{
