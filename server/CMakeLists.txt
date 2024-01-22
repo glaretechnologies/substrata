@@ -258,6 +258,11 @@ include(../cmake/ssl.cmake)
 
 
 if(WIN32)
+
+	# /DEBUG /OPT:REF /OPT:ICF are for writing pdb files that can be used with minidumps.
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS_RELEASE "/DEBUG /OPT:REF /OPT:ICF")
+
+
 	target_link_libraries(${CURRENT_TARGET}
 		libs
 		
