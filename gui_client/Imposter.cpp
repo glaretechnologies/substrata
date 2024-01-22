@@ -12,7 +12,6 @@ Copyright Glare Technologies Limited 2021 -
 #include <AESEncryption.h>
 #include <Base64.h>
 #include <Exception.h>
-#include <QtCore/QSettings>
 
 
 void Imposter::floodFillColourInTransparentRegions(const std::string& image_path_in, const std::string& image_path_out)
