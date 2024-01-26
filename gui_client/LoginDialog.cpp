@@ -16,7 +16,7 @@ LoginDialog.cpp
 #include "../qt/QtUtils.h"
 
 
-LoginDialog::LoginDialog(QSettings* settings_, const std::string& server_hostname_)
+LoginDialog::LoginDialog(QSettings* settings_, CredentialManager& credential_manager, const std::string& server_hostname_)
 :	settings(settings_),
 	server_hostname(server_hostname_)
 {
@@ -29,11 +29,8 @@ LoginDialog::LoginDialog(QSettings* settings_, const std::string& server_hostnam
 	this->restoreGeometry(settings->value("LoginDialog/geometry").toByteArray());
 
 
-	CredentialManager manager;
-	manager.loadFromSettings(*settings);
-
-	this->usernameLineEdit->setText(QtUtils::toQString(manager.getUsernameForDomain(server_hostname)));
-	this->passwordLineEdit->setText(QtUtils::toQString(manager.getDecryptedPasswordForDomain(server_hostname)));
+	this->usernameLineEdit->setText(QtUtils::toQString(credential_manager.getUsernameForDomain(server_hostname)));
+	this->passwordLineEdit->setText(QtUtils::toQString(credential_manager.getDecryptedPasswordForDomain(server_hostname)));
 
 	this->buttonBox->button(QDialogButtonBox::Ok)->setText("Log in");
 

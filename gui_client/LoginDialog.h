@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <QtCore/QString>
 class QSettings;
 struct GLObject;
+class CredentialManager;
 
 
 /*=====================================================================
@@ -21,7 +22,7 @@ class LoginDialog : public QDialog, public Ui_LoginDialog
 {
 	Q_OBJECT
 public:
-	LoginDialog(QSettings* settings, const std::string& server_hostname);
+	LoginDialog(QSettings* settings, CredentialManager& credential_manager, const std::string& server_hostname);
 	~LoginDialog();
 
 	

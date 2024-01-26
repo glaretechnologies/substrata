@@ -1,12 +1,11 @@
 /*=====================================================================
 GlWidget.h
 ----------
-Copyright Glare Technologies Limited 2018 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
 
-#include "PlayerPhysicsInput.h"
 #include "../utils/IncludeWindows.h" // This needs to go first for NOMINMAX.
 #include "../opengl/OpenGLEngine.h"
 #include "../utils/Timer.h"
@@ -51,12 +50,10 @@ public:
 	void setBaseDir(const std::string& base_dir_path_, PrintOutput* print_output_, QSettings* settings_) { base_dir_path = base_dir_path_; print_output = print_output_; settings = settings_; }
 
 	void setCameraController(CameraController* cam_controller_);
-	void setPlayerPhysics(PlayerPhysics* player_physics_);
-
-	void processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out); // Process keys held down.
 
 	void setCamRotationOnMouseMoveEnabled(bool enabled) { cam_rot_on_mouse_move_enabled = enabled; }
 	void setKeyboardCameraMoveEnabled(bool enabled) { cam_move_on_key_input_enabled = enabled; }
+	bool isKeyboardCameraMoveEnabled() { return cam_move_on_key_input_enabled; }
 	void hideCursor();
 	bool isCursorHidden();
 
@@ -95,6 +92,7 @@ signals:;
 	void viewportResizedSignal(int w, int h);
 	void copyShortcutActivated();
 	void pasteShortcutActivated();
+	void focusOutSignal();
 	
 private slots:
 	//void gamepadInputSlot();
@@ -105,13 +103,11 @@ private:
 	QPoint mouse_move_origin;
 	QPoint last_mouse_press_pos;
 	CameraController* cam_controller;
-	PlayerPhysics* player_physics;
 
 	std::string base_dir_path;
 
 	int viewport_w, viewport_h;
 
-	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down, B_down;
 	//Timer fps_timer;
 	bool cam_rot_on_mouse_move_enabled;
 	bool cam_move_on_key_input_enabled;

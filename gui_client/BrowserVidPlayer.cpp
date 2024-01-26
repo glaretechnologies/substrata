@@ -6,7 +6,8 @@ Copyright Glare Technologies Limited 2023 -
 #include "BrowserVidPlayer.h"
 
 
-#include "MainWindow.h"
+#include "GUIClient.h"
+#include "UIEvents.h"
 #include "EmbeddedBrowser.h"
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
@@ -212,7 +213,7 @@ static void getVidTextureDimensions(const std::string& video_URL, WorldObject* o
 }
 
 
-void BrowserVidPlayer::createNewBrowserPlayer(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob)
+void BrowserVidPlayer::createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob)
 {
 	if(ob->materials.empty())
 		throw glare::Exception("materials were empty");
@@ -224,7 +225,7 @@ void BrowserVidPlayer::createNewBrowserPlayer(MainWindow* main_window, OpenGLEng
 	
 
 	if(!CEF::isInitialised())
-		CEF::initialiseCEF(main_window->base_dir_path);
+		CEF::initialiseCEF(gui_client->base_dir_path);
 	if(!CEF::isInitialised())
 		throw glare::Exception("CEF could not be initialised");
 
@@ -238,12 +239,12 @@ void BrowserVidPlayer::createNewBrowserPlayer(MainWindow* main_window, OpenGLEng
 	if(ob->opengl_engine_ob.isNull())
 		throw glare::Exception("ob->opengl_engine_ob.isNull");
 
-	main_window->logMessage("Creating vid player browser, video_URL: " + video_URL);
+	gui_client->logMessage("Creating vid player browser, video_URL: " + video_URL);
 
 	// Try and make page now, before we allocate a texture.
-	const std::string root_page = makeEmbedHTMLForVideoURL(video_URL, width, height, ob, *main_window->resource_manager, main_window->server_hostname);
+	const std::string root_page = makeEmbedHTMLForVideoURL(video_URL, width, height, ob, *gui_client->resource_manager, gui_client->server_hostname);
 
-	main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
+	gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
 	std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
 	ob->opengl_engine_ob->materials[0].emission_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
@@ -259,19 +260,19 @@ void BrowserVidPlayer::createNewBrowserPlayer(MainWindow* main_window, OpenGLEng
 
 	const std::string use_url = "https://localdomain/"; // URL to serve the root page
 
-	browser->create(use_url, ob->opengl_engine_ob->materials[0].emission_texture, main_window, ob, opengl_engine, root_page);
+	browser->create(use_url, ob->opengl_engine_ob->materials[0].emission_texture, gui_client, ob, opengl_engine, root_page);
 
 	this->loaded_video_url = video_URL;
 }
 
 
-void BrowserVidPlayer::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
+void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
 #if CEF_SUPPORT
 
-	const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
+	const double ob_dist_from_cam = ob->pos.getDist(gui_client->cam_controller.getPosition());
 	const double max_play_dist = maxBrowserDist();
 	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
 	if(in_process_dist)
@@ -280,13 +281,13 @@ void BrowserVidPlayer::process(MainWindow* main_window, OpenGLEngine* opengl_eng
 		{
 			try
 			{
-				createNewBrowserPlayer(main_window, opengl_engine, ob);
+				createNewBrowserPlayer(gui_client, opengl_engine, ob);
 				this->state = State_BrowserCreated;
 			}
 			catch(glare::Exception& e)
 			{
 				conPrint("Error occured while created browser video player: " + e.what());
-				main_window->print("Error occured while created browser video player: " + e.what());
+				gui_client->print("Error occured while created browser video player: " + e.what());
 				this->state = State_ErrorOccurred;
 			}
 		}
@@ -319,14 +320,14 @@ void BrowserVidPlayer::process(MainWindow* main_window, OpenGLEngine* opengl_eng
 				if(!ob->materials.empty())
 				{
 					const std::string& video_URL = ob->materials[0]->emission_texture_url;
-					main_window->logMessage("Closing vid player browser (out of view distance), video_URL: " + video_URL);
+					gui_client->logMessage("Closing vid player browser (out of view distance), video_URL: " + video_URL);
 				}
 				browser = NULL;
 
 				// Remove audio source
 				if(ob->audio_source.nonNull())
 				{
-					main_window->audio_engine.removeSource(ob->audio_source);
+					gui_client->audio_engine.removeSource(ob->audio_source);
 					ob->audio_source = NULL;
 				}
 			}
@@ -337,7 +338,7 @@ void BrowserVidPlayer::process(MainWindow* main_window, OpenGLEngine* opengl_eng
 }
 
 
-void BrowserVidPlayer::videoURLMayHaveChanged(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob)
+void BrowserVidPlayer::videoURLMayHaveChanged(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob)
 {
 	if(ob->materials.empty())
 		return;
@@ -349,13 +350,13 @@ void BrowserVidPlayer::videoURLMayHaveChanged(MainWindow* main_window, OpenGLEng
 		{
 			try
 			{
-				createNewBrowserPlayer(main_window, opengl_engine, ob);
+				createNewBrowserPlayer(gui_client, opengl_engine, ob);
 				this->state = State_BrowserCreated;
 			}
 			catch(glare::Exception& e)
 			{
 				conPrint("Error occured while created browser video player: " + e.what());
-				main_window->print("Error occured while created browser video player: " + e.what());
+				gui_client->print("Error occured while created browser video player: " + e.what());
 				this->state = State_ErrorOccurred;
 			}
 		}
@@ -366,7 +367,7 @@ void BrowserVidPlayer::videoURLMayHaveChanged(MainWindow* main_window, OpenGLEng
 
 			try
 			{
-				const std::string root_page = makeEmbedHTMLForVideoURL(video_URL, width, height, ob, *main_window->resource_manager, main_window->server_hostname);
+				const std::string root_page = makeEmbedHTMLForVideoURL(video_URL, width, height, ob, *gui_client->resource_manager, gui_client->server_hostname);
 
 				browser->updateRootPage(root_page);
 
@@ -379,7 +380,7 @@ void BrowserVidPlayer::videoURLMayHaveChanged(MainWindow* main_window, OpenGLEng
 			catch(glare::Exception& e)
 			{
 				conPrint("Error occured while created browser video player: " + e.what());
-				main_window->print("Error occured while created browser video player: " + e.what());
+				gui_client->print("Error occured while created browser video player: " + e.what());
 				this->state = State_ErrorOccurred;
 			}
 		}
@@ -387,7 +388,7 @@ void BrowserVidPlayer::videoURLMayHaveChanged(MainWindow* main_window, OpenGLEng
 }
 
 
-void BrowserVidPlayer::mouseReleased(QMouseEvent* e, const Vec2f& uv_coords)
+void BrowserVidPlayer::mouseReleased(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("BrowserVidPlayer mouseReleased()");
 
@@ -396,7 +397,7 @@ void BrowserVidPlayer::mouseReleased(QMouseEvent* e, const Vec2f& uv_coords)
 }
 
 
-void BrowserVidPlayer::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
+void BrowserVidPlayer::mousePressed(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("BrowserVidPlayer mousePressed(), uv_coords: " + uv_coords.toString());
 
@@ -405,13 +406,13 @@ void BrowserVidPlayer::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
 }
 
 
-void BrowserVidPlayer::mouseDoubleClicked(QMouseEvent* e, const Vec2f& uv_coords)
+void BrowserVidPlayer::mouseDoubleClicked(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("BrowserVidPlayer mouseDoubleClicked()");
 }
 
 
-void BrowserVidPlayer::mouseMoved(QMouseEvent* e, const Vec2f& uv_coords)
+void BrowserVidPlayer::mouseMoved(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("BrowserVidPlayer mouseMoved(), uv_coords: " + uv_coords.toString());
 
@@ -420,21 +421,21 @@ void BrowserVidPlayer::mouseMoved(QMouseEvent* e, const Vec2f& uv_coords)
 }
 
 
-void BrowserVidPlayer::wheelEvent(QWheelEvent* e, const Vec2f& uv_coords)
+void BrowserVidPlayer::wheelEvent(MouseWheelEvent* e, const Vec2f& uv_coords)
 {
 	if(browser.nonNull())
 		browser->wheelEvent(e, uv_coords);
 }
 
 
-void BrowserVidPlayer::keyPressed(QKeyEvent* e)
+void BrowserVidPlayer::keyPressed(KeyEvent* e)
 {
 	if(browser.nonNull())
 		browser->keyPressed(e);
 }
 
 
-void BrowserVidPlayer::keyReleased(QKeyEvent* e)
+void BrowserVidPlayer::keyReleased(KeyEvent* e)
 {
 	if(browser.nonNull())
 		browser->keyReleased(e);

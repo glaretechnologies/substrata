@@ -1,12 +1,11 @@
 /*=====================================================================
 GlWidget.cpp
 ------------
-Copyright Glare Technologies Limited 2018 -
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #include "GlWidget.h"
 
 
-#include "PlayerPhysics.h"
 #include "CameraController.h"
 #include "MainOptionsDialog.h"
 #include "../dll/include/IndigoMesh.h"
@@ -84,8 +83,6 @@ static QGLFormat makeFormat()
 #endif
 
 
-
-
 GlWidget::GlWidget(QWidget *parent)
 :	
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -101,7 +98,6 @@ GlWidget::GlWidget(QWidget *parent)
 	//gamepad(NULL),
 	print_output(NULL),
 	settings(NULL),
-	player_physics(NULL),
 	take_map_screenshot(false),
 	screenshot_ortho_sensor_width_m(10),
 	allow_bindless_textures(true),
@@ -112,21 +108,6 @@ GlWidget::GlWidget(QWidget *parent)
 #endif
 
 	viewport_aspect_ratio = 1;
-
-	SHIFT_down = false;
-	CTRL_down = false;
-	W_down = false;
-	A_down = false;
-	S_down = false;
-	D_down = false;
-	space_down = false;
-	C_down = false;
-	left_down = false;
-	right_down = false;
-	up_down = false;
-	down_down = false;
-	B_down = false;
-
 	viewport_w = viewport_h = 100;
 
 	// Needed to get keyboard events.
@@ -206,12 +187,6 @@ void GlWidget::setCameraController(CameraController* cam_controller_)
 }
 
 
-void GlWidget::setPlayerPhysics(PlayerPhysics* player_physics_)
-{
-	player_physics = player_physics_;
-}
-
-
 void GlWidget::resizeGL(int width_, int height_)
 {
 	assert(QGLContext::currentContext() == this->context());
@@ -278,7 +253,7 @@ void GlWidget::initializeGL()
 
 
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl", // data dir
+		//"n:/glare-core/opengl", // data dir
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		this->texture_server_ptr,
 		this->print_output
@@ -323,7 +298,7 @@ void GlWidget::paintGL()
 
 	if(take_map_screenshot)
 	{
-		const Vec3d cam_pos = cam_controller->getPosition();
+		const Vec3d cam_pos =  cam_controller->getPosition();
 
 		const Matrix4f world_to_camera_space_matrix = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::translationMatrix(-(cam_pos.toVec4fVector()));
 
@@ -368,117 +343,12 @@ void GlWidget::paintGL()
 void GlWidget::keyPressEvent(QKeyEvent* e)
 {
 	emit keyPressed(e);
-
-	// Update our key-state variables, jump if space was pressed.
-	if(this->player_physics)
-	{
-		SHIFT_down = (e->modifiers() & Qt::ShiftModifier);
-		CTRL_down  = (e->modifiers() & Qt::ControlModifier);
-
-		if(e->key() == Qt::Key::Key_Space)
-		{
-			if(cam_move_on_key_input_enabled)
-				this->player_physics->processJump(*this->cam_controller, /*cur time=*/Clock::getTimeSinceInit());
-			space_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_W)
-		{
-			W_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_S)
-		{
-			S_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_A)
-		{
-			A_down = true;
-		}
-		if(e->key() == Qt::Key::Key_D)
-		{
-			D_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_C)
-		{
-			C_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_Left)
-		{
-			left_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_Right)
-		{
-			right_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_Up)
-		{
-			up_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_Down)
-		{
-			down_down = true;
-		}
-		else if(e->key() == Qt::Key::Key_B)
-		{
-			B_down = true;
-		}
-	}
 }
 
 
 void GlWidget::keyReleaseEvent(QKeyEvent* e)
 {
 	emit keyReleased(e);
-
-	if(this->player_physics)
-	{
-		SHIFT_down = (e->modifiers() & Qt::ShiftModifier);
-		CTRL_down  = (e->modifiers() & Qt::ControlModifier);
-
-		if(e->key() == Qt::Key::Key_Space)
-		{
-			space_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_W)
-		{
-			W_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_S)
-		{
-			S_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_A)
-		{
-			A_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_D)
-		{
-			D_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_C)
-		{
-			C_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_Left)
-		{
-			left_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_Right)
-		{
-			right_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_Up)
-		{
-			up_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_Down)
-		{
-			down_down = false;
-		}
-		else if(e->key() == Qt::Key::Key_B)
-		{
-			B_down = false;
-		}
-	}
 }
 
 
@@ -486,173 +356,7 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 // Otherwise we might miss the key-up event, leading to our keys appearing to be stuck down.
 void GlWidget::focusOutEvent(QFocusEvent* e)
 {
-	// conPrint("GlWidget::focusOutEvent");
-
-	SHIFT_down = false;
-	CTRL_down = false;
-	A_down = false;
-	W_down = false;
-	S_down = false;
-	D_down = false;
-	space_down = false;
-	C_down = false; 
-	left_down = false;
-	right_down = false;
-	up_down = false;
-	down_down = false;
-	B_down = false;
-}
-
-
-void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out)
-{
-	if(!player_physics)
-		return;
-
-	bool cam_changed = false;
-	bool move_key_pressed = false;
-
-	// Handle gamepad input
-	double gamepad_strafe_leftright = 0;
-	double gamepad_strafe_forwardsback = 0;
-	double gamepad_turn_leftright = 0;
-	double gamepad_turn_updown = 0;
-#if 0
-	if(gamepad)
-	{
-		gamepad_strafe_leftright = gamepad->axisLeftX();
-		gamepad_strafe_forwardsback = gamepad->axisLeftY();
-
-		gamepad_turn_leftright = gamepad->axisRightX();
-		gamepad_turn_updown = gamepad->axisRightY();
-
-		//if(gamepad->axisLeftY() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisLeftY())); cam_changed = true; }
-
-		//if(gamepad->axisRightX() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -gamepad->axisRightX())); cam_changed = true; }
-
-		//if(gamepad->axisRightY() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisRightY())); cam_changed = true; }
-	}
-#endif
-
-	if(gamepad_strafe_leftright != 0 || gamepad_strafe_forwardsback != 0 || gamepad_turn_leftright != 0 || gamepad_turn_updown != 0)
-		cam_changed = true;
-
-	input_out.SHIFT_down =	false;
-	input_out.CTRL_down =	false;
-	input_out.W_down =		false;
-	input_out.S_down =		false;
-	input_out.A_down =		false;
-	input_out.D_down =		false;
-	input_out.space_down =	false;
-	input_out.C_down =		false;
-	input_out.left_down =	false;
-	input_out.right_down =	false;
-	input_out.up_down =		false;
-	input_out.down_down =	false;
-	input_out.B_down =		false;
-
-
-	// On Windows we will use GetAsyncKeyState() to test if a key is down.
-	// On Mac OS / Linux we will use our W_down etc.. state.
-	// This isn't as good because if we miss the keyReleaseEvent due to not having focus when the key is released, the key will act as if it's stuck down.
-	// TODO: Find an equivalent solution to GetAsyncKeyState on Mac/Linux.
-	if(hasFocus() && cam_move_on_key_input_enabled)
-	{
-#ifdef _WIN32
-		SHIFT_down =	GetAsyncKeyState(VK_SHIFT);
-		CTRL_down	=	GetAsyncKeyState(VK_CONTROL);
-		W_down =		GetAsyncKeyState('W');
-		S_down =		GetAsyncKeyState('S');
-		A_down =		GetAsyncKeyState('A');
-		D_down =		GetAsyncKeyState('D');
-		space_down =	GetAsyncKeyState(' ');
-		C_down =		GetAsyncKeyState('C');
-		left_down =		GetAsyncKeyState(VK_LEFT);
-		right_down =	GetAsyncKeyState(VK_RIGHT);
-		up_down =		GetAsyncKeyState(VK_UP);
-		down_down =		GetAsyncKeyState(VK_DOWN);
-		B_down = 		GetAsyncKeyState('B');
-#else
-		CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
-#endif
-		const float selfie_move_factor = cam_controller->selfieModeEnabled() ? -1.f : 1.f;
-
-		if(W_down || up_down)
-		{	this->player_physics->processMoveForwards(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-		if(S_down || down_down)
-		{	this->player_physics->processMoveForwards(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-		if(A_down)
-		{	this->player_physics->processStrafeRight(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-		if(D_down)
-		{	this->player_physics->processStrafeRight(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-
-		// Move vertically up or down in flymode.
-		if(space_down)
-		{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-		if(C_down && !CTRL_down) // Check CTRL_down to prevent CTRL+C shortcut moving camera up.
-		{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-
-		// Turn left or right
-		const float base_rotate_speed = 200;
-		if(left_down)
-		{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
-		if(right_down)
-		{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
-
-		if(cam_changed)
-			emit cameraUpdated();
-
-		input_out.SHIFT_down =	SHIFT_down;
-		input_out.CTRL_down =	CTRL_down;
-		input_out.W_down =		W_down;
-		input_out.S_down =		S_down;
-		input_out.A_down =		A_down;
-		input_out.D_down =		D_down;
-		input_out.space_down =	space_down;
-		input_out.C_down =		C_down;
-		input_out.left_down =	left_down;
-		input_out.right_down =	right_down;
-		input_out.up_down =		up_down;
-		input_out.down_down =	down_down;
-		input_out.B_down	=	B_down;
-	}
-
-#if 0
-	if(gamepad)
-	{
-		const float gamepad_move_speed_factor = 10;
-		const float gamepad_rotate_speed = 400;
-
-		// Move vertically up or down in flymode.
-		if(gamepad->buttonR2() != 0)
-		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * pow(gamepad->buttonR2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-
-		if(gamepad->buttonL2() != 0)
-		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * -pow(gamepad->buttonL2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-
-		if(gamepad->axisLeftX() != 0)
-		{	this->player_physics->processStrafeRight(gamepad_move_speed_factor * pow(gamepad->axisLeftX(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-
-		if(gamepad->axisLeftY() != 0)
-		{	this->player_physics->processMoveForwards(gamepad_move_speed_factor * -pow(gamepad->axisLeftY(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-
-		if(gamepad->axisRightX() != 0)
-		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(gamepad->axisRightX(), 3.0f))); cam_changed = true; }
-
-		if(gamepad->axisRightY() != 0)
-		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(gamepad->axisRightY(), 3.f), 0)); cam_changed = true; }
-	}
-#endif
-
-
-	if(cam_changed)
-		emit cameraUpdated();
-
-	if(move_key_pressed)
-		emit playerMoveKeyPressed();
+	emit focusOutSignal();
 }
 
 

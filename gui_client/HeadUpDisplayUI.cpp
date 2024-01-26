@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "HeadUpDisplayUI.h"
 
 
-#include "MainWindow.h"
+#include "GUIClient.h"
 #include <graphics/SRGBUtils.h>
 
 
@@ -14,7 +14,7 @@ static const float AVATAR_MARKER_DOT_Z = -0.8f;
 
 
 HeadUpDisplayUI::HeadUpDisplayUI()
-:	main_window(NULL)
+:	gui_client(NULL)
 {}
 
 
@@ -22,10 +22,10 @@ HeadUpDisplayUI::~HeadUpDisplayUI()
 {}
 
 
-void HeadUpDisplayUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_)
+void HeadUpDisplayUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	opengl_engine = opengl_engine_;
-	main_window = main_window_;
+	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 }
 
@@ -61,24 +61,24 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 	// We want to show a marker for the avatar if it is in front of the camera, and the avatar is sufficiently far away from camera.
 	// If the marker is off-screen, we want to clamp it to the screen, and also display an arrow pointing towards the avatar.
 	
-	const Vec3d cam_to_avatar = avatar_pos - main_window->cam_controller.getPosition();
+	const Vec3d cam_to_avatar = avatar_pos - gui_client->cam_controller.getPosition();
 	
 	// If avatar is behind camera, move to front of camera so we can work out the direction off-screen to the marker.
-	const double back_dist = dot(cam_to_avatar, main_window->cam_controller.getForwardsVec());
+	const double back_dist = dot(cam_to_avatar, gui_client->cam_controller.getForwardsVec());
 	Vec3d moved_avatar_pos = avatar_pos;
 	if(back_dist < 0)
 	{
 		// Move marker forwards so there is a 45 degree angle between cam forwards vec and vec to new marker position.
-		const float dx = dot(cam_to_avatar, main_window->cam_controller.getRightVec());
-		const float dy = dot(cam_to_avatar, main_window->cam_controller.getUpVec());
+		const float dx = (float)dot(cam_to_avatar, gui_client->cam_controller.getRightVec());
+		const float dy = (float)dot(cam_to_avatar, gui_client->cam_controller.getUpVec());
 		const double side_dist = sqrt(Maths::square(dx) + Maths::square(dy));
 
-		moved_avatar_pos = avatar_pos + main_window->cam_controller.getForwardsVec() * (-back_dist + side_dist);
+		moved_avatar_pos = avatar_pos + gui_client->cam_controller.getForwardsVec() * (-back_dist + side_dist);
 	}
 
 	Vec2f ui_coords;
-	bool visible = main_window->getGLUICoordsForPoint(moved_avatar_pos.toVec4fPoint(), ui_coords);
-	const bool should_display = visible && (avatar_pos.getDist(main_window->cam_controller.getPosition()) > 40.0);
+	bool visible = gui_client->getGLUICoordsForPoint(moved_avatar_pos.toVec4fPoint(), ui_coords);
+	const bool should_display = visible && (avatar_pos.getDist(gui_client->cam_controller.getPosition()) > 40.0);
 	if(should_display)
 	{
 #if 0
@@ -150,7 +150,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		{
 			// Create marker dot
 			GLUIImageRef im = new GLUIImage();
-			im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name, AVATAR_MARKER_DOT_Z);
+			im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name, AVATAR_MARKER_DOT_Z);
 			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 			im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
@@ -170,7 +170,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		{
 			// Create marker arrow
 			GLUIImageRef im = new GLUIImage();
-			im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
+			im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
 			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 			im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 			

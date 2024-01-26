@@ -97,7 +97,7 @@ std::string WorldSettingsWidget::getURLForFileSelectWidget(FileSelectWidget* wid
 		const std::string URL = ResourceManager::URLForPathAndHash(local_path, FileChecksum::fileChecksum(local_path));
 
 		// Copy model to local resources dir.
-		main_window->resource_manager->copyLocalFileToResourceDir(local_path, URL);
+		main_window->gui_client.resource_manager->copyLocalFileToResourceDir(local_path, URL);
 
 		return URL;
 	}
@@ -206,11 +206,11 @@ void WorldSettingsWidget::applySettingsSlot()
 		SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsUpdate);
 	
-		this->toWorldSettings(main_window->connected_world_settings);
+		this->toWorldSettings(main_window->gui_client.connected_world_settings);
 
-		main_window->connected_world_settings.writeToStream(scratch_packet);
+		main_window->gui_client.connected_world_settings.writeToStream(scratch_packet);
 
-		enqueueMessageToSend(*main_window->client_thread, scratch_packet);
+		enqueueMessageToSend(*main_window->gui_client.client_thread, scratch_packet);
 
 		emit settingsAppliedSignal();
 	}

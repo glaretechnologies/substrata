@@ -9,12 +9,11 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
 #include <string>
-class MainWindow;
+class GUIClient;
 class WorldObject;
-class QMouseEvent;
-class QEvent;
-class QKeyEvent;
-class QWheelEvent;
+class MouseEvent;
+class MouseWheelEvent;
+class KeyEvent;
 class EmbeddedBrowser;
 class OpenGLEngine;
 class QString;
@@ -27,24 +26,24 @@ public:
 	BrowserVidPlayer();
 	~BrowserVidPlayer();
 
-	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
+	void process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
-	void videoURLMayHaveChanged(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob);
+	void videoURLMayHaveChanged(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob);
 
 	static double maxBrowserDist() { return 20.0; }
 
-	void mousePressed(QMouseEvent* e, const Vec2<float>& uv_coords);
-	void mouseReleased(QMouseEvent* e, const Vec2<float>& uv_coords);
-	void mouseDoubleClicked(QMouseEvent* e, const Vec2<float>& uv_coords);
-	void mouseMoved(QMouseEvent* e, const Vec2<float>& uv_coords);
+	void mousePressed(MouseEvent* e, const Vec2<float>& uv_coords);
+	void mouseReleased(MouseEvent* e, const Vec2<float>& uv_coords);
+	void mouseDoubleClicked(MouseEvent* e, const Vec2<float>& uv_coords);
+	void mouseMoved(MouseEvent* e, const Vec2<float>& uv_coords);
 
-	void wheelEvent(QWheelEvent* e, const Vec2<float>& uv_coords);
+	void wheelEvent(MouseWheelEvent* e, const Vec2<float>& uv_coords);
 
-	void keyPressed(QKeyEvent* e);
-	void keyReleased(QKeyEvent* e);
+	void keyPressed(KeyEvent* e);
+	void keyReleased(KeyEvent* e);
 
 private:
-	void createNewBrowserPlayer(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob);
+	void createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob);
 
 	enum State
 	{

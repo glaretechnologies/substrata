@@ -6,12 +6,12 @@ Copyright Glare Technologies Limited 2021 -
 #include "ObInfoUI.h"
 
 
-#include "MainWindow.h"
+#include "GUIClient.h"
 #include <QtCore/QSettings>
 
 
 ObInfoUI::ObInfoUI()
-:	main_window(NULL)
+:	gui_client(NULL)
 {}
 
 
@@ -19,10 +19,10 @@ ObInfoUI::~ObInfoUI()
 {}
 
 
-void ObInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_)
+void ObInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	opengl_engine = opengl_engine_;
-	main_window = main_window_;
+	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
 	info_text_view = new GLUITextView();
@@ -126,7 +126,7 @@ void ObInfoUI::viewportResized(int w, int h)
 
 void ObInfoUI::eventOccurred(GLUICallbackEvent& event)
 {
-	if(main_window)
+	if(gui_client)
 	{
 		if(event.widget == info_text_view.ptr())
 		{
@@ -135,7 +135,7 @@ void ObInfoUI::eventOccurred(GLUICallbackEvent& event)
 			event.accepted = true;
 
 			conPrint("Clicked on text view!");
-			//main_window->setSelfieModeEnabled(selfie_button->toggled);
+			//gui_client->setSelfieModeEnabled(selfie_button->toggled);
 		}
 	}
 }

@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "AnimatedTextureManager.h"
 
 
-#include "MainWindow.h"
+#include "GUIClient.h"
 #include "EmbeddedBrowser.h"
 #include "CEF.h"
 #include "../shared/ResourceManager.h"
@@ -43,7 +43,7 @@ static const std::string makeDataURL(const std::string& html)
 }
 
 
-void AnimatedTexObData::processGIFAnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 	OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
 {
 	TextureData* texdata = texture->texture_data.ptr();
@@ -156,20 +156,20 @@ void AnimatedTexObData::processGIFAnimatedTex(MainWindow* main_window, OpenGLEng
 }
 
 
-void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 	OpenGLMaterial& mat, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
 {
 #if CEF_SUPPORT
 	if(!CEF::isInitialised())
 	{
-		CEF::initialiseCEF(main_window->base_dir_path);
+		CEF::initialiseCEF(gui_client->base_dir_path);
 	}
 
 	if(CEF::isInitialised())
 	{
 		if(animtexdata.browser.isNull() && !tex_path.empty() && ob->opengl_engine_ob.nonNull())
 		{
-			main_window->logMessage("Creating browser to play vid, URL: " + tex_path);
+			gui_client->logMessage("Creating browser to play vid, URL: " + tex_path);
 
 			const int width = 1024;
 			const float use_height_over_width = ob->scale.z / ob->scale.x; // Object scale should be based on video aspect ratio, see ModelLoading::makeImageCube().
@@ -191,7 +191,7 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 
 			opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 
-			ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(tex_path);
+			ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
 
 			// if the resource is downloaded already, read video off disk:
 			std::string use_URL;
@@ -208,7 +208,7 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 				else
 				{
 					// If the URL does not have an HTTP prefix (e.g. is just a normal resource URL), rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
-					use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(tex_path);
+					use_URL = "http://" + gui_client->server_hostname + "/resource/" + web::Escaping::URLEscape(tex_path);
 				}
 			}
 
@@ -227,7 +227,7 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 			const std::string data_URL = makeDataURL(html);
 
 			Reference<EmbeddedBrowser> browser = new EmbeddedBrowser();
-			browser->create(data_URL, new_tex, main_window, ob, opengl_engine);
+			browser->create(data_URL, new_tex, gui_client, ob, opengl_engine);
 
 			animtexdata.browser = browser;
 		}
@@ -236,7 +236,7 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 }
 
 
-AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
+AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 	AnimatedTexObDataProcessStats stats;
 	stats.num_gif_textures_processed = 0;
@@ -259,7 +259,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 		const float min_mp4_recip_dist = 1 / max_mp4_dist; // textures >= min_recip_dist are updated
 
 		const float ob_w = ob->getAABBWSLongestLength();
-		const float recip_dist = (ob->getCentroidWS() - main_window->cam_controller.getPosition().toVec4fPoint()).fastApproxRecipLength();
+		const float recip_dist = (ob->getCentroidWS() - gui_client->cam_controller.getPosition().toVec4fPoint()).fastApproxRecipLength();
 		const float proj_len = ob_w * recip_dist;
 
 		large_enough     = (proj_len > 0.01f) && (recip_dist > min_recip_dist);
@@ -281,7 +281,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 				if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
 					animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
 
-				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, mat.albedo_texture, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
+				processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.albedo_texture, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
 				stats.num_gif_textures_processed++;
 			}
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
@@ -291,7 +291,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 					if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
 						animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
 
-					processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
+					processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
 					stats.num_mp4_textures_processed++;
 				}
 			}
@@ -302,7 +302,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 				if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
 					animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
 
-				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, mat.emission_texture, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
+				processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.emission_texture, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
 				stats.num_gif_textures_processed++;
 
 			}
@@ -313,7 +313,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 					if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
 						animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
 
-					processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
+					processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
 					stats.num_mp4_textures_processed++;
 				}
 			}
@@ -333,13 +333,13 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].refl_col_animated_tex_data;
 				if(animtexdata.browser.nonNull())
 				{
-					main_window->logMessage("Closing vid playback browser (out of view distance).");
+					gui_client->logMessage("Closing vid playback browser (out of view distance).");
 					animtexdata.browser = NULL;
 
 					// Remove audio source
 					if(ob->audio_source.nonNull())
 					{
-						main_window->audio_engine.removeSource(ob->audio_source);
+						gui_client->audio_engine.removeSource(ob->audio_source);
 						ob->audio_source = NULL;
 					}
 				}
@@ -350,13 +350,13 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].emission_col_animated_tex_data;
 				if(animtexdata.browser.nonNull())
 				{
-					main_window->logMessage("Closing vid playback browser (out of view distance).");
+					gui_client->logMessage("Closing vid playback browser (out of view distance).");
 					animtexdata.browser = NULL;
 
 					// Remove audio source
 					if(ob->audio_source.nonNull())
 					{
-						main_window->audio_engine.removeSource(ob->audio_source);
+						gui_client->audio_engine.removeSource(ob->audio_source);
 						ob->audio_source = NULL;
 					}
 				}

@@ -1,0 +1,644 @@
+/*=====================================================================
+GUIClient.h
+------------
+Copyright Glare Technologies Limited 2023 -
+=====================================================================*/
+#pragma once
+
+
+#include "PhysicsWorld.h"
+#include "PlayerPhysics.h"
+#include "CameraController.h"
+#include "UIInterface.h"
+#include "ProximityLoader.h"
+#include "UIEvents.h"
+#include "UndoBuffer.h"
+#include "GestureUI.h"
+#include "ObInfoUI.h"
+#include "MiscInfoUI.h"
+#include "HeadUpDisplayUI.h"
+#include "MiniMap.h"
+#include "DownloadingResourceQueue.h"
+#include "LoadItemQueue.h"
+#include "MeshManager.h"
+#include "WorldState.h"
+#include "../shared/WorldSettings.h"
+#include "../audio/AudioEngine.h"
+#include "../audio/MicReadThread.h" // For MicReadStatus
+#include "../opengl/TextureLoading.h"
+#include "../shared/WorldObject.h"
+#include <utils/ArgumentParser.h>
+#include <utils/Timer.h>
+#include <utils/BumpAllocator.h>
+#include <utils/TaskManager.h>
+#include <utils/StandardPrintOutput.h>
+#include <utils/ComObHandle.h>
+#include <utils/SocketBufferOutStream.h>
+#include <maths/PCG32.h>
+#include <maths/LineSegment4f.h>
+#include <networking/IPAddress.h>
+#include <string>
+#include <unordered_set>
+#include <deque>
+class UDPSocket;
+namespace Ui { class MainWindow; }
+class TextureServer;
+class UserDetailsWidget;
+class URLWidget;
+class ModelLoadedThreadMessage;
+class TextureLoadedThreadMessage;
+struct tls_config;
+class SubstrataVideoReaderCallback;
+struct CreateVidReaderTask;
+class BiomeManager;
+class ScriptLoadedThreadMessage;
+class ObjectPathController;
+namespace glare { class PoolAllocator; }
+namespace glare { class ArenaAllocator; }
+class VehiclePhysics;
+class TerrainSystem;
+class TerrainDecalManager;
+class ParticleManager;
+struct Particle;
+class ClientThread;
+class MySocket;
+class LogWindow;
+class ResourceManager;
+struct ID3D11Device;
+struct IMFDXGIDeviceManager;
+class SettingsStore;
+
+
+struct DownloadingResourceInfo
+{
+	DownloadingResourceInfo() : build_dynamic_physics_ob(false), is_terrain_map(false) {}
+
+	TextureParams texture_params; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
+
+	bool build_dynamic_physics_ob; // For downloading meshes.  Once the mesh is downloaded we need to know if we want to build the dynamic or static physics shape for it.
+	bool is_terrain_map;
+
+	Vec3d pos; // Position of object using the resource
+	float size_factor;
+};
+
+
+class LoggingOutput
+{
+public:
+	virtual void logMessage(const std::string& msg) = 0;
+};
+
+
+/*=====================================================================
+GUIClient
+---------------
+GUI client code that is used by both the Native GUI client that uses Qt,
+and the web client that uses SDL.
+=====================================================================*/
+class GUIClient : public ObLoadingCallbacks, public PrintOutput, public GLUITextRendererCallback, public PhysicsWorldEventListener
+{
+public:
+	GUIClient(const std::string& base_dir_path, const std::string& appdata_path, const ArgumentParser& args);
+	~GUIClient();
+
+
+	static const int server_port = 7600;
+	static const int server_UDP_port = 7601;
+
+
+	static void staticInit();
+	static void staticShutdown();
+
+	void initialise(const std::string& cache_dir, LoggingOutput* logging_output, SettingsStore* settings_store, UIInterface* ui_interface);
+	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine);
+
+	void shutdown();
+
+	void timerEvent(const MouseCursorState& mouse_cursor_state);
+
+
+	SettingsStore* getSettingsStore() { return settings; }
+
+	void setGLWidgetContextAsCurrent() {} // TODO TEMP REFACTOR
+
+	Vec2i getGlWidgetPosInGlobalSpace() { return Vec2i(0, 0); } // TODO TEMP REFACTOR
+
+	void webViewDataLinkHovered(const std::string& URL) {}  // TODO TEMP REFACTOR
+
+	void logMessage(const std::string& msg);
+
+	void logAndConPrintMessage(const std::string& msg);
+
+	void print(const std::string& s);
+
+	void printStr(const std::string& s);
+
+	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
+	void stopGestureClicked(const std::string& gesture_name);
+	void stopGesture();
+	void setSelfieModeEnabled(bool enabled);
+	void setMicForVoiceChatEnabled(bool enabled);
+
+
+	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
+	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
+public:
+	void startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
+	
+	std::string getDiagnosticsString(bool do_graphics_diagnostics, bool do_physics_diagnostics, double last_timerEvent_CPU_work_elapsed, double last_updateGL_time);
+	void updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_state);
+
+	struct EdgeMarker
+	{
+		EdgeMarker(const Vec4f& p, const Vec4f& n, float scale_) : pos(p), normal(n), scale(scale_) {}
+		EdgeMarker() {}
+		Vec4f pos;
+		Vec4f normal;
+		float scale;
+	};
+	
+	void thirdPersonCameraToggled(bool enabled);
+
+	void applyUndoOrRedoObject(const WorldObjectRef& restored_ob);
+
+	void summonBike();
+
+	void summonHovercar();
+
+	void objectTransformEdited();
+
+	void objectEdited();
+
+	void posAndRot3DControlsToggled(bool enabled);
+
+	void mousePressed(MouseEvent& e);
+
+	void mouseClicked(MouseEvent& e);
+
+	void doObjectSelectionTraceForMouseEvent(MouseEvent& e);
+
+	void updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& gl_coords, MouseEvent* mouse_event);
+
+	void mouseMoved(MouseEvent& mouse_event);
+
+	void onMouseWheelEvent(MouseWheelEvent& e);
+
+	void viewportResized(int w, int h);
+
+	void updateGroundPlane();
+	void sendLightmapNeededFlagsSlot();
+public:
+	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
+	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
+	void deleteSelectedObject();
+	void deselectObject();
+	void deselectParcel();
+	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
+	GLObjectRef makeNameTagGLObject(const std::string& nametag);
+	GLObjectRef makeSpeakerGLObject();
+public:
+	virtual OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
+	void loadModelForObject(WorldObject* ob);
+	void loadModelForAvatar(Avatar* ob);
+	void loadScriptForObject(WorldObject* ob);
+	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
+	void doBiomeScatteringForObject(WorldObject* ob);
+	void loadAudioForObject(WorldObject* ob);
+	void showErrorNotification(const std::string& message);
+	void showInfoNotification(const std::string& message);
+	void updateParcelGraphics();
+	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
+	void handleMessages(double global_time, double cur_time);
+	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
+	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
+	void addParcelObjects();
+	void removeParcelObjects();
+	void recolourParcelsForLoggedInState();
+	void updateSelectedObjectPlacementBeam();
+	void updateInstancedCopiesOfObject(WorldObject* ob);
+	void removeInstancesOfObject(WorldObject* ob);
+	void removeObScriptingInfo(WorldObject* ob);
+	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
+	void setMaterialFlagsForObject(WorldObject* ob);
+public:
+	bool objectModificationAllowed(const WorldObject& ob);
+	bool connectedToUsersPersonalWorldOrGodUser();
+	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
+	// Action will be printed in error message, could be "modify" or "delete"
+	bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob) const;
+	bool areEditingVoxels() const;
+	bool isObjectWithPosition(const Vec3d& pos);
+	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const;
+public:
+	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const; // Get screen-space coordinates for a world-space point.  Returns true if point is visible from camera.
+	bool getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) const; // Returns true if point is visible from camera.
+	Vec4f pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords) const;
+
+	void pickUpSelectedObject();
+	void dropSelectedObject();
+	void setUIForSelectedObject(); // Enable/disable delete object action etc..
+
+	void checkForLODChanges();
+	void checkForAudioRangeChanges();
+
+	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
+
+	// If the object was not in a parcel with write permissions at all, returns false.
+	// If the object can not be made to fit in the current parcel, returns false.
+	// new_ob_pos_out is set to new, clamped position.
+	bool clampObjectPositionToParcelForNewTransform(const WorldObject& ob, GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
+		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
+	bool checkAddTextureToProcessingSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddModelToProcessingSet(const std::string& url, bool dynamic_physics_shape); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddAudioToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
+
+	void startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+		const TextureParams& tex_params, bool is_terrain_map);
+	void startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+		const TextureParams& tex_params, bool is_terrain_map);
+	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, 
+		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
+	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
+	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
+	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
+	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
+	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
+	void addPlaceholderObjectsForOb(WorldObject& ob);
+
+	// ObLoadingCallbacks interface
+	virtual void loadObject(WorldObjectRef ob);
+	virtual void unloadObject(WorldObjectRef ob);
+	virtual void newCellInProximity(const Vec3<int>& cell_coords);
+
+	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
+	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const js::AABBox& aabb_os) REQUIRES(world_state->mutex);
+	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object) REQUIRES(world_state->mutex);
+
+	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
+
+	void createObject(const std::string& mesh_path, BatchedMeshRef loaded_mesh, bool loaded_mesh_is_image_cube,
+		const js::Vector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials);
+	void createImageObject(const std::string& local_image_path);
+	void createModelObject(const std::string& local_model_path);
+	void createImageObjectForWidthAndHeight(const std::string& local_image_path, int w, int h, bool has_alpha);
+
+	void keyPressed(KeyEvent& e);
+	void keyReleased(KeyEvent& e);
+	void focusOut();
+
+	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
+
+	void connectToServer(const std::string& URL);
+
+	void processLoading();
+	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
+	void createPathControlledPathVisObjects(const WorldObject& ob);
+	Reference<VehiclePhysics> createVehicleControllerForScript(WorldObject* ob);
+	
+	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time) const;
+	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time) const;
+	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
+	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob) REQUIRES(world_state->mutex);
+	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) const REQUIRES(world_state->mutex);
+	void destroyVehiclePhysicsControllingObject(WorldObject* ob);
+	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
+	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
+	
+	void updateDiagnosticAABBForObject(WorldObject* ob); // Returns if vis still valid/needed.
+	void updateObjectsWithDiagnosticVis();
+
+	void processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out);
+
+	void enableMaterialisationEffectOnOb(WorldObject& ob);
+	void enableMaterialisationEffectOnAvatar(Avatar& ob);
+
+public:
+	//	PhysicsWorldEventListener:
+	virtual void physicsObjectEnteredWater(PhysicsObject& ob);
+
+	// NOTE: called off main thread, needs to be threadsafe
+	virtual void contactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold);
+
+	// NOTE: called off main thread, needs to be threadsafe
+	virtual void contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold);
+	
+
+public:
+	Reference<OpenGLEngine> opengl_engine;
+
+	SettingsStore* settings;
+
+
+	std::string base_dir_path;
+	std::string appdata_path;
+	ArgumentParser parsed_args;
+
+	CameraController cam_controller;
+
+	Reference<PhysicsWorld> physics_world;
+
+	PlayerPhysics player_physics;
+
+	std::map<WorldObject*, Reference<VehiclePhysics>> vehicle_controllers; // Map from controlled object to vehicle controller for that object.
+	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
+	uint32 cur_seat_index; // Current vehicle seat index.
+
+	double last_vehicle_renewal_msg_time;
+
+	Timer time_since_last_timer_ev;
+	Timer time_since_update_packet_sent;
+
+	Reference<UDPSocket> udp_socket;
+
+	Reference<ClientThread> client_thread;
+	ThreadManager client_thread_manager;
+	ThreadManager client_udp_handler_thread_manager;
+	ThreadManager mic_read_thread_manager;
+	ThreadManager resource_upload_thread_manager;
+	ThreadManager resource_download_thread_manager;
+	ThreadManager net_resource_download_thread_manager;
+	ThreadManager save_resources_db_thread_manager;
+
+	glare::AtomicInt num_non_net_resources_downloading;
+	glare::AtomicInt num_net_resources_downloading;
+	glare::AtomicInt num_resources_uploading;
+
+	Reference<WorldState> world_state;
+
+	TextureServer* texture_server;
+
+	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue; // for messages from ClientThread etc.. to this object.
+
+	WorldObjectRef selected_ob;
+	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
+	Vec4f selection_point_os; // Point on selected object where selection ray hit, in object space.
+	bool selected_ob_picked_up; // Is selected object 'picked up' e.g. being moved?
+
+	ParcelRef selected_parcel;
+
+	std::string resources_dir;
+	Reference<ResourceManager> resource_manager;
+
+
+	// NOTE: these object sets need to be cleared in connectToServer(), also when removing a dead object in ob->state == WorldObject::State_Dead case in timerEvent, the object needs to be removed
+	// from any of these sets it is in.
+
+	// NOTE: Use std::set instead of unordered_set, so that iteration over objects is in memory order.
+	std::set<WorldObjectRef> active_objects; // Objects that have moved recently and so need interpolation done on them.
+	std::set<WorldObjectRef> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
+	std::set<WorldObjectRef> web_view_obs;
+	std::set<WorldObjectRef> browser_vid_player_obs;
+	std::set<WorldObjectRef> audio_obs; // Objects with an audio_source or a non-empty audio_source_url, or objects that may play audio such as web-views or videos.
+	std::set<WorldObjectRef> obs_with_scripts; // Objects with non-null script_evaluator
+	std::set<WorldObjectRef> obs_with_diagnostic_vis;
+
+
+	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
+	
+
+	Reference<Indigo::Mesh> ground_quad_mesh;
+	Reference<OpenGLMeshRenderData> ground_quad_mesh_opengl_data;
+	PhysicsShape ground_quad_shape;
+
+
+	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
+	PhysicsShape hypercard_quad_shape;
+
+	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh; // For images, web-views etc.
+	PhysicsShape image_cube_shape;
+
+	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
+	PhysicsShape spotlight_shape;
+
+	PhysicsShape unit_cube_shape;
+
+	Reference<GLObject> ob_denied_move_marker; // Prototype object
+	std::vector<Reference<GLObject> > ob_denied_move_markers;
+
+	GLObjectRef aabb_os_vis_gl_ob; // Used for visualising the object-space AABB of the selected object.
+	GLObjectRef aabb_ws_vis_gl_ob; // Used for visualising the world-space AABB of the selected object.
+	std::vector<GLObjectRef> selected_ob_vis_gl_obs; // Used for visualising paths for path-controlled objects.
+
+	static const int NUM_AXIS_ARROWS = 3;
+	LineSegment4f axis_arrow_segments[NUM_AXIS_ARROWS];
+	GLObjectRef axis_arrow_objects[NUM_AXIS_ARROWS]; // For ob placement
+
+	std::vector<LineSegment4f> rot_handle_lines[3];
+	GLObjectRef rot_handle_arc_objects[3];
+
+	bool axis_and_rot_obs_enabled; // Are the axis arrow objects and rotation arcs inserted into the opengl engine? (and grabbable)
+
+	int grabbed_axis; // -1 if no axis grabbed, [0, 3) if grabbed a translation arrow, [3, 6) if grabbed a rotation arc.
+	Vec4f grabbed_point_ws; // Approximate point on arrow line we grabbed, in world space.
+	Vec4f ob_origin_at_grab;
+
+	float grabbed_angle;
+	float original_grabbed_angle;
+	float grabbed_arc_angle_offset;
+
+	Reference<OpenGLProgram> parcel_shader_prog;
+
+	StandardPrintOutput print_output;
+	glare::TaskManager* task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff. Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent(). Lazily created.
+	
+	glare::TaskManager model_and_texture_loader_task_manager;
+
+	MeshManager mesh_manager;
+
+	std::string server_hostname; // e.g. "substrata.info" or "localhost"
+	std::string server_worldname; // e.g. "" or "ono-sendai"
+
+	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is. 
+	// -1 if no parcel UID in URL.
+
+	Timer fps_display_timer;
+	int num_frames_since_fps_timer_reset;
+	double last_fps;
+
+	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
+	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
+	
+	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
+	
+	bool process_model_loaded_next;
+
+	// Textures being loaded or already loaded.
+	// We have this set so that we don't process the same texture from multiple LoadTextureTasks running in parallel.
+	std::unordered_set<std::string> textures_processing;
+
+	// We build a different physics mesh for dynamic objects, so we need to keep track of which mesh we are building.
+	struct ModelProcessingKey
+	{
+		ModelProcessingKey(const std::string& URL_, const bool dynamic_physics_shape_) : URL(URL_), dynamic_physics_shape(dynamic_physics_shape_) {}
+
+		std::string URL;
+		bool dynamic_physics_shape;
+
+		bool operator < (const ModelProcessingKey& other) const
+		{
+			if(URL < other.URL)
+				return true;
+			else if(URL > other.URL)
+				return false;
+			else
+				return !dynamic_physics_shape && other.dynamic_physics_shape;
+		}
+		bool operator == (const ModelProcessingKey& other) const { return URL == other.URL && dynamic_physics_shape == other.dynamic_physics_shape; }
+	};
+	struct ModelProcessingKeyHasher
+	{
+		size_t operator() (const ModelProcessingKey& key) const
+		{
+			std::hash<std::string> h;
+			return h(key.URL);
+		}
+	};
+	// Models being loaded or already loaded.
+	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
+	std::unordered_set<ModelProcessingKey, ModelProcessingKeyHasher> models_processing;
+
+	// Audio files being loaded or already loaded.
+	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
+	std::unordered_set<std::string> audio_processing;
+
+	std::unordered_set<std::string> script_content_processing;
+
+	std::unordered_set<UID, UIDHasher> scatter_info_processing;
+
+	std::set<WorldObjectRef> objs_with_lightmap_rebuild_needed;
+
+	
+
+
+	struct tls_config* client_tls_config;
+
+	PCG32 rng;
+
+	glare::AudioEngine audio_engine;
+	UndoBuffer undo_buffer;
+
+	glare::AudioSourceRef wind_audio_source;
+
+	Timer last_footstep_timer;
+	int last_foostep_side;
+
+	double last_animated_tex_time;
+	double last_model_and_tex_loading_time;
+	double last_eval_script_time;
+	int last_num_gif_textures_processed;
+	int last_num_mp4_textures_processed;
+	int last_num_scripts_processed;
+
+	Timer time_since_object_edited; // For undo edit merging.
+	bool force_new_undo_edit; // // Multiple edits using the object editor, in a short timespan, will be merged together, unless force_new_undo_edit is true (is set when undo or redo is issued).
+	std::map<UID, UID> recreated_ob_uid; // Map from old object UID to recreated object UID when an object deletion is undone.
+
+	UID last_restored_ob_uid_in_edit;
+
+	GLUIRef gl_ui;
+	GestureUI gesture_ui;
+	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
+	MiscInfoUI misc_info_ui; // For showing messages from the server etc.
+	HeadUpDisplayUI hud_ui;
+	MiniMap minimap;
+
+	bool running_destructor;
+
+	BiomeManager* biome_manager;
+
+	DownloadingResourceQueue download_queue;
+	Timer download_queue_sort_timer;
+	Timer load_item_queue_sort_timer;
+
+	LoadItemQueue load_item_queue;
+
+	SocketBufferOutStream scratch_packet;
+
+	js::Vector<Vec4f, 16> temp_av_positions;
+
+	std::map<std::string, DownloadingResourceInfo> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
+
+	std::map<ModelProcessingKey, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
+	std::map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
+
+	std::vector<Reference<GLObject> > player_phys_debug_spheres;
+
+	std::vector<Reference<GLObject> > wheel_gl_objects;
+	Reference<GLObject> car_body_gl_object;
+
+	Reference<GLObject> mouseover_selected_gl_ob;
+
+	MeshDataLoadingProgress mesh_data_loading_progress;
+	Reference<OpenGLMeshRenderData> cur_loading_mesh_data;
+	std::string cur_loading_lod_model_url;
+	bool cur_loading_dynamic_physics_shape;
+	WorldObjectRef cur_loading_voxel_ob;
+	int cur_loading_voxel_subsample_factor;
+	PhysicsShape cur_loading_physics_shape;
+	int cur_loading_voxel_ob_model_lod_level;
+
+	Map2DRef cur_loading_terrain_map; // Non-null iff we are currently loading a map used for the terrain system into OpenGL.
+
+	OpenGLTextureLoadingProgress tex_loading_progress;
+
+	Reference<glare::PoolAllocator> world_ob_pool_allocator;
+
+	std::vector<Reference<ObjectPathController>> path_controllers;
+
+	UID client_avatar_uid; // When we connect to a server, the server assigns a UID to the client/avatar.
+	uint32 server_protocol_version;
+
+	uint64 frame_num;
+
+	MicReadStatus mic_read_status;
+
+	IPAddress server_ip_addr;
+
+	Reference<TerrainSystem> terrain_system;
+	Reference<TerrainDecalManager> terrain_decal_manager;
+
+	Reference<ParticleManager> particle_manager;
+
+	glare::BumpAllocator bump_allocator;
+
+
+	Mutex particles_creation_buf_mutex;
+	js::Vector<Particle, 16> particles_creation_buf GUARDED_BY(particles_creation_buf_mutex);
+
+
+	ProximityLoader proximity_loader;
+	float load_distance, load_distance2;
+
+	enum ServerConnectionState
+	{
+		ServerConnectionState_NotConnected,
+		ServerConnectionState_Connecting,
+		ServerConnectionState_Connected
+	};
+	ServerConnectionState connection_state;
+
+	UserID logged_in_user_id;
+	std::string logged_in_user_name;
+	uint32 logged_in_user_flags;
+
+	bool shown_object_modification_error_msg;
+
+	Reference<GLObject> ob_placement_beam;
+	Reference<GLObject> ob_placement_marker;
+
+	Reference<GLObject> voxel_edit_marker;
+	bool voxel_edit_marker_in_engine;
+	Reference<GLObject> voxel_edit_face_marker;
+	bool voxel_edit_face_marker_in_engine;
+
+	LoggingOutput* logging_output;
+	UIInterface* ui_interface;
+
+	Timer total_timer;
+	Timer discovery_udp_packet_timer;
+
+
+	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down, B_down;
+};

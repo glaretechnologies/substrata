@@ -230,7 +230,7 @@ float MainOptionsDialog::getInputScaleFactor(const QSettings* settings)
 }
 
 
-bool MainOptionsDialog::showMinimap(const QSettings* settings)
+bool MainOptionsDialog::getShowMinimap(const QSettings* settings)
 {
 	return settings->value(showMinimapKey(), /*default val=*/true).toBool();
 }
