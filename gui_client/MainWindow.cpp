@@ -257,7 +257,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(focusOutSignal()), this, SLOT(glWidgetFocusOut()));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->glWidget, SIGNAL(cameraUpdated()), this, SLOT(cameraUpdated()));
-	connect(ui->glWidget, SIGNAL(playerMoveKeyPressed()), this, SLOT(playerMoveKeyPressed()));
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(on_actionCopy_Object_triggered()));
 	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(on_actionPaste_Object_triggered()));
@@ -2805,6 +2804,12 @@ void MainWindow::sendChatMessageSlot()
 }
 
 
+void MainWindow::sendLightmapNeededFlagsSlot()
+{
+	gui_client.sendLightmapNeededFlagsSlot();
+}
+
+
 // Object transform has been edited, e.g. by the object editor.
 void MainWindow::objectTransformEditedSlot()
 {
@@ -3399,14 +3404,6 @@ void MainWindow::glWidgetViewportResized(int w, int h)
 void MainWindow::cameraUpdated()
 {
 	// ui->indigoView->cameraUpdated(this->cam_controller);
-}
-
-
-void MainWindow::playerMoveKeyPressed()
-{
-	gui_client.stopGesture();
-
-	gui_client.gesture_ui.stopAnyGesturePlaying();
 }
 
 

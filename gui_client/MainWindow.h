@@ -97,6 +97,7 @@ private slots:;
 	void diagnosticsWidgetChanged();
 	void diagnosticsReloadTerrain();
 	void sendChatMessageSlot();
+	void sendLightmapNeededFlagsSlot();
 
 	void glWidgetMouseClicked(QMouseEvent* e);
 	void glWidgetMousePressed(QMouseEvent* e);
@@ -108,7 +109,6 @@ private slots:;
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 	void glWidgetViewportResized(int w, int h);
 	void cameraUpdated();
-	void playerMoveKeyPressed();
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
 	void objectTransformEditedSlot();
