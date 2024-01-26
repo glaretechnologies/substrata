@@ -368,10 +368,6 @@ void MainWindow::initialise()
 #endif //_WIN32
 
 	
-	//for(int i=0; i<4; ++i)
-	//	this->footstep_sources.push_back(audio_engine.addSourceFromSoundFile("D:\\audio\\sound_effects\\footstep_mono" + toString(i) + ".wav"));
-
-
 	if(run_as_screenshot_slave)
 	{
 		conPrint("Waiting for screenshot command connection...");
@@ -402,7 +398,7 @@ void MainWindow::afterGLInitInitialise()
 	gui_client.cam_controller.setThirdPersonEnabled(settings->value("mainwindow/thirdPersonCamera", /*default val=*/false).toBool());
 	ui->actionThird_Person_Camera->setChecked(settings->value("mainwindow/thirdPersonCamera", /*default val=*/false).toBool());
 
-	//OpenGLEngineTests::doTextureLoadingTests(*ui->glWidget->opengl_engine);
+	// OpenGLEngineTests::doTextureLoadingTests(*ui->glWidget->opengl_engine);
 
 #ifdef _WIN32
 	// Prepare for D3D interoperability with opengl
@@ -417,8 +413,6 @@ void MainWindow::afterGLInitInitialise()
 
 	const bool show_minimap = MainOptionsDialog::getShowMinimap(this->settings);
 	gui_client.afterGLInitInitialise((double)device_pixel_ratio, show_minimap, ui->glWidget->opengl_engine);
-
-
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
@@ -854,6 +848,7 @@ void MainWindow::showHTMLMessageBox(const std::string& title, const std::string&
 	msgBox.setText(QtUtils::toQString(msg));
 	msgBox.exec();
 }
+
 
 void MainWindow::showPlainTextMessageBox(const std::string& title, const std::string& msg)
 {
