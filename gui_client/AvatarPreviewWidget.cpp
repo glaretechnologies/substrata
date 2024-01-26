@@ -264,9 +264,6 @@ void AvatarPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 		cam_target_pos += right * -(float)delta.x() * move_scale + up * (float)delta.y() * move_scale;
 	}
 
-	//if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
-	//	emit cameraUpdated();
-
 	mouse_move_origin = new_pos;
 }
 

@@ -54,7 +54,6 @@ protected:
 	virtual void showEvent(QShowEvent* e) override;
 
 signals:;
-	void cameraUpdated();
 	void widgetShowSignal();
 
 private:

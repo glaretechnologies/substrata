@@ -108,7 +108,6 @@ private slots:;
 	void glWidgetFocusOut();
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 	void glWidgetViewportResized(int w, int h);
-	void cameraUpdated();
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
 	void objectTransformEditedSlot();
