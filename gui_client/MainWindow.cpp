@@ -3412,9 +3412,10 @@ bool MainWindow::connectedToUsersPersonalWorldOrGodUser()
 }
 
 
-QPoint MainWindow::getGlWidgetPosInGlobalSpace() const
+Vec2i MainWindow::getGlWidgetPosInGlobalSpace()
 {
-	return this->ui->glWidget->mapToGlobal(this->ui->glWidget->pos());
+	const QPoint p = this->ui->glWidget->mapToGlobal(this->ui->glWidget->pos());
+	return Vec2i(p.x(), p.y());
 }
 
 
@@ -3425,9 +3426,9 @@ void MainWindow::handleURL(const QUrl &url)
 }
 
 
-void MainWindow::webViewDataLinkHovered(const QString& url)
+void MainWindow::webViewDataLinkHovered(const std::string& url)
 {
-	if(url.isEmpty())
+	if(url.empty())
 	{
 		ui->glWidget->setCursorIfNotHidden(Qt::ArrowCursor);
 	}

@@ -119,18 +119,14 @@ public:
 
 	SettingsStore* getSettingsStore() { return settings; }
 
-	void setGLWidgetContextAsCurrent() {} // TODO TEMP REFACTOR
+	void setGLWidgetContextAsCurrent();
+	Vec2i getGlWidgetPosInGlobalSpace();
 
-	Vec2i getGlWidgetPosInGlobalSpace() { return Vec2i(0, 0); } // TODO TEMP REFACTOR
-
-	void webViewDataLinkHovered(const std::string& URL) {}  // TODO TEMP REFACTOR
+	void webViewDataLinkHovered(const std::string& text);
 
 	void logMessage(const std::string& msg);
-
 	void logAndConPrintMessage(const std::string& msg);
-
 	void print(const std::string& s);
-
 	void printStr(const std::string& s);
 
 	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
@@ -139,10 +135,9 @@ public:
 	void setSelfieModeEnabled(bool enabled);
 	void setMicForVoiceChatEnabled(bool enabled);
 
-
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
-public:
+
 	void startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	
 	std::string getDiagnosticsString(bool do_graphics_diagnostics, bool do_physics_diagnostics, double last_timerEvent_CPU_work_elapsed, double last_updateGL_time);
@@ -158,33 +153,19 @@ public:
 	};
 	
 	void thirdPersonCameraToggled(bool enabled);
-
 	void applyUndoOrRedoObject(const WorldObjectRef& restored_ob);
-
 	void summonBike();
-
 	void summonHovercar();
-
 	void objectTransformEdited();
-
 	void objectEdited();
-
 	void posAndRot3DControlsToggled(bool enabled);
-
 	void mousePressed(MouseEvent& e);
-
 	void mouseClicked(MouseEvent& e);
-
 	void doObjectSelectionTraceForMouseEvent(MouseEvent& e);
-
 	void updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& gl_coords, MouseEvent* mouse_event);
-
 	void mouseMoved(MouseEvent& mouse_event);
-
 	void onMouseWheelEvent(MouseWheelEvent& e);
-
 	void viewportResized(int w, int h);
-
 	void updateGroundPlane();
 	void sendLightmapNeededFlagsSlot();
 public:
@@ -236,7 +217,6 @@ public:
 
 	void pickUpSelectedObject();
 	void dropSelectedObject();
-	void setUIForSelectedObject(); // Enable/disable delete object action etc..
 
 	void checkForLODChanges();
 	void checkForAudioRangeChanges();
