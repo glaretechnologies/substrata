@@ -3874,8 +3874,6 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 		if(right_down)
 		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
 
-		//if(cam_changed)
-		//	emit cameraUpdated();
 
 		input_out.SHIFT_down =	SHIFT_down;
 		input_out.CTRL_down =	CTRL_down;
@@ -3918,10 +3916,6 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(gamepad->axisRightY(), 3.f), 0)); cam_changed = true; }
 	}
 #endif
-
-
-	//if(cam_changed)
-	//	emit cameraUpdated();
 
 	if(move_key_pressed)
 	{
@@ -4718,8 +4712,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		if((xyplane_speed > 0.1f) && vehicle_controller_inside.isNull()) // Don't play footstep sounds if sitting in vehicle.
 		{
-			// ui->indigoView->cameraUpdated(this->cam_controller);
-
 			const float walk_run_cycle_period = player_physics.isRunPressed() ? AvatarGraphics::runCyclePeriod() : AvatarGraphics::walkCyclePeriod();
 			if(player_physics.onGroundRecently() && (last_footstep_timer.elapsed() > (walk_run_cycle_period * 0.5f)))
 			{

@@ -281,9 +281,6 @@ void AddObjectPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 		//opengl_engine->updateObjectTransformData(*target_marker_ob);
 	}
 
-	//if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
-	//	emit cameraUpdated();
-
 	mouse_move_origin = new_pos;
 }
 

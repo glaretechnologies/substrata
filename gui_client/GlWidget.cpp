@@ -442,9 +442,6 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 			if(mb & Qt::LeftButton)  cam_controller->update(Vec3d(0, 0, 0), Vec2d(delta.y(), delta.x())/* * shift_scale*/);
 			//if(mb & Qt::MidButton)   cam_controller->update(Vec3d(delta.x(), 0, delta.y()) * shift_scale, Vec2d(0, 0));
 			//if(mb & Qt::RightButton) cam_controller->update(Vec3d(0, delta.y(), 0) * shift_scale, Vec2d(0, 0));
-
-			if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MiddleButton)
-				emit cameraUpdated();
 		}
 
 		// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.

@@ -256,7 +256,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(keyReleased(QKeyEvent*)), this, SLOT(glWidgetkeyReleased(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(focusOutSignal()), this, SLOT(glWidgetFocusOut()));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
-	connect(ui->glWidget, SIGNAL(cameraUpdated()), this, SLOT(cameraUpdated()));
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(on_actionCopy_Object_triggered()));
 	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(on_actionPaste_Object_triggered()));
@@ -3398,12 +3397,6 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 void MainWindow::glWidgetViewportResized(int w, int h)
 {
 	gui_client.viewportResized(w, h);
-}
-
-
-void MainWindow::cameraUpdated()
-{
-	// ui->indigoView->cameraUpdated(this->cam_controller);
 }
 
 
