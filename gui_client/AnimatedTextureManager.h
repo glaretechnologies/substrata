@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/Reference.h>
 #include <string>
 #include <vector>
-class MainWindow;
+class GUIClient;
 class WorldObject;
 class EmbeddedBrowser;
 class OpenGLEngine;
@@ -51,13 +51,13 @@ struct AnimatedTexObData : public RefCounted
 {
 	std::vector<MaterialAnimatedTexData> mat_animtexdata; // size() == ob.material.size()
 
-	AnimatedTexObDataProcessStats process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
+	AnimatedTexObDataProcessStats process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
 private:
-	void processGIFAnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+	void processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 		OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
 
-	void processMP4AnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
 
 	std::vector<float> temp_buf; // Used for audio

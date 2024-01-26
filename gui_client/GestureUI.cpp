@@ -6,13 +6,13 @@ Copyright Glare Technologies Limited 2021 -
 #include "GestureUI.h"
 
 
-#include "MainWindow.h"
+#include "GUIClient.h"
+#include "SettingsStore.h"
 #include <graphics/SRGBUtils.h>
-#include <QtCore/QSettings>
 
 
 GestureUI::GestureUI()
-:	main_window(NULL),
+:	gui_client(NULL),
 	gestures_visible(false),
 	untoggle_button_time(-1)
 {}
@@ -67,13 +67,13 @@ bool GestureUI::loopAnim(const std::string& gesture)
 }
 
 
-void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_)
+void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	opengl_engine = opengl_engine_;
-	main_window = main_window_;
+	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
-	gestures_visible = main_window->settings->value("GestureUI/gestures_visible", /*default val=*/false).toBool();
+	gestures_visible = gui_client->getSettingsStore()->getBoolValue("GestureUI/gestures_visible", /*default val=*/false);
 
 	const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
 
@@ -82,7 +82,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 		const std::string gesture_name = gestures[i];
 
 		GLUIButtonRef button = new GLUIButton();
-		button->create(*gl_ui, opengl_engine,  main_window->base_dir_path + "/resources/buttons/" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), /*tooltip=*/gesture_name);
+		button->create(*gl_ui, opengl_engine,  gui_client->base_dir_path + "/resources/buttons/" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), /*tooltip=*/gesture_name);
 		button->toggleable = true;
 		button->client_data = gesture_name;
 		button->handler = this;
@@ -93,29 +93,29 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 
 	// Create left and right tab buttons
 	left_tab_button = new GLUIButton();
-	left_tab_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/left_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
+	left_tab_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/left_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
 	left_tab_button->handler = this;
 	gl_ui->addWidget(left_tab_button);
 	
 	right_tab_button = new GLUIButton();
-	right_tab_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/right_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
+	right_tab_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/right_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
 	right_tab_button->handler = this;
 	gl_ui->addWidget(right_tab_button);
 	
 	selfie_button = new GLUIButton();
-	selfie_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/Selfie.png", Vec2f(-0.9f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Selfie view");
+	selfie_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/Selfie.png", Vec2f(-0.9f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Selfie view");
 	selfie_button->toggleable = true;
 	selfie_button->handler = this;
 	gl_ui->addWidget(selfie_button);
 	
 	microphone_button = new GLUIButton();
-	microphone_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/microphone.png", Vec2f(-0.8f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Enable microphone for voice chat");
+	microphone_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/microphone.png", Vec2f(-0.8f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Enable microphone for voice chat");
 	microphone_button->toggleable = true;
 	microphone_button->handler = this;
 	gl_ui->addWidget(microphone_button);
 
 	mic_level_image = new GLUIImage();
-	mic_level_image->create(*gl_ui, opengl_engine, ""/*main_window->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(-0.7f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Microphone input indicator");
+	mic_level_image->create(*gl_ui, opengl_engine, ""/*gui_client->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(-0.7f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Microphone input indicator");
 	gl_ui->addWidget(mic_level_image);
 
 	updateWidgetPositions();
@@ -281,7 +281,7 @@ void GestureUI::setVisible(bool visible)
 
 void GestureUI::eventOccurred(GLUICallbackEvent& event)
 {
-	if(main_window)
+	if(gui_client)
 	{
 		GLUIButton* button = static_cast<GLUIButton*>(event.widget);
 
@@ -298,7 +298,7 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 				{
 					if(button->toggled)
 					{
-						main_window->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/loop);
+						gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/loop);
 
 						if(!loop)
 							untoggle_button_time = timer.elapsed() + ::stringToDouble(gestures[i+3]); // Make button untoggle when gesture has finished.
@@ -306,10 +306,10 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 							untoggle_button_time = -1;
 					}
 					else
-						main_window->stopGestureClicked(event.widget->client_data);
+						gui_client->stopGestureClicked(event.widget->client_data);
 				}
 				else
-					main_window->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/false);
+					gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/false);
 
 				// Untoggle any other toggled buttons.
 				for(size_t z=0; z<gesture_buttons.size(); ++z)
@@ -323,24 +323,24 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 			event.accepted = true;
 			gestures_visible = true;
 			updateWidgetPositions();
-			main_window->settings->setValue("GestureUI/gestures_visible", gestures_visible);
+			gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
 		}
 		else if(button == right_tab_button.ptr())
 		{
 			event.accepted = true;
 			gestures_visible = false;
 			updateWidgetPositions();
-			main_window->settings->setValue("GestureUI/gestures_visible", gestures_visible);
+			gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
 		}
 		else if(button == selfie_button.ptr())
 		{
 			event.accepted = true;
-			main_window->setSelfieModeEnabled(selfie_button->toggled);
+			gui_client->setSelfieModeEnabled(selfie_button->toggled);
 		}
 		else if(button == microphone_button.ptr())
 		{
 			event.accepted = true;
-			main_window->setMicForVoiceChatEnabled(microphone_button->toggled);
+			gui_client->setMicForVoiceChatEnabled(microphone_button->toggled);
 
 			if(microphone_button->toggled)
 				microphone_button->tooltip = "Disable microphone for voice chat";
@@ -394,7 +394,7 @@ void GestureUI::stopAnyGesturePlaying()
 void GestureUI::turnOffSelfieMode()
 {
 	selfie_button->setToggled(false);
-	main_window->setSelfieModeEnabled(selfie_button->toggled);
+	gui_client->setSelfieModeEnabled(selfie_button->toggled);
 }
 
 

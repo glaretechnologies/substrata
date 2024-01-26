@@ -17,7 +17,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <map>
 
 
-class MainWindow;
+class GUIClient;
 class Avatar;
 class OpenGLScene;
 class MapTilesResultReceivedMessage;
@@ -46,7 +46,7 @@ public:
 	MiniMap();
 	~MiniMap();
 
-	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
+	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
 	bool isCreated();
@@ -73,7 +73,7 @@ private:
 	void renderTilesToTexture();
 	Vec2f mapUICoordsForWorldSpacePos(const Vec3d& pos);
 
-	MainWindow* main_window;
+	GUIClient* gui_client;
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
 

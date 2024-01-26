@@ -6,7 +6,8 @@ Copyright Glare Technologies Limited 2023 -
 #include "EmbeddedBrowser.h"
 
 
-#include "MainWindow.h"
+#include "GUIClient.h"
+#include "UIEvents.h"
 #include "WorldState.h"
 #include "CEFInternal.h"
 #include "CEF.h"
@@ -24,8 +25,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/BufferInStream.h>
 #include <utils/Base64.h>
 #include "superluminal/PerformanceAPI.h"
-#include <QtGui/QPainter>
-#include <QtGui/QMouseEvent>
 
 
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
@@ -47,8 +46,8 @@ Copyright Glare Technologies Limited 2023 -
 class EmbeddedBrowserRenderHandler : public CefRenderHandler
 {
 public:
-	EmbeddedBrowserRenderHandler(Reference<OpenGLTexture> opengl_tex_, MainWindow* main_window_, WorldObject* ob_, OpenGLEngine* opengl_engine_)
-	:	opengl_tex(opengl_tex_), opengl_engine(opengl_engine_), main_window(main_window_), ob(ob_), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
+	EmbeddedBrowserRenderHandler(Reference<OpenGLTexture> opengl_tex_, GUIClient* gui_client_, WorldObject* ob_, OpenGLEngine* opengl_engine_)
+	:	opengl_tex(opengl_tex_), opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
 
 	~EmbeddedBrowserRenderHandler() {}
 
@@ -94,7 +93,7 @@ public:
 
 						// Copy dirty rect data into a packed buffer
 
-						main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while uploading to texture buffer.
+						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while uploading to texture buffer.
 
 						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
 						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4), /*bind_needed=*/true);
@@ -188,10 +187,10 @@ public:
 		Vec2f window_coords;
 		opengl_engine->getWindowCoordsForWSPos(pos_ws, window_coords);
 
-		const QPoint gl_widget_pos = main_window->getGlWidgetPosInGlobalSpace();
+		const Vec2i gl_widget_pos = gui_client->getGlWidgetPosInGlobalSpace();
 
-		screenX = (int)(window_coords.x + gl_widget_pos.x());
-		screenY = (int)(window_coords.y + gl_widget_pos.y());
+		screenX = (int)(window_coords.x + gl_widget_pos.x);
+		screenY = (int)(window_coords.y + gl_widget_pos.y);
 
 		return true;
 	}
@@ -224,7 +223,7 @@ public:
 
 	Reference<OpenGLTexture> opengl_tex;
 	OpenGLEngine* opengl_engine;
-	MainWindow* main_window;
+	GUIClient* gui_client;
 	WorldObject* ob;
 	bool discarded_dirty_updates; // Set to true if we didn't update the buffer when a rectangle was dirty, because the webview object was not visible by the camera.
 	//Rect2i discarded_dirty_rect;
@@ -430,16 +429,16 @@ public:
 class EmbeddedBrowserCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler, public CefCommandHandler, public CefContextMenuHandler, public CefResourceRequestHandler
 {
 public:
-	EmbeddedBrowserCefClient(MainWindow* main_window_, WorldObject* ob_) : num_channels(0), sample_rate(0), m_main_window(main_window_), m_ob(ob_) {}
+	EmbeddedBrowserCefClient(GUIClient* gui_client_, WorldObject* ob_) : num_channels(0), sample_rate(0), m_gui_client(gui_client_), m_ob(ob_) {}
 
-	// Remove references to main_window and ob as they may be destroyed while this EmbeddedBrowserCefClient object is still alive.
+	// Remove references to gui_client and ob as they may be destroyed while this EmbeddedBrowserCefClient object is still alive.
 	void onWebViewDataDestroyed()
 	{
 		CEF_REQUIRE_UI_THREAD();
 
 		{
 			Lock lock(mutex);
-			m_main_window = NULL;
+			m_gui_client = NULL;
 			m_ob = NULL;
 		}
 	}
@@ -554,7 +553,7 @@ public:
 		Reference<ResourceManager> resource_manager;
 		{
 			Lock lock(mutex);
-			resource_manager = this->m_main_window->resource_manager;
+			resource_manager = this->m_gui_client->resource_manager;
 		}
 
 		return new EmbeddedBrowserResourceHandler(resource_manager, root_page);
@@ -604,18 +603,18 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		MainWindow* main_window;
+		GUIClient* gui_client;
 		{
 			Lock lock(mutex);
-			main_window = this->m_main_window;
+			gui_client = this->m_gui_client;
 		}
 
 		if(value.c_str())
 		{
 			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
 
-			if(main_window)
-				main_window->webViewDataLinkHovered(QtUtils::toQString(value.ToString()));
+			if(gui_client)
+				gui_client->webViewDataLinkHovered(value.ToString());
 			//if(web_view_data)
 			//	web_view_data->linkHoveredSignal(QtUtils::toQString(value.ToString()));
 		}
@@ -625,8 +624,8 @@ public:
 
 			//if(web_view_data)
 			//	web_view_data->linkHoveredSignal("");
-			if(main_window)
-				main_window->webViewDataLinkHovered("");
+			if(gui_client)
+				gui_client->webViewDataLinkHovered("");
 		}
 	}
 
@@ -670,18 +669,18 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		MainWindow* main_window;
+		GUIClient* gui_client;
 		WorldObject* ob;
 		{
 			Lock lock(mutex);
-			main_window = this->m_main_window;
+			gui_client = this->m_gui_client;
 			ob = this->m_ob;
 		}
 
-		if(!main_window)
+		if(!gui_client)
 			return false;
 
-		params.sample_rate = main_window->audio_engine.getSampleRate();
+		params.sample_rate = gui_client->audio_engine.getSampleRate();
 
 		// Create audio source.  Do this now while we're in the main (UI) thread.
 		if(ob && ob->audio_source.isNull())
@@ -693,18 +692,18 @@ public:
 			audio_source->type = glare::AudioSource::SourceType_Streaming;
 			audio_source->pos = ob->getCentroidWS();
 			audio_source->debugname = "webview: " + ob->target_url;
-			audio_source->sampling_rate = main_window->audio_engine.getSampleRate();
+			audio_source->sampling_rate = gui_client->audio_engine.getSampleRate();
 			audio_source->volume = myClamp(ob->audio_volume, 0.f, 10.f);
 
 			{
-				Lock lock(main_window->world_state->mutex);
+				Lock lock(gui_client->world_state->mutex);
 
-				const Parcel* parcel = main_window->world_state->getParcelPointIsIn(ob->pos);
+				const Parcel* parcel = gui_client->world_state->getParcelPointIsIn(ob->pos);
 				audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
 			}
 
 			ob->audio_source = audio_source;
-			main_window->audio_engine.addSource(audio_source);
+			gui_client->audio_engine.addSource(audio_source);
 		}
 
 		return true;
@@ -769,13 +768,13 @@ public:
 					temp_buf[z] = 0.f;
 			}
 
-			// We are accessing main_window, that might have been set to null in another thread via onWebViewDataDestroyed(), so lock mutex.
-			// We need to hold this mutex the entire time we using m_main_window, to prevent main_window closing in another thread.
+			// We are accessing gui_client, that might have been set to null in another thread via onWebViewDataDestroyed(), so lock mutex.
+			// We need to hold this mutex the entire time we using m_gui_client, to prevent gui_client closing in another thread.
 			{
 				Lock lock(mutex);
-				if(m_main_window)
+				if(m_gui_client)
 				{
-					Lock audio_engine_lock(m_main_window->audio_engine.mutex);
+					Lock audio_engine_lock(m_gui_client->audio_engine.mutex);
 					this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
 				}
 			}
@@ -789,7 +788,7 @@ public:
 	{
 		/*if(ob && ob->audio_source.nonNull())
 		{
-			main_window->audio_engine.removeSource(ob->audio_source);
+			gui_client->audio_engine.removeSource(ob->audio_source);
 			ob->audio_source = NULL;
 		}*/
 	}
@@ -808,9 +807,9 @@ public:
 	CefRefPtr<EmbeddedBrowserRenderHandler> mRenderHandler;
 	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
 
-	Mutex mutex; // Protects main_window, ob
-	MainWindow* m_main_window		GUARDED_BY(mutex);
-	WorldObject* m_ob				GUARDED_BY(mutex);
+	Mutex mutex; // Protects gui_client, ob
+	GUIClient* m_gui_client		GUARDED_BY(mutex);
+	WorldObject* m_ob			GUARDED_BY(mutex);
 
 	Reference<glare::AudioSource> audio_source; // Store a direct reference to the audio_source, to make sure it's alive while we are using it.
 	int num_channels;
@@ -827,12 +826,12 @@ public:
 class EmbeddedBrowserCEFBrowser : public RefCounted
 {
 public:
-	EmbeddedBrowserCEFBrowser(EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, MainWindow* main_window_, WorldObject* ob_, const std::string& root_page)
+	EmbeddedBrowserCEFBrowser(EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, GUIClient* gui_client_, WorldObject* ob_, const std::string& root_page)
 	:	mRenderHandler(render_handler),
-		main_window(main_window_),
+		gui_client(gui_client_),
 		ob(ob_)
 	{
-		cef_client = new EmbeddedBrowserCefClient(main_window, ob);
+		cef_client = new EmbeddedBrowserCefClient(gui_client, ob);
 		cef_client->root_page = root_page;
 		cef_client->mRenderHandler = mRenderHandler;
 		cef_client->mLifeSpanHandler = lifespan_handler;
@@ -958,7 +957,7 @@ public:
 		}
 	}
 
-	MainWindow* main_window;
+	GUIClient* gui_client;
 	WorldObject* ob;
 
 	CefRefPtr<EmbeddedBrowserRenderHandler> mRenderHandler;
@@ -967,12 +966,12 @@ public:
 };
 
 
-static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine,
+static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex, GUIClient* gui_client, WorldObject* ob, OpenGLEngine* opengl_engine,
 	const std::string& root_page)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
-	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(new EmbeddedBrowserRenderHandler(opengl_tex, main_window, ob, opengl_engine), CEF::getLifespanHandler(), main_window, ob,
+	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(new EmbeddedBrowserRenderHandler(opengl_tex, gui_client, ob, opengl_engine), CEF::getLifespanHandler(), gui_client, ob,
 		root_page);
 
 	CefWindowInfo window_info;
@@ -1023,11 +1022,11 @@ EmbeddedBrowser::~EmbeddedBrowser()
 }
 
 
-void EmbeddedBrowser::create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob, OpenGLEngine* opengl_engine, const std::string& root_page)
+void EmbeddedBrowser::create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, GUIClient* gui_client, WorldObject* ob, OpenGLEngine* opengl_engine, const std::string& root_page)
 {
 #if CEF_SUPPORT
 	this->embedded_cef_browser = NULL;
-	this->embedded_cef_browser = createBrowser(URL, opengl_tex, main_window, ob, opengl_engine, root_page);
+	this->embedded_cef_browser = createBrowser(URL, opengl_tex, gui_client, ob, opengl_engine, root_page);
 #endif
 }
 
@@ -1128,35 +1127,35 @@ void EmbeddedBrowser::browserBecameVisible()
 #if CEF_SUPPORT
 
 
-static CefBrowserHost::MouseButtonType convertToCEFMouseButton(Qt::MouseButton button)
+static CefBrowserHost::MouseButtonType convertToCEFMouseButton(MouseButton button)
 {
-	if(button == Qt::LeftButton)
+	if(button == MouseButton::Left)
 		return MBT_LEFT;
-	else if(button == Qt::RightButton)
+	else if(button == MouseButton::Right)
 		return MBT_RIGHT;
-	else if(button == Qt::MiddleButton)
+	else if(button == MouseButton::Middle)
 		return MBT_MIDDLE;
 	else
 		return MBT_LEFT;
 }
 
 
-static uint32 convertToCEFModifiers(Qt::KeyboardModifiers modifiers)
+static uint32 convertToCEFModifiers(uint32 modifiers)
 {
 	uint32 m = 0;
-	if(modifiers.testFlag(Qt::ShiftModifier))	m |= EVENTFLAG_SHIFT_DOWN;
-	if(modifiers.testFlag(Qt::ControlModifier)) m |= EVENTFLAG_CONTROL_DOWN;
-	if(modifiers.testFlag(Qt::AltModifier))		m |= EVENTFLAG_ALT_DOWN;
+	if(BitUtils::isBitSet(modifiers, (uint32)Modifiers::Shift))	m |= EVENTFLAG_SHIFT_DOWN;
+	if(BitUtils::isBitSet(modifiers, (uint32)Modifiers::Ctrl))	m |= EVENTFLAG_CONTROL_DOWN;
+	if(BitUtils::isBitSet(modifiers, (uint32)Modifiers::Alt))	m |= EVENTFLAG_ALT_DOWN;
 	return m;
 }
 
 
-static uint32 convertToCEFModifiers(Qt::KeyboardModifiers modifiers, Qt::MouseButtons mouse_buttons)
+static uint32 convertToCEFModifiers(uint32 modifiers, MouseButton mouse_button)
 {
 	uint32 m = convertToCEFModifiers(modifiers);
 
-	if(mouse_buttons.testFlag(Qt::LeftButton))	m |= EVENTFLAG_LEFT_MOUSE_BUTTON;
-	if(mouse_buttons.testFlag(Qt::RightButton))	m |= EVENTFLAG_RIGHT_MOUSE_BUTTON;
+	if(BitUtils::isBitSet(mouse_button, MouseButton::Left))  m |= EVENTFLAG_LEFT_MOUSE_BUTTON;
+	if(BitUtils::isBitSet(mouse_button, MouseButton::Right)) m |= EVENTFLAG_RIGHT_MOUSE_BUTTON;
 	return m;
 }
 
@@ -1164,26 +1163,26 @@ static uint32 convertToCEFModifiers(Qt::KeyboardModifiers modifiers, Qt::MouseBu
 #endif // CEF_SUPPORT
 
 
-void EmbeddedBrowser::mouseReleased(QMouseEvent* e, const Vec2f& uv_coords)
+void EmbeddedBrowser::mouseReleased(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mouseReleased()");
 #if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
 	{
-		if(e->button() == Qt::BackButton) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.  Nothing to do for mouse-up
+		if(e->button == MouseButton::Back) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.  Nothing to do for mouse-up
 		{}
-		else if(e->button() == Qt::ForwardButton) // top thumb button.  Nothing to do for mouse-up
+		else if(e->button == MouseButton::Forward) // top thumb button.  Nothing to do for mouse-up
 		{}
 		else
 		{
-			embedded_cef_browser->sendMouseClickEvent(convertToCEFMouseButton(e->button()), uv_coords.x, uv_coords.y, /*mouse_up=*/true, convertToCEFModifiers(e->modifiers(), e->buttons()));
+			embedded_cef_browser->sendMouseClickEvent(convertToCEFMouseButton(e->button), uv_coords.x, uv_coords.y, /*mouse_up=*/true, convertToCEFModifiers(e->modifiers, e->button/*e->buttons()*/)); // TEMP REFACTOR using button not buttons
 		}
 	}
 #endif
 }
 
 
-void EmbeddedBrowser::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
+void EmbeddedBrowser::mousePressed(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//if(showing_click_to_load_text && uvsAreOnLoadButton(uv_coords.x, uv_coords.y))
 		//user_clicked_to_load = true;
@@ -1192,75 +1191,75 @@ void EmbeddedBrowser::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
 #if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
 	{
-		if(e->button() == Qt::BackButton) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.
+		if(e->button == MouseButton::Back) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.
 		{
 			embedded_cef_browser->sendBackMousePress();
 		}
-		else if(e->button() == Qt::ForwardButton) // top thumb button
+		else if(e->button == MouseButton::Forward) // top thumb button
 		{
 			embedded_cef_browser->sendForwardsMousePress();
 		}
 		else
 		{
-			embedded_cef_browser->sendMouseClickEvent(convertToCEFMouseButton(e->button()), uv_coords.x, uv_coords.y, /*mouse_up=*/false, convertToCEFModifiers(e->modifiers(), e->buttons()));
+			embedded_cef_browser->sendMouseClickEvent(convertToCEFMouseButton(e->button), uv_coords.x, uv_coords.y, /*mouse_up=*/false, convertToCEFModifiers(e->modifiers, e->button)); // TEMP REFACTOR using button not buttons
 		}
 	}
 #endif
 }
 
 
-void EmbeddedBrowser::mouseDoubleClicked(QMouseEvent* e, const Vec2f& uv_coords)
+void EmbeddedBrowser::mouseDoubleClicked(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mouseDoubleClicked()");
 }
 
 
-void EmbeddedBrowser::mouseMoved(QMouseEvent* e, const Vec2f& uv_coords)
+void EmbeddedBrowser::mouseMoved(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mouseMoved(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
-		embedded_cef_browser->sendMouseMoveEvent(uv_coords.x, uv_coords.y, convertToCEFModifiers(e->modifiers(), e->buttons()));
+		embedded_cef_browser->sendMouseMoveEvent(uv_coords.x, uv_coords.y, convertToCEFModifiers(e->modifiers, e->button)); // TEMP REFACTOR using button not buttons
 #endif
 }
 
 
-void EmbeddedBrowser::wheelEvent(QWheelEvent* e, const Vec2f& uv_coords)
+void EmbeddedBrowser::wheelEvent(MouseWheelEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("wheelEvent(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
-		embedded_cef_browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, e->angleDelta().x(), e->angleDelta().y(), convertToCEFModifiers(e->modifiers(), e->buttons()));
+		embedded_cef_browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, e->angle_delta.x, e->angle_delta.y, convertToCEFModifiers(e->modifiers/*, e->button*/)); // TEMP REFACTOR using button not buttons
 #endif
 }
 
 
-void EmbeddedBrowser::keyPressed(QKeyEvent* e)
+void EmbeddedBrowser::keyPressed(KeyEvent* e)
 {
 #if CEF_SUPPORT
-	const uint32 modifiers = convertToCEFModifiers(e->modifiers());
+	const uint32 modifiers = convertToCEFModifiers(e->modifiers);
 
 	// This song and dance of sending two events seems to be needed to type both punctuation and alphabetic characters.
 
 	if(embedded_cef_browser.nonNull())
-		embedded_cef_browser->sendKeyEvent(KEYEVENT_RAWKEYDOWN, e->key(), e->nativeVirtualKey(), modifiers);
+		embedded_cef_browser->sendKeyEvent(KEYEVENT_RAWKEYDOWN, e->key, e->native_virtual_key, modifiers);
 
-	if(!e->text().isEmpty())
+	if(!e->text.empty())
 	{
 		//conPrint(QtUtils::toStdString(e->text()));
 		if(embedded_cef_browser.nonNull())
-			embedded_cef_browser->sendKeyEvent(KEYEVENT_CHAR, e->text().at(0).toLatin1(), e->nativeVirtualKey(), modifiers);
+			embedded_cef_browser->sendKeyEvent(KEYEVENT_CHAR, e->text[0]/*e->text().at(0).toLatin1()*/, e->native_virtual_key, modifiers);
 	}
 #endif
 }
 
 
-void EmbeddedBrowser::keyReleased(QKeyEvent* e)
+void EmbeddedBrowser::keyReleased(KeyEvent* e)
 {
 #if CEF_SUPPORT
-	const uint32 modifiers = convertToCEFModifiers(e->modifiers());
+	const uint32 modifiers = convertToCEFModifiers(e->modifiers);
 
 	if(embedded_cef_browser.nonNull())
-		embedded_cef_browser->sendKeyEvent(KEYEVENT_KEYUP, e->key(), e->nativeVirtualKey(), modifiers);
+		embedded_cef_browser->sendKeyEvent(KEYEVENT_KEYUP, e->key, e->native_virtual_key, modifiers);
 #endif
 }

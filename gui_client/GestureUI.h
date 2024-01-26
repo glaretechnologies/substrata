@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <opengl/ui/GLUICallbackHandler.h>
 
 
-class MainWindow;
+class GUIClient;
 
 
 /*=====================================================================
@@ -26,7 +26,7 @@ public:
 	GestureUI();
 	~GestureUI();
 
-	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
+	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
 	void think();
@@ -57,7 +57,7 @@ public:
 private:
 	void updateWidgetPositions();
 //public:
-	MainWindow* main_window;
+	GUIClient* gui_client;
 
 	std::vector<GLUIButtonRef> gesture_buttons;
 

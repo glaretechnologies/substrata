@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "IncludeOpenGL.h"
-#include "MainWindow.h"
+#include "GUIClient.h"
 #include "ClientThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/MessageUtils.h"
@@ -18,7 +18,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 MiniMap::MiniMap()
-:	main_window(NULL),
+:	gui_client(NULL),
 	last_requested_campos(Vec3d(-1000000)),
 	last_requested_tile_z(-1000),
 	map_width_ws(500.f),
@@ -69,10 +69,10 @@ static float getTileWidthWSForTileZ(int tile_z)
 }
 
 
-void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_)
+void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	opengl_engine = opengl_engine_;
-	main_window = main_window_;
+	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 	
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
@@ -87,7 +87,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_w
 
 	// Create facing arrow image
 	arrow_image = new GLUIImage();
-	arrow_image->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2), Vec2f(0.005f), 
+	arrow_image->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2), Vec2f(0.005f), 
 		/*tooltip=*/"You", ARROW_IMAGE_Z);
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
@@ -157,10 +157,10 @@ void MiniMap::destroy()
 	if(gl_ui.nonNull())
 	{
 		// Remove any existing avatar markers
-		if(main_window->world_state.nonNull())
+		if(gui_client->world_state.nonNull())
 		{
-			Lock lock(main_window->world_state->mutex);
-			for(auto it = main_window->world_state->avatars.begin(); it != main_window->world_state->avatars.end(); ++it)
+			Lock lock(gui_client->world_state->mutex);
+			for(auto it = gui_client->world_state->avatars.begin(); it != gui_client->world_state->avatars.end(); ++it)
 				removeMarkerForAvatar(it->second.ptr());
 		}
 
@@ -219,10 +219,10 @@ void MiniMap::setVisible(bool visible)
 		arrow_image->setVisible(visible);
 
 		// Set visibility of avatar markers
-		if(main_window->world_state.nonNull())
+		if(gui_client->world_state.nonNull())
 		{
-			Lock lock(main_window->world_state->mutex);
-			for(auto it = main_window->world_state->avatars.begin(); it != main_window->world_state->avatars.end(); ++it)
+			Lock lock(gui_client->world_state->mutex);
+			for(auto it = gui_client->world_state->avatars.begin(); it != gui_client->world_state->avatars.end(); ++it)
 			{
 				if(it->second->minimap_marker.nonNull())
 					it->second->minimap_marker->setVisible(visible);
@@ -240,9 +240,9 @@ void MiniMap::think()
 	if(gl_ui.isNull())
 		return;
 
-	const Vec3d campos = main_window->cam_controller.getFirstPersonPosition();
+	const Vec3d campos = gui_client->cam_controller.getFirstPersonPosition();
 
-	if((main_window->connection_state == MainWindow::ServerConnectionState_Connected) && (main_window->server_protocol_version >= 39)) // QueryMapTiles message was introduced in protocol version 39.
+	if((gui_client->connection_state == GUIClient::ServerConnectionState_Connected) && (gui_client->server_protocol_version >= 39)) // QueryMapTiles message was introduced in protocol version 39.
 	{
 		const int tile_z = getTileZForMapWidthWS(map_width_ws);
 		const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
@@ -287,7 +287,7 @@ void MiniMap::think()
 					scratch_packet.writeData(query_indices.data(), query_indices.size() * sizeof(Vec3i));
 
 					MessageUtils::updatePacketLengthField(scratch_packet);
-					main_window->client_thread->enqueueDataToSend(scratch_packet.buf);
+					gui_client->client_thread->enqueueDataToSend(scratch_packet.buf);
 				}
 			}
 
@@ -312,7 +312,7 @@ void MiniMap::think()
 	opengl_engine->setTargetFrameBuffer(last_target_framebuffer);
 
 
-	const float heading = main_window->cam_controller.getAngles().x;
+	const float heading = (float)gui_client->cam_controller.getAngles().x;
 
 	const float arrow_width = gl_ui->getUIWidthForDevIndepPixelWidth(arrow_width_px);
 	arrow_image->setTransform(Vec2f(1 - margin - minimap_width/2 - arrow_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2 - arrow_width/2), 
@@ -341,7 +341,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 	Reference<OpenGLScene> last_scene = opengl_engine->getCurrentScene();
 	opengl_engine->setCurrentScene(this->scene);
 
-	const Vec3d campos = main_window->cam_controller.getFirstPersonPosition();
+	const Vec3d campos = gui_client->cam_controller.getFirstPersonPosition();
 
 	const int tile_z = getTileZForMapWidthWS(map_width_ws);
 	const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
@@ -407,13 +407,13 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 						{
 							// conPrint("Found tile (" + toString(tile_x) + ", " + toString(tile_y) + ", " + toString(z) + "), lower_left_coords: " + lower_left_coords.toString());
 
-							ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(info.image_URL);
+							ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(info.image_URL);
 							if(resource.nonNull())
 							{
 								tile.ob->material.tex_matrix = Matrix2f(scale, 0, 0, -scale);  // See diagrams below for explanation
 								tile.ob->material.tex_translation = Vec2f(lower_left_coords.x, 1 - lower_left_coords.y);
 
-								const std::string local_path = resource->getLocalAbsPath(main_window->resources_dir);
+								const std::string local_path = resource->getLocalAbsPath(gui_client->resources_dir);
 
 								OpenGLTextureRef tile_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(local_path));
 								if(tile_tex.nonNull())
@@ -436,7 +436,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 									tex_params.use_mipmaps = false;
 
 									if(resource->getState() == Resource::State_Present)
-										main_window->startLoadingTextureForLocalPath(local_path, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
+										gui_client->startLoadingTextureForLocalPath(local_path, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
 								}
 							}
 
@@ -550,13 +550,13 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 
 void MiniMap::renderTilesToTexture()
 {
-	const Vec3d campos = main_window->cam_controller.getFirstPersonPosition();
+	const Vec3d campos = gui_client->cam_controller.getFirstPersonPosition();
 
 	Vec3d botleft_pos = campos - Vec3d(map_width_ws/2, map_width_ws/2, 0);
 
 	opengl_engine->setIdentityCameraTransform(); // Since we are just rendering overlays, camera transformation doesn't really matter
 
-	this->scene->overlay_world_to_camera_space_matrix = Matrix4f::scaleMatrix(2.f/map_width_ws, 2.f/map_width_ws, 1) * Matrix4f::translationMatrix(-campos.x, -campos.y, 0);
+	this->scene->overlay_world_to_camera_space_matrix = Matrix4f::scaleMatrix(2.f/map_width_ws, 2.f/map_width_ws, 1) * Matrix4f::translationMatrix((float)-campos.x, (float)-campos.y, 0);
 
 	opengl_engine->setTargetFrameBufferAndViewport(frame_buffer);
 
@@ -605,11 +605,11 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 				downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(tile_w_ws, /*importance_factor=*/1.f);
 
 				// conPrint("Starting to download screenshot '" + URL + "'...");
-				main_window->startDownloadingResource(URL, tile_pos.toVec4fPoint(), tile_w_ws, downloading_info);
+				gui_client->startDownloadingResource(URL, tile_pos.toVec4fPoint(), tile_w_ws, downloading_info);
 
 
 				// Start loading the texture (if not already loaded)
-				main_window->startLoadingTextureIfPresent(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
+				gui_client->startLoadingTextureIfPresent(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
 			}
 		}
 		else
@@ -648,7 +648,7 @@ void MiniMap::updateWidgetPositions()
 
 Vec2f MiniMap::mapUICoordsForWorldSpacePos(const Vec3d& pos)
 {
-	const Vec3d cam_to_pos_ws = pos - main_window->cam_controller.getFirstPersonPosition();
+	const Vec3d cam_to_pos_ws = pos - gui_client->cam_controller.getFirstPersonPosition();
 
 	const Vec2f cam_to_pos_xy_ws((float)cam_to_pos_ws.x, (float)cam_to_pos_ws.y);
 
@@ -736,7 +736,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	{
 		// Create marker dot
 		GLUIImageRef im = new GLUIImage();
-		im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
+		im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
@@ -753,7 +753,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	{
 		// Create marker arrow
 		GLUIImageRef im = new GLUIImage();
-		im->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
+		im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 			

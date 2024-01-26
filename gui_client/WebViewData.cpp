@@ -6,7 +6,8 @@ Copyright Glare Technologies Limited 2023 -
 #include "WebViewData.h"
 
 
-#include "MainWindow.h"
+#include "GUIClient.h"
+#include "UIEvents.h"
 #include "WorldState.h"
 #include "EmbeddedBrowser.h"
 #include "CEF.h"
@@ -85,7 +86,7 @@ static bool uvsAreOnLoadButton(float uv_x, float uv_y)
 }
 
 
-void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
+void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
@@ -94,34 +95,34 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 	const int width = 1024;
 	const int height = (int)(1024.f / 1920.f * 1080.f); // Webview uses 1920 : 1080 aspect ratio.  (See MainWindow::on_actionAdd_Web_View_triggered())
 
-	const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
+	const double ob_dist_from_cam = ob->pos.getDist(gui_client->cam_controller.getPosition());
 	const double max_play_dist = maxBrowserDist();
 	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
 	if(in_process_dist)
 	{
 		if(!CEF::isInitialised())
 		{
-			CEF::initialiseCEF(main_window->base_dir_path);
+			CEF::initialiseCEF(gui_client->base_dir_path);
 		}
 
 		if(CEF::isInitialised())
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
-				const bool URL_in_whitelist = main_window->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
+				const bool URL_in_whitelist = gui_client->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
 
 				// If the user is logged in to their personal world, and the user created the object, consider the URL to be safe.
-				const bool webview_is_safe = main_window->logged_in_user_id.valid() && 
-					(!main_window->server_worldname.empty() && (main_window->server_worldname == main_window->logged_in_user_name)) && // If this is the personal world of the user:
-					(main_window->logged_in_user_id == ob->creator_id);
+				const bool webview_is_safe = gui_client->logged_in_user_id.valid() && 
+					(!gui_client->server_worldname.empty() && (gui_client->server_worldname == gui_client->logged_in_user_name)) && // If this is the personal world of the user:
+					(gui_client->logged_in_user_id == ob->creator_id);
 
 				if(user_clicked_to_load || URL_in_whitelist || webview_is_safe)
 				{
-					main_window->logMessage("Creating browser, target_url: " + ob->target_url);
+					gui_client->logMessage("Creating browser, target_url: " + ob->target_url);
 
 					if(ob->opengl_engine_ob.nonNull())
 					{
-						main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
+						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
 						std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
 						ob->opengl_engine_ob->materials[0].emission_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
@@ -135,13 +136,13 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 					}
 
 					browser = new EmbeddedBrowser();
-					browser->create(ob->target_url, ob->opengl_engine_ob->materials[0].emission_texture, main_window, ob, opengl_engine);
+					browser->create(ob->target_url, ob->opengl_engine_ob->materials[0].emission_texture, gui_client, ob, opengl_engine);
 				}
 				else
 				{
 					if(ob->opengl_engine_ob->materials[0].emission_texture.isNull())
 					{
-						main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
+						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
 						assert(!showing_click_to_load_text);
 						ob->opengl_engine_ob->materials[0].emission_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url); // TEMP
@@ -158,12 +159,12 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 			{
 				// conPrint("Webview loading URL '" + ob->target_url + "'...");
 
-				const bool URL_in_whitelist = main_window->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
+				const bool URL_in_whitelist = gui_client->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
 
 				// If the user is logged in to their personal world, and the user created the object, consider the URL to be safe.
-				const bool webview_is_safe = main_window->logged_in_user_id.valid() && 
-					(!main_window->server_worldname.empty() && (main_window->server_worldname == main_window->logged_in_user_name)) && // If this is the personal world of the user:
-					(main_window->logged_in_user_id == ob->creator_id);
+				const bool webview_is_safe = gui_client->logged_in_user_id.valid() && 
+					(!gui_client->server_worldname.empty() && (gui_client->server_worldname == gui_client->logged_in_user_name)) && // If this is the personal world of the user:
+					(gui_client->logged_in_user_id == ob->creator_id);
 
 				if(URL_in_whitelist || webview_is_safe)
 				{
@@ -173,17 +174,17 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 				}
 				else
 				{
-					main_window->logMessage("Closing browser (URL changed), target_url: " + ob->target_url);
+					gui_client->logMessage("Closing browser (URL changed), target_url: " + ob->target_url);
 					browser = NULL;
 
 					// Remove audio source
 					if(ob->audio_source.nonNull())
 					{
-						main_window->audio_engine.removeSource(ob->audio_source);
+						gui_client->audio_engine.removeSource(ob->audio_source);
 						ob->audio_source = NULL;
 					}
 
-					main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
+					gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
 					user_clicked_to_load = false;
 					ob->opengl_engine_ob->materials[0].emission_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url);
@@ -216,13 +217,13 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 	{
 		if(browser.nonNull())
 		{
-			main_window->logMessage("Closing browser (out of view distance), target_url: " + ob->target_url);
+			gui_client->logMessage("Closing browser (out of view distance), target_url: " + ob->target_url);
 			browser = NULL;
 
 			// Remove audio source
 			if(ob->audio_source.nonNull())
 			{
-				main_window->audio_engine.removeSource(ob->audio_source);
+				gui_client->audio_engine.removeSource(ob->audio_source);
 				ob->audio_source = NULL;
 			}
 		}
@@ -311,14 +312,14 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 }
 
 
-void WebViewData::mouseReleased(QMouseEvent* e, const Vec2f& uv_coords)
+void WebViewData::mouseReleased(MouseEvent* e, const Vec2f& uv_coords)
 {
 	if(browser.nonNull())
 		browser->mouseReleased(e, uv_coords);
 }
 
 
-void WebViewData::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
+void WebViewData::mousePressed(MouseEvent* e, const Vec2f& uv_coords)
 {
 	if(showing_click_to_load_text && uvsAreOnLoadButton(uv_coords.x, uv_coords.y))
 		user_clicked_to_load = true;
@@ -328,33 +329,33 @@ void WebViewData::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
 }
 
 
-void WebViewData::mouseDoubleClicked(QMouseEvent* e, const Vec2f& uv_coords)
+void WebViewData::mouseDoubleClicked(MouseEvent* e, const Vec2f& uv_coords)
 {
 }
 
 
-void WebViewData::mouseMoved(QMouseEvent* e, const Vec2f& uv_coords)
+void WebViewData::mouseMoved(MouseEvent* e, const Vec2f& uv_coords)
 {
 	if(browser.nonNull())
 		browser->mouseMoved(e, uv_coords);
 }
 
 
-void WebViewData::wheelEvent(QWheelEvent* e, const Vec2f& uv_coords)
+void WebViewData::wheelEvent(MouseWheelEvent* e, const Vec2f& uv_coords)
 {
 	if(browser.nonNull())
 		browser->wheelEvent(e, uv_coords);
 }
 
 
-void WebViewData::keyPressed(QKeyEvent* e)
+void WebViewData::keyPressed(KeyEvent* e)
 {
 	if(browser.nonNull())
 		browser->keyPressed(e);
 }
 
 
-void WebViewData::keyReleased(QKeyEvent* e)
+void WebViewData::keyReleased(KeyEvent* e)
 {
 	if(browser.nonNull())
 		browser->keyReleased(e);

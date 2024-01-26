@@ -6,12 +6,11 @@ Copyright Glare Technologies Limited 2022 -
 #include "MiscInfoUI.h"
 
 
-#include "MainWindow.h"
-#include <QtCore/QSettings>
+#include "GUIClient.h"
 
 
 MiscInfoUI::MiscInfoUI()
-:	main_window(NULL)
+:	gui_client(NULL)
 {}
 
 
@@ -19,10 +18,10 @@ MiscInfoUI::~MiscInfoUI()
 {}
 
 
-void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_)
+void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	opengl_engine = opengl_engine_;
-	main_window = main_window_;
+	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
 	updateWidgetPositions();
@@ -182,7 +181,7 @@ void MiscInfoUI::viewportResized(int w, int h)
 
 void MiscInfoUI::eventOccurred(GLUICallbackEvent& event)
 {
-	if(main_window)
+	if(gui_client)
 	{
 		if(event.widget == admin_msg_text_view.ptr())
 		{
@@ -191,7 +190,7 @@ void MiscInfoUI::eventOccurred(GLUICallbackEvent& event)
 			event.accepted = true;
 
 			//conPrint("Clicked on text view!");
-			//main_window->setSelfieModeEnabled(selfie_button->toggled);
+			//gui_client->setSelfieModeEnabled(selfie_button->toggled);
 		}
 	}
 }

@@ -13,9 +13,10 @@ SignUpDialog.cpp
 #include <QtCore/QSettings>
 
 
-SignUpDialog::SignUpDialog(QSettings* settings_, const std::string& server_hostname_)
+SignUpDialog::SignUpDialog(QSettings* settings_, CredentialManager* credential_manager_, const std::string& server_hostname_)
 :	settings(settings_),
-	server_hostname(server_hostname_)
+	server_hostname(server_hostname_),
+	credential_manager(credential_manager_)
 {
 	setupUi(this);
 
@@ -48,11 +49,8 @@ void SignUpDialog::accepted()
 	settings->setValue("SignUpDialog/email",    this->emailLineEdit->text());
 	//settings->setValue("SignUpDialog/password", this->passwordLineEdit->text());
 
-	// Save these credentials as well, so that next time the user starts cyberspace it can log them in.
-	CredentialManager manager;
-	manager.loadFromSettings(*settings);
+	// Save these credentials as well, so that next time the user starts Substrata it can log them in.
+	credential_manager->setDomainCredentials(server_hostname, QtUtils::toStdString(this->usernameLineEdit->text()), QtUtils::toStdString(this->passwordLineEdit->text()));
 
-	manager.setDomainCredentials(server_hostname, QtUtils::toStdString(this->usernameLineEdit->text()), QtUtils::toStdString(this->passwordLineEdit->text()));
-
-	manager.saveToSettings(*settings);
+	credential_manager->saveToSettings(*settings);
 }

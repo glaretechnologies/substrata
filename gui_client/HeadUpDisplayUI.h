@@ -13,7 +13,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <opengl/ui/GLUIImage.h>
 
 
-class MainWindow;
+class GUIClient;
 class Avatar;
 
 
@@ -28,7 +28,7 @@ public:
 	HeadUpDisplayUI();
 	~HeadUpDisplayUI();
 
-	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
+	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
 	void think();
@@ -42,7 +42,7 @@ public:
 private:
 	void updateWidgetPositions();
 
-	MainWindow* main_window;
+	GUIClient* gui_client;
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
 };
