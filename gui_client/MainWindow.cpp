@@ -3158,10 +3158,10 @@ void MainWindow::enableThirdPersonCameraIfNotAlreadyEnabled()
 }
 
 
-void MainWindow::firstPersonCameraEnabled()
+void MainWindow::enableFirstPersonCamera()
 {
 	ui->actionThird_Person_Camera->setChecked(false);
-	ui->actionThird_Person_Camera->triggered(true); // Need to manually trigger the action.
+	ui->actionThird_Person_Camera->triggered(false); // Need to manually trigger the action.
 }
 
 

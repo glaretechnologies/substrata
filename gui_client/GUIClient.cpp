@@ -10953,7 +10953,7 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 			const bool change_to_first_person = cam_controller.handleScrollWheelEvent((float)e.angle_delta.y);
 			if(change_to_first_person)
 			{
-				ui_interface->firstPersonCameraEnabled();
+				ui_interface->enableFirstPersonCamera();
 			}
 		}
 	}
@@ -11623,7 +11623,6 @@ void GUIClient::keyPressed(KeyEvent& e)
 		{
 			Lock lock(world_state->mutex);
 
-			//const QPoint widget_pos = ui->glWidget->mapFromGlobal(QCursor::pos());
 			const Vec2i widget_pos = ui_interface->getMouseCursorWidgetPos();
 
 			// conPrint("glWidgetKeyPressed: widget_pos: " + toString(widget_pos.x()) + ", " + toString(widget_pos.y()));
