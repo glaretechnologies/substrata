@@ -230,6 +230,9 @@ void GUIClient::staticInit()
 
 void GUIClient::staticShutdown()
 {
+	OpenSSL::shutdown();
+	Winter::VirtualMachine::shutdown();
+	Networking::shutdown();
 }
 
 
