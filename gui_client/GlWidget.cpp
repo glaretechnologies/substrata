@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/FileUtils.h"
 #include "../utils/Reference.h"
 #include "../utils/StringUtils.h"
+#include "../utils/PlatformUtils.h"
 #include "../utils/TaskManager.h"
 #include <QtGui/QMouseEvent>
 #include <QtCore/QSettings>
@@ -251,10 +252,18 @@ void GlWidget::initializeGL()
 
 	opengl_engine = new OpenGLEngine(engine_settings);
 
-
+	std::string data_dir = base_dir_path + "/data";
+	try
+	{
+		// For development, allow loading opengl engine data, particularly shaders, straight from the repo dir.
+		data_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_USE_OPENGL_DATA_DIR"); // SUBSTRATA_USE_OPENGL_DATA_DIR can be set to e.g. n:/glare-core/opengl
+		conPrint("Using OpenGL data dir from Env var: '" + data_dir + "'");
+	}
+	catch(glare::Exception&)
+	{}
+		
 	opengl_engine->initialise(
-		//"n:/glare-core/opengl", // data dir
-		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
+		data_dir, // data dir (should contain 'shaders' and 'gl_data')
 		this->texture_server_ptr,
 		this->print_output
 	);
