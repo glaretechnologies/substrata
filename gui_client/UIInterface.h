@@ -47,19 +47,19 @@ public:
 	virtual bool showPhysicsObOwnershipEnabled() = 0;
 	virtual bool showVehiclePhysicsVisEnabled() = 0;
 
-	virtual void writeTransformMembersToObject(WorldObject& ob) = 0;
-	virtual void objectLastModifiedUpdated(const WorldObject& ob) = 0;
-	virtual void objectModelURLUpdated(const WorldObject& ob) = 0;
-	virtual void objectLightmapURLUpdated(const WorldObject& ob) = 0; // Update lightmap URL in UI if we have selected the object.
+	virtual void writeTransformMembersToObject(WorldObject& ob) = 0; // Get updated transform members from object editor and store in ob.
+	virtual void objectLastModifiedUpdated(const WorldObject& ob) = 0; // ob.last_modified_time has been updated, update corresponding UI label.
+	virtual void objectModelURLUpdated(const WorldObject& ob) = 0; // Update model URL in UI.
+	virtual void objectLightmapURLUpdated(const WorldObject& ob) = 0; // Update lightmap URL in UI.
 
 	
 	virtual void showEditorDockWidget() = 0;
 	// Parcel editor
-	virtual void showParcelEditor() = 0;
+	virtual void showParcelEditor() = 0; // Show parcel editor and hide object editor.
 	virtual void setParcelEditorForParcel(const Parcel& parcel) = 0;
 	virtual void setParcelEditorEnabled(bool enabled) = 0;
 	// Object editor
-	virtual void showObjectEditor() = 0;
+	virtual void showObjectEditor() = 0; // Show object editor and hide parcel editor.
 	virtual void setObjectEditorControlsEditable(bool editable) = 0;
 	virtual void setObjectEditorEnabled(bool enabled) = 0;
 	virtual void setObjectEditorFromOb(const WorldObject& ob, int selected_mat_index, bool ob_in_editing_users_world) = 0;
@@ -73,16 +73,18 @@ public:
 	virtual void startObEditorTimerIfNotActive() = 0;
 	virtual void startLightmapFlagTimer() = 0;
 	
-	virtual void setUIForSelectedObject() = 0; // Enable/disable delete object action etc..
+	virtual void setUIForSelectedObject() = 0; // Enable/disable delete object action etc. based on if there is a selected object or not.
 
-	virtual void setCamRotationOnMouseMoveEnabled(bool enabled) = 0;
+	
 	virtual bool isCursorHidden() = 0;
 	virtual void hideCursor() = 0;
+
+	virtual void setCamRotationOnMouseMoveEnabled(bool enabled) = 0;
 
 	virtual void setKeyboardCameraMoveEnabled(bool enabled) = 0;
 	virtual bool isKeyboardCameraMoveEnabled() = 0;
 
-	virtual bool hasFocus() = 0;
+	virtual bool hasFocus() = 0; // Does OpenGL widget have focus?
 
 	virtual void setHelpInfoLabelToDefaultText() = 0;
 	virtual void setHelpInfoLabel(const std::string& text) = 0;
@@ -94,7 +96,7 @@ public:
 
 	virtual void toggleThirdPersonCameraMode() = 0;
 
-	virtual void firstPersonCameraEnabled() = 0;
+	virtual void enableFirstPersonCamera() = 0;
 
 	virtual void openURL(const std::string& URL) = 0;
 

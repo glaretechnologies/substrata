@@ -219,7 +219,7 @@ public:
 	virtual void toggleFlyMode() override;
 	virtual void toggleThirdPersonCameraMode() override;
 	virtual void enableThirdPersonCameraIfNotAlreadyEnabled() override;
-	virtual void firstPersonCameraEnabled() override;
+	virtual void enableFirstPersonCamera() override;
 
 	virtual void openURL(const std::string& URL) override;
 
