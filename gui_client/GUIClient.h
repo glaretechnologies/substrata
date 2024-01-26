@@ -54,7 +54,6 @@ class BiomeManager;
 class ScriptLoadedThreadMessage;
 class ObjectPathController;
 namespace glare { class PoolAllocator; }
-namespace glare { class ArenaAllocator; }
 class VehiclePhysics;
 class TerrainSystem;
 class TerrainDecalManager;
