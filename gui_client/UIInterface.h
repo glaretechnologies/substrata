@@ -24,8 +24,11 @@ class UIInterface
 public:
 	virtual void appendChatMessage(const std::string& msg) = 0;
 	virtual void clearChatMessages() = 0;
+
 	virtual bool isShowParcelsEnabled() const = 0;
+
 	virtual void updateOnlineUsersList() = 0;
+
 	virtual void showHTMLMessageBox(const std::string& title, const std::string& msg) = 0;
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) = 0;
 	virtual void showErrorNotification(const std::string& msg) = 0;
