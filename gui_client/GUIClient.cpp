@@ -3923,13 +3923,8 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 	//if(cam_changed)
 	//	emit cameraUpdated();
 
-	//if(move_key_pressed)
-	//	emit playerMoveKeyPressed();
-
 	if(move_key_pressed)
 	{
-		// playerMoveKeyPressed():
-
 		stopGesture();
 		gesture_ui.stopAnyGesturePlaying();
 	}

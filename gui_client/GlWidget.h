@@ -80,7 +80,6 @@ protected:
 	
 signals:;
 	void cameraUpdated();
-	void playerMoveKeyPressed(); // Player pressed a key such as W/A/S/D to move the player position
 	void widgetShowSignal();
 	void mousePressed(QMouseEvent* e);
 	void mouseClicked(QMouseEvent* e);
