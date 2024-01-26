@@ -24,7 +24,6 @@ class WorkUnit;
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
-class MainWindow;
 class ClientSenderThread;
 struct tls_config;
 namespace glare { class PoolAllocator; }

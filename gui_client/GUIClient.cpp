@@ -5431,6 +5431,24 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 }
 
 
+void GUIClient::setGLWidgetContextAsCurrent()
+{
+	ui_interface->setGLWidgetContextAsCurrent();
+}
+
+
+Vec2i GUIClient::getGlWidgetPosInGlobalSpace()
+{
+	return ui_interface->getGlWidgetPosInGlobalSpace();
+}
+
+
+void GUIClient::webViewDataLinkHovered(const std::string& text)
+{
+	ui_interface->webViewDataLinkHovered(text);
+}
+
+
 void GUIClient::updateParcelGraphics()
 {
 	// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.

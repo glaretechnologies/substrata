@@ -70,7 +70,7 @@ public:
 	virtual void startObEditorTimerIfNotActive() = 0;
 	virtual void startLightmapFlagTimer() = 0;
 	
-	virtual void setUIForSelectedObject() = 0;
+	virtual void setUIForSelectedObject() = 0; // Enable/disable delete object action etc..
 
 	virtual void setCamRotationOnMouseMoveEnabled(bool enabled) = 0;
 	virtual bool isCursorHidden() = 0;
@@ -104,4 +104,10 @@ public:
 	virtual bool inScreenshotTakingMode() = 0;
 
 	virtual Reference<ImageMap<uint8, UInt8ComponentValueTraits>> drawText(const std::string& text, int font_point_size) = 0;
+	
+	virtual void setGLWidgetContextAsCurrent() = 0;
+
+	virtual Vec2i getGlWidgetPosInGlobalSpace() = 0; // Get top left of the GLWidget in global screen coordinates.
+
+	virtual void webViewDataLinkHovered(const std::string& text) = 0;
 };

@@ -125,7 +125,6 @@ private slots:;
 	void handleURL(const QUrl& url);
 public:
 	bool connectedToUsersPersonalWorldOrGodUser();
-	void webViewDataLinkHovered(const QString& url);
 	void webViewMouseDoubleClicked(QMouseEvent* e);
 private:
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -138,16 +137,12 @@ private:
 	void startMainTimer();
 	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	void doObjectSelectionTraceForMouseEvent(QMouseEvent* e);
-public:
-	void setGLWidgetContextAsCurrent();
 private:
 	void updateStatusBar();
 	void updateDiagnostics();
 	void runScreenshotCode();
 	void setUpForScreenshot();
 	void saveScreenshot(); // Throws glare::Exception on failure
-
-	QPoint getGlWidgetPosInGlobalSpace() const; // Get top left of the GLWidget in global screen coordinates.
 
 	virtual void dragEnterEvent(QDragEnterEvent* event);
 	virtual void dropEvent(QDropEvent* event);
@@ -237,6 +232,12 @@ public:
 	virtual bool inScreenshotTakingMode() override;
 
 	virtual Reference<ImageMap<uint8, UInt8ComponentValueTraits>> drawText(const std::string& text, int font_point_size) override;
+
+	virtual void setGLWidgetContextAsCurrent() override;
+
+	virtual Vec2i getGlWidgetPosInGlobalSpace() override; // Get top left of the GLWidget in global screen coordinates.
+
+	virtual void webViewDataLinkHovered(const std::string& text) override;
 	//------------------------------------------------- End UIInterface -----------------------------------------------------------
 
 public:
