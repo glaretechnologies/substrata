@@ -2,8 +2,9 @@
 
 set(CURRENT_TARGET gui_client)
 
-
-programAvailable(${INDIGO_QT_DIR}/bin/moc)
+if(NOT USE_SDL)
+	programAvailable(${INDIGO_QT_DIR}/bin/moc)
+endif()
 
 include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
@@ -26,168 +27,408 @@ include_directories("${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public")
 set(tracy_files "${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public/TracyClient.cpp")
 
 
+if(NOT USE_SDL)
+	# Rules to build moc_xx.cpp files, from xx.h files, using the program 'moc'.
+	addMocFileRule(gui_client MainWindow)
+	addMocFileRule(gui_client GuiClientApplication)
+	addMocFileRule(gui_client GlWidget)
+	addMocFileRule(gui_client AvatarSettingsDialog)
+	addMocFileRule(gui_client AvatarPreviewWidget)
+	addMocFileRule(gui_client AddObjectDialog)
+	addMocFileRule(gui_client AddVideoDialog)
+	addMocFileRule(gui_client AddObjectPreviewWidget)
+	addMocFileRule(gui_client ObjectEditor)
+	addMocFileRule(gui_client EnvironmentOptionsWidget)
+	addMocFileRule(gui_client ParcelEditor)
+	addMocFileRule(gui_client LoginDialog)
+	addMocFileRule(gui_client SignUpDialog)
+	addMocFileRule(gui_client MaterialEditor)
+	addMocFileRule(gui_client UserDetailsWidget)
+	addMocFileRule(gui_client URLWidget)
+	addMocFileRule(gui_client ResetPasswordDialog)
+	addMocFileRule(gui_client ChangePasswordDialog)
+	addMocFileRule(gui_client MaterialBrowser)
+	addMocFileRule(gui_client IndigoView)
+	addMocFileRule(gui_client ShaderEditorDialog)
+	addMocFileRule(gui_client AboutDialog)
+	addMocFileRule(gui_client MainOptionsDialog)
+	addMocFileRule(gui_client MainOptionsDialog)
+	addMocFileRule(gui_client GoToParcelDialog)
+	addMocFileRule(gui_client GoToPositionDialog)
+	addMocFileRule(gui_client FindObjectDialog)
+	addMocFileRule(gui_client ListObjectsNearbyDialog)
+	addMocFileRule(gui_client LogWindow)
+	addMocFileRule(gui_client DiagnosticsWidget)
+	addMocFileRule(gui_client TerrainSpecSectionWidget)
+	addMocFileRule(gui_client WorldSettingsWidget)
 
-# Rules to build moc_xx.cpp files, from xx.h files, using the program 'moc'.
-addMocFileRule(gui_client MainWindow)
-addMocFileRule(gui_client GuiClientApplication)
-addMocFileRule(gui_client GlWidget)
-addMocFileRule(gui_client AvatarSettingsDialog)
-addMocFileRule(gui_client AvatarPreviewWidget)
-addMocFileRule(gui_client AddObjectDialog)
-addMocFileRule(gui_client AddVideoDialog)
-addMocFileRule(gui_client AddObjectPreviewWidget)
-addMocFileRule(gui_client ObjectEditor)
-addMocFileRule(gui_client EnvironmentOptionsWidget)
-addMocFileRule(gui_client ParcelEditor)
-addMocFileRule(gui_client LoginDialog)
-addMocFileRule(gui_client SignUpDialog)
-addMocFileRule(gui_client MaterialEditor)
-addMocFileRule(gui_client UserDetailsWidget)
-addMocFileRule(gui_client URLWidget)
-addMocFileRule(gui_client ResetPasswordDialog)
-addMocFileRule(gui_client ChangePasswordDialog)
-addMocFileRule(gui_client MaterialBrowser)
-addMocFileRule(gui_client IndigoView)
-addMocFileRule(gui_client ShaderEditorDialog)
-addMocFileRule(gui_client AboutDialog)
-addMocFileRule(gui_client MainOptionsDialog)
-addMocFileRule(gui_client MainOptionsDialog)
-addMocFileRule(gui_client GoToParcelDialog)
-addMocFileRule(gui_client GoToPositionDialog)
-addMocFileRule(gui_client FindObjectDialog)
-addMocFileRule(gui_client ListObjectsNearbyDialog)
-addMocFileRule(gui_client LogWindow)
-addMocFileRule(gui_client DiagnosticsWidget)
-addMocFileRule(gui_client TerrainSpecSectionWidget)
-addMocFileRule(gui_client WorldSettingsWidget)
+	addMocFileRule(qt FileSelectWidget)
+	addMocFileRule(qt RealControl)
+	addMocFileRule(qt IndigoDoubleSpinBox)
+	#addMocFileRule(qt RgbColourPicker)
 
-addMocFileRule(qt FileSelectWidget)
-addMocFileRule(qt RealControl)
-addMocFileRule(qt IndigoDoubleSpinBox)
-#addMocFileRule(qt RgbColourPicker)
+	# Rules to compile the .ui files into ui_xx.h, using 'uic'.
+	addUIFileRule(gui_client AddObjectDialog)
+	addUIFileRule(gui_client AddVideoDialog)
+	addUIFileRule(gui_client AvatarSettingsDialog)
+	addUIFileRule(gui_client MainWindow)
+	addUIFileRule(gui_client ObjectEditor)
+	addUIFileRule(gui_client EnvironmentOptionsWidget)
+	addUIFileRule(gui_client ParcelEditor)
+	addUIFileRule(gui_client LoginDialog)
+	addUIFileRule(gui_client SignUpDialog)
+	addUIFileRule(gui_client MaterialEditor)
+	addUIFileRule(gui_client UserDetailsWidget)
+	addUIFileRule(gui_client URLWidget)
+	addUIFileRule(gui_client ResetPasswordDialog)
+	addUIFileRule(gui_client ChangePasswordDialog)
+	addUIFileRule(gui_client MaterialBrowser)
+	addUIFileRule(gui_client ShaderEditorDialog)
+	addUIFileRule(gui_client AboutDialog)
+	addUIFileRule(gui_client MainOptionsDialog)
+	addUIFileRule(gui_client GoToParcelDialog)
+	addUIFileRule(gui_client GoToPositionDialog)
+	addUIFileRule(gui_client FindObjectDialog)
+	addUIFileRule(gui_client ListObjectsNearbyDialog)
+	addUIFileRule(gui_client LogWindow)
+	addUIFileRule(gui_client DiagnosticsWidget)
+	addUIFileRule(gui_client TerrainSpecSectionWidget)
+	addUIFileRule(gui_client WorldSettingsWidget)
 
-# Rules to compile the .ui files into ui_xx.h, using 'uic'.
-addUIFileRule(gui_client AddObjectDialog)
-addUIFileRule(gui_client AddVideoDialog)
-addUIFileRule(gui_client AvatarSettingsDialog)
-addUIFileRule(gui_client MainWindow)
-addUIFileRule(gui_client ObjectEditor)
-addUIFileRule(gui_client EnvironmentOptionsWidget)
-addUIFileRule(gui_client ParcelEditor)
-addUIFileRule(gui_client LoginDialog)
-addUIFileRule(gui_client SignUpDialog)
-addUIFileRule(gui_client MaterialEditor)
-addUIFileRule(gui_client UserDetailsWidget)
-addUIFileRule(gui_client URLWidget)
-addUIFileRule(gui_client ResetPasswordDialog)
-addUIFileRule(gui_client ChangePasswordDialog)
-addUIFileRule(gui_client MaterialBrowser)
-addUIFileRule(gui_client ShaderEditorDialog)
-addUIFileRule(gui_client AboutDialog)
-addUIFileRule(gui_client MainOptionsDialog)
-addUIFileRule(gui_client GoToParcelDialog)
-addUIFileRule(gui_client GoToPositionDialog)
-addUIFileRule(gui_client FindObjectDialog)
-addUIFileRule(gui_client ListObjectsNearbyDialog)
-addUIFileRule(gui_client LogWindow)
-addUIFileRule(gui_client DiagnosticsWidget)
-addUIFileRule(gui_client TerrainSpecSectionWidget)
-addUIFileRule(gui_client WorldSettingsWidget)
-
-addUIFileRule(qt FileSelectWidget)
-addUIFileRule(qt RealControl)
-#addUIFileRule(qt RgbColourPicker)
+	addUIFileRule(qt FileSelectWidget)
+	addUIFileRule(qt RealControl)
+	#addUIFileRule(qt RgbColourPicker)
+endif()
 
 
-FILE(GLOB gui_client "./*.cpp" "./*.h" "./*.ui")
 
-SET(gui_client ${gui_client}
-${CMAKE_SOURCE_DIR}/gui_client/moc_MainWindow.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_GuiClientApplication.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_GlWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_AddVideoDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_ObjectEditor.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_EnvironmentOptionsWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialEditor.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_ParcelEditor.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_LoginDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_SignUpDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_UserDetailsWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_URLWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_ResetPasswordDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_ChangePasswordDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialBrowser.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_IndigoView.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_ShaderEditorDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_GoToPositionDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_FindObjectDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_ListObjectsNearbyDialog.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_LogWindow.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_DiagnosticsWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_TerrainSpecSectionWidget.cpp
-${CMAKE_SOURCE_DIR}/gui_client/moc_WorldSettingsWidget.cpp
-
-${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_EnvironmentOptionsWidget.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_ParcelEditor.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialEditor.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_LoginDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_SignUpDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_UserDetailsWidget.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_URLWidget.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_ResetPasswordDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_ChangePasswordDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialBrowser.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_ShaderEditorDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_AboutDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_MainOptionsDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_GoToParcelDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_GoToPositionDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_FindObjectDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_ListObjectsNearbyDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_LogWindow.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_DiagnosticsWidget.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_TerrainSpecSectionWidget.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_WorldSettingsWidget.h
+SET(gui_client
+${CMAKE_SOURCE_DIR}/gui_client/AnimatedTextureManager.cpp
+${CMAKE_SOURCE_DIR}/gui_client/AnimatedTextureManager.h
+${CMAKE_SOURCE_DIR}/gui_client/AvatarGraphics.cpp
+${CMAKE_SOURCE_DIR}/gui_client/AvatarGraphics.h
+${CMAKE_SOURCE_DIR}/gui_client/BikePhysics.cpp
+${CMAKE_SOURCE_DIR}/gui_client/BikePhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/BiomeManager.cpp
+${CMAKE_SOURCE_DIR}/gui_client/BiomeManager.h
+${CMAKE_SOURCE_DIR}/gui_client/BoatPhysics.cpp
+${CMAKE_SOURCE_DIR}/gui_client/BoatPhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/BrowserVidPlayer.cpp
+${CMAKE_SOURCE_DIR}/gui_client/BrowserVidPlayer.h
+${CMAKE_SOURCE_DIR}/gui_client/BuildScatteringInfoTask.cpp
+${CMAKE_SOURCE_DIR}/gui_client/BuildScatteringInfoTask.h
+${CMAKE_SOURCE_DIR}/gui_client/CameraController.cpp
+${CMAKE_SOURCE_DIR}/gui_client/CameraController.h
+${CMAKE_SOURCE_DIR}/gui_client/CarPhysics.cpp
+${CMAKE_SOURCE_DIR}/gui_client/CarPhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/CEF.cpp
+${CMAKE_SOURCE_DIR}/gui_client/CEF.h
+${CMAKE_SOURCE_DIR}/gui_client/CEFInternal.cpp
+${CMAKE_SOURCE_DIR}/gui_client/CEFInternal.h
+${CMAKE_SOURCE_DIR}/gui_client/ClientSenderThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ClientSenderThread.h
+${CMAKE_SOURCE_DIR}/gui_client/ClientThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ClientThread.h
+${CMAKE_SOURCE_DIR}/gui_client/ClientUDPHandlerThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ClientUDPHandlerThread.h
+${CMAKE_SOURCE_DIR}/gui_client/CMakeLists.txt
+${CMAKE_SOURCE_DIR}/gui_client/CredentialManager.cpp
+${CMAKE_SOURCE_DIR}/gui_client/CredentialManager.h
+${CMAKE_SOURCE_DIR}/gui_client/DownloadingResourceQueue.cpp
+${CMAKE_SOURCE_DIR}/gui_client/DownloadingResourceQueue.h
+${CMAKE_SOURCE_DIR}/gui_client/DownloadResourcesThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/DownloadResourcesThread.h
+${CMAKE_SOURCE_DIR}/gui_client/EmbeddedBrowser.cpp
+${CMAKE_SOURCE_DIR}/gui_client/EmbeddedBrowser.h
+${CMAKE_SOURCE_DIR}/gui_client/GestureUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/GestureUI.h
+${CMAKE_SOURCE_DIR}/gui_client/GUIClient.cpp
+${CMAKE_SOURCE_DIR}/gui_client/GUIClient.h
+${CMAKE_SOURCE_DIR}/gui_client/HashedObGrid.h
+${CMAKE_SOURCE_DIR}/gui_client/HeadUpDisplayUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/HeadUpDisplayUI.h
+${CMAKE_SOURCE_DIR}/gui_client/HoverCarPhysics.cpp
+${CMAKE_SOURCE_DIR}/gui_client/HoverCarPhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/Imposter.cpp
+${CMAKE_SOURCE_DIR}/gui_client/Imposter.h
+${CMAKE_SOURCE_DIR}/gui_client/IndigoConversion.cpp
+${CMAKE_SOURCE_DIR}/gui_client/IndigoConversion.h
+${CMAKE_SOURCE_DIR}/gui_client/JoltUtils.h
+${CMAKE_SOURCE_DIR}/gui_client/LoadAudioTask.cpp
+${CMAKE_SOURCE_DIR}/gui_client/LoadAudioTask.h
+${CMAKE_SOURCE_DIR}/gui_client/LoadItemQueue.cpp
+${CMAKE_SOURCE_DIR}/gui_client/LoadItemQueue.h
+${CMAKE_SOURCE_DIR}/gui_client/LoadModelTask.cpp
+${CMAKE_SOURCE_DIR}/gui_client/LoadModelTask.h
+${CMAKE_SOURCE_DIR}/gui_client/LoadScriptTask.cpp
+${CMAKE_SOURCE_DIR}/gui_client/LoadScriptTask.h
+${CMAKE_SOURCE_DIR}/gui_client/LoadTextureTask.cpp
+${CMAKE_SOURCE_DIR}/gui_client/LoadTextureTask.h
+${CMAKE_SOURCE_DIR}/gui_client/MakeHypercardTextureTask.cpp
+${CMAKE_SOURCE_DIR}/gui_client/MakeHypercardTextureTask.h
+${CMAKE_SOURCE_DIR}/gui_client/MeshBuilding.cpp
+${CMAKE_SOURCE_DIR}/gui_client/MeshBuilding.h
+${CMAKE_SOURCE_DIR}/gui_client/MeshManager.cpp
+${CMAKE_SOURCE_DIR}/gui_client/MeshManager.h
+${CMAKE_SOURCE_DIR}/gui_client/MiniMap.cpp
+${CMAKE_SOURCE_DIR}/gui_client/MiniMap.h
+${CMAKE_SOURCE_DIR}/gui_client/MiscInfoUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/MiscInfoUI.h
+${CMAKE_SOURCE_DIR}/gui_client/ModelLoading.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ModelLoading.h
+${CMAKE_SOURCE_DIR}/gui_client/NetDownloadResourcesThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/NetDownloadResourcesThread.h
+${CMAKE_SOURCE_DIR}/gui_client/ObInfoUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ObInfoUI.h
+${CMAKE_SOURCE_DIR}/gui_client/ObjectPathController.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ObjectPathController.h
+${CMAKE_SOURCE_DIR}/gui_client/ParticleManager.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ParticleManager.h
+${CMAKE_SOURCE_DIR}/gui_client/PhysicsObject.cpp
+${CMAKE_SOURCE_DIR}/gui_client/PhysicsObject.h
+${CMAKE_SOURCE_DIR}/gui_client/PhysicsWorld.cpp
+${CMAKE_SOURCE_DIR}/gui_client/PhysicsWorld.h
+${CMAKE_SOURCE_DIR}/gui_client/PlayerPhysics.cpp
+${CMAKE_SOURCE_DIR}/gui_client/PlayerPhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/PlayerPhysicsInput.h
+${CMAKE_SOURCE_DIR}/gui_client/ProximityLoader.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ProximityLoader.h
+${CMAKE_SOURCE_DIR}/gui_client/ResourceProcessing.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ResourceProcessing.h
+${CMAKE_SOURCE_DIR}/gui_client/SaveResourcesDBThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/SaveResourcesDBThread.h
+${CMAKE_SOURCE_DIR}/gui_client/Scripting.cpp
+${CMAKE_SOURCE_DIR}/gui_client/Scripting.h
+${CMAKE_SOURCE_DIR}/gui_client/SettingsStore.cpp
+${CMAKE_SOURCE_DIR}/gui_client/SettingsStore.h
+${CMAKE_SOURCE_DIR}/gui_client/TerrainDecalManager.cpp
+${CMAKE_SOURCE_DIR}/gui_client/TerrainDecalManager.h
+${CMAKE_SOURCE_DIR}/gui_client/TerrainScattering.cpp
+${CMAKE_SOURCE_DIR}/gui_client/TerrainScattering.h
+${CMAKE_SOURCE_DIR}/gui_client/TerrainSystem.cpp
+${CMAKE_SOURCE_DIR}/gui_client/TerrainSystem.h
+${CMAKE_SOURCE_DIR}/gui_client/TerrainTests.cpp
+${CMAKE_SOURCE_DIR}/gui_client/TerrainTests.h
+${CMAKE_SOURCE_DIR}/gui_client/TestSuite.cpp
+${CMAKE_SOURCE_DIR}/gui_client/TestSuite.h
+${CMAKE_SOURCE_DIR}/gui_client/ThreadMessages.h
+${CMAKE_SOURCE_DIR}/gui_client/UIEvents.h
+${CMAKE_SOURCE_DIR}/gui_client/UIInterface.h
+${CMAKE_SOURCE_DIR}/gui_client/UndoBuffer.cpp
+${CMAKE_SOURCE_DIR}/gui_client/UndoBuffer.h
+${CMAKE_SOURCE_DIR}/gui_client/UploadResourceThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/UploadResourceThread.h
+${CMAKE_SOURCE_DIR}/gui_client/URLParser.cpp
+${CMAKE_SOURCE_DIR}/gui_client/URLParser.h
+${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.cpp
+${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.h
+${CMAKE_SOURCE_DIR}/gui_client/VehiclePhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/WebViewData.cpp
+${CMAKE_SOURCE_DIR}/gui_client/WebViewData.h
+${CMAKE_SOURCE_DIR}/gui_client/WinterShaderEvaluator.cpp
+${CMAKE_SOURCE_DIR}/gui_client/WinterShaderEvaluator.h
+${CMAKE_SOURCE_DIR}/gui_client/WorldState.cpp
+${CMAKE_SOURCE_DIR}/gui_client/WorldState.h
 )
 
-SET(qt
-${GLARE_CORE_TRUNK_DIR_ENV}/qt/QtUtils.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/qt/QtUtils.h
-../qt/SignalBlocker.cpp
-../qt/SignalBlocker.h
-../qt/FlowLayout.cpp
-../qt/FlowLayout.h
-../qt/FileSelectWidget.cpp
-../qt/FileSelectWidget.h
-../qt/moc_FileSelectWidget.cpp
-../qt/ui_FileSelectWidget.h
 
-../qt/RealControl.cpp
-../qt/RealControl.h
-../qt/moc_RealControl.cpp
-../qt/ui_RealControl.h
+if(USE_SDL)
+	SET(gui_client ${gui_client}
+		${CMAKE_SOURCE_DIR}/gui_client/SDLClient.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/SDLUIInterface.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/SDLUIInterface.h
+		${CMAKE_SOURCE_DIR}/gui_client/SDLSettingsStore.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/SDLSettingsStore.h
+	)
+else()
+	SET(gui_client ${gui_client}
+		${CMAKE_SOURCE_DIR}/gui_client/IndigoView.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/IndigoView.h
+		${CMAKE_SOURCE_DIR}/gui_client/AboutDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AboutDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/AboutDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/AddObjectDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AddObjectDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/AddObjectDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/AddObjectPreviewWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AddObjectPreviewWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/AddVideoDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AddVideoDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/AddVideoDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarPreviewWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarPreviewWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/DiagnosticsWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/DiagnosticsWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/DiagnosticsWidget.ui
+		${CMAKE_SOURCE_DIR}/gui_client/EnvironmentOptionsWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/EnvironmentOptionsWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/EnvironmentOptionsWidget.ui
+		${CMAKE_SOURCE_DIR}/gui_client/FindObjectDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/FindObjectDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/FindObjectDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/GlWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/GlWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/GoToParcelDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/GoToParcelDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/GoToParcelDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/GoToPositionDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/GoToPositionDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/GoToPositionDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/GuiClientApplication.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/GuiClientApplication.h
+		${CMAKE_SOURCE_DIR}/gui_client/ISLSyntaxHighlighter.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ISLSyntaxHighlighter.h
+		${CMAKE_SOURCE_DIR}/gui_client/ListObjectsNearbyDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ListObjectsNearbyDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/ListObjectsNearbyDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/LoginDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/LoginDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/LoginDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/LogWindow.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/LogWindow.h
+		${CMAKE_SOURCE_DIR}/gui_client/LogWindow.ui
+		${CMAKE_SOURCE_DIR}/gui_client/MainOptionsDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/MainOptionsDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/MainOptionsDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.h
+		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.ui
+		${CMAKE_SOURCE_DIR}/gui_client/MainWindowTestCode.txt
+		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.h
+		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.ui
+		${CMAKE_SOURCE_DIR}/gui_client/MaterialEditor.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/MaterialEditor.h
+		${CMAKE_SOURCE_DIR}/gui_client/MaterialEditor.ui
+		${CMAKE_SOURCE_DIR}/gui_client/ObjectEditor.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ObjectEditor.h
+		${CMAKE_SOURCE_DIR}/gui_client/ObjectEditor.ui
+		${CMAKE_SOURCE_DIR}/gui_client/ParcelEditor.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ParcelEditor.h
+		${CMAKE_SOURCE_DIR}/gui_client/ParcelEditor.ui
+		${CMAKE_SOURCE_DIR}/gui_client/TerrainSpecSectionWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/TerrainSpecSectionWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/TerrainSpecSectionWidget.ui
+		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/QSettingsStore.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/QSettingsStore.h
+		${CMAKE_SOURCE_DIR}/gui_client/SignUpDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/SignUpDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/SignUpDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/SubstrataVideoSurface.h
+		${CMAKE_SOURCE_DIR}/gui_client/UserDetailsWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/UserDetailsWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/UserDetailsWidget.ui
+		${CMAKE_SOURCE_DIR}/gui_client/WorldSettingsWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/WorldSettingsWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/WorldSettingsWidget.ui
+		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.ui
+	)
+endif()
 
-../qt/IndigoDoubleSpinBox.cpp
-../qt/IndigoDoubleSpinBox.h
-../qt/moc_IndigoDoubleSpinBox.cpp
+if(NOT USE_SDL)
+	SET(gui_client ${gui_client}
+	${CMAKE_SOURCE_DIR}/gui_client/moc_MainWindow.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_GuiClientApplication.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_GlWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AddVideoDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_ObjectEditor.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_EnvironmentOptionsWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialEditor.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_ParcelEditor.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_LoginDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_SignUpDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_UserDetailsWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_URLWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_ResetPasswordDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_ChangePasswordDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialBrowser.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_IndigoView.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_ShaderEditorDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_GoToPositionDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_FindObjectDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_ListObjectsNearbyDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_LogWindow.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_DiagnosticsWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_TerrainSpecSectionWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_WorldSettingsWidget.cpp
 
-#../qt/RgbColourPicker.cpp
-#../qt/RgbColourPicker.h
-#../qt/moc_RgbColourPicker.cpp
-#../qt/ui_RgbColourPicker.h
-)
+	${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_EnvironmentOptionsWidget.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_ParcelEditor.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialEditor.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_LoginDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_SignUpDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_UserDetailsWidget.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_URLWidget.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_ResetPasswordDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_ChangePasswordDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialBrowser.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_ShaderEditorDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_AboutDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_MainOptionsDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_GoToParcelDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_GoToPositionDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_FindObjectDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_ListObjectsNearbyDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_LogWindow.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_DiagnosticsWidget.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_TerrainSpecSectionWidget.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_WorldSettingsWidget.h
+	)
+
+
+	SET(qt
+	${GLARE_CORE_TRUNK_DIR_ENV}/qt/QtUtils.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/qt/QtUtils.h
+	../qt/SignalBlocker.cpp
+	../qt/SignalBlocker.h
+	../qt/FlowLayout.cpp
+	../qt/FlowLayout.h
+	../qt/FileSelectWidget.cpp
+	../qt/FileSelectWidget.h
+	../qt/moc_FileSelectWidget.cpp
+	../qt/ui_FileSelectWidget.h
+
+	../qt/RealControl.cpp
+	../qt/RealControl.h
+	../qt/moc_RealControl.cpp
+	../qt/ui_RealControl.h
+
+	../qt/IndigoDoubleSpinBox.cpp
+	../qt/IndigoDoubleSpinBox.h
+	../qt/moc_IndigoDoubleSpinBox.cpp
+
+	#../qt/RgbColourPicker.cpp
+	#../qt/RgbColourPicker.h
+	#../qt/moc_RgbColourPicker.cpp
+	#../qt/ui_RgbColourPicker.h
+	)
+endif()
 
 SET(shared_files
 ../shared/Avatar.cpp
@@ -556,6 +797,26 @@ include_directories(${cef_binary_dist_dir})
 #include_directories(../meshoptimizer/src)
 
 
+#============== ImGui ==============
+set(imguidir 	"${GLARE_CORE_LIBS_ENV}/imgui")
+
+#set (imgui
+#${imguidir}/imgui.cpp
+#${imguidir}/imgui.h
+#${imguidir}/imgui_demo.cpp
+#${imguidir}/imgui_draw.cpp
+#${imguidir}/imgui_internal.h
+#${imguidir}/imgui_widgets.cpp
+#${imguidir}/imgui_tables.cpp
+#${imguidir}/imstb_rectpack.h
+#${imguidir}/imstb_textedit.h
+#${imguidir}/imstb_truetype.h
+#${imguidir}/backends/imgui_impl_sdl.cpp
+#${imguidir}/backends/imgui_impl_sdl.h
+#${imguidir}/backends/imgui_impl_opengl3.cpp
+#${imguidir}/backends/imgui_impl_opengl3.h
+#)
+
 
 
 
@@ -579,6 +840,7 @@ SOURCE_GROUP(resonance-audio FILES ${resonance})
 SOURCE_GROUP(meshoptimizer FILES ${meshoptimizer})
 SOURCE_GROUP(opus FILES ${opus_src})
 SOURCE_GROUP(tracy FILES ${tracy_files})
+#SOURCE_GROUP(imgui FILES ${imgui})
 
 
 if(WIN32)
@@ -593,9 +855,9 @@ else()# linux
 	SET(CMAKE_CXX_FLAGS			"${CMAKE_CXX_FLAGS}			-I\"${INDIGO_QT_INCLUDE_DIR}\"")
 endif()
 
-link_directories(
-${INDIGO_QT_LIB_DIR}
-)
+if(NOT USE_SDL)
+	link_directories(${INDIGO_QT_LIB_DIR})
+endif()
 
 
 if(APPLE)
@@ -659,11 +921,23 @@ ${rc_stuff}
 ${natvis_files}
 ${opus_src}
 ${tracy_files}
+#${imgui}
 )
 
 add_definitions(-DGUI_CLIENT=1)
 
 include(../cmake/shared_target_settings.cmake)
+
+if(USE_SDL)
+	include_directories(${SDL_DIR}/include)
+	include_directories(${imguidir})
+	
+	add_definitions(-DUSE_SDL=1)
+else()
+	# Else use Qt:
+	add_definitions(-DUSE_QT=1)
+endif()
+	
 
 
 if(WIN32)
@@ -692,39 +966,7 @@ if(WIN32)
 	target_link_libraries(${CURRENT_TARGET}
 		OpenGL32
 
-		# Qt 6:
-	#	optimized Qt6Gui
-	#	optimized Qt6Core
-	#	optimized Qt6OpenGL
-	#	optimized Qt6Widgets
-	#	optimized Qt6Multimedia
-	#	optimized Qt6OpenGLWidgets
-	#	optimized Qt6Core5Compat
-	#	#optimized Qt6Network # just for QNetworkProxyFactory
-	#	debug Qt6Guid
-	#	debug Qt6Cored
-	#	debug Qt6OpenGLd
-	#	debug Qt6Widgetsd
-	#	debug Qt6Multimediad
-	#	debug Qt6OpenGLWidgetsd
-	#	debug Qt6Core5Compatd
-	#	#optimized Qt6Networkd # just for QNetworkProxyFactory
-		
-		# Qt 5:
-		optimized qtmain
-		optimized Qt5Gui
-		optimized Qt5Core
-		optimized Qt5OpenGL
-		optimized Qt5Widgets
-		optimized Qt5Multimedia
-		optimized Qt5Gamepad
-		debug qtmaind
-		debug Qt5Guid
-		debug Qt5Cored
-		debug Qt5OpenGLd
-		debug Qt5Widgetsd
-		debug Qt5Multimediad
-		debug Qt5Gamepadd
+	
 		
 		#debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
 		#optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
@@ -747,6 +989,52 @@ if(WIN32)
 		
 		Opus
 	)
+	
+	if(USE_SDL)
+		target_link_libraries(${CURRENT_TARGET}
+			debug "${SDL_BUILD_DIR}/Debug/SDL2d.lib" 
+			debug "${SDL_BUILD_DIR}/Debug/SDL2maind.lib" 
+			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2.lib" 
+			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2main.lib" 
+		)
+	else() # Else use Qt:
+		target_link_libraries(${CURRENT_TARGET}
+		
+				# Qt 6:
+		#	optimized Qt6Gui
+		#	optimized Qt6Core
+		#	optimized Qt6OpenGL
+		#	optimized Qt6Widgets
+		#	optimized Qt6Multimedia
+		#	optimized Qt6OpenGLWidgets
+		#	optimized Qt6Core5Compat
+		#	#optimized Qt6Network # just for QNetworkProxyFactory
+		#	debug Qt6Guid
+		#	debug Qt6Cored
+		#	debug Qt6OpenGLd
+		#	debug Qt6Widgetsd
+		#	debug Qt6Multimediad
+		#	debug Qt6OpenGLWidgetsd
+		#	debug Qt6Core5Compatd
+		#	#optimized Qt6Networkd # just for QNetworkProxyFactory
+			
+			# Qt 5:
+			optimized qtmain
+			optimized Qt5Gui
+			optimized Qt5Core
+			optimized Qt5OpenGL
+			optimized Qt5Widgets
+			optimized Qt5Multimedia
+			optimized Qt5Gamepad
+			debug qtmaind
+			debug Qt5Guid
+			debug Qt5Cored
+			debug Qt5OpenGLd
+			debug Qt5Widgetsd
+			debug Qt5Multimediad
+			debug Qt5Gamepadd
+		)
+	endif()
 	
 	# Chromium embedded framework
 	if(CEF_SUPPORT)

@@ -82,13 +82,6 @@ struct DownloadingResourceInfo
 };
 
 
-class LoggingOutput
-{
-public:
-	virtual void logMessage(const std::string& msg) = 0;
-};
-
-
 /*=====================================================================
 GUIClient
 ---------------
@@ -109,7 +102,7 @@ public:
 	static void staticInit();
 	static void staticShutdown();
 
-	void initialise(const std::string& cache_dir, LoggingOutput* logging_output, SettingsStore* settings_store, UIInterface* ui_interface);
+	void initialise(const std::string& cache_dir, SettingsStore* settings_store, UIInterface* ui_interface);
 	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine);
 
 	void shutdown();
@@ -612,7 +605,6 @@ public:
 	Reference<GLObject> voxel_edit_face_marker;
 	bool voxel_edit_face_marker_in_engine;
 
-	LoggingOutput* logging_output;
 	UIInterface* ui_interface;
 
 	Timer total_timer;

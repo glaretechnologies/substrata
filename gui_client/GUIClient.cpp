@@ -7,17 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "GUIClient.h"
 #include "SettingsStore.h"
-#include "AboutDialog.h"
 #include "ClientThread.h"
-#include "GoToPositionDialog.h"
-#include "LogWindow.h"
-#include "UserDetailsWidget.h"
-#include "AvatarSettingsDialog.h"
-#include "AddObjectDialog.h"
-#include "AddVideoDialog.h"
-#include "MainOptionsDialog.h"
-#include "FindObjectDialog.h"
-#include "ListObjectsNearbyDialog.h"
 #include "ModelLoading.h"
 #include "TestSuite.h"
 #include "MeshBuilding.h"
@@ -32,13 +22,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "AvatarGraphics.h"
 #include "GuiClientApplication.h"
 #include "WinterShaderEvaluator.h"
-#include "LoginDialog.h"
-#include "SignUpDialog.h"
-#include "GoToParcelDialog.h"
-#include "ResetPasswordDialog.h"
-#include "ChangePasswordDialog.h"
 #include "ClientUDPHandlerThread.h"
-#include "URLWidget.h"
 #include "URLWhitelist.h"
 #include "URLParser.h"
 #include "LoadModelTask.h"
@@ -172,8 +156,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	last_vehicle_renewal_msg_time(-1),
 	bump_allocator(/*size (B)=*/16 * 1024 * 1024),
 	server_protocol_version(0),
-	logging_output(NULL),
-	settings(NULL)
+	settings(NULL),
+	ui_interface(NULL)
 {
 	SHIFT_down = false;
 	CTRL_down = false;
@@ -236,9 +220,8 @@ void GUIClient::staticShutdown()
 }
 
 
-void GUIClient::initialise(const std::string& cache_dir, LoggingOutput* logging_output_, SettingsStore* settings_store_, UIInterface* ui_interface_)
+void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings_store_, UIInterface* ui_interface_)
 {
-	logging_output = logging_output_;
 	settings = settings_store_;
 	ui_interface = ui_interface_;
 
@@ -2446,8 +2429,8 @@ void GUIClient::logMessage(const std::string& msg) // Append to LogWindow log di
 {
 	//if(this->log_window && !running_destructor)
 	//	this->log_window->appendLine(msg);
-	if(logging_output)
-		logging_output->logMessage(msg);
+	if(ui_interface)
+		ui_interface->logMessage(msg);
 }
 
 
@@ -2456,8 +2439,8 @@ void GUIClient::logAndConPrintMessage(const std::string& msg) // Print to stdout
 	conPrint(msg);
 	//if(this->log_window && !running_destructor)
 	//	this->log_window->appendLine(msg);
-	if(logging_output)
-		logging_output->logMessage(msg);
+	if(ui_interface)
+		ui_interface->logMessage(msg);
 }
 
 

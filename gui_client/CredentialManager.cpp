@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <QtCore/QSettings>
 
 
+#if USE_QT // TEMP HACK REFACTOR TODO
 void CredentialManager::loadFromSettings(QSettings& settings)
 {
 	credentials.clear();
@@ -67,6 +68,7 @@ void CredentialManager::saveToSettings(QSettings& settings)
 	}
 	settings.endArray();
 }
+#endif
 
 
 std::string CredentialManager::getUsernameForDomain(const std::string& domain)
