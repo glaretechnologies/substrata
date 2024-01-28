@@ -540,8 +540,8 @@ static void doOneMainLoopIter()
 		else if(e.type == SDL_MOUSEWHEEL)
 		{
 			MouseWheelEvent wheel_event;
-			wheel_event.cursor_pos = Vec2i(e.wheel.x, e.wheel.y);
-			wheel_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.wheel.x, (float)e.wheel.y));
+			wheel_event.cursor_pos = Vec2i(e.wheel.mouseX, e.wheel.mouseY);
+			wheel_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.wheel.mouseX, (float)e.wheel.mouseY));
 			const float scale_factor = 100; // To bring in line with what we get from Qt's angleDelta().
 			wheel_event.angle_delta = Vec2i((int)(e.wheel.preciseX * scale_factor), (int)(e.wheel.preciseY * scale_factor));
 			wheel_event.modifiers = convertSDLModifiers(SDL_GetModState());
