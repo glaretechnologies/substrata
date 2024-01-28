@@ -14,7 +14,9 @@ Copyright Glare Technologies Limited 2022 -
 #include <opengl/OpenGLEngine.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
+#if USE_QT
 #include <QtGui/QPainter>
+#endif
 
 
 MakeHypercardTextureTask::MakeHypercardTextureTask()
@@ -36,7 +38,10 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 		const int H = 512;
 
 		ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
-
+#if USE_SDL
+		map->zero();
+		// TEMP HACK REFACTOR TODO
+#else
 		QImage image(W, H, QImage::Format_RGB888);
 		image.fill(QColor(220, 220, 220));
 		QPainter painter(&image);
@@ -51,6 +56,7 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 			const QRgb* line = (const QRgb*)image.scanLine(y);
 			std::memcpy(map->getPixel(0, y), line, 3*W);
 		}
+#endif
 
 		const bool allow_compression = opengl_engine->textureCompressionSupportedAndEnabled();
 		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), allow_compression, /*build mipmaps=*/true);

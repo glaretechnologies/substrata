@@ -3592,8 +3592,8 @@ int main(int argc, char *argv[])
 		WMFVideoReader::initialiseWMF();
 #endif
 
-		std::string cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
-		std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
+		const std::string cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
+		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 
 		QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
 	

@@ -34,6 +34,8 @@ public:
 	virtual void showErrorNotification(const std::string& msg) = 0;
 	virtual void showInfoNotification(const std::string& msg) = 0;
 
+	virtual void logMessage(const std::string& msg) = 0;
+
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() = 0;
 	virtual void setTextAsLoggedIn(const std::string& username) = 0;
@@ -81,7 +83,7 @@ public:
 
 	virtual void setCamRotationOnMouseMoveEnabled(bool enabled) = 0;
 
-	virtual void setKeyboardCameraMoveEnabled(bool enabled) = 0;
+	virtual void setKeyboardCameraMoveEnabled(bool enabled) = 0; // Do we want WASD keys etc. to move the camera?  We don't want this while e.g. we enter text into a webview.
 	virtual bool isKeyboardCameraMoveEnabled() = 0;
 
 	virtual bool hasFocus() = 0; // Does OpenGL widget have focus?
@@ -100,7 +102,7 @@ public:
 
 	virtual void openURL(const std::string& URL) = 0;
 
-	virtual Vec2i getMouseCursorWidgetPos() = 0;
+	virtual Vec2i getMouseCursorWidgetPos() = 0; // Get mouse cursor position, relative to gl widget.
 
 	// Credential manager
 	virtual std::string getUsernameForDomain(const std::string& domain) = 0; // Returns empty string if no stored username for domain

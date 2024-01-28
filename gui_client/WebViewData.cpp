@@ -50,6 +50,9 @@ static const int button_H = 60;
 
 static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::string& text)
 {
+#if USE_SDL
+	return NULL; // TEMP TODO REFACTOR
+#else
 	const int W = text_tex_W;
 	const int H = (int)((1080.0 / 1920) * W);
 
@@ -70,6 +73,7 @@ static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::
 	OpenGLTextureRef tex = new OpenGLTexture(W, H, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
 	tex->loadIntoExistingTexture(/*mipmap level=*/0, W, H, /*row stride B=*/qimage.bytesPerLine(), ArrayRef<uint8>(qimage.constBits(), qimage.sizeInBytes()), /*bind_needed=*/true);
 	return tex;
+#endif
 }
 
 

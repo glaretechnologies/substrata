@@ -30,7 +30,7 @@ struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 
 
-class MainWindow : public QMainWindow, public PrintOutput, public LoggingOutput, public UIInterface
+class MainWindow : public QMainWindow, public PrintOutput, public UIInterface
 {
 	Q_OBJECT
 public:
@@ -40,7 +40,6 @@ public:
 	void initialise();
 	void afterGLInitInitialise();
 
-	void logMessage(const std::string& msg); // Appends to LogWindow log display.
 	void logAndConPrintMessage(const std::string& msg); // Print to console, and appends to LogWindow log display.
 
 	// PrintOutput interface
@@ -159,6 +158,8 @@ public:
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) override;
 	virtual void showErrorNotification(const std::string& msg) override;
 	virtual void showInfoNotification(const std::string& msg) override;
+
+	virtual void logMessage(const std::string& msg) override; // Appends to LogWindow log display.
 
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() override;
