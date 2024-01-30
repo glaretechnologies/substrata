@@ -232,8 +232,6 @@ public:
 
 	virtual bool inScreenshotTakingMode() override;
 
-	virtual Reference<ImageMap<uint8, UInt8ComponentValueTraits>> drawText(const std::string& text, int font_point_size) override;
-
 	virtual void setGLWidgetContextAsCurrent() override;
 
 	virtual Vec2i getGlWidgetPosInGlobalSpace() override; // Get top left of the GLWidget in global screen coordinates.

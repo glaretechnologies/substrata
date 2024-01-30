@@ -66,6 +66,7 @@ class ResourceManager;
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 class SettingsStore;
+class TextRendererFontFace;
 
 
 struct DownloadingResourceInfo
@@ -88,7 +89,7 @@ GUIClient
 GUI client code that is used by both the Native GUI client that uses Qt,
 and the web client that uses SDL.
 =====================================================================*/
-class GUIClient : public ObLoadingCallbacks, public PrintOutput, public GLUITextRendererCallback, public PhysicsWorldEventListener
+class GUIClient : public ObLoadingCallbacks, public PrintOutput, public PhysicsWorldEventListener
 {
 public:
 	GUIClient(const std::string& base_dir_path, const std::string& appdata_path, const ArgumentParser& args);
@@ -103,7 +104,7 @@ public:
 	static void staticShutdown();
 
 	void initialise(const std::string& cache_dir, SettingsStore* settings_store, UIInterface* ui_interface);
-	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine);
+	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine, Reference<TextRendererFontFace> text_renderer_font);
 
 	void shutdown();
 
@@ -171,7 +172,6 @@ public:
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	GLObjectRef makeSpeakerGLObject();
 public:
-	virtual OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
 	void loadModelForObject(WorldObject* ob);
 	void loadModelForAvatar(Avatar* ob);
 	void loadScriptForObject(WorldObject* ob);
@@ -606,6 +606,7 @@ public:
 	bool voxel_edit_face_marker_in_engine;
 
 	UIInterface* ui_interface;
+	Reference<TextRendererFontFace> text_renderer_font;
 
 	Timer total_timer;
 	Timer discovery_udp_packet_timer;

@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <SDL.h>
 struct SDL_Window;
 class GUIClient;
+class TextRendererFontFace;
 
 
 class SDLUIInterface : public UIInterface
@@ -97,8 +98,6 @@ public:
 
 	virtual bool inScreenshotTakingMode() override;
 
-	virtual Reference<ImageMap<uint8, UInt8ComponentValueTraits>> drawText(const std::string& text, int font_point_size) override;
-
 	virtual void setGLWidgetContextAsCurrent() override;
 
 	virtual Vec2i getGlWidgetPosInGlobalSpace() override; // Get top left of the GLWidget in global screen coordinates.
@@ -110,4 +109,6 @@ public:
 	SDL_GLContext gl_context;
 	std::string logged_in_username;
 	GUIClient* gui_client;
+
+	Reference<TextRendererFontFace> font;
 };

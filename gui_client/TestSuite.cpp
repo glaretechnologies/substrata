@@ -35,6 +35,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../graphics/DXTCompression.h"
 #include "../graphics/TextureProcessingTests.h"
 #include "../graphics/jpegdecoder.h"
+#include "../graphics/TextRenderer.h"
 #include "../opengl/TextureLoadingTests.h"
 #include "../indigo/UVUnwrapper.h"
 #include "../audio/AudioFileReader.h"
@@ -118,6 +119,7 @@ void TestSuite::test()
 	conPrint("==============Doing Substrata unit tests ====================");
 	Timer timer;
 
+	runTest([&]() { TextRenderer::test(); });
 	runTest([&]() { Maths::test(); });
 	runTest([&]() { DatabaseTests::test(); });
 	runTest([&]() { WorldObject::test(); });

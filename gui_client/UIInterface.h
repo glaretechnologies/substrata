@@ -110,8 +110,6 @@ public:
 
 	virtual bool inScreenshotTakingMode() = 0;
 
-	virtual Reference<ImageMap<uint8, UInt8ComponentValueTraits>> drawText(const std::string& text, int font_point_size) = 0;
-	
 	virtual void setGLWidgetContextAsCurrent() = 0;
 
 	virtual Vec2i getGlWidgetPosInGlobalSpace() = 0; // Get top left of the GLWidget in global screen coordinates.

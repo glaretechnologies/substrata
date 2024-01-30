@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "GUIClient.h"
 #include <utils/ConPrint.h>
 #include <graphics/ImageMap.h>
+#include <graphics/TextRenderer.h>
 #include <SDL.h>
 
 
@@ -273,13 +274,6 @@ std::string SDLUIInterface::getDecryptedPasswordForDomain(const std::string& dom
 bool SDLUIInterface::inScreenshotTakingMode()
 {
 	return false;
-}
-
-Reference<ImageMap<uint8, UInt8ComponentValueTraits>> SDLUIInterface::drawText(const std::string& text, int font_point_size)
-{
-	ImageMapUInt8Ref map = new ImageMapUInt8(64, 64, 3);
-	map->zero();
-	return map;
 }
 
 void SDLUIInterface::setGLWidgetContextAsCurrent()
