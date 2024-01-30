@@ -93,11 +93,10 @@ public:
 
 	virtual void toggleFlyMode() = 0;
 
+	// TODO: simplify this interface
 	virtual void enableThirdPersonCamera() = 0;
 	virtual void enableThirdPersonCameraIfNotAlreadyEnabled() = 0;
-
 	virtual void toggleThirdPersonCameraMode() = 0;
-
 	virtual void enableFirstPersonCamera() = 0;
 
 	virtual void openURL(const std::string& URL) = 0;
