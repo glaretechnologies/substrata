@@ -1027,10 +1027,19 @@ if(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
 	
-	if(NOT FUZZING)
+	if((NOT FUZZING) AND (NOT (USE_SANITIZER STREQUAL "")))
 		SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/ZI") # ZI = Set debug info format to 'Program Database for Edit & Continue'  for debug builds.
+		# It slows down the code too much to use for RelWithDebInfo builds.
 	endif()
-	# It slows down the code too much to use for RelWithDebInfo builds.
+	
+	if(NOT (USE_SANITIZER STREQUAL ""))
+		# To avoid "cl : command line  error D8016: '/ZI' and '/fsanitize=address' command-line options are incompatible"
+		SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/Zi") 
+		SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/Zi") 
+		SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	/Zi") 
+	endif()
+	
+	
 	
 	# Enable Tracy profiler for RELEASE and RELWITHDEBINFO configs.  Can't enable for Debug config because it clashes with Edit & Continue (/ZI).
 	if(TRACY_ENABLED)

@@ -140,8 +140,12 @@ if(WIN32)
 		add_definitions(-DFUZZING=1)
 		
 		MESSAGE("================================ Enabling /fsanitize=fuzzer ============================")
-		add_definitions(/fsanitize=address)
 		add_definitions(/fsanitize=fuzzer)
+	endif()
+	
+	if(FUZZING OR (NOT USE_SANITIZER STREQUAL ""))
+		MESSAGE("================================ Enabling /fsanitize=address ============================")
+		add_definitions(/fsanitize=address)
 		add_definitions(-D_DISABLE_VECTOR_ANNOTATION)
 		add_definitions(-D_DISABLE_STRING_ANNOTATION)
 	endif()
