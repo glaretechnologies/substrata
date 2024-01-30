@@ -807,7 +807,7 @@ include_directories(${cef_binary_dist_dir})
 
 
 #============== ImGui ==============
-set(imguidir 	"${GLARE_CORE_LIBS_ENV}/imgui")
+#set(imguidir 	"${GLARE_CORE_LIBS_ENV}/imgui")
 
 #set (imgui
 #${imguidir}/imgui.cpp
@@ -925,19 +925,10 @@ SOURCE_GROUP(freetype FILES ${freetype})
 #SOURCE_GROUP(imgui FILES ${imgui})
 
 
-if(WIN32)
-	SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
 
-	SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	/I\"${INDIGO_QT_INCLUDE_DIR}\"")
-
-	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
-elseif(APPLE)
-	SET(CMAKE_CXX_FLAGS			"${CMAKE_CXX_FLAGS}			-F\"${INDIGO_QT_LIB_DIR}\"")
-else()# linux
-	SET(CMAKE_CXX_FLAGS			"${CMAKE_CXX_FLAGS}			-I\"${INDIGO_QT_INCLUDE_DIR}\"")
-endif()
 
 if(NOT USE_SDL)
+	include_directories(${INDIGO_QT_INCLUDE_DIR})
 	link_directories(${INDIGO_QT_LIB_DIR})
 endif()
 
@@ -1013,7 +1004,7 @@ include(../cmake/shared_target_settings.cmake)
 
 if(USE_SDL)
 	include_directories(${SDL_DIR}/include)
-	include_directories(${imguidir})
+	# include_directories(${imguidir})
 	
 	add_definitions(-DUSE_SDL=1)
 else()
