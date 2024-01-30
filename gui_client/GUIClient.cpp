@@ -300,12 +300,13 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 static const float arc_handle_half_angle = 1.5f;
 
 
-void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine_)
+void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine_, Reference<TextRendererFontFace> text_renderer_font_)
 {
 	opengl_engine = opengl_engine_;
+	text_renderer_font = text_renderer_font_;
 
 	gl_ui = new GLUI();
-	gl_ui->create(opengl_engine, (float)device_pixel_ratio, /*text_renderer=*/this);
+	gl_ui->create(opengl_engine, (float)device_pixel_ratio, text_renderer_font);
 
 	gesture_ui.create(opengl_engine, /*main_window_=*/this, gl_ui);
 
@@ -10957,7 +10958,17 @@ void GUIClient::viewportResized(int w, int h)
 
 GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 {
-	ImageMapUInt8Ref map = ui_interface->drawText(nametag, /*font point size=*/48);
+	const TextRendererFontFace::SizeInfo size_info = text_renderer_font->getTextSize(nametag);
+
+	const int use_font_height = size_info.max_bounds.y; //text_renderer_font->getFontSizePixels();
+	const int padding_x = (int)(use_font_height * 1.0f);
+	const int padding_y = (int)(use_font_height * 0.6f);
+
+	ImageMapUInt8Ref map = new ImageMapUInt8(size_info.size.x + padding_x * 2, use_font_height + padding_y * 2, 3);
+	map->set(240);
+
+	text_renderer_font->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f));
+
 
 	GLObjectRef gl_ob = opengl_engine->allocateObject();
 	const float mesh_h = (float)map->getHeight() / (float)map->getWidth();
@@ -10969,6 +10980,8 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 	tex_params.allow_compression = false;
 	gl_ob->materials[0].albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map, tex_params);
 	gl_ob->materials[0].cast_shadows = false;
+	gl_ob->materials[0].tex_matrix = Matrix2f(1,0,0,-1); // Compensate for OpenGL loading textures upside down (row 0 in OpenGL is considered to be at the bottom of texture)
+	gl_ob->materials[0].tex_translation = Vec2f(0, 1);
 	return gl_ob;
 }
 
@@ -10983,17 +10996,6 @@ GLObjectRef GUIClient::makeSpeakerGLObject()
 	gl_ob->materials[0].albedo_texture = opengl_engine->getTexture(base_dir_path + "/resources/buttons/vol_icon.png");
 	gl_ob->materials[0].cast_shadows = false;
 	return gl_ob;
-}
-
-
-OpenGLTextureRef GUIClient::makeToolTipTexture(const std::string& tooltip_text)
-{
-	ImageMapUInt8Ref map = ui_interface->drawText(tooltip_text, /*font point size=*/24);
-
-	TextureParams tex_params;
-	tex_params.wrapping = OpenGLTexture::Wrapping_Clamp;
-	tex_params.allow_compression = false;
-	return opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("tooltip_" + tooltip_text), *map, tex_params);
 }
 
 

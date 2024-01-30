@@ -360,7 +360,7 @@ void MainWindow::initialise()
 
 	settings_store = new QSettingsStore(settings);
 
-	gui_client.initialise(cache_dir, this, settings_store, this);
+	gui_client.initialise(cache_dir, settings_store, this);
 
 #ifdef _WIN32
 	// Create a GPU device.  Needed to get hardware accelerated video decoding.
@@ -409,10 +409,14 @@ void MainWindow::afterGLInitInitialise()
 	//	throw glare::Exception("wglDXOpenDeviceNV failed.");
 #endif
 
+	TextRendererRef text_renderer = new TextRenderer();
+	TextRendererFontFaceRef font = new TextRendererFontFace(text_renderer.ptr(), "C:\\Windows\\Fonts\\segoeui.ttf", 40);
+
+
 	const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, which have twice the density of qt pixel coordinates.
 
 	const bool show_minimap = MainOptionsDialog::getShowMinimap(this->settings);
-	gui_client.afterGLInitInitialise((double)device_pixel_ratio, show_minimap, ui->glWidget->opengl_engine);
+	gui_client.afterGLInitInitialise((double)device_pixel_ratio, show_minimap, ui->glWidget->opengl_engine, font);
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
@@ -3194,39 +3198,6 @@ std::string MainWindow::getDecryptedPasswordForDomain(const std::string& domain)
 bool MainWindow::inScreenshotTakingMode()
 {
 	return !screenshot_output_path.empty();
-}
-
-
-ImageMapUInt8Ref MainWindow::drawText(const std::string& text, int font_point_size)
-{
-	const QString qt_text = QtUtils::toQString(text);
-
-	QFont system_font = QApplication::font();
-	system_font.setPointSize(font_point_size);
-	
-	const QFontMetrics font_metrics(system_font);
-	const QRect rect = font_metrics.boundingRect(qt_text);
-	
-	const int w_padding = (int)(font_metrics.height() * 0.5f);
-	const int h_padding = (int)(font_metrics.height() * 0.5f);
-	
-	const int w_px = rect.width()          + w_padding * 2;
-	const int h_px = font_metrics.height() + h_padding * 2;
-
-	QImage image(w_px, h_px, QImage::Format_RGB888);
-	image.fill(QColor(255, 255, 255));
-	QPainter painter(&image);
-	painter.setPen(QPen(QColor(150, 150, 150)));
-	painter.setFont(system_font);
-	painter.drawText(image.rect(), Qt::AlignCenter, qt_text);
-
-	ImageMapUInt8Ref map = new ImageMapUInt8(w_px, h_px, 3);
-
-	// Copy to the ImageMapUInt8 image
-	for(int y=0; y<h_px; ++y)
-		std::memcpy(map->getPixel(0, h_px - y - 1), image.scanLine(y), 3*w_px);
-
-	return map;
 }
 
 

@@ -1,4 +1,4 @@
-/*=====================================================================
+/*==============//=======================================================
 SDLClient.cpp
 -------------
 Copyright Glare Technologies Limited 2024 -
@@ -8,9 +8,11 @@ Copyright Glare Technologies Limited 2024 -
 #include "GUIClient.h"
 #include "SDLUIInterface.h"
 #include "SDLSettingsStore.h"
+#include "TestSuite.h"
 #include <maths/GeometrySampling.h>
 #include <graphics/FormatDecoderGLTF.h>
 #include <graphics/MeshSimplification.h>
+#include <graphics/TextRenderer.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/GLMeshBuilding.h>
 #include <indigo/TextureServer.h>
@@ -88,6 +90,37 @@ int main(int argc, char** argv)
 		GUIClient::staticInit();
 
 
+		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
+		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>(); // Run unit tests
+		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify hostname to connect to
+		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to
+		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to, when a user has clicked on a substrata URL hyperlink.
+		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string); // Extract animation data
+		syntax["--screenshotslave"] = std::vector<ArgumentParser::ArgumentType>(); // Run GUI as a screenshot-taking slave.
+		syntax["--testscreenshot"] = std::vector<ArgumentParser::ArgumentType>(); // Test screenshot taking
+		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
+		syntax["--no_bindless"] = std::vector<ArgumentParser::ArgumentType>(); // Disable bindless textures in graphics engine
+
+		std::vector<std::string> args;
+		for(int i=0; i<argc; ++i)
+			args.push_back(argv[i]);
+
+		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
+			args.resize(1); // This is some XCode debugging rubbish, remove it
+
+		ArgumentParser parsed_args(args, syntax);
+
+		if(parsed_args.isArgPresent("--test"))
+		{
+			TestSuite::test();
+			return 0;
+		}
+
+
+		TextRendererRef text_renderer = new TextRenderer();
+		TextRendererFontFaceRef font = new TextRendererFontFace(text_renderer, "C:\\Windows\\Fonts\\segoeui.ttf", 200);
+
+
 		timer = new Timer();
 		time_since_last_frame = new Timer();
 		stats_timer = new Timer();
@@ -138,6 +171,12 @@ int main(int argc, char** argv)
 		gl3wInit();
 #endif
 
+#if defined(EMSCRIPTEN)
+		const std::string base_dir = "/data";
+#else
+		const std::string base_dir = PlatformUtils::getResourceDirectoryPath();
+#endif
+
 		// Create OpenGL engine
 		OpenGLEngineSettings settings;
 		settings.compress_textures = true;
@@ -165,12 +204,7 @@ int main(int argc, char** argv)
 		opengl_engine->setViewportDims(primary_W, primary_H);
 		opengl_engine->setMainViewportDims(primary_W, primary_H);
 
-#if defined(EMSCRIPTEN)
-		const std::string base_dir = "/data";
-#else
-		//const std::string base_dir = "C:\\programming\\cyberspace\\output\\vs2022\\cyberspace_x64\\RelWithDebInfo"; // ".";
-		const std::string base_dir = PlatformUtils::getResourceDirectoryPath();
-#endif
+
 		sun_phi = 1.f;
 		sun_theta = Maths::pi<float>() / 4;
 		opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0)));
@@ -181,27 +215,7 @@ int main(int argc, char** argv)
 		
 		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 
-		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
-		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>(); // Run unit tests
-		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify hostname to connect to
-		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to
-		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to, when a user has clicked on a substrata URL hyperlink.
-		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string); // Extract animation data
-		syntax["--screenshotslave"] = std::vector<ArgumentParser::ArgumentType>(); // Run GUI as a screenshot-taking slave.
-		syntax["--testscreenshot"] = std::vector<ArgumentParser::ArgumentType>(); // Test screenshot taking
-		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
-		syntax["--no_bindless"] = std::vector<ArgumentParser::ArgumentType>(); // Disable bindless textures in graphics engine
-
-		std::vector<std::string> args;
-		for(int i=0; i<argc; ++i)
-			args.push_back(argv[i]);
-
-		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
-			args.resize(1); // This is some XCode debugging rubbish, remove it
-
-		ArgumentParser parsed_args(args, syntax);
-
-
+		
 
 		gui_client = new GUIClient(base_dir, appdata_path, parsed_args);
 		gui_client->opengl_engine = opengl_engine;
@@ -218,10 +232,11 @@ int main(int argc, char** argv)
 		sdl_ui_interface->window = win;
 		sdl_ui_interface->gl_context = gl_context;
 		sdl_ui_interface->gui_client = gui_client;
+		sdl_ui_interface->font = font;
 
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface);
 
-		gui_client->afterGLInitInitialise(1.0, true, opengl_engine);
+		gui_client->afterGLInitInitialise(1.0, true, opengl_engine, font);
 
 
 
@@ -456,6 +471,8 @@ static void doOneMainLoopIter()
 						
 				opengl_engine->setViewportDims(w, h);
 				opengl_engine->setMainViewportDims(w, h);
+
+				gui_client->viewportResized(w, h);
 			}
 		}
 		else if(e.type == SDL_KEYDOWN)

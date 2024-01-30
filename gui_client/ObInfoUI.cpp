@@ -79,12 +79,17 @@ void ObInfoUI::showMessage(const std::string& message, const Vec2f& gl_coords)
 
 	const Vec2f tex_dims = info_text_view->getTextureDimensions();
 
+	const float scale_y = 70.0f / opengl_engine->getViewPortWidth(); // ~50 px high
+	const float scale_x = 70.0f / opengl_engine->getViewPortWidth() * ((float)tex_dims.x / (float)tex_dims.y);
 
-	const int max_w_pixels = 900;
-	const float max_w = (float)max_w_pixels / opengl_engine->getViewPortWidth();
+	const float use_w = scale_x;
+	const float use_h = scale_y;
 
-	const float use_w = myMin(max_w, 1.8f);
-	const float use_h = use_w * (tex_dims.y / tex_dims.x);
+	//const int max_w_pixels = 900;
+	//const float max_w = (float)max_w_pixels / opengl_engine->getViewPortWidth();
+	//
+	//const float use_w = myMin(max_w, 1.8f);
+	//const float use_h = use_w * (tex_dims.y / tex_dims.x);
 
 	const float vert_offset = 0.1f; // ((float)100 / opengl_engine->getViewPortHeight()) / y_scale;
 
