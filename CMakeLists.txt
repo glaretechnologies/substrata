@@ -180,8 +180,10 @@ MESSAGE("TRACY_ENABLED (Tracy profiler instrumentation support): ${TRACY_ENABLED
 
 # To use a Clang sanitizer, for example address sanitizer, set on command line like so:
 # -DUSE_SANITIZER=address or -DUSE_SANITIZER=thread
+# Note that due to visual studio being shitty, you also need to manually set the 'Enable Address Sanitizer' setting in C/C++ > General project settings to 'Yes', otherwise
+# you get an error at runtime: "clang_rt.asan_dynamic-x86-64.dll was not found".
 SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")
-MESSAGE("USE_SANITIZER: ${USE_SANITIZER}")
+MESSAGE("USE_SANITIZER (address, thread): ${USE_SANITIZER}")
 
 SET(FUZZING OFF CACHE BOOL "Enable fuzzing")
 MESSAGE("FUZZING: ${FUZZING}")
