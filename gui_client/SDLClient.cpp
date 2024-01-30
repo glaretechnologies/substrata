@@ -117,8 +117,24 @@ int main(int argc, char** argv)
 		}
 
 
+#if defined(EMSCRIPTEN)
+		const std::string base_dir = "/data";
+#else
+		const std::string base_dir = PlatformUtils::getResourceDirectoryPath();
+#endif
+
+		// NOTE: this code is also in MainWindow.cpp
+#if defined(_WIN32)
+		const std::string font_path = PlatformUtils::getFontsDirPath() + "/Segoeui.ttf"; // SegoeUI is shipped with Windows 7 onwards: https://learn.microsoft.com/en-us/typography/fonts/windows_7_font_list
+#elif defined(__APPLE__)
+		const std::string font_path = "/System/Library/Fonts/SFNS.ttf";
+#else
+		// Linux:
+		const std::string font_path = base_dir + "/resources/TruenoLight-E2pg.otf";
+#endif
+
 		TextRendererRef text_renderer = new TextRenderer();
-		TextRendererFontFaceRef font = new TextRendererFontFace(text_renderer, "C:\\Windows\\Fonts\\segoeui.ttf", 200);
+		TextRendererFontFaceRef font = new TextRendererFontFace(text_renderer, font_path, 40);
 
 
 		timer = new Timer();
@@ -171,11 +187,7 @@ int main(int argc, char** argv)
 		gl3wInit();
 #endif
 
-#if defined(EMSCRIPTEN)
-		const std::string base_dir = "/data";
-#else
-		const std::string base_dir = PlatformUtils::getResourceDirectoryPath();
-#endif
+
 
 		// Create OpenGL engine
 		OpenGLEngineSettings settings;

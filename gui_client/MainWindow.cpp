@@ -409,8 +409,18 @@ void MainWindow::afterGLInitInitialise()
 	//	throw glare::Exception("wglDXOpenDeviceNV failed.");
 #endif
 
+	// NOTE: this code is also in SDLClient.cpp
+#if defined(_WIN32)
+		const std::string font_path = PlatformUtils::getFontsDirPath() + "/Segoeui.ttf"; // SegoeUI is shipped with Windows 7 onwards: https://learn.microsoft.com/en-us/typography/fonts/windows_7_font_list
+#elif defined(__APPLE__)
+		const std::string font_path = "/System/Library/Fonts/SFNS.ttf";
+#else
+		// Linux:
+		const std::string font_path = base_dir + "/resources/TruenoLight-E2pg.otf";
+#endif
+
 	TextRendererRef text_renderer = new TextRenderer();
-	TextRendererFontFaceRef font = new TextRendererFontFace(text_renderer.ptr(), "C:\\Windows\\Fonts\\segoeui.ttf", 40);
+	TextRendererFontFaceRef font = new TextRendererFontFace(text_renderer, font_path, 40);
 
 
 	const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, which have twice the density of qt pixel coordinates.
