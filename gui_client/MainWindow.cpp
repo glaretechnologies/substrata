@@ -416,7 +416,7 @@ void MainWindow::afterGLInitInitialise()
 		const std::string font_path = "/System/Library/Fonts/SFNS.ttf";
 #else
 		// Linux:
-		const std::string font_path = base_dir + "/resources/TruenoLight-E2pg.otf";
+		const std::string font_path = base_dir_path + "/resources/TruenoLight-E2pg.otf";
 #endif
 
 	TextRendererRef text_renderer = new TextRenderer();
