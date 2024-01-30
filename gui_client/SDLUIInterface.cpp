@@ -229,25 +229,30 @@ void SDLUIInterface::setHelpInfoLabel(const std::string& text)
 {
 }
 
-void SDLUIInterface::enableThirdPersonCamera()
-{
-}
-
 void SDLUIInterface::toggleFlyMode()
 {
 	gui_client->player_physics.setFlyModeEnabled(!gui_client->player_physics.flyModeEnabled());
 }
 
+void SDLUIInterface::enableThirdPersonCamera()
+{
+	gui_client->thirdPersonCameraToggled(true);
+}
+
 void SDLUIInterface::toggleThirdPersonCameraMode()
 {
+	gui_client->thirdPersonCameraToggled(!gui_client->cam_controller.thirdPersonEnabled());
 }
 
 void SDLUIInterface::enableThirdPersonCameraIfNotAlreadyEnabled()
 {
+	if(!gui_client->cam_controller.thirdPersonEnabled())
+		gui_client->thirdPersonCameraToggled(true);
 }
 
 void SDLUIInterface::enableFirstPersonCamera()
 {
+	gui_client->thirdPersonCameraToggled(false);
 }
 
 void SDLUIInterface::openURL(const std::string& URL)

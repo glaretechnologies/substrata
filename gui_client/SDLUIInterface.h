@@ -82,8 +82,8 @@ public:
 	virtual void setHelpInfoLabel(const std::string& text) override;
 
 	
-	virtual void enableThirdPersonCamera() override;
 	virtual void toggleFlyMode() override;
+	virtual void enableThirdPersonCamera() override;
 	virtual void toggleThirdPersonCameraMode() override;
 	virtual void enableThirdPersonCameraIfNotAlreadyEnabled() override;
 	virtual void enableFirstPersonCamera() override;
