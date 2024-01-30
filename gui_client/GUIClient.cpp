@@ -104,6 +104,8 @@ Copyright Glare Technologies Limited 2023 -
 #if BUGSPLAT_SUPPORT
 #include <BugSplat.h>
 #endif
+#include <clocale>
+
 
 static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
 static const float ob_load_distance = 600.f;
