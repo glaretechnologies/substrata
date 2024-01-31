@@ -1088,18 +1088,14 @@ if(WIN32)
 		#	optimized Qt6Core
 		#	optimized Qt6OpenGL
 		#	optimized Qt6Widgets
-		#	optimized Qt6Multimedia
 		#	optimized Qt6OpenGLWidgets
 		#	optimized Qt6Core5Compat
-		#	#optimized Qt6Network # just for QNetworkProxyFactory
 		#	debug Qt6Guid
 		#	debug Qt6Cored
 		#	debug Qt6OpenGLd
 		#	debug Qt6Widgetsd
-		#	debug Qt6Multimediad
 		#	debug Qt6OpenGLWidgetsd
 		#	debug Qt6Core5Compatd
-		#	#optimized Qt6Networkd # just for QNetworkProxyFactory
 			
 			# Qt 5:
 			optimized qtmain
@@ -1107,15 +1103,11 @@ if(WIN32)
 			optimized Qt5Core
 			optimized Qt5OpenGL
 			optimized Qt5Widgets
-			optimized Qt5Multimedia
-			optimized Qt5Gamepad
 			debug qtmaind
 			debug Qt5Guid
 			debug Qt5Cored
 			debug Qt5OpenGLd
 			debug Qt5Widgetsd
-			debug Qt5Multimediad
-			debug Qt5Gamepadd
 		)
 	endif()
 	
