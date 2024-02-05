@@ -43,7 +43,7 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"	<!DOCTYPE html>																									\n"
 		"	<html>																											\n"
 		"		<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">		\n"
-		"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\">	\n" 
+		"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\" />	\n" 
 		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>												\n"
 		"		<link href=\"/files/main.css\" rel=\"stylesheet\" />														\n"
 		+ extra_header_tags + 
