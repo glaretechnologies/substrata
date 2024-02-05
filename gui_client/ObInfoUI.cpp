@@ -7,7 +7,6 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "GUIClient.h"
-#include <QtCore/QSettings>
 
 
 ObInfoUI::ObInfoUI()

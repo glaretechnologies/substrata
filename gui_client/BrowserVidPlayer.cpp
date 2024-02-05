@@ -12,7 +12,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
 #include "CEF.h"
-#include <qt/QtUtils.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
 #include <maths/vec2.h>
@@ -22,6 +21,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/PlatformUtils.h>
 #include <utils/Base64.h>
 #include "superluminal/PerformanceAPI.h"
+
+
+#define GL_BGRA                           0x80E1
 
 
 BrowserVidPlayer::BrowserVidPlayer()

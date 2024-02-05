@@ -19,7 +19,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <maths/vec2.h>
 #include <webserver/Escaping.h>
 #include <webserver/ResponseUtils.h>
-#include <qt/QtUtils.h>
 #include <utils/FileInStream.h>
 #include <utils/PlatformUtils.h>
 #include <utils/BufferInStream.h>

@@ -14,7 +14,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "URLWhitelist.h"
 #include "../shared/WorldObject.h"
 #include "../audio/AudioEngine.h"
-#include <qt/QtUtils.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
 #include <maths/vec2.h>
@@ -23,7 +22,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/FileInStream.h>
 #include <utils/PlatformUtils.h>
 #include <utils/Base64.h>
-#include <QtGui/QPainter>
 #include "superluminal/PerformanceAPI.h"
 
 
