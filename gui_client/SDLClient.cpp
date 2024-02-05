@@ -110,11 +110,13 @@ int main(int argc, char** argv)
 
 		ArgumentParser parsed_args(args, syntax);
 
+#if !defined(EMSCRIPTEN)
 		if(parsed_args.isArgPresent("--test"))
 		{
 			TestSuite::test();
 			return 0;
 		}
+#endif
 
 
 #if defined(EMSCRIPTEN)
@@ -489,13 +491,17 @@ static void doOneMainLoopIter()
 		}
 		else if(e.type == SDL_KEYDOWN)
 		{
-			//if(e.key.keysym.sym == SDLK_r)
-			//	reset = true;
-
 			KeyEvent key_event;
 			convertFromSDKKeyEvent(e, key_event);
 
 			gui_client->keyPressed(key_event);
+		}
+		else if(e.type == SDL_KEYUP)
+		{
+			KeyEvent key_event;
+			convertFromSDKKeyEvent(e, key_event);
+
+			gui_client->keyReleased(key_event);
 		}
 		else if(e.type == SDL_MOUSEMOTION)
 		{
@@ -513,7 +519,7 @@ static void doOneMainLoopIter()
 				// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.
 				// QCursor::setPos() does not work on mac, and also gives a message about Substrata trying to control the computer, which we want to avoid.
 				// So don't use setPos() on Mac.
-#if !defined(OSX)
+#if !defined(OSX) && !defined(EMSCRIPTEN)
 				SDL_WarpMouseInWindow(win, mouse_move_origin.x, mouse_move_origin.y);
 #endif
 
