@@ -6,11 +6,14 @@ Copyright Glare Technologies Limited 2021 -
 #include "CredentialManager.h"
 
 
+#if USE_QT
 #include "../qt/QtUtils.h"
+#include <QtCore/QSettings>
+#endif
 #include <AESEncryption.h>
 #include <Base64.h>
 #include <Exception.h>
-#include <QtCore/QSettings>
+
 
 
 #if USE_QT // TEMP HACK REFACTOR TODO
