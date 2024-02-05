@@ -274,7 +274,6 @@ int main(int argc, char *argv[])
 
 		// Copy default avatar model into resource dir
 		{
-			//const std::string mesh_URL = "xbot_glb_10972822012543217816.glb";
 			const std::string mesh_URL = "xbot_glb_3242545562312850498.bmesh";
 
 			if(!server.world_state->resource_manager->isFileForURLPresent(mesh_URL))
