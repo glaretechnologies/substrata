@@ -9,12 +9,13 @@ Copyright Glare Technologies Limited 2021 -
 #include "../shared/ResourceManager.h"
 #include "DownloadingResourceQueue.h"
 #include "WorldState.h"
-#include <MessageableThread.h>
-#include <Platform.h>
-#include <MyThread.h>
-#include <EventFD.h>
-#include <ThreadManager.h>
 #include <MySocket.h>
+#include <utils/MessageableThread.h>
+#include <utils/Platform.h>
+#include <utils/MyThread.h>
+#include <utils/EventFD.h>
+#include <utils/ThreadManager.h>
+#include <utils/ThreadSafeQueue.h>
 #include <set>
 #include <string>
 class WorkUnit;
@@ -69,4 +70,6 @@ private:
 	glare::AtomicInt should_die;
 public:
 	SocketInterfaceRef socket;
+
+	ThreadSafeQueue<bool> wget_result_queue;
 };
