@@ -9,8 +9,6 @@ Copyright Glare Technologies Limited 2021 -
 #include "../shared/ImageDecoding.h"
 #include <graphics/ImageMap.h>
 #include <graphics/PNGDecoder.h>
-#include <AESEncryption.h>
-#include <Base64.h>
 #include <Exception.h>
 
 

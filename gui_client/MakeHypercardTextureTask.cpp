@@ -8,13 +8,13 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "LoadTextureTask.h"
 #include "WinterShaderEvaluator.h"
-#include "../qt/QtUtils.h"
 #include <graphics/ImageMap.h>
 #include <graphics/TextureProcessing.h>
 #include <opengl/OpenGLEngine.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
 #if USE_QT
+#include "../qt/QtUtils.h"
 #include <QtGui/QPainter>
 #endif
 
