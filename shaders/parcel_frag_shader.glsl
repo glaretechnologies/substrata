@@ -25,8 +25,8 @@ float gridFactor(float tiling, float w)
 	float dv_dx = abs(dFdx(texture_coords.y));
 	float dv_dy = abs(dFdy(texture_coords.y));
 
-	float x_span_interval_space = max(du_dx, du_dy) * tiling * 1;
-	float y_span_interval_space = max(dv_dx, dv_dy) * tiling * 1; // The larger the constant here, the more blurred the line is.  Smaller is sharper but too sharp gives aliasing.
+	float x_span_interval_space = max(du_dx, du_dy) * tiling;
+	float y_span_interval_space = max(dv_dx, dv_dy) * tiling; // The larger the constant here, the more blurred the line is.  Smaller is sharper but too sharp gives aliasing.
 
 	float t_x_start = t_x;
 	float t_x_end   = t_x + x_span_interval_space;
@@ -43,7 +43,7 @@ float gridFactor(float tiling, float w)
 		x_left_overlap = (x_min - t_x_start);// / w;
 	}
 	else
-		x_left_overlap = 0;
+		x_left_overlap = 0.0;
 	float y_left_overlap;
 	if(t_y_start < w)
 	{
@@ -51,7 +51,7 @@ float gridFactor(float tiling, float w)
 		y_left_overlap = (y_min - t_y_start);// / w;
 	}
 	else
-		y_left_overlap = 0;
+		y_left_overlap = 0.0;
 	//float x_min = min(t_x_end, w);
 	//float x_left_overlap = max(0.f, 1 - t_x_start / w);
 	//float y_left_overlap = max(0.f, 1 - t_y_start / w);
@@ -65,7 +65,7 @@ float gridFactor(float tiling, float w)
 	float x_right_frac = t_x_end - x_int_end; // e [0, 1)
 	float y_right_frac = t_y_end - y_int_end; // e [0, 1)
 
-	float x_right_overlap = 0;
+	float x_right_overlap = 0.0;
 	if(x_int_end >= 1.f)
 	{
 		//if(right_frac < w)
@@ -74,7 +74,7 @@ float gridFactor(float tiling, float w)
 		//	right_overlap = 1;
 		x_right_overlap = min(x_right_frac/* / w*/, w);
 	}
-	float y_right_overlap = 0;
+	float y_right_overlap = 0.0;
 	if(y_int_end >= 1.f)
 		y_right_overlap = min(y_right_frac/* / w*/, w);
 
@@ -84,7 +84,7 @@ float gridFactor(float tiling, float w)
 	float alpha_x = x_overlap / x_span_interval_space;
 	float alpha_y = y_overlap / y_span_interval_space;
 
-	return (1 - alpha_x) * (1 - alpha_y);
+	return (1.0 - alpha_x) * (1.0 - alpha_y);
 }
 
 void main()
@@ -96,10 +96,10 @@ void main()
 	float small_grid_factor = gridFactor(tiling, w);
 	float edge_grid_factor = gridFactor(1.f, main_w);
 
-	float alpha = (1 - small_grid_factor * edge_grid_factor) * 1.1;
+	float alpha = (1.0 - small_grid_factor * edge_grid_factor) * 1.1;
 	accum_out = vec4(colour.x * alpha, colour.y * alpha, colour.z * alpha, alpha);
 
-	float T = 1;
+	float T = 1.0;
 	transmittance_out = vec4(T, T, T, T);
 	av_transmittance_out = T;
 }
