@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2017 -
 #include "WinterShaderEvaluator.h"
 
 
+#if !defined(EMSCRIPTEN)
+
+
 #include <wnt_MathsFuncs.h>
 #include <utils/Exception.h>
 #include <utils/StringUtils.h>
@@ -251,3 +254,6 @@ const Vec4f WinterShaderEvaluator::evalTranslation(float time, const CybWinterEn
 	res.x[3] = 0;
 	return res;
 }
+
+
+#endif

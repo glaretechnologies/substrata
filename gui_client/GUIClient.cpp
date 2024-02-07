@@ -20,7 +20,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "NetDownloadResourcesThread.h"
 #include "ObjectPathController.h"
 #include "AvatarGraphics.h"
-#include "GuiClientApplication.h"
 #include "WinterShaderEvaluator.h"
 #include "ClientUDPHandlerThread.h"
 #include "URLWhitelist.h"
@@ -44,7 +43,9 @@ Copyright Glare Technologies Limited 2023 -
 #include "BikePhysics.h"
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
+#if !defined(EMSCRIPTEN)
 #include "../networking/TLSSocket.h"
+#endif
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -53,7 +54,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/FileTypes.h"
 #include "../server/User.h"
 #include "../shared/WorldSettings.h"
-#include "../qt/QtUtils.h"
 #include "../maths/Quat.h"
 #include "../maths/GeometrySampling.h"
 #include "../utils/Clock.h"
@@ -97,7 +97,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/OpenGLEngineTests.h>
 #include <Escaping.h>
+#if !defined(EMSCRIPTEN)
 #include <tls.h>
+#endif
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <tracy/Tracy.hpp>
 #include "superluminal/PerformanceAPI.h"
@@ -105,6 +107,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <BugSplat.h>
 #endif
 #include <clocale>
+#if defined(EMSCRIPTEN)
+#include <emscripten/emscripten.h>
+#endif
 
 
 static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
@@ -185,9 +190,14 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 	try
 	{
+#if EMSCRIPTEN
+		const uint64 rnd_buf = (uint64)(emscripten_random() * (float)std::numeric_limits<uint64>::max());
+		this->rng = PCG32(1, rnd_buf); 
+#else
 		uint64 rnd_buf;
 		CryptoRNG::getRandomBytes((uint8*)&rnd_buf, sizeof(uint64));
 		this->rng = PCG32(1, rnd_buf);
+#endif
 	}
 	catch(glare::Exception& e)
 	{
@@ -208,16 +218,20 @@ void GUIClient::staticInit()
 
 	Clock::init();
 	Networking::init();
+#if !defined(EMSCRIPTEN)
 	Winter::VirtualMachine::init();
 	TLSSocket::initTLS();
+#endif
 	PlatformUtils::ignoreUnixSignals();
 }
 
 
 void GUIClient::staticShutdown()
 {
+#if !defined(EMSCRIPTEN)
 	OpenSSL::shutdown();
 	Winter::VirtualMachine::shutdown();
+#endif
 	Networking::shutdown();
 }
 
@@ -242,7 +256,7 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 
 
 	// The user may have changed the resources dir (by changing the custom cache directory) since last time we ran.
-	// In this case, we want to check if each resources is actually present on disk in the current resources dir.
+	// In this case, we want to check if each resource is actually present on disk in the current resources dir.
 	const std::string last_resources_dir = settings->getStringValue("last_resources_dir", "");
 	const bool resources_dir_changed = last_resources_dir != this->resources_dir;
 	settings->setStringValue("last_resources_dir", this->resources_dir);
@@ -261,13 +275,35 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 	save_resources_db_thread_manager.addThread(new SaveResourcesDBThread(resource_manager, resources_db_path));
 
 
+	try
+	{
+		// Copy default avatar mesh into resource dir (from distribution resources dir), if it isn't in there already.
+		// We do this so we can use it as a standard resource.
+		{
+			const std::string mesh_URL = "xbot_glb_3242545562312850498.bmesh";
+
+			if(!resource_manager->isFileForURLPresent(mesh_URL))
+			{
+				conPrint("Copying '" + mesh_URL + "' into resource dir...");
+				resource_manager->copyLocalFileToResourceDir(base_dir_path + "/resources/" + mesh_URL, mesh_URL);
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WARNING: " + e.what());
+	}
+
+
+
+#if !defined(EMSCRIPTEN)
 	// Create and init TLS client config
 	client_tls_config = tls_config_new();
 	if(!client_tls_config)
 		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
 	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
 	tls_config_insecure_noverifyname(client_tls_config);
-
+#endif
 
 	try
 	{
@@ -495,7 +531,11 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 
 	// Make shader for parcels
 	{
+#if EMSCRIPTEN
+		const std::string use_shader_dir = base_dir_path + "/shaders";
+#else
 		const std::string use_shader_dir = base_dir_path + "/data/shaders";
+#endif
 
 		const std::string version_directive    = opengl_engine->getVersionDirective();
 		const std::string preprocessor_defines = opengl_engine->getPreprocessorDefines();
@@ -624,8 +664,10 @@ GUIClient::~GUIClient()
 		conPrint("WARNING: failed to save resources database to '" + resources_db_path + "': " + e.what());
 	}
 
+#if !defined(EMSCRIPTEN)
 	if(this->client_tls_config)
 		tls_config_free(this->client_tls_config);
+#endif
 }
 
 
@@ -1913,7 +1955,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 	if(avatar->graphics.skinned_gl_ob.nonNull() && /*&& !ob->using_placeholder_model && */(avatar->graphics.loaded_lod_level == ob_lod_level))
 		return;
 
-	const std::string default_model_url = "xbot_glb_10972822012543217816.glb";
+	const std::string default_model_url = "xbot_glb_3242545562312850498.bmesh";
 	//const std::string use_model_url = avatar->avatar_settings.model_url.empty() ? default_model_url : avatar->avatar_settings.model_url;
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
@@ -3837,7 +3879,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 		down_down =		GetAsyncKeyState(VK_DOWN);
 		B_down = 		GetAsyncKeyState('B');
 #else
-		CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
+		// CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
 #endif
 		const float selfie_move_factor = cam_controller.selfieModeEnabled() ? -1.f : 1.f;
 
@@ -3918,6 +3960,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
 	// If we are connected to a server, send a UDP packet to it occasionally, so the server can work out which UDP port
 	// we are listening on.
+#if !defined(EMSCRIPTEN)
 	if(client_avatar_uid.valid())
 	{
 		if(discovery_udp_packet_timer.elapsed() > 2.0)
@@ -3940,6 +3983,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			discovery_udp_packet_timer.reset();
 		}
 	}
+#endif
 
 	mesh_manager.trimMeshMemoryUsage();
 
@@ -4030,7 +4074,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				if(!task->lod_model_url.empty()) // Will be empty for voxel models
 				{
 					ModelProcessingKey key(task->lod_model_url, task->build_dynamic_physics_ob);
-					assert(models_processing.count(key) > 0);
+					//assert(models_processing.count(key) > 0);
 					models_processing.erase(key);
 				}
 				
@@ -6246,6 +6290,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				// Now that we have the server IP address, start UDP thread.
 				try
 				{
+#if !defined(EMSCRIPTEN)
 					logAndConPrintMessage("Creating UDP socket...");
 
 					udp_socket = new UDPSocket();
@@ -6267,6 +6312,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					MessageUtils::initPacket(scratch_packet, Protocol::ClientUDPSocketOpen);
 					scratch_packet.writeUInt32(0/*local_UDP_port*/);
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
+#endif
 				}
 				catch(glare::Exception& e)
 				{
@@ -9068,7 +9114,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 			if(this->client_thread_manager.getNumThreads() > 0)
 			{
 				if(client_thread.nonNull())
-					this->client_thread->killConnection(); // Calls ungracefulShutdown on socket, which should interrupt and blocking socket calls.
+					this->client_thread->killConnection(); // Calls ungracefulShutdown on socket, which should interrupt any blocking socket calls.
 
 				this->client_thread = NULL;
 				this->client_thread_manager.killThreadsBlocking();

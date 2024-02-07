@@ -26,21 +26,27 @@ NetDownloadResourcesThread::NetDownloadResourcesThread(ThreadSafeQueue<Reference
 	resource_manager(resource_manager_),
 	num_net_resources_downloading(num_net_resources_downloading_)
 {
+#if !defined(EMSCRIPTEN)
 	client = new HTTPClient();
 	client->additional_headers.push_back("User-Agent: Substrata client");
+#endif
 }
 
 
 NetDownloadResourcesThread::~NetDownloadResourcesThread()
 {
+#if !defined(EMSCRIPTEN)
 	delete client;
+#endif
 }
 
 
 void NetDownloadResourcesThread::kill()
 {
+#if !defined(EMSCRIPTEN)
 	should_die = 1;
 	client->kill();
+#endif
 }
 
 
@@ -57,6 +63,7 @@ static const bool VERBOSE = false;
 
 void NetDownloadResourcesThread::doRun()
 {
+#if !defined(EMSCRIPTEN)
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("NetDownloadResourcesThread");
 
 	try
@@ -188,4 +195,5 @@ void NetDownloadResourcesThread::doRun()
 	{
 		conPrint("NetDownloadResourcesThread glare::Exception: " + e.what());
 	}
+#endif
 }

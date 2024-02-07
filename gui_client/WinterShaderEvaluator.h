@@ -7,10 +7,13 @@ Copyright Glare Technologies Limited 2017 -
 
 
 #include <maths/Vec4f.h>
+#include <utils/RefCounted.h>
+#if !defined(EMSCRIPTEN)
 #include <VirtualMachine.h>
 #include <wnt_FunctionSignature.h>
 #include <wnt_Type.h>
 #include <LanguageTests.h>
+#endif
 #include "../../dll/IndigoStringUtils.h"
 
 
@@ -31,6 +34,7 @@ public:
 	WinterShaderEvaluator(const std::string& base_cyberspace_path, const std::string& shader);
 	virtual ~WinterShaderEvaluator();
 
+#if !defined(EMSCRIPTEN)
 	typedef void (WINTER_JIT_CALLING_CONV * EVAL_ROTATION_TYPE)(/*return value=*/Vec4f*, float time, const CybWinterEnv* env);
 	typedef void (WINTER_JIT_CALLING_CONV * EVAL_TRANSLATION_TYPE)(/*return value=*/Vec4f*, float time, const CybWinterEnv* env);
 
@@ -50,4 +54,6 @@ public:
 	EVAL_TRANSLATION_TYPE jitted_evalTranslation;
 private:
 	Winter::VirtualMachineRef vm;
+
+#endif
 };

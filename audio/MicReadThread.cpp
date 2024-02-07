@@ -323,7 +323,11 @@ void MicReadThread::doRun()
 		//-------------------------------------- End Opus init --------------------------------------------------
 
 		uint32 stream_id;
+#if defined(EMSCRIPTEN)
+		stream_id = 0; // TEMP HACK
+#else
 		CryptoRNG::getRandomBytes((uint8*)&stream_id, sizeof(stream_id));
+#endif
 
 		out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(opus_sampling_rate, /*flags=*/0, /*stream_id=*/stream_id));
 

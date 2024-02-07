@@ -25,6 +25,9 @@ Copyright Glare Technologies Limited 2022 -
 #include <Clock.h>
 #include <PoolAllocator.h>
 #include <Timer.h>
+#if EMSCRIPTEN
+#include <networking/EmscriptenWebSocket.h>
+#endif
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
@@ -36,11 +39,14 @@ ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_q
 	world_name(world_name_),
 	all_objects_received(false),
 	config(config_),
-	world_ob_pool_allocator(world_ob_pool_allocator_)
+	world_ob_pool_allocator(world_ob_pool_allocator_),
+	send_data_to_socket(false)
 {
+#if !defined(EMSCRIPTEN)
 	MySocketRef mysocket = new MySocket();
 	mysocket->setUseNetworkByteOrder(false);
 	socket = mysocket;
+#endif
 }
 
 
@@ -104,23 +110,31 @@ void ClientThread::doRun()
 	{
 		// Do DNS resolution of server hostname
 		//Timer timer;
+#if EMSCRIPTEN
+		const IPAddress server_ip("0.0.0.0"); // TEMP HACK, not used in emscripten currently (used for UDP stuff)
+#else
 		const std::vector<IPAddress> server_ips = Networking::doDNSLookup(hostname);
 		//conPrint("DNS resolution of '" + hostname + "' took " + timer.elapsedString());
 		const IPAddress server_ip = server_ips[0];
 
-		// Do initial query-response part of protocol
-
+		
+#endif
 		conPrint("ClientThread Connecting to " + hostname + ":" + toString(port) + "...");
 
 		out_msg_queue->enqueue(new ClientConnectingToServerMessage(server_ip));
 
+
+#if EMSCRIPTEN
+		socket = new EmscriptenWebSocket();
+		socket.downcast<EmscriptenWebSocket>()->connect(hostname, port);
+#else
 		socket.downcast<MySocket>()->connect(server_ip, hostname, port);
 
 		socket = new TLSSocket(socket.downcast<MySocket>(), config, hostname);
-
+#endif
 		conPrint("ClientThread Connected to " + hostname + ":" + toString(port) + "!");
 
-
+		// Do initial query-response part of protocol
 		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
 		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
 		socket->writeUInt32(Protocol::ConnectionTypeUpdates); // Write connection type
@@ -163,7 +177,18 @@ void ClientThread::doRun()
 
 		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version));
 
+#if defined(EMSCRIPTEN)
+		js::Vector<uint8, 16> data_to_send_copy;
+		{
+			Lock lock(data_to_send_mutex);
+			data_to_send_copy = data_to_send;
+			data_to_send.clear();
 
+			this->socket->writeData(data_to_send_copy.data(), data_to_send_copy.size());
+			this->send_data_to_socket = true;
+		}
+#else
+		
 		// Now that we have finished the initial query-response part of protocol, start client_sender_thread, which will do the sending of data on the socket.
 		// We do this on a separate thread to avoid deadlocks where both the client and server get stuck send()ing large amounts of data to each other, without doing any reads.
 		Reference<ClientSenderThread> sender_thread = new ClientSenderThread(socket);
@@ -182,6 +207,7 @@ void ClientThread::doRun()
 		}
 		
 		sender_thread->enqueueDataToSend(data_to_send_copy);
+#endif
 
 
 		socket->setNoDelayEnabled(true); // We will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
@@ -194,7 +220,7 @@ void ClientThread::doRun()
 				return;
 			}
 
-#if defined(_WIN32) || defined(OSX)
+#if defined(_WIN32) || defined(OSX) || defined(EMSCRIPTEN)
 			if(socket->readable(/*timeout (s)=*/0.1)) // If socket has some data to read from it:  (Use a timeout so we can check should_die occasionally)
 #else
 			if(socket->readable(event_fd)) // Block until either the socket is readable or the event fd is signalled, which means should_die has been set.
@@ -1064,7 +1090,7 @@ void ClientThread::doRun()
 			}
 			else
 			{
-#if defined(_WIN32) || defined(OSX)
+#if defined(_WIN32) || defined(OSX) || defined(EMSCRIPTEN)
 #else
 				// conPrint("WorkerThread: event FD was signalled.");
 
@@ -1093,6 +1119,26 @@ void ClientThread::doRun()
 
 void ClientThread::enqueueDataToSend(const ArrayRef<uint8> data)
 {
+#if defined(EMSCRIPTEN)
+	Lock lock(data_to_send_mutex);
+
+	if(socket.nonNull() && send_data_to_socket)
+	{
+		socket->writeData(data.data(), data.size());
+		socket->flush();
+	}
+	else
+	{
+		// If socket has not been created yet, store in data_to_send until client_sender_thread is created.
+		if(!data.empty())
+		{
+			const size_t write_i = data_to_send.size();
+			data_to_send.resize(write_i + data.size());
+			std::memcpy(&data_to_send[write_i], data.data(), data.size());
+		}
+	}
+
+#else
 	Lock lock(data_to_send_mutex);
 
 	if(client_sender_thread.nonNull())
@@ -1107,4 +1153,5 @@ void ClientThread::enqueueDataToSend(const ArrayRef<uint8> data)
 			std::memcpy(&data_to_send[write_i], data.data(), data.size());
 		}
 	}
+#endif
 }
