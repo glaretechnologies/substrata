@@ -40,6 +40,7 @@ UploadResourceThread::~UploadResourceThread()
 
 void UploadResourceThread::doRun()
 {
+#if !defined(EMSCRIPTEN)
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("UploadResourceThread");
 
 	try
@@ -113,4 +114,5 @@ void UploadResourceThread::doRun()
 	}
 
 	(*num_resources_uploading)--;
+#endif
 }

@@ -286,6 +286,7 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	winter_env.instance_index = 0;
 	winter_env.num_instances = 1;
 
+#if !defined(EMSCRIPTEN)
 	if(ob->script_evaluator->jitted_evalRotation)
 	{
 		const Vec4f rot = ob->script_evaluator->evalRotation(use_global_time, winter_env);
@@ -308,6 +309,7 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	{
 		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
 	}
+#endif
 
 	// Compute object-to-world matrix, similarly to obToWorldMatrix().  Do it here so we can reuse some components of the computation.
 	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
@@ -361,11 +363,13 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 		// that effectively oscillates in size.  See https://youtu.be/Wo_PauArb6A for an example.
 		// This is bad because it can cause the object to oscillate between LOD levels.
 		// The AABB will be somewhat wrong, but hopefully it shouldn't matter too much.
+#if !defined(EMSCRIPTEN)
 		if(ob->script_evaluator->jitted_evalRotation)
 		{
 			ob->doTransformChangedIgnoreRotation(translation, use_scale);
 		}
 		else
+#endif
 		{
 			ob->doTransformChanged(ob_to_world, use_scale);
 		}
@@ -404,6 +408,7 @@ void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt
 	winter_env.instance_index = ob->instance_index;
 	winter_env.num_instances = ob->num_instances;
 
+#if !defined(EMSCRIPTEN)
 	if(ob->script_evaluator->jitted_evalRotation)
 	{
 		const Vec4f rot = ob->script_evaluator->evalRotation(use_global_time, winter_env);
@@ -428,6 +433,7 @@ void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt
 			ob->pos = ob->prototype_object->pos;
 		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
 	}
+#endif
 
 	// Compute object-to-world matrix, similarly to obToWorldMatrix().  Do it here so we can reuse some components of the computation.
 	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);

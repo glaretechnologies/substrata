@@ -3754,27 +3754,6 @@ int main(int argc, char *argv[])
 
 			mw.gui_client.connectToServer(server_URL);
 
-			try
-			{
-				// Copy default avatar into resource dir
-				{
-					const std::string mesh_URL = "xbot_glb_10972822012543217816.glb";
-
-					if(!mw.gui_client.resource_manager->isFileForURLPresent(mesh_URL))
-					{
-						mw.gui_client.resource_manager->copyLocalFileToResourceDir(cyberspace_base_dir_path + "/resources/xbot.glb", mesh_URL);
-					}
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint(e.what());
-				QMessageBox msgBox;
-				msgBox.setText(QtUtils::toQString(e.what()));
-				msgBox.exec();
-				return 1;
-			}
-
 			mw.afterGLInitInitialise();
 
 			app_exec_res = app.exec();

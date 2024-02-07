@@ -117,9 +117,9 @@ void DownloadResourcesThread::killConnection()
 
 #if EMSCRIPTEN
 
-static void onLoad(unsigned int, void* userdata_arg, const char* filename)
+static void onLoad(unsigned int firstarg, void* userdata_arg, const char* filename)
 {
-	// conPrint("DownloadResourcesThread: onLoad: " + std::string(filename));
+	// conPrint("DownloadResourcesThread: onLoad: " + std::string(filename) + ", firstarg: " + toString(firstarg));
 
 	DownloadResourcesThread* thread = (DownloadResourcesThread*)userdata_arg;
 

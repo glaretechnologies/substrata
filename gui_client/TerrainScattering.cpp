@@ -30,6 +30,11 @@ Copyright Glare Technologies Limited 2023 -
 #include "../dll/include/IndigoMesh.h"
 
 
+#if !defined(OSX) && !defined(EMSCRIPTEN)
+#define USE_COMPUTE_SHADER 1
+#endif
+
+
 // Just for Mac
 #ifndef GL_SHADER_STORAGE_BUFFER
 #define GL_SHADER_STORAGE_BUFFER						0x90D2
@@ -258,9 +263,11 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 		buildPrecomputedPoints(scatter->chunk_width, scatter->density, bump_allocator, scatter->precomputed_points);
 
 		// Build precomputed_points SSBO
+#if USE_COMPUTE_SHADER
 		scatter->precomputed_points_ssbo = new SSBO();
 		scatter->precomputed_points_ssbo->allocate(scatter->precomputed_points.dataSizeBytes(), /*map memory=*/false);
 		scatter->precomputed_points_ssbo->updateData(0, scatter->precomputed_points.data(), scatter->precomputed_points.dataSizeBytes());
+#endif
 	}
 
 
@@ -311,10 +318,10 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 
 	//----------------------- Scatter compute shader -------------------------
 	
-#if defined(OSX)
-	const bool use_imposter_compute_shader = false; // Mac doesn't support compute shaders
-#else
+#if USE_COMPUTE_SHADER
 	const bool use_imposter_compute_shader = true;
+#else
+	const bool use_imposter_compute_shader = false; // Mac doesn't support compute shaders
 #endif
 
 	if(use_imposter_compute_shader)
@@ -457,7 +464,12 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 3);
 
 	//Timer timer;
+
+#if defined(EMSCRIPTEN)
+	section.detail_mask_map->zero(); // TEMP readBackTexture() doesn't work in Emscripten yet, just zero texture.
+#else
 	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(section.detail_mask_map->getData(), section.detail_mask_map->getDataSize()));
+#endif
 	//conPrint("\nreadBackTexture took " + timer.elapsedStringMSWIthNSigFigs(4) + "");
 
 
@@ -1719,7 +1731,7 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 
 		bindTextureUnitToSampler(detail_mask_map_gl_tex ? *detail_mask_map_gl_tex : *default_detail_mask_tex, /*texture unit index=*/3, terrain_detail_mask_tex_location);
 
-#if !defined(OSX)
+#if USE_COMPUTE_SHADER
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/VERTEX_DATA_BINDING_POINT_INDEX,        chunk.imposters_gl_ob->mesh_data->vbo_handle.vbo->bufferName());
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, /*binding point=*/PRECOMPUTED_POINTS_BINDING_POINT_INDEX, grid_scatter.precomputed_points_ssbo->handle);
 	
