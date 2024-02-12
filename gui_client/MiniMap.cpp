@@ -141,7 +141,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	//-------------------------------------------------------------------
 
 	frame_buffer = new FrameBuffer();
-	frame_buffer->bindTextureAsTarget(*minimap_texture, GL_COLOR_ATTACHMENT0);
+	frame_buffer->attachTexture(*minimap_texture, GL_COLOR_ATTACHMENT0);
 
 	GLenum is_complete = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if(is_complete != GL_FRAMEBUFFER_COMPLETE)
