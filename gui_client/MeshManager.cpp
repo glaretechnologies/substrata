@@ -40,9 +40,20 @@ void PhysicsShapeData::shapeDataBecameUnused() const
 }
 
 
+inline void MeshManager::checkRunningOnMainThread()
+{
+#if !defined(EMSCRIPTEN)
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+#endif
+}
+
+
+
 MeshManager::MeshManager()
 {
+#if !defined(EMSCRIPTEN)
 	main_thread_id = PlatformUtils::getCurrentThreadID();
+#endif
 	mesh_CPU_mem_usage = 0;
 	mesh_GPU_mem_usage = 0;
 	shape_mem_usage = 0;
@@ -51,14 +62,15 @@ MeshManager::MeshManager()
 
 MeshManager::~MeshManager()
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
+
 	clear();
 }
 
 
 void MeshManager::clear()
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	// Before we clear model_URL_to_mesh_map, NULL out references to mesh_manager so meshDataBecameUnused() doesn't trigger.
 	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
@@ -78,7 +90,7 @@ void MeshManager::clear()
 
 Reference<MeshData> MeshManager::insertMesh(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	// conPrint("Inserting mesh '" + model_url + "' into mesh manager.");
 
@@ -105,7 +117,7 @@ Reference<MeshData> MeshManager::insertMesh(const std::string& model_url, const 
 
 Reference<PhysicsShapeData> MeshManager::insertPhysicsShape(const MeshManagerPhysicsShapeKey& key, PhysicsShape& physics_shape)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	auto res = physics_shape_map.find(key);
 	if(res == physics_shape_map.end())
@@ -128,7 +140,7 @@ Reference<PhysicsShapeData> MeshManager::insertPhysicsShape(const MeshManagerPhy
 
 Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	auto res = model_URL_to_mesh_map.find(model_url);
 	if(res != model_URL_to_mesh_map.end())
@@ -140,7 +152,7 @@ Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
 
 Reference<PhysicsShapeData> MeshManager::getPhysicsShapeData(const MeshManagerPhysicsShapeKey& key)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	auto res = physics_shape_map.find(key);
 	if(res != physics_shape_map.end())
@@ -152,7 +164,7 @@ Reference<PhysicsShapeData> MeshManager::getPhysicsShapeData(const MeshManagerPh
 
 void MeshManager::meshDataBecameUsed(const MeshData* meshdata)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	//conPrint("meshDataBecameUsed(): '" + meshdata->model_url + "'");
 
@@ -162,7 +174,7 @@ void MeshManager::meshDataBecameUsed(const MeshData* meshdata)
 
 void MeshManager::meshDataBecameUnused(const MeshData* meshdata)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	//conPrint("meshDataBecameUnused():'" + meshdata->model_url + "'");
 
@@ -172,7 +184,7 @@ void MeshManager::meshDataBecameUnused(const MeshData* meshdata)
 
 void MeshManager::physicsShapeDataBecameUsed(const PhysicsShapeData* shape_data)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	//conPrint("physicsShapeDataBecameUsed(): '" + shape_data->model_url + "'");
 
@@ -182,7 +194,7 @@ void MeshManager::physicsShapeDataBecameUsed(const PhysicsShapeData* shape_data)
 
 void MeshManager::physicsShapeDataBecameUnused(const PhysicsShapeData* shape_data)
 {
-	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	checkRunningOnMainThread();
 
 	//conPrint("physicsShapeDataBecameUnused(): '" + shape_data->model_url + "'");
 
