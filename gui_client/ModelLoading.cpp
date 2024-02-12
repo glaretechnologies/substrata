@@ -1131,8 +1131,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	uv_1     [optional]
 	*/
 	const size_t uv0_offset         = 0          + pos_size;
-	const size_t uv1_offset         = uv0_offset + uv0_size;
-	const size_t num_bytes_per_vert = uv1_offset;// +(mesh_has_uv1 ? packed_uv1_size : 0);
+
+	const size_t num_bytes_per_vert = pos_size + ((num_uv_sets > 0) ? uv0_size : 0);
 
 	glare::AllocatorVector<uint8, 16>& vert_data = mesh_data->vert_data;
 	vert_data.reserve(mesh->vert_positions.size() * num_bytes_per_vert);
@@ -1308,35 +1308,36 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	pos_attrib.offset = 0;
 	mesh_data->vertex_spec.attributes.push_back(pos_attrib);
 
-	VertexAttrib normal_attrib;
-	normal_attrib.enabled = false;
-	normal_attrib.num_comps = 3;
-	normal_attrib.type = GL_FLOAT;
-	normal_attrib.normalised = false;
-	normal_attrib.stride = (uint32)num_bytes_per_vert;
-	normal_attrib.offset = 0;
-	mesh_data->vertex_spec.attributes.push_back(normal_attrib);
-
-	VertexAttrib uv_attrib;
-	uv_attrib.enabled = false;
-	uv_attrib.num_comps = 2;
-	uv_attrib.type = GL_FLOAT;
-	uv_attrib.normalised = false;
-	uv_attrib.stride = (uint32)num_bytes_per_vert;
-	uv_attrib.offset = 0;
-	mesh_data->vertex_spec.attributes.push_back(uv_attrib);
-
-	VertexAttrib colour_attrib;
-	colour_attrib.enabled = false;
-	colour_attrib.num_comps = 3;
-	colour_attrib.type = GL_FLOAT;
-	colour_attrib.normalised = false;
-	colour_attrib.stride = (uint32)num_bytes_per_vert;
-	colour_attrib.offset = 0;
-	mesh_data->vertex_spec.attributes.push_back(colour_attrib);
-
+	// Only bother specifying these attributes if we need lightmap_uv_attrib.  (They are needed to maintain the attribute order in that case). 
 	if(num_uv_sets >= 1)
 	{
+		VertexAttrib normal_attrib;
+		normal_attrib.enabled = false;
+		normal_attrib.num_comps = 3;
+		normal_attrib.type = GL_FLOAT;
+		normal_attrib.normalised = false;
+		normal_attrib.stride = (uint32)num_bytes_per_vert;
+		normal_attrib.offset = 0;
+		mesh_data->vertex_spec.attributes.push_back(normal_attrib);
+
+		VertexAttrib uv_attrib;
+		uv_attrib.enabled = false;
+		uv_attrib.num_comps = 2;
+		uv_attrib.type = GL_FLOAT;
+		uv_attrib.normalised = false;
+		uv_attrib.stride = (uint32)num_bytes_per_vert;
+		uv_attrib.offset = 0;
+		mesh_data->vertex_spec.attributes.push_back(uv_attrib);
+
+		VertexAttrib colour_attrib;
+		colour_attrib.enabled = false;
+		colour_attrib.num_comps = 3;
+		colour_attrib.type = GL_FLOAT;
+		colour_attrib.normalised = false;
+		colour_attrib.stride = (uint32)num_bytes_per_vert;
+		colour_attrib.offset = 0;
+		mesh_data->vertex_spec.attributes.push_back(colour_attrib);
+
 		VertexAttrib lightmap_uv_attrib;
 		lightmap_uv_attrib.enabled = true;
 		lightmap_uv_attrib.num_comps = 2;
