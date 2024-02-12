@@ -173,6 +173,8 @@ public:
 
 	//Mutex& getMutex() { return mutex; }
 private:
+	void checkRunningOnMainThread();
+
 	//mutable Mutex mutex;
 	ManagerWithCache<std::string, Reference<MeshData> > model_URL_to_mesh_map;
 
