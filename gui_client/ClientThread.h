@@ -1,30 +1,29 @@
 /*=====================================================================
 ClientThread.h
 --------------
-Copyright Glare Technologies Limited 2023 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
 
 #include "../shared/WorldSettings.h"
-#include "WorldState.h"
-#include <MessageableThread.h>
-#include <Platform.h>
-#include <MyThread.h>
-#include <SocketBufferOutStream.h>
-#include <EventFD.h>
-#include <ThreadManager.h>
-#include <MySocket.h>
-#include <Vector.h>
-#include <BufferInStream.h>
-#include <ArrayRef.h>
-#include <set>
+#include "../shared/UID.h"
+#include "../shared/UserID.h"
+#include "../shared/Avatar.h"
+#include <networking/IPAddress.h>
+#include <utils/MessageableThread.h>
+#include <utils/Platform.h>
+#include <utils/SocketBufferOutStream.h>
+#include <utils/EventFD.h>
+#include <utils/ThreadManager.h>
+#include <utils/Vector.h>
+#include <utils/BufferInStream.h>
+#include <utils/ArrayRef.h>
 #include <string>
-class WorkUnit;
-class PrintOutput;
-class ThreadMessageSink;
-class Server;
 class ClientSenderThread;
+class WorldState;
+class WorldObject;
+class SocketInterface;
 struct tls_config;
 namespace glare { class PoolAllocator; }
 
@@ -234,7 +233,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
-		const std::string& avatar_URL, const std::string& world_name, struct tls_config* config, const Reference<glare::PoolAllocator>& world_ob_pool_allocator);
+		const std::string& world_name, struct tls_config* config, const Reference<glare::PoolAllocator>& world_ob_pool_allocator);
 	virtual ~ClientThread();
 
 	virtual void doRun();
@@ -248,9 +247,11 @@ public:
 	bool all_objects_received;
 	Reference<WorldState> world_state;
 private:
+	void readAndHandleMessage(uint32 peer_protocol_version);
+
 	UID client_avatar_uid;
 
-	WorldObjectRef allocWorldObject();
+	Reference<WorldObject> allocWorldObject();
 
 	glare::AtomicInt should_die;
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
@@ -258,9 +259,8 @@ private:
 	std::string hostname;
 	int port;
 public:
-	SocketInterfaceRef socket;
+	Reference<SocketInterface> socket;
 private:
-	std::string avatar_URL;
 	std::string world_name;
 	struct tls_config* config;
 
