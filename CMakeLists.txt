@@ -188,8 +188,9 @@ MESSAGE("USE_SANITIZER (address, thread): ${USE_SANITIZER}")
 SET(FUZZING OFF CACHE BOOL "Enable fuzzing")
 MESSAGE("FUZZING: ${FUZZING}")
 
-
-if(WIN32)
+if(EMSCRIPTEN)
+	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-emscripten-build")
+elseif(WIN32)
 	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-${SUBSTRATA_JPEGTURBO_VERSION}-vs${CYBERSPACE_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
 	set(jpegturbodir "${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-${SUBSTRATA_JPEGTURBO_VERSION}-install")

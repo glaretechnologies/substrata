@@ -11,7 +11,9 @@ endif()
 
 
 # LibreSSL linker settings.
-if(WIN32)
+if(EMSCRIPTEN)
+	# Do nothing, not using libressl
+elseif(WIN32)
 	
 	SET(LIBRESSL_LINK_FLAGS_RELEASE			"/LIBPATH:\"${libressldir}/lib\"")
 	SET(LIBRESSL_LINK_FLAGS_RELWITHDEBINFO	"/LIBPATH:\"${libressldir}/lib\"")

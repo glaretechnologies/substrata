@@ -82,6 +82,7 @@ ${GRAPHICS_DIR}/TextureProcessingTests.h
 ${GRAPHICS_DIR}/TextureData.h
 ${GRAPHICS_DIR}/SRGBUtils.cpp
 ${GRAPHICS_DIR}/SRGBUtils.h
+# TextRenderer isn't used by server, include directly in gui_client cmake.
 )
 
 set(MESHOPTIMIZER_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/meshoptimizer/src")
@@ -110,8 +111,6 @@ ${MESHOPTIMIZER_DIR}/vfetchoptimizer.cpp
 
 set(UTILS_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/utils")
 set(utils
-${UTILS_DIR}/AESEncryption.cpp
-${UTILS_DIR}/AESEncryption.h
 ${UTILS_DIR}/AllocatorVectorUnitTests.cpp
 ${UTILS_DIR}/AllocatorVectorUnitTests.h
 ${UTILS_DIR}/AllocatorVector.h
@@ -201,8 +200,6 @@ ${UTILS_DIR}/Numeric.cpp
 ${UTILS_DIR}/Numeric.h
 ${UTILS_DIR}/OutStream.cpp
 ${UTILS_DIR}/OutStream.h
-${UTILS_DIR}/OpenSSL.cpp
-${UTILS_DIR}/OpenSSL.h
 ${UTILS_DIR}/Parser.cpp
 ${UTILS_DIR}/Parser.h
 ${UTILS_DIR}/Platform.h
@@ -221,8 +218,6 @@ ${UTILS_DIR}/RefCounted.h
 ${UTILS_DIR}/Reference.h
 ${UTILS_DIR}/ReferenceTest.cpp
 ${UTILS_DIR}/ReferenceTest.h
-${UTILS_DIR}/SHA256.cpp
-${UTILS_DIR}/SHA256.h
 ${UTILS_DIR}/SmallArray.cpp
 ${UTILS_DIR}/SmallArray.h
 ${UTILS_DIR}/SmallVector.cpp
@@ -296,6 +291,18 @@ ${UTILS_DIR}/TopologicalSort.h
 )
 
 
+if(NOT EMSCRIPTEN)
+	set(utils
+		${utils}
+		${UTILS_DIR}/OpenSSL.cpp
+		${UTILS_DIR}/OpenSSL.h
+		${UTILS_DIR}/AESEncryption.cpp
+		${UTILS_DIR}/AESEncryption.h
+		${UTILS_DIR}/SHA256.cpp
+		${UTILS_DIR}/SHA256.h
+	)
+endif()
+
 # Since we using Jolt for now, don't need a lot of this physics stuff.
 set(PHYSICS_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/physics")
 set(physics
@@ -354,7 +361,56 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4i.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4i.h
 )
 
-FILE(GLOB networking "${GLARE_CORE_TRUNK_DIR_ENV}/networking/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/networking/*.h")
+set(networking
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/FractionListener.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/IPAddress.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/IPAddress.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/MySocket.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/MySocket.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/Networking.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/Networking.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/NetworkingTests.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/NetworkingTests.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/Packet.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/Packet.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/RecordingSocket.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/RecordingSocket.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/SocketInterface.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/SocketInterface.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/SocketTests.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/SocketTests.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/TestSocket.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/TestSocket.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/UDPSocket.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/UDPSocket.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/URL.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/URL.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/WebSocket.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/WebSocket.h
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/WebSocketTests.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/networking/WebSocketTests.h
+)
+
+if(EMSCRIPTEN)
+	set(networking
+		${networking}
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/EmscriptenWebSocket.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/EmscriptenWebSocket.h
+	)
+else()
+	set(networking
+		${networking}
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/HTTPClient.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/HTTPClient.h
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/SMTPClient.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/SMTPClient.h
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/TLSSocket.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/TLSSocket.h
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/TLSSocketTests.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/networking/TLSSocketTests.h
+	)
+endif()
+
 FILE(GLOB scripts "../scripts/*.rb")
 FILE(GLOB double_conversion "${GLARE_CORE_TRUNK_DIR_ENV}/double-conversion/*.cc" "${GLARE_CORE_TRUNK_DIR_ENV}/double-conversion/*.h")
 FILE(GLOB xxhash "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.h")

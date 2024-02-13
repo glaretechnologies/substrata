@@ -11,6 +11,9 @@ macro(addIncludeDirectory dir_to_include)
 	SET(INDIGO_SHARED_INCLUDE_DIRS "${INDIGO_SHARED_INCLUDE_DIRS} ${INCLUDE_ARG}\"${dir_to_include}\"")
 endmacro(addIncludeDirectory)
 
+if(EMSCRIPTEN)
+	include_directories("${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-3.0.0-vs2022-install/include")
+endif()
 
 addIncludeDirectory(${jpegturbodir}/include)
 #addIncludeDirectory(${jpegturbodir}) # This one works on linux/mac
@@ -80,7 +83,25 @@ add_definitions(-DUSING_LIBRESSL)
 
 add_definitions(-DCMS_NO_REGISTER_KEYWORD) # Tell Little CMS not to use the register keyword, gives warnings and/or errors.
 
-if(WIN32)
+if(EMSCRIPTEN)
+	add_definitions(-fwasm-exceptions)
+	add_definitions(-pthread)
+
+	add_definitions(-DEMSCRIPTEN=1)
+	
+	add_definitions(-msimd128)
+	add_definitions(-msse4.1)
+	
+	add_definitions(-O0) # TEMP disable optimisations
+	
+	#add_definitions(-O2)
+	#add_definitions("--profiling")			# https://emscripten.org/docs/tools_reference/emcc.html
+	
+	#add_definitions(-DNDEBUG)
+	
+	include_directories("${GLARE_CORE_LIBS_ENV}/emsdk/upstream/emscripten/cache/sysroot/include")
+
+elseif(WIN32)
 	# TEMP: needed for building LLVM with address sanitizer on Windows, which has:
 	# include <sanitizer/asan_interface.h>
 	# addIncludeDirectory("C:/Program Files/Microsoft Visual Studio/2022/Preview/VC/Tools/MSVC/14.32.31302/crt/src")

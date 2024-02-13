@@ -8,7 +8,10 @@ endif()
 
 include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
-include(../cmake/winter.cmake)
+
+if(NOT EMSCRIPTEN)
+	include(../cmake/winter.cmake)
+endif()
 
 add_definitions(${WINTER_PREPROCESSOR_DEFINITIONS}) # WINTER_PREPROCESSOR_DEFINITIONS is returned from embed_winter.cmake via winter.cmake.
 
@@ -1013,8 +1016,41 @@ else()
 endif()
 	
 
-
-if(WIN32)
+if(EMSCRIPTEN)
+	set(CMAKE_EXECUTABLE_SUFFIX ".html") # Make emscripten spit out an HTML file for testing
+	
+	target_link_libraries(${CURRENT_TARGET}
+		${GLARE_CORE_LIBS_ENV}/SDL/sdl_build_emscripten/libSDL2.a
+		Jolt # Jolt physics
+		Opus
+	)
+	
+	# Note that a bunch of Emscripten C++ options are set in shared_cxx_settings.cmake as well.
+	
+	target_link_options(${CURRENT_TARGET} PRIVATE
+		"-s USE_WEBGL=1"
+		"-sMIN_WEBGL_VERSION=2"
+		"-sMAX_WEBGL_VERSION=2"
+		"-sGL_ENABLE_GET_PROC_ADDRESS"
+#		"-sNO_DISABLE_EXCEPTION_CATCHING"
+	#	"--emrun"   # https://emscripten.org/docs/compiling/Running-html-files-with-emrun.html
+#		"-gsource-map"
+		#"--profiling"  			# https://emscripten.org/docs/tools_reference/emcc.html
+		"-fwasm-exceptions"  # Enable WASM-based exception support: https://emscripten.org/docs/porting/exceptions.html
+		"-sALLOW_MEMORY_GROWTH"
+		"-pthread"
+	#	"-s USE_SDL=2"
+		"-sPTHREAD_POOL_SIZE=200"
+		"-sSTACK_SIZE=262144"
+		"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
+		#"-O2"
+		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
+		--preload-file data
+	)
+	
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_DEPENDS "data")
+	
+elseif(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
 	
