@@ -8,8 +8,14 @@ MESSAGE("Current target is: " ${CURRENT_TARGET})
 
 #add_dependencies(${CURRENT_TARGET} _INDIGO_PREBUILD_TARGET)
 
+if(EMSCRIPTEN)
 
-if(WIN32)
+	target_link_libraries(${CURRENT_TARGET}
+		libs
+		${GLARE_CORE_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-emscripten-build/libjpeg.a
+	)
+
+elseif(WIN32)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "")
 
@@ -29,7 +35,7 @@ if(WIN32)
 		debug     "${jpegturbodir}-debug/lib/turbojpeg-static.lib"
 		optimized "${jpegturbodir}/lib/turbojpeg-static.lib"
 	)
-	
+
 elseif(APPLE)
 	
 	# NOTE: -stdlib=libc++ is needed for C++11 etc.
