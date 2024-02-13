@@ -273,7 +273,6 @@ MESSAGE("LibJPEG Turbo dir: ${jpegturbodir}")
 MESSAGE("llvmdir: ${llvmdir}")
 MESSAGE("libressldir: ${libressldir}")
 MESSAGE("openssldir: ${openssldir}")
-MESSAGE("jpegturbodir: ${jpegturbodir}")
 
 MESSAGE("")
 MESSAGE("ACTUAL_FUCKING_OUTPUT_DIR: ${ACTUAL_FUCKING_OUTPUT_DIR}")
