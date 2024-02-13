@@ -272,7 +272,10 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 		conPrint("WARNING: failed to load resources database from '" + resources_db_path + "': " + e.what());
 	}
 
+#if !defined(EMSCRIPTEN)
+	// With Emscripten we use an ephemeral virtual file system, so no point in saving resource manager state to it.
 	save_resources_db_thread_manager.addThread(new SaveResourcesDBThread(resource_manager, resources_db_path));
+#endif
 
 
 	try
@@ -4363,7 +4366,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		if((float)player_pos.z < (terrain_h - 0.5f))
 		{
-			logMessage("Player was below terrain, moving up");
+			// logMessage("Player was below terrain, moving up");
 			Vec3d new_player_pos = player_pos;
 			new_player_pos.z = terrain_h + player_physics.getEyeHeight() + 0.5f;
 			player_physics.setPosition(new_player_pos, player_physics.getLinearVel());
@@ -9341,14 +9344,7 @@ void GUIClient::connectToServer(const std::string& URL)
 	world_state = new WorldState();
 	world_state->url_whitelist->loadDefaultWhitelist();
 
-	const std::string avatar_path = settings->getStringValue("avatarPath", "");
-
-	uint64 avatar_model_hash = 0;
-	if(FileUtils::fileExists(avatar_path))
-		avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
-	const std::string avatar_URL = resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
-
-	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL, server_worldname, this->client_tls_config, this->world_ob_pool_allocator);
+	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, server_worldname, this->client_tls_config, this->world_ob_pool_allocator);
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
@@ -9356,8 +9352,10 @@ void GUIClient::connectToServer(const std::string& URL)
 		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
 			&this->download_queue));
 
+#if !defined(EMSCRIPTEN)
 	for(int i=0; i<4; ++i)
 		net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
+#endif
 
 	if(physics_world.isNull())
 	{
