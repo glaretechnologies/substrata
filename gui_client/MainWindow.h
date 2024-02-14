@@ -1,7 +1,7 @@
 /*=====================================================================
 MainWindow.h
 ------------
-Copyright Glare Technologies Limited 2023 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
@@ -13,9 +13,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/Timer.h>
 #include <utils/ComObHandle.h>
 #include <utils/SocketBufferOutStream.h>
-#include <QtCore/QEvent>
-#include <QtCore/QObject>
-#include <QtCore/QString>
 #include <QtWidgets/QMainWindow>
 #include <string>
 namespace Ui { class MainWindow; }
