@@ -1,7 +1,7 @@
 /*=====================================================================
 GUIClient.cpp
 -------------
-Copyright Glare Technologies Limited 2023 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 
 
@@ -9,7 +9,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "SettingsStore.h"
 #include "ClientThread.h"
 #include "ModelLoading.h"
-#include "TestSuite.h"
 #include "MeshBuilding.h"
 #include "ThreadMessages.h"
 #include "TerrainSystem.h"
@@ -28,11 +27,9 @@ Copyright Glare Technologies Limited 2023 -
 #include "BuildScatteringInfoTask.h"
 #include "LoadTextureTask.h"
 #include "LoadAudioTask.h"
-#include "../audio/MP3AudioFileReader.h"
 #include "../audio/MicReadThread.h"
 #include "MakeHypercardTextureTask.h"
 #include "SaveResourcesDBThread.h"
-#include "CameraController.h"
 #include "BiomeManager.h"
 #include "WebViewData.h"
 #include "BrowserVidPlayer.h"
@@ -47,7 +44,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "../networking/TLSSocket.h"
 #endif
 #include "../shared/Protocol.h"
-#include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
 #include "../shared/MessageUtils.h"
@@ -67,36 +63,24 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
 #include "../utils/Parser.h"
-#include "../utils/ContainerUtils.h"
-#include "../utils/JSONParser.h"
-#include "../utils/Base64.h"
 #include "../utils/OpenSSL.h"
-#include "../utils/ShouldCancelCallback.h"
 #include "../utils/CryptoRNG.h"
 #include "../utils/FileInStream.h"
-#include "../utils/FileOutStream.h"
-#include "../utils/BufferOutStream.h"
 #include "../utils/IncludeXXHash.h"
 #include "../utils/IndigoXMLDoc.h"
 #include "../utils/RuntimeCheck.h"
 #include "../networking/Networking.h"
 #include "../networking/URL.h"
-#include "../simpleraytracer/ray.h"
 #include "../graphics/ImageMap.h"
-#include "../graphics/FormatDecoderGLTF.h"
 #include "../graphics/SRGBUtils.h"
 #include "../dll/include/IndigoMesh.h"
-#include "../dll/IndigoStringUtils.h"
-#include "../dll/include/IndigoException.h"
 #include "../indigo/TextureServer.h"
 #include "../opengl/OpenGLShader.h"
-#include "../graphics/PNGDecoder.h"
-#include "../graphics/jpegdecoder.h"
-#include "../opengl/GLMeshBuilding.h"
 #include "../opengl/MeshPrimitiveBuilding.h"
+#include <indigo/TextureServer.h>
 #include <opengl/OpenGLMeshRenderData.h>
-#include <opengl/OpenGLEngineTests.h>
 #include <Escaping.h>
+#include <VirtualMachine.h>
 #if !defined(EMSCRIPTEN)
 #include <tls.h>
 #endif
