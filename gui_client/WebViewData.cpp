@@ -48,7 +48,7 @@ static const int button_H = 60;
 
 static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::string& text)
 {
-#if USE_SDL
+#if 1 // USE_SDL
 	return NULL; // TEMP TODO REFACTOR
 #else
 	const int W = text_tex_W;

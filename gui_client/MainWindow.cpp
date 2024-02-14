@@ -87,6 +87,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/IncludeXXHash.h"
 #include "../utils/RuntimeCheck.h"
 #include "../networking/Networking.h"
+#include "../networking/MySocket.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
 #include "../dll/IndigoStringUtils.h"
