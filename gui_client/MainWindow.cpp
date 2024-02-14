@@ -1,7 +1,7 @@
 /*=====================================================================
 MainWindow.cpp
 --------------
-Copyright Glare Technologies Limited 2023 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 
 
@@ -23,43 +23,28 @@ Copyright Glare Technologies Limited 2023 -
 #include "ListObjectsNearbyDialog.h"
 #include "ModelLoading.h"
 #include "TestSuite.h"
-#include "ThreadMessages.h"
 #include "TerrainSystem.h"
 #include "GuiClientApplication.h"
 #include "LoginDialog.h"
 #include "SignUpDialog.h"
 #include "GoToParcelDialog.h"
 #include "QSettingsStore.h"
-#include "ResetPasswordDialog.h"
-#include "ChangePasswordDialog.h"
-#include "ClientUDPHandlerThread.h"
 #include "URLWidget.h"
 #include "URLWhitelist.h"
-#include "URLParser.h"
-#include "WinterShaderEvaluator.h"
 #include "CEF.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
 #include "../shared/MessageUtils.h"
-#include "../shared/FileTypes.h"
-#include "../shared/WorldSettings.h"
-#include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
-#include <QtWidgets/QApplication>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QClipboard>
 #include <QtGui/QDesktopServices>
 #include <QtWidgets/QFileDialog>
-#include <QtWidgets/QGraphicsTextItem>
 #include <QtWidgets/QMessageBox>
-#include <QtGui/QImageWriter>
 #include <QtWidgets/QErrorMessage>
-#include <QtWidgets/QSplashScreen>
-#include <QtGui/QPainter>
-#include <QtCore/QTimer>
 #include "../qt/QtUtils.h"
 #ifdef _MSC_VER
 #pragma warning(pop) // Re-enable warnings
@@ -76,17 +61,8 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/StringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
-#include "../utils/Parser.h"
-#include "../utils/ContainerUtils.h"
-#include "../utils/Base64.h"
-#include "../utils/OpenSSL.h"
-#include "../utils/ShouldCancelCallback.h"
-#include "../utils/FileInStream.h"
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
-#include "../utils/IncludeXXHash.h"
-#include "../utils/RuntimeCheck.h"
-#include "../networking/Networking.h"
 #include "../networking/MySocket.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
@@ -99,9 +75,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "../video/WMFVideoReader.h"
 #endif
 #include "../direct3d/Direct3DUtils.h"
-#include <Escaping.h>
-#include <clocale>
-#include <tls.h>
 #include "superluminal/PerformanceAPI.h"
 #if BUGSPLAT_SUPPORT
 #include <BugSplat.h>
