@@ -1,7 +1,7 @@
 /*=====================================================================
 GUIClient.h
 ------------
-Copyright Glare Technologies Limited 2023 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
@@ -32,7 +32,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/BumpAllocator.h>
 #include <utils/TaskManager.h>
 #include <utils/StandardPrintOutput.h>
-#include <utils/ComObHandle.h>
 #include <utils/SocketBufferOutStream.h>
 #include <maths/PCG32.h>
 #include <maths/LineSegment4f.h>
