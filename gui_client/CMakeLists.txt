@@ -1006,8 +1006,8 @@ add_definitions(-DGUI_CLIENT=1)
 include(../cmake/shared_target_settings.cmake)
 
 if(USE_SDL)
-	include_directories(${SDL_BUILD_DIR}/include)
-	include_directories(${SDL_BUILD_DIR}/include-config-release) # For SDL_config.h.  NOTE: SDL_config.h seems to be the same for both Debug and Release configs, at least on Windows.
+	include_directories(${SDL_BUILD_DIR}/include/SDL2)
+	include_directories(${SDL_BUILD_DIR}/include-config-release/SDL2) # For SDL_config.h.  NOTE: SDL_config.h seems to be the same for both Debug and Release configs, at least on Windows.
 	
 	# include_directories(${imguidir})
 	
