@@ -86,7 +86,6 @@ FILE(GLOB zstandard "${zstddir}/lib/*.h"
 "${zstddir}/lib/decompress/*.c" "${zstddir}/lib/decompress/*.h"  "${zstddir}/lib/decompress/*.S"
 )
 
-SOURCE_GROUP(fftss FILES ${fftss})
 SOURCE_GROUP(libjpg FILES ${libjpg})
 SOURCE_GROUP(libpng FILES ${libpng})
 SOURCE_GROUP(zlib FILES ${zlib})
@@ -97,11 +96,9 @@ SOURCE_GROUP(zstandard FILES ${zstandard})
 
 include(../cmake/shared_cxx_settings.cmake)
 
-#-DLIB3DS_EXPORTS
-add_definitions(-DPNG_ALLOW_BENIGN_ERRORS -DTIXML_USE_STL)
+add_definitions(-DPNG_ALLOW_BENIGN_ERRORS)
 
 add_library(libs
-${fftss}
 ${openexr_all_files}
 ${libpng}
 ${zlib}
