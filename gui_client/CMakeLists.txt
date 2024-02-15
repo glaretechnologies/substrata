@@ -1006,7 +1006,9 @@ add_definitions(-DGUI_CLIENT=1)
 include(../cmake/shared_target_settings.cmake)
 
 if(USE_SDL)
-	include_directories(${SDL_DIR}/include)
+	include_directories(${SDL_BUILD_DIR}/include)
+	include_directories(${SDL_BUILD_DIR}/include-config-release) # For SDL_config.h.  NOTE: SDL_config.h seems to be the same for both Debug and Release configs, at least on Windows.
+	
 	# include_directories(${imguidir})
 	
 	add_definitions(-DUSE_SDL=1)
@@ -1042,8 +1044,8 @@ if(EMSCRIPTEN)
 	#	"-s USE_SDL=2"
 		"-sPTHREAD_POOL_SIZE=200"
 		"-sSTACK_SIZE=262144"
-		"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
-		#"-O2"
+		#"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
+		"-O2"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
 		--preload-file data
 	)
