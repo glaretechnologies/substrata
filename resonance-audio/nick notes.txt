@@ -5,3 +5,6 @@ renamed "D:\programming\resonance-audio\trunk\platforms\common\utils.cc" -> "D:\
 as .obj filenames were clashing
 
 Including most files in cmake, apart from test files. (ones with _test.cc suffix)
+
+
+Slightly modified resonance_audio\graph\resonance_audio_api_impl.cc to avoid a repeated memory allocation.  (Search for "GLARE NEW")
