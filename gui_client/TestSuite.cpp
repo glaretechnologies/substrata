@@ -49,6 +49,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/ConPrint.h"
 #include "../utils/Timer.h"
 #include "../utils/TopologicalSort.h"
+#include "../utils/MemAlloc.h"
 #include "../maths/CheckedMaths.h"
 #include "../utils/SmallArray.h"
 #include "../utils/SmallVector.h"
@@ -119,6 +120,9 @@ void TestSuite::test()
 	conPrint("==============Doing Substrata unit tests ====================");
 	Timer timer;
 
+	runTest([&]() { JPEGDecoder::test(base_dir_path); });
+	runTest([&]() { EXRDecoder::test(); }, /*mem leak allowed=*/true); // OpenEXR leaks some minor stuff
+	runTest([&]() { MemAlloc::test(); });
 	runTest([&]() { TextRenderer::test(); });
 	runTest([&]() { Maths::test(); });
 	runTest([&]() { DatabaseTests::test(); });
@@ -150,7 +154,6 @@ void TestSuite::test()
 	runTest([&]() { VoxelMeshBuilding::test(); });
 	runTest([&]() { ModelLoading::test(); });
 	runTest([&]() { glare::AudioFileReader::test(); });
-	runTest([&]() { TLSSocketTests::test(); }, /*mem leak allowed=*/true);
 	runTest([&]() { URLParser::test(); });
 	runTest([&]() { testManagerWithCache(); });
 	runTest([&]() { BitUtils::test(); });
@@ -172,12 +175,15 @@ void TestSuite::test()
 	runTest([&]() { IPAddress::test(); });
 	runTest([&]() { JSONParser::test(); });
 	runTest([&]() { StringUtils::test(); });
-	runTest([&]() { HTTPClient::test(); }, /*mem leak allowed=*/true); // Leaks, probably due to TLS leaks.
-	runTest([&]() { SMTPClient::test(); });
 	runTest([&]() { Vec4f::test(); });
 	runTest([&]() { js::AABBox::test(); });
 	runTest([&]() { ReferenceTest::run(); });
 	runTest([&]() { CameraController::test(); });
+#if !defined(EMSCRIPTEN)
+	runTest([&]() { TLSSocketTests::test(); }, /*mem leak allowed=*/true);
+	runTest([&]() { HTTPClient::test(); }, /*mem leak allowed=*/true); // Leaks, probably due to TLS leaks.
+	runTest([&]() { SMTPClient::test(); });
+#endif
 	// WMFVideoReader::test();
 	// UVUnwrapper::test(); // Disabled as tries to load a bunch of Indigo test scenes
 	// OpenGLEngineTests::test(base_dir_path); // Disabled as tries to load a bunch of Indigo test scenes
