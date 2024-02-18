@@ -80,8 +80,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <indigo/TextureServer.h>
 #include <opengl/OpenGLMeshRenderData.h>
 #include <Escaping.h>
-#include <VirtualMachine.h>
 #if !defined(EMSCRIPTEN)
+#include <VirtualMachine.h>
 #include <tls.h>
 #endif
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -6125,817 +6125,817 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 }
 
 
+// Handle any messages (chat messages etc..)
 void GUIClient::handleMessages(double global_time, double cur_time)
 {
-	// Handle any messages (chat messages etc..)
-	{
-		PERFORMANCEAPI_INSTRUMENT("handle msgs");
-		ZoneScopedN("handle msgs"); // Tracy profiler
+	PERFORMANCEAPI_INSTRUMENT("handle msgs");
+	ZoneScopedN("handle msgs"); // Tracy profiler
 
-		// Remove any messages
-		std::vector<Reference<ThreadMessage> > msgs;
+	// Remove any messages from the message queue, store in temp_msgs.
+	temp_msgs.clear();
+	{
+		Lock msg_queue_lock(this->msg_queue.getMutex());
+		while(!msg_queue.unlockedEmpty())
 		{
-			Lock msg_queue_lock(this->msg_queue.getMutex());
-			while(!msg_queue.unlockedEmpty())
+			Reference<ThreadMessage> msg;
+			this->msg_queue.unlockedDequeue(msg);
+			temp_msgs.push_back(msg);
+		}
+	}
+
+	for(size_t i=0; i<temp_msgs.size(); ++i)
+	{
+		ThreadMessage* const msg = temp_msgs[i].ptr();
+
+		if(dynamic_cast<ModelLoadedThreadMessage*>(msg))
+		{
+			// Add to model_loaded_messages_to_process to process later.
+			model_loaded_messages_to_process.push_back(static_cast<ModelLoadedThreadMessage*>(msg));
+		}
+		else if(dynamic_cast<TextureLoadedThreadMessage*>(msg))
+		{
+			// Add to texture_loaded_messages_to_process to process later.
+			texture_loaded_messages_to_process.push_back(static_cast<TextureLoadedThreadMessage*>(msg));
+		}
+		else if(dynamic_cast<BuildScatteringInfoDoneThreadMessage*>(msg))
+		{
+			BuildScatteringInfoDoneThreadMessage* loaded_msg = static_cast<BuildScatteringInfoDoneThreadMessage*>(msg);
+
+			// Look up object
+			Lock lock(this->world_state->mutex);
+
+			auto res = this->world_state->objects.find(loaded_msg->ob_uid);
+			if(res != this->world_state->objects.end())
 			{
-				Reference<ThreadMessage> msg;
-				this->msg_queue.unlockedDequeue(msg);
-				msgs.push_back(msg);
+				WorldObject* ob = res.getValue().ptr();
+
+				ob->scattering_info = loaded_msg->ob_scattering_info;
+
+				doBiomeScatteringForObject(ob);
 			}
 		}
-
-		for(size_t i=0; i<msgs.size(); ++i)
+		else if(dynamic_cast<AudioLoadedThreadMessage*>(msg))
 		{
-			Reference<ThreadMessage> msg = msgs[i];
+			AudioLoadedThreadMessage* loaded_msg = static_cast<AudioLoadedThreadMessage*>(msg);
 
-			if(dynamic_cast<ModelLoadedThreadMessage*>(msg.getPointer()))
+			// conPrint("AudioLoadedThreadMessage: loaded_msg->audio_source_url: " + loaded_msg->audio_source_url);
+
+			if(world_state.nonNull())
 			{
-				// Add to model_loaded_messages_to_process to process later.
-				model_loaded_messages_to_process.push_back((ModelLoadedThreadMessage*)msg.ptr());
-			}
-			else if(dynamic_cast<TextureLoadedThreadMessage*>(msg.getPointer()))
-			{
-				// Add to texture_loaded_messages_to_process to process later.
-				texture_loaded_messages_to_process.push_back((TextureLoadedThreadMessage*)msg.ptr());
-			}
-			else if(dynamic_cast<BuildScatteringInfoDoneThreadMessage*>(msg.getPointer()))
-			{
-				BuildScatteringInfoDoneThreadMessage* loaded_msg = static_cast<BuildScatteringInfoDoneThreadMessage*>(msg.ptr());
-
-				// Look up object
-				Lock lock(this->world_state->mutex);
-
-				auto res = this->world_state->objects.find(loaded_msg->ob_uid);
-				if(res != this->world_state->objects.end())
-				{
-					WorldObject* ob = res.getValue().ptr();
-
-					ob->scattering_info = loaded_msg->ob_scattering_info;
-
-					doBiomeScatteringForObject(ob);
-				}
-			}
-			else if(dynamic_cast<AudioLoadedThreadMessage*>(msg.getPointer()))
-			{
-				AudioLoadedThreadMessage* loaded_msg = static_cast<AudioLoadedThreadMessage*>(msg.ptr());
-
-				// conPrint("AudioLoadedThreadMessage: loaded_msg->audio_source_url: " + loaded_msg->audio_source_url);
-
-				if(world_state.nonNull())
-				{
-					// Iterate over objects and load an audio source for any object using this audio URL.
-					try
-					{
-						Lock lock(this->world_state->mutex);
-
-						for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
-						{
-							WorldObject* ob = it.getValue().ptr();
-
-							if(ob->audio_source_url == loaded_msg->audio_source_url)
-							{
-								// Remove any existing audio source for the object
-								if(ob->audio_source.nonNull())
-								{
-									audio_engine.removeSource(ob->audio_source);
-									ob->audio_source = NULL;
-								}
-
-								if(loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
-								{
-									// Timer timer;
-									// Add a looping audio source
-									ob->audio_source = new glare::AudioSource();
-									ob->audio_source->shared_buffer = loaded_msg->sound_file->buf;
-									ob->audio_source->sampling_rate = loaded_msg->sound_file->sample_rate;
-									ob->audio_source->pos = ob->getCentroidWS();
-									ob->audio_source->volume = ob->audio_volume;
-									const double audio_len_s = loaded_msg->sound_file->buf->buffer.size() / (double)loaded_msg->sound_file->sample_rate;
-									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
-									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * loaded_msg->sound_file->sample_rate), (int)loaded_msg->sound_file->buf->buffer.size());
-									ob->audio_source->debugname = ob->audio_source_url;
-
-									const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
-									ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
-
-									audio_engine.addSource(ob->audio_source);
-
-									ob->audio_state = WorldObject::AudioState_Loaded;
-									//ob->loaded_audio_source_url = ob->audio_source_url;
-
-									// conPrint("Added AudioSource " + loaded_msg->audio_source_url + ".  loaded_msg->data.size(): " + toString(loaded_msg->audio_buffer->buffer.size()) + " (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
-								}
-							}
-
-							//loadAudioForObject(ob);
-							//if(ob_lod_model_url == URL)
-							//	loadModelForObject(ob);
-						}
-					}
-					catch(glare::Exception& e)
-					{
-						print("Error while loading object: " + e.what());
-					}
-				}
-
-				// Now that this audio is loaded, removed from audio_processing set.
-				// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
-				audio_processing.erase(loaded_msg->audio_source_url);
-			}
-			else if(dynamic_cast<ScriptLoadedThreadMessage*>(msg.getPointer()))
-			{
-				ScriptLoadedThreadMessage* loaded_msg = static_cast<ScriptLoadedThreadMessage*>(msg.ptr());
-
-				// conPrint("ScriptLoadedThreadMessage");
-
-				if(world_state.nonNull())
-				{
-					// Iterate over objects and assign the script evaluator for any object using this script.
-					{
-						Lock lock(this->world_state->mutex);
-
-						for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
-						{
-							WorldObject* ob = it.getValue().ptr();
-							if(ob->script == loaded_msg->script)
-								handleScriptLoadedForObUsingScript(loaded_msg, ob);
-						}
-					}
-				}
-
-				// Now that this script is loaded, removed from script_content_processing set.
-				// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
-				script_content_processing.erase(loaded_msg->script);
-			}
-			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
-			{
-				this->connection_state = ServerConnectionState_Connecting;
-				//ui_interface->updateStatusBar();
-
-				this->server_ip_addr = static_cast<const ClientConnectingToServerMessage*>(msg.getPointer())->server_ip;
-
-				// Now that we have the server IP address, start UDP thread.
+				// Iterate over objects and load an audio source for any object using this audio URL.
 				try
 				{
-#if !defined(EMSCRIPTEN)
-					logAndConPrintMessage("Creating UDP socket...");
+					Lock lock(this->world_state->mutex);
 
-					udp_socket = new UDPSocket();
-					udp_socket->createClientSocket(/*use_IPv6=*/server_ip_addr.getVersion() == IPAddress::Version_6);
+					for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
+					{
+						WorldObject* ob = it.getValue().ptr();
 
-					// Send dummy packet to server to make the OS bind the socket to a local port.
-					uint32 dummy_type = 6;
-					udp_socket->sendPacket(&dummy_type, sizeof(dummy_type), server_ip_addr, server_UDP_port);
+						if(ob->audio_source_url == loaded_msg->audio_source_url)
+						{
+							// Remove any existing audio source for the object
+							if(ob->audio_source.nonNull())
+							{
+								audio_engine.removeSource(ob->audio_source);
+								ob->audio_source = NULL;
+							}
 
+							if(loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
+							{
+								// Timer timer;
+								// Add a looping audio source
+								ob->audio_source = new glare::AudioSource();
+								ob->audio_source->shared_buffer = loaded_msg->sound_file->buf;
+								ob->audio_source->sampling_rate = loaded_msg->sound_file->sample_rate;
+								ob->audio_source->pos = ob->getCentroidWS();
+								ob->audio_source->volume = ob->audio_volume;
+								const double audio_len_s = loaded_msg->sound_file->buf->buffer.size() / (double)loaded_msg->sound_file->sample_rate;
+								const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
+								ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * loaded_msg->sound_file->sample_rate), (int)loaded_msg->sound_file->buf->buffer.size());
+								ob->audio_source->debugname = ob->audio_source_url;
 
-					//const int local_UDP_port = udp_socket->getThisEndPort(); // UDP socket should be bound now; get port.
-					//logAndConPrintMessage("Created UDP socket, local_UDP_port: " + toString(local_UDP_port));
+								const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+								ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
 
-					// Create ClientUDPHandlerThread for handling incoming UDP messages from server
-					Reference<ClientUDPHandlerThread> udp_handler_thread = new ClientUDPHandlerThread(udp_socket, server_hostname, this->world_state.ptr(), &this->audio_engine);
-					client_udp_handler_thread_manager.addThread(udp_handler_thread);
+								audio_engine.addSource(ob->audio_source);
 
-					// Send ClientUDPSocketOpen message
-					MessageUtils::initPacket(scratch_packet, Protocol::ClientUDPSocketOpen);
-					scratch_packet.writeUInt32(0/*local_UDP_port*/);
-					enqueueMessageToSend(*this->client_thread, scratch_packet);
-#endif
+								ob->audio_state = WorldObject::AudioState_Loaded;
+								//ob->loaded_audio_source_url = ob->audio_source_url;
+
+								// conPrint("Added AudioSource " + loaded_msg->audio_source_url + ".  loaded_msg->data.size(): " + toString(loaded_msg->audio_buffer->buffer.size()) + " (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+							}
+						}
+
+						//loadAudioForObject(ob);
+						//if(ob_lod_model_url == URL)
+						//	loadModelForObject(ob);
+					}
 				}
 				catch(glare::Exception& e)
 				{
-					logAndConPrintMessage(e.what());
-					//QMessageBox msgBox;
-					//msgBox.setText(QtUtils::toQString(e.what()));
-					//msgBox.exec();
-					//return;
+					print("Error while loading object: " + e.what());
 				}
 			}
-			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
+
+			// Now that this audio is loaded, removed from audio_processing set.
+			// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
+			audio_processing.erase(loaded_msg->audio_source_url);
+		}
+		else if(dynamic_cast<ScriptLoadedThreadMessage*>(msg))
+		{
+			ScriptLoadedThreadMessage* loaded_msg = static_cast<ScriptLoadedThreadMessage*>(msg);
+
+			// conPrint("ScriptLoadedThreadMessage");
+
+			if(world_state.nonNull())
 			{
-				this->connection_state = ServerConnectionState_Connected;
-				//updateStatusBar();
-
-				this->client_avatar_uid = static_cast<const ClientConnectedToServerMessage*>(msg.getPointer())->client_avatar_uid;
-				this->server_protocol_version = static_cast<const ClientConnectedToServerMessage*>(msg.getPointer())->server_protocol_version;
-
-				// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
-				if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
+				// Iterate over objects and assign the script evaluator for any object using this script.
 				{
-					const std::string username = ui_interface->getUsernameForDomain(server_hostname);
-					if(!username.empty())
+					Lock lock(this->world_state->mutex);
+
+					for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
 					{
-						const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname); // manager.getDecryptedPasswordForDomain(server_hostname);
-
-						// Make LogInMessage packet and enqueue to send
-						MessageUtils::initPacket(scratch_packet, Protocol::LogInMessage);
-						scratch_packet.writeStringLengthFirst(username);
-						scratch_packet.writeStringLengthFirst(password);
-
-						enqueueMessageToSend(*this->client_thread, scratch_packet);
+						WorldObject* ob = it.getValue().ptr();
+						if(ob->script == loaded_msg->script)
+							handleScriptLoadedForObUsingScript(loaded_msg, ob);
 					}
 				}
-				
-				// Send CreateAvatar packet for this client's avatar
-				{
-					MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
+			}
 
-					const Vec3d cam_angles = this->cam_controller.getAngles();
-					Avatar avatar;
-					avatar.uid = this->client_avatar_uid;
-					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-					avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-					writeAvatarToNetworkStream(avatar, scratch_packet);
+			// Now that this script is loaded, removed from script_content_processing set.
+			// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
+			script_content_processing.erase(loaded_msg->script);
+		}
+		else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg))
+		{
+			this->connection_state = ServerConnectionState_Connecting;
+			//ui_interface->updateStatusBar();
+
+			this->server_ip_addr = static_cast<const ClientConnectingToServerMessage*>(msg)->server_ip;
+
+			// Now that we have the server IP address, start UDP thread.
+			try
+			{
+#if !defined(EMSCRIPTEN)
+				logAndConPrintMessage("Creating UDP socket...");
+
+				udp_socket = new UDPSocket();
+				udp_socket->createClientSocket(/*use_IPv6=*/server_ip_addr.getVersion() == IPAddress::Version_6);
+
+				// Send dummy packet to server to make the OS bind the socket to a local port.
+				uint32 dummy_type = 6;
+				udp_socket->sendPacket(&dummy_type, sizeof(dummy_type), server_ip_addr, server_UDP_port);
+
+
+				//const int local_UDP_port = udp_socket->getThisEndPort(); // UDP socket should be bound now; get port.
+				//logAndConPrintMessage("Created UDP socket, local_UDP_port: " + toString(local_UDP_port));
+
+				// Create ClientUDPHandlerThread for handling incoming UDP messages from server
+				Reference<ClientUDPHandlerThread> udp_handler_thread = new ClientUDPHandlerThread(udp_socket, server_hostname, this->world_state.ptr(), &this->audio_engine);
+				client_udp_handler_thread_manager.addThread(udp_handler_thread);
+
+				// Send ClientUDPSocketOpen message
+				MessageUtils::initPacket(scratch_packet, Protocol::ClientUDPSocketOpen);
+				scratch_packet.writeUInt32(0/*local_UDP_port*/);
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
+#endif
+			}
+			catch(glare::Exception& e)
+			{
+				logAndConPrintMessage(e.what());
+				//QMessageBox msgBox;
+				//msgBox.setText(QtUtils::toQString(e.what()));
+				//msgBox.exec();
+				//return;
+			}
+		}
+		else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg))
+		{
+			this->connection_state = ServerConnectionState_Connected;
+			//updateStatusBar();
+
+			this->client_avatar_uid = static_cast<const ClientConnectedToServerMessage*>(msg)->client_avatar_uid;
+			this->server_protocol_version = static_cast<const ClientConnectedToServerMessage*>(msg)->server_protocol_version;
+
+			// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
+			if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
+			{
+				const std::string username = ui_interface->getUsernameForDomain(server_hostname);
+				if(!username.empty())
+				{
+					const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname); // manager.getDecryptedPasswordForDomain(server_hostname);
+
+					// Make LogInMessage packet and enqueue to send
+					MessageUtils::initPacket(scratch_packet, Protocol::LogInMessage);
+					scratch_packet.writeStringLengthFirst(username);
+					scratch_packet.writeStringLengthFirst(password);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
-
-				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
-					(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 			}
-			else if(dynamic_cast<const AudioStreamToServerStartedMessage*>(msg.getPointer()))
+				
+			// Send CreateAvatar packet for this client's avatar
 			{
-				// Sent by MicReadThread to indicate that streaming audio to the server has started.   Also sent periodically during streaming as well.
+				MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
 
-				const AudioStreamToServerStartedMessage* m = static_cast<const AudioStreamToServerStartedMessage*>(msg.getPointer());
-
-				// Make AudioStreamToServerStarted packet and enqueue to send
-				MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
-				scratch_packet.writeUInt32(m->sampling_rate);
-				scratch_packet.writeUInt32(m->flags);
-				scratch_packet.writeUInt32(m->stream_id);
+				const Vec3d cam_angles = this->cam_controller.getAngles();
+				Avatar avatar;
+				avatar.uid = this->client_avatar_uid;
+				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+				writeAvatarToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
-			else if(dynamic_cast<const AudioStreamToServerEndedMessage*>(msg.getPointer()))
+
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
+				(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
+		}
+		else if(dynamic_cast<const AudioStreamToServerStartedMessage*>(msg))
+		{
+			// Sent by MicReadThread to indicate that streaming audio to the server has started.   Also sent periodically during streaming as well.
+
+			const AudioStreamToServerStartedMessage* m = static_cast<const AudioStreamToServerStartedMessage*>(msg);
+
+			// Make AudioStreamToServerStarted packet and enqueue to send
+			MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
+			scratch_packet.writeUInt32(m->sampling_rate);
+			scratch_packet.writeUInt32(m->flags);
+			scratch_packet.writeUInt32(m->stream_id);
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+		else if(dynamic_cast<const AudioStreamToServerEndedMessage*>(msg))
+		{
+			// Sent by MicReadThread to indicate that streaming audio to the server has ended.
+
+			// Make AudioStreamToServerEnded packet and enqueue to send
+			MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerEnded);
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+		else if(dynamic_cast<const RemoteClientAudioStreamToServerStarted*>(msg))
+		{
+			// Sent by ClientThread to this GUIClient after receiving AudioStreamToServerStarted message from server.
+			// Indicates a client has started streaming audio to the server.
+			// Create an audio source to play spatial audio from the avatar, if there isn't one already.
+
+			const RemoteClientAudioStreamToServerStarted* m = static_cast<const RemoteClientAudioStreamToServerStarted*>(msg);
+
+			if(m->flags == 0)
+				conPrint("Received RemoteClientAudioStreamToServerStarted, avatar_uid: " + m->avatar_uid.toString() + ", sampling_rate: " + toString(m->sampling_rate) + ", flags: " + toString(m->flags) + ", stream_id: " + toString(m->stream_id));
+
+			if((m->sampling_rate == 8000) || (m->sampling_rate == 12000) || (m->sampling_rate == 16000) || (m->sampling_rate == 24000) || (m->sampling_rate == 48000)) // Sampling rates Opus encoder supports
 			{
-				// Sent by MicReadThread to indicate that streaming audio to the server has ended.
-
-				// Make AudioStreamToServerEnded packet and enqueue to send
-				MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerEnded);
-
-				enqueueMessageToSend(*this->client_thread, scratch_packet);
-			}
-			else if(dynamic_cast<const RemoteClientAudioStreamToServerStarted*>(msg.getPointer()))
-			{
-				// Sent by ClientThread to this GUIClient after receiving AudioStreamToServerStarted message from server.
-				// Indicates a client has started streaming audio to the server.
-				// Create an audio source to play spatial audio from the avatar, if there isn't one already.
-
-				const RemoteClientAudioStreamToServerStarted* m = static_cast<const RemoteClientAudioStreamToServerStarted*>(msg.getPointer());
-
-				if(m->flags == 0)
-					conPrint("Received RemoteClientAudioStreamToServerStarted, avatar_uid: " + m->avatar_uid.toString() + ", sampling_rate: " + toString(m->sampling_rate) + ", flags: " + toString(m->flags) + ", stream_id: " + toString(m->stream_id));
-
-				if((m->sampling_rate == 8000) || (m->sampling_rate == 12000) || (m->sampling_rate == 16000) || (m->sampling_rate == 24000) || (m->sampling_rate == 48000)) // Sampling rates Opus encoder supports
+				if(world_state.nonNull())
 				{
-					if(world_state.nonNull())
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
 					{
-						Lock lock(this->world_state->mutex);
+						Avatar* avatar = res->second.getPointer();
 
-						auto res = this->world_state->avatars.find(m->avatar_uid);
-						if(res != this->world_state->avatars.end())
+						if(avatar->audio_source.isNull() && !avatar->isOurAvatar())
 						{
-							Avatar* avatar = res->second.getPointer();
+							avatar->audio_stream_sampling_rate = m->sampling_rate;
+							avatar->audio_stream_id = m->stream_id;
 
-							if(avatar->audio_source.isNull() && !avatar->isOurAvatar())
+							// Add audio source for voice chat
+							avatar->audio_source = new glare::AudioSource();
+							avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
+							avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+							avatar->audio_source->sampling_rate = m->sampling_rate;
+
+							audio_engine.addSource(avatar->audio_source);
+
+							world_state->avatars_changed = 1; // Inform ClientUDPHandlerThread
+
+							if(avatar->speaker_gl_ob.isNull())
 							{
-								avatar->audio_stream_sampling_rate = m->sampling_rate;
-								avatar->audio_stream_id = m->stream_id;
-
-								// Add audio source for voice chat
-								avatar->audio_source = new glare::AudioSource();
-								avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
-								avatar->audio_source->pos = avatar->pos.toVec4fPoint();
-								avatar->audio_source->sampling_rate = m->sampling_rate;
-
-								audio_engine.addSource(avatar->audio_source);
-
-								world_state->avatars_changed = 1; // Inform ClientUDPHandlerThread
-
-								if(avatar->speaker_gl_ob.isNull())
-								{
-									avatar->speaker_gl_ob = makeSpeakerGLObject();
-									opengl_engine->addObject(avatar->speaker_gl_ob); // Add to 3d engine
-								}
+								avatar->speaker_gl_ob = makeSpeakerGLObject();
+								opengl_engine->addObject(avatar->speaker_gl_ob); // Add to 3d engine
 							}
 						}
 					}
 				}
+			}
+			else
+				conPrint("Invalid sampling rate, ignoring RemoteClientAudioStreamToServerStarted message");
+		}
+		else if(dynamic_cast<const RemoteClientAudioStreamToServerEnded*>(msg))
+		{
+			// Sent by ClientThread to this GUIClient after receiving AudioStreamToServerEnded message from server.
+			// Indicates a client has finished streaming audio to the server.
+
+			const RemoteClientAudioStreamToServerEnded* m = static_cast<const RemoteClientAudioStreamToServerEnded*>(msg);
+
+			conPrint("Received RemoteClientAudioStreamToServerEnded, avatar_uid: " + m->avatar_uid.toString());
+
+			if(world_state.nonNull())
+			{
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->avatars.find(m->avatar_uid);
+				if(res != this->world_state->avatars.end())
+				{
+					Avatar* avatar = res->second.getPointer();
+
+					// Remove audio source for voice chat, if it exists
+					if(avatar->audio_source.nonNull() && !avatar->isOurAvatar())
+					{
+						audio_engine.removeSource(avatar->audio_source);
+						avatar->audio_source = NULL;
+
+						world_state->avatars_changed = 1; // Inform ClientUDPHandlerThread
+					}
+
+					// Remove speaker icon by nametag.
+					if(avatar->speaker_gl_ob.nonNull())
+					{
+						opengl_engine->removeObject(avatar->speaker_gl_ob);
+						avatar->speaker_gl_ob = NULL;
+					}
+				}
+			}
+		}
+		else if(dynamic_cast<const ClientProtocolTooOldMessage*>(msg))
+		{
+			ui_interface->showHTMLMessageBox("Client too old", "<p>Sorry, your Substrata client is too old.</p><p>Please download and install an updated client from <a href=\"https://substrata.info/\">substrata.info</a></p>");
+		}
+		else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg))
+		{
+			const ClientDisconnectedFromServerMessage* m = static_cast<const ClientDisconnectedFromServerMessage*>(msg);
+			if(!m->error_message.empty())
+			{
+				showErrorNotification(m->error_message);
+			}
+			this->connection_state = ServerConnectionState_NotConnected;
+
+			this->logged_in_user_id = UserID::invalidUserID();
+			this->logged_in_user_name = "";
+			this->logged_in_user_flags = 0;
+
+			ui_interface->setTextAsNotLoggedIn();
+
+			ui_interface->updateWorldSettingsControlsEditable();
+
+			//updateStatusBar();
+		}
+		else if(dynamic_cast<const AvatarIsHereMessage*>(msg))
+		{
+			const AvatarIsHereMessage* m = static_cast<const AvatarIsHereMessage*>(msg);
+
+			if(world_state.nonNull())
+			{
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->avatars.find(m->avatar_uid);
+				if(res != this->world_state->avatars.end())
+				{
+					Avatar* avatar = res->second.getPointer();
+
+					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
+						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
+						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> is here.</i>");
+					ui_interface->updateOnlineUsersList();
+				}
+			}
+		}
+		else if(dynamic_cast<const AvatarCreatedMessage*>(msg))
+		{
+			const AvatarCreatedMessage* m = static_cast<const AvatarCreatedMessage*>(msg);
+
+			if(world_state.nonNull())
+			{
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->avatars.find(m->avatar_uid);
+				if(res != this->world_state->avatars.end())
+				{
+					const Avatar* avatar = res->second.getPointer();
+					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
+						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
+						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>");
+					ui_interface->updateOnlineUsersList();
+				}
+			}
+		}
+		else if(dynamic_cast<const AvatarPerformGestureMessage*>(msg))
+		{
+			const AvatarPerformGestureMessage* m = static_cast<const AvatarPerformGestureMessage*>(msg);
+
+			if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
+			{
+				if(world_state.nonNull())
+				{
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
+					{
+						Avatar* avatar = res->second.getPointer();
+						avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name));
+					}
+				}
+			}
+		}
+		else if(dynamic_cast<const AvatarStopGestureMessage*>(msg))
+		{
+			const AvatarStopGestureMessage* m = static_cast<const AvatarStopGestureMessage*>(msg);
+
+			if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
+			{
+				if(world_state.nonNull())
+				{
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
+					{
+						Avatar* avatar = res->second.getPointer();
+						avatar->graphics.stopGesture(cur_time);
+					}
+				}
+			}
+		}
+		else if(dynamic_cast<const ChatMessage*>(msg))
+		{
+			const ChatMessage* m = static_cast<const ChatMessage*>(msg);
+
+			if(world_state.nonNull())
+			{
+				// Look up sending avatar name colour.  TODO: could do this with sending avatar UID, would be faster + simpler.
+				Colour3f col(0.8f);
+				{
+					Lock lock(this->world_state->mutex);
+
+					for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+					{
+						const Avatar* avatar = it->second.getPointer();
+						if(avatar->name == m->name)
+							col = avatar->name_colour;
+					}
+				}
+
+				ui_interface->appendChatMessage(
+					"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(m->name) + "</span>: " +
+					web::Escaping::HTMLEscape(m->msg) + "</p>");
+			}
+		}
+		else if(dynamic_cast<const InfoMessage*>(msg))
+		{
+			const InfoMessage* m = static_cast<const InfoMessage*>(msg);
+			ui_interface->showPlainTextMessageBox("Message from server", m->msg);
+		}
+		else if(dynamic_cast<const ErrorMessage*>(msg))
+		{
+			const ErrorMessage* m = static_cast<const ErrorMessage*>(msg);
+			showErrorNotification(m->msg);
+		}
+		else if(dynamic_cast<const LogMessage*>(msg))
+		{
+			const LogMessage* m = static_cast<const LogMessage*>(msg);
+			logMessage(m->msg);
+		}
+		else if(dynamic_cast<const LoggedInMessage*>(msg))
+		{
+			const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg);
+
+			ui_interface->setTextAsLoggedIn(m->username);
+			this->logged_in_user_id = m->user_id;
+			this->logged_in_user_name = m->username;
+			this->logged_in_user_flags = m->user_flags;
+
+			conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
+
+			recolourParcelsForLoggedInState();
+			ui_interface->updateWorldSettingsControlsEditable();
+
+			// Send AvatarFullUpdate message, to change the nametag on our avatar.
+			const Vec3d cam_angles = this->cam_controller.getAngles();
+			Avatar avatar;
+			avatar.uid = this->client_avatar_uid;
+			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+			avatar.avatar_settings = m->avatar_settings;
+			avatar.name = m->username;
+
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+			writeAvatarToNetworkStream(avatar, scratch_packet);
+				
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+		else if(dynamic_cast<const LoggedOutMessage*>(msg))
+		{
+			ui_interface->setTextAsNotLoggedIn();
+			this->logged_in_user_id = UserID::invalidUserID();
+			this->logged_in_user_name = "";
+			this->logged_in_user_flags = 0;
+
+			recolourParcelsForLoggedInState();
+			ui_interface->updateWorldSettingsControlsEditable();
+
+			// Send AvatarFullUpdate message, to change the nametag on our avatar.
+			const Vec3d cam_angles = this->cam_controller.getAngles();
+			Avatar avatar;
+			avatar.uid = this->client_avatar_uid;
+			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+			avatar.avatar_settings.model_url = "";
+			avatar.name = "Anonymous";
+
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+			writeAvatarToNetworkStream(avatar, scratch_packet);
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+		else if(dynamic_cast<const SignedUpMessage*>(msg))
+		{
+			const SignedUpMessage* m = static_cast<const SignedUpMessage*>(msg);
+			ui_interface->showPlainTextMessageBox("Signed up", "Successfully signed up and logged in.");
+
+			ui_interface->setTextAsLoggedIn(m->username);
+			this->logged_in_user_id = m->user_id;
+			this->logged_in_user_name = m->username;
+			this->logged_in_user_flags = 0;
+
+			// Send AvatarFullUpdate message, to change the nametag on our avatar.
+			const Vec3d cam_angles = this->cam_controller.getAngles();
+			Avatar avatar;
+			avatar.uid = this->client_avatar_uid;
+			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+			avatar.avatar_settings.model_url = "";
+			avatar.name = m->username;
+
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+			writeAvatarToNetworkStream(avatar, scratch_packet);
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+		else if(dynamic_cast<const ServerAdminMessage*>(msg))
+		{
+			const ServerAdminMessage* m = static_cast<const ServerAdminMessage*>(msg);
+				
+			misc_info_ui.showServerAdminMessage(m->msg);
+		}
+		else if(dynamic_cast<const WorldSettingsReceivedMessage*>(msg))
+		{
+			const WorldSettingsReceivedMessage* m = static_cast<const WorldSettingsReceivedMessage*>(msg);
+
+			this->connected_world_settings.copyNetworkStateFrom(m->world_settings); // Store world settings to be used later
+
+			this->ui_interface->updateWorldSettingsUIFromWorldSettings(); // Update UI
+
+			if(!m->is_initial_send)
+				showInfoNotification("World settings updated");
+
+			// Reload terrain by shutting it down, will be recreated in GUIClient::updateGroundPlane().
+			if(this->terrain_system.nonNull())
+			{
+				terrain_system->shutdown();
+				terrain_system = NULL;
+			}
+
+			if(physics_world.nonNull())
+			{
+				physics_world->setWaterBuoyancyEnabled(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
+				const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
+				physics_world->setWaterZ(use_water_z);
+			}
+		}
+		else if(dynamic_cast<const MapTilesResultReceivedMessage*>(msg))
+		{
+			const MapTilesResultReceivedMessage* m = static_cast<const MapTilesResultReceivedMessage*>(msg);
+
+			this->minimap.handleMapTilesResultReceivedMessage(*m);
+		}
+		else if(dynamic_cast<const UserSelectedObjectMessage*>(msg))
+		{
+			if(world_state.nonNull())
+			{
+				//print("GUIClient: Received UserSelectedObjectMessage");
+				const UserSelectedObjectMessage* m = static_cast<const UserSelectedObjectMessage*>(msg);
+				Lock lock(this->world_state->mutex);
+				const bool is_ob_with_uid_inserted = this->world_state->objects.find(m->object_uid) != this->world_state->objects.end();
+				if(this->world_state->avatars.count(m->avatar_uid) != 0 && is_ob_with_uid_inserted)
+				{
+					this->world_state->avatars[m->avatar_uid]->selected_object_uid = m->object_uid;
+				}
+			}
+		}
+		else if(dynamic_cast<const UserDeselectedObjectMessage*>(msg))
+		{
+			if(world_state.nonNull())
+			{	
+				//print("GUIClient: Received UserDeselectedObjectMessage");
+				const UserDeselectedObjectMessage* m = static_cast<const UserDeselectedObjectMessage*>(msg);
+				Lock lock(this->world_state->mutex);
+				if(this->world_state->avatars.count(m->avatar_uid) != 0)
+				{
+					this->world_state->avatars[m->avatar_uid]->selected_object_uid = UID::invalidUID();
+				}
+			}
+		}
+		else if(dynamic_cast<const GetFileMessage*>(msg))
+		{
+			// When the server wants a file from the client, it will send the client a GetFile protocol message.
+			const GetFileMessage* m = static_cast<const GetFileMessage*>(msg);
+
+			if(ResourceManager::isValidURL(m->URL))
+			{
+				if(resource_manager->isFileForURLPresent(m->URL))
+				{
+					const std::string path = resource_manager->pathForURL(m->URL);
+
+					const std::string username = ui_interface->getUsernameForDomain(server_hostname);
+					const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname);
+
+					this->num_resources_uploading++;
+					resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password, this->client_tls_config, 
+						&this->num_resources_uploading));
+					print("Received GetFileMessage, Uploading resource with URL '" + m->URL + "' to server.");
+				}
 				else
-					conPrint("Invalid sampling rate, ignoring RemoteClientAudioStreamToServerStarted message");
+					print("Could not upload resource with URL '" + m->URL + "' to server, not present on client.");
 			}
-			else if(dynamic_cast<const RemoteClientAudioStreamToServerEnded*>(msg.getPointer()))
+		}
+		else if(dynamic_cast<const NewResourceOnServerMessage*>(msg))
+		{
+			// When the server has a file uploaded to it, it will send a NewResourceOnServer message to clients, so they can download it.
+
+			const NewResourceOnServerMessage* m = static_cast<const NewResourceOnServerMessage*>(msg);
+
+			if(world_state.nonNull())
 			{
-				// Sent by ClientThread to this GUIClient after receiving AudioStreamToServerEnded message from server.
-				// Indicates a client has finished streaming audio to the server.
-
-				const RemoteClientAudioStreamToServerEnded* m = static_cast<const RemoteClientAudioStreamToServerEnded*>(msg.getPointer());
-
-				conPrint("Received RemoteClientAudioStreamToServerEnded, avatar_uid: " + m->avatar_uid.toString());
-
-				if(world_state.nonNull())
-				{
-					Lock lock(this->world_state->mutex);
-
-					auto res = this->world_state->avatars.find(m->avatar_uid);
-					if(res != this->world_state->avatars.end())
-					{
-						Avatar* avatar = res->second.getPointer();
-
-						// Remove audio source for voice chat, if it exists
-						if(avatar->audio_source.nonNull() && !avatar->isOurAvatar())
-						{
-							audio_engine.removeSource(avatar->audio_source);
-							avatar->audio_source = NULL;
-
-							world_state->avatars_changed = 1; // Inform ClientUDPHandlerThread
-						}
-
-						// Remove speaker icon by nametag.
-						if(avatar->speaker_gl_ob.nonNull())
-						{
-							opengl_engine->removeObject(avatar->speaker_gl_ob);
-							avatar->speaker_gl_ob = NULL;
-						}
-					}
-				}
-			}
-			else if(dynamic_cast<const ClientProtocolTooOldMessage*>(msg.getPointer()))
-			{
-				ui_interface->showHTMLMessageBox("Client too old", "<p>Sorry, your Substrata client is too old.</p><p>Please download and install an updated client from <a href=\"https://substrata.info/\">substrata.info</a></p>");
-			}
-			else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
-			{
-				const ClientDisconnectedFromServerMessage* m = static_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer());
-				if(!m->error_message.empty())
-				{
-					showErrorNotification(m->error_message);
-				}
-				this->connection_state = ServerConnectionState_NotConnected;
-
-				this->logged_in_user_id = UserID::invalidUserID();
-				this->logged_in_user_name = "";
-				this->logged_in_user_flags = 0;
-
-				ui_interface->setTextAsNotLoggedIn();
-
-				ui_interface->updateWorldSettingsControlsEditable();
-
-				//updateStatusBar();
-			}
-			else if(dynamic_cast<const AvatarIsHereMessage*>(msg.getPointer()))
-			{
-				const AvatarIsHereMessage* m = static_cast<const AvatarIsHereMessage*>(msg.getPointer());
-
-				if(world_state.nonNull())
-				{
-					Lock lock(this->world_state->mutex);
-
-					auto res = this->world_state->avatars.find(m->avatar_uid);
-					if(res != this->world_state->avatars.end())
-					{
-						Avatar* avatar = res->second.getPointer();
-
-						ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
-							toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
-							")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> is here.</i>");
-						ui_interface->updateOnlineUsersList();
-					}
-				}
-			}
-			else if(dynamic_cast<const AvatarCreatedMessage*>(msg.getPointer()))
-			{
-				const AvatarCreatedMessage* m = static_cast<const AvatarCreatedMessage*>(msg.getPointer());
-
-				if(world_state.nonNull())
-				{
-					Lock lock(this->world_state->mutex);
-
-					auto res = this->world_state->avatars.find(m->avatar_uid);
-					if(res != this->world_state->avatars.end())
-					{
-						const Avatar* avatar = res->second.getPointer();
-						ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
-							toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
-							")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>");
-						ui_interface->updateOnlineUsersList();
-					}
-				}
-			}
-			else if(dynamic_cast<const AvatarPerformGestureMessage*>(msg.getPointer()))
-			{
-				const AvatarPerformGestureMessage* m = static_cast<const AvatarPerformGestureMessage*>(msg.getPointer());
-
-				if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
-				{
-					if(world_state.nonNull())
-					{
-						Lock lock(this->world_state->mutex);
-
-						auto res = this->world_state->avatars.find(m->avatar_uid);
-						if(res != this->world_state->avatars.end())
-						{
-							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name));
-						}
-					}
-				}
-			}
-			else if(dynamic_cast<const AvatarStopGestureMessage*>(msg.getPointer()))
-			{
-				const AvatarStopGestureMessage* m = static_cast<const AvatarStopGestureMessage*>(msg.getPointer());
-
-				if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
-				{
-					if(world_state.nonNull())
-					{
-						Lock lock(this->world_state->mutex);
-
-						auto res = this->world_state->avatars.find(m->avatar_uid);
-						if(res != this->world_state->avatars.end())
-						{
-							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.stopGesture(cur_time);
-						}
-					}
-				}
-			}
-			else if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
-			{
-				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
-
-				if(world_state.nonNull())
-				{
-					// Look up sending avatar name colour.  TODO: could do this with sending avatar UID, would be faster + simpler.
-					Colour3f col(0.8f);
-					{
-						Lock lock(this->world_state->mutex);
-
-						for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-						{
-							const Avatar* avatar = it->second.getPointer();
-							if(avatar->name == m->name)
-								col = avatar->name_colour;
-						}
-					}
-
-					ui_interface->appendChatMessage(
-						"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(m->name) + "</span>: " +
-						web::Escaping::HTMLEscape(m->msg) + "</p>");
-				}
-			}
-			else if(dynamic_cast<const InfoMessage*>(msg.getPointer()))
-			{
-				const InfoMessage* m = static_cast<const InfoMessage*>(msg.getPointer());
-				ui_interface->showPlainTextMessageBox("Message from server", m->msg);
-			}
-			else if(dynamic_cast<const ErrorMessage*>(msg.getPointer()))
-			{
-				const ErrorMessage* m = static_cast<const ErrorMessage*>(msg.getPointer());
-				showErrorNotification(m->msg);
-			}
-			else if(dynamic_cast<const LogMessage*>(msg.getPointer()))
-			{
-				const LogMessage* m = static_cast<const LogMessage*>(msg.getPointer());
-				logMessage(m->msg);
-			}
-			else if(dynamic_cast<const LoggedInMessage*>(msg.getPointer()))
-			{
-				const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg.getPointer());
-
-				ui_interface->setTextAsLoggedIn(m->username);
-				this->logged_in_user_id = m->user_id;
-				this->logged_in_user_name = m->username;
-				this->logged_in_user_flags = m->user_flags;
-
-				conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
-
-				recolourParcelsForLoggedInState();
-				ui_interface->updateWorldSettingsControlsEditable();
-
-				// Send AvatarFullUpdate message, to change the nametag on our avatar.
-				const Vec3d cam_angles = this->cam_controller.getAngles();
-				Avatar avatar;
-				avatar.uid = this->client_avatar_uid;
-				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-				avatar.avatar_settings = m->avatar_settings;
-				avatar.name = m->username;
-
-				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeAvatarToNetworkStream(avatar, scratch_packet);
-				
-				enqueueMessageToSend(*this->client_thread, scratch_packet);
-			}
-			else if(dynamic_cast<const LoggedOutMessage*>(msg.getPointer()))
-			{
-				ui_interface->setTextAsNotLoggedIn();
-				this->logged_in_user_id = UserID::invalidUserID();
-				this->logged_in_user_name = "";
-				this->logged_in_user_flags = 0;
-
-				recolourParcelsForLoggedInState();
-				ui_interface->updateWorldSettingsControlsEditable();
-
-				// Send AvatarFullUpdate message, to change the nametag on our avatar.
-				const Vec3d cam_angles = this->cam_controller.getAngles();
-				Avatar avatar;
-				avatar.uid = this->client_avatar_uid;
-				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-				avatar.avatar_settings.model_url = "";
-				avatar.name = "Anonymous";
-
-				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeAvatarToNetworkStream(avatar, scratch_packet);
-
-				enqueueMessageToSend(*this->client_thread, scratch_packet);
-			}
-			else if(dynamic_cast<const SignedUpMessage*>(msg.getPointer()))
-			{
-				const SignedUpMessage* m = static_cast<const SignedUpMessage*>(msg.getPointer());
-				ui_interface->showPlainTextMessageBox("Signed up", "Successfully signed up and logged in.");
-
-				ui_interface->setTextAsLoggedIn(m->username);
-				this->logged_in_user_id = m->user_id;
-				this->logged_in_user_name = m->username;
-				this->logged_in_user_flags = 0;
-
-				// Send AvatarFullUpdate message, to change the nametag on our avatar.
-				const Vec3d cam_angles = this->cam_controller.getAngles();
-				Avatar avatar;
-				avatar.uid = this->client_avatar_uid;
-				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-				avatar.avatar_settings.model_url = "";
-				avatar.name = m->username;
-
-				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-				writeAvatarToNetworkStream(avatar, scratch_packet);
-
-				enqueueMessageToSend(*this->client_thread, scratch_packet);
-			}
-			else if(dynamic_cast<const ServerAdminMessage*>(msg.getPointer()))
-			{
-				const ServerAdminMessage* m = static_cast<const ServerAdminMessage*>(msg.getPointer());
-				
-				misc_info_ui.showServerAdminMessage(m->msg);
-			}
-			else if(dynamic_cast<const WorldSettingsReceivedMessage*>(msg.getPointer()))
-			{
-				const WorldSettingsReceivedMessage* m = static_cast<const WorldSettingsReceivedMessage*>(msg.getPointer());
-
-				this->connected_world_settings.copyNetworkStateFrom(m->world_settings); // Store world settings to be used later
-
-				this->ui_interface->updateWorldSettingsUIFromWorldSettings(); // Update UI
-
-				if(!m->is_initial_send)
-					showInfoNotification("World settings updated");
-
-				// Reload terrain by shutting it down, will be recreated in GUIClient::updateGroundPlane().
-				if(this->terrain_system.nonNull())
-				{
-					terrain_system->shutdown();
-					terrain_system = NULL;
-				}
-
-				if(physics_world.nonNull())
-				{
-					physics_world->setWaterBuoyancyEnabled(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
-					const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
-					physics_world->setWaterZ(use_water_z);
-				}
-			}
-			else if(dynamic_cast<const MapTilesResultReceivedMessage*>(msg.getPointer()))
-			{
-				const MapTilesResultReceivedMessage* m = static_cast<const MapTilesResultReceivedMessage*>(msg.getPointer());
-
-				this->minimap.handleMapTilesResultReceivedMessage(*m);
-			}
-			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
-			{
-				if(world_state.nonNull())
-				{
-					//print("GUIClient: Received UserSelectedObjectMessage");
-					const UserSelectedObjectMessage* m = static_cast<const UserSelectedObjectMessage*>(msg.getPointer());
-					Lock lock(this->world_state->mutex);
-					const bool is_ob_with_uid_inserted = this->world_state->objects.find(m->object_uid) != this->world_state->objects.end();
-					if(this->world_state->avatars.count(m->avatar_uid) != 0 && is_ob_with_uid_inserted)
-					{
-						this->world_state->avatars[m->avatar_uid]->selected_object_uid = m->object_uid;
-					}
-				}
-			}
-			else if(dynamic_cast<const UserDeselectedObjectMessage*>(msg.getPointer()))
-			{
-				if(world_state.nonNull())
-				{	
-					//print("GUIClient: Received UserDeselectedObjectMessage");
-					const UserDeselectedObjectMessage* m = static_cast<const UserDeselectedObjectMessage*>(msg.getPointer());
-					Lock lock(this->world_state->mutex);
-					if(this->world_state->avatars.count(m->avatar_uid) != 0)
-					{
-						this->world_state->avatars[m->avatar_uid]->selected_object_uid = UID::invalidUID();
-					}
-				}
-			}
-			else if(dynamic_cast<const GetFileMessage*>(msg.getPointer()))
-			{
-				// When the server wants a file from the client, it will send the client a GetFile protocol message.
-				const GetFileMessage* m = static_cast<const GetFileMessage*>(msg.getPointer());
+				conPrint("Got NewResourceOnServerMessage, URL: " + m->URL);
 
 				if(ResourceManager::isValidURL(m->URL))
 				{
-					if(resource_manager->isFileForURLPresent(m->URL))
+					if(!resource_manager->isFileForURLPresent(m->URL)) // If we don't have this file yet:
 					{
-						const std::string path = resource_manager->pathForURL(m->URL);
+						conPrint("Do not have resource.");
 
-						const std::string username = ui_interface->getUsernameForDomain(server_hostname);
-						const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname);
+						// Iterate over objects and see if they were using a placeholder model for this resource.
+						Lock lock(this->world_state->mutex);
+						bool need_resource = false;
+						for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
+						{
+							WorldObject* ob = it.getValue().ptr();
 
-						this->num_resources_uploading++;
-						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password, this->client_tls_config, 
-							&this->num_resources_uploading));
-						print("Received GetFileMessage, Uploading resource with URL '" + m->URL + "' to server.");
+							const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+
+							//if(ob->using_placeholder_model)
+							{
+								WorldObject::GetDependencyOptions options;
+								std::set<DependencyURL> URL_set;
+								ob->getDependencyURLSet(ob_lod_level, options, URL_set);
+								need_resource = need_resource || (URL_set.count(DependencyURL(m->URL)) != 0);
+							}
+						}
+
+						for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+						{
+							Avatar* av = it->second.getPointer();
+
+							const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
+
+							//if(ob->using_placeholder_model)
+							{
+								std::set<DependencyURL> URL_set;
+								av->getDependencyURLSet(av_lod_level, URL_set);
+								need_resource = need_resource || (URL_set.count(DependencyURL(m->URL)) != 0);
+							}
+						}
+
+						const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
+						conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
+
+						if(need_resource && valid_extension)// && !shouldStreamResourceViaHTTP(m->URL))
+						{
+							conPrint("Need resource, downloading: " + m->URL);
+							this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(m->URL));
+						}
 					}
-					else
-						print("Could not upload resource with URL '" + m->URL + "' to server, not present on client.");
 				}
 			}
-			else if(dynamic_cast<const NewResourceOnServerMessage*>(msg.getPointer()))
+		}
+		/*else if(dynamic_cast<const ResourceDownloadingStatus*>(msg))
+		{
+			const ResourceDownloadingStatus* m = msg.downcastToPtr<const ResourceDownloadingStatus>();
+			this->total_num_res_to_download = m->total_to_download;
+			updateStatusBar();
+		}*/
+		else if(dynamic_cast<const ResourceDownloadedMessage*>(msg))
+		{
+			const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg);
+			const std::string& URL = m->URL;
+			logMessage("Resource downloaded: '" + URL + "'");
+
+			if(world_state.nonNull())
 			{
-				// When the server has a file uploaded to it, it will send a NewResourceOnServer message to clients, so they can download it.
-
-				const NewResourceOnServerMessage* m = static_cast<const NewResourceOnServerMessage*>(msg.getPointer());
-
-				if(world_state.nonNull())
+				ResourceRef resource = this->resource_manager->getExistingResourceForURL(URL);
+				assert(resource.nonNull()); // The downloaded file should have been added as a resource in DownloadResourcesThread or NetDownloadResourcesThread.
+				if(resource.nonNull())
 				{
-					conPrint("Got NewResourceOnServerMessage, URL: " + m->URL);
+					// Get the local path, we will check the file type of the local path when determining what to do with the file, as the local path will have an extension given by the mime type
+					// in the net download case.
+					const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-					if(ResourceManager::isValidURL(m->URL))
+					TextureParams texture_params;
+					Vec3d pos(0, 0, 0);
+					float size_factor = 1;
+					bool build_dynamic_physics_ob = false;
+					bool is_terrain_map = false;
+					// Look up in our map of downloading resources
+					auto res = URL_to_downloading_info.find(URL);
+					if(res != URL_to_downloading_info.end())
 					{
-						if(!resource_manager->isFileForURLPresent(m->URL)) // If we don't have this file yet:
-						{
-							conPrint("Do not have resource.");
+						const DownloadingResourceInfo& info = res->second;
+						texture_params = info.texture_params;
+						pos = info.pos;
+						size_factor = info.size_factor;
+						build_dynamic_physics_ob = info.build_dynamic_physics_ob;
+						is_terrain_map = info.is_terrain_map;
+					}
+					else
+					{
+						assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
+					}
 
-							// Iterate over objects and see if they were using a placeholder model for this resource.
+					// If we just downloaded a texture, start loading it.
+					// NOTE: Do we want to check this texture is actually used by an object?
+					if(ImageDecoding::hasSupportedImageExtension(local_path))
+					{
+						//conPrint("Downloaded texture resource, loading it...");
+						
+						const std::string tex_path = local_path;
+
+						if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
+						{
+							const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
+							if(just_added)
+								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, 
+									new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, tex_path, texture_params, is_terrain_map),
+									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
+						}
+					}
+					else if(FileTypes::hasAudioFileExtension(local_path))
+					{
+						// Iterate over objects, if any object is using this audio file, load it.
+						{
 							Lock lock(this->world_state->mutex);
-							bool need_resource = false;
+
 							for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
 							{
 								WorldObject* ob = it.getValue().ptr();
 
-								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-
-								//if(ob->using_placeholder_model)
-								{
-									WorldObject::GetDependencyOptions options;
-									std::set<DependencyURL> URL_set;
-									ob->getDependencyURLSet(ob_lod_level, options, URL_set);
-									need_resource = need_resource || (URL_set.count(DependencyURL(m->URL)) != 0);
-								}
-							}
-
-							for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-							{
-								Avatar* av = it->second.getPointer();
-
-								const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
-
-								//if(ob->using_placeholder_model)
-								{
-									std::set<DependencyURL> URL_set;
-									av->getDependencyURLSet(av_lod_level, URL_set);
-									need_resource = need_resource || (URL_set.count(DependencyURL(m->URL)) != 0);
-								}
-							}
-
-							const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
-							conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
-
-							if(need_resource && valid_extension)// && !shouldStreamResourceViaHTTP(m->URL))
-							{
-								conPrint("Need resource, downloading: " + m->URL);
-								this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(m->URL));
+								if(ob->audio_source_url == URL)
+									loadAudioForObject(ob);
 							}
 						}
 					}
-				}
-			}
-			/*else if(dynamic_cast<const ResourceDownloadingStatus*>(msg.getPointer()))
-			{
-				const ResourceDownloadingStatus* m = msg.downcastToPtr<const ResourceDownloadingStatus>();
-				this->total_num_res_to_download = m->total_to_download;
-				updateStatusBar();
-			}*/
-			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
-			{
-				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
-				const std::string& URL = m->URL;
-				logMessage("Resource downloaded: '" + URL + "'");
-
-				if(world_state.nonNull())
-				{
-					ResourceRef resource = this->resource_manager->getExistingResourceForURL(URL);
-					assert(resource.nonNull()); // The downloaded file should have been added as a resource in DownloadResourcesThread or NetDownloadResourcesThread.
-					if(resource.nonNull())
+					else if(ModelLoading::hasSupportedModelExtension(local_path)) // Else we didn't download a texture, but maybe a model:
 					{
-						// Get the local path, we will check the file type of the local path when determining what to do with the file, as the local path will have an extension given by the mime type
-						// in the net download case.
-						const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
-
-						TextureParams texture_params;
-						Vec3d pos(0, 0, 0);
-						float size_factor = 1;
-						bool build_dynamic_physics_ob = false;
-						bool is_terrain_map = false;
-						// Look up in our map of downloading resources
-						auto res = URL_to_downloading_info.find(URL);
-						if(res != URL_to_downloading_info.end())
+						try
 						{
-							const DownloadingResourceInfo& info = res->second;
-							texture_params = info.texture_params;
-							pos = info.pos;
-							size_factor = info.size_factor;
-							build_dynamic_physics_ob = info.build_dynamic_physics_ob;
-							is_terrain_map = info.is_terrain_map;
+							// Start loading the model
+							Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+							load_model_task->lod_model_url = URL;
+							load_model_task->opengl_engine = this->opengl_engine;
+							load_model_task->unit_cube_shape = this->unit_cube_shape;
+							load_model_task->result_msg_queue = &this->msg_queue;
+							load_model_task->resource_manager = resource_manager;
+							load_model_task->build_dynamic_physics_ob = build_dynamic_physics_ob;
+
+							load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, load_model_task, 
+								/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 						}
-						else
+						catch(glare::Exception& e)
 						{
-							assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
-						}
-
-						// If we just downloaded a texture, start loading it.
-						// NOTE: Do we want to check this texture is actually used by an object?
-						if(ImageDecoding::hasSupportedImageExtension(local_path))
-						{
-							//conPrint("Downloaded texture resource, loading it...");
-						
-							const std::string tex_path = local_path;
-
-							if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
-							{
-								const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
-								if(just_added)
-									load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, 
-										new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, tex_path, texture_params, is_terrain_map),
-										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
-							}
-						}
-						else if(FileTypes::hasAudioFileExtension(local_path))
-						{
-							// Iterate over objects, if any object is using this audio file, load it.
-							{
-								Lock lock(this->world_state->mutex);
-
-								for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
-								{
-									WorldObject* ob = it.getValue().ptr();
-
-									if(ob->audio_source_url == URL)
-										loadAudioForObject(ob);
-								}
-							}
-						}
-						else if(ModelLoading::hasSupportedModelExtension(local_path)) // Else we didn't download a texture, but maybe a model:
-						{
-							try
-							{
-								// Start loading the model
-								Reference<LoadModelTask> load_model_task = new LoadModelTask();
-
-								load_model_task->lod_model_url = URL;
-								load_model_task->opengl_engine = this->opengl_engine;
-								load_model_task->unit_cube_shape = this->unit_cube_shape;
-								load_model_task->result_msg_queue = &this->msg_queue;
-								load_model_task->resource_manager = resource_manager;
-								load_model_task->build_dynamic_physics_ob = build_dynamic_physics_ob;
-
-								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, load_model_task, 
-									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
-							}
-							catch(glare::Exception& e)
-							{
-								print("Error while loading object: " + e.what());
-							}
-						}
-						else
-						{
-							// TODO: Handle video files here?
-							
-							//print("file did not have a supported image, audio, or model extension: '" + getExtension(local_path) + "'");
+							print("Error while loading object: " + e.what());
 						}
 					}
+					else
+					{
+						// TODO: Handle video files here?
+							
+						//print("file did not have a supported image, audio, or model extension: '" + getExtension(local_path) + "'");
+					}
 				}
-			}
-			else if(dynamic_cast<TerrainChunkGeneratedMsg*>(msg.ptr()))
-			{
-				const TerrainChunkGeneratedMsg* m = static_cast<const TerrainChunkGeneratedMsg*>(msg.ptr());
-				if(terrain_system.nonNull())
-					terrain_system->handleCompletedMakeChunkTask(*m);
 			}
 		}
+		else if(dynamic_cast<TerrainChunkGeneratedMsg*>(msg))
+		{
+			const TerrainChunkGeneratedMsg* m = static_cast<const TerrainChunkGeneratedMsg*>(msg);
+			if(terrain_system.nonNull())
+				terrain_system->handleCompletedMakeChunkTask(*m);
+		}
 	}
+
+	temp_msgs.clear();
 }
 
 

@@ -612,4 +612,6 @@ public:
 
 
 	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down, B_down;
+
+	std::vector<Reference<ThreadMessage> > temp_msgs;
 };
