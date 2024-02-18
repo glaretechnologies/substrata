@@ -82,6 +82,7 @@ add_definitions(-DMAP2D_FILTERING_SUPPORT=1)
 add_definitions(-DUSING_LIBRESSL)
 
 add_definitions(-DCMS_NO_REGISTER_KEYWORD) # Tell Little CMS not to use the register keyword, gives warnings and/or errors.
+add_definitions(-DNO_LCMS_SUPPORT=1) # Disable Little CMS support, to reduce overall code size, and since we only need it for loading CMYK jpegs which are rare.
 
 if(EMSCRIPTEN)
 	add_definitions(-fwasm-exceptions)
@@ -92,14 +93,17 @@ if(EMSCRIPTEN)
 	add_definitions(-msimd128)
 	add_definitions(-msse4.1)
 	
-	add_definitions(-O0) # TEMP disable optimisations
+	add_definitions(-O0) # Disable optimisations
 	
 	#add_definitions(-O2)
 	#add_definitions("--profiling")			# https://emscripten.org/docs/tools_reference/emcc.html
-	
 	#add_definitions(-DNDEBUG)
 	
 	include_directories("${GLARE_CORE_LIBS_ENV}/emsdk/upstream/emscripten/cache/sysroot/include")
+	
+	#add_definitions("-gsource-map") # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html  NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
+	
+	#add_definitions("-s USE_SDL=2") # NOTE: uses old version of SDL2 which we don't want.
 
 elseif(WIN32)
 	# TEMP: needed for building LLVM with address sanitizer on Windows, which has:
