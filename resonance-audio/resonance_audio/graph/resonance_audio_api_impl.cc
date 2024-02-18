@@ -525,6 +525,10 @@ bool ResonanceAudioApiImpl::FillOutputBuffer(size_t num_channels,
   return true;
 }
 
+
+const static std::vector<size_t> zero_channel_map({0, 0}); // GLARE NEW: avoid repeated mem allocations by just defining this vector once.
+
+
 template <typename SampleType>
 void ResonanceAudioApiImpl::SetSourceBuffer(SourceId source_id,
                                             SampleType audio_buffer_ptr,
@@ -561,7 +565,7 @@ void ResonanceAudioApiImpl::SetSourceBuffer(SourceId source_id,
       (num_output_channels == kNumStereoChannels)) {
     FillAudioBufferWithChannelRemapping(
         audio_buffer_ptr, num_frames, num_input_channels,
-        {0, 0} /* channel_map */, output_buffer);
+        zero_channel_map/*{0, 0}*/ /* channel_map */, output_buffer); // GLARE NEW: use zero_channel_map
     return;
   }
 
