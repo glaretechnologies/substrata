@@ -79,7 +79,7 @@ ${pugixmldir}/pugiconfig.hpp
 enable_language(ASM) # For the .S file in zstd below.
 
 FILE(GLOB giflib "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.c" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.h")
-FILE(GLOB little_cms "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/include/*.h")
+#FILE(GLOB little_cms "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/include/*.h")
 FILE(GLOB zstandard "${zstddir}/lib/*.h"  
 "${zstddir}/lib/common/*.c"     "${zstddir}/lib/common/*.h"
 "${zstddir}/lib/compress/*.c"   "${zstddir}/lib/compress/*.h"        
@@ -91,7 +91,7 @@ SOURCE_GROUP(libpng FILES ${libpng})
 SOURCE_GROUP(zlib FILES ${zlib})
 SOURCE_GROUP(pugixml FILES ${pugixml})
 SOURCE_GROUP(giflib FILES ${giflib})
-SOURCE_GROUP(little_cms FILES ${little_cms})
+#SOURCE_GROUP(little_cms FILES ${little_cms})
 SOURCE_GROUP(zstandard FILES ${zstandard})
 
 include(../cmake/shared_cxx_settings.cmake)
@@ -104,7 +104,7 @@ ${libpng}
 ${zlib}
 ${pugixml}
 ${giflib}
-${little_cms}
+#${little_cms}
 ${zstandard}
 )
 
