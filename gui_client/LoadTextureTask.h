@@ -37,13 +37,12 @@ LoadTextureTask
 class LoadTextureTask : public glare::Task
 {
 public:
-	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
+	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
 		const TextureParams& tex_params, bool is_terrain_map);
 
 	virtual void run(size_t thread_index);
 
 	Reference<OpenGLEngine> opengl_engine;
-	TextureServer* texture_server;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 	std::string path;
 	TextureParams tex_params;
