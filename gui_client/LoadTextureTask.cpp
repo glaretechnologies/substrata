@@ -24,9 +24,9 @@ Copyright Glare Technologies Limited 2019 -
 #define GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT					0x8E8F
 
 
-LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
+LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
 	const TextureParams& tex_params_, bool is_terrain_map_)
-:	opengl_engine(opengl_engine_), texture_server(texture_server_), result_msg_queue(result_msg_queue_), path(path_), tex_params(tex_params_), is_terrain_map(is_terrain_map_)
+:	opengl_engine(opengl_engine_), result_msg_queue(result_msg_queue_), path(path_), tex_params(tex_params_), is_terrain_map(is_terrain_map_)
 {}
 
 
@@ -36,10 +36,7 @@ void LoadTextureTask::run(size_t thread_index)
 	{
 		// conPrint("LoadTextureTask: processing texture '" + path + "'");
 
-		const std::string key = texture_server->keyForPath(path); // Get canonical path.  May throw TextureServerExcep
-
-		if(texture_server->isTextureLoadedForRawName(key)) // If this texture is already loaded, return.
-			return;
+		const std::string& key = this->path;
 
 		// Load texture from disk and decode it.
 		Reference<Map2D> map;

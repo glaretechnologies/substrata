@@ -136,7 +136,11 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	grabbed_axis(-1),
 	grabbed_angle(0),
 	force_new_undo_edit(false),
+#if EMSCRIPTEN
+	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/2),
+#else
 	model_and_texture_loader_task_manager("model and texture loader task manager"),
+#endif
 	task_manager(NULL), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
 	url_parcel_uid(-1),
 	running_destructor(false),
@@ -163,6 +167,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	up_down = false;
 	down_down = false;
 	B_down = false;
+
+	texture_server = new TextureServer(/*use_canonical_path_keys=*/false);
 
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	
@@ -751,6 +757,8 @@ void GUIClient::shutdown()
 	mesh_manager.clear(); // Mesh manager has references to cached/unused meshes, so need to zero out the references before we shut down the OpenGL engine.
 
 	this->opengl_engine = NULL;
+
+	texture_server = NULL;
 }
 
 
@@ -875,13 +883,13 @@ void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex
 		const TextureParams& tex_params, bool is_terrain_map)
 {
 	//assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
-	if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(local_abs_tex_path)))) // If texture is not uploaded to GPU already:
+	if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(local_abs_tex_path))) // If texture is not uploaded to GPU already:
 	{
 		const bool just_added = checkAddTextureToProcessingSet(local_abs_tex_path); // If not being loaded already:
 		if(just_added)
 		{
 			// conPrint("Adding LoadTextureTask for texture '" + local_abs_tex_path + "'...");
-			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, local_abs_tex_path, tex_params, is_terrain_map);
+			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, &this->msg_queue, local_abs_tex_path, tex_params, is_terrain_map);
 
 			load_item_queue.enqueueItem(
 				centroid_ws, 
@@ -928,7 +936,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 		{
 			const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
+			if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(tex_path))) // If texture is not uploaded to GPU already:
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
@@ -940,7 +948,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 					tex_params.use_mipmaps = false;
 					load_item_queue.enqueueItem(ob, 
-						new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, tex_path, tex_params, /*is_terrain_map=*/false), 
+						new LoadTextureTask(opengl_engine, &this->msg_queue, tex_path, tex_params, /*is_terrain_map=*/false), 
 						max_dist_for_ob_lod_level);
 				}
 			}
@@ -6872,12 +6880,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						
 						const std::string tex_path = local_path;
 
-						if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
+						if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(tex_path))) // If texture is not uploaded to GPU already:
 						{
 							const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 							if(just_added)
 								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, 
-									new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, tex_path, texture_params, is_terrain_map),
+									new LoadTextureTask(opengl_engine, &this->msg_queue, tex_path, texture_params, is_terrain_map),
 									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 						}
 					}
@@ -6984,7 +6992,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
 	msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
 
-	if(texture_server)
+	if(texture_server.nonNull())
 		msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
 
 	msg += this->mesh_manager.getDiagnostics();
@@ -11158,12 +11166,12 @@ void GUIClient::updateGroundPlane()
 			
 			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
 				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, path_section.heightmap_path, heightmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, &this->msg_queue, path_section.heightmap_path, heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.mask_map_URL.empty())
 				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, path_section.mask_map_path, maskmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, &this->msg_queue, path_section.mask_map_path, maskmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 
@@ -11171,12 +11179,12 @@ void GUIClient::updateGroundPlane()
 		{
 			if(!spec.detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_col_map_URLs[i]))
 				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_col_map_paths[i], detail_colourmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, &this->msg_queue, path_spec.detail_col_map_paths[i], detail_colourmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!spec.detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_height_map_URLs[i]))
 				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, this->texture_server, &this->msg_queue, path_spec.detail_height_map_paths[i], heightmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, &this->msg_queue, path_spec.detail_height_map_paths[i], heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------

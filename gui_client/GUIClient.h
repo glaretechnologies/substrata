@@ -337,9 +337,9 @@ public:
 	glare::AtomicInt num_resources_uploading;
 
 	Reference<WorldState> world_state;
-
-	TextureServer* texture_server;
-
+private:
+	Reference<TextureServer> texture_server;
+public:
 	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue; // for messages from ClientThread etc.. to this object.
 
 	WorldObjectRef selected_ob;
