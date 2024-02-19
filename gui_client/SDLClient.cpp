@@ -1,4 +1,4 @@
-/*==============//=======================================================
+/*=====================================================================
 SDLClient.cpp
 -------------
 Copyright Glare Technologies Limited 2024 -
@@ -159,12 +159,12 @@ int main(int argc, char** argv)
 		setGLAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4); // We need to request a specific version for a core profile.
 		setGLAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
 		setGLAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
-		setGLAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 #endif
+		setGLAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); // enable MULTISAMPLE
+		setGLAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
-		int primary_W = 1600;
-		int primary_H = 1000;
+		int primary_W = 1200;
+		int primary_H = 800;
 #if EMSCRIPTEN
 		//int width, height;
 		//emscripten_get_canvas_element_size("canvas", &width, &height);
@@ -202,9 +202,9 @@ int main(int argc, char** argv)
 #if defined(EMSCRIPTEN)
 		settings.use_general_arena_mem_allocator = false;
 #endif
-		opengl_engine = new OpenGLEngine(settings);
+		settings.use_general_arena_mem_allocator = true; // TEMP
 
-		TextureServer* texture_server = new TextureServer(/*use_canonical_path_keys=*/false);
+		opengl_engine = new OpenGLEngine(settings);
 
 #if defined(EMSCRIPTEN)
 		const std::string data_dir = "/data";
@@ -212,7 +212,7 @@ int main(int argc, char** argv)
 		const std::string data_dir = PlatformUtils::getEnvironmentVariable("GLARE_CORE_TRUNK_DIR") + "/opengl";
 #endif
 		
-		opengl_engine->initialise(data_dir, texture_server, &print_output);
+		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output);
 		if(!opengl_engine->initSucceeded())
 			throw glare::Exception("OpenGL init failed: " + opengl_engine->getInitialisationErrorMsg());
 		opengl_engine->setViewportDims(primary_W, primary_H);
@@ -229,11 +229,9 @@ int main(int argc, char** argv)
 		
 		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 
-		
 
 		gui_client = new GUIClient(base_dir, appdata_path, parsed_args);
 		gui_client->opengl_engine = opengl_engine;
-		gui_client->texture_server = texture_server;
 
 
 		std::string cache_dir = appdata_path;
@@ -250,11 +248,21 @@ int main(int argc, char** argv)
 
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface);
 
-		gui_client->afterGLInitInitialise(1.0, true, opengl_engine, font);
+		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, /*show minimap=*/false, opengl_engine, font);
 
 
+		//TEMP:
+		conPrint("------------opengl_engine->getDiagnostics------------");
+		conPrint(opengl_engine->getDiagnostics());
+		conPrint("------------------------");
 
+
+#if EMSCRIPTEN
+		//std::string server_URL = "sub://substrata.info";
+		std::string server_URL = "sub://localhost";
+#else
 		std::string server_URL = "sub://substrata.info";
+#endif
 		bool server_URL_explicitly_specified = false;
 
 		if(parsed_args.isArgPresent("-h"))
@@ -422,7 +430,7 @@ static void doOneMainLoopIter()
 
 	if(stats_timer->elapsed() > 1.0)
 	{
-		last_diagnostics = opengl_engine->getDiagnostics();
+		//last_diagnostics = opengl_engine->getDiagnostics();
 		// Update statistics
 		fps = num_frames / stats_timer->elapsed();
 		stats_timer->reset();
