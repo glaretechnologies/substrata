@@ -214,8 +214,6 @@ void GlWidget::initializeGL()
 {
 	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
 
-	assert(this->texture_server_ptr);
-
 	bool shadows = true;
 	bool use_MSAA = true;
 	bool bloom = true;
@@ -264,7 +262,7 @@ void GlWidget::initializeGL()
 		
 	opengl_engine->initialise(
 		data_dir, // data dir (should contain 'shaders' and 'gl_data')
-		this->texture_server_ptr,
+		NULL, // texture_server
 		this->print_output
 	);
 	if(!opengl_engine->initSucceeded())

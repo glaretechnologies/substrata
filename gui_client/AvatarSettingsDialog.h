@@ -31,8 +31,7 @@ class AvatarSettingsDialog : public QDialog, private Ui_AvatarSettingsDialog
 {
 	Q_OBJECT
 public:
-	AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings, TextureServer* texture_server_ptr,
-		Reference<ResourceManager> resource_manager);
+	AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings, Reference<ResourceManager> resource_manager);
 	~AvatarSettingsDialog();
 
 	//std::string getAvatarName();
@@ -69,6 +68,8 @@ public:
 	Reference<ResourceManager> resource_manager;
 
 	Matrix4f pre_ob_to_world_matrix;
+
+	Reference<TextureServer> texture_server;
 };
 
 #ifdef _WIN32

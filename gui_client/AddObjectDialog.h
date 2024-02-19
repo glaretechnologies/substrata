@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 class QSettings;
 struct GLObject;
 struct IMFDXGIDeviceManager;
+class TextureServer;
 
 
 /*=====================================================================
@@ -27,12 +28,12 @@ class AddObjectDialog : public QDialog, private Ui_AddObjectDialog
 {
 	Q_OBJECT
 public:
-	AddObjectDialog(const std::string& base_dir_path_, QSettings* settings, TextureServer* texture_server_ptr, 
+	AddObjectDialog(const std::string& base_dir_path_, QSettings* settings, 
 		Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager);
 	~AddObjectDialog();
 
 	static void tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, std::vector<WorldMaterialRef>& world_materials, OpenGLEngine* opengl_engine, 
-		TextureServer* texture_server, QWidget* parent_widget);
+		TextureServer& texture_server, QWidget* parent_widget);
 
 private slots:;
 	void accepted();
@@ -89,4 +90,6 @@ private:
 	Reference<ResourceManager> resource_manager;
 
 	IMFDXGIDeviceManager* dev_manager;
+
+	Reference<TextureServer> texture_server;
 };

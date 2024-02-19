@@ -62,12 +62,13 @@ AvatarPreviewWidget::~AvatarPreviewWidget()
 }
 
 
-void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* settings_)
+void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* settings_, Reference<TextureServer> texture_server_)
 {
 	this->makeCurrent();
 
 	base_dir_path = base_dir_path_;
 	settings = settings_;
+	texture_server = texture_server_;
 
 	OpenGLEngineSettings gl_settings;
 	gl_settings.shadow_mapping = true;
@@ -116,7 +117,7 @@ void AvatarPreviewWidget::initializeGL()
 
 	opengl_engine->initialise(
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
-		texture_server_ptr,
+		texture_server,
 		NULL // print output
 	);
 	if(!opengl_engine->initSucceeded())

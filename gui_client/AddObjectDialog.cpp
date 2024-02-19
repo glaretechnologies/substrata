@@ -31,7 +31,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <QtCore/QTimer>
 
 
-AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager_, IMFDXGIDeviceManager* dev_manager_)
+AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, Reference<ResourceManager> resource_manager_, IMFDXGIDeviceManager* dev_manager_)
 :	settings(settings_),
 	resource_manager(resource_manager_),
 	base_dir_path(base_dir_path_),
@@ -40,8 +40,9 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 {
 	setupUi(this);
 
-	this->objectPreviewGLWidget->init(base_dir_path, settings_);
-	this->objectPreviewGLWidget->texture_server_ptr = texture_server_ptr;
+	texture_server = new TextureServer(/*use_canonical_path_keys=*/false); // To cache textures for textureHasAlphaChannel
+
+	this->objectPreviewGLWidget->init(base_dir_path, settings_, texture_server);
 
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("AddObjectDialog/geometry").toByteArray());
@@ -229,7 +230,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			throw glare::Exception("file did not have a supported image or model extension: '" + getExtension(local_path) + "'");
 
 		// Try and load textures
-		tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, objectPreviewGLWidget->opengl_engine.ptr(), this->objectPreviewGLWidget->texture_server_ptr, this);
+		tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, objectPreviewGLWidget->opengl_engine.ptr(), *texture_server, this);
 
 		// Offset object vertically so it rests on the ground plane.
 		const js::AABBox cur_aabb_ws = preview_gl_ob->mesh_data->aabb_os.transformedAABBFast(preview_gl_ob->ob_to_world_matrix);
@@ -253,8 +254,10 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 }
 
 
+// static
+// Used by both AddObjectDialog and AvatarSettingsDialog
 void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, std::vector<WorldMaterialRef>& world_materials/*WorldObjectRef loaded_object*/, OpenGLEngine* opengl_engine, 
-	TextureServer* texture_server_ptr, QWidget* parent_widget)
+	TextureServer& texture_server, QWidget* parent_widget)
 {
 	// Try and load textures.  Report any errors but continue with the loading.
 	for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
@@ -266,7 +269,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 			{
 				preview_gl_ob->materials[i].albedo_texture = opengl_engine->getTexture(albedo_tex_path); // Load texture
 
-				Reference<Map2D> map = texture_server_ptr->getTexForPath(".", albedo_tex_path); // Hopefully is arleady loaded
+				Reference<Map2D> map = texture_server.getTexForPath(".", albedo_tex_path); // Hopefully is already loaded
 
 				const bool has_alpha = LODGeneration::textureHasAlphaChannel(albedo_tex_path, map);// preview_gl_ob->materials[i].albedo_texture->hasAlpha();// && !preview_gl_ob->materials[i].albedo_texture->isAlphaChannelAllWhite();
 				BitUtils::setOrZeroBit(world_materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);

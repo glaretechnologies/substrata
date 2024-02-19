@@ -168,7 +168,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	down_down = false;
 	B_down = false;
 
-	texture_server = new TextureServer(/*use_canonical_path_keys=*/false);
+	texture_server = new TextureServer(/*use_canonical_path_keys=*/false); // Just used for caching textures for GUIClient::setMaterialFlagsForObject()
 
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	
