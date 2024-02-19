@@ -293,7 +293,7 @@ void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
 
-	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, gui_client.texture_server, /*print output=*/this);
+	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, /*print output=*/this);
 	connect(ui->materialBrowserDockWidgetContents, SIGNAL(materialSelected(const std::string&)), this, SLOT(materialSelectedInBrowser(const std::string&)));
 
 	ui->objectEditor->setControlsEnabled(false);
@@ -1373,7 +1373,7 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 
 void MainWindow::on_actionAvatarSettings_triggered()
 {
-	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, gui_client.texture_server, gui_client.resource_manager);
+	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager);
 	const int res = dialog.exec();
 	ui->glWidget->makeCurrent();// Change back from the dialog GL context to the mainwindow GL context.
 
@@ -1484,7 +1484,7 @@ void MainWindow::on_actionAddObject_triggered()
 		return;
 	}
 
-	AddObjectDialog dialog(this->base_dir_path, this->settings, gui_client.texture_server, gui_client.resource_manager, 
+	AddObjectDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager, 
 #ifdef _WIN32
 		this->device_manager.ptr
 #else
@@ -3679,15 +3679,9 @@ int main(int argc, char *argv[])
 		int app_exec_res;
 		{ // Scope of MainWindow mw and textureserver.
 
-			// Since we will be inserted textures based on URLs, the textures should be different if they have different paths, so we don't need to do path canonicalisation.
-			TextureServer texture_server(/*use_canonical_path_keys=*/false);
-
 			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args); // Creates GLWidget
 
 			open_even_filter->main_window = &mw;
-
-			mw.gui_client.texture_server = &texture_server;
-			mw.ui->glWidget->texture_server_ptr = &texture_server; // Set texture server pointer before GlWidget::initializeGL() gets called, as it passes texture server pointer to the opengl engine.
 
 			if(parsed_args.isArgPresent("--screenshotslave"))
 				mw.run_as_screenshot_slave = true;
@@ -3733,7 +3727,7 @@ int main(int argc, char *argv[])
 			app_exec_res = app.exec();
 
 			open_even_filter->main_window = NULL;
-		} // End scope of MainWindow mw and textureserver.
+		} // End scope of MainWindow mw
 
 #if defined(_WIN32)
 		WMFVideoReader::shutdownWMF();

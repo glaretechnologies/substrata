@@ -115,7 +115,6 @@ private:
 	std::string initialisation_error_msg;
 public:
 	float viewport_aspect_ratio;
-	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;
 	float near_draw_dist;
 	float max_draw_dist;

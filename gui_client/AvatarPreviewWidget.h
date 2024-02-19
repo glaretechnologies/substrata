@@ -37,7 +37,7 @@ public:
 	AvatarPreviewWidget(QWidget *parent = 0);
 	~AvatarPreviewWidget();
 
-	void init(const std::string& base_dir_path_, QSettings* settings_);
+	void init(const std::string& base_dir_path_, QSettings* settings_, Reference<TextureServer> texture_server);
 	void shutdown();
 	
 protected:
@@ -69,7 +69,7 @@ private:
 	float cam_phi, cam_theta, cam_dist;
 	Vec4f cam_target_pos;
 public:
-	TextureServer* texture_server_ptr;
+	Reference<TextureServer> texture_server;
 	Reference<OpenGLEngine> opengl_engine;
 
 	Timer timer;

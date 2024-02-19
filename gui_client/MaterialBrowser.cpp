@@ -165,11 +165,10 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 #endif
 
 
-void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, const std::string& appdata_path_, TextureServer* texture_server_ptr_, PrintOutput* print_output_)
+void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, const std::string& appdata_path_, PrintOutput* print_output_)
 {
 	basedir_path = basedir_path_;
 	appdata_path = appdata_path_;
-	texture_server_ptr = texture_server_ptr_;
 	print_output = print_output_;
 
 	setupUi(this);

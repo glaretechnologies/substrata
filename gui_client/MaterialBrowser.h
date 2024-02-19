@@ -35,7 +35,7 @@ public:
 	MaterialBrowser();
 	~MaterialBrowser();
 
-	void init(QWidget* parent, const std::string& basedir_path, const std::string& appdata_path, TextureServer* texture_server_ptr, PrintOutput* print_output);
+	void init(QWidget* parent, const std::string& basedir_path, const std::string& appdata_path, PrintOutput* print_output);
 
 signals:;
 	void materialSelected(const std::string& path);
@@ -46,7 +46,6 @@ private slots:;
 private:
 	void createOpenGLEngineAndSurface();
 
-	TextureServer* texture_server_ptr;
 	FlowLayout *				flow_layout;
 	std::vector<QPushButton *>	browser_buttons;
 	std::vector<std::string>	mat_paths;

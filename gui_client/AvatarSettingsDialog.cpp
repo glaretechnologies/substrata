@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "AddObjectDialog.h"
 #include "ModelLoading.h"
 #include "../shared/ResourceManager.h"
+#include "../indigo/TextureServer.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
 #include "../dll/IndigoStringUtils.h"
@@ -28,8 +29,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <QtCore/QTimer>
 
 
-AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings_, TextureServer* texture_server_ptr,
-	Reference<ResourceManager> resource_manager_)
+AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings_, Reference<ResourceManager> resource_manager_)
 :	base_dir_path(base_dir_path_),
 	settings(settings_),
 	resource_manager(resource_manager_),
@@ -37,6 +37,8 @@ AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QS
 	pre_ob_to_world_matrix(Matrix4f::identity())
 {
 	setupUi(this);
+
+	texture_server = new TextureServer(/*use_canonical_path_keys=*/false);
 
 	this->usernameLabel->hide();
 	this->usernameLineEdit->hide();
@@ -48,8 +50,7 @@ AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QS
 	this->createReadyPlayerMeLabel->setText(QtUtils::toQString(display_str));
 	this->createReadyPlayerMeLabel->setOpenExternalLinks(true);
 
-	this->avatarPreviewGLWidget->init(base_dir_path, settings_);
-	this->avatarPreviewGLWidget->texture_server_ptr = texture_server_ptr;
+	this->avatarPreviewGLWidget->init(base_dir_path, settings_, texture_server);
 
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("AvatarSettingsDialog/geometry").toByteArray());
@@ -67,8 +68,6 @@ AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QS
 	connect(this, SIGNAL(finished(int)), this, SLOT(dialogFinished()));
 
 	connect(this->animationComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(animationComboBoxIndexChanged(int)));
-
-	this->avatarPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
 	startTimer(10);
 }
@@ -205,7 +204,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		preview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -foot_bottom_height) * preview_gl_ob->ob_to_world_matrix;
 
 		// Try and load textures
-		AddObjectDialog::tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, avatarPreviewGLWidget->opengl_engine.ptr(), this->avatarPreviewGLWidget->texture_server_ptr, this);
+		AddObjectDialog::tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, avatarPreviewGLWidget->opengl_engine.ptr(), *texture_server, this);
 
 		avatarPreviewGLWidget->opengl_engine->addObject(preview_gl_ob);
 	}
