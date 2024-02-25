@@ -1896,3 +1896,53 @@ void TerrainScattering::makeNearGrassChunk(int chunk_x_index, int chunk_y_index,
 	}
 }
 #endif
+
+
+std::string TerrainScattering::getDiagnostics() const
+{
+	std::string s;
+	s.reserve(512);
+	s += "Grass textures GPU RAM: " + getNiceByteSize(grass_texture->getByteSize() + grass_normal_map->getByteSize()) + "\n";
+
+	size_t detail_mask_map_gpu_mem = 0;
+	size_t detail_mask_map_cpu_mem = 0;
+	for(int i=0; i<DETAIL_MASK_MAP_SECTION_RES*DETAIL_MASK_MAP_SECTION_RES; ++i)
+	{
+		if(detail_mask_map_sections[i].mask_map_gl_tex.nonNull())
+			detail_mask_map_gpu_mem += detail_mask_map_sections[i].mask_map_gl_tex->getByteSize();
+
+		if(detail_mask_map_sections[i].detail_mask_map.nonNull())
+			detail_mask_map_cpu_mem += detail_mask_map_sections[i].detail_mask_map->getByteSize();
+	}
+	s += "detail mask map GPU RAM: " + getNiceByteSize(detail_mask_map_gpu_mem) + "\n";
+	s += "detail mask map CPU RAM: " + getNiceByteSize(detail_mask_map_cpu_mem) + "\n";
+
+	size_t imposter_gpu_mem = 0;
+	for(size_t i=0; i<grid_scatters.size(); ++i)
+	{
+		GridScatter& scatter = *grid_scatters[i];
+
+		for(size_t y=0; y<scatter.chunks.getHeight(); ++y)
+		for(size_t x=0; x<scatter.chunks.getWidth() ; ++x)
+		{
+			GridScatterChunk& chunk = scatter.chunks.elem(x, y);
+			if(chunk.imposters_gl_ob.nonNull())
+				imposter_gpu_mem += chunk.imposters_gl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
+		}
+	}
+	s += "grass imposter GPU RAM: " + getNiceByteSize(imposter_gpu_mem) + "\n";
+
+	size_t tree_imposter_gpu_mem = 0;
+	for(int j=0; j<LARGE_TREE_CHUNK_GRID_RES; ++j)
+	for(int i=0; i<LARGE_TREE_CHUNK_GRID_RES; ++i)
+	{
+		const LargeTreeChunk& chunk = large_tree_chunks.elem(i, j);
+		if(chunk.imposters_gl_ob.nonNull())
+			tree_imposter_gpu_mem += chunk.imposters_gl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
+	}
+	s += "tree imposter GPU RAM: " + getNiceByteSize(tree_imposter_gpu_mem) + "\n";
+
+	s += "tree geom GPU RAM: " + getNiceByteSize(biome_manager->elm_tree_mesh_render_data->getTotalMemUsage().geom_gpu_usage) + "\n";
+
+	return s;
+}

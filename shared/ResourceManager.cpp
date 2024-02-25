@@ -259,6 +259,27 @@ bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws glar
 }
 
 
+// Used when running in a browser under Emscripten, since we use MEMFS currently, e.g. an in-memory filesystem.
+// So we delete resources to free up RAM.
+void ResourceManager::deleteResourceLocally(const std::string& URL)
+{
+	Lock lock(mutex);
+
+	ResourceRef resource = this->getExistingResourceForURL(URL);
+
+	if(resource.nonNull())
+	{
+		const std::string local_abs_path = resource->getLocalAbsPath(this->base_resource_dir);
+		conPrint("Deleting local resource '" + local_abs_path + "'...");
+		FileUtils::deleteFile(local_abs_path);
+
+		resource->setState(Resource::State_NotPresent);
+
+		this->changed = 1;
+	}
+}
+
+
 void ResourceManager::addResource(ResourceRef& res)
 {
 	Lock lock(mutex);

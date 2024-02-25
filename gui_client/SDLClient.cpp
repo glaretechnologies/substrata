@@ -27,6 +27,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <GL/gl3w.h>
 #include <SDL_opengl.h>
 #include <SDL.h>
+#include <backends/imgui_impl_opengl3.h>
+#include <backends/imgui_impl_sdl.h>
 #include <string>
 #if EMSCRIPTEN
 #include <emscripten.h>
@@ -63,6 +65,7 @@ Reference<OpenGLEngine> opengl_engine;
 Timer* timer;
 Timer* time_since_last_frame;
 Timer* stats_timer;
+Timer* diagnostics_timer;
 int num_frames = 0;
 std::string last_diagnostics;
 bool reset = false;
@@ -142,6 +145,7 @@ int main(int argc, char** argv)
 		timer = new Timer();
 		time_since_last_frame = new Timer();
 		stats_timer = new Timer();
+		diagnostics_timer = new Timer();
 	
 		//=========================== Init SDL and OpenGL ================================
 		if(SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -190,6 +194,10 @@ int main(int argc, char** argv)
 #endif
 
 
+		// Initialise ImGUI
+		ImGui::CreateContext();
+		ImGui_ImplSDL2_InitForOpenGL(win, gl_context);
+		ImGui_ImplOpenGL3_Init();
 
 		// Create OpenGL engine
 		OpenGLEngineSettings settings;
@@ -202,7 +210,7 @@ int main(int argc, char** argv)
 #if defined(EMSCRIPTEN)
 		settings.use_general_arena_mem_allocator = false;
 #endif
-		settings.use_general_arena_mem_allocator = true; // TEMP
+		//settings.use_general_arena_mem_allocator = false; // TEMP
 
 		opengl_engine = new OpenGLEngine(settings);
 
@@ -410,6 +418,11 @@ static void convertFromSDKKeyEvent(SDL_Event ev, KeyEvent& key_event)
 }
 
 
+static bool do_graphics_diagnostics = false;
+static bool do_physics_diagnostics = false;
+static bool do_terrain_diagnostics = false;
+
+
 static void doOneMainLoopIter()
 {
 	if(SDL_GL_MakeCurrent(win, gl_context) != 0)
@@ -430,7 +443,6 @@ static void doOneMainLoopIter()
 
 	if(stats_timer->elapsed() > 1.0)
 	{
-		//last_diagnostics = opengl_engine->getDiagnostics();
 		// Update statistics
 		fps = num_frames / stats_timer->elapsed();
 		stats_timer->reset();
@@ -466,6 +478,45 @@ static void doOneMainLoopIter()
 		opengl_engine->draw();
 	}
 
+
+	{
+		// Draw ImGUI GUI controls
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplSDL2_NewFrame(win);
+		ImGui::NewFrame();
+		
+		//ImGui::ShowDemoWindow();
+		
+		ImGui::SetNextWindowSize(ImVec2(600, 900));
+		ImGui::Begin("Info");
+		
+		ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
+		ImGui::TextUnformatted(("FPS: " + doubleToStringNDecimalPlaces(fps, 1)).c_str());
+		
+		if(ImGui::CollapsingHeader("Diagnostics"))
+		{
+			bool diag_changed = false;
+			diag_changed = diag_changed || ImGui::Checkbox("graphics", &do_graphics_diagnostics);
+			diag_changed = diag_changed || ImGui::Checkbox("physics", &do_physics_diagnostics);
+			diag_changed = diag_changed || ImGui::Checkbox("terrain", &do_terrain_diagnostics);
+
+			if((diagnostics_timer->elapsed() > 1.0) || diag_changed)
+			{
+				double last_timerEvent_CPU_work_elapsed = 0;
+				double last_updateGL_time = 0;
+				last_diagnostics = gui_client->getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, do_terrain_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
+				diagnostics_timer->reset();
+			}
+
+			ImGui::TextUnformatted(last_diagnostics.c_str());
+		}
+			
+		ImGui::End();
+		
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	}
+
 	
 	// Display
 	SDL_GL_SwapWindow(win);
@@ -476,6 +527,12 @@ static void doOneMainLoopIter()
 	SDL_Event e;
 	while(SDL_PollEvent(&e))
 	{
+		if(!SDL_GetRelativeMouseMode() && ImGui::GetIO().WantCaptureMouse)
+		{
+			ImGui_ImplSDL2_ProcessEvent(&e); // Pass event onto ImGUI
+			continue;
+		}
+
 		if(e.type == SDL_QUIT) // "An SDL_QUIT event is generated when the user clicks on the close button of the last existing window" - https://wiki.libsdl.org/SDL_EventType#Remarks
 		{
 			quit = true;

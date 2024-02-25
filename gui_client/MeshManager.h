@@ -183,7 +183,7 @@ private:
 	uint64 main_thread_id;
 
 	uint64 mesh_CPU_mem_usage; // Running sum of CPU RAM used by inserted meshes.
-	uint64 mesh_GPU_mem_usage; // Running sum of CPU RAM used by inserted meshes.
+	uint64 mesh_GPU_mem_usage; // Running sum of GPU RAM used by inserted meshes.
 
 	uint64 shape_mem_usage; // Running sum of CPU RAM used by inserted physics shapes.
 };
