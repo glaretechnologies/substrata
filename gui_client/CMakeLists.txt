@@ -33,7 +33,7 @@ include_directories(${PHYSICS_REPO_ROOT})
 add_definitions(-DUSE_JOLT=1)
 
 
-#============== Tracy compiler ==============
+#============== Tracy profiler ==============
 
 include_directories("${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public")
 set(tracy_files "${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public/TracyClient.cpp")
@@ -810,24 +810,26 @@ include_directories(${cef_binary_dist_dir})
 
 
 #============== ImGui ==============
-#set(imguidir 	"${GLARE_CORE_LIBS_ENV}/imgui")
+set(imguidir 	"${GLARE_CORE_LIBS_ENV}/imgui")
 
-#set (imgui
-#${imguidir}/imgui.cpp
-#${imguidir}/imgui.h
-#${imguidir}/imgui_demo.cpp
-#${imguidir}/imgui_draw.cpp
-#${imguidir}/imgui_internal.h
-#${imguidir}/imgui_widgets.cpp
-#${imguidir}/imgui_tables.cpp
-#${imguidir}/imstb_rectpack.h
-#${imguidir}/imstb_textedit.h
-#${imguidir}/imstb_truetype.h
-#${imguidir}/backends/imgui_impl_sdl.cpp
-#${imguidir}/backends/imgui_impl_sdl.h
-#${imguidir}/backends/imgui_impl_opengl3.cpp
-#${imguidir}/backends/imgui_impl_opengl3.h
-#)
+if(USE_SDL)
+	set (imgui
+	${imguidir}/imgui.cpp
+	${imguidir}/imgui.h
+	${imguidir}/imgui_demo.cpp
+	${imguidir}/imgui_draw.cpp
+	${imguidir}/imgui_internal.h
+	${imguidir}/imgui_widgets.cpp
+	${imguidir}/imgui_tables.cpp
+	${imguidir}/imstb_rectpack.h
+	${imguidir}/imstb_textedit.h
+	${imguidir}/imstb_truetype.h
+	${imguidir}/backends/imgui_impl_sdl.cpp
+	${imguidir}/backends/imgui_impl_sdl.h
+	${imguidir}/backends/imgui_impl_opengl3.cpp
+	${imguidir}/backends/imgui_impl_opengl3.h
+	)
+endif()
 
 
 #================ FreeType =============
@@ -925,7 +927,7 @@ SOURCE_GROUP(meshoptimizer FILES ${meshoptimizer})
 SOURCE_GROUP(opus FILES ${opus_src})
 SOURCE_GROUP(tracy FILES ${tracy_files})
 SOURCE_GROUP(freetype FILES ${freetype})
-#SOURCE_GROUP(imgui FILES ${imgui})
+SOURCE_GROUP(imgui FILES ${imgui})
 
 
 
@@ -997,7 +999,7 @@ ${rc_stuff}
 ${natvis_files}
 ${opus_src}
 ${tracy_files}
-#${imgui}
+${imgui}
 ${freetype}
 )
 
@@ -1007,9 +1009,15 @@ include(../cmake/shared_target_settings.cmake)
 
 if(USE_SDL)
 	include_directories(${SDL_BUILD_DIR}/include/SDL2)
-	include_directories(${SDL_BUILD_DIR}/include-config-release/SDL2) # For SDL_config.h.  NOTE: SDL_config.h seems to be the same for both Debug and Release configs, at least on Windows.
 	
-	# include_directories(${imguidir})
+	if(WIN32)
+		include_directories(${SDL_BUILD_DIR}/include-config-release/SDL2) # For SDL_config.h.  NOTE: SDL_config.h seems to be the same for both Debug and Release configs, at least on Windows.
+	else()
+		include_directories(${SDL_BUILD_DIR}/include-config-/SDL2)
+	endif()
+	
+	
+	include_directories(${imguidir})
 	
 	add_definitions(-DUSE_SDL=1)
 else()
@@ -1036,14 +1044,17 @@ if(EMSCRIPTEN)
 		"-sGL_ENABLE_GET_PROC_ADDRESS"
 #		"-sNO_DISABLE_EXCEPTION_CATCHING"
 	#	"--emrun"   # https://emscripten.org/docs/compiling/Running-html-files-with-emrun.html
-#		"-gsource-map"
+		#"-gsource-map" # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
 		#"--profiling"  			# https://emscripten.org/docs/tools_reference/emcc.html
 		"-fwasm-exceptions"  # Enable WASM-based exception support: https://emscripten.org/docs/porting/exceptions.html
 		"-sALLOW_MEMORY_GROWTH"
+		#"-sINITIAL_MEMORY=3GB"
+		#"-sMAXIMUM_MEMORY=4GB"
 		"-pthread"
 	#	"-s USE_SDL=2"
 		"-sPTHREAD_POOL_SIZE=200"
 		"-sSTACK_SIZE=262144"
+		#"-sMAIN_MODULE=2"
 		#"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
 		"-O2"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
@@ -1072,8 +1083,7 @@ elseif(WIN32)
 	
 	# Enable Tracy profiler for RELEASE and RELWITHDEBINFO configs.  Can't enable for Debug config because it clashes with Edit & Continue (/ZI).
 	if(TRACY_ENABLED)
-		SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			-DTRACY_ENABLE=1")
-		SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	-DTRACY_ENABLE=1")
+		add_definitions(-DTRACY_ENABLE=1)
 	endif()
 	
 	if(BUGSPLAT_SUPPORT)

@@ -49,6 +49,8 @@ public:
 
 	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
 
+	std::string getDiagnostics() const;
+
 	
 	// Needs to be same as PrecomputedPoint in build_imposters_compute_shader.glsl
 	struct PrecomputedPoint
@@ -166,7 +168,7 @@ private:
 
 	//js::Vector<VegetationLocationInfo, 16> temp_locations;
 
-	Reference<OpenGLMeshRenderData> grass_clump_meshdata;
+	//Reference<OpenGLMeshRenderData> grass_clump_meshdata;
 
 	Reference<OpenGLTexture> grass_texture;
 	Reference<OpenGLTexture> grass_normal_map;
@@ -196,5 +198,4 @@ private:
 
 
 	OpenGLTextureRef default_detail_mask_tex;
-
 };

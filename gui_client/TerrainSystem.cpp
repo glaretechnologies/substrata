@@ -532,6 +532,8 @@ struct TerrainSysDiagnosticsInfo
 	int num_interior_nodes;
 	int num_leaf_nodes;
 	int max_depth;
+	size_t geom_gpu_mem_usage;
+	size_t physics_obs_mem_usage;
 };
 
 static void processSubtreeDiagnostics(TerrainNode* node, TerrainSysDiagnosticsInfo& info)
@@ -548,6 +550,18 @@ static void processSubtreeDiagnostics(TerrainNode* node, TerrainSysDiagnosticsIn
 	else
 	{
 		info.num_leaf_nodes++;
+
+		if(node->gl_ob.nonNull())         info.geom_gpu_mem_usage += node->gl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
+		if(node->pending_gl_ob.nonNull()) info.geom_gpu_mem_usage += node->pending_gl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
+
+		if(node->physics_ob.nonNull())         info.physics_obs_mem_usage += node->physics_ob->shape.size_B;
+		if(node->pending_physics_ob.nonNull()) info.physics_obs_mem_usage += node->pending_physics_ob->shape.size_B;
+
+		for(size_t i=0; i<node->old_subtree_gl_obs.size(); ++i)
+			info.geom_gpu_mem_usage += node->old_subtree_gl_obs[i]->mesh_data->getTotalMemUsage().geom_gpu_usage;
+
+		for(size_t i=0; i<node->old_subtree_phys_obs.size(); ++i)
+			info.physics_obs_mem_usage += node->old_subtree_phys_obs[i]->shape.size_B;
 	}
 }
 
@@ -563,14 +577,63 @@ std::string TerrainSystem::getDiagnostics() const
 	info.num_interior_nodes = 0;
 	info.num_leaf_nodes = 0;
 	info.max_depth = 0;
+	info.geom_gpu_mem_usage = 0;
+	info.physics_obs_mem_usage = 0;
 
 	if(root_node.nonNull())
 		processSubtreeDiagnostics(root_node.ptr(), info);
 
-	return 
+	std::string s = 
 		"num interior nodes: " + toString(info.num_interior_nodes) + "\n" +
 		"num leaf nodes: " + toString(info.num_leaf_nodes) + "\n" +
-		"max depth: " + toString(info.max_depth) + "\n";
+		"max depth: " + toString(info.max_depth) + "\n" +
+		"geom_gpu_mem_usage: " + getNiceByteSize(info.geom_gpu_mem_usage) + "\n" +
+		"physics_obs_mem_usage: " + getNiceByteSize(info.physics_obs_mem_usage) + "\n";
+
+
+	size_t detail_heightmaps_cpu_mem = 0;
+	for(int i=0; i<4; ++i)
+		detail_heightmaps_cpu_mem += detail_heightmaps[i].nonNull() ? detail_heightmaps[i]->getByteSize() : 0;
+
+	s += "detail_heightmaps_cpu_mem: " + getNiceByteSize(detail_heightmaps_cpu_mem) + "\n";
+
+
+	size_t detail_tex_GPU_mem = 0;
+	size_t detail_heightmap_GPU_mem = 0;
+	for(int i=0; i<4; ++i)
+	{
+		if(opengl_engine->getDetailTexture(i).nonNull())   detail_tex_GPU_mem += opengl_engine->getDetailTexture(i)->getByteSize();
+		if(opengl_engine->getDetailHeightmap(i).nonNull()) detail_heightmap_GPU_mem += opengl_engine->getDetailHeightmap(i)->getByteSize();
+	}
+
+	s += "detail tex GPU mem:       " + getNiceByteSize(detail_tex_GPU_mem) + "\n";
+	s += "detail heightmap GPU mem: " + getNiceByteSize(detail_heightmap_GPU_mem) + "\n";
+
+	size_t terrain_section_heightmap_CPU_mem = 0;
+	size_t terrain_section_maskmap_CPU_mem = 0;
+	size_t terrain_section_heightmap_GPU_mem = 0;
+	size_t terrain_section_maskmap_GPU_mem = 0;
+	for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
+	for(int y=0; y<TERRAIN_DATA_SECTION_RES; ++y)
+	{
+		const TerrainDataSection& section = terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES];
+
+		if(section.heightmap.nonNull()) terrain_section_heightmap_CPU_mem += section.heightmap->getByteSize();
+		if(section.maskmap.nonNull())   terrain_section_maskmap_CPU_mem   += section.maskmap->getByteSize();
+
+		if(section.heightmap_gl_tex.nonNull()) terrain_section_heightmap_GPU_mem += section.heightmap_gl_tex->getByteSize();
+		if(section.mask_gl_tex.nonNull())      terrain_section_maskmap_GPU_mem   += section.mask_gl_tex->getByteSize();
+	}
+
+	s += "terrain section heightmap CPU mem: " + getNiceByteSize(terrain_section_heightmap_CPU_mem) + "\n";
+	s += "terrain section maskmap CPU mem:   " + getNiceByteSize(terrain_section_maskmap_CPU_mem) + "\n";
+	s += "terrain section heightmap GPU mem: " + getNiceByteSize(terrain_section_heightmap_GPU_mem) + "\n";
+	s += "terrain section maskmap GPU mem:   " + getNiceByteSize(terrain_section_maskmap_GPU_mem) + "\n";
+
+	s += "Terrain scattering:\n" +
+		terrain_scattering.getDiagnostics();
+
+	return s;
 }
 
 

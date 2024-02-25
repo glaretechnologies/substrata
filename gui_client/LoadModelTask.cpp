@@ -86,6 +86,17 @@ void LoadModelTask::run(size_t thread_index)
 				true, // skip_opengl_calls - we need to do these on the main thread.
 				build_dynamic_physics_ob,
 				/*physics shape out=*/physics_shape, /*batched_mesh_out=*/batched_mesh);
+
+#if EMSCRIPTEN
+			try
+			{
+				resource_manager->deleteResourceLocally(lod_model_url);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Warning: excep while deleting resource locally: " + e.what());
+			}
+#endif
 		}
 
 		// Send a ModelLoadedThreadMessage back to main window.

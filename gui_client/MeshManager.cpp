@@ -272,16 +272,17 @@ std::string MeshManager::getDiagnostics() const
 	}
 
 
-	// CPU mem used by meshes is generally zero, so don't bother reporting it.  Just report GPU mem usage.
 	const size_t mesh_usage_used_GPU = this->mesh_GPU_mem_usage - unused_gl_mesh_usage.totalGPUUsage(); // GPU Mem usage for active/used textures
 
 	const size_t shape_usage_used = this->shape_mem_usage - unused_shape_mem; // GPU Mem usage for active/used textures
 
 	std::string msg;
+	
 	msg += "mesh_manager gl meshes:                 " + toString(model_URL_to_mesh_map.size()) + "\n";
 	msg += "mesh_manager gl meshes active:          " + toString(model_URL_to_mesh_map.numUsedItems()) + "\n";
 	msg += "mesh_manager gl meshes cached:          " + toString(model_URL_to_mesh_map.numUnusedItems()) + "\n";
 
+	msg += "mesh_manager gl meshes total CPU usage: " + getNiceByteSize(this->mesh_CPU_mem_usage) + "\n";
 	msg += "mesh_manager gl meshes total GPU usage: " + getNiceByteSize(this->mesh_GPU_mem_usage) + "\n";
 	msg += "mesh_manager gl meshes GPU active:      " + getNiceByteSize(mesh_usage_used_GPU) + "\n";
 	msg += "mesh_manager gl meshes GPU cached:      " + getNiceByteSize(unused_gl_mesh_usage.totalGPUUsage()) + "\n";

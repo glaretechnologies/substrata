@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2019 -
 
 #include "ThreadMessages.h"
 #include "../shared/ImageDecoding.h"
+#include "../shared/ResourceManager.h"
 #include <indigo/TextureServer.h>
 #include <graphics/ImageMapSequence.h>
 #include <graphics/GifDecoder.h>
@@ -24,9 +25,9 @@ Copyright Glare Technologies Limited 2019 -
 #define GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT					0x8E8F
 
 
-LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, 
+LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const std::string& resource_URL_,
 	const TextureParams& tex_params_, bool is_terrain_map_)
-:	opengl_engine(opengl_engine_), result_msg_queue(result_msg_queue_), path(path_), tex_params(tex_params_), is_terrain_map(is_terrain_map_)
+:	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource_URL(resource_URL_), tex_params(tex_params_), is_terrain_map(is_terrain_map_)
 {}
 
 
@@ -70,10 +71,24 @@ void LoadTextureTask::run(size_t thread_index)
 		const bool do_compression = opengl_engine->textureCompressionSupportedAndEnabled() && tex_params.allow_compression && OpenGLTexture::areTextureDimensionsValidForCompression(*map);
 		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps);
 
-		if(hasExtension(key, "gif") && texture_data->compressedSizeBytes() > 100000000)
+		if(hasExtension(key, "gif") && texture_data->totalCPUMemUsage() > 100000000)
 		{
-			conPrint("Large gif texture data: " + toString(texture_data->compressedSizeBytes()) + " B, " + key);
+			conPrint("Large gif texture data: " + toString(texture_data->totalCPUMemUsage()) + " B, " + key);
 		}
+
+#if EMSCRIPTEN
+		if(!resource_URL.empty())
+		{
+			try
+			{
+				resource_manager->deleteResourceLocally(resource_URL);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Warning: excep while deleting resource locally: " + e.what());
+			}
+		}
+#endif
 
 
 		// Send a message to MainWindow with the loaded texture data.

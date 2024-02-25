@@ -22,6 +22,8 @@ class ResourceManager;
 class ModelLoadedThreadMessage : public ThreadMessage
 {
 public:
+	ModelLoadedThreadMessage() = default;
+	GLARE_DISABLE_COPY(ModelLoadedThreadMessage);
 	// Results of the task:
 	
 	Reference<OpenGLMeshRenderData> gl_meshdata;
