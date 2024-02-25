@@ -1107,8 +1107,9 @@ void MainWindow::updateDiagnostics()
 		
 		const bool do_graphics_diagnostics = ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked();
 		const bool do_physics_diagnostics = ui->diagnosticsWidget->physicsDiagnosticsCheckBox->isChecked();
+		const bool do_terrain_diagnostics = ui->diagnosticsWidget->terrainDiagnosticsCheckBox->isChecked();
 
-		const std::string msg = gui_client.getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
+		const std::string msg = gui_client.getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, do_terrain_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
 		if(!ui->diagnosticsWidget->diagnosticsTextEdit->textCursor().hasSelection())

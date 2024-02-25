@@ -6953,28 +6953,28 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 
 	if(opengl_engine.nonNull() && do_graphics_diagnostics)
 	{
-		msg += "\n------------Graphics------------\n";
+		msg += "------------Graphics------------\n";
 		msg += opengl_engine->getDiagnostics() + "\n";
 		//msg += "GL widget valid: " + boolToString(isValid()) + "\n";
 		//msg += "GL format has OpenGL: " + boolToString(format().hasOpenGL()) + "\n";
 		//msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
 		//msg += "OpenGL engine initialised: " + boolToString(opengl_engine->initSucceeded()) + "\n";
-		msg += "--------------------------------\n";
+		msg += "-------------------------------\n";
 	}
 
 	// Only show physics details when physicsDiagnosticsCheckBox is checked.  Works around problem of physics_world->getDiagnostics() being slow, which causes stutters.
 	if(physics_world.nonNull() && do_physics_diagnostics)
 	{
-		msg += "\n------------Physics------------\n";
+		msg += "------------Physics------------\n";
 		msg += physics_world->getDiagnostics();
-		msg += "-------------------------------\n";
+		msg += "------------------------------\n";
 	}
 
 	if(terrain_system.nonNull() && do_terrain_diagnostics)
 	{
-		msg += "\n------------Terrain------------\n";
+		msg += "------------Terrain------------\n";
 		msg += terrain_system->getDiagnostics();
-		msg += "--------------------------------\n";
+		msg += "-------------------------------\n";
 	}
 
 	msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
