@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/HashMapInsertOnly2.h>
 #include <utils/string_view.h>
 #include <utils/RuntimeCheck.h>
+#include <tracy/Tracy.hpp>
 #include <stdarg.h>
 #include <Lock.h>
 #include "JoltUtils.h"
@@ -165,6 +166,29 @@ class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 };
 
 
+static void* joltAllocate(size_t size)
+{
+	void* ptr = malloc(size);
+	TracyAllocS(ptr, size, /*call stack capture depth=*/10);
+	return ptr;
+}
+
+static void joltFree(void* inBlock)
+{
+	TracyFreeS(inBlock, /*call stack capture depth=*/10);
+	free(inBlock);
+}
+
+static void* joltAlignedAlloc(size_t size, size_t alignment)
+{
+	return MemAlloc::alignedMalloc(size, alignment);
+}
+
+static void joltAlignedFree(void *inBlock)
+{
+	MemAlloc::alignedFree(inBlock);
+}
+
 #endif // USE_JOLT
 
 
@@ -172,7 +196,11 @@ void PhysicsWorld::init()
 {
 #if USE_JOLT
 	// Register allocation hook
-	JPH::RegisterDefaultAllocator();
+	//JPH::RegisterDefaultAllocator();
+	JPH::Allocate = joltAllocate;
+	JPH::Free = joltFree;
+	JPH::AlignedAllocate = joltAlignedAlloc;
+	JPH::AlignedFree = joltAlignedFree;
 
 	// Install callbacks
 	JPH::Trace = traceImpl;
@@ -260,7 +288,8 @@ public:
 		return mTop == 0;
 	}
 
-	uint getMaxAllocated() { return maxTop; }
+	uint getMaxAllocated() const { return maxTop; }
+	uint getSize() const { return mSize; }
 
 private:
 	uint8 *							mBase;							///< Base address of the memory block
@@ -1312,7 +1341,7 @@ std::string PhysicsWorld::getDiagnostics() const
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
 
 	assert(dynamic_cast<PhysicsWorldAllocatorImpl*>(temp_allocator));
-	s += "temp allocator max usage: " + getNiceByteSize(static_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->getMaxAllocated()) + "\n";
+	s += "temp allocator max used: " + getNiceByteSize(static_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->getMaxAllocated()) + " (Total: " + getNiceByteSize(static_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->getSize()) + ")\n";
 
 	return s;
 }
