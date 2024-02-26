@@ -130,7 +130,7 @@ static void onLoad(unsigned int firstarg, void* userdata_arg, const char* filena
 
 static void onError(unsigned int, void* userdata_arg, int http_status_code)
 {
-	conPrint("DownloadResourcesThread: onError: " + toString(http_status_code));
+	// conPrint("DownloadResourcesThread: onError: " + toString(http_status_code));
 
 	DownloadResourcesThread* thread = (DownloadResourcesThread*)userdata_arg;
 
@@ -211,8 +211,8 @@ void DownloadResourcesThread::doRun()
 						const std::string URL = *it;
 						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
-						const std::string http_URL = "http://localhost/resource/" + URL;
-						conPrint("Calling emscripten_wget_data for URL '" + http_URL + "'...");
+						const std::string http_URL = "http://" + hostname + "/resource/" + URL;
+						//conPrint("Calling emscripten_wget_data for URL '" + http_URL + "'...");
 
 						const std::string local_abs_path = resource_manager->getLocalAbsPathForResource(*resource);
 
@@ -233,7 +233,7 @@ void DownloadResourcesThread::doRun()
 							resource_manager->addToDownloadFailedURLs(URL);
 
 							resource->setState(Resource::State_NotPresent);
-							conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "'");// (Result=" + toString(result) + ")");
+							//conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "'");// (Result=" + toString(result) + ")");
 							out_msg_queue->enqueue(new LogMessage("Server couldn't send resource '" + URL + "' (resource not found)"));
 						}
 
