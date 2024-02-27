@@ -275,6 +275,8 @@ void ResourceManager::deleteResourceLocally(const std::string& URL)
 
 		resource->setState(Resource::State_NotPresent);
 
+		resource->locally_deleted = true;
+
 		this->changed = 1;
 	}
 }
@@ -308,6 +310,52 @@ bool ResourceManager::isInDownloadFailedURLs(const std::string& URL) const
 {
 	Lock lock(mutex);
 	return download_failed_URLs.count(URL) >= 1;
+}
+
+
+std::string ResourceManager::getDiagnostics() const
+{
+	Lock lock(mutex);
+
+	size_t num_not_present = 0;
+	size_t num_transferring = 0;
+	size_t num_present = 0;
+	size_t num_locally_deleted = 0;
+	for(auto it = resource_for_url.begin(); it != resource_for_url.end(); ++it)
+	{
+		if(it->second->getState() == Resource::State_Present)
+			num_present++;
+		else if(it->second->getState() == Resource::State_Transferring)
+			num_transferring++;
+		else
+			num_not_present++;
+
+		if(it->second->locally_deleted)
+			num_locally_deleted++;
+	}
+
+
+	std::string s;
+	s += "Num resources:       " + toString(resource_for_url.size()) + "\n";
+	s += "num_not_present:     " + toString(num_not_present) + "\n";
+	s += "num_transferring:    " + toString(num_transferring) + "\n";
+	s += "num_present:         " + toString(num_present) + "\n";
+	s += "num_locally_deleted: " + toString(num_locally_deleted) + "\n";
+
+	s += "Present resources:\n";
+	const int max_num_to_display = 32;
+	int i = 0;
+	for(auto it = resource_for_url.begin(); (it != resource_for_url.end()) && (i < max_num_to_display); ++it)
+	{
+		if(it->second->getState() == Resource::State_Present)
+		{
+			s += "  '" + it->second->URL + "'\n";
+			i++;
+		}
+	}
+	if(num_present > max_num_to_display)
+		s += "  ...\n";
+	return s;
 }
 
 

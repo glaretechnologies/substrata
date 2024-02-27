@@ -69,8 +69,10 @@ void BuildScatteringInfoTask::run(size_t thread_index)
 			BatchedMeshRef batched_mesh;
 
 			// We want to load and build the mesh at lod_model_url.
-			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
-			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(lod_model_url, *this->resource_manager,
+			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");.
+			const std::string model_path = resource_manager->pathForURL(lod_model_url);
+
+			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(model_path,
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.
 				false, // build_dynamic_physics_ob

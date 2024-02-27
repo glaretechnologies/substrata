@@ -29,12 +29,12 @@ LoadModelTask::~LoadModelTask()
 
 void LoadModelTask::run(size_t thread_index)
 {
-	Reference<OpenGLMeshRenderData> gl_meshdata;
-	PhysicsShape physics_shape;
-	int subsample_factor = 1; // computed when loading voxels
-
 	try
 	{
+		Reference<OpenGLMeshRenderData> gl_meshdata;
+		PhysicsShape physics_shape;
+		int subsample_factor = 1; // computed when loading voxels
+
 		if(voxel_ob.nonNull())
 		{
 			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
@@ -80,23 +80,14 @@ void LoadModelTask::run(size_t thread_index)
 
 			// We want to load and build the mesh at lod_model_url.
 			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
+			const std::string lod_model_path = resource_manager->pathForURL(lod_model_url);
+
 			BatchedMeshRef batched_mesh;
-			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(lod_model_url, *this->resource_manager,
+			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(lod_model_path,
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.
 				build_dynamic_physics_ob,
 				/*physics shape out=*/physics_shape, /*batched_mesh_out=*/batched_mesh);
-
-#if EMSCRIPTEN
-			try
-			{
-				resource_manager->deleteResourceLocally(lod_model_url);
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("Warning: excep while deleting resource locally: " + e.what());
-			}
-#endif
 		}
 
 		// Send a ModelLoadedThreadMessage back to main window.
@@ -108,10 +99,31 @@ void LoadModelTask::run(size_t thread_index)
 		msg->voxel_ob_model_lod_level = voxel_ob_model_lod_level;
 		msg->subsample_factor = subsample_factor;
 		msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
+
+		// Null out references to gl_meshdata and jolt shape here, before we pass to another thread.
+		// This is important for gl_meshdata, since the main thread may set gl_meshdata->individual_vao, which could then be destroyed on this thread, which is invalid.
+		gl_meshdata = NULL;
+		physics_shape.jolt_shape = NULL;
+
 		result_msg_queue->enqueue(msg);
 	}
 	catch(glare::Exception& e)
 	{
 		result_msg_queue->enqueue(new LogMessage("Error while loading model: " + e.what()));
 	}
+
+
+#if EMSCRIPTEN
+	if(!lod_model_url.empty())
+	{
+		try
+		{
+			resource_manager->deleteResourceLocally(lod_model_url);
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Warning: excep while deleting resource locally: " + e.what());
+		}
+	}
+#endif
 }

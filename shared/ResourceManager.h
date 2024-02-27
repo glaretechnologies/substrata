@@ -84,6 +84,8 @@ public:
 
 	Mutex& getMutex() { return mutex; }
 
+	std::string getDiagnostics() const;
+
 	// Just used on client:
 	void loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk);
 	void saveToDisk(const std::string& path);

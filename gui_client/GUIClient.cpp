@@ -565,14 +565,10 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 			//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
 			//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
 			const std::string path = "D:\\models\\generic dude avatar.glb";
-			const uint64 model_hash = FileChecksum::fileChecksum(path);
-			const std::string original_filename = FileUtils::getFilename(path);
-			const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(original_filename), model_hash);
-			resource_manager->copyLocalFileToResourceDir(path, mesh_URL);
 
 			PhysicsShape physics_shape;
 			BatchedMeshRef batched_mesh;
-			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(mesh_URL, *resource_manager,
+			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path,
 				opengl_engine->vert_buf_allocator.ptr(), false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
 			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 
@@ -772,6 +768,13 @@ void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& ce
 	if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
 	{
 		//conPrint("Already present or being downloaded, skipping...");
+		return;
+	}
+
+	if(resource->locally_deleted)
+	{
+		// Don't redownload
+		// conPrint("Skipping locally deleted resource '" + url + "'...");
 		return;
 	}
 
@@ -1117,6 +1120,14 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
 				in_range = ob_dist < maxAudioDistForSourceVolFactor(ob->audio_volume);
 			}
+
+#if EMSCRIPTEN
+			if(has_audio_extension)
+			{
+				// conPrint("Skipping downloading audio resource '" + url + "'...");
+				continue; // Skip loading audio under Emscripten for now
+			}
+#endif
 
 			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 			{
@@ -2027,7 +2038,15 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 				if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
 				{
 					FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
+
+					const GLMemUsage old_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
+
 					avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+
+					const GLMemUsage new_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
+
+					// The mesh manager keeps a running total of the amount of memory used by inserted meshes.  Therefore it needs to be informed if the size of one of them changes.
+					mesh_manager.meshMemoryAllocatedChanged(old_mem_usage, new_mem_usage);
 				}
 
 				avatar->graphics.build();
@@ -2427,6 +2446,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob)
 
 							load_audio_task->audio_source_url = ob->audio_source_url;
 							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
+							load_audio_task->resource_manager = this->resource_manager;
 							load_audio_task->result_msg_queue = &this->msg_queue;
 
 							load_item_queue.enqueueItem(*ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
@@ -3367,7 +3387,15 @@ void GUIClient::processLoading()
 											if(!av->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
 											{
 												FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
+
+												const GLMemUsage old_mem_usage = av->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
+
 												av->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+
+												const GLMemUsage new_mem_usage = av->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
+
+												// The mesh manager keeps a running total of the amount of memory used by inserted meshes.  Therefore it needs to be informed if the size of one of them changes.
+												mesh_manager.meshMemoryAllocatedChanged(old_mem_usage, new_mem_usage);
 											}
 
 											av->graphics.build();
@@ -6998,6 +7026,9 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 
 	msg += this->mesh_manager.getDiagnostics();
 
+	msg += "------------Resource Manager------------\n";
+	msg += resource_manager->getDiagnostics();
+	msg += "----------------------------------------\n";
 
 	{
 		msg += "\nAudio engine:\n";

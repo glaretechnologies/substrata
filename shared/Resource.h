@@ -43,7 +43,7 @@ public:
 	};
 
 	Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_);
-	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/ {}
+	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, locally_deleted(false) {}
 	
 	const std::string getLocalAbsPath(const std::string& base_resource_dir) const { return base_resource_dir + "/" + local_path; }
 	const std::string getRawLocalPath() const { return local_path; } // Relative path on local disk from base_resources_dir.
@@ -75,6 +75,9 @@ private:
 
 	State state; // May be protected by mutex soon.
 	std::string local_path; // Relative path on local disk from base_resources_dir.
+
+public:
+	bool locally_deleted; // Has resource been deleted with ResourceManager::deleteResourceLocally().  (For Emscripten)
 };
 
 typedef Reference<Resource> ResourceRef;

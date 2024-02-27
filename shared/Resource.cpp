@@ -23,7 +23,8 @@ Resource::Resource(const std::string& URL_, const std::string& raw_local_path_, 
 :	URL(URL_), 
 	local_path(raw_local_path_), 
 	state(s), 
-	owner_id(owner_id_)/*, num_buffer_readers(0)*/
+	owner_id(owner_id_)/*, num_buffer_readers(0)*/,
+	locally_deleted(false)
 {
 	assert(!FileUtils::isPathAbsolute(local_path));
 }

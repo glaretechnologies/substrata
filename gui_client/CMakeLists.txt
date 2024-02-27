@@ -533,249 +533,250 @@ endif()
 
 
 #===================================== Resonance Audio =====================================
+if(NOT EMSCRIPTEN)
 
-set(res_ambisonics
-../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc
-../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.h
-../resonance-audio/resonance_audio/ambisonics/ambisonic_codec.h
-../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc                      
-../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.h                       
-../resonance-audio/resonance_audio/ambisonics/ambisonic_codec.h                                  
-../resonance-audio/resonance_audio/ambisonics/ambisonic_codec_impl.h                             
-../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.cc                          
-../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.h                           
-../resonance-audio/resonance_audio/ambisonics/ambisonic_spread_coefficients.h                    
-../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.cc       
-../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.h        
-../resonance-audio/resonance_audio/ambisonics/foa_rotator.cc                                     
-../resonance-audio/resonance_audio/ambisonics/foa_rotator.h                                      
-../resonance-audio/resonance_audio/ambisonics/hoa_rotator.cc                                     
-../resonance-audio/resonance_audio/ambisonics/hoa_rotator.h                                      
-../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.cc                
-../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.h                 
-../resonance-audio/resonance_audio/ambisonics/utils.h                                            
-)
+	set(res_ambisonics
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.h
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec.h
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc                      
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.h                       
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec.h                                  
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec_impl.h                             
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.cc                          
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.h                           
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_spread_coefficients.h                    
+	../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.cc       
+	../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.h        
+	../resonance-audio/resonance_audio/ambisonics/foa_rotator.cc                                     
+	../resonance-audio/resonance_audio/ambisonics/foa_rotator.h                                      
+	../resonance-audio/resonance_audio/ambisonics/hoa_rotator.cc                                     
+	../resonance-audio/resonance_audio/ambisonics/hoa_rotator.h                                      
+	../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.cc                
+	../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.h                 
+	../resonance-audio/resonance_audio/ambisonics/utils.h                                            
+	)
 
-set(res_api
-../resonance-audio/resonance_audio/api/resonance_audio_api.cc
-../resonance-audio/resonance_audio/api/resonance_audio_api.h
-)
+	set(res_api
+	../resonance-audio/resonance_audio/api/resonance_audio_api.cc
+	../resonance-audio/resonance_audio/api/resonance_audio_api.h
+	)
 
-set(res_base
-../resonance-audio/resonance_audio/base/aligned_allocator.h             
-../resonance-audio/resonance_audio/base/audio_buffer.cc                 
-../resonance-audio/resonance_audio/base/audio_buffer.h                  
-../resonance-audio/resonance_audio/base/channel_view.cc                 
-../resonance-audio/resonance_audio/base/channel_view.h                  
-../resonance-audio/resonance_audio/base/constants_and_types.h           
-../resonance-audio/resonance_audio/base/integral_types.h                
-../resonance-audio/resonance_audio/base/logging.h                       
-../resonance-audio/resonance_audio/base/misc_math.cc                    
-../resonance-audio/resonance_audio/base/misc_math.h                     
-../resonance-audio/resonance_audio/base/object_transform.h              
-../resonance-audio/resonance_audio/base/simd_macros.h                   
-../resonance-audio/resonance_audio/base/simd_utils.cc                   
-../resonance-audio/resonance_audio/base/simd_utils.h                    
-../resonance-audio/resonance_audio/base/source_parameters.h             
-../resonance-audio/resonance_audio/base/spherical_angle.cc              
-../resonance-audio/resonance_audio/base/spherical_angle.h               
-../resonance-audio/resonance_audio/base/unique_ptr_wrapper.h            
-)
+	set(res_base
+	../resonance-audio/resonance_audio/base/aligned_allocator.h             
+	../resonance-audio/resonance_audio/base/audio_buffer.cc                 
+	../resonance-audio/resonance_audio/base/audio_buffer.h                  
+	../resonance-audio/resonance_audio/base/channel_view.cc                 
+	../resonance-audio/resonance_audio/base/channel_view.h                  
+	../resonance-audio/resonance_audio/base/constants_and_types.h           
+	../resonance-audio/resonance_audio/base/integral_types.h                
+	../resonance-audio/resonance_audio/base/logging.h                       
+	../resonance-audio/resonance_audio/base/misc_math.cc                    
+	../resonance-audio/resonance_audio/base/misc_math.h                     
+	../resonance-audio/resonance_audio/base/object_transform.h              
+	../resonance-audio/resonance_audio/base/simd_macros.h                   
+	../resonance-audio/resonance_audio/base/simd_utils.cc                   
+	../resonance-audio/resonance_audio/base/simd_utils.h                    
+	../resonance-audio/resonance_audio/base/source_parameters.h             
+	../resonance-audio/resonance_audio/base/spherical_angle.cc              
+	../resonance-audio/resonance_audio/base/spherical_angle.h               
+	../resonance-audio/resonance_audio/base/unique_ptr_wrapper.h            
+	)
 
-set(res_dsp
-../resonance-audio/resonance_audio/dsp/biquad_filter.cc                                  
-../resonance-audio/resonance_audio/dsp/biquad_filter.h                                   
-../resonance-audio/resonance_audio/dsp/channel_converter.cc                              
-../resonance-audio/resonance_audio/dsp/channel_converter.h                               
-../resonance-audio/resonance_audio/dsp/circular_buffer.cc                                
-../resonance-audio/resonance_audio/dsp/circular_buffer.h                                 
-../resonance-audio/resonance_audio/dsp/delay_filter.cc                                   
-../resonance-audio/resonance_audio/dsp/delay_filter.h                                    
-../resonance-audio/resonance_audio/dsp/distance_attenuation.cc                           
-../resonance-audio/resonance_audio/dsp/distance_attenuation.h                            
-../resonance-audio/resonance_audio/dsp/fft_manager.cc                                    
-../resonance-audio/resonance_audio/dsp/fft_manager.h                                     
-../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.cc                  
-../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.h                   
-../resonance-audio/resonance_audio/dsp/fir_filter.cc                                     
-../resonance-audio/resonance_audio/dsp/fir_filter.h                                      
-../resonance-audio/resonance_audio/dsp/gain.cc                                           
-../resonance-audio/resonance_audio/dsp/gain.h                                            
-../resonance-audio/resonance_audio/dsp/gain_mixer.cc                                     
-../resonance-audio/resonance_audio/dsp/gain_mixer.h                                      
-../resonance-audio/resonance_audio/dsp/gain_processor.cc                                 
-../resonance-audio/resonance_audio/dsp/gain_processor.h                                  
-../resonance-audio/resonance_audio/dsp/mixer.cc                                          
-../resonance-audio/resonance_audio/dsp/mixer.h                                           
-../resonance-audio/resonance_audio/dsp/mono_pole_filter.cc                               
-../resonance-audio/resonance_audio/dsp/mono_pole_filter.h                                
-../resonance-audio/resonance_audio/dsp/multi_channel_iir.cc                              
-../resonance-audio/resonance_audio/dsp/multi_channel_iir.h                               
-../resonance-audio/resonance_audio/dsp/near_field_processor.cc                           
-../resonance-audio/resonance_audio/dsp/near_field_processor.h                            
-../resonance-audio/resonance_audio/dsp/occlusion_calculator.cc                           
-../resonance-audio/resonance_audio/dsp/occlusion_calculator.h                            
-../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.cc                         
-../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.h                          
-../resonance-audio/resonance_audio/dsp/reflection.h                                      
-../resonance-audio/resonance_audio/dsp/reflections_processor.cc                          
-../resonance-audio/resonance_audio/dsp/reflections_processor.h                           
-../resonance-audio/resonance_audio/dsp/resampler.cc                                      
-../resonance-audio/resonance_audio/dsp/resampler.h                                       
-../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.cc                       
-../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.h                        
-../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.cc                  
-../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.h                   
-../resonance-audio/resonance_audio/dsp/shoe_box_room.cc                                  
-../resonance-audio/resonance_audio/dsp/shoe_box_room.h                                   
-../resonance-audio/resonance_audio/dsp/sh_hrir_creator.cc                                
-../resonance-audio/resonance_audio/dsp/sh_hrir_creator.h                                 
-../resonance-audio/resonance_audio/dsp/spectral_reverb.cc                                
-../resonance-audio/resonance_audio/dsp/spectral_reverb.h                                 
-../resonance-audio/resonance_audio/dsp/spectral_reverb_constants_and_tables.h            
-../resonance-audio/resonance_audio/dsp/stereo_panner.cc                                  
-../resonance-audio/resonance_audio/dsp/stereo_panner.h                                   
-../resonance-audio/resonance_audio/dsp/utils.cc                                          
-../resonance-audio/resonance_audio/dsp/utils.h                                           
-)
+	set(res_dsp
+	../resonance-audio/resonance_audio/dsp/biquad_filter.cc                                  
+	../resonance-audio/resonance_audio/dsp/biquad_filter.h                                   
+	../resonance-audio/resonance_audio/dsp/channel_converter.cc                              
+	../resonance-audio/resonance_audio/dsp/channel_converter.h                               
+	../resonance-audio/resonance_audio/dsp/circular_buffer.cc                                
+	../resonance-audio/resonance_audio/dsp/circular_buffer.h                                 
+	../resonance-audio/resonance_audio/dsp/delay_filter.cc                                   
+	../resonance-audio/resonance_audio/dsp/delay_filter.h                                    
+	../resonance-audio/resonance_audio/dsp/distance_attenuation.cc                           
+	../resonance-audio/resonance_audio/dsp/distance_attenuation.h                            
+	../resonance-audio/resonance_audio/dsp/fft_manager.cc                                    
+	../resonance-audio/resonance_audio/dsp/fft_manager.h                                     
+	../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.cc                  
+	../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.h                   
+	../resonance-audio/resonance_audio/dsp/fir_filter.cc                                     
+	../resonance-audio/resonance_audio/dsp/fir_filter.h                                      
+	../resonance-audio/resonance_audio/dsp/gain.cc                                           
+	../resonance-audio/resonance_audio/dsp/gain.h                                            
+	../resonance-audio/resonance_audio/dsp/gain_mixer.cc                                     
+	../resonance-audio/resonance_audio/dsp/gain_mixer.h                                      
+	../resonance-audio/resonance_audio/dsp/gain_processor.cc                                 
+	../resonance-audio/resonance_audio/dsp/gain_processor.h                                  
+	../resonance-audio/resonance_audio/dsp/mixer.cc                                          
+	../resonance-audio/resonance_audio/dsp/mixer.h                                           
+	../resonance-audio/resonance_audio/dsp/mono_pole_filter.cc                               
+	../resonance-audio/resonance_audio/dsp/mono_pole_filter.h                                
+	../resonance-audio/resonance_audio/dsp/multi_channel_iir.cc                              
+	../resonance-audio/resonance_audio/dsp/multi_channel_iir.h                               
+	../resonance-audio/resonance_audio/dsp/near_field_processor.cc                           
+	../resonance-audio/resonance_audio/dsp/near_field_processor.h                            
+	../resonance-audio/resonance_audio/dsp/occlusion_calculator.cc                           
+	../resonance-audio/resonance_audio/dsp/occlusion_calculator.h                            
+	../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.cc                         
+	../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.h                          
+	../resonance-audio/resonance_audio/dsp/reflection.h                                      
+	../resonance-audio/resonance_audio/dsp/reflections_processor.cc                          
+	../resonance-audio/resonance_audio/dsp/reflections_processor.h                           
+	../resonance-audio/resonance_audio/dsp/resampler.cc                                      
+	../resonance-audio/resonance_audio/dsp/resampler.h                                       
+	../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.cc                       
+	../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.h                        
+	../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.cc                  
+	../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.h                   
+	../resonance-audio/resonance_audio/dsp/shoe_box_room.cc                                  
+	../resonance-audio/resonance_audio/dsp/shoe_box_room.h                                   
+	../resonance-audio/resonance_audio/dsp/sh_hrir_creator.cc                                
+	../resonance-audio/resonance_audio/dsp/sh_hrir_creator.h                                 
+	../resonance-audio/resonance_audio/dsp/spectral_reverb.cc                                
+	../resonance-audio/resonance_audio/dsp/spectral_reverb.h                                 
+	../resonance-audio/resonance_audio/dsp/spectral_reverb_constants_and_tables.h            
+	../resonance-audio/resonance_audio/dsp/stereo_panner.cc                                  
+	../resonance-audio/resonance_audio/dsp/stereo_panner.h                                   
+	../resonance-audio/resonance_audio/dsp/utils.cc                                          
+	../resonance-audio/resonance_audio/dsp/utils.h                                           
+	)
 
-set(res_graph
-../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.cc          
-../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.h           
-../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.cc            
-../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.h             
-../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.cc          
-../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.h           
-../resonance-audio/resonance_audio/graph/buffered_source_node.cc                     
-../resonance-audio/resonance_audio/graph/buffered_source_node.h                      
-../resonance-audio/resonance_audio/graph/foa_rotator_node.cc                         
-../resonance-audio/resonance_audio/graph/foa_rotator_node.h                          
-../resonance-audio/resonance_audio/graph/gain_mixer_node.cc                          
-../resonance-audio/resonance_audio/graph/gain_mixer_node.h                           
-../resonance-audio/resonance_audio/graph/gain_node.cc                                
-../resonance-audio/resonance_audio/graph/gain_node.h                                 
-../resonance-audio/resonance_audio/graph/graph_manager.cc                            
-../resonance-audio/resonance_audio/graph/graph_manager.h                             
-../resonance-audio/resonance_audio/graph/graph_manager_config.h                      
-../resonance-audio/resonance_audio/graph/hoa_rotator_node.cc                         
-../resonance-audio/resonance_audio/graph/hoa_rotator_node.h                          
-../resonance-audio/resonance_audio/graph/mixer_node.cc                               
-../resonance-audio/resonance_audio/graph/mixer_node.h                                
-../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.cc                
-../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.h                 
-../resonance-audio/resonance_audio/graph/near_field_effect_node.cc                   
-../resonance-audio/resonance_audio/graph/near_field_effect_node.h                    
-../resonance-audio/resonance_audio/graph/occlusion_node.cc                           
-../resonance-audio/resonance_audio/graph/occlusion_node.h                            
-../resonance-audio/resonance_audio/graph/reflections_node.cc                         
-../resonance-audio/resonance_audio/graph/reflections_node.h                          
-../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.cc                 
-../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.h                  
-../resonance-audio/resonance_audio/graph/reverb_node.cc                              
-../resonance-audio/resonance_audio/graph/reverb_node.h                               
-../resonance-audio/resonance_audio/graph/source_graph_config.h                       
-../resonance-audio/resonance_audio/graph/source_parameters_manager.cc                
-../resonance-audio/resonance_audio/graph/source_parameters_manager.h                 
-../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.cc                
-../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.h                 
-../resonance-audio/resonance_audio/graph/system_settings.h        
-)
+	set(res_graph
+	../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.cc          
+	../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.h           
+	../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.cc            
+	../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.h             
+	../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.cc          
+	../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.h           
+	../resonance-audio/resonance_audio/graph/buffered_source_node.cc                     
+	../resonance-audio/resonance_audio/graph/buffered_source_node.h                      
+	../resonance-audio/resonance_audio/graph/foa_rotator_node.cc                         
+	../resonance-audio/resonance_audio/graph/foa_rotator_node.h                          
+	../resonance-audio/resonance_audio/graph/gain_mixer_node.cc                          
+	../resonance-audio/resonance_audio/graph/gain_mixer_node.h                           
+	../resonance-audio/resonance_audio/graph/gain_node.cc                                
+	../resonance-audio/resonance_audio/graph/gain_node.h                                 
+	../resonance-audio/resonance_audio/graph/graph_manager.cc                            
+	../resonance-audio/resonance_audio/graph/graph_manager.h                             
+	../resonance-audio/resonance_audio/graph/graph_manager_config.h                      
+	../resonance-audio/resonance_audio/graph/hoa_rotator_node.cc                         
+	../resonance-audio/resonance_audio/graph/hoa_rotator_node.h                          
+	../resonance-audio/resonance_audio/graph/mixer_node.cc                               
+	../resonance-audio/resonance_audio/graph/mixer_node.h                                
+	../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.cc                
+	../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.h                 
+	../resonance-audio/resonance_audio/graph/near_field_effect_node.cc                   
+	../resonance-audio/resonance_audio/graph/near_field_effect_node.h                    
+	../resonance-audio/resonance_audio/graph/occlusion_node.cc                           
+	../resonance-audio/resonance_audio/graph/occlusion_node.h                            
+	../resonance-audio/resonance_audio/graph/reflections_node.cc                         
+	../resonance-audio/resonance_audio/graph/reflections_node.h                          
+	../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.cc                 
+	../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.h                  
+	../resonance-audio/resonance_audio/graph/reverb_node.cc                              
+	../resonance-audio/resonance_audio/graph/reverb_node.h                               
+	../resonance-audio/resonance_audio/graph/source_graph_config.h                       
+	../resonance-audio/resonance_audio/graph/source_parameters_manager.cc                
+	../resonance-audio/resonance_audio/graph/source_parameters_manager.h                 
+	../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.cc                
+	../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.h                 
+	../resonance-audio/resonance_audio/graph/system_settings.h        
+	)
 
-set(res_config
-../resonance-audio/resonance_audio/config/global_config.h
-../resonance-audio/resonance_audio/config/source_config.cc
-../resonance-audio/resonance_audio/config/source_config.h
-)
+	set(res_config
+	../resonance-audio/resonance_audio/config/global_config.h
+	../resonance-audio/resonance_audio/config/source_config.cc
+	../resonance-audio/resonance_audio/config/source_config.h
+	)
 
-set(res_hrtf
-../resonance-audio/third_party/SADIE_hrtf_database/generated/hrtf_assets.cc
-../resonance-audio/third_party/SADIE_hrtf_database/generated/hrtf_assets.h
-)
+	set(res_hrtf
+	../resonance-audio/third_party/SADIE_hrtf_database/generated/hrtf_assets.cc
+	../resonance-audio/third_party/SADIE_hrtf_database/generated/hrtf_assets.h
+	)
 
-set(res_pffft
-#../resonance-audio/third_party/pffft/fftpack.c
-#../resonance-audio/third_party/pffft/fftpack.h
-../resonance-audio/third_party/pffft/pffft.c
-../resonance-audio/third_party/pffft/pffft.h
-)
+	set(res_pffft
+	#../resonance-audio/third_party/pffft/fftpack.c
+	#../resonance-audio/third_party/pffft/fftpack.h
+	../resonance-audio/third_party/pffft/pffft.c
+	../resonance-audio/third_party/pffft/pffft.h
+	)
 
-set(res_platforms
-../resonance-audio/platforms/common/common_utils.cc
-../resonance-audio/platforms/common/room_effects_utils.cc         
-../resonance-audio/platforms/common/room_effects_utils.h          
-../resonance-audio/platforms/common/room_properties.h             
-../resonance-audio/platforms/common/utils.h                       
-)
+	set(res_platforms
+	../resonance-audio/platforms/common/common_utils.cc
+	../resonance-audio/platforms/common/room_effects_utils.cc         
+	../resonance-audio/platforms/common/room_effects_utils.h          
+	../resonance-audio/platforms/common/room_properties.h             
+	../resonance-audio/platforms/common/utils.h                       
+	)
 
-set(res_node
-../resonance-audio/resonance_audio/node/node.h                
-../resonance-audio/resonance_audio/node/processing_node.cc    
-../resonance-audio/resonance_audio/node/processing_node.h     
-../resonance-audio/resonance_audio/node/publisher_node.h      
-../resonance-audio/resonance_audio/node/sink_node.cc          
-../resonance-audio/resonance_audio/node/sink_node.h           
-../resonance-audio/resonance_audio/node/source_node.cc        
-../resonance-audio/resonance_audio/node/source_node.h         
-../resonance-audio/resonance_audio/node/subscriber_node.h     
-)
+	set(res_node
+	../resonance-audio/resonance_audio/node/node.h                
+	../resonance-audio/resonance_audio/node/processing_node.cc    
+	../resonance-audio/resonance_audio/node/processing_node.h     
+	../resonance-audio/resonance_audio/node/publisher_node.h      
+	../resonance-audio/resonance_audio/node/sink_node.cc          
+	../resonance-audio/resonance_audio/node/sink_node.h           
+	../resonance-audio/resonance_audio/node/source_node.cc        
+	../resonance-audio/resonance_audio/node/source_node.h         
+	../resonance-audio/resonance_audio/node/subscriber_node.h     
+	)
 
-set(res_utils
-../resonance-audio/resonance_audio/utils/buffer_crossfader.cc                            
-../resonance-audio/resonance_audio/utils/buffer_crossfader.h                             
-../resonance-audio/resonance_audio/utils/buffer_partitioner.cc                           
-../resonance-audio/resonance_audio/utils/buffer_partitioner.h                            
-../resonance-audio/resonance_audio/utils/buffer_unpartitioner.cc                         
-../resonance-audio/resonance_audio/utils/buffer_unpartitioner.h                          
-../resonance-audio/resonance_audio/utils/lockless_task_queue.cc                          
-../resonance-audio/resonance_audio/utils/lockless_task_queue.h                           
-#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.cc                          
-#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.h                           
-../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.cc                
-../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.h                 
-../resonance-audio/resonance_audio/utils/pseudoinverse.h                                 
-../resonance-audio/resonance_audio/utils/sample_type_conversion.cc                       
-../resonance-audio/resonance_audio/utils/sample_type_conversion.h                        
-../resonance-audio/resonance_audio/utils/semi_lockless_fifo.h                            
-../resonance-audio/resonance_audio/utils/sum_and_difference_processor.cc                 
-../resonance-audio/resonance_audio/utils/sum_and_difference_processor.h                  
-../resonance-audio/resonance_audio/utils/task_thread_pool.cc                             
-../resonance-audio/resonance_audio/utils/task_thread_pool.h                              
-#../resonance-audio/resonance_audio/utils/test_util.cc                                    
-#../resonance-audio/resonance_audio/utils/test_util.h                                     
-../resonance-audio/resonance_audio/utils/threadsafe_fifo.h                               
-#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.cc                        
-#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.h                         
-../resonance-audio/resonance_audio/utils/wav.cc                                          
-../resonance-audio/resonance_audio/utils/wav.h                                           
-../resonance-audio/resonance_audio/utils/wav_reader.cc                                   
-../resonance-audio/resonance_audio/utils/wav_reader.h       
-)
+	set(res_utils
+	../resonance-audio/resonance_audio/utils/buffer_crossfader.cc                            
+	../resonance-audio/resonance_audio/utils/buffer_crossfader.h                             
+	../resonance-audio/resonance_audio/utils/buffer_partitioner.cc                           
+	../resonance-audio/resonance_audio/utils/buffer_partitioner.h                            
+	../resonance-audio/resonance_audio/utils/buffer_unpartitioner.cc                         
+	../resonance-audio/resonance_audio/utils/buffer_unpartitioner.h                          
+	../resonance-audio/resonance_audio/utils/lockless_task_queue.cc                          
+	../resonance-audio/resonance_audio/utils/lockless_task_queue.h                           
+	#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.cc                          
+	#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.h                           
+	../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.cc                
+	../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.h                 
+	../resonance-audio/resonance_audio/utils/pseudoinverse.h                                 
+	../resonance-audio/resonance_audio/utils/sample_type_conversion.cc                       
+	../resonance-audio/resonance_audio/utils/sample_type_conversion.h                        
+	../resonance-audio/resonance_audio/utils/semi_lockless_fifo.h                            
+	../resonance-audio/resonance_audio/utils/sum_and_difference_processor.cc                 
+	../resonance-audio/resonance_audio/utils/sum_and_difference_processor.h                  
+	../resonance-audio/resonance_audio/utils/task_thread_pool.cc                             
+	../resonance-audio/resonance_audio/utils/task_thread_pool.h                              
+	#../resonance-audio/resonance_audio/utils/test_util.cc                                    
+	#../resonance-audio/resonance_audio/utils/test_util.h                                     
+	../resonance-audio/resonance_audio/utils/threadsafe_fifo.h                               
+	#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.cc                        
+	#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.h                         
+	../resonance-audio/resonance_audio/utils/wav.cc                                          
+	../resonance-audio/resonance_audio/utils/wav.h                                           
+	../resonance-audio/resonance_audio/utils/wav_reader.cc                                   
+	../resonance-audio/resonance_audio/utils/wav_reader.h       
+	)
 
 
-set(resonance
-${res_ambisonics}
-${res_api}
-${res_base}
-${res_dsp}
-${res_graph}
-${res_config}
-${res_hrtf}
-${res_pffft}
-${res_platforms}
-${res_node}
-${res_utils}
-)
+	set(resonance
+	${res_ambisonics}
+	${res_api}
+	${res_base}
+	${res_dsp}
+	${res_graph}
+	${res_config}
+	${res_hrtf}
+	${res_pffft}
+	${res_platforms}
+	${res_node}
+	${res_utils}
+	)
 
-include_directories(../resonance-audio)
-include_directories(../resonance-audio/resonance_audio)
-include_directories(../resonance-audio/third_party/eigen)
-include_directories(../resonance-audio/third_party/pffft)
+	include_directories(../resonance-audio)
+	include_directories(../resonance-audio/resonance_audio)
+	include_directories(../resonance-audio/third_party/eigen)
+	include_directories(../resonance-audio/third_party/pffft)
 
-# Definitions that Resonance Audio needs:
-add_definitions(-D_USE_MATH_DEFINES)
-add_definitions(-DNOMINMAX)
-add_definitions(-DEIGEN_MPL2_ONLY)
-
+	# Definitions that Resonance Audio needs:
+	add_definitions(-D_USE_MATH_DEFINES)
+	add_definitions(-DNOMINMAX)
+	add_definitions(-DEIGEN_MPL2_ONLY)
+endif() # end if not emscripten.
 #===================================== End Resonance Audio =====================================
 
 

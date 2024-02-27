@@ -202,6 +202,14 @@ void MeshManager::physicsShapeDataBecameUnused(const PhysicsShapeData* shape_dat
 }
 
 
+// The mesh manager keeps a running total of the amount of memory used by inserted meshes.  Therefore it needs to be informed if the size of one of them changes.
+void MeshManager::meshMemoryAllocatedChanged(const GLMemUsage& old_mem_usage, const GLMemUsage& new_mem_usage)
+{
+	mesh_CPU_mem_usage += (int64)new_mem_usage.geom_cpu_usage - (int64)old_mem_usage.geom_cpu_usage;
+	mesh_GPU_mem_usage += (int64)new_mem_usage.geom_gpu_usage - (int64)old_mem_usage.geom_gpu_usage;
+}
+
+
 void MeshManager::trimMeshMemoryUsage()
 {
 	const size_t max_mesh_CPU_mem_usage = 1024ull * 1024ull * 1024ull;
@@ -251,49 +259,35 @@ std::string MeshManager::getDiagnostics() const
 {
 	//Timer timer;
 
-	// Get total size of unused gl meshes.
-	GLMemUsage unused_gl_mesh_usage;
-	for(auto it = model_URL_to_mesh_map.unused_items.begin(); it != model_URL_to_mesh_map.unused_items.end(); ++it)
-	{
-		auto res = model_URL_to_mesh_map.items.find(*it); // Look up actual item for key
-		assert(res != model_URL_to_mesh_map.end());
-		if(res != model_URL_to_mesh_map.end())
-			unused_gl_mesh_usage += res->second.value->gl_meshdata->getTotalMemUsage();
-	}
+	// Get total size of used (active) gl meshes.
+	GLMemUsage used_gl_mesh_usage;
+	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
+		if(model_URL_to_mesh_map.isItemUsed(it->second))
+			used_gl_mesh_usage += it->second.value->gl_meshdata->getTotalMemUsage();
 
-	// Get total size of unused physics shapes
-	size_t unused_shape_mem = 0;
-	for(auto it = physics_shape_map.unused_items.begin(); it != physics_shape_map.unused_items.end(); ++it)
-	{
-		auto res = physics_shape_map.items.find(*it); // Look up actual item for key
-		assert(res != physics_shape_map.end());
-		if(res != physics_shape_map.end())
-			unused_shape_mem += res->second.value->physics_shape.size_B;
-	}
+	// Get total size of used (active) physics shapes
+	size_t used_shape_mem = 0;
+	for(auto it = physics_shape_map.begin(); it != physics_shape_map.end(); ++it)
+		if(physics_shape_map.isItemUsed(it->second))
+			used_shape_mem += it->second.value->physics_shape.size_B;
 
-
-	const size_t mesh_usage_used_GPU = this->mesh_GPU_mem_usage - unused_gl_mesh_usage.totalGPUUsage(); // GPU Mem usage for active/used textures
-
-	const size_t shape_usage_used = this->shape_mem_usage - unused_shape_mem; // GPU Mem usage for active/used textures
+	const size_t mesh_usage_unused_CPU = this->mesh_CPU_mem_usage - used_gl_mesh_usage.geom_cpu_usage; // CPU Mem usage for unused textures = total mem usage - used mem usage
+	const size_t mesh_usage_unused_GPU = this->mesh_GPU_mem_usage - used_gl_mesh_usage.geom_gpu_usage; // GPU Mem usage for unused textures = total mem usage - used mem usage
+	
+	const size_t shape_usage_unused = this->shape_mem_usage - used_shape_mem; // GPU Mem usage for unused textures = total mem usage - used/active mem usage
 
 	std::string msg;
-	
-	msg += "mesh_manager gl meshes:                 " + toString(model_URL_to_mesh_map.size()) + "\n";
-	msg += "mesh_manager gl meshes active:          " + toString(model_URL_to_mesh_map.numUsedItems()) + "\n";
-	msg += "mesh_manager gl meshes cached:          " + toString(model_URL_to_mesh_map.numUnusedItems()) + "\n";
+	msg += "---Mesh Manager---\n";
+	msg += "gl meshes:              " + toString(model_URL_to_mesh_map.size()) + " / " + toString(model_URL_to_mesh_map.numUsedItems()) + " / " + toString(model_URL_to_mesh_map.numUnusedItems()) + "    (total/active/cached)\n";
 
-	msg += "mesh_manager gl meshes total CPU usage: " + getNiceByteSize(this->mesh_CPU_mem_usage) + "\n";
-	msg += "mesh_manager gl meshes total GPU usage: " + getNiceByteSize(this->mesh_GPU_mem_usage) + "\n";
-	msg += "mesh_manager gl meshes GPU active:      " + getNiceByteSize(mesh_usage_used_GPU) + "\n";
-	msg += "mesh_manager gl meshes GPU cached:      " + getNiceByteSize(unused_gl_mesh_usage.totalGPUUsage()) + "\n";
+	msg += "gl meshes CPU mem:      " + getMBSizeString(this->mesh_CPU_mem_usage) + " / " + getMBSizeString(used_gl_mesh_usage.geom_cpu_usage) + " / " + getMBSizeString(mesh_usage_unused_CPU) + "    (total/active/cached)\n";
 
-	msg += "mesh_manager physics shapes:            " + toString(physics_shape_map.size()) + "\n";
-	msg += "mesh_manager physics active:            " + toString(physics_shape_map.numUsedItems()) + "\n";
-	msg += "mesh_manager physics cached:            " + toString(physics_shape_map.numUnusedItems()) + "\n";
+	msg += "gl meshes GPU mem:      " + getMBSizeString(this->mesh_GPU_mem_usage) + " / " + getMBSizeString(used_gl_mesh_usage.geom_gpu_usage) + " / " + getMBSizeString(mesh_usage_unused_GPU) + "    (total/active/cached)\n";
 
-	msg += "mesh_manager physics total CPU usage:   " + getNiceByteSize(this->shape_mem_usage) + "\n";
-	msg += "mesh_manager physics CPU active:        " + getNiceByteSize(shape_usage_used) + "\n";
-	msg += "mesh_manager physics CPU cached:        " + getNiceByteSize(unused_shape_mem) + "\n";
+	msg += "physics shapes:         " + toString(physics_shape_map.size()) + " / " + toString(physics_shape_map.numUsedItems()) + " / " + toString(physics_shape_map.numUnusedItems()) + "    (total/active/cached)\n";
+
+	msg += "physics shapes CPU mem: " + getMBSizeString(this->shape_mem_usage) + " / " + getMBSizeString(used_shape_mem) + " / " + getMBSizeString(shape_usage_unused) + "    (total/active/cached)\n";
+	msg += "-----------------\n";
 
 	//conPrint("MeshManager::getDiagnostics took " + timer.elapsedStringNSigFigs(4));
 

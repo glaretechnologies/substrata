@@ -5,12 +5,18 @@ Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #include "AudioEngine.h"
 
+#if !defined(EMSCRIPTEN)
+#define RESONANCE_SUPPORT 1
+#endif
+
 
 #include "AudioFileReader.h"
 #include "MP3AudioFileReader.h"
 #include "StreamerThread.h"
 #include "../rtaudio/RtAudio.h"
+#if RESONANCE_SUPPORT
 #include <resonance_audio/api/resonance_audio_api.h>
+#endif
 #include <utils/MessageableThread.h>
 #include <utils/CircularBuffer.h>
 #include <utils/ConPrint.h>
@@ -405,7 +411,7 @@ public:
 								}
 							}
 
-							
+#if RESONANCE_SUPPORT
 							runtimeCheck(contiguous_data_ptr != NULL);
 							if(source_sampling_rate == resonance_sampling_rate)
 							{
@@ -422,11 +428,14 @@ public:
 								const float* bufptr = resampled_buf.data();
 								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
+#endif
 
 
 							if(remove_source)
 							{
+#if RESONANCE_SUPPORT
 								resonance->DestroySource(source->resonance_handle);
+#endif
 								it = engine->audio_sources.erase(it); // Remove currently iterated to source, advance iterator.
 							}
 							else
@@ -435,11 +444,15 @@ public:
 
 						// Get mixed/filtered data from Resonance.
 						temp_buf.resizeNoCopy(frames_per_buffer * 2); // We will receive stereo data
+#if RESONANCE_SUPPORT
 						filled_valid_buffer = resonance->FillInterleavedOutputBuffer(
 							2, // num channels
 							frames_per_buffer, // num frames
 							temp_buf.data()
 						);
+#else
+						filled_valid_buffer = false;
+#endif
 
 						buffers_processed++;
 
@@ -477,7 +490,9 @@ public:
 	}
 
 	AudioEngine* engine;
+#if RESONANCE_SUPPORT
 	vraudio::ResonanceAudioApi* resonance;
+#endif
 	AudioCallbackData* callback_data;
 	glare::AtomicInt die;
 
@@ -558,11 +573,13 @@ void AudioEngine::init()
 	
 
 	// Resonance audio
+#if RESONANCE_SUPPORT
 	resonance = vraudio::CreateResonanceAudioApi(
 		2, // num channels
 		buffer_frames, // frames per buffer
 		sample_rate // sample rate, hz
 	);
+#endif
 
 	/*vraudio::ReflectionProperties refl_props;
 
@@ -596,7 +613,9 @@ void AudioEngine::init()
 	{
 		Reference<ResonanceThread> t = new ResonanceThread();
 		t->engine = this;
+#if RESONANCE_SUPPORT
 		t->resonance = this->resonance;
+#endif
 		t->callback_data = &this->callback_data;
 		t->frames_per_buffer = buffer_frames;
 		t->temp_buf.resize(buffer_frames * 2);
@@ -620,8 +639,9 @@ void AudioEngine::setRoomEffectsEnabled(bool enabled)
 {
 	if(!initialised)
 		return;
-
+#if RESONANCE_SUPPORT
 	resonance->EnableRoomEffects(enabled);
+#endif
 }
 
 
@@ -630,6 +650,7 @@ void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 	if(!initialised)
 		return;
 
+#if RESONANCE_SUPPORT
 	vraudio::ReflectionProperties refl_props;
 
 	refl_props.room_dimensions[0] = room_aabb.axisLength(0);
@@ -647,6 +668,7 @@ void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 	refl_props.coefficients[2] = 0.3f;
 	refl_props.gain = 0.7f;
 	resonance->SetReflectionProperties(refl_props);
+#endif
 }
 
 
@@ -655,7 +677,9 @@ void AudioEngine::setMasterVolume(float volume)
 	if(!initialised)
 		return;
 
+#if RESONANCE_SUPPORT
 	resonance->SetMasterVolume(volume);
+#endif
 }
 
 
@@ -674,8 +698,10 @@ void AudioEngine::shutdown()
 		}
 	}
 
+#if RESONANCE_SUPPORT
 	delete resonance;
 	resonance = NULL;
+#endif
 
 	delete audio;
 	audio = NULL;
@@ -690,6 +716,7 @@ void AudioEngine::addSource(AudioSourceRef source)
 	if(source->sampling_rate < 8000 || source->sampling_rate > 48000)
 		throw glare::Exception("Unsupported sampling rate for audio source: " + toString(source->sampling_rate));
 
+#if RESONANCE_SUPPORT
 	if(source->spatial_type == AudioSource::SourceSpatialType_Spatial)
 	{
 		source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
@@ -705,6 +732,7 @@ void AudioEngine::addSource(AudioSourceRef source)
 		source->resonance_handle = resonance->CreateStereoSource(/*num channels=*/2);
 		resonance->SetSourceVolume(source->resonance_handle, source->volume * source->getMuteVolumeFactor());
 	}
+#endif
 
 	source->resampler.init(/*src rate=*/source->sampling_rate, this->sample_rate);
 
@@ -717,9 +745,9 @@ void AudioEngine::removeSource(AudioSourceRef source)
 {
 	if(!initialised)
 		return;
-
+#if RESONANCE_SUPPORT
 	resonance->DestroySource(source->resonance_handle);
-
+#endif
 	{
 		Lock lock(mutex);
 		audio_sources.erase(source);
@@ -762,8 +790,9 @@ void AudioEngine::sourcePositionUpdated(AudioSource& source)
 
 	if(!source.pos.isFinite())
 		return; // Avoid crash in Resonance with NaN or Inf position coords.
-
+#if RESONANCE_SUPPORT
 	resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
+#endif
 }
 
 
@@ -771,9 +800,10 @@ void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 {
 	if(!initialised)
 		return;
-
+#if RESONANCE_SUPPORT
 	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
 	resonance->SetSourceVolume(source.resonance_handle, source.volume * source.getMuteVolumeFactor());
+#endif
 }
 
 
@@ -781,8 +811,9 @@ void AudioEngine::sourceNumOcclusionsUpdated(AudioSource& source)
 {
 	if(!initialised)
 		return;
-
+#if RESONANCE_SUPPORT
 	resonance->SetSoundObjectOcclusionIntensity(source.resonance_handle, source.num_occlusions);
+#endif
 }
 
 
@@ -795,8 +826,10 @@ void AudioEngine::setHeadTransform(const Vec4f& head_pos, const Quatf& head_rot)
 	
 	if(head_pos.isFinite() && head_rot.v.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
 	{
+#if RESONANCE_SUPPORT
 		resonance->SetHeadPosition(head_pos[0], head_pos[1], head_pos[2]);
 		resonance->SetHeadRotation(head_rot.v[0], head_rot.v[1], head_rot.v[2], head_rot.v[3]);
+#endif
 	}
 }
 

@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <ThreadMessage.h>
 #include <string>
 #include <vector>
+class ResourceManager;
 
 
 class AudioLoadedThreadMessage : public ThreadMessage
@@ -36,5 +37,6 @@ public:
 
 	std::string audio_source_url;
 	std::string audio_source_path;
+	Reference<ResourceManager> resource_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };
