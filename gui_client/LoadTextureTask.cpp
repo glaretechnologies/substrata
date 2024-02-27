@@ -76,20 +76,6 @@ void LoadTextureTask::run(size_t thread_index)
 			conPrint("Large gif texture data: " + toString(texture_data->totalCPUMemUsage()) + " B, " + key);
 		}
 
-#if EMSCRIPTEN
-		if(!resource_URL.empty())
-		{
-			try
-			{
-				resource_manager->deleteResourceLocally(resource_URL);
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("Warning: excep while deleting resource locally: " + e.what());
-			}
-		}
-#endif
-
 
 		// Send a message to MainWindow with the loaded texture data.
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
@@ -99,6 +85,9 @@ void LoadTextureTask::run(size_t thread_index)
 		msg->texture_data = texture_data;
 		if(is_terrain_map)
 			msg->terrain_map = map;
+
+		texture_data = NULL;
+
 		result_msg_queue->enqueue(msg);
 	}
 	catch(TextureServerExcep& e)
@@ -113,4 +102,19 @@ void LoadTextureTask::run(size_t thread_index)
 	{
 		result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': " + e.what()));
 	}
+
+
+#if EMSCRIPTEN
+	if(!resource_URL.empty())
+	{
+		try
+		{
+			resource_manager->deleteResourceLocally(resource_URL);
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Warning: excep while deleting resource locally: " + e.what());
+		}
+	}
+#endif
 }

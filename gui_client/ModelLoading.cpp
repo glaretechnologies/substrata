@@ -944,13 +944,10 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(const std::string& lod_model_URL,
-	ResourceManager& resource_manager, VertexBufferAllocator* vert_buf_allocator,
-	bool skip_opengl_calls, bool build_dynamic_physics_ob, PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out)
+Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(const std::string& model_path, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_dynamic_physics_ob, 
+	PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out)
 {
 	// Load mesh from disk:
-	const std::string model_path = resource_manager.pathForURL(lod_model_URL);
-
 	BatchedMeshRef batched_mesh;
 
 	if(hasExtension(model_path, "obj"))

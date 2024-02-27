@@ -167,6 +167,9 @@ public:
 	void physicsShapeDataBecameUsed(const PhysicsShapeData* meshdata);
 	void physicsShapeDataBecameUnused(const PhysicsShapeData* meshdata); // Called by decRefCount()
 
+	// The mesh manager keeps a running total of the amount of memory used by inserted meshes.  Therefore it needs to be informed if the size of one of them changes.
+	void meshMemoryAllocatedChanged(const GLMemUsage& old_mem_usage, const GLMemUsage& new_mem_usage);
+
 	std::string getDiagnostics() const;
 
 	void trimMeshMemoryUsage();

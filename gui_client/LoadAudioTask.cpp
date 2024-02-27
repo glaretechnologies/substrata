@@ -7,11 +7,12 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "ThreadMessages.h"
-#include <ConPrint.h>
-#include <StringUtils.h>
-#include <PlatformUtils.h>
-#include <ThreadSafeQueue.h>
+#include "../shared/ResourceManager.h"
 #include "../audio/AudioFileReader.h"
+#include <utils/ConPrint.h>
+#include <utils/StringUtils.h>
+#include <utils/PlatformUtils.h>
+#include <utils/ThreadSafeQueue.h>
 
 
 LoadAudioTask::LoadAudioTask()
@@ -68,4 +69,19 @@ void LoadAudioTask::run(size_t thread_index)
 	{
 		result_msg_queue->enqueue(new LogMessage("Error while loading audio: " + e.what()));
 	}
+
+
+#if EMSCRIPTEN
+	if(!audio_source_url.empty())
+	{
+		try
+		{
+			resource_manager->deleteResourceLocally(audio_source_url);
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Warning: excep while deleting resource locally: " + e.what());
+		}
+	}
+#endif
 }

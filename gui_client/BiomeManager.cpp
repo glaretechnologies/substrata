@@ -36,8 +36,6 @@ void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_worl
 
 void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
-	if(!resource_manager.isFileForURLPresent("elm_RT_glb_3393252396927074015.bmesh"))
-		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh", "elm_RT_glb_3393252396927074015.bmesh");
 	if(!resource_manager.isFileForURLPresent("Quad_obj_17249492137259942610.bmesh"))
 		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
 //	if(!resource_manager.isFileForURLPresent("grass_2819211535648845788.bmesh"))
@@ -65,11 +63,11 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 	// Build elm tree opengl and physics geometry.
 	if(elm_tree_mesh_render_data.isNull())
 	{
-		const std::string model_URL = "elm_RT_glb_3393252396927074015.bmesh";
+		const std::string model_path = base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh";
 
 		PhysicsShape physics_shape;
 		BatchedMeshRef batched_mesh;
-		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(model_URL, resource_manager,
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(model_path,
 			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
 		elm_tree_physics_shape = physics_shape;
