@@ -113,7 +113,7 @@ int main(int argc, char** argv)
 
 		ArgumentParser parsed_args(args, syntax);
 
-#if !defined(EMSCRIPTEN)
+#if defined(EMSCRIPTEN)
 		if(parsed_args.isArgPresent("--test"))
 		{
 			TestSuite::test();
@@ -257,12 +257,6 @@ int main(int argc, char** argv)
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface);
 
 		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, /*show minimap=*/false, opengl_engine, font);
-
-
-		//TEMP:
-		conPrint("------------opengl_engine->getDiagnostics------------");
-		conPrint(opengl_engine->getDiagnostics());
-		conPrint("------------------------");
 
 
 #if EMSCRIPTEN
