@@ -69,6 +69,13 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${INDIGO_SHARED_INCLUDE_DIRS}")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${INDIGO_SHARED_INCLUDE_DIRS}")
 
 
+include_directories("${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public")
+if(TRACY_ENABLED)
+	add_definitions(-DTRACY_ENABLE=1)
+endif()
+
+
+
 # some non windows preprocessor defs
 if(WIN32)
 	add_definitions(-DPLATFORM_WINDOWS)
@@ -93,17 +100,32 @@ if(EMSCRIPTEN)
 	add_definitions(-msimd128)
 	add_definitions(-msse4.1)
 	
-	add_definitions(-O0) # Disable optimisations
+	#add_definitions(-O0) # Disable optimisations
 	
-	#add_definitions(-O2)
-	#add_definitions("--profiling")			# https://emscripten.org/docs/tools_reference/emcc.html
-	#add_definitions(-DNDEBUG)
+#	add_definitions(-O2)
+#	#add_definitions("--profiling")			# https://emscripten.org/docs/tools_reference/emcc.html
+#	add_definitions(-DNDEBUG)
 	
 	include_directories("${GLARE_CORE_LIBS_ENV}/emsdk/upstream/emscripten/cache/sysroot/include")
 	
 	#add_definitions("-gsource-map") # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html  NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
 	
 	#add_definitions("-s USE_SDL=2") # NOTE: uses old version of SDL2 which we don't want.
+	
+	
+	
+	SET(COMMON_C_CXX_OPTIONS_DEBUG				"-O0 -g")
+	SET(COMMON_C_CXX_OPTIONS_RELEASE			"-O3 -DNDEBUG")
+	SET(COMMON_C_CXX_OPTIONS_RELWITHDEBINFO		"-O2 -g -DNDEBUG")
+
+	# Append optimisation flags.
+	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			${COMMON_C_CXX_OPTIONS_DEBUG}")
+	SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			${COMMON_C_CXX_OPTIONS_RELEASE}")
+	SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	${COMMON_C_CXX_OPTIONS_RELWITHDEBINFO}")
+	
+	SET(CMAKE_C_FLAGS_DEBUG				"${CMAKE_C_FLAGS_DEBUG}				${COMMON_C_CXX_OPTIONS_DEBUG}")
+	SET(CMAKE_C_FLAGS_RELEASE			"${CMAKE_C_FLAGS_RELEASE}			${COMMON_C_CXX_OPTIONS_RELEASE}")
+	SET(CMAKE_C_FLAGS_RELWITHDEBINFO	"${CMAKE_C_FLAGS_RELWITHDEBINFO}	${COMMON_C_CXX_OPTIONS_RELWITHDEBINFO}")
 
 elseif(WIN32)
 	# TEMP: needed for building LLVM with address sanitizer on Windows, which has:

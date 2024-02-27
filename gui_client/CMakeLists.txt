@@ -1057,7 +1057,7 @@ if(EMSCRIPTEN)
 		"-sSTACK_SIZE=262144"
 		#"-sMAIN_MODULE=2"
 		#"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
-		"-O2"
+		#"-O2"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
 		--preload-file data
 	)
