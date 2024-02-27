@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/HashMapInsertOnly2.h>
 #include <utils/string_view.h>
 #include <utils/RuntimeCheck.h>
+#include <utils/PlatformUtils.h>
 #include <tracy/Tracy.hpp>
 #include <stdarg.h>
 #include <Lock.h>
@@ -318,7 +319,13 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 	// We need a job system that will execute physics jobs on multiple threads. Typically
 	// you would implement the JobSystem interface yourself and let Jolt Physics run on top
 	// of your own job scheduler. JobSystemThreadPool is an example implementation.
-	job_system = new JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, JPH::thread::hardware_concurrency() - 1);
+#if EMSCRIPTEN
+	const int num_threads = myMin<int>(16, (int)PlatformUtils::getNumLogicalProcessors() - 1);
+#else
+	const int num_threads = (int)PlatformUtils::getNumLogicalProcessors() - 1;
+#endif
+
+	job_system = new JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, num_threads);
 
 	// This is the max amount of rigid bodies that you can add to the physics system. If you try to add more you'll get an error.
 	// Note: This value is low because this is a simple test. For a real project use something in the order of 65536.
