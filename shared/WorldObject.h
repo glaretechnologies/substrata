@@ -403,7 +403,7 @@ public:
 	Reference<AnimatedTexObData> animated_tex_data;
 
 
-	Reference<ObScatteringInfo> scattering_info;
+	//Reference<ObScatteringInfo> scattering_info;
 
 
 	// For objects that are path controlled:

@@ -1761,25 +1761,25 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 			assert(ob->object_type == WorldObject::ObjectType_Generic);
 
 			
-			if(::hasPrefix(ob->content, "biome:")) // If we want to scatter on this object:
-			{
-				if(ob->scattering_info.isNull()) // if scattering info is not computed for this object yet:
-				{
-					const bool already_procesing = scatter_info_processing.count(ob->uid) > 0; // And we aren't already building scattering info for this object (e.g. task is in a queue):
-					if(!already_procesing)
-					{
-						Reference<BuildScatteringInfoTask> scatter_task = new BuildScatteringInfoTask();
-						scatter_task->ob_uid = ob->uid;
-						scatter_task->lod_model_url = ob->model_url; // Use full res model URL
-						scatter_task->ob_to_world = ob_to_world_matrix;
-						scatter_task->result_msg_queue = &this->msg_queue;
-						scatter_task->resource_manager = resource_manager;
-						load_item_queue.enqueueItem(*ob, scatter_task, /*task max dist=*/1.0e10f);
+			//if(::hasPrefix(ob->content, "biome:")) // If we want to scatter on this object:
+			//{
+			//	if(ob->scattering_info.isNull()) // if scattering info is not computed for this object yet:
+			//	{
+			//		const bool already_procesing = scatter_info_processing.count(ob->uid) > 0; // And we aren't already building scattering info for this object (e.g. task is in a queue):
+			//		if(!already_procesing)
+			//		{
+			//			Reference<BuildScatteringInfoTask> scatter_task = new BuildScatteringInfoTask();
+			//			scatter_task->ob_uid = ob->uid;
+			//			scatter_task->lod_model_url = ob->model_url; // Use full res model URL
+			//			scatter_task->ob_to_world = ob_to_world_matrix;
+			//			scatter_task->result_msg_queue = &this->msg_queue;
+			//			scatter_task->resource_manager = resource_manager;
+			//			load_item_queue.enqueueItem(*ob, scatter_task, /*task max dist=*/1.0e10f);
 
-						scatter_info_processing.insert(ob->uid);
-					}
-				}
-			}
+			//			scatter_info_processing.insert(ob->uid);
+			//		}
+			//	}
+			//}
 
 
 			if(!ob->model_url.empty() && 
@@ -6193,7 +6193,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			// Add to texture_loaded_messages_to_process to process later.
 			texture_loaded_messages_to_process.push_back(static_cast<TextureLoadedThreadMessage*>(msg));
 		}
-		else if(dynamic_cast<BuildScatteringInfoDoneThreadMessage*>(msg))
+		/*else if(dynamic_cast<BuildScatteringInfoDoneThreadMessage*>(msg))
 		{
 			BuildScatteringInfoDoneThreadMessage* loaded_msg = static_cast<BuildScatteringInfoDoneThreadMessage*>(msg);
 
@@ -6209,7 +6209,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 				doBiomeScatteringForObject(ob);
 			}
-		}
+		}*/
 		else if(dynamic_cast<AudioLoadedThreadMessage*>(msg))
 		{
 			AudioLoadedThreadMessage* loaded_msg = static_cast<AudioLoadedThreadMessage*>(msg);
@@ -9308,7 +9308,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	models_processing.clear();
 	audio_processing.clear();
 	script_content_processing.clear();
-	scatter_info_processing.clear();
+	//scatter_info_processing.clear();
 
 	texture_server->clear();
 

@@ -476,7 +476,7 @@ public:
 
 	std::unordered_set<std::string> script_content_processing;
 
-	std::unordered_set<UID, UIDHasher> scatter_info_processing;
+	//std::unordered_set<UID, UIDHasher> scatter_info_processing;
 
 	std::set<WorldObjectRef> objs_with_lightmap_rebuild_needed;
 

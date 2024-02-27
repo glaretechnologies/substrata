@@ -30,6 +30,7 @@ BuildScatteringInfoTask::~BuildScatteringInfoTask()
 
 void BuildScatteringInfoTask::run(size_t thread_index)
 {
+#if 0
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 	PhysicsShape physics_shape;
 
@@ -110,4 +111,6 @@ void BuildScatteringInfoTask::run(size_t thread_index)
 	{
 		result_msg_queue->enqueue(new LogMessage("Error while building scatter info: " + e.what()));
 	}
+#endif
 }
+
