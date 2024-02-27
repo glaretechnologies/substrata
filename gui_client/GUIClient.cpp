@@ -137,7 +137,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	grabbed_angle(0),
 	force_new_undo_edit(false),
 #if EMSCRIPTEN
-	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/2),
+	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myMin<uint32>(16, PlatformUtils::getNumLogicalProcessors())),
 #else
 	model_and_texture_loader_task_manager("model and texture loader task manager"),
 #endif
@@ -4389,7 +4389,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			// logMessage("Player was below terrain, moving up");
 			Vec3d new_player_pos = player_pos;
 			new_player_pos.z = terrain_h + player_physics.getEyeHeight() + 0.5f;
-			player_physics.setPosition(new_player_pos, player_physics.getLinearVel());
+
+			Vec4f new_vel = player_physics.getLinearVel();
+			new_vel[2] = 0; // Zero out vertical velocity.
+
+			player_physics.setPosition(new_player_pos, /*new linear_vel=*/new_vel);
 		}
 	}
 
