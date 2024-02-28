@@ -209,6 +209,8 @@ ${UTILS_DIR}/Plotter.cpp
 ${UTILS_DIR}/Plotter.h
 ${UTILS_DIR}/PoolAllocator.cpp
 ${UTILS_DIR}/PoolAllocator.h
+${UTILS_DIR}/FastPoolAllocator.cpp
+${UTILS_DIR}/FastPoolAllocator.h
 ${UTILS_DIR}/PoolMap.cpp
 ${UTILS_DIR}/PoolMap.h
 ${UTILS_DIR}/GlareProcess.cpp

@@ -137,9 +137,9 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	grabbed_angle(0),
 	force_new_undo_edit(false),
 #if EMSCRIPTEN
-	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myMin<uint32>(16, PlatformUtils::getNumLogicalProcessors())),
+	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myClamp<uint32>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 16)),
 #else
-	model_and_texture_loader_task_manager("model and texture loader task manager"),
+	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myMax<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1)),
 #endif
 	task_manager(NULL), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
 	url_parcel_uid(-1),
@@ -226,10 +226,11 @@ void GUIClient::staticShutdown()
 }
 
 
-void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings_store_, UIInterface* ui_interface_)
+void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_)
 {
 	settings = settings_store_;
 	ui_interface = ui_interface_;
+	high_priority_task_manager = high_priority_task_manager_;
 
 	PhysicsWorld::init(); // init Jolt stuff
 
@@ -9387,7 +9388,7 @@ void GUIClient::connectToServer(const std::string& URL)
 
 	if(physics_world.isNull())
 	{
-		physics_world = new PhysicsWorld();
+		physics_world = new PhysicsWorld(high_priority_task_manager);
 		physics_world->event_listener = this;
 		player_physics.init(*physics_world, spawn_pos);
 

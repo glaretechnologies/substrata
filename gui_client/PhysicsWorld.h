@@ -26,13 +26,13 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/Collision/ContactListener.h>
 #endif
 
-namespace Indigo { class TaskManager; }
+namespace glare { class TaskManager; }
 namespace Indigo { class Mesh; }
 class PrintOutput;
 class BatchedMesh;
 namespace JPH { class PhysicsSystem; }
 namespace JPH { class TempAllocator; }
-namespace JPH { class JobSystemThreadPool; }
+namespace JPH { class JobSystem; }
 class BPLayerInterfaceImpl;
 class MyBroadPhaseLayerFilter;
 class MyObjectLayerPairFilter;
@@ -102,7 +102,7 @@ class PhysicsWorld : public ThreadSafeRefCounted
 #endif
 {
 public:
-	PhysicsWorld();
+	PhysicsWorld(glare::TaskManager* task_manager);
 	~PhysicsWorld();
 
 	static void init();
@@ -189,7 +189,7 @@ public:
 	// Jolt
 	JPH::PhysicsSystem* physics_system;
 	JPH::TempAllocator* temp_allocator;
-	JPH::JobSystemThreadPool* job_system;
+	JPH::JobSystem* job_system;
 	BPLayerInterfaceImpl* broad_phase_layer_interface;
 	MyBroadPhaseLayerFilter* broad_phase_layer_filter;
 	MyObjectLayerPairFilter* object_layer_pair_filter;
@@ -197,4 +197,6 @@ public:
 private:
 	bool water_buoyancy_enabled;
 	float water_z;
+
+	glare::TaskManager* task_manager;
 };

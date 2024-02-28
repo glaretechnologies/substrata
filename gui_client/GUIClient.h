@@ -102,7 +102,7 @@ public:
 	static void staticInit();
 	static void staticShutdown();
 
-	void initialise(const std::string& cache_dir, SettingsStore* settings_store, UIInterface* ui_interface);
+	void initialise(const std::string& cache_dir, SettingsStore* settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_);
 	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine, Reference<TextRendererFontFace> text_renderer_font);
 
 	void shutdown();
@@ -415,6 +415,8 @@ public:
 	glare::TaskManager* task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff. Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent(). Lazily created.
 	
 	glare::TaskManager model_and_texture_loader_task_manager;
+
+	glare::TaskManager* high_priority_task_manager;
 
 	MeshManager mesh_manager;
 

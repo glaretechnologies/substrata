@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <graphics/FormatDecoderGLTF.h>
 #include <graphics/MeshSimplification.h>
 #include <graphics/TextRenderer.h>
+#include <graphics/EXRDecoder.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/GLMeshBuilding.h>
 #include <indigo/TextureServer.h>
@@ -113,7 +114,7 @@ int main(int argc, char** argv)
 
 		ArgumentParser parsed_args(args, syntax);
 
-#if defined(EMSCRIPTEN)
+#if !defined(EMSCRIPTEN)
 		if(parsed_args.isArgPresent("--test"))
 		{
 			TestSuite::test();
@@ -193,6 +194,17 @@ int main(int argc, char** argv)
 		gl3wInit();
 #endif
 
+		// Create main task manager.
+		// This is for doing work like texture compression and EXR loading, that will be created by LoadTextureTasks etc.
+		glare::TaskManager main_task_manager("main task manager");
+		main_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+
+		// Create high-priority task maanger.
+		// For short, processor intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
+		glare::TaskManager high_priority_task_manager("high_priority_task_manager");
+
+		EXRDecoder::init(&main_task_manager);
+
 
 		// Initialise ImGUI
 		ImGui::CreateContext();
@@ -220,7 +232,7 @@ int main(int argc, char** argv)
 		const std::string data_dir = PlatformUtils::getEnvironmentVariable("GLARE_CORE_TRUNK_DIR") + "/opengl";
 #endif
 		
-		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output);
+		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output, &main_task_manager, &high_priority_task_manager);
 		if(!opengl_engine->initSucceeded())
 			throw glare::Exception("OpenGL init failed: " + opengl_engine->getInitialisationErrorMsg());
 		opengl_engine->setViewportDims(primary_W, primary_H);
@@ -254,7 +266,7 @@ int main(int argc, char** argv)
 		sdl_ui_interface->gui_client = gui_client;
 		sdl_ui_interface->font = font;
 
-		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface);
+		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, &high_priority_task_manager);
 
 		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, /*show minimap=*/false, opengl_engine, font);
 
@@ -308,6 +320,8 @@ int main(int argc, char** argv)
 
 		
 		conPrint("main finished...");
+
+		EXRDecoder::shutdown();
 
 		GUIClient::staticShutdown();
 		return 0;
