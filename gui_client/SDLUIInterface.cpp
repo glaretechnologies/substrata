@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <graphics/ImageMap.h>
 #include <graphics/TextRenderer.h>
 #include <SDL.h>
+#include <iostream>
 
 
 void SDLUIInterface::appendChatMessage(const std::string& msg)
@@ -48,19 +49,27 @@ void SDLUIInterface::showPlainTextMessageBox(const std::string& title, const std
 	SDL_ShowMessageBox(&data, &buttonid);
 }
 
+
+// Print without flushing.
+static void doPrint(const std::string& s)
+{
+	std::cout << s << "\n";
+}
+
+
 void SDLUIInterface::showErrorNotification(const std::string& msg)
 {
-	conPrint("Error: " + msg); // TEMP
+	doPrint("Error: " + msg); // TEMP
 }
 
 void SDLUIInterface::showInfoNotification(const std::string& msg)
 {
-	conPrint("Info: " + msg); // TEMP
+	doPrint("Info: " + msg); // TEMP
 }
 
 void SDLUIInterface::logMessage(const std::string& msg)
 {
-	conPrint("Log: " + msg); // TEMP
+	doPrint("Log: " + msg); // TEMP
 }
 
 void SDLUIInterface::setTextAsNotLoggedIn()
