@@ -69,7 +69,7 @@ void LoadTextureTask::run(size_t thread_index)
 #endif
 
 		const bool do_compression = opengl_engine->textureCompressionSupportedAndEnabled() && tex_params.allow_compression && OpenGLTexture::areTextureDimensionsValidForCompression(*map);
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps);
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), opengl_engine->getMainTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps);
 
 		if(hasExtension(key, "gif") && texture_data->totalCPUMemUsage() > 100000000)
 		{

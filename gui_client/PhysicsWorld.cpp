@@ -17,6 +17,8 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/string_view.h>
 #include <utils/RuntimeCheck.h>
 #include <utils/PlatformUtils.h>
+#include <utils/TaskManager.h>
+#include <utils/FastPoolAllocator.h>
 #include <tracy/Tracy.hpp>
 #include <stdarg.h>
 #include <Lock.h>
@@ -300,12 +302,157 @@ private:
 };
 
 
-PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
+
+class JoltJobTask : public glare::Task
+{
+public:
+	JoltJobTask() {}
+	virtual void run(size_t /*thread_index*/)
+	{
+		job.GetPtr()->Execute();
+	}
+	JPH::JobHandle job;
+	int32 alloc_index;
+};
+
+
+// Based on JobSystemThreadPool from jolt\Jolt\Core\JobSystemThreadPool.cpp
+class SubstrataJoltJobSystem final : public JPH::JobSystemWithBarrier, public glare::TaskAllocator
+{
+public:
+	/// Creates a thread pool.
+	/// @param inMaxJobs Max number of jobs that can be allocated at any time
+	/// @param inMaxBarriers Max number of barriers that can be allocated at any time
+	SubstrataJoltJobSystem(uint inMaxJobs, uint inMaxBarriers, glare::TaskManager* task_manager_)
+	:	task_manager(task_manager_), 
+		task_allocator(sizeof(JoltJobTask), 16)
+	{
+		JobSystemWithBarrier::Init(inMaxBarriers);
+
+		// Init freelist of jobs
+		mJobs.Init(inMaxJobs, inMaxJobs);
+	}
+
+	virtual ~SubstrataJoltJobSystem() override
+	{}
+
+	virtual int GetMaxConcurrency() const override
+	{ 
+		return myMin<int>(64, (int)task_manager->getNumThreads()); // Max of 64 because we handle <= 64 jobs as a special optimised case in QueueJobs below.
+		// int(mThreads.size()) + 1;
+	}
+
+	virtual JobHandle CreateJob(const char *inJobName, JPH::ColorArg inColor, const JPH::JobSystem::JobFunction &inJobFunction, uint32 inNumDependencies = 0) override
+	{
+		// Loop until we can get a job from the free list
+		uint32 index;
+		for (;;)
+		{
+			index = mJobs.ConstructObject(inJobName, inColor, this, inJobFunction, inNumDependencies);
+			if (index != AvailableJobs::cInvalidObjectIndex)
+				break;
+			//JPH_ASSERT(false, "No jobs available!");
+			assert(false);
+			std::this_thread::sleep_for(std::chrono::microseconds(100));
+		}
+		Job *job = &mJobs.Get(index);
+	
+		// Construct handle to keep a reference, the job is queued below and may immediately complete
+		JobHandle handle(job);
+	
+		// If there are no dependencies, queue the job now
+		if (inNumDependencies == 0)
+			QueueJob(job);
+
+		// Return the handle
+		return handle;
+	}
+
+
+	virtual void destroyAndFree(glare::Task* task) override
+	{
+		assert(dynamic_cast<JoltJobTask*>(task));
+
+		const int32 alloc_index = static_cast<JoltJobTask*>(task)->alloc_index;
+
+		// Destroy object
+		task->~Task();
+	
+		// Free object mem
+		task_allocator.free(alloc_index);
+	}
+
+protected:
+	virtual void QueueJob(JPH::JobSystem::Job* job) override
+	{
+		JoltJobTask* task = allocJoltJobTask();
+		task->job = JPH::JobSystem::JobHandle(job);
+		task_manager->addTask(task);
+	}
+	
+	virtual void QueueJobs(JPH::JobSystem::Job** jobs, uint num_jobs) override
+	{
+		if(num_jobs <= 64)
+		{
+			// TODO: use a memory pool for JoltJobTasks 
+			glare::TaskRef task_array[64];
+			for(uint i=0; i<num_jobs; ++i)
+			{
+				JoltJobTask* task = allocJoltJobTask();
+				task->job = JPH::JobSystem::JobHandle(jobs[i]);
+				task_array[i] = task;
+			}
+		
+			task_manager->addTasks(ArrayRef<glare::TaskRef>(task_array, num_jobs));
+		}
+		else
+		{
+			// Unoptimised case, add one by one.
+			for(uint i=0; i<num_jobs; ++i)
+			{
+				JoltJobTask* task = allocJoltJobTask();
+				task->job = JPH::JobSystem::JobHandle(jobs[i]);
+				task_manager->addTask(task);
+			}
+		}
+	}
+
+	virtual void FreeJob(JPH::JobSystem::Job* job) override
+	{
+		mJobs.DestructObject(job);
+	}
+
+private:
+	JoltJobTask* allocJoltJobTask()
+	{
+		glare::FastPoolAllocator::AllocResult res = task_allocator.alloc();
+
+		JoltJobTask* task = new(res.ptr) JoltJobTask();
+		task->allocator = this;
+		task->alloc_index = res.index;
+		return task;
+	}
+
+	/// Array of jobs (fixed size)
+	using AvailableJobs = JPH::FixedSizeFreeList<Job>;
+	AvailableJobs mJobs;
+
+
+	glare::FastPoolAllocator task_allocator;
+
+	glare::TaskManager* task_manager;
+};
+
+
+
+
+PhysicsWorld::PhysicsWorld(glare::TaskManager* task_manager_/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
 :	activated_obs(/*empty_key_=*/NULL),
 	newly_activated_obs(/*empty_key_=*/NULL),
 	water_buoyancy_enabled(false),
 	water_z(0),
-	event_listener(NULL)
+	event_listener(NULL),
+	task_manager(task_manager_)
 #if !USE_JOLT
 	,ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
 	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
@@ -319,13 +466,9 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 	// We need a job system that will execute physics jobs on multiple threads. Typically
 	// you would implement the JobSystem interface yourself and let Jolt Physics run on top
 	// of your own job scheduler. JobSystemThreadPool is an example implementation.
-#if EMSCRIPTEN
-	const int num_threads = myMin<int>(16, (int)PlatformUtils::getNumLogicalProcessors() - 1);
-#else
-	const int num_threads = (int)PlatformUtils::getNumLogicalProcessors() - 1;
-#endif
 
-	job_system = new JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, num_threads);
+	//job_system = new JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, (int)PlatformUtils::getNumLogicalProcessors() - 1); // Use the example thread pool implementation
+	job_system = new SubstrataJoltJobSystem(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, task_manager);
 
 	// This is the max amount of rigid bodies that you can add to the physics system. If you try to add more you'll get an error.
 	// Note: This value is low because this is a simple test. For a real project use something in the order of 65536.
