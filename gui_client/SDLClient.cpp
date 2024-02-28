@@ -496,29 +496,29 @@ static void doOneMainLoopIter()
 		//ImGui::ShowDemoWindow();
 		
 		ImGui::SetNextWindowSize(ImVec2(600, 900));
-		ImGui::Begin("Info");
-		
-		ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
-		ImGui::TextUnformatted(("FPS: " + doubleToStringNDecimalPlaces(fps, 1)).c_str());
-		
-		if(ImGui::CollapsingHeader("Diagnostics"))
+		if(ImGui::Begin("Info"))
 		{
-			bool diag_changed = false;
-			diag_changed = diag_changed || ImGui::Checkbox("graphics", &do_graphics_diagnostics);
-			diag_changed = diag_changed || ImGui::Checkbox("physics", &do_physics_diagnostics);
-			diag_changed = diag_changed || ImGui::Checkbox("terrain", &do_terrain_diagnostics);
-
-			if((diagnostics_timer->elapsed() > 1.0) || diag_changed)
+			ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
+			ImGui::TextUnformatted(("FPS: " + doubleToStringNDecimalPlaces(fps, 1)).c_str());
+		
+			if(ImGui::CollapsingHeader("Diagnostics"))
 			{
-				double last_timerEvent_CPU_work_elapsed = 0;
-				double last_updateGL_time = 0;
-				last_diagnostics = gui_client->getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, do_terrain_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
-				diagnostics_timer->reset();
-			}
+				bool diag_changed = false;
+				diag_changed = diag_changed || ImGui::Checkbox("graphics", &do_graphics_diagnostics);
+				diag_changed = diag_changed || ImGui::Checkbox("physics", &do_physics_diagnostics);
+				diag_changed = diag_changed || ImGui::Checkbox("terrain", &do_terrain_diagnostics);
 
-			ImGui::TextUnformatted(last_diagnostics.c_str());
+				if((diagnostics_timer->elapsed() > 1.0) || diag_changed)
+				{
+					double last_timerEvent_CPU_work_elapsed = 0;
+					double last_updateGL_time = 0;
+					last_diagnostics = gui_client->getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, do_terrain_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
+					diagnostics_timer->reset();
+				}
+
+				ImGui::TextUnformatted(last_diagnostics.c_str());
+			}
 		}
-			
 		ImGui::End();
 		
 		ImGui::Render();
