@@ -43,6 +43,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/ReferenceTest.h"
 #include "../utils/JSONParser.h"
 #include "../utils/PoolAllocator.h"
+#include "../utils/FastPoolAllocator.h"
 #include "../utils/TestUtils.h"
 #include "../utils/BumpAllocator.h"
 #include "../utils/PlatformUtils.h"
@@ -59,6 +60,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/ArenaAllocator.h"
 #include "../utils/FileUtils.h"
 #include "../utils/DatabaseTests.h"
+#include "../utils/TaskTests.h"
 #include "../audio/AudioResampler.h"
 #include "../networking/URL.h"
 #include "../networking/TLSSocketTests.h"
@@ -114,16 +116,12 @@ void TestSuite::test()
 {
 #if BUILD_TESTS
 
-	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
-	const std::string cache_dir_path = ".";
-
 	conPrint("==============Doing Substrata unit tests ====================");
 	Timer timer;
 
-	runTest([&]() { JPEGDecoder::test(base_dir_path); });
-	runTest([&]() { EXRDecoder::test(); }, /*mem leak allowed=*/true); // OpenEXR leaks some minor stuff
+	runTest([&]() { glare::testFastPoolAllocator(); });
+	runTest([&]() { glare::TaskTests::test(); });
 	runTest([&]() { MemAlloc::test(); });
-	runTest([&]() { TextRenderer::test(); });
 	runTest([&]() { Maths::test(); });
 	runTest([&]() { DatabaseTests::test(); });
 	runTest([&]() { WorldObject::test(); });
@@ -146,44 +144,53 @@ void TestSuite::test()
 	runTest([&]() { Sort::test(); });
 	runTest([&]() { glare::BestFitAllocator::test(); });
 	runTest([&]() { testSRGBUtils(); });
-	PhysicsWorld::init(); // Init before taking mem snapshot
-	runTest([&]() { PhysicsWorld::test(); });
 	runTest([&]() { TopologicalSort::test(); });
 	runTest([&]() { CheckedMaths::test(); });
-	runTest([&]() { LODGeneration::test(); });
 	runTest([&]() { VoxelMeshBuilding::test(); });
 	runTest([&]() { ModelLoading::test(); });
 	runTest([&]() { glare::AudioFileReader::test(); });
 	runTest([&]() { URLParser::test(); });
 	runTest([&]() { testManagerWithCache(); });
 	runTest([&]() { BitUtils::test(); });
-	runTest([&]() { MeshSimplification::test(); });
 	runTest([&]() { quaternionTests(); });
-	runTest([&]() { FormatDecoderGLTF::test(); });
-	runTest([&]() { BatchedMeshTests::test(); });
 	runTest([&]() { Matrix3f::test(); });
-	runTest([&]() { glare::AudioEngine::test(); });
 	runTest([&]() { circularBufferTest(); });
 	runTest([&]() { glare::testPoolAllocator(); });
 	runTest([&]() { TextureLoadingTests::test(); });
-	runTest([&]() { KTXDecoder::test(); });
-	runTest([&]() { FormatDecoderVox::test(); });
-	runTest([&]() { GIFDecoder::test(); }, /*mem leak allowed=*/true);
-	runTest([&]() { PNGDecoder::test(); });
-	runTest([&]() { FileUtils::doUnitTests(); });
 	runTest([&]() { Timer::test(); });
 	runTest([&]() { IPAddress::test(); });
-	runTest([&]() { JSONParser::test(); });
 	runTest([&]() { StringUtils::test(); });
 	runTest([&]() { Vec4f::test(); });
 	runTest([&]() { js::AABBox::test(); });
 	runTest([&]() { ReferenceTest::run(); });
 	runTest([&]() { CameraController::test(); });
+
 #if !defined(EMSCRIPTEN)
+
+	// These tests tend to use testfiles that we don't currently package for the Emscripten build, so don't run them.
+	runTest([&]() { JSONParser::test(); });
+	runTest([&]() { FileUtils::doUnitTests(); });
+	runTest([&]() { LODGeneration::test(); });
+	runTest([&]() { MeshSimplification::test(); });
+	PhysicsWorld::init(); // Init before taking mem snapshot
+	runTest([&]() { PhysicsWorld::test(); });
+	runTest([&]() { FormatDecoderGLTF::test(); });
+	runTest([&]() { BatchedMeshTests::test(); });
+	runTest([&]() { EXRDecoder::test(); }, /*mem leak allowed=*/true); // OpenEXR leaks some minor stuff
+	runTest([&]() { TextRenderer::test(); });
+	runTest([&]() { glare::AudioEngine::test(); });
+	runTest([&]() { KTXDecoder::test(); });
+	runTest([&]() { FormatDecoderVox::test(); });
+	runTest([&]() { GIFDecoder::test(); }, /*mem leak allowed=*/true);
+	runTest([&]() { PNGDecoder::test(); });
+	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
+	runTest([&]() { JPEGDecoder::test(base_dir_path); });
 	runTest([&]() { TLSSocketTests::test(); }, /*mem leak allowed=*/true);
 	runTest([&]() { HTTPClient::test(); }, /*mem leak allowed=*/true); // Leaks, probably due to TLS leaks.
 	runTest([&]() { SMTPClient::test(); });
-#endif
+
+#endif // end if !defined(EMSCRIPTEN)
+
 	// WMFVideoReader::test();
 	// UVUnwrapper::test(); // Disabled as tries to load a bunch of Indigo test scenes
 	// OpenGLEngineTests::test(base_dir_path); // Disabled as tries to load a bunch of Indigo test scenes
