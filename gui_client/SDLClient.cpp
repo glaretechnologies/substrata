@@ -196,14 +196,28 @@ int main(int argc, char** argv)
 
 		// Create main task manager.
 		// This is for doing work like texture compression and EXR loading, that will be created by LoadTextureTasks etc.
-		glare::TaskManager main_task_manager("main task manager");
-		main_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+		// Alloc these on the heap as Emscripten may have issues with stack-allocated objects before the emscripten_set_main_loop() call.
+#if defined(EMSCRIPTEN)
+		const size_t main_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 8);
+#else
+		const size_t main_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
+#endif
+		glare::TaskManager* main_task_manager = new glare::TaskManager("main task manager", main_task_manager_num_threads);
+		main_task_manager->setThreadPriorities(MyThread::Priority_Lowest);
 
-		// Create high-priority task maanger.
+
+		// Create high-priority task manager.
 		// For short, processor intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
-		glare::TaskManager high_priority_task_manager("high_priority_task_manager");
+#if defined(EMSCRIPTEN)
+		const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 8);
+#else
+		const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
+#endif
+		glare::TaskManager* high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
 
-		EXRDecoder::init(&main_task_manager);
+
+
+		EXRDecoder::setTaskManager(main_task_manager);
 
 
 		// Initialise ImGUI
@@ -232,7 +246,7 @@ int main(int argc, char** argv)
 		const std::string data_dir = PlatformUtils::getEnvironmentVariable("GLARE_CORE_TRUNK_DIR") + "/opengl";
 #endif
 		
-		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output, &main_task_manager, &high_priority_task_manager);
+		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output, main_task_manager, high_priority_task_manager);
 		if(!opengl_engine->initSucceeded())
 			throw glare::Exception("OpenGL init failed: " + opengl_engine->getInitialisationErrorMsg());
 		opengl_engine->setViewportDims(primary_W, primary_H);
@@ -266,7 +280,7 @@ int main(int argc, char** argv)
 		sdl_ui_interface->gui_client = gui_client;
 		sdl_ui_interface->font = font;
 
-		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, &high_priority_task_manager);
+		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager);
 
 		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, /*show minimap=*/false, opengl_engine, font);
 
@@ -306,7 +320,7 @@ int main(int argc, char** argv)
 #if EMSCRIPTEN
 		//emscripten_request_animation_frame_loop(doOneMainLoopIter, 0);
 
-		emscripten_set_main_loop(doOneMainLoopIter, /*fps=*/0, /*simulate_infinite_loop=*/true);
+		emscripten_set_main_loop(doOneMainLoopIter, /*fps=*/0, /*simulate_infinite_loop=*/true); // fps 0 to use requestAnimationFrame as recommended.
 #else
 		while(!quit)
 		{
@@ -318,10 +332,15 @@ int main(int argc, char** argv)
 		opengl_engine = NULL;
 #endif
 
-		
 		conPrint("main finished...");
 
-		EXRDecoder::shutdown();
+		high_priority_task_manager->waitForTasksToComplete();
+		main_task_manager->waitForTasksToComplete();
+
+		EXRDecoder::clearTaskManager(); // Needs to be shut down before main_task_manager is destroyed as uses it.
+
+		delete high_priority_task_manager;
+		delete main_task_manager;
 
 		GUIClient::staticShutdown();
 		return 0;
@@ -429,7 +448,8 @@ static void convertFromSDKKeyEvent(SDL_Event ev, KeyEvent& key_event)
 static bool do_graphics_diagnostics = false;
 static bool do_physics_diagnostics = false;
 static bool do_terrain_diagnostics = false;
-
+static bool info_window_collapsed = true;
+static ImVec2 info_window_size(600, 900);
 
 static void doOneMainLoopIter()
 {
@@ -495,7 +515,8 @@ static void doOneMainLoopIter()
 		
 		//ImGui::ShowDemoWindow();
 		
-		ImGui::SetNextWindowSize(ImVec2(600, 900));
+		ImGui::SetNextWindowSize(info_window_size);
+		ImGui::SetNextWindowCollapsed(info_window_collapsed);
 		if(ImGui::Begin("Info"))
 		{
 			ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
@@ -519,6 +540,9 @@ static void doOneMainLoopIter()
 				ImGui::TextUnformatted(last_diagnostics.c_str());
 			}
 		}
+		info_window_collapsed = ImGui::IsWindowCollapsed();
+		if(!info_window_collapsed)
+			info_window_size = ImGui::GetWindowSize();
 		ImGui::End();
 		
 		ImGui::Render();
