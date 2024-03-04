@@ -67,6 +67,7 @@ Timer* timer;
 Timer* time_since_last_frame;
 Timer* stats_timer;
 Timer* diagnostics_timer;
+Timer* mem_usage_sampling_timer;
 int num_frames = 0;
 std::string last_diagnostics;
 bool reset = false;
@@ -86,6 +87,8 @@ GUIClient* gui_client = NULL;
 SDLUIInterface* sdl_ui_interface = NULL;
 
 Vec2i mouse_move_origin(0, 0);
+
+static std::vector<float> mem_usage_values;
 
 int main(int argc, char** argv)
 {
@@ -147,6 +150,7 @@ int main(int argc, char** argv)
 		time_since_last_frame = new Timer();
 		stats_timer = new Timer();
 		diagnostics_timer = new Timer();
+		mem_usage_sampling_timer = new Timer();
 	
 		//=========================== Init SDL and OpenGL ================================
 		if(SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -187,6 +191,8 @@ int main(int argc, char** argv)
 		if(!gl_context)
 			throw glare::Exception("OpenGL context could not be created! SDL Error: " + std::string(SDL_GetError()));
 
+
+		// SDL_GL_SetSwapInterval(0); // Disable Vsync
 
 		//SDL_SetHint("SDL_HINT_MOUSE_RELATIVE_WARP_MOTION", "true");
 
@@ -477,6 +483,13 @@ static void doOneMainLoopIter()
 		num_frames = 0;
 	}
 
+#if TRACE_ALLOCATIONS
+	if(mem_usage_sampling_timer->elapsed() > 0.25f)
+	{
+		mem_usage_sampling_timer->reset();
+		mem_usage_values.push_back((float)MemAlloc::getTotalAllocatedB() / (1024 * 1024));
+	}
+#endif
 
 	int gl_w, gl_h;
 	SDL_GL_GetDrawableSize(win, &gl_w, &gl_h);
@@ -522,6 +535,14 @@ static void doOneMainLoopIter()
 			ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
 			ImGui::TextUnformatted(("FPS: " + doubleToStringNDecimalPlaces(fps, 1)).c_str());
 		
+#if TRACE_ALLOCATIONS
+			ImGui::TextUnformatted("mem usage (MB)");
+			ImGui::PlotLines("", mem_usage_values.data(), (int)mem_usage_values.size(),
+					/*values offset=*/0, /* overlay text=*/NULL, 
+				/*scale min=*/0.0, /*scale max=*/std::numeric_limits<float>::max(), 
+				/*graph size=*/ImVec2(500, 200));
+#endif
+
 			if(ImGui::CollapsingHeader("Diagnostics"))
 			{
 				bool diag_changed = false;
