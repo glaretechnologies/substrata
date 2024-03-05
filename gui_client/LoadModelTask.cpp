@@ -53,6 +53,8 @@ void LoadModelTask::run(size_t thread_index)
 				const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
 				const int use_model_lod_level = myMin(voxel_ob_model_lod_level/*model_lod_level*/, max_model_lod_level);
 
+				// conPrint("!!!!!!!!!!!!!! LoadModelTask: Loading voxel ob " + toHexString((uint64)voxel_ob.ptr()) + " with use_model_lod_level " + toString(use_model_lod_level));
+
 				if(use_model_lod_level == 1)
 					subsample_factor = 2;
 				else if(use_model_lod_level == 2)
@@ -65,13 +67,16 @@ void LoadModelTask::run(size_t thread_index)
 				// conPrint("Loading vox model for ob with UID " + voxel_ob->uid.toString() + " for LOD level " + toString(use_model_lod_level) + ", using subsample_factor " + toString(subsample_factor) + ", " + toString(voxel_group.voxels.size()) + " voxels");
 
 				const bool need_lightmap_uvs = !voxel_ob->lightmap_url.empty();
-				Indigo::MeshRef indigo_mesh;
 				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
-					need_lightmap_uvs, mat_transparent, build_dynamic_physics_ob, /*physics shape out=*/physics_shape, indigo_mesh);
+					need_lightmap_uvs, mat_transparent, build_dynamic_physics_ob, /*physics shape out=*/physics_shape);
 
 				// Temp for testing: Save voxels to disk.
-				//FileUtils::writeEntireFile("d:/files/voxeldata/ob_" + voxel_ob->uid.toString() + "_voxeldata.voxdata", (const char*)voxel_group.voxels.data(), voxel_group.voxels.dataSizeBytes());
-				//FileUtils::writeEntireFile("d:/files/voxeldata/ob_" + voxel_ob->uid.toString() + "_voxeldata_compressed.compressedvoxdata", (const char*)voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size());
+				/*if(voxel_ob->uid.value() == 171111)
+				{
+					conPrint("Writing voxdata to disk for debugging...");
+					FileUtils::writeEntireFile("d:/files/voxeldata/ob_" + voxel_ob->uid.toString() + "_voxeldata.voxdata", (const char*)voxel_group.voxels.data(), voxel_group.voxels.dataSizeBytes());
+					FileUtils::writeEntireFile("d:/files/voxeldata/ob_" + voxel_ob->uid.toString() + "_voxeldata_compressed.compressedvoxdata", (const char*)voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size());
+				}*/
 			}
 		}
 		else // Else not voxel ob, just loading a model:

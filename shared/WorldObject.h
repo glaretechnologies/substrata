@@ -391,10 +391,9 @@ public:
 
 	js::Vector<Matrix4f, 16> instance_matrices;
 
-	int loaded_model_lod_level; // If we have loaded a model for this object, this is the LOD level of the model.
-	// This may differ from current_lod_level, for example if the new LOD level model needs to be downloaded from the server, then loaded_lod_level will be the previous level.
-	int loaded_lod_level; // Level for textures etc..  Actually this is more like what lod level we have requested textures at.  TODO: clarify and improve.
-
+	int loading_or_loaded_model_lod_level; // The LOD level we have started (or finished) loading the model for this object at.  Can be different than loading_or_loaded_lod_level due to max_model_lod_level clamping.
+	int loading_or_loaded_lod_level; // Lod level for textures etc.. 
+	// Both these lod levels will be reset to -10 if the model is unloaded due to being out of camera proximity.
 
 	bool is_path_controlled; // Is this object controlled by a path controller script?  If so, we want to set the OpenGL transform from the physics engine.
 

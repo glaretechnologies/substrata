@@ -40,7 +40,7 @@ public:
 	virtual void run(size_t thread_index);
 
 
-	Matrix4f ob_to_world;
+	//Matrix4f ob_to_world;
 
 	UID ob_uid;
 	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.

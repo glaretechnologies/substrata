@@ -16,7 +16,7 @@ Copyright Glare Technologies Limited 2021 -
 class ObLoadingCallbacks
 {
 public:
-	virtual void loadObject(WorldObjectRef ob) = 0;
+	//virtual void loadObject(WorldObjectRef ob) = 0;
 
 	virtual void unloadObject(WorldObjectRef ob) = 0;
 

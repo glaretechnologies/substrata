@@ -69,6 +69,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/IncludeXXHash.h"
 #include "../utils/IndigoXMLDoc.h"
 #include "../utils/RuntimeCheck.h"
+#include "../utils/MemAlloc.h"
 #include "../networking/Networking.h"
 #include "../networking/URL.h"
 #include "../graphics/ImageMap.h"
@@ -137,7 +138,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	grabbed_angle(0),
 	force_new_undo_edit(false),
 #if EMSCRIPTEN
-	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myClamp<uint32>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 16)),
+	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myClamp<uint32>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)),
 #else
 	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myMax<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1)),
 #endif
@@ -989,7 +990,8 @@ void GUIClient::removeAndDeleteGLObjectsForOb(WorldObject& ob)
 
 	ob.mesh_manager_data = NULL;
 
-	ob.loaded_model_lod_level = -10;
+	ob.loading_or_loaded_model_lod_level = -10;
+	ob.loading_or_loaded_lod_level = -10;
 	ob.using_placeholder_model = false;
 }
 
@@ -1462,6 +1464,8 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 }
 
 
+// Load or reload an object's 3d model.
+// 
 // Check if the model file is downloaded.
 // If so, load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the model download.
@@ -1470,6 +1474,8 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 // Also called from checkForLODChanges() when the object LOD level changes, and so we may need to load a new model and/or textures.
 void GUIClient::loadModelForObject(WorldObject* ob)
 {
+	// conPrint("loadModelForObject(): UID: " + ob->uid.toString());
+
 	const Vec4f campos = cam_controller.getPosition().toVec4fPoint();
 
 	// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
@@ -1486,10 +1492,18 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 	const float max_dist_for_ob_model_lod_level = (ob->max_model_lod_level == 0) ? std::numeric_limits<float>::max() : max_dist_for_ob_lod_level; // We don't want to clamp with max_model_lod_level.
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
-	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->loaded_lod_level == ob_lod_level))
+	//if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->/*loaded_lod_level*/loading_lod_level == ob_lod_level))
+	//	return;
+
+	// If ob->loaded_model_lod_level == ob_model_lod_level, we may still have a different object lod level, and hence want to continue as may be loading different texture lod levels.
+
+	if(ob->loading_or_loaded_lod_level == ob_lod_level)
 		return;
 
-	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url + ", ob_model_lod_level: " + toString(ob_model_lod_level));
+	ob->loading_or_loaded_lod_level = ob_lod_level;
+
+
+	// conPrint("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url + ", ob_model_lod_level: " + toString(ob_model_lod_level));
 	Timer timer;
 
 	//ui->glWidget->makeCurrent();
@@ -1505,7 +1519,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 		startLoadingTexturesForObject(*ob, ob_lod_level, max_dist_for_ob_lod_level);
 
-		ob->loaded_lod_level = ob_lod_level;
+		//ob->/*loaded_lod_level*/loading_lod_level = ob_lod_level;
 
 		// Add any objects with gif or mp4 textures to the set of animated objects. (if not already)
 		for(size_t i=0; i<ob->materials.size(); ++i)
@@ -1523,7 +1537,6 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 		const float current_time = (float)Clock::getTimeSinceInit();
 		const bool use_materialise_effect = ob->use_materialise_effect_on_load && (current_time - ob->materialise_effect_start_time < 2.0f);
-
 		
 		bool load_placeholder = false;
 
@@ -1725,8 +1738,10 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		{
-			if(ob->loaded_model_lod_level != ob_model_lod_level) // We may already have the correct LOD model loaded, don't reload if so.
+			if(ob->loading_or_loaded_model_lod_level != ob_model_lod_level) // We may already have the correct LOD model loaded (or being loaded), don't reload if so.
 			{
+				ob->loading_or_loaded_model_lod_level = ob_model_lod_level;
+
 				// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
 				Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
@@ -1784,9 +1799,11 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 
 			if(!ob->model_url.empty() && 
-				(ob->loaded_model_lod_level != ob_model_lod_level))  // We may already have the correct LOD model loaded, don't reload if so.
+				(ob->loading_or_loaded_model_lod_level != ob_model_lod_level))  // We may already have the correct LOD model loaded, don't reload if so.
 				// (The object LOD level might have changed, but the model LOD level may be the same due to max model lod level, for example for simple cube models.)
 			{
+				ob->loading_or_loaded_model_lod_level = ob_model_lod_level;
+
 				bool added_opengl_ob = false;
 				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
 
@@ -1797,89 +1814,10 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				if(mesh_data.nonNull() && physics_shape_data.nonNull())
 				{
 					const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
+					assert(is_meshdata_loaded_into_opengl);
 					if(is_meshdata_loaded_into_opengl)
 					{
-						removeAndDeleteGLObjectsForOb(*ob);
-
-						// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
-						if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
-						{
-							destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
-							physics_world->removeObject(ob->physics_object);
-							ob->physics_object = NULL;
-						}
-
-						// Create gl and physics object now
-						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
-						
-						mesh_data->meshDataBecameUsed();
-						ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
-
-						physics_shape_data->shapeDataBecameUsed();
-						ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
-
-						assignedLoadedOpenGLTexturesToMats(ob, *opengl_engine, *resource_manager);
-						for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-						{
-							ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
-							ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
-						}
-
-
-						ob->loaded_model_lod_level = ob_model_lod_level;
-
-						if(ob->physics_object.isNull()) // if object was dynamic, we may not have unloaded its physics object above.
-						{
-							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-
-							PhysicsShape use_shape = physics_shape_data->physics_shape;
-							if(ob->centre_of_mass_offset_os != Vec3f(0.f))
-								use_shape = PhysicsWorld::createCOMOffsetShapeForShape(physics_shape_data->physics_shape, ob->centre_of_mass_offset_os.toVec4fVector());
-
-							ob->physics_object->shape = use_shape;
-							ob->physics_object->userdata = ob;
-							ob->physics_object->userdata_type = 0;
-							ob->physics_object->ob_uid = ob->uid;
-							ob->physics_object->pos = ob->pos.toVec4fPoint();
-							ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
-							ob->physics_object->scale = useScaleForWorldOb(ob->scale);
-
-							// TEMP HACK
-							ob->physics_object->kinematic = !ob->script.empty();
-							ob->physics_object->dynamic = ob->isDynamic();
-							ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
-							ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
-
-							ob->physics_object->mass = ob->mass;
-							ob->physics_object->friction = ob->friction;
-							ob->physics_object->restitution = ob->restitution;
-
-							physics_world->addObject(ob->physics_object);
-						}
-
-
-						if(hasPrefix(ob->content, "biome: park"))
-						{
-							ob->opengl_engine_ob->draw_to_mask_map = true;
-
-							if(this->terrain_system.nonNull())
-								this->terrain_system->invalidateVegetationMap(ob->getAABBWS());
-						}
-
-
-						//Timer timer;
-						opengl_engine->addObject(ob->opengl_engine_ob);
-						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
-
-
-						//ui->indigoView->objectAdded(*ob, *this->resource_manager);
-
-						loadScriptForObject(ob); // Load any script for the object.
-
-						// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-						if(this->selected_ob == ob)
-							opengl_engine->selectObject(ob->opengl_engine_ob);
-
+						loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level);
 						added_opengl_ob = true;
 					}
 				}
@@ -1939,6 +1877,102 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 	catch(glare::Exception& e)
 	{
 		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+	}
+}
+
+
+// Create OpenGL and Physics objects for the WorldObject, given that the OpenGL and physics meshes are present in memory.
+void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level)
+{
+	removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
+
+	// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
+	if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
+	{
+		destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
+		physics_world->removeObject(ob->physics_object);
+		ob->physics_object = NULL;
+	}
+
+	// Create gl and physics object now
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+	ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
+						
+	mesh_data->meshDataBecameUsed();
+	ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+	physics_shape_data->shapeDataBecameUsed();
+	ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
+
+	const float current_time = (float)Clock::getTimeSinceInit();
+	const bool use_materialise_effect = ob->use_materialise_effect_on_load && (current_time - ob->materialise_effect_start_time < 2.0f);
+
+
+	assignedLoadedOpenGLTexturesToMats(ob, *opengl_engine, *resource_manager);
+	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+	{
+		ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
+		ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
+	}
+
+
+	ob->loading_or_loaded_model_lod_level = ob_model_lod_level; // NOTE: probably not needed as should have been set when loading started
+
+	// Create physics object 
+	if(ob->physics_object.isNull()) // if object was dynamic, we may not have unloaded its physics object above, check.
+	{
+		ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+
+		PhysicsShape use_shape = physics_shape_data->physics_shape;
+		if(ob->centre_of_mass_offset_os != Vec3f(0.f))
+			use_shape = PhysicsWorld::createCOMOffsetShapeForShape(physics_shape_data->physics_shape, ob->centre_of_mass_offset_os.toVec4fVector());
+
+		ob->physics_object->shape = use_shape;
+		ob->physics_object->userdata = ob;
+		ob->physics_object->userdata_type = 0;
+		ob->physics_object->ob_uid = ob->uid;
+		ob->physics_object->pos = ob->pos.toVec4fPoint();
+		ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+		ob->physics_object->scale = useScaleForWorldOb(ob->scale);
+
+		// TEMP HACK
+		ob->physics_object->kinematic = !ob->script.empty();
+		ob->physics_object->dynamic = ob->isDynamic();
+		ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
+		ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
+
+		ob->physics_object->mass = ob->mass;
+		ob->physics_object->friction = ob->friction;
+		ob->physics_object->restitution = ob->restitution;
+
+		physics_world->addObject(ob->physics_object);
+	}
+
+
+	if(hasPrefix(ob->content, "biome: park"))
+	{
+		ob->opengl_engine_ob->draw_to_mask_map = true;
+
+		if(this->terrain_system.nonNull())
+			this->terrain_system->invalidateVegetationMap(ob->getAABBWS());
+	}
+
+
+	//Timer timer;
+	opengl_engine->addObject(ob->opengl_engine_ob);
+	//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+
+
+	//ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+	loadScriptForObject(ob); // Load any script for the object.
+
+	// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+	if(this->selected_ob == ob)
+	{
+		opengl_engine->selectObject(ob->opengl_engine_ob);
+		updateSelectedObjectPlacementBeam(); // We may have changed from a placeholder mesh, which has a different to-world matrix due to cube offset.
+		// So update the position of the object placement beam and axis arrows etc.
 	}
 }
 
@@ -2771,12 +2805,13 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 
 
 // ObLoadingCallbacks interface callback function:
-void GUIClient::loadObject(WorldObjectRef ob)
-{
-	loadModelForObject(ob.ptr());
-
-	loadAudioForObject(ob.ptr());
-}
+// NOTE: not currently called.
+//void GUIClient::loadObject(WorldObjectRef ob)
+//{
+//	loadModelForObject(ob.ptr());
+//
+//	loadAudioForObject(ob.ptr());
+//}
 
 
 // ObLoadingCallbacks interface callback function:
@@ -3226,104 +3261,15 @@ void GUIClient::processLoading()
 									const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 								
 									// Check the object wants this particular LOD level model right now:
-									const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
-									if((current_desired_model_LOD_URL == cur_loading_lod_model_url) && (ob->isDynamic() == cur_loading_dynamic_physics_shape))
+									//const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
+									if(/*(current_desired_model_LOD_URL == cur_loading_lod_model_url)*/(ob_model_lod_level == loaded_model_lod_level) && (ob->isDynamic() == cur_loading_dynamic_physics_shape))
 									{
 										try
 										{
 											if(!isFinite(ob->angle) || !ob->axis.isFinite())
 												throw glare::Exception("Invalid angle or axis");
 
-											removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
-
-											// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
-											if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
-											{
-												destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
-												physics_world->removeObject(ob->physics_object);
-												ob->physics_object = NULL;
-											}
-
-											// Create GLObject and PhysicsObjects for this world object.  The loaded mesh should be in the mesh_manager.
-											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
-
-											ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, cur_loading_mesh_data, ob_lod_level, ob->materials, ob->lightmap_url,
-												*resource_manager, ob_to_world_matrix);
-
-											const float current_time = (float)Clock::getTimeSinceInit();
-											const bool use_materialise_effect = ob->use_materialise_effect_on_load && (current_time - ob->materialise_effect_start_time < 2.0f);
-
-											for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-											{
-												ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
-												ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
-											}
-
-											mesh_data->meshDataBecameUsed();
-											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
-
-											physics_shape_data->shapeDataBecameUsed();
-											ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
-
-											if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload its physics object above.
-											{
-												ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-
-												PhysicsShape use_shape = this->cur_loading_physics_shape;
-												if(ob->centre_of_mass_offset_os != Vec3f(0.f))
-													use_shape = PhysicsWorld::createCOMOffsetShapeForShape(this->cur_loading_physics_shape, ob->centre_of_mass_offset_os.toVec4fVector());
-
-												ob->physics_object->shape = use_shape;
-												ob->physics_object->userdata = ob;
-												ob->physics_object->userdata_type = 0;
-												ob->physics_object->ob_uid = ob->uid;
-												ob->physics_object->pos = ob->pos.toVec4fPoint();
-												ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
-												ob->physics_object->scale = useScaleForWorldOb(ob->scale);
-
-												ob->physics_object->kinematic = !ob->script.empty();
-												ob->physics_object->dynamic = ob->isDynamic();
-												ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
-												ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
-
-												ob->physics_object->mass = ob->mass;
-												ob->physics_object->friction = ob->friction;
-												ob->physics_object->restitution = ob->restitution;
-
-												physics_world->addObject(ob->physics_object);
-											}
-
-
-											ob->loaded_model_lod_level = loaded_model_lod_level;//message->model_lod_level;
-
-											assert(ob->opengl_engine_ob->mesh_data->vbo_handle.valid());
-
-											//loaded_size_B = ob->opengl_engine_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
-
-											assignedLoadedOpenGLTexturesToMats(ob, *opengl_engine, *resource_manager);
-
-											if(hasPrefix(ob->content, "biome: park"))
-											{
-												ob->opengl_engine_ob->draw_to_mask_map = true;
-
-												if(this->terrain_system.nonNull())
-													this->terrain_system->invalidateVegetationMap(ob->getAABBWS());
-											}
-
-											opengl_engine->addObject(ob->opengl_engine_ob);
-
-
-											// ui->indigoView->objectAdded(*ob, *this->resource_manager);
-
-											loadScriptForObject(ob); // Load any script for the object.
-
-											// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-											if(this->selected_ob == ob)
-											{
-												opengl_engine->selectObject(ob->opengl_engine_ob);
-												updateSelectedObjectPlacementBeam(); // We may have changed from a placeholder mesh, which has a different to-world matrix due to cube offset.
-												// So update the position of the object placement beam and axis arrows etc.
-											}
+											loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level);
 										}
 										catch(glare::Exception& e)
 										{
@@ -3551,7 +3497,7 @@ void GUIClient::processLoading()
 								loadScriptForObject(voxel_ob.ptr()); // Load any script for the object.
 							}
 
-							voxel_ob->loaded_model_lod_level = cur_loading_voxel_ob_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
+							voxel_ob->loading_or_loaded_model_lod_level = cur_loading_voxel_ob_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
 
 							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 							if(this->selected_ob == voxel_ob)
@@ -6984,6 +6930,15 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 {
 	std::string msg;
 
+#if TRACE_ALLOCATIONS
+	msg += "---------------------\n";
+	msg += "total allocated B: " + ::getMBSizeString(MemAlloc::getTotalAllocatedB()) + "\n";
+	msg += "high water mark B: " + ::getMBSizeString(MemAlloc::getHighWaterMarkB()) + "\n";
+	msg += "num active allocs: " + ::toString(MemAlloc::getNumActiveAllocations()) + "\n";
+	msg += "num allocs:        " + ::toString(MemAlloc::getNumAllocations()) + "\n";
+	msg += "---------------------\n";
+#endif
+
 	if(opengl_engine.nonNull() && do_graphics_diagnostics)
 	{
 		msg += "------------Graphics------------\n";
@@ -7068,7 +7023,8 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 
 		msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
 		msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
-		msg += "loaded_model_lod_level: " + toString(selected_ob->loaded_model_lod_level) + "\n";
+		msg += "loading_or_loaded_model_lod_level: " + toString(selected_ob->loading_or_loaded_model_lod_level) + "\n";
+		msg += "loading_or_loaded_lod_level: " + toString(selected_ob->loading_or_loaded_lod_level) + "\n";
 
 		if(selected_ob->opengl_engine_ob.nonNull())
 		{
@@ -8551,11 +8507,10 @@ void GUIClient::objectEdited()
 					mat_transparent[i] = selected_ob->materials[i]->opacity.val < 1.f;
 
 				PhysicsShape physics_shape;
-				Indigo::MeshRef indigo_mesh; // not used
 				const int subsample_factor = 1;
 				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 					opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
-					physics_shape, indigo_mesh);
+					physics_shape);
 
 				// Remove existing physics object
 				if(selected_ob->physics_object.nonNull())
@@ -10118,11 +10073,10 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 
 		// Add updated model!
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 			opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/ob->isDynamic(),
-			physics_shape, indigo_mesh);
+			physics_shape);
 
 		GLObjectRef gl_ob = opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;
