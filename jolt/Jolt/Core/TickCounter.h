@@ -25,7 +25,7 @@ JPH_INLINE uint64 GetProcessorTickCount()
 {
 #if defined(JPH_PLATFORM_BLUE)
 	return JPH_PLATFORM_BLUE_GET_TICKS();
-#elif defined(JPH_CPU_X86)
+#elif defined(JPH_CPU_X86) && !defined(EMSCRIPTEN) // GLARE NEW
 	return __rdtsc();
 #elif defined(JPH_CPU_ARM) && defined(JPH_USE_NEON)
 	uint64 val;
@@ -33,7 +33,7 @@ JPH_INLINE uint64 GetProcessorTickCount()
 	return val;
 #elif defined(JPH_CPU_ARM)
 	return 0; // Not supported
-#elif defined(JPH_CPU_WASM)
+#elif defined(JPH_CPU_WASM) || defined(EMSCRIPTEN) // GLARE NEW
 	return 0; // Not supported
 #else
 	#error Undefined

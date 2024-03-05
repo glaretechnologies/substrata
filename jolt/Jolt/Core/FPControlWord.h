@@ -8,7 +8,7 @@
 
 JPH_NAMESPACE_BEGIN
 
-#ifdef JPH_USE_SSE
+#if defined(JPH_USE_SSE) && !defined(EMSCRIPTEN) // GLARE NEW
 
 /// Helper class that needs to be put on the stack to update the state of the floating point control word.
 /// This state is kept per thread.
@@ -122,7 +122,7 @@ private:
 	uint32		mPrevState;
 };
 
-#elif defined(JPH_CPU_WASM)
+#elif defined(JPH_CPU_WASM) || defined(EMSCRIPTEN) // GLARE NEW
 
 // Not supported
 
