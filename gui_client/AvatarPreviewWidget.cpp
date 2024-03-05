@@ -19,6 +19,7 @@
 #include "../utils/Reference.h"
 #include "../utils/StringUtils.h"
 #include "../utils/TaskManager.h"
+#include "../utils/PlatformUtils.h"
 #include <QtGui/QMouseEvent>
 #include <QtCore/QSettings>
 
@@ -53,12 +54,27 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 
 	// Needed to get keyboard events.
 	setFocusPolicy(Qt::StrongFocus);
+
+	// Create main task manager.
+	// This is for doing work like texture compression and EXR loading, that will be created by LoadTextureTasks etc.
+	// Alloc these on the heap as Emscripten may have issues with stack-allocated objects before the emscripten_set_main_loop() call.
+	const size_t main_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 4);
+	main_task_manager = new glare::TaskManager("main task manager", main_task_manager_num_threads);
+	main_task_manager->setThreadPriorities(MyThread::Priority_Lowest);
+
+
+	// Create high-priority task manager.
+	// For short, processor intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
+	const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 4);
+	high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
 }
 
 
 AvatarPreviewWidget::~AvatarPreviewWidget()
 {
 	// Assume that shutdown() has been called already.
+	delete main_task_manager;
+	delete high_priority_task_manager;
 }
 
 
@@ -118,7 +134,8 @@ void AvatarPreviewWidget::initializeGL()
 	opengl_engine->initialise(
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server,
-		NULL // print output
+		NULL, // print output
+		main_task_manager, high_priority_task_manager
 	);
 	if(!opengl_engine->initSucceeded())
 	{

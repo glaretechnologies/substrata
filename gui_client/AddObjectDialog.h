@@ -29,7 +29,7 @@ class AddObjectDialog : public QDialog, private Ui_AddObjectDialog
 	Q_OBJECT
 public:
 	AddObjectDialog(const std::string& base_dir_path_, QSettings* settings, 
-		Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager);
+		Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager, glare::TaskManager* main_task_manager, glare::TaskManager* high_priority_task_manager);
 	~AddObjectDialog();
 
 	static void tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, std::vector<WorldMaterialRef>& world_materials, OpenGLEngine* opengl_engine, 
@@ -92,4 +92,7 @@ private:
 	IMFDXGIDeviceManager* dev_manager;
 
 	Reference<TextureServer> texture_server;
+
+	glare::TaskManager* main_task_manager;
+	glare::TaskManager* high_priority_task_manager;
 };

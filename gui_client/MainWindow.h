@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtWidgets/QMainWindow>
 #include <string>
 namespace Ui { class MainWindow; }
+namespace glare { class TaskManager; }
 class QSettings;
 class QSettingsStore;
 class UserDetailsWidget;
@@ -310,4 +311,7 @@ public:
 	GUIClient gui_client;
 
 	CredentialManager credential_manager;
+
+	glare::TaskManager* main_task_manager;
+	glare::TaskManager* high_priority_task_manager;
 };
