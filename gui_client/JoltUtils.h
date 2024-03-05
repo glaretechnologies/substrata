@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 
 inline JPH::Vec3 toJoltVec3(const Vec4f& v)
 {
+	// Note that JPH_USE_SSE should be defined
 	return JPH::Vec3(v.v);
 }
 

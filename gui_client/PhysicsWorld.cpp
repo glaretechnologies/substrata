@@ -210,11 +210,16 @@ void PhysicsWorld::init()
 {
 #if USE_JOLT
 	// Register allocation hook
-	//JPH::RegisterDefaultAllocator();
+
+	// JPH_DISABLE_CUSTOM_ALLOCATOR is currently defined in Jolt Core.h when JPH_PLATFORM_WASM is defined, so we can't override it.
+#if EMSCRIPTEN
+	JPH::RegisterDefaultAllocator();
+#else
 	JPH::Allocate = joltAllocate;
 	JPH::Free = joltFree;
 	JPH::AlignedAllocate = joltAlignedAlloc;
 	JPH::AlignedFree = joltAlignedFree;
+#endif // end if !EMSCRIPTEN
 
 	// Install callbacks
 	JPH::Trace = traceImpl;

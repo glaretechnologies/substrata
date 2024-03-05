@@ -49,7 +49,7 @@
 #endif
 
 // Detect CPU architecture
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86) || defined(EMSCRIPTEN) // GLARE NEW
 	// X86 CPU architecture
 	#define JPH_CPU_X86
 	#if defined(__x86_64__) || defined(_M_X64)
