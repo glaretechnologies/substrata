@@ -516,9 +516,8 @@ void ModelLoading::makeGLObjectForModelFile(
 
 		PhysicsShape physics_shape;
 		const int subsample_factor = 1;
-		Indigo::MeshRef indigo_mesh;
 		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob->ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/true, 
-			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		ob->materials.resize(results_out.materials.size());
 		for(size_t i=0; i<results_out.materials.size(); ++i)
@@ -1367,7 +1366,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
 	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob, 
-	PhysicsShape& physics_shape_out, Indigo::MeshRef& indigo_mesh_out)
+	PhysicsShape& physics_shape_out)
 {
 	// Timer timer;
 	StandardPrintOutput print_output;
@@ -1426,8 +1425,6 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		mesh_data->vert_index_buffer_uint8.clearAndFreeMem();
 	}
 
-	indigo_mesh_out = indigo_mesh;
-
 	// conPrint("ModelLoading::makeModelForVoxelGroup for " + toString(voxel_group.voxels.size()) + " voxels took " + timer.elapsedString());
 	return mesh_data;
 }
@@ -1440,6 +1437,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 #include <utils/TaskManager.h>
 #include <maths/PCG32.h>
 #include <utils/TestUtils.h>
+#include <utils/MemAlloc.h>
 
 
 void ModelLoading::test()
@@ -1465,6 +1463,7 @@ void ModelLoading::test()
 
 	
 	// Test a single voxel, without lightmap UVs
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1472,17 +1471,21 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent;
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testAssert(data->getNumVerts()    == 8); // Verts can be shared due to no lightmap UVs.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
 		testAssert(data->getNumTris()             == 6 * 2);
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 6 * 2);
 	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 
 	// Test a single voxel, with lightmap UVs
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1490,17 +1493,21 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent;
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
 		testAssert(data->getNumTris()             == 6 * 2);
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 6 * 2);
 	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 
 	// Test two adjacent voxels with same material.
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1509,17 +1516,21 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent;
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		testAssert(data->getNumTris()             == 6 * 2);
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 6 * 2);
 	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 
 	// Test two adjacent voxels (along y axis) with same material.
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1528,9 +1539,8 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent;
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1538,9 +1548,14 @@ void ModelLoading::test()
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 6);
 	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 
 
 	// Test two adjacent voxels (along z axis) with same material, without lightmap UVs
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1549,17 +1564,21 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent;
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testAssert(data->getNumVerts()    == 8);
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		testAssert(data->getNumTris()             == 6 * 2);
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 6);
 	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 
 	// Test two adjacent voxels (along z axis) with same material, with lightmap UVs
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1568,18 +1587,22 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent;
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		testAssert(data->getNumTris()             == 6 * 2);
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 6);
 	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 
 
 	// Test two adjacent voxels with different opaque materials, without lightmap UVs.  The faces between the voxels should not be added.
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1588,17 +1611,21 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent(2, false);
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL,
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testEqual(data->getNumVerts(), (size_t)(4 * 3));
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
 		testEqual(data->getNumTris(), (size_t)(2 * 5 * 2)); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 5 * 2);
 	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 
 	// Test two adjacent voxels with different opaque materials.  The faces between the voxels should not be added.
+	try
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1607,14 +1634,17 @@ void ModelLoading::test()
 		js::Vector<bool, 16> mat_transparent(2, false);
 
 		PhysicsShape physics_shape;
-		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
 
 		testEqual(data->getNumVerts(), (size_t)32); // verts half way along the sides of the cuboid can be shared.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
 		testEqual(data->getNumTris(), (size_t)(2 * 5 * 2)); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
 		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 5 * 2);
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
 	}
 
 	// Performance test
@@ -1642,6 +1672,68 @@ void ModelLoading::test()
 	//		conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
 	//	}
 	//}
+
+	// Performance test
+	if(false)
+	{
+		try
+		{
+			
+			{
+				VoxelGroup group;
+
+				{
+					// Object with UID 158939: game console in gallery near central square.  8292300 voxels, but only makes 2485 vertices and 4500 triangles.
+					// 158928: another game console
+					// 169166: roof of voxel house, 951327 voxels, makes 3440 vertices, 5662 triangles
+					// 169202: voxel tree, 108247 voxels, 75756 vertices, 124534 tris
+
+					std::vector<uint8> filecontents;
+					FileUtils::readEntireFile("D:\\files\\voxeldata\\ob_169202_voxeldata.voxdata", filecontents);
+					//FileUtils::readEntireFile("D:\\files\\voxeldata\\ob_158939_voxeldata.voxdata", filecontents);
+					//FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\testfiles\\voxels\\ob_151064_voxeldata.voxdata", filecontents);
+					group.voxels.resize(filecontents.size() / sizeof(Voxel));
+					testAssert(filecontents.size() == group.voxels.dataSizeBytes());
+					std::memcpy(group.voxels.data(), filecontents.data(), filecontents.size());
+				}
+
+
+				conPrint("AABB: " + group.getAABB().toString());
+				conPrint("AABB volume: " + toString(group.getAABB().volume()));
+
+				js::Vector<bool, 16> mat_transparent(256);
+
+				printVar(MemAlloc::getHighWaterMarkB());
+
+				for(int i=0; i<1000; ++i)
+				{
+					Timer timer;
+
+					PhysicsShape physics_shape;
+					makeModelForVoxelGroup(group, /*subsample factor=*/1, /*ob to world=*/Matrix4f::identity(),
+						/*vert buf allocator=*/NULL, /*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+
+					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
+					//conPrint("Resulting num tris: " + toString(data->triangles.size()));
+
+					printVar(MemAlloc::getHighWaterMarkB());
+				}
+
+				//{
+				//	Timer timer;
+
+				//	Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false, mat_transparent);
+
+				//	conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=2 took " + timer.elapsedString());
+				//	conPrint("Resulting num tris: " + toString(data->triangles.size()));
+				//}
+			}
+		}
+		catch(glare::Exception& e)
+		{
+			failTest(e.what());
+		}
+	}
 
 	conPrint("ModelLoading::test() done.");
 }

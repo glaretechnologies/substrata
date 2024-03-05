@@ -71,8 +71,8 @@ WorldObject::WorldObject() noexcept
 	in_proximity = false;
 	lightmap_baking = false;
 	current_lod_level = 0;
-	loaded_model_lod_level = -10;
-	loaded_lod_level = -10;
+	loading_or_loaded_model_lod_level = -10;
+	loading_or_loaded_lod_level = -10;
 	is_path_controlled = false;
 	use_materialise_effect_on_load = false;
 	materialise_effect_start_time = -1000.f;

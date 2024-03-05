@@ -86,10 +86,10 @@ public:
 	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndBatchedMeshForModelPath(const std::string& lod_model_path, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_dynamic_physics_ob, 
 		PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out);
 
-	// Build OpenGLMeshRenderData from voxel data.  Also return a reference to an Indigo Mesh and physics shape.
+	// Build OpenGLMeshRenderData from voxel data.  Also return a reference to a physics shape.
 	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
 		VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob,
-		PhysicsShape& physics_shape_out, Indigo::MeshRef& indigo_mesh_out);
+		PhysicsShape& physics_shape_out);
 
 	//static Reference<BatchedMesh> makeBatchedMeshForVoxelGroup(const VoxelGroup& voxel_group);
 	//static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group);

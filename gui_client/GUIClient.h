@@ -172,6 +172,7 @@ public:
 	GLObjectRef makeSpeakerGLObject();
 public:
 	void loadModelForObject(WorldObject* ob);
+	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level);
 	void loadModelForAvatar(Avatar* ob);
 	void loadScriptForObject(WorldObject* ob);
 	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
@@ -239,7 +240,7 @@ public:
 	void addPlaceholderObjectsForOb(WorldObject& ob);
 
 	// ObLoadingCallbacks interface
-	virtual void loadObject(WorldObjectRef ob);
+	//virtual void loadObject(WorldObjectRef ob);
 	virtual void unloadObject(WorldObjectRef ob);
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
 
