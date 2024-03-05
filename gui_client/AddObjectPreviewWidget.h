@@ -38,7 +38,7 @@ public:
 	AddObjectPreviewWidget(QWidget *parent = 0);
 	~AddObjectPreviewWidget();
 
-	void init(const std::string& base_dir_path_, QSettings* settings_, Reference<TextureServer> texture_server);
+	void init(const std::string& base_dir_path_, QSettings* settings_, Reference<TextureServer> texture_server, glare::TaskManager* main_task_manager, glare::TaskManager* high_priority_task_manager);
 	void shutdown();
 
 protected:
@@ -77,4 +77,7 @@ public:
 
 	Timer timer;
 	QSettings* settings;
+
+	glare::TaskManager* main_task_manager;
+	glare::TaskManager* high_priority_task_manager;
 };

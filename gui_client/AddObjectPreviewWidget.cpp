@@ -59,13 +59,15 @@ AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget* parent)
 }
 
 
-void AddObjectPreviewWidget::init(const std::string& base_dir_path_, QSettings* settings_, Reference<TextureServer> texture_server_)
+void AddObjectPreviewWidget::init(const std::string& base_dir_path_, QSettings* settings_, Reference<TextureServer> texture_server_, glare::TaskManager* main_task_manager_, glare::TaskManager* high_priority_task_manager_)
 {
 	this->makeCurrent();
 
 	base_dir_path = base_dir_path_;
 	settings = settings_;
 	texture_server = texture_server_;
+	main_task_manager = main_task_manager_;
+	high_priority_task_manager = high_priority_task_manager_;
 
 	OpenGLEngineSettings gl_settings;
 	gl_settings.shadow_mapping = true;
@@ -123,7 +125,8 @@ void AddObjectPreviewWidget::initializeGL()
 	opengl_engine->initialise(
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server, // texture_server
-		NULL // print output
+		NULL, // print output
+		main_task_manager, high_priority_task_manager
 	);
 	if(!opengl_engine->initSucceeded())
 	{

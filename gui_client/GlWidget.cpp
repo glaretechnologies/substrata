@@ -263,7 +263,9 @@ void GlWidget::initializeGL()
 	opengl_engine->initialise(
 		data_dir, // data dir (should contain 'shaders' and 'gl_data')
 		NULL, // texture_server
-		this->print_output
+		this->print_output,
+		main_task_manager,
+		high_priority_task_manager
 	);
 	if(!opengl_engine->initSucceeded())
 	{

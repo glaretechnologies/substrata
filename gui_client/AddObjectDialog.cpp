@@ -31,18 +31,21 @@ Copyright Glare Technologies Limited 2022 -
 #include <QtCore/QTimer>
 
 
-AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, Reference<ResourceManager> resource_manager_, IMFDXGIDeviceManager* dev_manager_)
+AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, Reference<ResourceManager> resource_manager_, IMFDXGIDeviceManager* dev_manager_,
+	glare::TaskManager* main_task_manager_, glare::TaskManager* high_priority_task_manager_)
 :	settings(settings_),
 	resource_manager(resource_manager_),
 	base_dir_path(base_dir_path_),
 	dev_manager(dev_manager_),
-	loaded_mesh_is_image_cube(false)
+	loaded_mesh_is_image_cube(false),
+	main_task_manager(main_task_manager_),
+	high_priority_task_manager(high_priority_task_manager_)
 {
 	setupUi(this);
 
 	texture_server = new TextureServer(/*use_canonical_path_keys=*/false); // To cache textures for textureHasAlphaChannel
 
-	this->objectPreviewGLWidget->init(base_dir_path, settings_, texture_server);
+	this->objectPreviewGLWidget->init(base_dir_path, settings_, texture_server, main_task_manager, high_priority_task_manager);
 
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("AddObjectDialog/geometry").toByteArray());

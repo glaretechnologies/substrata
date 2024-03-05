@@ -63,6 +63,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/FileChecksum.h"
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
+#include "../utils/TaskManager.h"
 #include "../networking/MySocket.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
@@ -251,6 +252,23 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	// On Windows, Windows will execute substrata.exe with the -linku argument, so we don't need this technique.
 	QDesktopServices::setUrlHandler("sub", /*receiver=*/this, /*method=*/"handleURL");
 #endif
+
+
+	// Create main task manager.
+	// This is for doing work like texture compression and EXR loading, that will be created by LoadTextureTasks etc.
+	// Alloc these on the heap as Emscripten may have issues with stack-allocated objects before the emscripten_set_main_loop() call.
+	const size_t main_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
+	main_task_manager = new glare::TaskManager("main task manager", main_task_manager_num_threads);
+	main_task_manager->setThreadPriorities(MyThread::Priority_Lowest);
+
+
+	// Create high-priority task manager.
+	// For short, processor intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
+	const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
+	high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
+
+	ui->glWidget->main_task_manager = main_task_manager;
+	ui->glWidget->high_priority_task_manager = high_priority_task_manager;
 }
 
 
@@ -334,7 +352,7 @@ void MainWindow::initialise()
 
 	settings_store = new QSettingsStore(settings);
 
-	gui_client.initialise(cache_dir, settings_store, this);
+	gui_client.initialise(cache_dir, settings_store, this, high_priority_task_manager);
 
 #ifdef _WIN32
 	// Create a GPU device.  Needed to get hardware accelerated video decoding.
@@ -435,6 +453,9 @@ void MainWindow::afterGLInitInitialise()
 MainWindow::~MainWindow()
 {
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
+
+	delete main_task_manager;
+	delete high_priority_task_manager;
 
 	delete settings_store;
 
@@ -1487,10 +1508,11 @@ void MainWindow::on_actionAddObject_triggered()
 
 	AddObjectDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager, 
 #ifdef _WIN32
-		this->device_manager.ptr
+		this->device_manager.ptr,
 #else
-		NULL
+		NULL,
 #endif
+		main_task_manager, high_priority_task_manager
 	);
 	const int res = dialog.exec();
 	ui->glWidget->makeCurrent(); // Change back from the dialog GL context to the mainwindow GL context.

@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 namespace Indigo { class Mesh; }
+namespace glare { class TaskManager; }
 class CameraController;
 class PlayerPhysics;
 class TextureServer;
@@ -128,4 +129,7 @@ public:
 
 	bool allow_bindless_textures;
 	bool allow_multi_draw_indirect;
+
+	glare::TaskManager* main_task_manager;
+	glare::TaskManager* high_priority_task_manager;
 };

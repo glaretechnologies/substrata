@@ -74,4 +74,7 @@ public:
 
 	Timer timer;
 	QSettings* settings;
+
+	glare::TaskManager* main_task_manager;
+	glare::TaskManager* high_priority_task_manager;
 };
