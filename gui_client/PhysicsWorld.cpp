@@ -34,6 +34,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
+//#include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Core/StreamWrapper.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -171,7 +172,12 @@ class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 
 static void* joltAllocate(size_t size)
 {
+#if TRACE_ALLOCATIONS
+	void* ptr = MemAlloc::alignedMalloc(size, 8); // works
+	//void* ptr = MemAlloc::traceMalloc(size); // crashes
+#else
 	void* ptr = malloc(size);
+#endif
 	TracyAllocS(ptr, size, /*call stack capture depth=*/10);
 	return ptr;
 }
@@ -179,7 +185,12 @@ static void* joltAllocate(size_t size)
 static void joltFree(void* inBlock)
 {
 	TracyFreeS(inBlock, /*call stack capture depth=*/10);
+#if TRACE_ALLOCATIONS
+	MemAlloc::alignedFree(inBlock);
+	//MemAlloc::traceFree(inBlock);
+#else
 	free(inBlock);
+#endif
 }
 
 static void* joltAlignedAlloc(size_t size, size_t alignment)
@@ -467,7 +478,8 @@ PhysicsWorld::PhysicsWorld(glare::TaskManager* task_manager_/*PhysicsWorldBodyAc
 	// you would implement the JobSystem interface yourself and let Jolt Physics run on top
 	// of your own job scheduler. JobSystemThreadPool is an example implementation.
 
-	//job_system = new JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, (int)PlatformUtils::getNumLogicalProcessors() - 1); // Use the example thread pool implementation
+	//job_system = new JPH::JobSystemSingleThreaded(JPH::cMaxPhysicsJobs); // Use the example thread pool implementation
+	//job_system = new JPH::JobSystemThreadPool(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, /*(int)PlatformUtils::getNumLogicalProcessors() - 1*/8); // Use the example thread pool implementation
 	job_system = new SubstrataJoltJobSystem(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, task_manager);
 
 	// This is the max amount of rigid bodies that you can add to the physics system. If you try to add more you'll get an error.
