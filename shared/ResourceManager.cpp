@@ -270,7 +270,7 @@ void ResourceManager::deleteResourceLocally(const std::string& URL)
 	if(resource.nonNull())
 	{
 		const std::string local_abs_path = resource->getLocalAbsPath(this->base_resource_dir);
-		conPrint("Deleting local resource '" + local_abs_path + "'...");
+		// conPrint("Deleting local resource '" + local_abs_path + "'...");
 		FileUtils::deleteFile(local_abs_path);
 
 		resource->setState(Resource::State_NotPresent);
