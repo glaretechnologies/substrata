@@ -78,8 +78,9 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 		const Indigo::Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
 		HashMapInsertOnly2<Indigo::Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/voxels.size());
 
-		mesh->vert_positions.reserve(voxels.size());
-		mesh->triangles.reserve(voxels.size());
+		// We won't reserve large numbers of vertex positions and triangles here, since sometimes the number of resulting verts and tris can be pretty small.
+		//mesh->vert_positions.reserve(voxels.size());
+		//mesh->triangles.reserve(voxels.size());
 
 		mesh->setMaxNumTexcoordSets(0);
 
@@ -1205,10 +1206,11 @@ void VoxelMeshBuilding::test()
 		try
 		{
 			
+			// 169166: roof of voxel house, 951327 voxels, makes 3440 vertices, 5662 triangles
+			// 169202: voxel tree, 108247 voxels, 75756 vertices, 124534 tris
 			{
 				std::vector<uint8> filecontents;
-				FileUtils::readEntireFile("D:\\files\\voxeldata\\ob_161034_voxeldata.voxdata", filecontents);
-				//FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\testfiles\\voxels\\ob_151064_voxeldata.voxdata", filecontents);
+				FileUtils::readEntireFile("D:\\files\\voxeldata\\ob_169202_voxeldata.voxdata", filecontents);
 
 				VoxelGroup group;
 				group.voxels.resize(filecontents.size() / sizeof(Voxel));
@@ -1229,6 +1231,8 @@ void VoxelMeshBuilding::test()
 
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
 					conPrint("Resulting num tris: " + toString(data->triangles.size()));
+
+					printVar(MemAlloc::getHighWaterMarkB());
 				}
 
 				{
