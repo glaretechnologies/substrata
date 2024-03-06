@@ -90,6 +90,15 @@ Vec2i mouse_move_origin(0, 0);
 
 static std::vector<float> mem_usage_values;
 
+
+#if EMSCRIPTEN
+
+EM_JS(char*, getLocationHost, (), {
+	return stringToNewUTF8(window.location.host);
+});
+
+#endif
+
 int main(int argc, char** argv)
 {
 	try
@@ -180,7 +189,12 @@ int main(int argc, char** argv)
 		// emscripten_get_canvas_element_size("#canvas", &primary_W, &primary_H);
 #endif
 
-		win = SDL_CreateWindow("Substrata SDL Client", 100, 100, primary_W, primary_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+#if EMSCRIPTEN
+		const char* window_name = "Substrata Web Client"; // Seems to get used for the web page title
+#else
+		const char* window_name = "Substrata SDL Client";
+#endif
+		win = SDL_CreateWindow(window_name, 100, 100, primary_W, primary_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 		if(win == nullptr)
 			throw glare::Exception("SDL_CreateWindow Error: " + std::string(SDL_GetError()));
 
@@ -290,8 +304,11 @@ int main(int argc, char** argv)
 
 
 #if EMSCRIPTEN
-		//std::string server_URL = "sub://substrata.info";
-		std::string server_URL = "sub://localhost";
+		char* location_host_str = getLocationHost();
+		const std::string location_host(location_host_str);
+		free(location_host_str);
+
+		std::string server_URL = "sub://" + location_host;
 #else
 		std::string server_URL = "sub://substrata.info";
 #endif
