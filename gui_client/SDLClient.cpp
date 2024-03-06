@@ -452,8 +452,6 @@ static void convertFromSDKKeyEvent(SDL_Event ev, KeyEvent& key_event)
 static bool do_graphics_diagnostics = false;
 static bool do_physics_diagnostics = false;
 static bool do_terrain_diagnostics = false;
-static bool info_window_collapsed = true;
-static ImVec2 info_window_size(600, 900);
 
 static void doOneMainLoopIter()
 {
@@ -526,8 +524,9 @@ static void doOneMainLoopIter()
 		
 		//ImGui::ShowDemoWindow();
 		
-		ImGui::SetNextWindowSize(info_window_size);
-		ImGui::SetNextWindowCollapsed(info_window_collapsed);
+		ImGui::SetNextWindowPos(ImVec2(400, 10), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(600, 900), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
 		if(ImGui::Begin("Info"))
 		{
 			ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
@@ -559,9 +558,6 @@ static void doOneMainLoopIter()
 				ImGui::TextUnformatted(last_diagnostics.c_str());
 			}
 		}
-		info_window_collapsed = ImGui::IsWindowCollapsed();
-		if(!info_window_collapsed)
-			info_window_size = ImGui::GetWindowSize();
 		ImGui::End();
 		
 		ImGui::Render();
