@@ -1,0 +1,30 @@
+Added some stuff for Emscripten:
+
+
+
+celt/cpu_support.h, line 49:
+(defined(OPUS_X86_MAY_HAVE_AVX) && !defined(OPUS_X86_PRESUME_AVX))    ) && !defined(EMSCRIPTEN) // GLARE NEW
+
+
+
+celt/x86/x86cpu.c:
+line 42:
+) && !defined(EMSCRIPTEN)
+
+line 56:
+#if 1 // TEMP GLARE NEW defined(CPU_INFO_BY_C)
+
+
+
+opus cmake, line 308:
+
+if(EMSCRIPTEN) # GLARE NEW:
+
+	target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE)
+	target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE)
+	target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE2)
+	target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE2)
+	target_compile_definitions(Opus PRIVATE -DOPUS_X86_MAY_HAVE_SSE4_1)
+	target_compile_definitions(Opus PRIVATE -DOPUS_X86_PRESUME_SSE4_1)
+
+elseif(TARGET_ARM64)
