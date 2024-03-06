@@ -8,3 +8,6 @@ Including most files in cmake, apart from test files. (ones with _test.cc suffix
 
 
 Slightly modified resonance_audio\graph\resonance_audio_api_impl.cc to avoid a repeated memory allocation.  (Search for "GLARE NEW")
+
+
+Modified some files for Emscripten compilation (search for "GLARE NEW")
