@@ -174,13 +174,11 @@ int main(int argc, char** argv)
 
 		int primary_W = 1200;
 		int primary_H = 800;
+
 #if EMSCRIPTEN
-		//int width, height;
-		//emscripten_get_canvas_element_size("canvas", &width, &height);
-		//primary_W = (int)width;
-		//primary_H = (int)height;
+		// This seems to return the canvas width and height before it is properly sized to the full window width, so don't bother calling it.
+		// emscripten_get_canvas_element_size("#canvas", &primary_W, &primary_H);
 #endif
-		
 
 		win = SDL_CreateWindow("Substrata SDL Client", 100, 100, primary_W, primary_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 		if(win == nullptr)
@@ -596,10 +594,12 @@ static void doOneMainLoopIter()
 			{
 				quit = true;
 			}
-			else if(e.window.event == SDL_WINDOWEVENT_RESIZED || e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+			else if(/*e.window.event == SDL_WINDOWEVENT_RESIZED || */e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 			{
 				int w, h;
 				SDL_GL_GetDrawableSize(win, &w, &h);
+
+				// conPrint("Got size changed event, SDL drawable size is " + toString(w) + " x " + toString(h));
 						
 				opengl_engine->setViewportDims(w, h);
 				opengl_engine->setMainViewportDims(w, h);
