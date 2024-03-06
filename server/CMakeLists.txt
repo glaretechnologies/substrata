@@ -160,7 +160,7 @@ add_definitions(-DBASIS_NO_IMAGE_READERS=1)
 
 
 
-include(../webclient/CMakeLists.txt)
+#include(../webclient/CMakeLists.txt)
 
 
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver/)
