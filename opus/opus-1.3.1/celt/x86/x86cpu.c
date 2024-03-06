@@ -35,10 +35,12 @@
 #include "pitch.h"
 #include "x86cpu.h"
 
-#if (defined(OPUS_X86_MAY_HAVE_SSE) && !defined(OPUS_X86_PRESUME_SSE)) || \
+#if (         \
+(defined(OPUS_X86_MAY_HAVE_SSE) && !defined(OPUS_X86_PRESUME_SSE)) || \
   (defined(OPUS_X86_MAY_HAVE_SSE2) && !defined(OPUS_X86_PRESUME_SSE2)) || \
   (defined(OPUS_X86_MAY_HAVE_SSE4_1) && !defined(OPUS_X86_PRESUME_SSE4_1)) || \
-  (defined(OPUS_X86_MAY_HAVE_AVX) && !defined(OPUS_X86_PRESUME_AVX))
+  (defined(OPUS_X86_MAY_HAVE_AVX) && !defined(OPUS_X86_PRESUME_AVX))          \
+) && !defined(EMSCRIPTEN)
 
 
 #if defined(_MSC_VER)
@@ -51,7 +53,7 @@ static _inline void cpuid(unsigned int CPUInfo[4], unsigned int InfoType)
 
 #else
 
-#if defined(CPU_INFO_BY_C)
+#if 1 // TEMP GLARE NEW defined(CPU_INFO_BY_C)
 #include <cpuid.h>
 #endif
 
