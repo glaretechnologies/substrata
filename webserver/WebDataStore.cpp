@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/Lock.h>
 #include <zlib.h>
 #include <zstd.h>
+#include <Timer.h>
 
 
 
@@ -28,7 +29,10 @@ WebDataStore::~WebDataStore() {}
 static void compressFile(Reference<WebDataStoreFile> file, const std::string& path)
 {
 	// Do deflate compression
+
 	{
+		Timer timer;
+
 		const uLong bound = compressBound((uLong)file->uncompressed_data.size());
 
 		file->deflate_compressed_data.resizeNoCopy(bound);
@@ -39,7 +43,11 @@ static void compressFile(Reference<WebDataStoreFile> file, const std::string& pa
 			&dest_len, // dest len
 			(Bytef*)file->uncompressed_data.data(), // source
 			(uLong)file->uncompressed_data.size(), // source len
-			Z_DEFAULT_COMPRESSION // TEMP Z_BEST_COMPRESSION // Compression level
+#if BUILD_TESTS
+			Z_BEST_SPEED // Compression level (don't spend long compressing for debug modes)
+#else
+			Z_BEST_COMPRESSION // Compression level
+#endif
 		);
 
 		if(result != Z_OK)
@@ -48,11 +56,13 @@ static void compressFile(Reference<WebDataStoreFile> file, const std::string& pa
 		file->deflate_compressed_data.resize(dest_len);
 
 		conPrint("Compressed file '" + path + "' from " + toString(file->uncompressed_data.size()) + " B to " + toString((uint64)dest_len) + " B with deflate (" + 
-			doubleToStringNSigFigs((double)dest_len / file->uncompressed_data.size(), 4) + " dest/src size ratio)");
+			doubleToStringNSigFigs((double)dest_len / file->uncompressed_data.size(), 4) + " dest/src size ratio).  Elapsed: " + timer.elapsedStringNPlaces(3));
 	}
 
 	// Do zstd compression
 	{
+		Timer timer;
+
 		const size_t compressed_bound = ZSTD_compressBound(file->uncompressed_data.size());
 
 		file->zstd_compressed_data.resizeNoCopy(compressed_bound);
@@ -63,7 +73,11 @@ static void compressFile(Reference<WebDataStoreFile> file, const std::string& pa
 		const size_t compressed_size = ZSTD_compress(
 			/*dest=*/file->zstd_compressed_data.data(), /*dest capacity=*/file->zstd_compressed_data.size(), 
 			/*src=*/file->uncompressed_data.data(), /*src size=*/file->uncompressed_data.size(),
-				19 // compression level
+#if BUILD_TESTS
+			1 //  (don't spend long compressing for debug modes)
+#else
+			19 // compression level
+#endif
 		);
 		if(ZSTD_isError(compressed_size))
 			throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
@@ -72,7 +86,7 @@ static void compressFile(Reference<WebDataStoreFile> file, const std::string& pa
 		file->zstd_compressed_data.resize(compressed_size);
 
 		conPrint("Compressed file '" + path + "' from " + toString(file->uncompressed_data.size()) + " B to " + toString(compressed_size) + " B with zstd (" + 
-			doubleToStringNSigFigs((double)compressed_size / file->uncompressed_data.size(), 4) + " dest/src size ratio)");
+			doubleToStringNSigFigs((double)compressed_size / file->uncompressed_data.size(), 4) + " dest/src size ratio).  Elapsed: " + timer.elapsedStringNPlaces(3));
 	}
 }
 
