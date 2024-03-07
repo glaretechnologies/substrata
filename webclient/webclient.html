@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en-us">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>Substrata Web Client</title>
+		
+		<style>
+		#canvas {
+			width:100%;
+			height:95vh; /* percentage of viewport height %/
+			border: none;
+			margin: none;
+		}
+		</style>
+	</head>
+	<body>
+	<div id="status">downloading...</div>
+
+	<div>
+		<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+	</div>
+
+	<script type='text/javascript'>
+		var statusElement = document.getElementById('status');
+		
+		var Module = {
+			print: (function() {})(),
+			canvas: (() => {
+				var canvas = document.getElementById('canvas');
+
+				// As a default initial behavior, pop up an alert when webgl context is lost. To make your
+				// application robust, you may want to override this behavior before shipping!
+				// See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+				canvas.addEventListener("webglcontextlost", (e) => { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
+
+				return canvas;
+			})(),
+			setStatus: (text) => {
+				//console.log("~~~~~~~setStatus: " + text + "~~~~~~~~~");
+				statusElement.innerText = text;
+			},
+			totalDependencies: 0,
+			monitorRunDependencies: (left) => {
+				this.totalDependencies = Math.max(this.totalDependencies, left);
+				Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+			},
+			calledRun: false,
+			onRuntimeInitialized: () => {
+				console.log("~~~~~~~~~~~~~~~~ onRuntimeInitialized() ~~~~~~~~~~");
+				statusElement.innerHTML = "onRuntimeInitialized";
+				//statusElement.style.display = 'none';
+			}
+		};
+
+		Module.setStatus('Downloading...');
+
+		window.onerror = () => {
+			Module.setStatus('Exception thrown, see JavaScript console');
+			
+			Module.setStatus = (text) => {
+				if (text) console.error('[post-exception status] ' + text);
+			};
+		};
+		</script>
+		<script async type="text/javascript" src="gui_client.js"></script>
+	</body>
+</html>
