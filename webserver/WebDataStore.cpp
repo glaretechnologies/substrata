@@ -28,8 +28,13 @@ WebDataStore::~WebDataStore() {}
 
 static void compressFile(Reference<WebDataStoreFile> file, const std::string& path)
 {
-	// Do deflate compression
+#if BUILD_TESTS
+	const bool use_high_compression_level = false; // don't spend long compressing for debug modes
+#else
+	const bool use_high_compression_level = true;
+#endif
 
+	// Do deflate compression
 	{
 		Timer timer;
 
@@ -43,11 +48,7 @@ static void compressFile(Reference<WebDataStoreFile> file, const std::string& pa
 			&dest_len, // dest len
 			(Bytef*)file->uncompressed_data.data(), // source
 			(uLong)file->uncompressed_data.size(), // source len
-#if BUILD_TESTS
-			Z_BEST_SPEED // Compression level (don't spend long compressing for debug modes)
-#else
-			Z_BEST_COMPRESSION // Compression level
-#endif
+			(use_high_compression_level ? Z_BEST_COMPRESSION : Z_BEST_SPEED)
 		);
 
 		if(result != Z_OK)
@@ -73,11 +74,7 @@ static void compressFile(Reference<WebDataStoreFile> file, const std::string& pa
 		const size_t compressed_size = ZSTD_compress(
 			/*dest=*/file->zstd_compressed_data.data(), /*dest capacity=*/file->zstd_compressed_data.size(), 
 			/*src=*/file->uncompressed_data.data(), /*src size=*/file->uncompressed_data.size(),
-#if BUILD_TESTS
-			1 //  (don't spend long compressing for debug modes)
-#else
-			19 // compression level
-#endif
+			(use_high_compression_level ? 19 : 1)
 		);
 		if(ZSTD_isError(compressed_size))
 			throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
@@ -107,7 +104,8 @@ static bool shouldCompressFile(const std::string& path)
 		hasExtensionStringView(path, "js") || 
 		hasExtensionStringView(path, "css") || 
 		hasExtensionStringView(path, "wasm") || 
-		hasExtensionStringView(path, "html");
+		hasExtensionStringView(path, "html") ||
+		hasExtensionStringView(path, "data");
 }
 
 
