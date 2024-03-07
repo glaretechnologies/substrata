@@ -142,8 +142,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("root_page.htmlfrag");
 	if(store_file.nonNull())
 	{
-		assert(!store_file->compressed);
-		page_out += std::string(store_file->data.begin(), store_file->data.end());
+		page_out += std::string(store_file->uncompressed_data.begin(), store_file->uncompressed_data.end());
 	}
 
 	StringUtils::replaceFirstInPlace(page_out, "LAND_PARCELS_FOR_SALE_HTML", auction_html);
@@ -606,8 +605,7 @@ void renderAboutScripting(ServerAllWorldsState& world_state, WebDataStore& data_
 	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("about_scripting.htmlfrag");
 	if(store_file.nonNull())
 	{
-		assert(!store_file->compressed);
-		page += std::string(store_file->data.begin(), store_file->data.end());
+		page += std::string(store_file->uncompressed_data.begin(), store_file->uncompressed_data.end());
 	}
 
 	page += WebServerResponseUtils::standardFooter(request_info, /*include_email_link=*/true);
@@ -770,8 +768,7 @@ void renderRunningYourOwnServerPage(ServerAllWorldsState& world_state, WebDataSt
 	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("running_your_own_server.htmlfrag");
 	if(store_file.nonNull())
 	{
-		assert(!store_file->compressed);
-		page += std::string(store_file->data.begin(), store_file->data.end());
+		page += std::string(store_file->uncompressed_data.begin(), store_file->uncompressed_data.end());
 	}
 	
 	page += WebServerResponseUtils::standardFooter(request_info, true);

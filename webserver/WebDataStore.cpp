@@ -6,14 +6,16 @@ Copyright Glare Technologies Limited 2022 -
 #include "WebDataStore.h"
 
 
-#include <MemMappedFile.h>
-#include <Exception.h>
-#include <StringUtils.h>
-#include <ConPrint.h>
-#include <FileUtils.h>
-#include <Lock.h>
-#include <zlib.h>
 #include <ResponseUtils.h>
+#include <utils/MemMappedFile.h>
+#include <utils/Exception.h>
+#include <utils/StringUtils.h>
+#include <utils/ConPrint.h>
+#include <utils/FileUtils.h>
+#include <utils/Lock.h>
+#include <zlib.h>
+#include <zstd.h>
+
 
 
 WebDataStore::WebDataStore() {}
@@ -23,31 +25,55 @@ WebDataStore::~WebDataStore() {}
 
 
 
-static js::Vector<uint8, 16> compressFile(const std::string& path)
+static void compressFile(Reference<WebDataStoreFile> file, const std::string& path)
 {
-	MemMappedFile file(path);
-	
-	const uLong bound = compressBound((uLong)file.fileSize());
+	// Do deflate compression
+	{
+		const uLong bound = compressBound((uLong)file->uncompressed_data.size());
 
-	js::Vector<uint8, 16> compressed_data(bound);
-	uLong dest_len = bound;
+		file->deflate_compressed_data.resizeNoCopy(bound);
+		uLong dest_len = bound;
 
-	const int result = ::compress2(
-		compressed_data.data(), // dest
-		&dest_len, // dest len
-		(Bytef*)file.fileData(), // source
-		(uLong)file.fileSize(), // source len
-		Z_BEST_COMPRESSION // Compression level
-	);
+		const int result = ::compress2(
+			file->deflate_compressed_data.data(), // dest
+			&dest_len, // dest len
+			(Bytef*)file->uncompressed_data.data(), // source
+			(uLong)file->uncompressed_data.size(), // source len
+			Z_DEFAULT_COMPRESSION // TEMP Z_BEST_COMPRESSION // Compression level
+		);
 
-	if(result != Z_OK)
-		throw glare::Exception("Compression failed.");
+		if(result != Z_OK)
+			throw glare::Exception("Compression failed.");
 
-	compressed_data.resize(dest_len);
+		file->deflate_compressed_data.resize(dest_len);
 
-	// conPrint("Compressed file '" + path + "' from " + toString(file.fileSize()) + " B to " + toString((uint32)dest_len) + " B");
+		conPrint("Compressed file '" + path + "' from " + toString(file->uncompressed_data.size()) + " B to " + toString((uint64)dest_len) + " B with deflate (" + 
+			doubleToStringNSigFigs((double)dest_len / file->uncompressed_data.size(), 4) + " dest/src size ratio)");
+	}
 
-	return compressed_data;
+	// Do zstd compression
+	{
+		const size_t compressed_bound = ZSTD_compressBound(file->uncompressed_data.size());
+
+		file->zstd_compressed_data.resizeNoCopy(compressed_bound);
+
+		// Chrome seems to not be able to decompress Zstd data with compression levels >= 20 ('ultra' compression levels), see https://issues.chromium.org/issues/41493659
+		// So use 19.
+
+		const size_t compressed_size = ZSTD_compress(
+			/*dest=*/file->zstd_compressed_data.data(), /*dest capacity=*/file->zstd_compressed_data.size(), 
+			/*src=*/file->uncompressed_data.data(), /*src size=*/file->uncompressed_data.size(),
+				19 // compression level
+		);
+		if(ZSTD_isError(compressed_size))
+			throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
+
+		// Trim compressed_data
+		file->zstd_compressed_data.resize(compressed_size);
+
+		conPrint("Compressed file '" + path + "' from " + toString(file->uncompressed_data.size()) + " B to " + toString(compressed_size) + " B with zstd (" + 
+			doubleToStringNSigFigs((double)compressed_size / file->uncompressed_data.size(), 4) + " dest/src size ratio)");
+	}
 }
 
 
@@ -74,17 +100,12 @@ static bool shouldCompressFile(const std::string& path)
 static Reference<WebDataStoreFile> loadAndMaybeCompressFile(const std::string& path)
 {
 	Reference<WebDataStoreFile> file = new WebDataStoreFile();
+	file->uncompressed_data = readFile(path);
+
 	const bool should_compresss = shouldCompressFile(path);
 	if(should_compresss)
-	{
-		file->data = compressFile(path);
-		file->compressed = true;
-	}
-	else
-	{
-		file->data = readFile(path);
-		file->compressed = false;
-	}
+		compressFile(file, path);
+	
 	file->content_type = web::ResponseUtils::getContentTypeForPath(path);
 	return file;
 }
