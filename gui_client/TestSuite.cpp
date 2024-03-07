@@ -119,6 +119,8 @@ void TestSuite::test()
 	conPrint("==============Doing Substrata unit tests ====================");
 	Timer timer;
 
+	PhysicsWorld::init(); // Needed to set memory allocator functions for Jolt, before ModelLoading tests etc.
+
 	runTest([&]() { glare::testFastPoolAllocator(); });
 	runTest([&]() { glare::TaskTests::test(); });
 	runTest([&]() { MemAlloc::test(); });
@@ -172,13 +174,12 @@ void TestSuite::test()
 	runTest([&]() { FileUtils::doUnitTests(); });
 	runTest([&]() { LODGeneration::test(); });
 	runTest([&]() { MeshSimplification::test(); });
-	PhysicsWorld::init(); // Init before taking mem snapshot
 	runTest([&]() { PhysicsWorld::test(); });
 	runTest([&]() { FormatDecoderGLTF::test(); });
 	runTest([&]() { BatchedMeshTests::test(); });
 	runTest([&]() { EXRDecoder::test(); }, /*mem leak allowed=*/true); // OpenEXR leaks some minor stuff
 	runTest([&]() { TextRenderer::test(); });
-	runTest([&]() { glare::AudioEngine::test(); });
+	//runTest([&]() { glare::AudioEngine::test(); }); // Disabled, noisy
 	runTest([&]() { KTXDecoder::test(); });
 	runTest([&]() { FormatDecoderVox::test(); });
 	runTest([&]() { GIFDecoder::test(); }, /*mem leak allowed=*/true);
