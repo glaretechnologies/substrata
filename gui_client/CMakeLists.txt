@@ -870,7 +870,7 @@ ${freetypedir}/src/base/ftwinfnt.c
 #${freetypedir}/src/bdf/bdf.c
 ${freetypedir}/src/bzip2/ftbzip2.c
 ${freetypedir}/src/cache/ftcache.c
-${freetypedir}/src/cff/cff.c
+${freetypedir}/src/cff/cff.c # OpenType (.otf) driver component
 #${freetypedir}/src/cid/type1cid.c
 ${freetypedir}/src/gzip/ftgzip.c
 ${freetypedir}/src/lzw/ftlzw.c
@@ -1028,8 +1028,6 @@ endif()
 	
 
 if(EMSCRIPTEN)
-	set(CMAKE_EXECUTABLE_SUFFIX ".html") # Make emscripten spit out an HTML file for testing
-	
 	target_link_libraries(${CURRENT_TARGET}
 		${GLARE_CORE_LIBS_ENV}/SDL/sdl_build_emscripten/libSDL2.a
 		Jolt # Jolt physics
@@ -1037,6 +1035,17 @@ if(EMSCRIPTEN)
 	)
 	
 	# Note that a bunch of Emscripten C++ options are set in shared_cxx_settings.cmake as well.
+	
+	# Emscripten worker threads:
+	# --------------------------
+	# main_task_manager:							8
+	# high_priority_task_manager:					8
+	# model_and_texture_loader_task_manager:		8
+	# DownloadResourcesThread:						4
+	# ClientSenderThread							1
+	# ClientThread									1
+	# 
+	# Total:										30
 	
 	target_link_options(${CURRENT_TARGET} PRIVATE
 		"-s USE_WEBGL=1"
@@ -1048,12 +1057,12 @@ if(EMSCRIPTEN)
 		#"-gsource-map" # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
 		#"--profiling"  			# https://emscripten.org/docs/tools_reference/emcc.html
 		"-fwasm-exceptions"  # Enable WASM-based exception support: https://emscripten.org/docs/porting/exceptions.html
-		"-sALLOW_MEMORY_GROWTH"
-		#"-sINITIAL_MEMORY=3GB"
+		#"-sALLOW_MEMORY_GROWTH"
+		"-sINITIAL_MEMORY=3500MB" # "If ALLOW_MEMORY_GROWTH is set, this initial amount of memory can increase later; if not, then it is the final and total amount of memory." (https://emscripten.org/docs/tools_reference/settings_reference.html)
 		#"-sMAXIMUM_MEMORY=4GB"
 		"-pthread"
 	#	"-s USE_SDL=2"
-		"-sPTHREAD_POOL_SIZE=200"
+		"-sPTHREAD_POOL_SIZE=30" # See calculation above
 		"-sSTACK_SIZE=262144"
 		#"-sMAIN_MODULE=2"
 		#"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
