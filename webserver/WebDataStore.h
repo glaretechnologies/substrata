@@ -15,12 +15,12 @@ Copyright Glare Technologies Limited 2022 -
 #include <map>
 
 
-
 class WebDataStoreFile : public ThreadSafeRefCounted
 {
 public:
-	js::Vector<uint8, 16> data;
-	bool compressed;
+	js::Vector<uint8, 16> uncompressed_data;
+	js::Vector<uint8, 16> deflate_compressed_data;
+	js::Vector<uint8, 16> zstd_compressed_data;
 	std::string content_type;
 };
 

@@ -483,12 +483,22 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 
 			if(store_file.nonNull())
 			{
-				const js::Vector<uint8, 16>& file_data = store_file->data;
 				const std::string& content_type = store_file->content_type;
-				if(store_file->compressed)
-					web::ResponseUtils::writeHTTPOKHeaderAndDeflatedDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
+				const int max_age_s = 3600*24*14;
+				if(request.zstd_accept_encoding)
+				{
+					web::ResponseUtils::writeHTTPOKHeaderWithCacheMaxAgeAndContentEncoding(reply_info, store_file->zstd_compressed_data.data(), store_file->zstd_compressed_data.size(), 
+						content_type, "zstd", max_age_s);
+				}
+				else if(request.deflate_accept_encoding)
+				{
+					web::ResponseUtils::writeHTTPOKHeaderWithCacheMaxAgeAndContentEncoding(reply_info, store_file->deflate_compressed_data.data(), store_file->deflate_compressed_data.size(), 
+						content_type, "deflate", max_age_s);
+				}
 				else
-					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
+				{
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, store_file->uncompressed_data.data(), store_file->uncompressed_data.size(), content_type, max_age_s);
+				}
 			}
 			else
 			{
@@ -531,7 +541,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			try
 			{
 				std::string contents;
-				FileUtils::readEntireFile(data_store->webclient_dir + "/client.html", contents);
+				FileUtils::readEntireFile(data_store->webclient_dir + "/webclient.html", contents);
 				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents);
 			}
 			catch(FileUtils::FileUtilsExcep& e)
@@ -584,12 +594,22 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 
 			if(store_file.nonNull())
 			{
-				const js::Vector<uint8, 16>& file_data = store_file->data;
 				const std::string& content_type = store_file->content_type;
-				if(store_file->compressed)
-					web::ResponseUtils::writeHTTPOKHeaderAndDeflatedDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
+				const int max_age_s = 3600*24*14;
+				if(request.zstd_accept_encoding)
+				{
+					web::ResponseUtils::writeHTTPOKHeaderWithCacheMaxAgeAndContentEncoding(reply_info, store_file->zstd_compressed_data.data(), store_file->zstd_compressed_data.size(), 
+						content_type, "zstd", max_age_s);
+				}
+				else if(request.deflate_accept_encoding)
+				{
+					web::ResponseUtils::writeHTTPOKHeaderWithCacheMaxAgeAndContentEncoding(reply_info, store_file->deflate_compressed_data.data(), store_file->deflate_compressed_data.size(), 
+						content_type, "deflate", max_age_s);
+				}
 				else
-					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
+				{
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, store_file->uncompressed_data.data(), store_file->uncompressed_data.size(), content_type, max_age_s);
+				}
 			}
 			else
 			{
