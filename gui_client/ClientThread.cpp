@@ -992,7 +992,10 @@ void ClientThread::doRun()
 
 #if EMSCRIPTEN
 		socket = new EmscriptenWebSocket();
-		socket.downcast<EmscriptenWebSocket>()->connect(hostname, port);
+
+		const bool use_TLS = hostname != "localhost"; // Don't use TLS on localhost for now, for testing.
+		const std::string protocol = use_TLS ? "wss" : "ws";
+		socket.downcast<EmscriptenWebSocket>()->connect(protocol, hostname, /*port=*/use_TLS ? 443 : 80);
 #else
 		socket.downcast<MySocket>()->connect(server_ip, hostname, port);
 
