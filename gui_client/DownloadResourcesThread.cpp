@@ -211,7 +211,9 @@ void DownloadResourcesThread::doRun()
 						const std::string URL = *it;
 						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
-						const std::string http_URL = "http://" + hostname + "/resource/" + URL;
+						const bool use_TLS = hostname != "localhost"; // Don't use TLS on localhost for now, for testing.
+						const std::string protocol = use_TLS ? "https" : "http";
+						const std::string http_URL = protocol + "://" + hostname + "/resource/" + URL;
 						//conPrint("Calling emscripten_wget_data for URL '" + http_URL + "'...");
 
 						const std::string local_abs_path = resource_manager->getLocalAbsPathForResource(*resource);
