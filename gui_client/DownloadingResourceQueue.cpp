@@ -116,3 +116,19 @@ void DownloadingResourceQueue::dequeueItemsWithTimeOut(double wait_time_seconds,
 		begin_i++;
 	}
 }
+
+
+bool DownloadingResourceQueue::tryDequeueItem(DownloadQueueItem& item_out)
+{
+	Lock lock(mutex);
+
+	if(begin_i < items.size()) // If there are any items in the queue:
+	{
+		item_out = items[begin_i];
+		item_URL_set.erase(items[begin_i].URL);
+		begin_i++;
+		return true;
+	}
+	else
+		return false;
+}

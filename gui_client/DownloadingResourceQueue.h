@@ -61,6 +61,8 @@ public:
 	void sortQueue(const Vec3d& campos); // Sort queue (by item distance to camera)
 
 	void dequeueItemsWithTimeOut(double wait_time_s, size_t max_num_items, std::vector<DownloadQueueItem>& items_out); // Blocks for up to wait_time_s
+
+	bool tryDequeueItem(DownloadQueueItem& item_out);
 private:
 
 	mutable Mutex mutex;

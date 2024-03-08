@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
 #include "WorldState.h"
+#include "EmscriptenResourceDownloader.h"
 #include "../shared/WorldSettings.h"
 #include "../audio/AudioEngine.h"
 #include "../audio/MicReadThread.h" // For MicReadStatus
@@ -336,6 +337,8 @@ public:
 	glare::AtomicInt num_non_net_resources_downloading;
 	glare::AtomicInt num_net_resources_downloading;
 	glare::AtomicInt num_resources_uploading;
+
+	EmscriptenResourceDownloader emscripten_resource_downloader;
 
 	Reference<WorldState> world_state;
 private:
