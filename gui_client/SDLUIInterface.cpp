@@ -33,20 +33,12 @@ void SDLUIInterface::updateOnlineUsersList()
 
 void SDLUIInterface::showHTMLMessageBox(const std::string& title, const std::string& msg)
 {
-	SDL_MessageBoxData data;
-	data.title = title.c_str();
-	data.message = msg.c_str();
-	int buttonid = 0;
-	SDL_ShowMessageBox(&data, &buttonid);
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, title.c_str(), msg.c_str(), window);
 }
 
 void SDLUIInterface::showPlainTextMessageBox(const std::string& title, const std::string& msg)
 {
-	SDL_MessageBoxData data;
-	data.title = title.c_str();
-	data.message = msg.c_str();
-	int buttonid = 0;
-	SDL_ShowMessageBox(&data, &buttonid);
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, title.c_str(), msg.c_str(), window);
 }
 
 

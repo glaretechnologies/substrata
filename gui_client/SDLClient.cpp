@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "SDLUIInterface.h"
 #include "SDLSettingsStore.h"
 #include "TestSuite.h"
+#include "URLParser.h"
 #include <maths/GeometrySampling.h>
 #include <graphics/FormatDecoderGLTF.h>
 #include <graphics/MeshSimplification.h>
@@ -25,6 +26,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/FileUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
+#include <networking/URL.h>
 #include <GL/gl3w.h>
 #include <SDL_opengl.h>
 #include <SDL.h>
@@ -96,6 +98,12 @@ static std::vector<float> mem_usage_values;
 EM_JS(char*, getLocationHost, (), {
 	return stringToNewUTF8(window.location.host);
 });
+
+// Get the ?a=b part of the URL (see https://developer.mozilla.org/en-US/docs/Web/API/Location)
+EM_JS(char*, getLocationSearch, (), {
+	return stringToNewUTF8(window.location.search);
+});
+
 
 #endif
 
@@ -303,29 +311,68 @@ int main(int argc, char** argv)
 		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, /*show minimap=*/false, opengl_engine, font);
 
 
+		URLParseResults url_parse_results;
 #if EMSCRIPTEN
+		// Extract URL details to connect to from from webpage URL
 		char* location_host_str = getLocationHost();
 		const std::string location_host(location_host_str);
 		free(location_host_str);
 
-		std::string server_URL = "sub://" + location_host;
+		url_parse_results.hostname = location_host;
+		
+		char* search_str = getLocationSearch(); // Get the query part of the URL, will be something like "?world=bleh&x=1&y=2&z=3", or just the empty string
+		const std::string search(search_str);
+		free(search_str);
+
+		if(search.size() >= 1)
+		{
+			std::map<std::string, std::string> queries = URL::parseQuery(search.substr(1)); // Remove '?' prefix from search string, then parse into keys and values.
+
+			if(queries.count("world"))
+				url_parse_results.userpath = queries["world"];
+
+			if(queries.count("x"))
+			{
+				url_parse_results.x = stringToDouble(queries["x"]);
+				url_parse_results.parsed_x = true;
+			}
+			if(queries.count("y"))
+			{
+				url_parse_results.y = stringToDouble(queries["y"]);
+				url_parse_results.parsed_y = true;
+			}
+			if(queries.count("z"))
+			{
+				url_parse_results.z = stringToDouble(queries["z"]);
+				url_parse_results.parsed_z = true;
+			}
+		}
 #else
-		std::string server_URL = "sub://substrata.info";
-#endif
-		bool server_URL_explicitly_specified = false;
+		std::string server_URL = "sub://substrata.info"; // Default URL
 
 		if(parsed_args.isArgPresent("-h"))
 		{
 			server_URL = "sub://" + parsed_args.getArgStringValue("-h");
-			server_URL_explicitly_specified = true;
 		}
 		if(parsed_args.isArgPresent("-u"))
 		{
 			server_URL = parsed_args.getArgStringValue("-u");
-			server_URL_explicitly_specified = true;
 		}
 
-		gui_client->connectToServer(server_URL);
+		try
+		{
+			url_parse_results = URLParser::parseURL(server_URL);
+		}
+		catch(glare::Exception& e) // Handle URL parse failure
+		{
+			conPrint(e.what());
+			sdl_ui_interface->showPlainTextMessageBox("Error parsing URL", e.what());
+			return 1;
+		}
+
+#endif
+
+		gui_client->connectToServer(url_parse_results);
 
 
 		//---------------------- Set env material -------------------

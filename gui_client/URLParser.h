@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2019 -
 struct URLParseResults
 {
 	std::string hostname;
-	std::string userpath;
+	std::string userpath; // = worldname
 	double x, y, z;
 	int parcel_uid;
 
