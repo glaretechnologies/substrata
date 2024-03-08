@@ -67,6 +67,7 @@ struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 class SettingsStore;
 class TextRendererFontFace;
+struct URLParseResults;
 
 
 struct DownloadingResourceInfo
@@ -263,7 +264,7 @@ public:
 
 	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
 
-	void connectToServer(const std::string& URL);
+	void connectToServer(const URLParseResults& url_results);
 
 	void processLoading();
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);

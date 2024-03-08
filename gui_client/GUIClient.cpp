@@ -9052,7 +9052,7 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 	if(hostname != this->server_hostname || worldname != this->server_worldname)
 	{
 		// Connect to a different server!
-		connectToServer(URL/*hostname, worldname*/);
+		connectToServer(parse_res);
 	}
 
 	// If we had a URL with a parcel UID, like sub://substrata.info/parcel/10, then look up the parcel to get its position, then go there.
@@ -9294,37 +9294,26 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 }
 
 
-void GUIClient::connectToServer(const std::string& URL)
+void GUIClient::connectToServer(const URLParseResults& parse_res)
 {
-	// By default, randomly vary the position a bit so players don't spawn inside other players.
+	// By default, randomly vary the spawn position a bit so players don't spawn inside other players.
 	const double spawn_r = 4.0;
 	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), 2);
 
-	try
-	{
-		URLParseResults parse_res = URLParser::parseURL(URL);
+	this->server_hostname = parse_res.hostname;
+	this->server_worldname = parse_res.userpath;
 
-		this->server_hostname = parse_res.hostname;
-		this->server_worldname = parse_res.userpath;
+	if(parse_res.parsed_parcel_uid)
+		this->url_parcel_uid = parse_res.parcel_uid;
+	else
+		this->url_parcel_uid = -1;
 
-		if(parse_res.parsed_parcel_uid)
-			this->url_parcel_uid = parse_res.parcel_uid;
-		else
-			this->url_parcel_uid = -1;
-
-		if(parse_res.parsed_x)
-			spawn_pos.x = parse_res.x;
-		if(parse_res.parsed_y)
-			spawn_pos.y = parse_res.y;
-		if(parse_res.parsed_z)
-			spawn_pos.z = parse_res.z;
-	}
-	catch(glare::Exception& e) // Handle URL parse failure
-	{
-		conPrint(e.what());
-		ui_interface->showPlainTextMessageBox("Error parsing URL", e.what());
-		return;
-	}
+	if(parse_res.parsed_x)
+		spawn_pos.x = parse_res.x;
+	if(parse_res.parsed_y)
+		spawn_pos.y = parse_res.y;
+	if(parse_res.parsed_z)
+		spawn_pos.z = parse_res.z;
 
 	//-------------------------------- Do disconnect process --------------------------------
 	disconnectFromServerAndClearAllObjects();
@@ -11837,10 +11826,15 @@ void GUIClient::keyPressed(KeyEvent& e)
 
 	if(e.key == Key::Key_F5)
 	{
-		this->connectToServer("sub://" + this->server_hostname + "/" + this->server_worldname +
-			"?x=" + doubleToStringMaxNDecimalPlaces(this->cam_controller.getPosition().x, 2) + 
-			"&y=" + doubleToStringMaxNDecimalPlaces(this->cam_controller.getPosition().y, 2) + 
-			"&z=" + doubleToStringMaxNDecimalPlaces(this->cam_controller.getPosition().z, 2));
+		URLParseResults url_parse_results;
+		url_parse_results.hostname = this->server_hostname;
+		url_parse_results.userpath = this->server_worldname;
+		url_parse_results.x = this->cam_controller.getPosition().x;
+		url_parse_results.y = this->cam_controller.getPosition().y;
+		url_parse_results.z = this->cam_controller.getPosition().z;
+		url_parse_results.parsed_x = url_parse_results.parsed_y = url_parse_results.parsed_z = true;
+
+		this->connectToServer(url_parse_results);
 	}
 }
 
