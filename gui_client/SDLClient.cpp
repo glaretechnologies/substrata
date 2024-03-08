@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
 #include <networking/URL.h>
+#include <webserver/Escaping.h>
 #include <GL/gl3w.h>
 #include <SDL_opengl.h>
 #include <SDL.h>
@@ -70,6 +71,7 @@ Timer* time_since_last_frame;
 Timer* stats_timer;
 Timer* diagnostics_timer;
 Timer* mem_usage_sampling_timer;
+Timer* last_update_URL_timer;
 int num_frames = 0;
 std::string last_diagnostics;
 bool reset = false;
@@ -104,6 +106,9 @@ EM_JS(char*, getLocationSearch, (), {
 	return stringToNewUTF8(window.location.search);
 });
 
+EM_JS(void, updateURL, (const char* new_URL), {
+	history.replaceState(null, "",  UTF8ToString(new_URL)); // See https://developer.mozilla.org/en-US/docs/Web/API/History/replaceState
+});
 
 #endif
 
@@ -168,6 +173,7 @@ int main(int argc, char** argv)
 		stats_timer = new Timer();
 		diagnostics_timer = new Timer();
 		mem_usage_sampling_timer = new Timer();
+		last_update_URL_timer = new Timer();
 	
 		//=========================== Init SDL and OpenGL ================================
 		if(SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -762,6 +768,28 @@ static void doOneMainLoopIter()
 
 		}
 	}
+
+#if EMSCRIPTEN
+	// Update URL with current camera position
+	if(last_update_URL_timer->elapsed() > 0.1)
+	{
+		std::string url_path = "/webclient/webclient.html?";  // TODO: make just /webclient? when supported
+
+		if(!gui_client->server_worldname.empty()) // Append world if != empty string.
+			url_path += "world=" + web::Escaping::URLEscape(gui_client->server_worldname) + '&';
+
+		const Vec3d pos = gui_client->cam_controller.getFirstPersonPosition();
+
+		// const heading = floatMod(cam_controller.heading * 180 / Math.PI, 360.0);
+
+		url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 1);
+		//  + '&heading=' + heading.toFixed(0);
+	
+		updateURL(url_path.c_str());
+
+		last_update_URL_timer->reset();
+	}
+#endif
 
 	num_frames++;
 }
