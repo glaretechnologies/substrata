@@ -70,6 +70,4 @@ private:
 	glare::AtomicInt should_die;
 public:
 	SocketInterfaceRef socket;
-
-	ThreadSafeQueue<bool> wget_result_queue;
 };

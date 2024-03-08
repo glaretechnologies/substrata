@@ -3955,6 +3955,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 #endif
 
+
+#if defined(EMSCRIPTEN)
+	emscripten_resource_downloader.think();
+#endif
+
+
 	mesh_manager.trimMeshMemoryUsage();
 
 
@@ -9087,6 +9093,10 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	client_udp_handler_thread_manager.killThreadsBlocking();
 	mic_read_thread_manager.killThreadsBlocking();
 
+#if defined(EMSCRIPTEN)
+	emscripten_resource_downloader.shutdown();
+#endif
+
 	this->client_thread_manager.killThreadsNonBlocking(); // Suggests to client_thread to quit, by calling ClientThread::kill(), which sets should_die = 1.
 	resource_download_thread_manager.killThreadsNonBlocking(); // Suggests to DownloadResourcesThreads to quit, by calling DownloadResourcesThread::kill(), which sets should_die = 1.
 
@@ -9097,6 +9107,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 		if(timer.elapsed() > 1.0)
 		{
 			logAndConPrintMessage("Reached time limit waiting for client_thread or resource download threads to close.  Hard-killing connection(s)");
+			logAndConPrintMessage("this->client_thread_manager.getNumThreads(): " + toString(this->client_thread_manager.getNumThreads()));
+			logAndConPrintMessage("this->resource_download_thread_manager.getNumThreads(): " + toString(this->resource_download_thread_manager.getNumThreads()));
 
 			if(this->client_thread_manager.getNumThreads() > 0)
 			{
@@ -9332,14 +9344,16 @@ void GUIClient::connectToServer(const std::string& URL)
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
+#if defined(EMSCRIPTEN)
+	emscripten_resource_downloader.init(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, &this->download_queue);
+#else
 	for(int z=0; z<4; ++z)
 		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
 			&this->download_queue));
 
-#if !defined(EMSCRIPTEN)
 	for(int i=0; i<4; ++i)
 		net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
-#endif
+#endif // end if !defined(EMSCRIPTEN)
 
 	if(physics_world.isNull())
 	{

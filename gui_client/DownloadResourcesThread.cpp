@@ -20,9 +20,6 @@ Copyright Glare Technologies Limited 2021 -
 #include <KillThreadMessage.h>
 #include <PlatformUtils.h>
 #include <FileOutStream.h>
-#if defined(EMSCRIPTEN)
-#include <emscripten/emscripten.h>
-#endif
 
 
 DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_, const std::string& hostname_, int port_, 
@@ -115,146 +112,8 @@ void DownloadResourcesThread::killConnection()
 }
 
 
-#if EMSCRIPTEN
-
-static void onLoad(unsigned int firstarg, void* userdata_arg, const char* filename)
-{
-	// conPrint("DownloadResourcesThread: onLoad: " + std::string(filename) + ", firstarg: " + toString(firstarg));
-
-	DownloadResourcesThread* thread = (DownloadResourcesThread*)userdata_arg;
-
-	thread->wget_result_queue.enqueue(/*wget_succeeded=*/true);
-	
-}
-
-
-static void onError(unsigned int, void* userdata_arg, int http_status_code)
-{
-	// conPrint("DownloadResourcesThread: onError: " + toString(http_status_code));
-
-	DownloadResourcesThread* thread = (DownloadResourcesThread*)userdata_arg;
-
-	thread->wget_result_queue.enqueue(/*wget_succeeded=*/false);
-}
-
-
-static void onProgress(unsigned int, void* userdata_arg, int percent_complete)
-{
-	// conPrint("DownloadResourcesThread: onProgress: " + toString(percent_complete));
-}
-
-#endif // EMSCRIPTEN
-
-
-
 void DownloadResourcesThread::doRun()
 {
-#if EMSCRIPTEN
-	try
-	{
-		std::set<std::string> URLs_to_get; // Set of URLs that this thread will get from the server.
-
-		while(1)
-		{
-			if(should_die)
-			{
-				return;
-			}
-
-			if(URLs_to_get.empty())
-			{
-				// Wait until we have something to download, or we get a kill-thread message.
-
-				download_queue->dequeueItemsWithTimeOut(/*wait_time_s=*/0.1, /*max_num_items=*/4, queue_items);
-				for(size_t i=0; i<queue_items.size(); ++i)
-				{
-					if(!resource_manager->isInDownloadFailedURLs(queue_items[i].URL)) // Don't try to re-download if we already failed to download this session.
-						URLs_to_get.insert(queue_items[i].URL);
-				}
-
-
-				// Get any more messages from the queue while we're woken up.
-				if(checkMessageQueue(getMessageQueue()))
-				{
-					socket->writeInt32(Protocol::CyberspaceGoodbye);
-					socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the server.
-					return; // if got kill message, return.
-				}
-			}
-			else
-			{
-				for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); )
-				{
-					ResourceRef resource = resource_manager->getOrCreateResourceForURL(*it);
-					if(resource->getState() != Resource::State_NotPresent)
-					{
-						//conPrint("Already have file or downloading file '" + *it + "', not downloading.");
-						auto to_remove = it++;
-						URLs_to_get.erase(to_remove);
-					}
-					else
-					{
-						resource->setState(Resource::State_Transferring);
-						++it;
-					}
-				}
-
-				(*this->num_resources_downloading) += URLs_to_get.size();
-				NumNonNetResourcesDownloadingDecrementor decrementor;
-				decrementor.num_resources_downloading = this->num_resources_downloading;
-				decrementor.max_decrements = (int)URLs_to_get.size();
-
-				if(!URLs_to_get.empty())
-				{
-					for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
-					{
-						const std::string URL = *it;
-						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
-
-						const bool use_TLS = hostname != "localhost"; // Don't use TLS on localhost for now, for testing.
-						const std::string protocol = use_TLS ? "https" : "http";
-						const std::string http_URL = protocol + "://" + hostname + "/resource/" + URL;
-						//conPrint("Calling emscripten_wget_data for URL '" + http_URL + "'...");
-
-						const std::string local_abs_path = resource_manager->getLocalAbsPathForResource(*resource);
-
-						emscripten_async_wget2(http_URL.c_str(), local_abs_path.c_str(), /*requesttype =*/"GET", /*POST params=*/"", /*userdata arg=*/this, onLoad, onError, onProgress);
-
-						// Block until wget is done.
-						const bool wget_succeeded = wget_result_queue.dequeue();
-
-						if(wget_succeeded)
-						{
-							resource->setState(Resource::State_Present);
-							resource_manager->markAsChanged();
-
-							out_msg_queue->enqueue(new ResourceDownloadedMessage(URL));
-						}
-						else
-						{
-							resource_manager->addToDownloadFailedURLs(URL);
-
-							resource->setState(Resource::State_NotPresent);
-							//conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "'");// (Result=" + toString(result) + ")");
-							out_msg_queue->enqueue(new LogMessage("Server couldn't send resource '" + URL + "' (resource not found)"));
-						}
-
-						(*this->num_resources_downloading)--;
-						decrementor.num_decrements++;
-					} // End for each URL
-				}
-
-				URLs_to_get.clear();
-			}
-		}
-	}
-	catch(glare::Exception& e)
-	{
-		conPrint("DownloadResourcesThread glare::Exception: " + e.what());
-	}
-
-#else // else if !EMSCRIPTEN:
-
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("DownloadResourcesThread");
 
 	try
@@ -446,7 +305,6 @@ void DownloadResourcesThread::doRun()
 	{
 		conPrint("DownloadResourcesThread glare::Exception: " + e.what());
 	}
-#endif // end if !EMSCRIPTEN
 }
 
 

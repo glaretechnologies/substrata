@@ -241,6 +241,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/WinterShaderEvaluator.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/WinterShaderEvaluator.h
 ${CMAKE_SOURCE_DIR}/gui_client/WorldState.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/WorldState.h
+${CMAKE_SOURCE_DIR}/gui_client/EmscriptenResourceDownloader.cpp
+${CMAKE_SOURCE_DIR}/gui_client/EmscriptenResourceDownloader.h
 )
 
 
@@ -1041,11 +1043,10 @@ if(EMSCRIPTEN)
 	# main_task_manager:							8
 	# high_priority_task_manager:					8
 	# model_and_texture_loader_task_manager:		8
-	# DownloadResourcesThread:						4
 	# ClientSenderThread							1
 	# ClientThread									1
 	# 
-	# Total:										30
+	# Total:										26
 	
 	target_link_options(${CURRENT_TARGET} PRIVATE
 		"-s USE_WEBGL=1"
@@ -1062,7 +1063,7 @@ if(EMSCRIPTEN)
 		#"-sMAXIMUM_MEMORY=4GB"
 		"-pthread"
 	#	"-s USE_SDL=2"
-		"-sPTHREAD_POOL_SIZE=30" # See calculation above
+		"-sPTHREAD_POOL_SIZE=26" # See calculation above
 		"-sSTACK_SIZE=262144"
 		#"-sMAIN_MODULE=2"
 		#"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
