@@ -74,6 +74,8 @@ TerrainScattering::TerrainScattering()
 	large_tree_chunks.resize(LARGE_TREE_CHUNK_GRID_RES, LARGE_TREE_CHUNK_GRID_RES);
 	last_centre_x = -1000000;
 	last_centre_y = -1000000;
+	any_large_tree_chunk_invalidated = false;
+	num_imposter_obs_inserted = 0;
 
 	tree_ob_chunks.resize(TREE_OB_CHUNK_GRID_RES, TREE_OB_CHUNK_GRID_RES);
 	last_ob_centre_i = Vec2i(-1000000);
@@ -124,6 +126,8 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 	opengl_engine = opengl_engine_;
 	physics_world = physics_world_;
 	biome_manager = biome_manager_;
+
+	any_large_tree_chunk_invalidated = false;
 
 	{
 		const std::string grass_billboard_tex_path = base_dir_path + "/resources/grass clump billboard 2.png";
@@ -363,6 +367,7 @@ void TerrainScattering::shutdown()
 		if(chunk.imposters_gl_ob.nonNull())
 			opengl_engine->removeObject(chunk.imposters_gl_ob);
 	}
+	num_imposter_obs_inserted = 0;
 
 	//-------------- Remove from tree_ob_chunks ---------------
 	for(int y=0; y<TREE_OB_CHUNK_GRID_RES; ++y)
@@ -411,26 +416,57 @@ void TerrainScattering::invalidateVegetationMap(const js::AABBox& aabb_ws)
 {
 	// conPrint("TerrainScattering::invalidateVegetationMap()");
 
-	last_centre_x = -100000;
-	last_centre_y = -100000;
+	// Invalidate large tree chunks that intersect the AABB
+	{
+		any_large_tree_chunk_invalidated = true;
 
+		const int start_x = Maths::floorToInt(aabb_ws.min_[0] / LARGE_TREE_CHUNK_W);
+		const int start_y = Maths::floorToInt(aabb_ws.min_[1] / LARGE_TREE_CHUNK_W);
+		const int end_x   = Maths::floorToInt(aabb_ws.max_[0] / LARGE_TREE_CHUNK_W) + 1; // exclusive
+		const int end_y   = Maths::floorToInt(aabb_ws.max_[1] / LARGE_TREE_CHUNK_W) + 1; // exclusive
+
+		const int x0 = last_centre_x        - LARGE_TREE_CHUNK_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around camera position
+		const int y0 = last_centre_y        - LARGE_TREE_CHUNK_GRID_RES/2;
+		const int wrapped_x0 = Maths::intMod(x0, LARGE_TREE_CHUNK_GRID_RES);
+		const int wrapped_y0 = Maths::intMod(y0, LARGE_TREE_CHUNK_GRID_RES);
+
+		// Iterate over wrapped coordinates
+		LargeTreeChunk* const large_tree_chunks_data = large_tree_chunks.getData();
+		for(int j=0; j<LARGE_TREE_CHUNK_GRID_RES; ++j)
+		for(int i=0; i<LARGE_TREE_CHUNK_GRID_RES; ++i)
+		{
+			// Compute unwrapped cell indices:
+			const int x = x0 + i - wrapped_x0 + ((i >= wrapped_x0) ? 0 : LARGE_TREE_CHUNK_GRID_RES);
+			const int y = y0 + j - wrapped_y0 + ((j >= wrapped_y0) ? 0 : LARGE_TREE_CHUNK_GRID_RES);
+
+			if( x >= start_x && x < end_x && // If cell index lies in invalidated region:
+				y >= start_y && y < end_y)
+			{
+				large_tree_chunks_data[i + j * LARGE_TREE_CHUNK_GRID_RES].valid = false; // Mark as invalid
+			}
+		}
+	}
+
+	// TODO: invalidate this stuff in a more precise way like with large tree chunks above.
 	last_ob_centre_i = Vec2i(-100000);
 
 	for(size_t i=0; i<grid_scatters.size(); ++i)
 		grid_scatters[i]->last_centre = Vec2i(-100000);
 
 
-	const int start_x = myClamp(Maths::floorToInt(aabb_ws.min_[0] / detail_mask_map_width_m)     + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
-	const int start_y = myClamp(Maths::floorToInt(aabb_ws.min_[1] / detail_mask_map_width_m)     + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
-	const int end_x   = myClamp(Maths::floorToInt(aabb_ws.max_[0] / detail_mask_map_width_m) + 1 + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES); // exclusive
-	const int end_y   = myClamp(Maths::floorToInt(aabb_ws.max_[1] / detail_mask_map_width_m) + 1 + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
-
-	for(int y=start_y; y<end_y; ++y)
-	for(int x=start_x; x<end_x; ++x)
 	{
-		// conPrint("invalidating section " + toString(x) + ", " + toString(y));
+		const int start_x = myClamp(Maths::floorToInt(aabb_ws.min_[0] / detail_mask_map_width_m)     + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
+		const int start_y = myClamp(Maths::floorToInt(aabb_ws.min_[1] / detail_mask_map_width_m)     + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
+		const int end_x   = myClamp(Maths::floorToInt(aabb_ws.max_[0] / detail_mask_map_width_m) + 1 + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES); // exclusive
+		const int end_y   = myClamp(Maths::floorToInt(aabb_ws.max_[1] / detail_mask_map_width_m) + 1 + DETAIL_MASK_MAP_SECTION_RES/2, 0, DETAIL_MASK_MAP_SECTION_RES);
 
-		detail_mask_map_sections[x + y*DETAIL_MASK_MAP_SECTION_RES].gl_tex_valid = false;
+		for(int y=start_y; y<end_y; ++y)
+		for(int x=start_x; x<end_x; ++x)
+		{
+			// conPrint("invalidating section " + toString(x) + ", " + toString(y));
+
+			detail_mask_map_sections[x + y*DETAIL_MASK_MAP_SECTION_RES].gl_tex_valid = false;
+		}
 	}
 }
 
@@ -516,8 +552,6 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 
 
 */
-static int num_imposter_obs_inserted = 0;
-
 void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator)
 {
 	// Build detail mask maps for any invalid sections.
@@ -534,9 +568,10 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& 
 	const int large_chunk_centre_y = Maths::floorToInt(campos.y / LARGE_TREE_CHUNK_W);
 	
 	// Update tree info and imposters
-	if(large_chunk_centre_x != last_centre_x || large_chunk_centre_y != last_centre_y)
+	if(large_chunk_centre_x != last_centre_x || large_chunk_centre_y != last_centre_y || any_large_tree_chunk_invalidated)
 	{
 		Timer timer;
+		int num_chunks_updated = 0;
 
 		const int x0     = large_chunk_centre_x - LARGE_TREE_CHUNK_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around new camera position
 		const int y0     = large_chunk_centre_y - LARGE_TREE_CHUNK_GRID_RES/2;
@@ -560,12 +595,14 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& 
 			const int old_x = old_x0 + i - old_wrapped_x0 + ((i >= old_wrapped_x0) ? 0 : LARGE_TREE_CHUNK_GRID_RES);
 			const int old_y = old_y0 + j - old_wrapped_y0 + ((j >= old_wrapped_y0) ? 0 : LARGE_TREE_CHUNK_GRID_RES);
 
+			LargeTreeChunk& chunk = large_tree_chunks_data[i + j * LARGE_TREE_CHUNK_GRID_RES];
+
 			if( old_x < x0 || old_x >= x0 + LARGE_TREE_CHUNK_GRID_RES || 
-				old_y < y0 || old_y >= y0 + LARGE_TREE_CHUNK_GRID_RES)
+				old_y < y0 || old_y >= y0 + LARGE_TREE_CHUNK_GRID_RES ||
+				!chunk.valid	
+				)
 			{
-				// This chunk is out of range of new camera.
-					
-				LargeTreeChunk& chunk = large_tree_chunks_data[i + j * LARGE_TREE_CHUNK_GRID_RES];
+				// This chunk is out of range of new camera, or has been invalidated
 
 				// Unload objects in this cell, if any:
 				if(chunk.imposters_gl_ob.nonNull())
@@ -586,16 +623,22 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& 
 
 				makeTreeChunk(x, y, bump_allocator, chunk); // Sets chunk.tree_info and chunk.imposters_gl_ob.
 				if(chunk.imposters_gl_ob.nonNull())
+				{
 					opengl_engine->addObject(chunk.imposters_gl_ob);
-				num_imposter_obs_inserted++;
+					num_imposter_obs_inserted++;
+				}
+				chunk.valid = true;
+
+				num_chunks_updated++;
 			}
 		}
 
 		last_centre_x = large_chunk_centre_x;
 		last_centre_y = large_chunk_centre_y;
+		any_large_tree_chunk_invalidated = false;
 
-		//conPrint("Updating imposter chunks took " + timer.elapsedString());
-		//printVar(num_imposter_obs_inserted);
+		// conPrint("Updating imposter chunks took " + timer.elapsedString() + " (num_chunks_updated: " + toString(num_chunks_updated) + ")");
+		// printVar(num_imposter_obs_inserted);
 	}
 
 	// Update individual tree info (small chunks)
@@ -1015,6 +1058,8 @@ void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_inde
 	const float overscatter_factor = (float)(1 + 3 * evenness*evenness);
 
 	const int N = (int)std::ceil(surface_area * density * overscatter_factor);
+
+	//conPrint("TerrainScattering::buildVegLocationInfo(), N: " + toString(N));
 
 	// We want grid cell width for the hash table to be roughly equal to 2 * the point spacing.
 	// A density of d imples an average area per point of 1/d, and hance an average side width per point of sqrt(1/d)

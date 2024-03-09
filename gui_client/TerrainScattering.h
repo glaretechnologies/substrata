@@ -68,8 +68,11 @@ public:
 
 	struct LargeTreeChunk
 	{
+		LargeTreeChunk() : valid(true) {} 
+
 		js::Vector<VegetationLocationInfo, 16> locations;
 		GLObjectRef imposters_gl_ob;
+		bool valid;
 	};
 
 
@@ -149,9 +152,12 @@ private:
 	PhysicsWorld* physics_world;
 	BiomeManager* biome_manager;
 	
-	// Grid of LargeTreeChunk: Each LargeTreeChunk contains a list of tree positions in that chunk, plus an imposter GLObject.
+	// Grid of LargeTreeChunk: Each LargeTreeChunk contains a list of tree positions in that chunk, plus an imposter GLObject that contains multiple tree imposter quads.
 	Array2D<LargeTreeChunk> large_tree_chunks;
 	int last_centre_x, last_centre_y;
+	bool any_large_tree_chunk_invalidated; // Are there one or more large tree chunks that have been invalidated?
+
+	int num_imposter_obs_inserted;
 	
 	// Grid of SmallTreeObjectChunk: Each SmallTreeObjectChunk contains a list of individual tree GLObjects and physics objects.
 	Array2D<SmallTreeObjectChunk> tree_ob_chunks;
@@ -164,6 +170,7 @@ private:
 	//Vec2i last_near_grass_centre;
 
 
+	// Used for grass
 	std::vector<Reference<GridScatter>> grid_scatters;
 
 	//js::Vector<VegetationLocationInfo, 16> temp_locations;
