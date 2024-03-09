@@ -150,7 +150,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	frame_num(0),
 	axis_and_rot_obs_enabled(false),
 	last_vehicle_renewal_msg_time(-1),
-	bump_allocator(/*size (B)=*/4 * 1024 * 1024),
+	stack_allocator(/*size (B)=*/4 * 1024 * 1024),
 	server_protocol_version(0),
 	settings(NULL),
 	ui_interface(NULL)
@@ -5427,7 +5427,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		checkForAudioRangeChanges();
 
 	if(terrain_system.nonNull())
-		terrain_system->updateCampos(this->cam_controller.getPosition(), bump_allocator);
+		terrain_system->updateCampos(this->cam_controller.getPosition(), stack_allocator);
 
 	if(terrain_decal_manager.nonNull())
 		terrain_decal_manager->think((float)dt);
@@ -6985,7 +6985,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
 	msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
 	msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
-	msg += "bump allocator high water mark: " + getNiceByteSize(bump_allocator.highWaterMark()) + " / " + getNiceByteSize(bump_allocator.size()) + "\n";
+	msg += "stack allocator high water mark: " + getNiceByteSize(stack_allocator.highWaterMark()) + " / " + getNiceByteSize(stack_allocator.size()) + "\n";
 
 	if(texture_server.nonNull())
 		msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
@@ -11185,7 +11185,7 @@ void GUIClient::updateGroundPlane()
 
 
 		terrain_system = new TerrainSystem();
-		terrain_system->init(path_spec, this->base_dir_path, opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, bump_allocator, &this->msg_queue);
+		terrain_system->init(path_spec, this->base_dir_path, opengl_engine.ptr(), this->physics_world.ptr(), biome_manager, this->cam_controller.getPosition(), &this->model_and_texture_loader_task_manager, stack_allocator, &this->msg_queue);
 	}
 
 #if 0

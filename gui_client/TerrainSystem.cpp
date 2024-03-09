@@ -221,7 +221,8 @@ static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* o
 }
 
 
-void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_dir_path, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::TaskManager* task_manager_, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
+void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_dir_path, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::TaskManager* task_manager_, 
+	glare::StackAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
 {
 	spec = spec_;
 	opengl_engine = opengl_engine_;
@@ -504,7 +505,7 @@ void TerrainSystem::shutdown()
 }
 
 
-void TerrainSystem::updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator)
+void TerrainSystem::updateCampos(const Vec3d& campos, glare::StackAllocator& bump_allocator)
 {
 	updateSubtree(root_node.ptr(), campos);
 

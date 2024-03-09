@@ -45,7 +45,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/PoolAllocator.h"
 #include "../utils/FastPoolAllocator.h"
 #include "../utils/TestUtils.h"
-#include "../utils/BumpAllocator.h"
+#include "../utils/StackAllocator.h"
 #include "../utils/PlatformUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/Timer.h"
@@ -132,7 +132,7 @@ void TestSuite::test()
 	runTest([&]() { Matrix4f::test(); });
 	runTest([&]() { NonZeroMipMap::test(); });
 	runTest([&]() { js::VectorUnitTests::test(); });
-	runTest([&]() { glare::BumpAllocator::test(); });
+	runTest([&]() { glare::StackAllocator::test(); });
 	runTest([&]() { glare::AtomicInt::test(); });
 	runTest([&]() { TextureProcessingTests::test(); });
 	runTest([&]() { ImageMapTests::test(); });

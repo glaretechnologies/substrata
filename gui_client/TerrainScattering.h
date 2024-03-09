@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/RefCounted.h"
 #include "../utils/Reference.h"
 #include "../utils/Array2D.h"
-#include "../utils/BumpAllocator.h"
+#include "../utils/StackAllocator.h"
 #include "../maths/Matrix4f.h"
 #include "../maths/vec3.h"
 #include "../maths/vec2.h"
@@ -39,7 +39,7 @@ public:
 	TerrainScattering();
 	~TerrainScattering();
 
-	void init(const std::string& base_dir_path, TerrainSystem* terrain_system, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::BumpAllocator& bump_allocator);
+	void init(const std::string& base_dir_path, TerrainSystem* terrain_system, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::StackAllocator& bump_allocator);
 
 	void shutdown();
 
@@ -47,7 +47,7 @@ public:
 
 	void invalidateVegetationMap(const js::AABBox& aabb_ws);
 
-	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
+	void updateCampos(const Vec3d& campos, glare::StackAllocator& bump_allocator);
 
 	std::string getDiagnostics() const;
 
@@ -130,18 +130,18 @@ public:
 
 
 private:
-	void updateCamposForGridScatter(const Vec3d& campos, glare::BumpAllocator& bump_allocator, GridScatter& grid_scatter);
-	void makeTreeChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, LargeTreeChunk& chunk);
+	void updateCamposForGridScatter(const Vec3d& campos, glare::StackAllocator& bump_allocator, GridScatter& grid_scatter);
+	void makeTreeChunk(int chunk_x_index, int chunk_y_index, glare::StackAllocator& bump_allocator, LargeTreeChunk& chunk);
 	//void makeGrassChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, GrassChunk& chunk);
 	//void makeNearGrassChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, NearGrassChunk& chunk);
-	void makeGridScatterChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, GridScatter& grid_scatter, GridScatterChunk& chunk);
+	void makeGridScatterChunk(int chunk_x_index, int chunk_y_index, glare::StackAllocator& bump_allocator, GridScatter& grid_scatter, GridScatterChunk& chunk);
 	void updateGridScatterChunkWithComputeShader(int chunk_x_index, int chunk_y_index, GridScatter& grid_scatter, GridScatterChunk& chunk);
 
-	void buildPrecomputedPoints(float chunk_w_m, float density, glare::BumpAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>& precomputed_points);
-	GLObjectRef buildVegLocationsAndImposterGLOb(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, float imposter_width_over_height, glare::BumpAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>* precomputed_points, js::Vector<VegetationLocationInfo, 16>& locations_out);
-	GLObjectRef makeUninitialisedImposterGLOb(glare::BumpAllocator& bump_allocator, const js::Vector<PrecomputedPoint, 16>& precomputed_points);
+	void buildPrecomputedPoints(float chunk_w_m, float density, glare::StackAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>& precomputed_points);
+	GLObjectRef buildVegLocationsAndImposterGLOb(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, float imposter_width_over_height, glare::StackAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>* precomputed_points, js::Vector<VegetationLocationInfo, 16>& locations_out);
+	GLObjectRef makeUninitialisedImposterGLOb(glare::StackAllocator& bump_allocator, const js::Vector<PrecomputedPoint, 16>& precomputed_points);
 
-	void buildVegLocationInfo(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::BumpAllocator& bump_allocator, js::Vector<VegetationLocationInfo, 16>& locations_out);
+	void buildVegLocationInfo(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::StackAllocator& bump_allocator, js::Vector<VegetationLocationInfo, 16>& locations_out);
 	//void buildVegLocationInfoWithPrecomputedPoints(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::BumpAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>& points, js::Vector<VegetationLocationInfo, 16>& locations_out);
 	void rebuildDetailMaskMapSection(int section_x, int section_y);
 

@@ -120,7 +120,8 @@ struct ShaderChunkInfo
 };
 
 
-void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* terrain_system_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, glare::BumpAllocator& bump_allocator)
+void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* terrain_system_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, BiomeManager* biome_manager_, const Vec3d& campos, 
+	glare::StackAllocator& bump_allocator)
 {
 	terrain_system = terrain_system_;
 	opengl_engine = opengl_engine_;
@@ -552,7 +553,7 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 
 
 */
-void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator)
+void TerrainScattering::updateCampos(const Vec3d& campos, glare::StackAllocator& bump_allocator)
 {
 	// Build detail mask maps for any invalid sections.
 	for(int y=0; y<DETAIL_MASK_MAP_SECTION_RES; ++y)
@@ -873,7 +874,7 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::BumpAllocator& 
 }
 
 
-void TerrainScattering::updateCamposForGridScatter(const Vec3d& campos, glare::BumpAllocator& bump_allocator, GridScatter& grid_scatter)
+void TerrainScattering::updateCamposForGridScatter(const Vec3d& campos, glare::StackAllocator& bump_allocator, GridScatter& grid_scatter)
 {
 	const Vec2i centre(
 		Maths::floorToInt(campos.x / grid_scatter.chunk_width),
@@ -941,7 +942,7 @@ static inline unsigned int computeHash(int x, int y, unsigned int hash_mask)
 }
 
 
-void TerrainScattering::buildPrecomputedPoints(float chunk_w_m, float density, glare::BumpAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>& precomputed_points)
+void TerrainScattering::buildPrecomputedPoints(float chunk_w_m, float density, glare::StackAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>& precomputed_points)
 {
 	PCG32 rng(/*initstate=*/1, /*initseq=*/1);
 
@@ -969,7 +970,7 @@ void TerrainScattering::buildPrecomputedPoints(float chunk_w_m, float density, g
 
 	const size_t num_buckets = myMax<size_t>(8, Maths::roundToNextHighestPowerOf2((size_t)(N * 1.5f)));
 
-	glare::BumpAllocation hashed_points_allocation(num_buckets * sizeof(Vec3f), /*alignment=*/16, bump_allocator);
+	glare::StackAllocation hashed_points_allocation(num_buckets * sizeof(Vec3f), /*alignment=*/16, bump_allocator);
 	Vec3f* const hashed_points = (Vec3f*)hashed_points_allocation.ptr;
 	for(size_t i=0; i<num_buckets; ++i)
 		hashed_points[i] = Vec3f(std::numeric_limits<float>::infinity());
@@ -1045,7 +1046,7 @@ scatterpos_invalid: ; // Null statement for goto label.
 
 
 // Compute a list of pseudo-random vegetation positions distributed over the given terrain chunk.
-void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::BumpAllocator& bump_allocator, js::Vector<VegetationLocationInfo, 16>& locations_out)
+void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::StackAllocator& bump_allocator, js::Vector<VegetationLocationInfo, 16>& locations_out)
 {
 	PCG32 rng(/*initstate=*/chunk_x_index, /*initseq=*/chunk_y_index);
 
@@ -1075,7 +1076,7 @@ void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_inde
 
 	const size_t num_buckets = myMax<size_t>(8, Maths::roundToNextHighestPowerOf2((size_t)(N * 1.5f)));
 
-	glare::BumpAllocation hashed_points_allocation(num_buckets * sizeof(Vec3f), /*alignment=*/16, bump_allocator);
+	glare::StackAllocation hashed_points_allocation(num_buckets * sizeof(Vec3f), /*alignment=*/16, bump_allocator);
 	Vec3f* const hashed_points = (Vec3f*)hashed_points_allocation.ptr;
 	for(size_t i=0; i<num_buckets; ++i)
 		hashed_points[i] = Vec3f(std::numeric_limits<float>::infinity());
@@ -1186,7 +1187,7 @@ scatterpos_invalid: ; // Null statement for goto label.
 
 // Compute a list of pseudo-random vegetation positions distributed over the given terrain chunk.
 #if 0
-void TerrainScattering::buildVegLocationInfoWithPrecomputedPoints(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::BumpAllocator& bump_allocator, 
+void TerrainScattering::buildVegLocationInfoWithPrecomputedPoints(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, glare::StackAllocator& bump_allocator, 
 	js::Vector<PrecomputedPoint, 16>& points, js::Vector<VegetationLocationInfo, 16>& locations_out)
 {
 	locations_out.resize(0);
@@ -1228,7 +1229,7 @@ void TerrainScattering::buildVegLocationInfoWithPrecomputedPoints(int chunk_x_in
 
 
 GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_index, int chunk_y_index, float chunk_w_m, float density, float base_scale, float imposter_width_over_height,
-	glare::BumpAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>* precomputed_points, js::Vector<VegetationLocationInfo, 16>& locations_out)
+	glare::StackAllocator& bump_allocator, js::Vector<PrecomputedPoint, 16>* precomputed_points, js::Vector<VegetationLocationInfo, 16>& locations_out)
 {
 	//Timer timer;
 
@@ -1326,7 +1327,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 	assert(in_vert_offset_B == vert_size_B);
 
 
-	glare::BumpAllocation temp_vert_data(N * 4 * vert_size_B, /*alignment=*/8, bump_allocator);
+	glare::StackAllocation temp_vert_data(N * 4 * vert_size_B, /*alignment=*/8, bump_allocator);
 	uint8* const vert_data = (uint8*)temp_vert_data.ptr;
 
 	js::AABBox aabb_os = js::AABBox::emptyAABBox();
@@ -1391,7 +1392,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 	mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocate(mesh_data->vertex_spec, temp_vert_data.ptr, temp_vert_data.size);
 
 	// Build index data
-	glare::BumpAllocation temp_index_data(sizeof(uint16) * N * 6, /*alignment=*/8, bump_allocator);
+	glare::StackAllocation temp_index_data(sizeof(uint16) * N * 6, /*alignment=*/8, bump_allocator);
 	uint16* const indices = (uint16*)temp_index_data.ptr;
 
 	for(int i=0; i<N; ++i)
@@ -1448,7 +1449,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 
 
 // Build the imposter ob without setting the vertex data - that will be computed in a compute shader.
-GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocator& bump_allocator, const js::Vector<PrecomputedPoint, 16>& precomputed_points)
+GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::StackAllocator& bump_allocator, const js::Vector<PrecomputedPoint, 16>& precomputed_points)
 {
 	const int N = (int)precomputed_points.size();
 
@@ -1523,7 +1524,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocato
 	mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocate(mesh_data->vertex_spec, NULL, total_vert_data_size_B);
 
 	// Build index data
-	glare::BumpAllocation temp_index_data(sizeof(uint16) * N * 6, /*alignment=*/8, bump_allocator);
+	glare::StackAllocation temp_index_data(sizeof(uint16) * N * 6, /*alignment=*/8, bump_allocator);
 	uint16* const indices = (uint16*)temp_index_data.ptr;
 
 	for(int i=0; i<N; ++i)
@@ -1575,7 +1576,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::BumpAllocato
 //static int total_num_trees = 0;
 
 // Build and sets chunk.tree_info and chunk.imposters_gl_ob
-void TerrainScattering::makeTreeChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, LargeTreeChunk& chunk)
+void TerrainScattering::makeTreeChunk(int chunk_x_index, int chunk_y_index, glare::StackAllocator& bump_allocator, LargeTreeChunk& chunk)
 {
 	const float density = 0.005f;
 	const float base_scale = 3.f;
@@ -1601,7 +1602,7 @@ void TerrainScattering::makeTreeChunk(int chunk_x_index, int chunk_y_index, glar
 }
 
 #if 0
-void TerrainScattering::makeGrassChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, GrassChunk& chunk)
+void TerrainScattering::makeGrassChunk(int chunk_x_index, int chunk_y_index, glare::StackAllocator& bump_allocator, GrassChunk& chunk)
 {
 	const float density = 10.f;
 	const float base_scale = 0.15f;
@@ -1622,7 +1623,7 @@ void TerrainScattering::makeGrassChunk(int chunk_x_index, int chunk_y_index, gla
 #endif
 
 
-void TerrainScattering::makeGridScatterChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, GridScatter& grid_scatter, GridScatterChunk& chunk)
+void TerrainScattering::makeGridScatterChunk(int chunk_x_index, int chunk_y_index, glare::StackAllocator& bump_allocator, GridScatter& grid_scatter, GridScatterChunk& chunk)
 {
 	//chunk.imposters_gl_ob = buildVegLocationsAndImposterGLOb(chunk_x_index, chunk_y_index, grid_scatter.chunk_width, grid_scatter.density, grid_scatter.base_scale, grid_scatter.imposter_width_over_height, 
 	//	bump_allocator, /*precomputed points=*/&grid_scatter.precomputed_points, /*locations out=*/temp_locations);
@@ -1826,7 +1827,7 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 
 
 #if 0
-void TerrainScattering::makeNearGrassChunk(int chunk_x_index, int chunk_y_index, glare::BumpAllocator& bump_allocator, NearGrassChunk& chunk)
+void TerrainScattering::makeNearGrassChunk(int chunk_x_index, int chunk_y_index, glare::StackAllocator& bump_allocator, NearGrassChunk& chunk)
 {
 	const float density = 10.f;
 	const float base_scale = 0.1f;

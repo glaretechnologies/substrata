@@ -14,7 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
 #include <utils/Array2D.h>
-#include <utils/BumpAllocator.h>
+#include <utils/StackAllocator.h>
 #include <maths/Matrix4f.h>
 #include <maths/vec3.h>
 #include <string>
@@ -149,7 +149,7 @@ public:
 	friend class TerrainScattering;
 	friend class MakeTerrainChunkTask;
 
-	void init(const TerrainPathSpec& spec, const std::string& base_dir_path, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::TaskManager* task_manager, glare::BumpAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue);
+	void init(const TerrainPathSpec& spec, const std::string& base_dir_path, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, BiomeManager* biome_manager, const Vec3d& campos, glare::TaskManager* task_manager, glare::StackAllocator& bump_allocator, ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue);
 
 	void shutdown();
 
@@ -158,7 +158,7 @@ public:
 
 	void handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg& msg);
 
-	void updateCampos(const Vec3d& campos, glare::BumpAllocator& bump_allocator);
+	void updateCampos(const Vec3d& campos, glare::StackAllocator& bump_allocator);
 
 	void rebuildScattering();
 
