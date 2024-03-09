@@ -30,7 +30,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/WorldObject.h"
 #include <utils/ArgumentParser.h>
 #include <utils/Timer.h>
-#include <utils/BumpAllocator.h>
+#include <utils/StackAllocator.h>
 #include <utils/TaskManager.h>
 #include <utils/StandardPrintOutput.h>
 #include <utils/SocketBufferOutStream.h>
@@ -579,7 +579,7 @@ public:
 
 	Reference<ParticleManager> particle_manager;
 
-	glare::BumpAllocator bump_allocator;
+	glare::StackAllocator stack_allocator;
 
 
 	Mutex particles_creation_buf_mutex;

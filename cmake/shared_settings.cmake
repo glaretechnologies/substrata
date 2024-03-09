@@ -133,8 +133,8 @@ ${UTILS_DIR}/BufferInStream.cpp
 ${UTILS_DIR}/BufferInStream.h
 ${UTILS_DIR}/BufferOutStream.cpp
 ${UTILS_DIR}/BufferOutStream.h
-${UTILS_DIR}/BumpAllocator.cpp
-${UTILS_DIR}/BumpAllocator.h
+${UTILS_DIR}/StackAllocator.cpp
+${UTILS_DIR}/StackAllocator.h
 ${UTILS_DIR}/CircularBuffer.cpp
 ${UTILS_DIR}/CircularBuffer.h
 ${UTILS_DIR}/Checksum.cpp
