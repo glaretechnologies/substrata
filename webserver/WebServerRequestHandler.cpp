@@ -580,9 +580,13 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			}
 				
 		}
-		else if(::hasPrefix(request.path, "/webclient/"))
+		else if(::hasPrefix(request.path, "/webclient/") || request.path == "/gui_client.data")
 		{
-			const std::string path = ::eatPrefix(request.path, "/webclient/");
+			std::string path;
+			if(request.path == "/gui_client.data") // gui_client.js fetches gui_client.data from this URL path, not sure how to change it.
+				path = "gui_client.data";
+			else
+				path = ::eatPrefix(request.path, "/webclient/");
 
 			Reference<WebDataStoreFile> store_file;
 			{
