@@ -267,6 +267,7 @@ int main(int argc, char** argv)
 		settings.allow_bindless_textures = true; // TEMP
 #if defined(EMSCRIPTEN)
 		settings.use_general_arena_mem_allocator = false;
+		settings.max_tex_CPU_mem_usage = 512 * 1024 * 1024ull;
 #endif
 		//settings.use_general_arena_mem_allocator = false; // TEMP
 
