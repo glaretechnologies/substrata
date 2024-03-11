@@ -536,20 +536,6 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ResourceHandlers::listResources(*this->world_state, request, reply_info);
 		}*/
-		else if(request.path == "/webclient")
-		{
-			try
-			{
-				std::string contents;
-				FileUtils::readEntireFile(data_store->webclient_dir + "/webclient.html", contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents);
-			}
-			catch(FileUtils::FileUtilsExcep& e)
-			{
-				conPrint("Failed to load file /webclient: " + e.what());
-				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file /webclient");
-			}
-		}
 		else if(dev_mode && ::hasPrefix(request.path, "/webclient/"))
 		{
 			try
@@ -580,10 +566,12 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			}
 				
 		}
-		else if(::hasPrefix(request.path, "/webclient/") || request.path == "/gui_client.data")
+		else if(::hasPrefix(request.path, "/webclient/") || request.path == "/webclient" || request.path == "/gui_client.data")
 		{
 			std::string path;
-			if(request.path == "/gui_client.data") // gui_client.js fetches gui_client.data from this URL path, not sure how to change it.
+			if(request.path == "/webclient")
+				path = "webclient.html";
+			else if(request.path == "/gui_client.data") // gui_client.js fetches gui_client.data from this URL path, not sure how to change it.
 				path = "gui_client.data";
 			else
 				path = ::eatPrefix(request.path, "/webclient/");
