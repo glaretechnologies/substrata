@@ -732,8 +732,6 @@ static void doOneMainLoopIter()
 			if(e.button.clicks == 1) // Single click:
 			{
 				SDL_SetRelativeMouseMode(SDL_TRUE);
-				
-				gui_client->mouseClicked(mouse_event);
 			}
 			else if(e.button.clicks == 2) // Double click:
 			{
