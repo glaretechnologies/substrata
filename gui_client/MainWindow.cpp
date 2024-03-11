@@ -31,6 +31,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "QSettingsStore.h"
 #include "URLWidget.h"
 #include "URLWhitelist.h"
+#include "URLParser.h"
 #include "CEF.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
@@ -2359,7 +2360,10 @@ void MainWindow::on_actionThird_Person_Camera_triggered()
 
 void MainWindow::on_actionGoToMainWorld_triggered()
 {
-	gui_client.connectToServer("sub://" + gui_client.server_hostname);// this->server_hostname, "");
+	URLParseResults parse_results;
+	parse_results.hostname = gui_client.server_hostname;
+
+	gui_client.connectToServer(parse_results);
 }
 
 
@@ -2367,7 +2371,11 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 {
 	if(gui_client.logged_in_user_name != "")
 	{
-		gui_client.connectToServer("sub://" + gui_client.server_hostname + "/" + gui_client.logged_in_user_name); //  this->server_hostname, this->logged_in_user_name);
+		URLParseResults parse_results;
+		parse_results.hostname = gui_client.server_hostname;
+		parse_results.userpath = gui_client.logged_in_user_name;
+
+		gui_client.connectToServer(parse_results);
 	}
 	else
 	{
@@ -2381,7 +2389,11 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 
 void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
 {
-	gui_client.connectToServer("sub://" + gui_client.server_hostname + "/cryptovoxels");//  this->server_hostname, "cryptovoxels");
+	URLParseResults parse_results;
+	parse_results.hostname = gui_client.server_hostname;
+	parse_results.userpath = "cryptovoxels";
+
+	gui_client.connectToServer(parse_results);
 }
 
 
@@ -3395,7 +3407,16 @@ Vec2i MainWindow::getGlWidgetPosInGlobalSpace()
 // See https://doc.qt.io/qt-5/qdesktopservices.html, this slot should be called when the user clicks on a sub:// link somewhere in the system.
 void MainWindow::handleURL(const QUrl &url)
 {
-	gui_client.connectToServer(QtUtils::toStdString(url.toString()));
+	try
+	{
+		URLParseResults parse_results = URLParser::parseURL(QtUtils::toStdString(url.toString()));
+		
+		gui_client.connectToServer(parse_results);
+	}
+	catch(glare::Exception& e)
+	{
+		QtUtils::showErrorMessageDialog("Error parsing URL: " + e.what(), this);
+	}
 }
 
 
@@ -3447,10 +3468,19 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, Native
 
 				conPrint("Opening URL '" + url + "'...");
 
-				gui_client.connectToServer(url);
+				try
+				{
+					URLParseResults parse_results = URLParser::parseURL(url);
+		
+					gui_client.connectToServer(parse_results);
 
-				// Flash the taskbar icon, since the this window may not be visible.
-				QApplication::alert(this);
+					// Flash the taskbar icon, since the this window may not be visible.
+					QApplication::alert(this);
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Error parsing URL: " + e.what()); // TODO: show message box?
+				}
 			}
 		}
 	}
@@ -3480,9 +3510,18 @@ public:
 
 				if(main_window)
 				{
-					main_window->gui_client.connectToServer(QtUtils::toStdString(qurl));
+					try
+					{
+						URLParseResults parse_results = URLParser::parseURL(QtUtils::toStdString(qurl));
 
-					QApplication::alert(main_window); // Flash the taskbar icon, since the this window may not be visible.
+						main_window->gui_client.connectToServer(parse_results);
+
+						QApplication::alert(main_window); // Flash the taskbar icon, since the this window may not be visible.
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("Error parsing URL: " + e.what()); // TODO: show message box?
+					}
 				}
 				else
 					url = QtUtils::toStdString(qurl);
@@ -3743,7 +3782,17 @@ int main(int argc, char *argv[])
 					server_URL = start_loc_URL_setting;
 			}
 
-			mw.gui_client.connectToServer(server_URL);
+			try
+			{
+				URLParseResults parse_results = URLParser::parseURL(server_URL);
+
+				mw.gui_client.connectToServer(parse_results);
+			}
+			catch(glare::Exception& e)
+			{
+				QtUtils::showErrorMessageDialog(e.what(), &mw);
+			}
+
 
 			mw.afterGLInitInitialise();
 
