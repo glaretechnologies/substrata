@@ -771,7 +771,7 @@ static void doOneMainLoopIter()
 	// Update URL with current camera position
 	if(last_update_URL_timer->elapsed() > 0.1)
 	{
-		std::string url_path = "/webclient/webclient.html?";  // TODO: make just /webclient? when supported
+		std::string url_path = "/webclient?";
 
 		if(!gui_client->server_worldname.empty()) // Append world if != empty string.
 			url_path += "world=" + web::Escaping::URLEscape(gui_client->server_worldname) + '&';
