@@ -212,10 +212,21 @@ void MeshManager::meshMemoryAllocatedChanged(const GLMemUsage& old_mem_usage, co
 
 void MeshManager::trimMeshMemoryUsage()
 {
+	// Max sizes for used + cached objects for determining cache size.  Objects will be removed from cache if the total size exceeds these thresholds.
+	// Use smaller sizes for Emscripten due to hard memory usage limits in the browser.
+#if EMSCRIPTEN
+	const size_t max_mesh_CPU_mem_usage = 512ull * 1024ull * 1024ull;
+#else
 	const size_t max_mesh_CPU_mem_usage = 1024ull * 1024ull * 1024ull;
+#endif
+
 	const size_t max_mesh_GPU_mem_usage = 1024ull * 1024ull * 1024ull;
 
+#if EMSCRIPTEN
+	const size_t max_shape_mem_usage    = 512ull * 1024ull * 1024ull;
+#else
 	const size_t max_shape_mem_usage    = 1024ull * 1024ull * 1024ull;
+#endif
 
 	// Remove textures from unused texture list until we are using <= max_tex_mem_usage
 	while(((mesh_CPU_mem_usage > max_mesh_CPU_mem_usage) || (mesh_GPU_mem_usage > max_mesh_GPU_mem_usage)) && (model_URL_to_mesh_map.numUnusedItems() > 0))
