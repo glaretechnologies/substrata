@@ -193,14 +193,68 @@ make libcef_dll_wrapper -j 12
 
 
 
+Building SDL (optional)
+=======================
+Download SDL source, e.g https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.0.zip
+Unzip in ~programming/SDL, e.g.
+C:\programming\SDL\SDL-release-2.30.0
+cd C:\programming\SDL\
+mkdir sdl_2.30.0_build
+cd sdl_2.30.0_build
+cmake ../SDL-release-2.30.0
+
+On Windows:
+cmake --build . --config Debug
+cmake --build . --config RelWithDebInfo
+cmake --build . --config Release
+
+Copy SDL2.dll files to substrata output dir.
 
 
-Compiling webclient typescript (.ts) files:
-===========================================
+Making Emscripten SDL build (required for Webclient)
+-------------------------------------------
+cd C:\programming\SDL
+mkdir sdl_2.30.0_build_emscripten
+cd sdl_2.30.0_build_emscripten
+cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -DSDL_PTHREADS=ON -G "Ninja" ..\SDL-release-2.30.0
+cmake --build .
 
-Install typescript SDK from e.g. https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.typescript-46rc
-(Installed tsc.js to C:\Program Files (x86)\Microsoft SDKs\TypeScript\4.6\tsc.js)
-Install node.js (don't need NPM tho)
-cd N:\substrata\trunk\webclient
-node "C:\Program Files (x86)\Microsoft SDKs\TypeScript\4.6\tsc.js" -w
--w is to watch dir for changes.
+
+
+
+
+Building the web client with Emscripten
+=======================================
+Install Emscripten SDK.
+
+Make Making Emscripten SDL build as described above.
+
+Make a build directory, e.g.
+	make C:\programming\substrata\emscripten_build
+	cd C:\programming\substrata\emscripten_build
+
+Use Cmake to make a cmake project, making it use the Emscripten toolchain.
+Use the path to where you installed the Emscripten SDK. (In my case have installed it to C:\programming\emsdk)
+ALso specifiy path to where you checked out substrata source code dir, e.g.  N:\substrata
+You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -DCMAKE_BUILD_TYPE=RelWithDebInfo or -DCMAKE_BUILD_TYPE=Release
+
+	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe N:\substrata\ -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON
+
+Now do the build:
+	
+	cmake --build . --target gui_client
+
+Rebuilding bundled data as well
+-------------------------------
+This command copies some data from the glare-core directories in the the 'data' folder, which gets packaged up into gui_client.data.
+NOTE: Currently you need to copy contents of 'resources' into there as well.
+
+	cp N:\glare-core\opengl\shaders\* .\data\shaders\ ; cp N:\substrata\shaders\* .\data\shaders\ ; rm C:\programming\cyberspace\output\test_builds\gui_client.html ; rm C:\programming\cyberspace\output\test_builds\gui_client.data; cmake --build . --target gui_client --verbose
+
+
+Running the web client
+----------------------
+In Substrata server config (e.g. "C:\Users\xx\AppData\Roaming\Substrata\server_data\substrata_server_config.xml"), set webclient dir to emscripten build dir, e.g.
+<webclient_dir>C:\programming\cyberspace\output\test_builds</webclient_dir>
+
+Run the Substrata server (./server.exe), then visit http://localhost/webclient/webclient.html in your web browser.
