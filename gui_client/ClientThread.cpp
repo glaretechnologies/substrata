@@ -56,6 +56,11 @@ ClientThread::~ClientThread()
 
 void ClientThread::kill()
 {
+#if EMSCRIPTEN
+	if(socket.nonNull())
+		socket->startGracefulShutdown();
+#endif
+
 	client_sender_thread_manager.killThreadsNonBlocking();
 
 	should_die = glare::atomic_int(1);

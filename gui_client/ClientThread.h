@@ -236,11 +236,11 @@ public:
 		const std::string& world_name, struct tls_config* config, const Reference<glare::PoolAllocator>& world_ob_pool_allocator);
 	virtual ~ClientThread();
 
-	virtual void doRun();
+	virtual void doRun() override;
 
 	void enqueueDataToSend(const ArrayRef<uint8> data); // threadsafe
 
-	virtual void kill();
+	virtual void kill() override;
 
 	void killConnection();
 
