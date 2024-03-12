@@ -90,10 +90,6 @@ void LoadTextureTask::run(size_t thread_index)
 
 		result_msg_queue->enqueue(msg);
 	}
-	catch(TextureServerExcep& e)
-	{
-		conPrint("Warning: failed to get canonical key for path '" + path + "': " + e.what());
-	}
 	catch(ImFormatExcep& )
 	{
 		//conPrint("Warning: failed to decode texture '" + path + "': " + e.what());
