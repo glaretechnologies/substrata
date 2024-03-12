@@ -94,6 +94,8 @@ Vec2i mouse_move_origin(0, 0);
 
 static std::vector<float> mem_usage_values;
 
+static bool show_imgui_info_window = false;
+
 
 #if EMSCRIPTEN
 
@@ -546,6 +548,7 @@ static void doOneMainLoopIter()
 	{
 		// Update statistics
 		fps = num_frames / stats_timer->elapsed();
+		// conPrint("fps: " + doubleToStringNDecimalPlaces(fps, 1));
 		stats_timer->reset();
 		num_frames = 0;
 	}
@@ -586,7 +589,7 @@ static void doOneMainLoopIter()
 		opengl_engine->draw();
 	}
 
-
+	if(show_imgui_info_window)
 	{
 		// Draw ImGUI GUI controls
 		ImGui_ImplOpenGL3_NewFrame();
@@ -634,7 +637,6 @@ static void doOneMainLoopIter()
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}
-
 	
 	// Display
 	SDL_GL_SwapWindow(win);
@@ -676,6 +678,9 @@ static void doOneMainLoopIter()
 		}
 		else if(e.type == SDL_KEYDOWN)
 		{
+			if(e.key.keysym.sym == SDLK_F1)
+				show_imgui_info_window = !show_imgui_info_window;
+
 			KeyEvent key_event;
 			convertFromSDKKeyEvent(e, key_event);
 
