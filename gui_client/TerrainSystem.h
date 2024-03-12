@@ -156,6 +156,8 @@ public:
 	// A texture that will be used by the terrain system has been loaded into OpenGL.
 	void handleTextureLoaded(const std::string& path, const Map2DRef& map);
 
+	bool isTextureUsedByTerrain(const std::string& path) const;
+
 	void handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg& msg);
 
 	void updateCampos(const Vec3d& campos, glare::StackAllocator& bump_allocator);
