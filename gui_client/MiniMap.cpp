@@ -436,7 +436,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 									tex_params.use_mipmaps = false;
 
 									if(resource->getState() == Resource::State_Present)
-										gui_client->startLoadingTextureForLocalPath(local_path, info.image_URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
+										gui_client->startLoadingTextureForLocalPath(local_path, info.image_URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params);
 								}
 							}
 
@@ -609,7 +609,7 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 
 
 				// Start loading the texture (if not already loaded)
-				gui_client->startLoadingTextureIfPresent(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params, /*is_terrain_map=*/false);
+				gui_client->startLoadingTextureIfPresent(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params);
 			}
 		}
 		else

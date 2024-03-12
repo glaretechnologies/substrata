@@ -409,11 +409,14 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 
 	assert(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(path)));
 
+	bool used_texture = false;
+
 	for(int i=0; i<4; ++i)
 	{
 		if(spec.detail_col_map_paths[i] == path)
 		{
 			opengl_engine->setDetailTexture(i, opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path)));
+			used_texture = true;
 		}
 
 		if(spec.detail_height_map_paths[i] == path)
@@ -421,6 +424,7 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 			opengl_engine->setDetailHeightmap(i, opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path)));
 
 			detail_heightmaps[i] = map;
+			used_texture = true;
 		}
 	}
 
@@ -433,18 +437,49 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 		{
 			section.heightmap = map;
 			section.heightmap_gl_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path));
+			used_texture = true;
 		}
 		if(section.mask_map_path == path)
 		{
 			section.maskmap = map;
 			section.mask_gl_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path));
+			used_texture = true;
 		}
 	}
 
-	// Reload terrain:
-	removeSubtree(root_node.ptr(), root_node->old_subtree_gl_obs, root_node->old_subtree_phys_obs);
+	if(used_texture)
+	{
+		// Reload terrain:
+		removeSubtree(root_node.ptr(), root_node->old_subtree_gl_obs, root_node->old_subtree_phys_obs);
 
-	terrain_scattering.rebuild();
+		terrain_scattering.rebuild();
+	}
+}
+
+
+bool TerrainSystem::isTextureUsedByTerrain(const std::string& path) const
+{
+	for(int i=0; i<4; ++i)
+	{
+		if(spec.detail_col_map_paths[i] == path)
+			return true;
+
+		if(spec.detail_height_map_paths[i] == path)
+			return true;
+	}
+
+	for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
+	for(int y=0; y<TERRAIN_DATA_SECTION_RES; ++y)
+	{
+		const TerrainDataSection& section = terrain_data_sections[x + y*TERRAIN_DATA_SECTION_RES];
+
+		if(section.heightmap_path == path)
+			return true;
+		if(section.mask_map_path == path)
+			return true;
+	}
+
+	return false;
 }
 
 

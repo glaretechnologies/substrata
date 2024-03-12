@@ -869,7 +869,7 @@ static inline bool isValidLightMapURL(const std::string& URL)
 
 // Start loading texture, if present
 void GUIClient::startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
-	const TextureParams& tex_params, bool is_terrain_map)
+	const TextureParams& tex_params)
 {
 	if(isValidImageTextureURL(tex_url))
 	{
@@ -878,14 +878,14 @@ void GUIClient::startLoadingTextureIfPresent(const std::string& tex_url, const V
 		{
 			const std::string local_abs_tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			startLoadingTextureForLocalPath(local_abs_tex_path, tex_url, centroid_ws, aabb_ws_longest_len, max_task_dist, importance_factor, tex_params, is_terrain_map);
+			startLoadingTextureForLocalPath(local_abs_tex_path, tex_url, centroid_ws, aabb_ws_longest_len, max_task_dist, importance_factor, tex_params);
 		}
 	}
 }
 
 
 void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const std::string& resource_URL, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
-		const TextureParams& tex_params, bool is_terrain_map)
+		const TextureParams& tex_params)
 {
 	//assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
 	if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(local_abs_tex_path))) // If texture is not uploaded to GPU already:
@@ -894,7 +894,9 @@ void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex
 		if(just_added)
 		{
 			// conPrint("Adding LoadTextureTask for texture '" + local_abs_tex_path + "'...");
-			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource_URL, tex_params, is_terrain_map);
+			const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_abs_tex_path);
+
+			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource_URL, tex_params, used_by_terrain);
 
 			load_item_queue.enqueueItem(
 				centroid_ws, 
@@ -916,7 +918,7 @@ void GUIClient::startLoadingTextureForObject(const Vec4f& centroid_ws, float aab
 	TextureParams tex_params;
 	tex_params.use_sRGB = use_sRGB;
 	tex_params.allow_compression = allow_compression;
-	startLoadingTextureIfPresent(lod_tex_url,centroid_ws, aabb_ws_longest_len, max_dist_for_ob_lod_level, importance_factor, tex_params, /*is_terrain_map=*/false);
+	startLoadingTextureIfPresent(lod_tex_url,centroid_ws, aabb_ws_longest_len, max_dist_for_ob_lod_level, importance_factor, tex_params);
 }
 
 
@@ -3535,14 +3537,13 @@ void GUIClient::processLoading()
 
 				if(tex_loading_progress.done() || !tex_loading_progress.loadingInProgress())
 				{
+					// conPrint("Finished loading texture '" + tex_loading_progress.path + "' into OpenGL.  Was terrain: " + toString(cur_loading_terrain_map.nonNull()));
+
 					if(cur_loading_terrain_map.nonNull() && terrain_system.nonNull())
 						terrain_system->handleTextureLoaded(tex_loading_progress.path, cur_loading_terrain_map);
 
-
 					tex_loading_progress.tex_data = NULL;
 					tex_loading_progress.opengl_tex = NULL;
-
-					// conPrint("Finished loading texture '" + tex_loading_progress.path + "' into OpenGL.  Was terrain: " + toString(cur_loading_terrain_map.nonNull()));
 					
 					// Now that this texture is loaded, remove from textures_processing set.
 					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
@@ -6840,7 +6841,6 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					Vec3d pos(0, 0, 0);
 					float size_factor = 1;
 					bool build_dynamic_physics_ob = false;
-					bool is_terrain_map = false;
 					// Look up in our map of downloading resources
 					auto res = URL_to_downloading_info.find(URL);
 					if(res != URL_to_downloading_info.end())
@@ -6850,12 +6850,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						pos = info.pos;
 						size_factor = info.size_factor;
 						build_dynamic_physics_ob = info.build_dynamic_physics_ob;
-						is_terrain_map = info.is_terrain_map;
 					}
 					else
 					{
 						assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
 					}
+
+					const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_path);
 
 					// If we just downloaded a texture, start loading it.
 					// NOTE: Do we want to check this texture is actually used by an object?
@@ -6870,7 +6871,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 							if(just_added)
 								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, 
-									new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, URL, texture_params, is_terrain_map),
+									new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, URL, texture_params, used_by_terrain),
 									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 						}
 					}
@@ -11110,7 +11111,6 @@ void GUIClient::updateGroundPlane()
 			{
 				DownloadingResourceInfo info;
 				info.texture_params = heightmap_tex_params;
-				info.is_terrain_map = true;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
 				startDownloadingResource(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, info);
@@ -11119,7 +11119,6 @@ void GUIClient::updateGroundPlane()
 			{
 				DownloadingResourceInfo info;
 				info.texture_params = maskmap_tex_params;
-				info.is_terrain_map = true;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
 				startDownloadingResource(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
@@ -11132,7 +11131,6 @@ void GUIClient::updateGroundPlane()
 			{
 				DownloadingResourceInfo info;
 				info.texture_params = detail_colourmap_tex_params;
-				info.is_terrain_map = true;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
 				startDownloadingResource(spec.detail_col_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
@@ -11141,7 +11139,6 @@ void GUIClient::updateGroundPlane()
 			{
 				DownloadingResourceInfo info;
 				info.texture_params = heightmap_tex_params;
-				info.is_terrain_map = true;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
 				startDownloadingResource(spec.detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
