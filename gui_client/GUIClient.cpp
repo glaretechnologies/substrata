@@ -3542,7 +3542,7 @@ void GUIClient::processLoading()
 					tex_loading_progress.tex_data = NULL;
 					tex_loading_progress.opengl_tex = NULL;
 
-					// conPrint("Finished loading texture '" + tex_loading_progress.path + "' into OpenGL");
+					// conPrint("Finished loading texture '" + tex_loading_progress.path + "' into OpenGL.  Was terrain: " + toString(cur_loading_terrain_map.nonNull()));
 					
 					// Now that this texture is loaded, remove from textures_processing set.
 					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
@@ -11163,7 +11163,7 @@ void GUIClient::updateGroundPlane()
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, section_spec.heightmap_URL, heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
-			if(!section_spec.mask_map_URL.empty())
+			if(!section_spec.mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.mask_map_URL))
 				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, section_spec.mask_map_URL, maskmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
