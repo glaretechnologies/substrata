@@ -48,7 +48,8 @@ void LoadModelTask::run(size_t thread_index)
 			else
 			{
 				VoxelGroup voxel_group;
-				WorldObject::decompressVoxelGroup(voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size(), /*decompressed group out=*/voxel_group);
+				voxel_group.voxels.setAllocator(opengl_engine->mem_allocator);
+				WorldObject::decompressVoxelGroup(voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size(), opengl_engine->mem_allocator.ptr(), /*decompressed group out=*/voxel_group);
 
 				const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
 				const int use_model_lod_level = myMin(voxel_ob_model_lod_level/*model_lod_level*/, max_model_lod_level);
@@ -68,7 +69,7 @@ void LoadModelTask::run(size_t thread_index)
 
 				const bool need_lightmap_uvs = !voxel_ob->lightmap_url.empty();
 				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
-					need_lightmap_uvs, mat_transparent, build_dynamic_physics_ob, /*physics shape out=*/physics_shape);
+					need_lightmap_uvs, mat_transparent, build_dynamic_physics_ob, opengl_engine->mem_allocator.ptr(), /*physics shape out=*/physics_shape);
 
 				// Temp for testing: Save voxels to disk.
 				/*if(voxel_ob->uid.value() == 171111)
@@ -87,12 +88,12 @@ void LoadModelTask::run(size_t thread_index)
 			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
 			const std::string lod_model_path = resource_manager->pathForURL(lod_model_url);
 
-			BatchedMeshRef batched_mesh;
 			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(lod_model_path,
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.
 				build_dynamic_physics_ob,
-				/*physics shape out=*/physics_shape, /*batched_mesh_out=*/batched_mesh);
+				opengl_engine->mem_allocator.ptr(),
+				/*physics shape out=*/physics_shape);
 		}
 
 		// Send a ModelLoadedThreadMessage back to main window.

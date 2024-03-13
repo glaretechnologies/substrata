@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <Vector.h>
+#include <AllocatorVector.h>
 #include <DatabaseKey.h>
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
@@ -71,7 +72,7 @@ public:
 	// Iterate over voxels and get voxel position bounds
 	js::AABBox getAABB() const;
 
-	js::Vector<Voxel, 16> voxels;
+	glare::AllocatorVector<Voxel, 16> voxels;
 };
 
 
@@ -190,15 +191,15 @@ public:
 	static int getLightMapSideResForAABBWS(const js::AABBox& aabb_ws);
 
 	static void compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 16>& compressed_data_out);
-	static void decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, VoxelGroup& group_out);
+	static void decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, glare::Allocator* mem_allocator, VoxelGroup& group_out);
 	void compressVoxels();
 	void decompressVoxels();
 	void clearDecompressedVoxels();
 
 	//VoxelGroup& getDecompressedVoxelGroup() { return voxel_group; }
 	const VoxelGroup& getDecompressedVoxelGroup() const { return voxel_group; }
-	js::Vector<Voxel, 16>& getDecompressedVoxels() { return voxel_group.voxels; }
-	const js::Vector<Voxel, 16>& getDecompressedVoxels() const { return voxel_group.voxels; }
+	glare::AllocatorVector<Voxel, 16>& getDecompressedVoxels() { return voxel_group.voxels; }
+	const glare::AllocatorVector<Voxel, 16>& getDecompressedVoxels() const { return voxel_group.voxels; }
 	js::Vector<uint8, 16>& getCompressedVoxels() { return compressed_voxels; }
 	const js::Vector<uint8, 16>& getCompressedVoxels() const { return compressed_voxels; }
 	//void getCompressedVoxels() const { return compressed_voxels; }

@@ -66,9 +66,8 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 		const std::string model_path = base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh";
 
 		PhysicsShape physics_shape;
-		BatchedMeshRef batched_mesh;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(model_path,
-			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
+			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, opengl_engine.mem_allocator.ptr(), physics_shape);
 
 		elm_tree_physics_shape = physics_shape;
 		elm_tree_mesh_render_data = gl_meshdata;

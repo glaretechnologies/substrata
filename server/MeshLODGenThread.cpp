@@ -112,7 +112,7 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 			try
 			{
 				VoxelGroup voxel_group;
-				WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
+				WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), /*mem allocator=*/NULL, voxel_group);
 				aabb_os = voxel_group.getAABB();
 
 				/*const int new_max_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;

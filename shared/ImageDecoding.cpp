@@ -19,15 +19,15 @@ Copyright Glare Technologies Limited 2022 -
 #include <fstream>
 
 
-Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, const std::string& path) // throws ImFormatExcep on failure
+Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator) // throws ImFormatExcep on failure
 {
 	if(hasExtension(path, "jpg") || hasExtension(path, "jpeg"))
 	{
-		return JPEGDecoder::decode(indigo_base_dir, path);
+		return JPEGDecoder::decode(indigo_base_dir, path, mem_allocator);
 	}
 	else if(hasExtension(path, "png"))
 	{
-		return PNGDecoder::decode(path);
+		return PNGDecoder::decode(path, mem_allocator);
 	}
 	// Disable TIFF loading until we fuzz it etc.
 	/*else if(hasExtension(path, "tif") || hasExtension(path, "tiff"))
@@ -36,19 +36,19 @@ Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, 
 	}*/
 	else if(hasExtension(path, "exr"))
 	{
-		return EXRDecoder::decode(path);
+		return EXRDecoder::decode(path, mem_allocator);
 	}
 	else if(hasExtension(path, "gif"))
 	{
-		return GIFDecoder::decode(path);
+		return GIFDecoder::decode(path, mem_allocator);
 	}
 	else if(hasExtension(path, "ktx"))
 	{
-		return KTXDecoder::decode(path);
+		return KTXDecoder::decode(path, mem_allocator);
 	}
 	else if(hasExtension(path, "ktx2"))
 	{
-		return KTXDecoder::decodeKTX2(path);
+		return KTXDecoder::decodeKTX2(path, mem_allocator);
 	}
 	else
 	{

@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <string>
 #include <vector>
 class Map2D;
+namespace glare { class Allocator; }
 
 
 /*=====================================================================
@@ -23,7 +24,7 @@ class ImageDecoding
 {
 public:
 
-	static Reference<Map2D> decodeImage(const std::string& indigo_base_dir, const std::string& path);
+	static Reference<Map2D> decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator = NULL);
 
 	static bool isSupportedImageExtension(string_view extension);
 
