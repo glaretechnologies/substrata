@@ -121,6 +121,7 @@ void TestSuite::test()
 
 	PhysicsWorld::init(); // Needed to set memory allocator functions for Jolt, before ModelLoading tests etc.
 
+	runTest([&]() { Vec4i::test(); });
 	runTest([&]() { glare::testFastPoolAllocator(); });
 	runTest([&]() { glare::TaskTests::test(); });
 	runTest([&]() { MemAlloc::test(); });
