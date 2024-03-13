@@ -42,9 +42,9 @@ void LoadTextureTask::run(size_t thread_index)
 		// Load texture from disk and decode it.
 		Reference<Map2D> map;
 		if(hasExtension(key, "gif"))
-			map = GIFDecoder::decodeImageSequence(key);
+			map = GIFDecoder::decodeImageSequence(key, opengl_engine->mem_allocator.ptr());
 		else
-			map = ImageDecoding::decodeImage(".", key);
+			map = ImageDecoding::decodeImage(".", key, opengl_engine->mem_allocator.ptr());
 
 #if USE_TEXTURE_VIEWS // NOTE: USE_TEXTURE_VIEWS is defined in opengl/TextureAllocator.h
 		// Resize for texture view

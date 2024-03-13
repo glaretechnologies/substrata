@@ -980,7 +980,7 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 	const size_t num_buckets = max_bucket + 1;
 
 	// Step 1: sort by materials
-	js::Vector<Voxel, 16> sorted_voxels(group.voxels.size());
+	glare::AllocatorVector<Voxel, 16> sorted_voxels(group.voxels.size());
 	Sort::serialCountingSortWithNumBuckets(group.voxels.data(), sorted_voxels.data(), group.voxels.size(), num_buckets, GetMatIndex());
 
 	//std::vector<Voxel> sorted_voxels = group.voxels;
@@ -1040,13 +1040,13 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 	//TEMP: decompress and check we get the same value
 #ifndef NDEBUG
 	VoxelGroup group2;
-	decompressVoxelGroup(compressed_data_out.data(), compressed_data_out.size(), group2);
+	decompressVoxelGroup(compressed_data_out.data(), compressed_data_out.size(), NULL, group2);
 	assert(group2.voxels == sorted_voxels);
 #endif
 }
 
 
-void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, VoxelGroup& group_out)
+void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, glare::Allocator* mem_allocator, VoxelGroup& group_out)
 {
 	group_out.voxels.clear();
 
@@ -1055,6 +1055,8 @@ void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t comp
 		throw glare::Exception("Failed to get decompressed_size");
 
 	BufferInStream instream;
+	if(mem_allocator)
+		instream.buf.setAllocator(mem_allocator);
 	instream.buf.resizeNoCopy(decompressed_size);
 
 	const size_t res = ZSTD_decompress(instream.buf.data(), decompressed_size, compressed_data, compressed_data_len);
@@ -1127,7 +1129,7 @@ void WorldObject::compressVoxels()
 void WorldObject::decompressVoxels()
 { 
 	if(!this->compressed_voxels.empty()) // If there are compressed voxels:
-		decompressVoxelGroup(this->compressed_voxels.data(), this->compressed_voxels.size(), this->voxel_group); // Decompress to voxel_group.
+		decompressVoxelGroup(this->compressed_voxels.data(), this->compressed_voxels.size(), /*mem allocator=*/NULL, this->voxel_group); // Decompress to voxel_group.
 	else
 		this->voxel_group.voxels.clear(); // Else there are no compressed voxels, so effectively decompress to zero voxels.
 

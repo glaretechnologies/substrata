@@ -252,7 +252,7 @@ public:
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
 	void createObject(const std::string& mesh_path, BatchedMeshRef loaded_mesh, bool loaded_mesh_is_image_cube,
-		const js::Vector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials);
+		const glare::AllocatorVector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials);
 	void createImageObject(const std::string& local_image_path);
 	void createModelObject(const std::string& local_model_path);
 	void createImageObjectForWidthAndHeight(const std::string& local_image_path, int w, int h, bool has_alpha);

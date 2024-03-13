@@ -15,7 +15,6 @@ class WorldMaterial;
 class WorldObject;
 class ResourceManager;
 namespace glare { class TaskManager; }
-namespace glare { class GeneralMemAllocator; }
 
 
 /*=====================================================================

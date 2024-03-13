@@ -569,9 +569,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 			const std::string path = "D:\\models\\generic dude avatar.glb";
 
 			PhysicsShape physics_shape;
-			BatchedMeshRef batched_mesh;
 			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path,
-				opengl_engine->vert_buf_allocator.ptr(), false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
+				opengl_engine->vert_buf_allocator.ptr(), false, /*build_dynamic_physics_ob=*/false, opengl_engine->mem_allocator.ptr(), physics_shape);
 
 			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 
 				test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *resource_manager, ob_to_world_matrix);
@@ -6988,6 +6987,13 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
 	msg += "stack allocator high water mark: " + getNiceByteSize(stack_allocator.highWaterMark()) + " / " + getNiceByteSize(stack_allocator.size()) + "\n";
 
+	if(opengl_engine.nonNull() && opengl_engine->mem_allocator.nonNull())
+	{
+		msg += "---------------Mem Allocator-----------------\n";
+		msg += opengl_engine->mem_allocator->getDiagnostics();
+		msg += "---------------------------------------------\n";
+	}
+
 	if(texture_server.nonNull())
 		msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
 
@@ -7657,7 +7663,7 @@ void GUIClient::setMaterialFlagsForObject(WorldObject* ob)
 // Send CreateObject message to server
 // Throws glare::Exception on failure.
 void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded_mesh, bool loaded_mesh_is_image_cube,
-	const js::Vector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials)
+	const glare::AllocatorVector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials)
 {
 	WorldObjectRef new_world_object = new WorldObject();
 
@@ -8517,6 +8523,7 @@ void GUIClient::objectEdited()
 				const int subsample_factor = 1;
 				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 					opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
+					opengl_engine->mem_allocator.ptr(), 
 					physics_shape);
 
 				// Remove existing physics object
@@ -10080,6 +10087,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 			opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/ob->isDynamic(),
+			opengl_engine->mem_allocator.ptr(),
 			physics_shape);
 
 		GLObjectRef gl_ob = opengl_engine->allocateObject();

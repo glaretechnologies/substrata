@@ -82,13 +82,15 @@ public:
 		const std::string& lightmap_url, ResourceManager& resource_manager);
 
 
-	// Build a BatchedMesh, OpenGLMeshRenderData, and Physics shape from a mesh on disk identified by lod_model_path.
+	// Build OpenGLMeshRenderData and Physics shape from a mesh on disk identified by lod_model_path.
 	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndBatchedMeshForModelPath(const std::string& lod_model_path, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_dynamic_physics_ob, 
-		PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out);
+		glare::Allocator* mem_allocator,
+		PhysicsShape& physics_shape_out);
 
 	// Build OpenGLMeshRenderData from voxel data.  Also return a reference to a physics shape.
 	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
 		VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob,
+		glare::Allocator* mem_allocator,
 		PhysicsShape& physics_shape_out);
 
 	//static Reference<BatchedMesh> makeBatchedMeshForVoxelGroup(const VoxelGroup& voxel_group);

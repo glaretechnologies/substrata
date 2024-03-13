@@ -17,7 +17,6 @@ Copyright Glare Technologies Limited 2021 -
 #include <KillThreadMessage.h>
 #include <Timer.h>
 #include <TaskManager.h>
-#include <GeneralMemAllocator.h>
 #include <graphics/MeshSimplification.h>
 #include <graphics/formatdecoderobj.h>
 #include <graphics/FormatDecoderSTL.h>
@@ -85,7 +84,7 @@ BatchedMeshRef loadModel(const std::string& model_path)
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		batched_mesh = BatchedMesh::readFromFile(model_path);
+		batched_mesh = BatchedMesh::readFromFile(model_path, /*mem allocator=*/NULL);
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
