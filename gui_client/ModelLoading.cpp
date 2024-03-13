@@ -517,7 +517,7 @@ void ModelLoading::makeGLObjectForModelFile(
 		PhysicsShape physics_shape;
 		const int subsample_factor = 1;
 		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob->ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/true, 
-			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, gl_engine.mem_allocator.ptr(), physics_shape);
 
 		ob->materials.resize(results_out.materials.size());
 		for(size_t i=0; i<results_out.materials.size(); ++i)
@@ -780,7 +780,7 @@ void ModelLoading::makeGLObjectForModelFile(
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		BatchedMeshRef bmesh = BatchedMesh::readFromFile(model_path);
+		BatchedMeshRef bmesh = BatchedMesh::readFromFile(model_path, gl_engine.mem_allocator.ptr());
 
 		bmesh->checkValidAndSanitiseMesh();
 
@@ -944,7 +944,7 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(const std::string& model_path, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_dynamic_physics_ob, 
-	PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out)
+	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
 	// Load mesh from disk:
 	BatchedMeshRef batched_mesh;
@@ -993,7 +993,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		batched_mesh = BatchedMesh::readFromFile(model_path);
+		batched_mesh = BatchedMesh::readFromFile(model_path, mem_allocator);
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
@@ -1014,8 +1014,6 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 	gl_meshdata->num_materials_referenced = batched_mesh->numMaterialsReferenced();
 
 	physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob);
-
-	batched_mesh_out = batched_mesh;
 
 	return gl_meshdata;
 }
@@ -1067,7 +1065,7 @@ inline static void copyUInt32s(void* const dest, const void* const src, size_t s
 }
 
 
-static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Mesh& mesh_/*, const Vec3<int>& min_vert_coords, const Vec3<int>& max_vert_coords*/)
+static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Mesh& mesh_/*, const Vec3<int>& min_vert_coords, const Vec3<int>& max_vert_coords*/, glare::Allocator* mem_allocator)
 {
 	const Indigo::Mesh* const mesh				= &mesh_;
 	const Indigo::Triangle* const tris			= mesh->triangles.data();
@@ -1078,221 +1076,344 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	const size_t uvs_size						= mesh->uv_pairs.size();
 
 	const bool mesh_has_uvs						= mesh->num_uv_mappings > 0;
-	//const bool mesh_has_uv1						= mesh->num_uv_mappings > 1;
+	//const bool mesh_has_uv1					= mesh->num_uv_mappings > 1;
 	const uint32 num_uv_sets					= mesh->num_uv_mappings;
 
 	// If we have a UV set, it will be the lightmap UVs.
 
 	// Work out the min and max vertex coordinates, to see if we can store in an int8 or int16.
-	const int min_voxel_coord = myMin((int)mesh_.aabb_os.bound[0].x, (int)mesh_.aabb_os.bound[0].y, (int)mesh_.aabb_os.bound[0].z);
-	const int max_voxel_coord = myMax((int)mesh_.aabb_os.bound[1].x, (int)mesh_.aabb_os.bound[1].y, (int)mesh_.aabb_os.bound[1].z);
+	const int min_coord = myMin((int)mesh_.aabb_os.bound[0].x, (int)mesh_.aabb_os.bound[0].y, (int)mesh_.aabb_os.bound[0].z);
+	const int max_coord = myMax((int)mesh_.aabb_os.bound[1].x, (int)mesh_.aabb_os.bound[1].y, (int)mesh_.aabb_os.bound[1].z);
 
 	size_t pos_size;
 	GLenum pos_gl_type;
-	if(min_voxel_coord >= -128 && max_voxel_coord < 128)
+	if(min_coord >= -128 && max_coord < 128)
 	{
 		pos_size = sizeof(int8) * 3;
 		pos_gl_type = GL_BYTE;
 	}
-	else if(min_voxel_coord >= -32768 && max_voxel_coord < 32768)
+	else if(min_coord >= -32768 && max_coord < 32768)
 	{
 		pos_size = sizeof(int16) * 3;
 		pos_gl_type = GL_SHORT;
 	}
 	else
 	{
-		pos_size = sizeof(float) * 3;
-		pos_gl_type = GL_FLOAT;
+		// We shouldn't get here because VoxelMeshBuilding doMakeIndigoMeshForVoxelGroupWith3dArray should reject such voxel groups.
+		throw glare::Exception("voxel coord magnitude too large: " + toString(min_coord) + ", " + toString(max_coord));
 	}
 
-	const size_t uv0_size = sizeof(half)  * 2;
-	//const GLenum uv0_gl_type = GL_HALF_FLOAT;
-
-
 	Reference<OpenGLMeshRenderData> mesh_data = new OpenGLMeshRenderData();
+	mesh_data->vert_data.setAllocator(mem_allocator);
+	mesh_data->vert_index_buffer.setAllocator(mem_allocator);
+	mesh_data->vert_index_buffer_uint16.setAllocator(mem_allocator);
+	mesh_data->vert_index_buffer_uint8.setAllocator(mem_allocator);
+
 	mesh_data->has_shading_normals = false;
 	mesh_data->has_uvs = mesh_has_uvs;
 
+	size_t num_bytes_per_vert = 0;
+	size_t uv0_offset = 0;
 
-	// If UVs are somewhat small in magnitude, use GL_HALF_FLOAT instead of GL_FLOAT.
-	// If the magnitude is too high we can get artifacts if we just use half precision.
-	//const bool use_half_uv1 = true; // TEMP canUseHalfUVs(mesh); // Just for UV1
-
-	//const size_t packed_uv1_size = use_half_uv1 ? sizeof(half)*2 : sizeof(float)*2;
-
-	/*
-	Vertex data layout is
-	position [always present]
-	uv_0     [optional]
-	uv_1     [optional]
-	*/
-	const size_t uv0_offset         = 0          + pos_size;
-
-	const size_t num_bytes_per_vert = pos_size + ((num_uv_sets > 0) ? uv0_size : 0);
-
-	glare::AllocatorVector<uint8, 16>& vert_data = mesh_data->vert_data;
-	vert_data.reserve(mesh->vert_positions.size() * num_bytes_per_vert);
-
-	js::Vector<uint32, 16> uint32_indices(mesh->triangles.size() * 3 + mesh->quads.size() * 6);
-
-	size_t vert_index_buffer_i = 0; // Current write index into vert_index_buffer
-	size_t next_merged_vert_i = 0;
-	size_t last_pass_start_index = 0;
-	uint32 current_mat_index = std::numeric_limits<uint32>::max();
-
-	ModelLoadingVertKey empty_key;
-	empty_key.pos = Indigo::Vec3f(std::numeric_limits<float>::infinity());
-	empty_key.uv0 = Indigo::Vec2f(0.f);
-	//empty_key.uv1 = Indigo::Vec2f(0.f);
-	HashMapInsertOnly2<ModelLoadingVertKey, uint32, ModelLoadingVertKeyHash> vert_map(empty_key, // Map from vert data to merged index
-		/*expected_num_items=*/mesh->vert_positions.size()); 
-
-
-	if(mesh->triangles.size() > 0)
+	if(!mesh_has_uvs)
 	{
-		// Create list of triangle references sorted by material index
-		js::Vector<std::pair<uint32, uint32>, 16> unsorted_tri_indices(num_tris);
-		js::Vector<std::pair<uint32, uint32>, 16> tri_indices(num_tris); // Sorted by material
+		// Special fast case for no UVs (e.g. no lightmap UVs).
+		// In this case we don't need to do merging
+		num_bytes_per_vert = pos_size;
 
-		for(uint32 t = 0; t < num_tris; ++t)
-			unsorted_tri_indices[t] = std::make_pair(tris[t].tri_mat_index, t);
+		glare::AllocatorVector<uint8, 16>& vert_data = mesh_data->vert_data;
+		vert_data.resizeNoCopy(vert_positions_size * num_bytes_per_vert);
 
-		Sort::serialCountingSort(/*in=*/unsorted_tri_indices.data(), /*out=*/tri_indices.data(), num_tris, ModelLoadingTakeFirstElement());
-
-		for(uint32 t = 0; t < num_tris; ++t)
+		// Copy vertex data
+		if(pos_gl_type == GL_BYTE)
 		{
-			// If we've switched to a new material then start a new triangle range
-			if(tri_indices[t].first != current_mat_index)
+			for(size_t i=0; i<vert_positions_size; ++i)
 			{
-				if(t > 0) // Don't add zero-length passes.
-				{
-					OpenGLBatch batch;
-					batch.material_index = current_mat_index;
-					batch.prim_start_offset = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
-					batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
-					mesh_data->batches.push_back(batch);
-				}
-				last_pass_start_index = vert_index_buffer_i;
-				current_mat_index = tri_indices[t].first;
-			}
-
-			const Indigo::Triangle& tri = tris[tri_indices[t].second];
-			for(uint32 i = 0; i < 3; ++i) // For each vert in tri:
-			{
-				const uint32 pos_i		= tri.vertex_indices[i];
-				const uint32 base_uv_i	= tri.uv_indices[i];
-				const uint32 uv_i = base_uv_i * num_uv_sets; // Index of UV for UV set 0.
-				if(pos_i >= vert_positions_size)
-					throw glare::Exception("vert index out of bounds");
-				if(mesh_has_uvs && uv_i >= uvs_size)
-					throw glare::Exception("UV index out of bounds");
-
-				// Look up merged vertex
-				const Indigo::Vec2f uv0 = mesh_has_uvs ? uv_pairs[uv_i    ] : Indigo::Vec2f(0.f);
-				//const Indigo::Vec2f uv1 = mesh_has_uv1 ? uv_pairs[uv_i + 1] : Indigo::Vec2f(0.f);
-
-				ModelLoadingVertKey key;
-				key.pos = vert_positions[pos_i];
-				key.uv0 = uv0;
-				//key.uv1 = uv1;
-
-				const auto res = vert_map.insert(std::make_pair(key, (uint32)next_merged_vert_i)); // Insert new (key, value) pair, or return iterator to existing one.
-				const uint32 merged_v_index = res.first->second; // Get existing or new (key, vert_i) pair, then access vert_i.
-				if(res.second) // If was inserted:
-				{
-					next_merged_vert_i++;
-					const size_t cur_size = vert_data.size();
-					vert_data.resize(cur_size + num_bytes_per_vert);
-					if(pos_gl_type == GL_BYTE)
-					{
-						const int8 pos[3] = { (int8)round(vert_positions[pos_i].x), (int8)round(vert_positions[pos_i].y), (int8)round(vert_positions[pos_i].z) };
-						std::memcpy(&vert_data[cur_size], pos, sizeof(int8) * 3);
-					}
-					else if(pos_gl_type == GL_SHORT)
-					{
-						const int16 pos[3] = { (int16)round(vert_positions[pos_i].x), (int16)round(vert_positions[pos_i].y), (int16)round(vert_positions[pos_i].z) };
-						std::memcpy(&vert_data[cur_size], pos, sizeof(int16) * 3);
-					}
-					else
-					{
-						assert(pos_gl_type == GL_FLOAT);
-						copyUInt32s(&vert_data[cur_size], &vert_positions[pos_i].x, sizeof(Indigo::Vec3f)); // Copy vert position
-					}
-
-					if(mesh_has_uvs)
-					{
-						// Copy uv_0
-						const half half_uv[2] = { half(uv0.x),  half(uv0.y) };
-						copyUInt32s(&vert_data[cur_size + uv0_offset], half_uv, 4);
-
-						// Copy uv_1
-						/*if(mesh_has_uv1)
-						{
-							if(use_half_uv1)
-							{
-								const half half_uv[2] = { half(uv1.x),  half(uv1.y) };
-								copyUInt32s(&vert_data[cur_size + uv1_offset], half_uv, 4);
-							}
-							else
-								copyUInt32s(&vert_data[cur_size + uv1_offset], &uv1.x, sizeof(Indigo::Vec2f));
-						}*/
-					}
-				}
-
-				uint32_indices[vert_index_buffer_i++] = (uint32)merged_v_index;
+				const int8 pos[3] = { (int8)round(vert_positions[i].x), (int8)round(vert_positions[i].y), (int8)round(vert_positions[i].z) };
+				std::memcpy(&vert_data[i * pos_size], pos, sizeof(int8) * 3);
 			}
 		}
+		else
+		{
+			assert(pos_gl_type == GL_SHORT);
+			for(size_t i=0; i<vert_positions_size; ++i)
+			{
+				const int16 pos[3] = { (int16)round(vert_positions[i].x), (int16)round(vert_positions[i].y), (int16)round(vert_positions[i].z) };
+				std::memcpy(&vert_data[i * pos_size], pos, sizeof(int16) * 3);
+			}
+		}
+
+		// Allocate index buffer
+		const size_t num_indices = num_tris * 3;
+		size_t bytes_per_index_val;
+		if(vert_positions_size < 128)
+		{
+			mesh_data->setIndexType(GL_UNSIGNED_BYTE);
+			mesh_data->vert_index_buffer_uint8.resize(num_indices);
+			bytes_per_index_val = 1;
+		}
+		else if(vert_positions_size < 32768)
+		{
+			mesh_data->setIndexType(GL_UNSIGNED_SHORT);
+			mesh_data->vert_index_buffer_uint16.resize(num_indices);
+			bytes_per_index_val = 2;
+		}
+		else
+		{
+			mesh_data->setIndexType(GL_UNSIGNED_INT);
+			mesh_data->vert_index_buffer.resize(num_indices);
+			bytes_per_index_val = 4;
+		}
+
+		size_t vert_index_buffer_i = 0; // Current write index into vert_index_buffer
+		size_t last_pass_start_index = 0;
+		uint32 current_mat_index = std::numeric_limits<uint32>::max();
+
+		if(mesh->triangles.size() > 0)
+		{
+			// Create list of triangle references sorted by material index
+			glare::AllocatorVector<std::pair<uint32, uint32>, 16> unsorted_tri_indices;
+			unsorted_tri_indices.setAllocator(mem_allocator);
+			unsorted_tri_indices.resizeNoCopy(num_tris);
+
+			glare::AllocatorVector<std::pair<uint32, uint32>, 16> tri_indices; // Sorted by material
+			tri_indices.setAllocator(mem_allocator);
+			tri_indices.resizeNoCopy(num_tris);
+
+			for(uint32 t = 0; t < num_tris; ++t)
+				unsorted_tri_indices[t] = std::make_pair(tris[t].tri_mat_index, t);
+
+			Sort::serialCountingSort(/*in=*/unsorted_tri_indices.data(), /*out=*/tri_indices.data(), num_tris, ModelLoadingTakeFirstElement());
+
+			for(uint32 t = 0; t < num_tris; ++t)
+			{
+				// If we've switched to a new material then start a new triangle range
+				if(tri_indices[t].first != current_mat_index)
+				{
+					if(t > 0) // Don't add zero-length passes.
+					{
+						OpenGLBatch batch;
+						batch.material_index = current_mat_index;
+						batch.prim_start_offset = (uint32)(last_pass_start_index * bytes_per_index_val); // adjust to byte offset.
+						batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
+						mesh_data->batches.push_back(batch);
+					}
+					last_pass_start_index = vert_index_buffer_i;
+					current_mat_index = tri_indices[t].first;
+				}
+
+				const Indigo::Triangle& tri = tris[tri_indices[t].second];
+				if(bytes_per_index_val == 1)
+				{
+					for(uint32 i = 0; i < 3; ++i) // For each vert in tri:
+						mesh_data->vert_index_buffer_uint8 [vert_index_buffer_i++] = (uint8)tri.vertex_indices[i];
+				}
+				else if(bytes_per_index_val == 2)
+				{
+					for(uint32 i = 0; i < 3; ++i) // For each vert in tri:
+						mesh_data->vert_index_buffer_uint16[vert_index_buffer_i++] = (uint16)tri.vertex_indices[i];
+				}
+				else
+				{
+					for(uint32 i = 0; i < 3; ++i) // For each vert in tri:
+						mesh_data->vert_index_buffer       [vert_index_buffer_i++] = tri.vertex_indices[i];;
+				}
+			}
+
+			// Build last pass data that won't have been built yet.
+			OpenGLBatch batch;
+			batch.material_index = current_mat_index;
+			batch.prim_start_offset = (uint32)(last_pass_start_index * bytes_per_index_val); // adjust to byte offset.
+			batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
+			mesh_data->batches.push_back(batch);
+		}
 	}
-
-	// Build last pass data that won't have been built yet.
-	OpenGLBatch batch;
-	batch.material_index = current_mat_index;
-	batch.prim_start_offset = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
-	batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
-	mesh_data->batches.push_back(batch);
-
-	const size_t num_merged_verts = next_merged_vert_i;
-
-	// Build index data
-	const size_t num_indices = uint32_indices.size();
-
-	if(num_merged_verts < 128)
+	else // Else if mesh has UVs:
 	{
-		mesh_data->setIndexType(GL_UNSIGNED_BYTE);
+		// If UVs are somewhat small in magnitude, use GL_HALF_FLOAT instead of GL_FLOAT.
+		// If the magnitude is too high we can get artifacts if we just use half precision.
+		//const bool use_half_uv1 = true; // TEMP canUseHalfUVs(mesh); // Just for UV1
 
-		mesh_data->vert_index_buffer_uint8.resize(num_indices);
+		//const size_t packed_uv1_size = use_half_uv1 ? sizeof(half)*2 : sizeof(float)*2;
 
-		uint8* const dest_indices = mesh_data->vert_index_buffer_uint8.data();
-		for(size_t i=0; i<num_indices; ++i)
-			dest_indices[i] = (uint8)uint32_indices[i];
-	}
-	else if(num_merged_verts < 32768)
-	{
-		mesh_data->setIndexType(GL_UNSIGNED_SHORT);
+		/*
+		Vertex data layout is
+		position [always present]
+		uv_0     [optional]
+		uv_1     [optional]
+		*/
+		uv0_offset         = 0          + pos_size;
 
-		mesh_data->vert_index_buffer_uint16.resize(num_indices);
+		const size_t uv0_size = sizeof(half)  * 2;
+		//const GLenum uv0_gl_type = GL_HALF_FLOAT;
 
-		uint16* const dest_indices = mesh_data->vert_index_buffer_uint16.data();
-		for(size_t i=0; i<num_indices; ++i)
-			dest_indices[i] = (uint16)uint32_indices[i];
+		num_bytes_per_vert = pos_size + ((num_uv_sets > 0) ? uv0_size : 0);
 
-		// Adjust batch prim_start_offset, from index to byte offset
-		for(size_t i=0; i<mesh_data->batches.size(); ++i)
-			mesh_data->batches[i].prim_start_offset *= 2;
-	}
-	else
-	{
-		mesh_data->setIndexType(GL_UNSIGNED_INT);
+		glare::AllocatorVector<uint8, 16>& vert_data = mesh_data->vert_data;
+		vert_data.reserve(mesh->vert_positions.size() * num_bytes_per_vert);
 
-		mesh_data->vert_index_buffer.resize(num_indices);
+		js::Vector<uint32, 16> uint32_indices(mesh->triangles.size() * 3 + mesh->quads.size() * 6);
 
-		uint32* const dest_indices = mesh_data->vert_index_buffer.data();
-		for(size_t i=0; i<num_indices; ++i)
-			dest_indices[i] = uint32_indices[i];
+		size_t vert_index_buffer_i = 0; // Current write index into vert_index_buffer
+		size_t next_merged_vert_i = 0;
+		size_t last_pass_start_index = 0;
+		uint32 current_mat_index = std::numeric_limits<uint32>::max();
 
-		// Adjust batch prim_start_offset, from index to byte offset
-		for(size_t i=0; i<mesh_data->batches.size(); ++i)
-			mesh_data->batches[i].prim_start_offset *= 4;
+		ModelLoadingVertKey empty_key;
+		empty_key.pos = Indigo::Vec3f(std::numeric_limits<float>::infinity());
+		empty_key.uv0 = Indigo::Vec2f(0.f);
+		//empty_key.uv1 = Indigo::Vec2f(0.f);
+		HashMapInsertOnly2<ModelLoadingVertKey, uint32, ModelLoadingVertKeyHash> vert_map(empty_key, // Map from vert data to merged index
+			/*expected_num_items=*/mesh->vert_positions.size()); 
+
+
+		if(mesh->triangles.size() > 0)
+		{
+			// Create list of triangle references sorted by material index
+			glare::AllocatorVector<std::pair<uint32, uint32>, 16> unsorted_tri_indices;//(num_tris);
+			unsorted_tri_indices.setAllocator(mem_allocator);
+			unsorted_tri_indices.resizeNoCopy(num_tris);
+
+			glare::AllocatorVector<std::pair<uint32, uint32>, 16> tri_indices;//(num_tris); // Sorted by material
+			tri_indices.setAllocator(mem_allocator);
+			tri_indices.resizeNoCopy(num_tris);
+
+			for(uint32 t = 0; t < num_tris; ++t)
+				unsorted_tri_indices[t] = std::make_pair(tris[t].tri_mat_index, t);
+
+			Sort::serialCountingSort(/*in=*/unsorted_tri_indices.data(), /*out=*/tri_indices.data(), num_tris, ModelLoadingTakeFirstElement());
+
+			for(uint32 t = 0; t < num_tris; ++t)
+			{
+				// If we've switched to a new material then start a new triangle range
+				if(tri_indices[t].first != current_mat_index)
+				{
+					if(t > 0) // Don't add zero-length passes.
+					{
+						OpenGLBatch batch;
+						batch.material_index = current_mat_index;
+						batch.prim_start_offset = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
+						batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
+						mesh_data->batches.push_back(batch);
+					}
+					last_pass_start_index = vert_index_buffer_i;
+					current_mat_index = tri_indices[t].first;
+				}
+
+				const Indigo::Triangle& tri = tris[tri_indices[t].second];
+				for(uint32 i = 0; i < 3; ++i) // For each vert in tri:
+				{
+					const uint32 pos_i		= tri.vertex_indices[i];
+					const uint32 base_uv_i	= tri.uv_indices[i];
+					const uint32 uv_i = base_uv_i * num_uv_sets; // Index of UV for UV set 0.
+					if(pos_i >= vert_positions_size)
+						throw glare::Exception("vert index out of bounds");
+					if(mesh_has_uvs && uv_i >= uvs_size)
+						throw glare::Exception("UV index out of bounds");
+
+					// Look up merged vertex
+					const Indigo::Vec2f uv0 = mesh_has_uvs ? uv_pairs[uv_i    ] : Indigo::Vec2f(0.f);
+					//const Indigo::Vec2f uv1 = mesh_has_uv1 ? uv_pairs[uv_i + 1] : Indigo::Vec2f(0.f);
+
+					ModelLoadingVertKey key;
+					key.pos = vert_positions[pos_i];
+					key.uv0 = uv0;
+					//key.uv1 = uv1;
+
+					const auto res = vert_map.insert(std::make_pair(key, (uint32)next_merged_vert_i)); // Insert new (key, value) pair, or return iterator to existing one.
+					const uint32 merged_v_index = res.first->second; // Get existing or new (key, vert_i) pair, then access vert_i.
+					if(res.second) // If was inserted:
+					{
+						next_merged_vert_i++;
+						const size_t cur_size = vert_data.size();
+						vert_data.resize(cur_size + num_bytes_per_vert);
+						if(pos_gl_type == GL_BYTE)
+						{
+							const int8 pos[3] = { (int8)round(vert_positions[pos_i].x), (int8)round(vert_positions[pos_i].y), (int8)round(vert_positions[pos_i].z) };
+							std::memcpy(&vert_data[cur_size], pos, sizeof(int8) * 3);
+						}
+						else
+						{
+							assert(pos_gl_type == GL_SHORT);
+							const int16 pos[3] = { (int16)round(vert_positions[pos_i].x), (int16)round(vert_positions[pos_i].y), (int16)round(vert_positions[pos_i].z) };
+							std::memcpy(&vert_data[cur_size], pos, sizeof(int16) * 3);
+						}
+
+						if(mesh_has_uvs)
+						{
+							// Copy uv_0
+							const half half_uv[2] = { half(uv0.x),  half(uv0.y) };
+							copyUInt32s(&vert_data[cur_size + uv0_offset], half_uv, 4);
+
+							// Copy uv_1
+							/*if(mesh_has_uv1)
+							{
+								if(use_half_uv1)
+								{
+									const half half_uv[2] = { half(uv1.x),  half(uv1.y) };
+									copyUInt32s(&vert_data[cur_size + uv1_offset], half_uv, 4);
+								}
+								else
+									copyUInt32s(&vert_data[cur_size + uv1_offset], &uv1.x, sizeof(Indigo::Vec2f));
+							}*/
+						}
+					}
+
+					uint32_indices[vert_index_buffer_i++] = (uint32)merged_v_index;
+				}
+			}
+		}
+
+		// Build last pass data that won't have been built yet.
+		OpenGLBatch batch;
+		batch.material_index = current_mat_index;
+		batch.prim_start_offset = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
+		batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
+		mesh_data->batches.push_back(batch);
+
+		const size_t num_merged_verts = next_merged_vert_i;
+
+		// Build index data
+		const size_t num_indices = uint32_indices.size();
+
+		if(num_merged_verts < 128)
+		{
+			mesh_data->setIndexType(GL_UNSIGNED_BYTE);
+
+			mesh_data->vert_index_buffer_uint8.resize(num_indices);
+
+			uint8* const dest_indices = mesh_data->vert_index_buffer_uint8.data();
+			for(size_t i=0; i<num_indices; ++i)
+				dest_indices[i] = (uint8)uint32_indices[i];
+		}
+		else if(num_merged_verts < 32768)
+		{
+			mesh_data->setIndexType(GL_UNSIGNED_SHORT);
+
+			mesh_data->vert_index_buffer_uint16.resize(num_indices);
+
+			uint16* const dest_indices = mesh_data->vert_index_buffer_uint16.data();
+			for(size_t i=0; i<num_indices; ++i)
+				dest_indices[i] = (uint16)uint32_indices[i];
+
+			// Adjust batch prim_start_offset, from index to byte offset
+			for(size_t i=0; i<mesh_data->batches.size(); ++i)
+				mesh_data->batches[i].prim_start_offset *= 2;
+		}
+		else
+		{
+			mesh_data->setIndexType(GL_UNSIGNED_INT);
+
+			mesh_data->vert_index_buffer.resize(num_indices);
+
+			uint32* const dest_indices = mesh_data->vert_index_buffer.data();
+			for(size_t i=0; i<num_indices; ++i)
+				dest_indices[i] = uint32_indices[i];
+
+			// Adjust batch prim_start_offset, from index to byte offset
+			for(size_t i=0; i<mesh_data->batches.size(); ++i)
+				mesh_data->batches[i].prim_start_offset *= 4;
+		}
 	}
 
 	VertexAttrib pos_attrib;
@@ -1366,12 +1487,12 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
 	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob, 
-	PhysicsShape& physics_shape_out)
+	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
 	// Timer timer;
 	StandardPrintOutput print_output;
 
-	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, /*generate_shading_normals=*/false, mats_transparent);
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, /*generate_shading_normals=*/false, mats_transparent, mem_allocator);
 	// We will compute geometric normals in the opengl shader, so don't need to compute them here.
 
 	if(need_lightmap_uvs)
@@ -1390,7 +1511,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	}
 
 	// Convert Indigo mesh to opengl data
-	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh);
+	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh, mem_allocator);
 
 	physics_shape_out = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, build_dynamic_physics_ob);
 
@@ -1472,7 +1593,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 8); // Verts can be shared due to no lightmap UVs.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
@@ -1494,7 +1615,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
@@ -1517,7 +1638,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1540,7 +1661,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1565,7 +1686,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 8);
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1588,7 +1709,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1612,7 +1733,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL,
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testEqual(data->getNumVerts(), (size_t)(4 * 3));
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
@@ -1635,7 +1756,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 		testEqual(data->getNumVerts(), (size_t)32); // verts half way along the sides of the cuboid can be shared.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
@@ -1646,6 +1767,28 @@ void ModelLoading::test()
 	{
 		failTest(e.what());
 	}
+
+	// Test two voxels with large coordinate values.
+	try
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(-32768, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(32766, 0, 0), 1));
+
+		js::Vector<bool, 16> mat_transparent(2, false);
+
+		PhysicsShape physics_shape;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+
+		testEqual(data->getNumVerts(), (size_t)16);
+		testEqual(data->getNumTris(), (size_t)(2 * 6 * 2)); // Each voxel should have 6 faces,  * 2 voxels, * 2 triangles/face
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+
 
 	// Performance test
 	//if(false)
@@ -1711,7 +1854,7 @@ void ModelLoading::test()
 
 					PhysicsShape physics_shape;
 					makeModelForVoxelGroup(group, /*subsample factor=*/1, /*ob to world=*/Matrix4f::identity(),
-						/*vert buf allocator=*/NULL, /*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape);
+						/*vert buf allocator=*/NULL, /*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
 
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
 					//conPrint("Resulting num tris: " + toString(data->triangles.size()));
