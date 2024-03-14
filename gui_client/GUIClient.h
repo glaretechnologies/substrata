@@ -231,9 +231,9 @@ public:
 		const TextureParams& tex_params);
 	void startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const std::string& resource_URL, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
-	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, 
+	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
 		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
-	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
+	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
 	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
