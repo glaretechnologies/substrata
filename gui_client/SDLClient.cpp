@@ -26,6 +26,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/FileUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
+//#include <utils/LimitedAllocator.h>
 #include <networking/URL.h>
 #include <webserver/Escaping.h>
 #include <GL/gl3w.h>
@@ -250,6 +251,10 @@ int main(int argc, char** argv)
 		glare::TaskManager* high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
 
 
+		//Reference<glare::Allocator> mem_allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/2 * 1024 * 1024 * 1024ull);
+		//Reference<glare::Allocator> mem_allocator = new glare::LimitedAllocator(/*max_size_B=*/1536 * 1024 * 1024ull);
+		Reference<glare::Allocator> mem_allocator = new glare::MallocAllocator();
+
 
 		EXRDecoder::setTaskManager(main_task_manager);
 
@@ -268,10 +273,8 @@ int main(int argc, char** argv)
 		settings.allow_multi_draw_indirect = true; // TEMP
 		settings.allow_bindless_textures = true; // TEMP
 #if defined(EMSCRIPTEN)
-		settings.use_general_arena_mem_allocator = false;
 		settings.max_tex_CPU_mem_usage = 512 * 1024 * 1024ull;
 #endif
-		//settings.use_general_arena_mem_allocator = false; // TEMP
 
 		opengl_engine = new OpenGLEngine(settings);
 
@@ -281,7 +284,7 @@ int main(int argc, char** argv)
 		const std::string data_dir = PlatformUtils::getEnvironmentVariable("GLARE_CORE_TRUNK_DIR") + "/opengl";
 #endif
 		
-		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output, main_task_manager, high_priority_task_manager);
+		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output, main_task_manager, high_priority_task_manager, mem_allocator);
 		if(!opengl_engine->initSucceeded())
 			throw glare::Exception("OpenGL init failed: " + opengl_engine->getInitialisationErrorMsg());
 		opengl_engine->setViewportDims(primary_W, primary_H);
