@@ -198,8 +198,8 @@ int main(int argc, char** argv)
 		setGLAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); // enable MULTISAMPLE
 		setGLAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
-		int primary_W = 1200;
-		int primary_H = 800;
+		int primary_W = 1800;
+		int primary_H = 1100;
 
 #if EMSCRIPTEN
 		// This seems to return the canvas width and height before it is properly sized to the full window width, so don't bother calling it.
@@ -603,7 +603,7 @@ static void doOneMainLoopIter()
 		
 		ImGui::SetNextWindowPos(ImVec2(400, 10), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(600, 900), ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowCollapsed(false, ImGuiCond_FirstUseEver);
 		if(ImGui::Begin("Info"))
 		{
 			ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
@@ -617,6 +617,7 @@ static void doOneMainLoopIter()
 				/*graph size=*/ImVec2(500, 200));
 #endif
 
+			ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
 			if(ImGui::CollapsingHeader("Diagnostics"))
 			{
 				bool diag_changed = false;
