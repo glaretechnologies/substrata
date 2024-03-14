@@ -960,6 +960,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					// For lightmaps, don't use mipmaps, for a couple of reasons:
 					// If we use trilinear filtering, we get leaking of colours past geometry edges at lower mip levels.
 					// Also we don't have code to generate mipmaps for floating point data currently, and hence have to rely on the OpenGL driver which can be slow.
+					// This code is also in startDownloadingResourcesForObject().
 					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 					tex_params.use_mipmaps = false;
 					load_item_queue.enqueueItem(ob, 
@@ -1146,6 +1147,14 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 			{
 				DownloadingResourceInfo info;
 				info.texture_params.use_sRGB = url_info.use_sRGB;
+				if(url_info.is_lightmap)
+				{
+					// conPrint("Resource '" + url + "' is a lightmap, setting use_mipmaps false etc.");
+					// This code is also in startLoadingTexturesForObject()
+					info.texture_params.filtering = OpenGLTexture::Filtering_Bilinear;
+					info.texture_params.use_mipmaps = false;
+				}
+
 				info.build_dynamic_physics_ob = ob->isDynamic();
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance_factor=*/1.f);
