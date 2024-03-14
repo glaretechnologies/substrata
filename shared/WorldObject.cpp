@@ -199,7 +199,11 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 	}
 
 	if(options.include_lightmaps && !lightmap_url.empty())
-		URLs_out.push_back(DependencyURL(getLODLightmapURL(lightmap_url, ob_lod_level)));
+	{
+		DependencyURL dependency_url(getLODLightmapURL(lightmap_url, ob_lod_level));
+		dependency_url.is_lightmap = true;
+		URLs_out.push_back(dependency_url);
+	}
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
@@ -223,7 +227,11 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>
 
 	if(!lightmap_url.empty())
 		for(int lvl=0; lvl<=2; ++lvl)
-			URLs_out.push_back(DependencyURL(getLODLightmapURL(lightmap_url, lvl)));
+		{
+			DependencyURL dependency_url(getLODLightmapURL(lightmap_url, lvl));
+			dependency_url.is_lightmap = true;
+			URLs_out.push_back(dependency_url);
+		}
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLsAllLODLevels(URLs_out);
@@ -239,7 +247,11 @@ void WorldObject::appendDependencyURLsBaseLevel(const GetDependencyOptions& opti
 		URLs_out.push_back(DependencyURL(model_url));
 
 	if(options.include_lightmaps && !lightmap_url.empty())
-		URLs_out.push_back(DependencyURL(lightmap_url));
+	{
+		DependencyURL dependency_url(lightmap_url);
+		dependency_url.is_lightmap = true;
+		URLs_out.push_back(dependency_url);
+	}
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLsBaseLevel(URLs_out);
