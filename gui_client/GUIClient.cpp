@@ -909,27 +909,36 @@ void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex
 }
 
 
-void GUIClient::startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, 
+// max_dist_for_ob_lod_level: maximum distance from camera at which the object will still be at ob_lod_level.
+// max_dist_for_ob_lod_level_clamped_0: maximum distance from camera at which the object will still be at max(0, ob_lod_level).   [e.g. treats level -1 as 0]
+void GUIClient::startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, 
 	const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression)
 {
 	const std::string lod_tex_url = world_mat.getLODTextureURLForLevel(texture_url, ob_lod_level, tex_has_alpha);
 
+	// If the material has minimum LOD level = 0, and the current object LOD level is -1, then we want to use the max distance for LOD level 0, not for -1.
+	float use_max_dist_for_ob_lod_level;
+	if((ob_lod_level == -1) && (world_mat.minLODLevel() == 0))
+		use_max_dist_for_ob_lod_level = max_dist_for_ob_lod_level_clamped_0;
+	else
+		use_max_dist_for_ob_lod_level = max_dist_for_ob_lod_level;
+
 	TextureParams tex_params;
 	tex_params.use_sRGB = use_sRGB;
 	tex_params.allow_compression = allow_compression;
-	startLoadingTextureIfPresent(lod_tex_url,centroid_ws, aabb_ws_longest_len, max_dist_for_ob_lod_level, importance_factor, tex_params);
+	startLoadingTextureIfPresent(lod_tex_url,centroid_ws, aabb_ws_longest_len, use_max_dist_for_ob_lod_level, importance_factor, tex_params);
 }
 
 
-void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level)
+void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0)
 {
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
 	}
 
 	// Start loading lightmap
@@ -955,7 +964,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					tex_params.use_mipmaps = false;
 					load_item_queue.enqueueItem(ob, 
 						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, ob.lightmap_url, tex_params, /*is_terrain_map=*/false), 
-						max_dist_for_ob_lod_level);
+						max_dist_for_ob_lod_level_clamped_0); // Lightmaps don't have LOD level -1 so used max dist for LOD level >= 0.
 				}
 			}
 		}
@@ -971,10 +980,10 @@ void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
 	}
 }
 
@@ -1476,7 +1485,6 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 void GUIClient::loadModelForObject(WorldObject* ob)
 {
 	// conPrint("loadModelForObject(): UID: " + ob->uid.toString());
-
 	const Vec4f campos = cam_controller.getPosition().toVec4fPoint();
 
 	// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
@@ -1484,14 +1492,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 		return;
 
 	const int ob_lod_level = ob->getLODLevel(campos);
-	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 	
-	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
-	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->getCentroidWS()));
-
-	// For objects with max_model_lod_level=0 (e.g. objects with simple meshes like cubes), the mesh is valid at all object LOD levels, so has no max distance.
-	const float max_dist_for_ob_model_lod_level = (ob->max_model_lod_level == 0) ? std::numeric_limits<float>::max() : max_dist_for_ob_lod_level; // We don't want to clamp with max_model_lod_level.
-
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	//if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->/*loaded_lod_level*/loading_lod_level == ob_lod_level))
 	//	return;
@@ -1502,6 +1503,31 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 		return;
 
 	ob->loading_or_loaded_lod_level = ob_lod_level;
+
+	// Object LOD level is in [-1, 2].
+	// model LOD level is in [0, ob->max_model_lod_level], which is {0} or [0, 2].
+
+	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
+
+	// Compute the maximum distance from the camera at which the object LOD level will remain what it currently is.
+	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
+	
+	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->getCentroidWS()));
+
+	// Compute a similar value, the maximum distance from the camera at which the object LOD level will remain what it currently is, or at which the object LOD level is zero.
+	// This is used for materials that have a minimum lod level of 0.  In this case textures loaded at lod level -1 can still be used at lod level 0.
+	float max_dist_for_ob_lod_level_clamped_0;
+	if(ob_lod_level == -1)
+		max_dist_for_ob_lod_level_clamped_0 = ob->getMaxDistForLODLevel(0);
+	else
+		max_dist_for_ob_lod_level_clamped_0 = max_dist_for_ob_lod_level;
+
+	// For objects with max_model_lod_level=0 (e.g. objects with simple meshes like cubes), the mesh is valid at all object LOD levels, so has no max distance.
+	float max_dist_for_ob_model_lod_level;
+	if(ob->max_model_lod_level == 0)
+		max_dist_for_ob_model_lod_level = std::numeric_limits<float>::max();
+	else
+		max_dist_for_ob_model_lod_level = ob->getMaxDistForLODLevel(ob_model_lod_level); // NOTE that ob_lod_level may be -1 and ob_model_lod_level = 0, so can't just use max_dist_for_ob_lod_level.
 
 
 	// conPrint("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url + ", ob_model_lod_level: " + toString(ob_model_lod_level));
@@ -1518,7 +1544,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 		// Start downloading any resources we don't have that the object uses.
 		startDownloadingResourcesForObject(ob, ob_lod_level);
 
-		startLoadingTexturesForObject(*ob, ob_lod_level, max_dist_for_ob_lod_level);
+		startLoadingTexturesForObject(*ob, ob_lod_level, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0);
 
 		//ob->/*loaded_lod_level*/loading_lod_level = ob_lod_level;
 
@@ -8695,7 +8721,7 @@ void GUIClient::objectEdited()
 		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
 		const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
 
-		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level, max_dist_for_ob_lod_level);
+		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level/*TEMP*/);
 
 		startDownloadingResourcesForObject(this->selected_ob.ptr(), ob_lod_level);
 
