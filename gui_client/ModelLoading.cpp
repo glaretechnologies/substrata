@@ -1242,11 +1242,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		uv_0     [optional]
 		uv_1     [optional]
 		*/
-#if EMSCRIPTEN
-		uv0_offset         = Maths::roundUpToMultipleOfPowerOf2(pos_size, sizeof(half)); // WebGL requires alignment of the UV half values to 2-byte boundaries.
-#else
-		uv0_offset         = pos_size;
-#endif
+		uv0_offset         = Maths::roundUpToMultipleOfPowerOf2(pos_size, sizeof(half)); // WebGL requires alignment of the UV half values to 2-byte boundaries, otherwise gives errors. (see https://github.com/KhronosGroup/WebGL/issues/914)
+		// And it may be required in desktop OpenGL as well, or give better peformance.  So just do the alignment unconditionally for now.
 
 		const size_t uv0_size = sizeof(half)  * 2;
 		//const GLenum uv0_gl_type = GL_HALF_FLOAT;
@@ -1438,7 +1435,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		normal_attrib.num_comps = 3;
 		normal_attrib.type = GL_FLOAT;
 		normal_attrib.normalised = false;
-		normal_attrib.stride = (uint32)num_bytes_per_vert;
+		normal_attrib.stride = 4; // (uint32)num_bytes_per_vert; // Stride needs to be a multiple of 4 for WebGL.  Shouldn't matter what it is since the attribute is not enabled.
 		normal_attrib.offset = 0;
 		mesh_data->vertex_spec.attributes.push_back(normal_attrib);
 
@@ -1447,7 +1444,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		uv_attrib.num_comps = 2;
 		uv_attrib.type = GL_FLOAT;
 		uv_attrib.normalised = false;
-		uv_attrib.stride = (uint32)num_bytes_per_vert;
+		uv_attrib.stride = 4; // TEMP (uint32)num_bytes_per_vert;
 		uv_attrib.offset = 0;
 		mesh_data->vertex_spec.attributes.push_back(uv_attrib);
 
@@ -1456,7 +1453,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		colour_attrib.num_comps = 3;
 		colour_attrib.type = GL_FLOAT;
 		colour_attrib.normalised = false;
-		colour_attrib.stride = (uint32)num_bytes_per_vert;
+		colour_attrib.stride = 4; // TEMP (uint32)num_bytes_per_vert;
 		colour_attrib.offset = 0;
 		mesh_data->vertex_spec.attributes.push_back(colour_attrib);
 
@@ -1480,6 +1477,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		uv_attrib.offset = (uint32)uv1_offset;
 		mesh_data->vertex_spec.attributes.push_back(uv_attrib);
 	}*/
+
+	mesh_data->vertex_spec.checkValid();
 
 	mesh_data->aabb_os = js::AABBox(
 		Vec4f(mesh_.aabb_os.bound[0].x, mesh_.aabb_os.bound[0].y, mesh_.aabb_os.bound[0].z, 1.f),
