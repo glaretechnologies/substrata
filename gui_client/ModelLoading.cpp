@@ -1242,12 +1242,17 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		uv_0     [optional]
 		uv_1     [optional]
 		*/
-		uv0_offset         = 0          + pos_size;
+#if EMSCRIPTEN
+		uv0_offset         = Maths::roundUpToMultipleOfPowerOf2(pos_size, sizeof(half)); // WebGL requires alignment of the UV half values to 2-byte boundaries.
+#else
+		uv0_offset         = pos_size;
+#endif
 
 		const size_t uv0_size = sizeof(half)  * 2;
 		//const GLenum uv0_gl_type = GL_HALF_FLOAT;
 
-		num_bytes_per_vert = pos_size + ((num_uv_sets > 0) ? uv0_size : 0);
+		assert(num_uv_sets > 0);
+		num_bytes_per_vert = uv0_offset + uv0_size;
 
 		glare::AllocatorVector<uint8, 16>& vert_data = mesh_data->vert_data;
 		vert_data.reserve(mesh->vert_positions.size() * num_bytes_per_vert);
