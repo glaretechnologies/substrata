@@ -1036,6 +1036,9 @@ done:
 		in_vert_offset_B += normal_size_B;
 	}
 
+	meshdata.vertex_spec.checkValid();
+
+
 	assert(in_vert_offset_B == vert_size_B);
 
 	Array2D<float> raw_heightfield(interior_vert_res, interior_vert_res);
