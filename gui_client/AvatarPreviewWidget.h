@@ -9,6 +9,7 @@
 #include "../utils/Timer.h"
 #include "../utils/Reference.h"
 #include "../utils/RefCounted.h"
+#include "../utils/GlareAllocator.h"
 #include <QtCore/QEvent>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 #include <QtOpenGLWidgets/QOpenGLWidget>
@@ -77,4 +78,6 @@ public:
 
 	glare::TaskManager* main_task_manager;
 	glare::TaskManager* high_priority_task_manager;
+
+	Reference<glare::MallocAllocator> mem_allocator;
 };

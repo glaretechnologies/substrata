@@ -268,8 +268,12 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
 	high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
 
+
+	main_mem_allocator = new glare::MallocAllocator(); // TEMP TODO: use something better
+
 	ui->glWidget->main_task_manager = main_task_manager;
 	ui->glWidget->high_priority_task_manager = high_priority_task_manager;
+	ui->glWidget->main_mem_allocator = main_mem_allocator;
 }
 
 

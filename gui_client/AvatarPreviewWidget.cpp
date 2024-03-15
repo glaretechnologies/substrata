@@ -67,6 +67,8 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 	// For short, processor intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
 	const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 4);
 	high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
+
+	mem_allocator = new glare::MallocAllocator();
 }
 
 
@@ -90,7 +92,6 @@ void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* set
 	gl_settings.shadow_mapping = true;
 	gl_settings.compress_textures = true;
 	gl_settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
-	gl_settings.use_general_arena_mem_allocator = false; // This uses a lot of CPU mem, so don't use.
 	opengl_engine = new OpenGLEngine(gl_settings);
 
 	viewport_w = viewport_h = 100;
@@ -135,7 +136,7 @@ void AvatarPreviewWidget::initializeGL()
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server,
 		NULL, // print output
-		main_task_manager, high_priority_task_manager
+		main_task_manager, high_priority_task_manager, mem_allocator
 	);
 	if(!opengl_engine->initSucceeded())
 	{
