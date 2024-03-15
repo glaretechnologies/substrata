@@ -67,6 +67,14 @@ void LoadTextureTask::run(size_t thread_index)
 			}
 		}
 #endif
+		
+#if EMSCRIPTEN
+		// There are a bunch of images, mostly lightmaps at LOD levels 1 and 2, that are compressed, and have width and height != a multiple of 4.
+		// We can't use these in WebGL.  The proper solution is to rebuild them with better dimensions.
+		if(dynamic_cast<CompressedImage*>(map.ptr()))
+			if(!OpenGLTexture::areTextureDimensionsValidForCompression(*map))
+				throw glare::Exception("Invalid texture for WebGL, is compressed and width or height is not a multiple of 4");
+#endif
 
 		const bool do_compression = opengl_engine->textureCompressionSupportedAndEnabled() && tex_params.allow_compression && OpenGLTexture::areTextureDimensionsValidForCompression(*map);
 		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), opengl_engine->getMainTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps);
