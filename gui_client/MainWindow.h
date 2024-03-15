@@ -314,4 +314,6 @@ public:
 
 	glare::TaskManager* main_task_manager;
 	glare::TaskManager* high_priority_task_manager;
+
+	Reference<glare::Allocator> main_mem_allocator;
 };

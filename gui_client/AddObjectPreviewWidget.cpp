@@ -56,6 +56,8 @@ AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget* parent)
 
 	// Needed to get keyboard events.
 	setFocusPolicy(Qt::StrongFocus);
+
+	mem_allocator = new glare::MallocAllocator();
 }
 
 
@@ -73,7 +75,6 @@ void AddObjectPreviewWidget::init(const std::string& base_dir_path_, QSettings* 
 	gl_settings.shadow_mapping = true;
 	gl_settings.compress_textures = true;
 	gl_settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
-	gl_settings.use_general_arena_mem_allocator = false; // This uses a lot of CPU mem, so don't use.
 	//gl_settings.use_final_image_buffer = settings_->value(MainOptionsDialog::BloomKey(), /*default val=*/true).toBool();
 	opengl_engine = new OpenGLEngine(gl_settings);
 
@@ -126,7 +127,7 @@ void AddObjectPreviewWidget::initializeGL()
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server, // texture_server
 		NULL, // print output
-		main_task_manager, high_priority_task_manager
+		main_task_manager, high_priority_task_manager, mem_allocator
 	);
 	if(!opengl_engine->initSucceeded())
 	{

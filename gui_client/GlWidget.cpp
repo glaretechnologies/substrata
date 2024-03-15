@@ -243,7 +243,8 @@ void GlWidget::initializeGL()
 	engine_settings.depth_fog = true;
 	//engine_settings.use_final_image_buffer = bloom;
 	engine_settings.msaa_samples = use_MSAA ? 4 : -1;
-	engine_settings.max_tex_mem_usage = 1536 * 1024 * 1024ull; // Should be large enough that we have some spare room for the LRU texture cache.
+	engine_settings.max_tex_CPU_mem_usage = 1536 * 1024 * 1024ull; // Should be large enough that we have some spare room for the LRU texture cache.
+	engine_settings.max_tex_GPU_mem_usage = 1536 * 1024 * 1024ull; // Should be large enough that we have some spare room for the LRU texture cache.
 	engine_settings.allow_multi_draw_indirect = this->allow_multi_draw_indirect;
 	engine_settings.allow_bindless_textures = this->allow_bindless_textures;
 
@@ -265,7 +266,8 @@ void GlWidget::initializeGL()
 		NULL, // texture_server
 		this->print_output,
 		main_task_manager,
-		high_priority_task_manager
+		high_priority_task_manager,
+		main_mem_allocator
 	);
 	if(!opengl_engine->initSucceeded())
 	{

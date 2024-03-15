@@ -63,7 +63,7 @@ public:
 	std::string result_path;
 	BatchedMeshRef loaded_mesh;
 
-	js::Vector<Voxel, 16> loaded_voxels;
+	glare::AllocatorVector<Voxel, 16> loaded_voxels;
 	std::vector<WorldMaterialRef> loaded_materials; // Will be cleared if a valid object was not loaded.
 	Vec3f scale;
 	Vec3f axis;
