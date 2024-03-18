@@ -1268,7 +1268,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 	meshdata.batches.resize(1);
 	meshdata.batches[0].material_index = 0;
 	meshdata.batches[0].num_indices = N * 6; // 2 tris / imposter * 3 indices / tri
-	meshdata.batches[0].prim_start_offset = 0;
+	meshdata.batches[0].prim_start_offset_B = 0;
 
 	meshdata.num_materials_referenced = 1;
 
@@ -1471,7 +1471,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::StackAllocat
 	meshdata.batches.resize(1);
 	meshdata.batches[0].material_index = 0;
 	meshdata.batches[0].num_indices = N * 6; // 2 tris / imposter * 3 indices / tri
-	meshdata.batches[0].prim_start_offset = 0;
+	meshdata.batches[0].prim_start_offset_B = 0;
 
 	meshdata.num_materials_referenced = 1;
 
