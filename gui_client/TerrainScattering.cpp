@@ -497,17 +497,23 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 	section.gl_tex_valid = true;
 
 	// Read texture back to main memory
-	if(section.detail_mask_map.isNull())
-		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 3);
-
-	//Timer timer;
-
+	Timer timer;
 #if defined(EMSCRIPTEN)
-	section.detail_mask_map->zero(); // TEMP readBackTexture() doesn't work in Emscripten yet, just zero texture.
+	// glGetTexImage isn't supported in WebGL, so use glReadPixels (which reads from the frame buffer) instead.
+
+	if(section.detail_mask_map.isNull())
+		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 4); // GL_RGBA
+
+	opengl_engine->mask_map_frame_buffer->bindForReading();
+	glReadPixels(0, 0, detail_mask_map_width_px, detail_mask_map_width_px, GL_RGBA, GL_UNSIGNED_BYTE, section.detail_mask_map->getData());
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 #else
+	if(section.detail_mask_map.isNull())
+		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 3); // GL_RGB
+
 	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(section.detail_mask_map->getData(), section.detail_mask_map->getDataSize()));
 #endif
-	//conPrint("\nreadBackTexture took " + timer.elapsedStringMSWIthNSigFigs(4) + "");
+	//conPrint("\nTerrain scattering: reading back texture took " + timer.elapsedStringMSWIthNSigFigs(4) + "");
 
 
 	// Build non-zero mipmap
