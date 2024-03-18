@@ -827,8 +827,8 @@ if(USE_SDL)
 	${imguidir}/imstb_rectpack.h
 	${imguidir}/imstb_textedit.h
 	${imguidir}/imstb_truetype.h
-	${imguidir}/backends/imgui_impl_sdl.cpp
-	${imguidir}/backends/imgui_impl_sdl.h
+	${imguidir}/backends/imgui_impl_sdl2.cpp
+	${imguidir}/backends/imgui_impl_sdl2.h
 	${imguidir}/backends/imgui_impl_opengl3.cpp
 	${imguidir}/backends/imgui_impl_opengl3.h
 	)

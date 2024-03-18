@@ -33,7 +33,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <SDL_opengl.h>
 #include <SDL.h>
 #include <backends/imgui_impl_opengl3.h>
-#include <backends/imgui_impl_sdl.h>
+#include <backends/imgui_impl_sdl2.h>
 #include <string>
 #if EMSCRIPTEN
 #include <emscripten.h>
@@ -211,7 +211,7 @@ int main(int argc, char** argv)
 #else
 		const char* window_name = "Substrata SDL Client";
 #endif
-		win = SDL_CreateWindow(window_name, 100, 100, primary_W, primary_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+		win = SDL_CreateWindow(window_name, 600, 100, primary_W, primary_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 		if(win == nullptr)
 			throw glare::Exception("SDL_CreateWindow Error: " + std::string(SDL_GetError()));
 
@@ -596,7 +596,7 @@ static void doOneMainLoopIter()
 	{
 		// Draw ImGUI GUI controls
 		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplSDL2_NewFrame(win);
+		ImGui_ImplSDL2_NewFrame();
 		ImGui::NewFrame();
 		
 		//ImGui::ShowDemoWindow();
