@@ -984,7 +984,7 @@ done:
 	meshdata.batches.resize(1);
 	meshdata.batches[0].material_index = 0;
 	meshdata.batches[0].num_indices = (uint32)(quad_res_with_borders * quad_res_with_borders * 6);
-	meshdata.batches[0].prim_start_offset = 0;
+	meshdata.batches[0].prim_start_offset_B = 0;
 
 	meshdata.num_materials_referenced = 1;
 

@@ -1194,7 +1194,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 					{
 						OpenGLBatch batch;
 						batch.material_index = current_mat_index;
-						batch.prim_start_offset = (uint32)(last_pass_start_index * bytes_per_index_val); // adjust to byte offset.
+						batch.prim_start_offset_B = (uint32)(last_pass_start_index * bytes_per_index_val); // adjust to byte offset.
 						batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
 						mesh_data->batches.push_back(batch);
 					}
@@ -1223,7 +1223,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 			// Build last pass data that won't have been built yet.
 			OpenGLBatch batch;
 			batch.material_index = current_mat_index;
-			batch.prim_start_offset = (uint32)(last_pass_start_index * bytes_per_index_val); // adjust to byte offset.
+			batch.prim_start_offset_B = (uint32)(last_pass_start_index * bytes_per_index_val); // adjust to byte offset.
 			batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
 			mesh_data->batches.push_back(batch);
 		}
@@ -1294,7 +1294,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 					{
 						OpenGLBatch batch;
 						batch.material_index = current_mat_index;
-						batch.prim_start_offset = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
+						batch.prim_start_offset_B = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
 						batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
 						mesh_data->batches.push_back(batch);
 					}
@@ -1369,7 +1369,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		// Build last pass data that won't have been built yet.
 		OpenGLBatch batch;
 		batch.material_index = current_mat_index;
-		batch.prim_start_offset = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
+		batch.prim_start_offset_B = (uint32)(last_pass_start_index); // Store index for now, will be adjusted to byte offset later.
 		batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
 		mesh_data->batches.push_back(batch);
 
@@ -1400,7 +1400,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 			// Adjust batch prim_start_offset, from index to byte offset
 			for(size_t i=0; i<mesh_data->batches.size(); ++i)
-				mesh_data->batches[i].prim_start_offset *= 2;
+				mesh_data->batches[i].prim_start_offset_B *= 2;
 		}
 		else
 		{
@@ -1414,7 +1414,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 			// Adjust batch prim_start_offset, from index to byte offset
 			for(size_t i=0; i<mesh_data->batches.size(); ++i)
-				mesh_data->batches[i].prim_start_offset *= 4;
+				mesh_data->batches[i].prim_start_offset_B *= 4;
 		}
 	}
 
