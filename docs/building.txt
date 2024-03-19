@@ -222,6 +222,18 @@ cmake --build .
 
 
 
+
+Building libjpeg-turbo with Emscripten
+See https://github.com/libjpeg-turbo/libjpeg-turbo/issues/250#issuecomment-944487299
+======================================
+mkdir C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
+cd C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
+cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -G "Ninja" -DWITH_SIMD=0 -DENABLE_SHARED=0 ..\libjpeg-turbo-3.0.0\
+cmake --build .
+
+
+
+
 ImGui (required for building webclient and for SDL build)
 =========================================================
 Clone ImGui repo into your libs directory (e.g. the directory you set the GLARE_CORE_LIBS env var to):
@@ -250,7 +262,7 @@ Use the path to where you installed the Emscripten SDK. (In my case have install
 Also specifiy path to where you checked out substrata source code dir, e.g.  c:\code\substrata
 You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -DCMAKE_BUILD_TYPE=RelWithDebInfo or -DCMAKE_BUILD_TYPE=Release
 
-	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON
+	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON -DCEF_SUPPORT=OFF
 
 Now do the build:
 	
@@ -261,7 +273,7 @@ Rebuilding bundled data as well
 This command copies some data from the glare-core directories in the the 'data' folder, which gets packaged up into gui_client.data.
 NOTE: Currently you need to copy contents of 'resources' into there as well.
 
-	cp c:\code\glare-core\opengl\shaders\* .\data\shaders\ ; cp c:\code\substrata\shaders\* .\data\shaders\ ; rm C:\programming\cyberspace\output\test_builds\gui_client.html ; rm C:\programming\cyberspace\output\test_builds\gui_client.data; cmake --build . --target gui_client
+	cp c:\code\glare-core\opengl\shaders\* .\data\shaders\ ; cp c:\code\substrata\shaders\* .\data\shaders\ ; rm C:\programming\cyberspace\output\test_builds\gui_client.data; cmake --build . --target gui_client
 
 Running the web client
 ----------------------
