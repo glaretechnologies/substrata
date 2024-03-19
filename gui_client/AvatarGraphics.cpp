@@ -960,7 +960,7 @@ void AvatarGraphics::hideSelectedObBeam(OpenGLEngine& engine)
 }
 
 
-Vec4f AvatarGraphics::getLastHeadPosition()
+Vec4f AvatarGraphics::getLastHeadPosition() const
 {
 	if(skinned_gl_ob.nonNull())
 	{

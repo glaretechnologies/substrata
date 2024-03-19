@@ -122,7 +122,22 @@ Vec3d CameraController::getPosition() const
 }
 
 
-void CameraController::setPosition(const Vec3d& pos)
+// Set first person position to pos, Set a suitable third-person camera position set back from pos.
+void CameraController::setFirstAndThirdPersonPositions(const Vec3d& pos)
+{
+	position = pos;
+
+
+	current_third_person_target_pos = pos;
+
+	// Use a default backwards vector to compute the third-person camera position.
+	const Vec4f cam_back_dir = (getForwardsVec() * -getThirdPersonCamDist() + getUpVec() * 0.2).toVec4fVector();
+
+	third_person_cam_position = current_third_person_target_pos + Vec3d(cam_back_dir);
+}
+
+
+void CameraController::setFirstPersonPosition(const Vec3d& pos)
 {
 	position = pos;
 }

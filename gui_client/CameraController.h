@@ -27,7 +27,8 @@ public:
 
 	Vec3d getFirstPersonPosition() const;
 	Vec3d getPosition() const; // Has third person offset if third person camera is enabled.
-	void setPosition(const Vec3d& pos);
+	void setFirstAndThirdPersonPositions(const Vec3d& pos); // Set first person position to pos, Set a suitable third-person target and camera position set back from pos.
+	void setFirstPersonPosition(const Vec3d& pos); // Set just the first-person position, leave the third-person position unchanged.
 
 	void setMouseSensitivity(double sensitivity);
 	void setMoveScale(double move_scale); // Adjust camera movement speed based on world scale
