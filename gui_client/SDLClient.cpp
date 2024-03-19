@@ -358,6 +358,9 @@ int main(int argc, char** argv)
 				url_parse_results.z = stringToDouble(queries["z"]);
 				url_parse_results.parsed_z = true;
 			}
+
+			if(queries.count("heading"))
+				url_parse_results.heading = stringToDouble(queries["heading"]);
 		}
 #else
 		std::string server_URL = "sub://substrata.info"; // Default URL
@@ -606,6 +609,8 @@ static void doOneMainLoopIter()
 		ImGui::SetNextWindowCollapsed(false, ImGuiCond_FirstUseEver);
 		if(ImGui::Begin("Info"))
 		{
+			// ImGui::InputFloat("proj_len_viewable_threshold", &proj_len_viewable_threshold, 0.0001f, 0.0001f, "%.5f");
+
 			ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
 			ImGui::TextUnformatted(("FPS: " + doubleToStringNDecimalPlaces(fps, 1)).c_str());
 		
@@ -788,10 +793,10 @@ static void doOneMainLoopIter()
 
 		const Vec3d pos = gui_client->cam_controller.getFirstPersonPosition();
 
-		// const heading = floatMod(cam_controller.heading * 180 / Math.PI, 360.0);
+		const double heading_deg = Maths::doubleMod(::radToDegree(gui_client->cam_controller.getAngles().x), 360.0);
 
-		url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 1);
-		//  + '&heading=' + heading.toFixed(0);
+		url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 1) + 
+			"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1);
 	
 		updateURL(url_path.c_str());
 

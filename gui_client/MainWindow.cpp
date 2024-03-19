@@ -1072,10 +1072,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Update URL Bar
 	// NOTE: use doubleToStringNDecimalPlaces instead of doubleToStringMaxNDecimalPlaces, as the latter is distracting due to flickering URL length when moving.
 	if(this->url_widget->shouldBeUpdated())
+	{
+		const double heading_deg = Maths::doubleMod(::radToDegree(gui_client->cam_controller.getAngles().x), 360.0);
+
 		this->url_widget->setURL("sub://" + gui_client.server_hostname + "/" + gui_client.server_worldname +
 			"?x=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().x, 1) + 
 			"&y=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().y, 1) +
-			"&z=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().z, 1));
+			"&z=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().z, 1) +
+			"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1));
+	}
 
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
 	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
