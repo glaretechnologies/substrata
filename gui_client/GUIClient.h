@@ -187,6 +187,7 @@ public:
 	void showInfoNotification(const std::string& message);
 	void updateParcelGraphics();
 	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
+	void setThirdPersonCameraPosition(double dt);
 	void handleMessages(double global_time, double cur_time);
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);

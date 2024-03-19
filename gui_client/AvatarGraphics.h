@@ -115,7 +115,7 @@ public:
 	static float walkCyclePeriod() { return 1.015f; }
 	static float runCyclePeriod() { return  0.7f; }
 
-	Vec4f getLastHeadPosition();
+	Vec4f getLastHeadPosition() const;
 
 	void performGesture(double cur_time, const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGesture(double cur_time/*, const std::string& gesture_name*/);

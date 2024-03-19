@@ -1248,8 +1248,8 @@ void MainWindow::runScreenshotCode()
 	{
 		if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
 		{
-			gui_client.cam_controller.setPosition(screenshot_campos);
 			gui_client.cam_controller.setAngles(screenshot_camangles);
+			gui_client.cam_controller.setFirstAndThirdPersonPositions(screenshot_campos);
 			gui_client.player_physics.setPosition(screenshot_campos);
 
 			// Enable fly mode so we don't just fall to the ground
@@ -2425,7 +2425,7 @@ void MainWindow::on_actionGo_to_Parcel_triggered()
 				{
 					const Parcel* parcel = res->second.ptr();
 
-					gui_client.cam_controller.setPosition(parcel->getVisitPosition());
+					gui_client.cam_controller.setFirstAndThirdPersonPositions(parcel->getVisitPosition());
 					gui_client.player_physics.setPosition(parcel->getVisitPosition());
 				}
 				else
@@ -2463,7 +2463,7 @@ void MainWindow::on_actionGo_to_Position_triggered()
 			d.ZDoubleSpinBox->value()
 		);
 			
-		gui_client.cam_controller.setPosition(pos);
+		gui_client.cam_controller.setFirstAndThirdPersonPositions(pos);
 		gui_client.player_physics.setPosition(pos);
 	}
 }
@@ -3778,7 +3778,7 @@ int main(int argc, char *argv[])
 			mw.opengl_engine = mw.ui->glWidget->opengl_engine;
 			mw.gui_client.opengl_engine = mw.opengl_engine;
 
-			mw.gui_client.cam_controller.setPosition(Vec3d(0,0,4.7));
+			mw.gui_client.cam_controller.setFirstAndThirdPersonPositions(Vec3d(0,0,4.7));
 			mw.ui->glWidget->setCameraController(&mw.gui_client.cam_controller);
 			mw.gui_client.cam_controller.setMoveScale(0.3f);
 

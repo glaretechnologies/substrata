@@ -4614,7 +4614,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			campos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
 		}
 
-		this->cam_controller.setPosition(toVec3d(campos));
+		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
 		// Show vehicle speed on UI: Disabled until we can not create a zillion textures for this.
 		if(false)
@@ -4925,8 +4925,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	updateAvatarGraphics(cur_time, dt, cam_angles, our_move_impulse_zero);
 
-	
-	
+	// Set third-person camera position.  NOTE: this goes after updateAvatarGraphics since it depends on where the player's avatar is,
+	// which can depend on interpolated vehicle physics etc.
+	setThirdPersonCameraPosition(dt);
+
+
+
 
 	// Resonance seems to want a to-world transformation
 	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
@@ -5608,7 +5612,7 @@ void GUIClient::updateParcelGraphics()
 					// If we want to move to this parcel based on the URL entered:
 					if(this->url_parcel_uid == (int)parcel->id.value())
 					{
-						cam_controller.setPosition(parcel->getVisitPosition());
+						cam_controller.setFirstAndThirdPersonPositions(parcel->getVisitPosition());
 						player_physics.setPosition(parcel->getVisitPosition());
 						this->url_parcel_uid = -1;
 
@@ -5750,7 +5754,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 					bool use_xyplane_speed_rel_ground_override = false;
 					float xyplane_speed_rel_ground_override = 0;
 
-					// Do 3rd person cam stuff for our avatar:
+					// Override some variables for our avatar:
 					if(our_avatar)
 					{
 						pos = cam_controller.getFirstPersonPosition();
@@ -5759,63 +5763,10 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 						use_xyplane_speed_rel_ground_override = true;
 						xyplane_speed_rel_ground_override = player_physics.getLastXYPlaneVelRelativeToGround().length();
 
-						const bool selfie_mode = this->cam_controller.selfieModeEnabled();
-
-						Vec4f use_target_pos;
-						if(selfie_mode)
-							use_target_pos = avatar->graphics.getLastHeadPosition();
-						else
-						{
-							const Vec4f vertical_offset = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getThirdPersonCamTargetTranslation() : Vec4f(0);
-							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + vertical_offset;
-						}
-
-						//rotation = Vec3f(0, 0, 0); // just for testing
-						//pos = Vec3d(0,0,1.7);
-
 						avatar->anim_state = 
 							(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
 							(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) | 
 							(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
-
-						if(cam_controller.thirdPersonEnabled())
-						{
-							Vec4f cam_back_dir;
-							if(selfie_mode)
-							{
-								// Slowly blend towards use_target_pos as in selfie mode it comes from getLastHeadPosition() which can vary rapidly frame to frame.
-								const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
-								cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
-
-								cam_back_dir = (cam_controller.getForwardsVec() * cam_controller.getThirdPersonCamDist()).toVec4fVector();
-							}
-							else
-							{
-								cam_controller.current_third_person_target_pos = Vec3d(use_target_pos);
-
-								cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist() + cam_controller.getUpVec() * 0.2).toVec4fVector();
-							}
-
-
-							//printVar(cam_back_dir);
-
-							// Don't start tracing the ray back immediately or we may hit the vehicle.
-							const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), vehicle_controller_inside->getThirdPersonCamTraceSelfAvoidanceDist()) : 0.f;
-							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
-							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
-							RayTraceResult trace_results;
-							physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
-								/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, trace_results);
-
-							if(trace_results.hit_object)
-							{
-								const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, cam_back_dir.length());
-								cam_back_dir = normalise(cam_back_dir) * use_dist;
-							}
-
-							//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
-							cam_controller.third_person_cam_position = cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir);
-						}
 					}
 
 					{
@@ -6183,6 +6134,72 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 		{
 			print("Error while Updating avatar graphics: " + e.what());
 		}
+	}
+}
+
+
+void GUIClient::setThirdPersonCameraPosition(double dt)
+{
+	if(cam_controller.thirdPersonEnabled())
+	{
+		const bool selfie_mode = this->cam_controller.selfieModeEnabled();
+		
+		Vec4f use_target_pos;
+		if(selfie_mode)
+		{
+			// Searh avatars for our avatar, get its last head position, which will be our target position.
+			// This differs from the cam controller first person position due to animations, like sitting animations, which move the head a lot.
+
+			use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint(); // default
+			if(world_state.nonNull())
+			{
+				Lock lock(this->world_state->mutex);
+				for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+				{
+					const Avatar* avatar = it->second.getPointer();
+					if(avatar->isOurAvatar())
+						use_target_pos = avatar->graphics.getLastHeadPosition();
+				}
+			}
+		}
+		else
+		{
+			const Vec4f offset = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getThirdPersonCamTargetTranslation() : Vec4f(0);
+			use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + offset;
+		}
+		
+		Vec4f cam_back_dir;
+		if(selfie_mode)
+		{
+			// Slowly blend towards use_target_pos as in selfie mode it comes from getLastHeadPosition() which can vary rapidly frame to frame.
+			const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
+			cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
+		
+			cam_back_dir = (cam_controller.getForwardsVec() * cam_controller.getThirdPersonCamDist()).toVec4fVector();
+		}
+		else
+		{
+			cam_controller.current_third_person_target_pos = Vec3d(use_target_pos);
+		
+			cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist() + cam_controller.getUpVec() * 0.2).toVec4fVector();
+		}
+		
+		// Don't start tracing the ray back immediately or we may hit the vehicle.
+		const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), vehicle_controller_inside->getThirdPersonCamTraceSelfAvoidanceDist()) : 0.f;
+		// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
+		// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
+		RayTraceResult trace_results;
+		physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
+			/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, trace_results);
+		
+		if(trace_results.hit_object)
+		{
+			const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, cam_back_dir.length());
+			cam_back_dir = normalise(cam_back_dir) * use_dist;
+		}
+		
+		//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
+		cam_controller.third_person_cam_position = cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir);
 	}
 }
 
@@ -9177,7 +9194,7 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 		const auto res = this->world_state->parcels.find(ParcelID(parse_res.parcel_uid));
 		if(res != this->world_state->parcels.end())
 		{
-			this->cam_controller.setPosition(res->second->getVisitPosition());
+			this->cam_controller.setFirstAndThirdPersonPositions(res->second->getVisitPosition());
 			this->player_physics.setPosition(res->second->getVisitPosition());
 			showInfoNotification("Jumped to parcel " + toString(parse_res.parcel_uid));
 		}
@@ -9186,10 +9203,9 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 	}
 	else
 	{
-		this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
-		this->player_physics.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
-
 		this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
+		this->cam_controller.setFirstAndThirdPersonPositions(Vec3d(parse_res.x, parse_res.y, parse_res.z));
+		this->player_physics.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 	}
 }
 
@@ -9439,9 +9455,9 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	//-------------------------------- Do connect process --------------------------------
 
 	// Move player position back to near origin.
-	this->cam_controller.setPosition(spawn_pos);
-	this->cam_controller.resetRotation();
 	this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
+	this->cam_controller.setFirstAndThirdPersonPositions(spawn_pos);
+	
 
 	world_state = new WorldState();
 	world_state->url_whitelist->loadDefaultWhitelist();
