@@ -143,7 +143,7 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 
 	const bool use_custom_cache_dir = settings->value(useCustomCacheDirKey(), /*default val=*/false).toBool();
 
-	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox,		settings->value(objectLoadDistanceKey(),	/*default val=*/500.0).toDouble());
+	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox,		settings->value(objectLoadDistanceKey(),	/*default val=*/2000.0).toDouble());
 	SignalBlocker::setChecked(this->shadowsCheckBox,				settings->value(shadowsKey(),				/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->bloomCheckBox,					settings->value(BloomKey(),					/*default val=*/true).toBool());

@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "DownloadResourcesThread.h" // For ResourceDownloadedMessage
 #include "ThreadMessages.h"
 #include <ConPrint.h>
+#include <FileUtils.h>
 #include <Exception.h>
 #include <StringUtils.h>
 #if defined(EMSCRIPTEN)
@@ -101,6 +102,17 @@ void EmscriptenResourceDownloader::onResourceLoad(Reference<CurrentlyDownloading
 	ResourceRef resource = resource_manager->getOrCreateResourceForURL(downloading_resource->URL);
 
 	resource->setState(Resource::State_Present);
+	try
+	{
+		resource->file_size_B = FileUtils::getFileSize(resource_manager->getLocalAbsPathForResource(*resource));
+		resource_manager->addResourceSizeToTotalPresent(resource);
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Error: Failed to get file size for downloaded resource: " + e.what());
+		resource->file_size_B = 0;
+	}
+
 	resource_manager->markAsChanged();
 
 	out_msg_queue->enqueue(new ResourceDownloadedMessage(downloading_resource->URL)); // Send message back to GUIClient
@@ -129,8 +141,10 @@ void EmscriptenResourceDownloader::onResourceError(Reference<CurrentlyDownloadin
 void EmscriptenResourceDownloader::think()
 {
 	const int max_num_concurrent_downloads = 10;
+	const int max_present_resources_total_size_B = 256 * 1024 * 1024;
 
-	if(downloading_resources.size() < max_num_concurrent_downloads)
+	if((downloading_resources.size() < max_num_concurrent_downloads) &&
+		(resource_manager->getTotalPresentResourcesSizeB() < max_present_resources_total_size_B))
 	{
 		DownloadQueueItem item;
 		const bool got_item = download_queue->tryDequeueItem(item);

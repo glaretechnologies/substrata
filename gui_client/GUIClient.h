@@ -68,6 +68,7 @@ struct IMFDXGIDeviceManager;
 class SettingsStore;
 class TextRendererFontFace;
 struct URLParseResults;
+class Resource;
 
 
 struct DownloadingResourceInfo
@@ -81,6 +82,9 @@ struct DownloadingResourceInfo
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
 };
+
+
+extern float proj_len_viewable_threshold; // TEMP for tweaking with ImGui.
 
 
 /*=====================================================================
@@ -229,7 +233,7 @@ public:
 
 	void startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
-	void startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const std::string& resource_URL, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
 	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
 		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);

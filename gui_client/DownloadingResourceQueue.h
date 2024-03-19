@@ -1,21 +1,28 @@
 /*=====================================================================
 DownloadingResourceQueue.h
 --------------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
 
-#include <Platform.h>
-#include <Mutex.h>
-#include <Condition.h>
-#include <Vector.h>
 #include <physics/jscol_aabbox.h>
+#include <utils/Platform.h>
+#include <utils/Mutex.h>
+#include <utils/Condition.h>
+#include <utils/Vector.h>
+#include <utils/SmallVector.h>
 #include <maths/Vec4.h>
 #include <maths/vec3.h>
 #include <vector>
-#include <unordered_set>
+#include <unordered_map>
 
+
+struct DownloadQueuePosInfo
+{
+	Vec3f pos;
+	float size_factor;
+};
 
 struct DownloadQueueItem
 {
@@ -34,9 +41,10 @@ struct DownloadQueueItem
 		return 1.f / myMax(min_len, aabb_ws_longest_len);
 	}
 
-	Vec4f pos;
-	float size_factor;
+	SmallVector<DownloadQueuePosInfo, 4> pos_info; // Store multiple positions and size factors, since multiple different objects may be using the same resource.
 	std::string URL;
+
+	float priority;
 };
 
 
@@ -54,11 +62,11 @@ public:
 	DownloadingResourceQueue();
 	~DownloadingResourceQueue();
 
-	void enqueueItem(const DownloadQueueItem& item); // Adds item to queue if it is not already in queue.
+	void enqueueOrUpdateItem(const std::string& URL, const Vec4f& pos, float size_factor); // Adds item to queue if it is not already in queue.
 
 	size_t size() const;
 
-	void sortQueue(const Vec3d& campos); // Sort queue (by item distance to camera)
+	void sortQueue(const Vec3d& campos); // Sort queue (approximately by item distance to camera)
 
 	void dequeueItemsWithTimeOut(double wait_time_s, size_t max_num_items, std::vector<DownloadQueueItem>& items_out); // Blocks for up to wait_time_s
 
@@ -67,7 +75,7 @@ private:
 
 	mutable Mutex mutex;
 	Condition nonempty;
-	size_t begin_i									GUARDED_BY(mutex);
-	js::Vector<DownloadQueueItem, 16> items			GUARDED_BY(mutex);
-	std::unordered_set<std::string> item_URL_set	GUARDED_BY(mutex);
+	size_t begin_i										GUARDED_BY(mutex);
+	js::Vector<DownloadQueueItem*, 16> items			GUARDED_BY(mutex);
+	std::unordered_map<std::string, DownloadQueueItem*> item_URL_map	GUARDED_BY(mutex); // Map from item URL to pointer to DownloadQueueItem in items.
 };

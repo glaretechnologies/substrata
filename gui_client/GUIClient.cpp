@@ -94,11 +94,13 @@ Copyright Glare Technologies Limited 2024 -
 #include <clocale>
 #if defined(EMSCRIPTEN)
 #include <emscripten/emscripten.h>
+#include <unistd.h>
+#include <malloc.h>
 #endif
 
 
 static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
-static const float ob_load_distance = 600.f;
+static const float ob_load_distance = 2000.f;
 // See also  // TEMP HACK: set a smaller max loading distance for CV features in ClientThread.cpp
 
 std::vector<AvatarRef> test_avatars;
@@ -235,7 +237,7 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 
 	PhysicsWorld::init(); // init Jolt stuff
 
-	const float dist = (float)settings->getDoubleValue(/*MainOptionsDialog::objectLoadDistanceKey()*/"ob_load_distance", /*default val=*/500.0);
+	const float dist = (float)settings->getDoubleValue(/*MainOptionsDialog::objectLoadDistanceKey()*/"ob_load_distance", /*default val=*/2000.0);
 	proximity_loader.setLoadDistance(dist);
 	this->load_distance = dist;
 	this->load_distance2 = dist*dist;
@@ -798,11 +800,7 @@ void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& ce
 		}
 		else
 		{
-			DownloadQueueItem item;
-			item.pos = centroid_ws;
-			item.size_factor = DownloadQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len);
-			item.URL = url;
-			this->download_queue.enqueueItem(item);
+			this->download_queue.enqueueOrUpdateItem(url, centroid_ws, /*size factor=*/DownloadQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len));
 		}
 	}
 	catch(glare::Exception& e)
@@ -877,13 +875,13 @@ void GUIClient::startLoadingTextureIfPresent(const std::string& tex_url, const V
 		{
 			const std::string local_abs_tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			startLoadingTextureForLocalPath(local_abs_tex_path, tex_url, centroid_ws, aabb_ws_longest_len, max_task_dist, importance_factor, tex_params);
+			startLoadingTextureForLocalPath(local_abs_tex_path, resource, centroid_ws, aabb_ws_longest_len, max_task_dist, importance_factor, tex_params);
 		}
 	}
 }
 
 
-void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const std::string& resource_URL, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const ResourceRef& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params)
 {
 	//assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
@@ -895,15 +893,20 @@ void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex
 			// conPrint("Adding LoadTextureTask for texture '" + local_abs_tex_path + "'...");
 			const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_abs_tex_path);
 
-			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource_URL, tex_params, used_by_terrain);
+			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource, tex_params, used_by_terrain);
 
 			load_item_queue.enqueueItem(
+				resource->URL, // key
 				centroid_ws, 
 				aabb_ws_longest_len, 
 				task,
 				max_task_dist, 
 				importance_factor
 			);
+		}
+		else
+		{
+			load_item_queue.checkUpdateItemPosition(/*key=*/resource->URL, centroid_ws, aabb_ws_longest_len, importance_factor);
 		}
 	}
 }
@@ -963,10 +966,11 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					// This code is also in startDownloadingResourcesForObject().
 					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 					tex_params.use_mipmaps = false;
-					load_item_queue.enqueueItem(ob, 
-						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, ob.lightmap_url, tex_params, /*is_terrain_map=*/false), 
+					load_item_queue.enqueueItem(/*key=*/lod_tex_url, ob, 
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false), 
 						max_dist_for_ob_lod_level_clamped_0); // Lightmaps don't have LOD level -1 so used max dist for LOD level >= 0.
 				}
+				// Lightmaps are only used by a single object, so there should be no other uses of the lightmap, so don't need to call load_item_queue.checkUpdateItemPosition()
 			}
 		}
 	}
@@ -1615,7 +1619,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 						task->result_msg_queue = &this->msg_queue;
 						task->hypercard_content = ob->content;
 						task->opengl_engine = opengl_engine;
-						load_item_queue.enqueueItem(*ob, task, /*max_dist_for_ob_lod_level=*/200.f);
+						load_item_queue.enqueueItem(/*key=*/tex_key, *ob, task, /*max_dist_for_ob_lod_level=*/200.f);
 					}
 				}
 
@@ -1789,7 +1793,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				load_model_task->voxel_ob = ob;
 				load_model_task->build_dynamic_physics_ob = ob->isDynamic();
 
-				load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
+				load_item_queue.enqueueItem(/*key=*/"voxelob_" + ob->uid.toString(), *ob, load_model_task, max_dist_for_ob_model_lod_level);
 
 				load_placeholder = ob->getCompressedVoxels().size() != 0;
 			}
@@ -1867,6 +1871,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 							// Do the model loading in a different thread
 							Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
+							load_model_task->resource = resource_manager->getOrCreateResourceForURL(lod_model_url);
 							load_model_task->lod_model_url = lod_model_url;
 							load_model_task->opengl_engine = this->opengl_engine;
 							load_model_task->unit_cube_shape = this->unit_cube_shape;
@@ -1874,8 +1879,10 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
 
-							load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
+							load_item_queue.enqueueItem(/*key=*/lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
+						else
+							load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *ob);
 					}
 				}
 
@@ -2163,14 +2170,17 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 					// Do the model loading in a different thread
 					Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
+					load_model_task->resource = resource_manager->getOrCreateResourceForURL(lod_model_url);
 					load_model_task->lod_model_url = lod_model_url;
 					load_model_task->opengl_engine = this->opengl_engine;
 					load_model_task->unit_cube_shape = this->unit_cube_shape;
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
 
-					load_item_queue.enqueueItem(*avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
+					load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
 				}
+				else
+					load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *avatar, our_avatar);
 			}
 		}
 
@@ -2285,7 +2295,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob)
 				task->base_dir_path = base_dir_path;
 				task->result_msg_queue = &msg_queue;
 				task->script_content = ob->script;
-				load_item_queue.enqueueItem(*ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
+				load_item_queue.enqueueItem(/*key=*/"script_" + ob->uid.toString(), *ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
 			}
 		}
 
@@ -2515,12 +2525,17 @@ void GUIClient::loadAudioForObject(WorldObject* ob)
 							// Do the audio file loading in a different thread
 							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
+							load_audio_task->resource = resource_manager->getOrCreateResourceForURL(ob->audio_source_url);
 							load_audio_task->audio_source_url = ob->audio_source_url;
 							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
 							load_audio_task->resource_manager = this->resource_manager;
 							load_audio_task->result_msg_queue = &this->msg_queue;
 
-							load_item_queue.enqueueItem(*ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
+							load_item_queue.enqueueItem(/*key=*/ob->audio_source_url, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
+						}
+						else
+						{
+							load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
 						}
 					}
 
@@ -3065,6 +3080,9 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 }
 
 
+float proj_len_viewable_threshold = 0.02f;
+
+
 void GUIClient::checkForLODChanges()
 {
 	ZoneScoped; // Tracy profiler
@@ -3077,7 +3095,11 @@ void GUIClient::checkForLODChanges()
 		Lock lock(this->world_state->mutex);
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
+#if EMSCRIPTEN
+		const float proj_len_viewable_threshold_ = proj_len_viewable_threshold;
+#else
 		const float load_distance2_ = this->load_distance2;
+#endif
 
 		glare::FastIterMapValueInfo<UID, WorldObjectRef>* const objects_data = this->world_state->objects.vector.data();
 		const size_t objects_size                                            = this->world_state->objects.vector.size();
@@ -3097,7 +3119,18 @@ void GUIClient::checkForLODChanges()
 			WorldObject* const ob = objects_data[i].value.ptr();
 
 			const float cam_to_ob_d2 = ob->getCentroidWS().getDist2(cam_pos);
-			if(cam_to_ob_d2 > load_distance2_) // If object is out of load distance:
+#if EMSCRIPTEN
+			const float recip_dist = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(cam_to_ob_d2)));
+			//assert(epsEqual(recip_dist, 1 / sqrt(cam_to_ob_d2)));
+
+			const float proj_len = ob->getBiasedAABBLength() * recip_dist;
+
+			const bool in_proximity = proj_len > proj_len_viewable_threshold_;
+#else
+			const bool in_proximity = cam_to_ob_d2 < load_distance2_;
+#endif
+
+			if(!in_proximity) // If object is out of load distance:
 			{
 				if(ob->in_proximity) // If an object was in proximity to the camera, and moved out of load distance:
 				{
@@ -4056,11 +4089,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		)
 	{
 		// Pop a task from the load item queue, and pass it to the model_and_texture_loader_task_manager.
-		LoadItemQueueItem item = load_item_queue.dequeueFront(); 
+		LoadItemQueueItem item;
+		load_item_queue.dequeueFront(/*item out=*/item); 
 
 		// Discard task if it is now too far from the camera.  Do this so we don't load e.g. high detail models when we
 		// are no longer close to them.
-		const float dist_from_item = cam_controller.getPosition().toVec4fPoint().getDist(item.pos);
+		const float dist_from_item = item.getDistanceToCamera(cam_controller.getPosition().toVec4fPoint());
 		if(dist_from_item > item.task_max_dist)
 		{
 			if(dynamic_cast<const LoadTextureTask*>(item.task.ptr()))
@@ -6904,9 +6938,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						{
 							const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 							if(just_added)
-								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, 
-									new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, URL, texture_params, used_by_terrain),
+							{
+								load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, 
+									new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, texture_params, used_by_terrain),
 									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
+							}
+							else
+								load_item_queue.checkUpdateItemPosition(/*key=*/URL, pos.toVec4fPoint(), size_factor);
 						}
 					}
 					else if(FileTypes::hasAudioFileExtension(local_path))
@@ -6931,6 +6969,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							// Start loading the model
 							Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
+							load_model_task->resource = resource_manager->getOrCreateResourceForURL(URL);
 							load_model_task->lod_model_url = URL;
 							load_model_task->opengl_engine = this->opengl_engine;
 							load_model_task->unit_cube_shape = this->unit_cube_shape;
@@ -6938,7 +6977,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->build_dynamic_physics_ob = build_dynamic_physics_ob;
 
-							load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, load_model_task, 
+							load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
 								/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 						}
 						catch(glare::Exception& e)
@@ -6952,6 +6991,23 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							
 						//print("file did not have a supported image, audio, or model extension: '" + getExtension(local_path) + "'");
 					}
+
+					// Delete resource from disk if it isn't being used in e.g. a LoadModelTask.
+					// If it isn't being used, it should have reference count = 2:  1 reference from the resource manager, one from the 'resource' local variable.
+#if EMSCRIPTEN
+					if(resource->getRefCount() == 2)
+					{
+						conPrint("Handling ResourceDownloadedMessage: resource '" + resource->URL + "' refcount was 2, deleting it locally...");
+						try
+						{
+							resource_manager->deleteResourceLocally(resource);
+						}
+						catch(glare::Exception& e)
+						{
+							conPrint("Warning: excep while deleting resource locally: " + e.what());
+						}
+					}
+#endif
 				}
 			}
 		}
@@ -6977,6 +7033,21 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "high water mark B: " + ::getMBSizeString(MemAlloc::getHighWaterMarkB()) + "\n";
 	msg += "num active allocs: " + ::toString(MemAlloc::getNumActiveAllocations()) + "\n";
 	msg += "num allocs:        " + ::toString(MemAlloc::getNumAllocations()) + "\n";
+	msg += "---------------------\n";
+#endif
+
+#if EMSCRIPTEN
+	const size_t total_memory = (size_t)EM_ASM_PTR(return HEAP8.length);
+	const uintptr_t dynamic_top = (uintptr_t)sbrk(0);
+	struct mallinfo meminfo = mallinfo();
+	const size_t free_memory = total_memory - dynamic_top + meminfo.fordblks;
+	const size_t total_used = dynamic_top - meminfo.fordblks;
+
+	msg += "---------------------\n";
+	msg += "Emscripten total memory: " + ::getMBSizeString(total_memory) + "\n";
+	msg += "Emscripten dynamic_top:  " + ::getMBSizeString((size_t)dynamic_top) + "\n";
+	msg += "Emscripten free_memory:  " + ::getMBSizeString(free_memory) + "\n";
+	msg += "Emscripten total used mem:  " + ::getMBSizeString(total_used) + "\n";
 	msg += "---------------------\n";
 #endif
 
@@ -8802,7 +8873,7 @@ void GUIClient::objectEdited()
 									task->result_msg_queue = &this->msg_queue;
 									task->hypercard_content = selected_ob->content;
 									task->opengl_engine = opengl_engine;
-									load_item_queue.enqueueItem(*this->selected_ob, task, /*max task dist=*/200.f);
+									load_item_queue.enqueueItem(/*key=*/tex_key, *this->selected_ob, task, /*max task dist=*/200.f);
 								}
 							}
 
@@ -11199,26 +11270,26 @@ void GUIClient::updateGroundPlane()
 			const Vec4f centroid_ws(section_spec.x  * terrain_section_width_m, section_spec.y  * terrain_section_width_m, 0, 1);
 			
 			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
-				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, section_spec.heightmap_URL, heightmap_tex_params, /*is terrain map=*/true), 
+				load_item_queue.enqueueItem(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, this->resource_manager->getOrCreateResourceForURL(section_spec.heightmap_URL), heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.mask_map_URL))
-				load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, section_spec.mask_map_URL, maskmap_tex_params, /*is terrain map=*/true), 
+				load_item_queue.enqueueItem(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL), maskmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 
 		for(int i=0; i<4; ++i)
 		{
 			if(!spec.detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_col_map_URLs[i]))
-				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], spec.detail_col_map_URLs[i], detail_colourmap_tex_params, /*is terrain map=*/true), 
+				load_item_queue.enqueueItem(spec.detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(spec.detail_col_map_URLs[i]), detail_colourmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!spec.detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_height_map_URLs[i]))
-				load_item_queue.enqueueItem(Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], spec.detail_height_map_URLs[i], heightmap_tex_params, /*is terrain map=*/true), 
+				load_item_queue.enqueueItem(spec.detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(spec.detail_height_map_URLs[i]), heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------

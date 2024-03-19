@@ -25,9 +25,9 @@ Copyright Glare Technologies Limited 2019 -
 #define GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT					0x8E8F
 
 
-LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const std::string& resource_URL_,
+LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource_,
 	const TextureParams& tex_params_, bool is_terrain_map_)
-:	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource_URL(resource_URL_), tex_params(tex_params_), is_terrain_map(is_terrain_map_)
+:	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource(resource_), tex_params(tex_params_), is_terrain_map(is_terrain_map_)
 {}
 
 
@@ -109,11 +109,11 @@ void LoadTextureTask::run(size_t thread_index)
 
 
 #if EMSCRIPTEN
-	if(!resource_URL.empty())
+	if(resource.nonNull())
 	{
 		try
 		{
-			resource_manager->deleteResourceLocally(resource_URL);
+			resource_manager->deleteResourceLocally(resource);
 		}
 		catch(glare::Exception& e)
 		{

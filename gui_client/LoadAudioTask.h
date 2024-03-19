@@ -5,6 +5,7 @@ Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #pragma once
 
+#include "../shared/Resource.h"
 #include "../audio/AudioEngine.h"
 #include <Task.h>
 #include <ThreadMessage.h>
@@ -35,6 +36,7 @@ public:
 
 	virtual void run(size_t thread_index);
 
+	ResourceRef resource;
 	std::string audio_source_url;
 	std::string audio_source_path;
 	Reference<ResourceManager> resource_manager;

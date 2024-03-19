@@ -1,20 +1,29 @@
 /*=====================================================================
 LoadItemQueue.h
 ---------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
 
-#include <Platform.h>
-#include <Vector.h>
-#include <Task.h>
 #include <physics/jscol_aabbox.h>
 #include <maths/Vec4.h>
 #include <maths/vec3.h>
+#include <utils/Platform.h>
+#include <utils/Vector.h>
+#include <utils/Task.h>
+#include <utils/SmallVector.h>
 #include <vector>
+#include <unordered_map>
 class WorldObject;
 class Avatar;
+
+
+struct LoadItemQueuePosInfo
+{
+	Vec3f pos;
+	float size_factor;
+};
 
 
 struct LoadItemQueueItem
@@ -34,10 +43,14 @@ struct LoadItemQueueItem
 		return 1.f / (myMax(min_len, aabb_ws_longest_len) * importance_factor);
 	}
 
-	Vec4f pos;
-	float size_factor;
+	float getDistanceToCamera(const Vec4f& cam_pos_) const; // Get distance from camera to closest position stored in pos_info.
+
+	SmallVector<LoadItemQueuePosInfo, 4> pos_info; // Store multiple positions and size factors, since multiple different objects may be using the same resource.
+	std::string key;
 	float task_max_dist; // Max distance from camera before task should be discarded.
 	glare::TaskRef task;
+	
+	float priority;
 };
 
 
@@ -53,10 +66,15 @@ public:
 	LoadItemQueue();
 	~LoadItemQueue();
 
-	void enqueueItem(const WorldObject& ob, const glare::TaskRef& task, float task_max_dist);
-	void enqueueItem(const Avatar& ob, const glare::TaskRef& task, float task_max_dist, bool our_avatar);
-	void enqueueItem(const Vec4f& pos, float aabb_ws_longest_len, const glare::TaskRef& task, float task_max_dist, float importance_factor);
-	void enqueueItem(const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist);
+	void enqueueItem(const std::string& key, const WorldObject& ob, const glare::TaskRef& task, float task_max_dist);
+	void enqueueItem(const std::string& key, const Avatar& ob, const glare::TaskRef& task, float task_max_dist, bool our_avatar);
+	void enqueueItem(const std::string& key, const Vec4f& pos, float aabb_ws_longest_len, const glare::TaskRef& task, float task_max_dist, float importance_factor);
+	void enqueueItem(const std::string& key, const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist);
+
+	void checkUpdateItemPosition(const std::string& key, const WorldObject& ob);
+	void checkUpdateItemPosition(const std::string& key, const Avatar& ob, bool our_avatar);
+	void checkUpdateItemPosition(const std::string& key, const Vec4f& pos, float aabb_ws_longest_len, float importance_factor);
+	void checkUpdateItemPosition(const std::string& key, const Vec4f& pos, float size_factor);
 
 	void clear();
 
@@ -64,11 +82,13 @@ public:
 
 	size_t size() const;
 
-	void sortQueue(const Vec3d& campos); // Sort queue (by item distance to camera)
+	void sortQueue(const Vec3d& campos); // Sort queue (approximately by item distance to camera)
 
-	LoadItemQueueItem dequeueFront();
+	void dequeueFront(LoadItemQueueItem& item_out);
 private:
 	// Valid items are at indices [begin_i, items.size())
 	size_t begin_i;
-	js::Vector<LoadItemQueueItem, 16> items;
+	js::Vector<LoadItemQueueItem*, 16> items;
+
+	std::unordered_map<std::string, LoadItemQueueItem*> item_map; // Map from key to pointer to LoadItemQueueItem.
 };
