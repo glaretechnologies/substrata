@@ -6997,7 +6997,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 #if EMSCRIPTEN
 					if(resource->getRefCount() == 2)
 					{
-						conPrint("Handling ResourceDownloadedMessage: resource '" + resource->URL + "' refcount was 2, deleting it locally...");
+						// conPrint("Handling ResourceDownloadedMessage: resource '" + resource->URL + "' refcount was 2, deleting it locally...");
 						try
 						{
 							resource_manager->deleteResourceLocally(resource);
@@ -9188,6 +9188,8 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 	{
 		this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 		this->player_physics.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
+
+		this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
 	}
 }
 
@@ -9439,6 +9441,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	// Move player position back to near origin.
 	this->cam_controller.setPosition(spawn_pos);
 	this->cam_controller.resetRotation();
+	this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
 
 	world_state = new WorldState();
 	world_state->url_whitelist->loadDefaultWhitelist();
@@ -11944,6 +11947,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 		url_parse_results.y = this->cam_controller.getPosition().y;
 		url_parse_results.z = this->cam_controller.getPosition().z;
 		url_parse_results.parsed_x = url_parse_results.parsed_y = url_parse_results.parsed_z = true;
+		url_parse_results.heading =  Maths::doubleMod(::radToDegree(this->cam_controller.getAngles().x), 360.0);
 
 		this->connectToServer(url_parse_results);
 	}

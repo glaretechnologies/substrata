@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "URLParser.h"
 
 
+#include <networking/URL.h>
 #include <utils/Parser.h>
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
@@ -69,6 +70,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	}
 
 	URLParseResults res;
+	res.heading = 90;
 	res.parsed_x = false;
 	res.parsed_y = false;
 	res.parsed_z = false;
@@ -78,54 +80,35 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	double x = DEFAULT_X;
 	double y = DEFAULT_Y;
 	double z = DEFAULT_Z;
+
 	if(parser.currentIsChar('?'))
 	{
 		parser.consume('?');
 
-		if(!parser.parseChar('x'))
-			throw glare::Exception("Expected 'x' after '?'.");
+		const std::string query_string = URL.substr(parser.currentPos());
+		std::map<std::string, std::string> query_keyvalues = URL::parseQuery(query_string);
 
-		if(!parser.parseChar('='))
-			throw glare::Exception("Expected '=' after 'x'.");
-
-		if(!parser.parseDouble(x))
-			throw glare::Exception("Failed to parse x coord.");
-		res.parsed_x = true;
-
-		if(!parser.parseChar('&'))
-			throw glare::Exception("Expected '&' after x coodinate.");
-
-		if(!parser.parseChar('y'))
-			throw glare::Exception("Expected 'y' after '?'.");
-
-		if(!parser.parseChar('='))
-			throw glare::Exception("Expected '=' after 'y'.");
-
-		if(!parser.parseDouble(y))
-			throw glare::Exception("Failed to parse y coord.");
-		res.parsed_y = true;
-
-		if(parser.currentIsChar('&'))
+		if(query_keyvalues.count("x"))
 		{
-			parser.consume('&');
-
-			string_view URL_arg_name;
-			if(!parser.parseToChar('=', URL_arg_name))
-				throw glare::Exception("Failed to parse URL argument after &");
-			if(URL_arg_name == "z")
-			{
-				if(!parser.parseChar('='))
-					throw glare::Exception("Expected '=' after 'z'.");
-
-				if(!parser.parseDouble(z))
-					throw glare::Exception("Failed to parse z coord.");
-				res.parsed_z = true;
-			}
-			else
-				throw glare::Exception("Unknown URL arg '" + toString(URL_arg_name) + "'");
+			x = stringToDouble(query_keyvalues["x"]);
+			res.parsed_x = true;
 		}
+		if(query_keyvalues.count("y"))
+		{
+			y = stringToDouble(query_keyvalues["y"]);
+			res.parsed_y = true;
+		}
+		if(query_keyvalues.count("z"))
+		{
+			z = stringToDouble(query_keyvalues["z"]);
+			res.parsed_z = true;
+		}
+	
+		if(query_keyvalues.count("world"))
+			userpath = stringToDouble(query_keyvalues["world"]); // An alternative way of specifying the world/user name
 
-		conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
+		if(query_keyvalues.count("heading"))
+			res.heading = stringToDouble(query_keyvalues["heading"]);
 	}
 	
 	res.hostname = hostname;

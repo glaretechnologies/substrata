@@ -11,9 +11,12 @@ Copyright Glare Technologies Limited 2019 -
 
 struct URLParseResults
 {
+	URLParseResults() : heading(90.0) {}
+
 	std::string hostname;
 	std::string userpath; // = worldname
 	double x, y, z;
+	double heading; // [0, 360].  0 = looking along x axis.  90 = looking along y axis
 	int parcel_uid;
 
 	bool parsed_x;
