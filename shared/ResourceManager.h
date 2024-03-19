@@ -67,7 +67,7 @@ public:
 
 	bool isFileForURLPresent(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
-	void deleteResourceLocally(const std::string& URL);
+	void deleteResourceLocally(const ResourceRef& resource);
 
 
 	void addToDownloadFailedURLs(const std::string& URL);
@@ -84,11 +84,14 @@ public:
 
 	Mutex& getMutex() { return mutex; }
 
-	std::string getDiagnostics() const;
+	void addResourceSizeToTotalPresent(ResourceRef& res);
+	int64 getTotalPresentResourcesSizeB() const;
 
 	// Just used on client:
 	void loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk);
 	void saveToDisk(const std::string& path);
+
+	std::string getDiagnostics() const;
 private:
 	std::string base_resource_dir;
 
@@ -98,6 +101,8 @@ private:
 
 
 	std::unordered_set<std::string> download_failed_URLs; // Ephemeral state, used to prevent trying to download the same resource over and over again in one client execution.
+
+	int64 total_present_resources_size_B;
 };
 
 

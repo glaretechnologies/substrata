@@ -1,15 +1,15 @@
 /*=====================================================================
 DownloadingResourceQueue.cpp
 ----------------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #include "DownloadingResourceQueue.h"
 
 
-#include <ConPrint.h>
-#include <Timer.h>
-#include <Lock.h>
-#include <StringUtils.h>
+#include <utils/ConPrint.h>
+#include <utils/Timer.h>
+#include <utils/Lock.h>
+#include <utils/StringUtils.h>
 #include <algorithm>
 
 
@@ -19,22 +19,44 @@ DownloadingResourceQueue::DownloadingResourceQueue()
 
 
 DownloadingResourceQueue::~DownloadingResourceQueue()
-{}
-
-
-void DownloadingResourceQueue::enqueueItem(const DownloadQueueItem& item/*const Vec4f& pos, const std::string& URL*/)
 {
-	assert(item.pos.isFinite());
+	for(size_t i = begin_i; i < items.size(); ++i)
+		delete items[i];
+}
+
+
+void DownloadingResourceQueue::enqueueOrUpdateItem(/*const DownloadQueueItem& item*/const std::string& URL, const Vec4f& pos, float size_factor)
+{
+	assert(pos.isFinite());
 
 	bool already_inserted;
 	{
 		Lock lock(mutex);
 
-		already_inserted = item_URL_set.find(item.URL) != item_URL_set.end();
-		if(!already_inserted)
+		auto res = item_URL_map.find(URL);
+		if(res == item_URL_map.end()) // If not already inserted:
 		{
-			items.push_back(item);
-			item_URL_set.insert(item.URL);
+			DownloadQueueItem* new_item = new DownloadQueueItem();
+			new_item->URL = URL;
+			new_item->pos_info.resize(1);
+			new_item->pos_info[0].pos = Vec3f(pos);
+			new_item->pos_info[0].size_factor = size_factor;
+			
+			item_URL_map[URL] = new_item;
+			items.push_back(new_item);
+
+			already_inserted = false;
+		}
+		else
+		{
+			DownloadQueueItem* existing_item = res->second;
+
+			DownloadQueuePosInfo new_pos_info;
+			new_pos_info.pos = Vec3f(pos);
+			new_pos_info.size_factor = size_factor;
+			existing_item->pos_info.push_back(new_pos_info);
+			
+			already_inserted = true;
 		}
 	}
 
@@ -52,21 +74,17 @@ size_t DownloadingResourceQueue::size() const
 
 struct QueueItemDistComparator
 {
-	bool operator () (const DownloadQueueItem& a, const DownloadQueueItem& b)
+	bool operator () (const DownloadQueueItem* a, const DownloadQueueItem* b)
 	{
-		const float a_priority = a.pos.getDist(campos) * a.size_factor;
-		const float b_priority = b.pos.getDist(campos) * b.size_factor;
-		return a_priority < b_priority;
+		return a->priority < b->priority;
 	}
-
-	Vec4f campos;
 };
 
 
 void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 {
 	// Sort download list by distance from camera
-	const Vec4f campos((float)campos_.x, (float)campos_.y, (float)campos_.z, 1.f);
+	const Vec4f campos_zero_w((float)campos_.x, (float)campos_.y, (float)campos_.z, 0.f);
 
 	{
 		Lock lock(mutex);
@@ -74,10 +92,24 @@ void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 		Timer timer;
 
 		QueueItemDistComparator comparator;
-		comparator.campos = campos;
+
+		// Do pass over queue items to compute priority, store and use that for sorting.
+		const size_t items_size = items.size();
+		for(size_t i = begin_i; i < items_size; ++i)
+		{
+			const SmallVector<DownloadQueuePosInfo, 4>& pos_info = items[i]->pos_info;
+			assert(pos_info.size() >= 1);
+			float smallest_priority = campos_zero_w.getDist(maskWToZero(loadUnalignedVec4f(&pos_info[0].pos.x))) * pos_info[0].size_factor;
+			for(size_t z=1; z<pos_info.size(); ++z)
+			{
+				const float pos_info_z_priority = campos_zero_w.getDist(maskWToZero(loadUnalignedVec4f(&pos_info[z].pos.x))) * pos_info[z].size_factor;
+				smallest_priority = myMin(smallest_priority, pos_info_z_priority);
+			}
+
+			items[i]->priority = smallest_priority;
+		}
 
 		std::sort(items.begin() + begin_i, items.end(), comparator);
-
 
 		/*conPrint("Download queue: ");
 		for(int i=(int)begin_i; i<(int)items.size(); ++i)
@@ -85,7 +117,7 @@ void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 			conPrint("item " + toString(i) + ": " + items[i].URL + ", (" + doubleToStringNSigFigs(items[i].pos.getDist(campos), 3) + " m away)");
 		}*/
 
-		//conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4) + " (begin_i: " + toString(begin_i) + ")");
+		// conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4) + " (begin_i: " + toString(begin_i) + ")");
 	}
 }
 
@@ -100,8 +132,10 @@ void DownloadingResourceQueue::dequeueItemsWithTimeOut(double wait_time_seconds,
 	{
 		for(size_t i=0; (i<max_num_items) && (begin_i < items.size()); ++i) // while we have removed <= max_num_items and there are still items in the queue:
 		{
-			items_out.push_back(items[begin_i]);
-			item_URL_set.erase(items[begin_i].URL);
+			items_out.push_back(*items[begin_i]);
+			item_URL_map.erase(items[begin_i]->URL);
+			delete items[begin_i];
+			items[begin_i] = NULL;
 			begin_i++;
 		}
 		return;
@@ -111,8 +145,10 @@ void DownloadingResourceQueue::dequeueItemsWithTimeOut(double wait_time_seconds,
 
 	for(size_t i=0; (i<max_num_items) && (begin_i < items.size()); ++i) // while we have removed <= max_num_items and there are still items in the queue:
 	{
-		items_out.push_back(items[begin_i]);
-		item_URL_set.erase(items[begin_i].URL);
+		items_out.push_back(*items[begin_i]);
+		item_URL_map.erase(items[begin_i]->URL);
+		delete items[begin_i];
+		items[begin_i] = NULL;
 		begin_i++;
 	}
 }
@@ -124,8 +160,10 @@ bool DownloadingResourceQueue::tryDequeueItem(DownloadQueueItem& item_out)
 
 	if(begin_i < items.size()) // If there are any items in the queue:
 	{
-		item_out = items[begin_i];
-		item_URL_set.erase(items[begin_i].URL);
+		item_out = *items[begin_i];
+		item_URL_map.erase(items[begin_i]->URL);
+		delete items[begin_i];
+		items[begin_i] = NULL;
 		begin_i++;
 		return true;
 	}

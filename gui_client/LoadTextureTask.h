@@ -6,7 +6,8 @@ Copyright Glare Technologies Limited 2019 -
 #pragma once
 
 
-#include "OpenGLTexture.h"
+#include "../shared/Resource.h"
+#include <opengl/OpenGLTexture.h>
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <ThreadSafeQueue.h>
@@ -38,7 +39,7 @@ LoadTextureTask
 class LoadTextureTask : public glare::Task
 {
 public:
-	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const std::string& resource_URL_,
+	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource,
 		const TextureParams& tex_params, bool is_terrain_map);
 
 	virtual void run(size_t thread_index);
@@ -47,7 +48,7 @@ public:
 	Reference<ResourceManager> resource_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 	std::string path;
-	std::string resource_URL;
+	ResourceRef resource;
 	TextureParams tex_params;
 	bool is_terrain_map;
 };

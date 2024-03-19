@@ -24,7 +24,8 @@ Resource::Resource(const std::string& URL_, const std::string& raw_local_path_, 
 	local_path(raw_local_path_), 
 	state(s), 
 	owner_id(owner_id_)/*, num_buffer_readers(0)*/,
-	locally_deleted(false)
+	locally_deleted(false),
+	file_size_B(0)
 {
 	assert(!FileUtils::isPathAbsolute(local_path));
 }

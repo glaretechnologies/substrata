@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "../shared/WorldObject.h"
-#include "../shared/Avatar.h"
+#include "../shared/Resource.h"
 #include "PhysicsObject.h"
 #include <opengl/OpenGLEngine.h>
 #include <Task.h>
@@ -59,6 +59,7 @@ public:
 	virtual void run(size_t thread_index);
 
 	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
+	ResourceRef resource;
 	bool build_dynamic_physics_ob; // If true, build a convex hull shape instead of a mesh physics shape.
 	
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.

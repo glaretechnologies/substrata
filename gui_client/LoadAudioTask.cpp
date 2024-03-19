@@ -72,11 +72,11 @@ void LoadAudioTask::run(size_t thread_index)
 
 
 #if EMSCRIPTEN
-	if(!audio_source_url.empty())
+	if(resource.nonNull())
 	{
 		try
 		{
-			resource_manager->deleteResourceLocally(audio_source_url);
+			resource_manager->deleteResourceLocally(resource);
 		}
 		catch(glare::Exception& e)
 		{

@@ -9,11 +9,8 @@ Copyright Glare Technologies Limited 2022 -
 #include "UserID.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
-#include <string>
-#include <utils/Vector.h>
-#include <utils/Mutex.h>
 #include <utils/DatabaseKey.h>
-#include <set>
+#include <string>
 
 
 //struct ResourceDownloadListener : public ThreadSafeRefCounted
@@ -43,7 +40,7 @@ public:
 	};
 
 	Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_);
-	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, locally_deleted(false) {}
+	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, locally_deleted(false), file_size_B(0) {}
 	
 	const std::string getLocalAbsPath(const std::string& base_resource_dir) const { return base_resource_dir + "/" + local_path; }
 	const std::string getRawLocalPath() const { return local_path; } // Relative path on local disk from base_resources_dir.
@@ -78,6 +75,8 @@ private:
 
 public:
 	bool locally_deleted; // Has resource been deleted with ResourceManager::deleteResourceLocally().  (For Emscripten)
+
+	size_t file_size_B; // Size of resource on disk.  Just used with Emscripten.
 };
 
 typedef Reference<Resource> ResourceRef;

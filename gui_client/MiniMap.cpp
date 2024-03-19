@@ -436,7 +436,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 									tex_params.use_mipmaps = false;
 
 									if(resource->getState() == Resource::State_Present)
-										gui_client->startLoadingTextureForLocalPath(local_path, info.image_URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params);
+										gui_client->startLoadingTextureForLocalPath(local_path, resource, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params);
 								}
 							}
 

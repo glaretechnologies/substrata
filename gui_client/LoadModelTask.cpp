@@ -120,11 +120,11 @@ void LoadModelTask::run(size_t thread_index)
 
 
 #if EMSCRIPTEN
-	if(!lod_model_url.empty())
+	if(resource.nonNull())
 	{
 		try
 		{
-			resource_manager->deleteResourceLocally(lod_model_url);
+			resource_manager->deleteResourceLocally(resource);
 		}
 		catch(glare::Exception& e)
 		{
