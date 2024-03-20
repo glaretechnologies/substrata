@@ -1,9 +1,6 @@
 # libraries
 
 
-include(${GLARE_CORE_TRUNK_DIR_ENV}/OpenEXR/openexr.cmake)
-
-
 FILE(GLOB libjpg "${jpegdir}/ja*.c" "${jpegdir}/jc*.c" "${jpegdir}/jd*.c" "${jpegdir}/jf*.c" "${jpegdir}/ji*.c" "${jpegdir}/jq*.c"
 "${jpegdir}/jutils.c"
 "${jpegdir}/jmemmgr.c"
@@ -98,6 +95,7 @@ include(../cmake/shared_cxx_settings.cmake)
 
 add_definitions(-DPNG_ALLOW_BENIGN_ERRORS)
 
+# openexr_all_files is defined in openexr.cmake which is included from shared_cxx_settings.cmake.
 add_library(libs
 ${openexr_all_files}
 ${libpng}

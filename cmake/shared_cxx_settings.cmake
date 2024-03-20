@@ -21,26 +21,8 @@ addIncludeDirectory(${pngdir})
 addIncludeDirectory(${pugixmldir})
 addIncludeDirectory(${zlibdir})
 
-
-# OpenEXR:
-addIncludeDirectory("${imathdir}/src/Imath")
-addIncludeDirectory("${openexrdir}/src/lib/Iex")
-addIncludeDirectory("${openexrdir}/src/lib/IlmThread")
-addIncludeDirectory("${openexrdir}/src/lib/OpenEXR")
-addIncludeDirectory("${openexrdir}/src/lib/OpenEXRUtil")
-
-# OpenEXR per-platform config files:
-if(WIN32)
-	addIncludeDirectory("${imathdir}/config_windows")
-	addIncludeDirectory("${openexrdir}/config_windows")
-elseif(APPLE)
-	addIncludeDirectory("${imathdir}/config_mac")
-	addIncludeDirectory("${openexrdir}/config_mac")
-else()
-	addIncludeDirectory("${imathdir}/config_linux")
-	addIncludeDirectory("${openexrdir}/config_linux")
-endif()
-
+# Include openexr.cmake to set include paths to OpenEXR and Imath dirs. 
+include(${GLARE_CORE_TRUNK_DIR_ENV}/OpenEXR/openexr.cmake)
 
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/")
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/utils")
@@ -99,6 +81,7 @@ if(EMSCRIPTEN)
 	
 	add_definitions(-msimd128)
 	add_definitions(-msse4.1)
+#	add_definitions(-msse4.2)
 	
 	#add_definitions(-O0) # Disable optimisations
 	
