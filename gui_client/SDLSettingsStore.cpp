@@ -13,6 +13,47 @@ Copyright Glare Technologies Limited 2023 -
 SDLSettingsStore::~SDLSettingsStore()
 {}
 
+#if EMSCRIPTEN
+
+ // TODO
+bool SDLSettingsStore::getBoolValue(const std::string& key, bool default_value)
+{
+	return default_value;
+}
+
+void SDLSettingsStore::setBoolValue(const std::string& key, bool value)
+{
+}
+
+int SDLSettingsStore::getIntValue(const std::string& key, int default_value)
+{
+	return default_value;
+}
+
+void SDLSettingsStore::setIntValue(const std::string& key, int value)
+{
+}
+
+double SDLSettingsStore::getDoubleValue(const std::string& key, double default_value)
+{
+	return default_value;
+}
+
+void SDLSettingsStore::setDoubleValue(const std::string& key, double value)
+{
+}
+
+std::string SDLSettingsStore::getStringValue(const std::string& key, const std::string& default_value)
+{
+	return default_value;
+}
+
+void SDLSettingsStore::setStringValue(const std::string& key, const std::string& value)
+{
+}
+
+#else
+
 
 static bool doesRegValueExist(const std::string& key)
 {
@@ -107,3 +148,6 @@ std::string SDLSettingsStore::getStringValue(const std::string& key, const std::
 void SDLSettingsStore::setStringValue(const std::string& key, const std::string& value)
 {
 }
+
+
+#endif
