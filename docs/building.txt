@@ -247,9 +247,9 @@ Clone ImGui repo into your libs directory (e.g. the directory you set the GLARE_
 
 Building the web client with Emscripten
 =======================================
-Install Emscripten SDK.
+Install Emscripten SDK (https://emscripten.org/docs/getting_started/downloads.html)
 
-Make Emscripten SDK build as described above.
+Make Emscripten SDL build as described above in 'Making Emscripten SDL build' section.
 
 Get ImGUI as described above
 
@@ -264,16 +264,20 @@ You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -
 
 	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON -DCEF_SUPPORT=OFF
 
+
+Make data directory to be bundled
+---------------------------------
+The data directory contains resources (textures, models etc.) that substrata needs to run.
+The 'data' folder gets packaged up into gui_client.data.
+In your emscripten build dir (e.g. C:\programming\substrata\emscripten_build), run the make_emscripten_preload_data.rb script, passing in your substrata source directory as the first argument:
+
+	ruby C:\code\substrata\scripts\make_emscripten_preload_data.rb C:\code\substrata
+
+
 Now do the build:
-	
+
 	cmake --build . --target gui_client
 
-Rebuilding bundled data as well
--------------------------------
-This command copies some data from the glare-core directories in the the 'data' folder, which gets packaged up into gui_client.data.
-NOTE: Currently you need to copy contents of 'resources' into there as well.
-
-	cp c:\code\glare-core\opengl\shaders\* .\data\shaders\ ; cp c:\code\substrata\shaders\* .\data\shaders\ ; rm C:\programming\cyberspace\output\test_builds\gui_client.data; cmake --build . --target gui_client
 
 Running the web client
 ----------------------
