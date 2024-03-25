@@ -114,6 +114,8 @@ void DownloadResourcesThread::killConnection()
 
 void DownloadResourcesThread::doRun()
 {
+#if !EMSCRIPTEN // Emscripten uses EmscriptenResourceDownloader instead.
+
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("DownloadResourcesThread");
 
 	try
@@ -305,6 +307,7 @@ void DownloadResourcesThread::doRun()
 	{
 		conPrint("DownloadResourcesThread glare::Exception: " + e.what());
 	}
+#endif
 }
 
 
