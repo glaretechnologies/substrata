@@ -1069,7 +1069,8 @@ if(EMSCRIPTEN)
 		#"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
 		#"-O2"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
-		--preload-file data
+		--use-preload-cache # Cache the preloaded data in IndexedDB for subsequent page visits.
+		--preload-file data # Use preloaded data, read it from the 'data' directory in the Emscripten build dir.
 	)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_DEPENDS "data")
