@@ -1075,10 +1075,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		const double heading_deg = Maths::doubleMod(::radToDegree(gui_client.cam_controller.getAngles().x), 360.0);
 
+		// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
 		this->url_widget->setURL("sub://" + gui_client.server_hostname + "/" + gui_client.server_worldname +
 			"?x=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().x, 1) + 
 			"&y=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().y, 1) +
-			"&z=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().z, 1) +
+			"&z=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().z, 2) +
 			"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1));
 	}
 
