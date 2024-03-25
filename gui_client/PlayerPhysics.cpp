@@ -39,7 +39,8 @@ PlayerPhysics::PlayerPhysics()
 	fly_mode(false),
 	last_runpressed(false),
 	//time_since_on_ground(0),
-	campos_z_delta(0)
+	campos_z_delta(0),
+	gravity_enabled(true)
 {
 }
 
@@ -159,6 +160,10 @@ void PlayerPhysics::processMoveForwards(float factor, bool runpressed, CameraCon
 {
 	last_runpressed = runpressed;
 	move_desired_vel += ::toVec3f(cam.getForwardsVec()) * factor * move_speed * doRunFactor(runpressed);
+
+	// When the player spawns, gravity will be turned off, so they don't e.g. fall through buildings before they have been loaded.
+	// Turn it on as soon as the player tries to move.
+	this->gravity_enabled = true;
 }
 
 
@@ -166,6 +171,8 @@ void PlayerPhysics::processStrafeRight(float factor, bool runpressed, CameraCont
 {
 	last_runpressed = runpressed;
 	move_desired_vel += ::toVec3f(cam.getRightVec()) * factor * move_speed * doRunFactor(runpressed);
+
+	this->gravity_enabled = true;
 }
 
 
@@ -180,6 +187,8 @@ void PlayerPhysics::processMoveUp(float factor, bool runpressed, CameraControlle
 void PlayerPhysics::processJump(CameraController& cam, double cur_time)
 {
 	last_jump_time = cur_time;
+
+	this->gravity_enabled = true;
 }
 
 
@@ -240,8 +249,11 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 		}
 
 		// Apply gravity, even when we are on the ground (supported).  Applying gravity when on ground seems to be important for preventing being InAir occasionally while riding platforms.
-		const Vec3f gravity_accel(0, 0, -9.81f); 
-		vel += gravity_accel * dtime;
+		if(gravity_enabled)
+		{
+			const Vec3f gravity_accel(0, 0, -9.81f); 
+			vel += gravity_accel * dtime;
+		}
 
 		if(vel.z < -100) // cap falling speed at 100 m/s
 			vel.z = -100;

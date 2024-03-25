@@ -62,6 +62,8 @@ public:
 
 	void setFlyModeEnabled(bool enabled);
 	bool flyModeEnabled() const { return fly_mode; }
+
+	void setGravityEnabled(bool enabled) { gravity_enabled = enabled; }
 	
 	bool onGroundRecently() const { return on_ground; }
 	//bool onGroundRecently() const { return time_since_on_ground < 0.2f; }
@@ -94,6 +96,8 @@ private:
 	bool last_runpressed; // Was the run key pressed as of the last time processMoveForwards etc. was called?
 
 	bool fly_mode;
+
+	bool gravity_enabled;
 
 	//float time_since_on_ground;
 

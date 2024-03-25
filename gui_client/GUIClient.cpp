@@ -9430,7 +9430,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 {
 	// By default, randomly vary the spawn position a bit so players don't spawn inside other players.
 	const double spawn_r = 4.0;
-	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), 2);
+	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), PlayerPhysics::getEyeHeight());
 
 	this->server_hostname = parse_res.hostname;
 	this->server_worldname = parse_res.userpath;
@@ -9489,6 +9489,10 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	{
 		this->player_physics.setPosition(spawn_pos);
 	}
+
+	// When the player spawns, gravity will be turned off, so they don't e.g. fall through buildings before they have been loaded.
+	// Turn it on as soon as the player tries to move.
+	this->player_physics.setGravityEnabled(false);
 
 	assert(terrain_decal_manager.isNull());
 	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, opengl_engine.ptr());
