@@ -130,6 +130,7 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 
 	any_large_tree_chunk_invalidated = false;
 
+#if !EMSCRIPTEN // Grass scattering compute shader doesn't work in emscripten so don't bother loading grass textures for now.
 	{
 		const std::string grass_billboard_tex_path = base_dir_path + "/resources/grass clump billboard 2.png";
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_billboard_tex_path));
@@ -159,6 +160,7 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 		params.use_sRGB = false;
 		grass_normal_map = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(grass_normal_map_path), *map, params);
 	}
+#endif
 
 	//grass_texture = opengl_engine->getTexture("N:\\substrata\\trunk\\resources\\obstacle.png");
 
@@ -1954,7 +1956,7 @@ std::string TerrainScattering::getDiagnostics() const
 {
 	std::string s;
 	s.reserve(512);
-	s += "Grass textures GPU RAM: " + getNiceByteSize(grass_texture->getByteSize() + grass_normal_map->getByteSize()) + "\n";
+	s += "Grass textures GPU RAM: " + getNiceByteSize((grass_texture.nonNull() ? grass_texture->getByteSize() : 0) + (grass_normal_map.nonNull() ? grass_normal_map->getByteSize() : 0)) + "\n";
 
 	size_t detail_mask_map_gpu_mem = 0;
 	size_t detail_mask_map_cpu_mem = 0;
