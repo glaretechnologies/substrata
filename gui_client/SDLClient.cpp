@@ -152,7 +152,7 @@ int main(int argc, char** argv)
 
 
 #if defined(EMSCRIPTEN)
-		const std::string base_dir = "/data";
+		const std::string base_dir = "";
 #else
 		const std::string base_dir = PlatformUtils::getResourceDirectoryPath();
 #endif
@@ -164,7 +164,7 @@ int main(int argc, char** argv)
 		const std::string font_path = "/System/Library/Fonts/SFNS.ttf";
 #else
 		// Linux:
-		const std::string font_path = base_dir + "/resources/TruenoLight-E2pg.otf";
+		const std::string font_path = base_dir + "/data/resources/TruenoLight-E2pg.otf";
 #endif
 
 		TextRendererRef text_renderer = new TextRenderer();
@@ -395,7 +395,7 @@ int main(int argc, char** argv)
 			OpenGLMaterial env_mat;
 			opengl_engine->setEnvMat(env_mat);
 		}
-		opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir + "/resources/cirrus.exr"));
+		opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir + "/data/resources/cirrus.exr"));
 
 		
 		

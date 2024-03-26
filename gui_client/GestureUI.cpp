@@ -82,7 +82,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 		const std::string gesture_name = gestures[i];
 
 		GLUIButtonRef button = new GLUIButton();
-		button->create(*gl_ui, opengl_engine,  gui_client->base_dir_path + "/resources/buttons/" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), /*tooltip=*/gesture_name);
+		button->create(*gl_ui, opengl_engine,  gui_client->resources_dir_path + "/buttons/" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), /*tooltip=*/gesture_name);
 		button->toggleable = true;
 		button->client_data = gesture_name;
 		button->handler = this;
@@ -93,23 +93,23 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 
 	// Create left and right tab buttons
 	left_tab_button = new GLUIButton();
-	left_tab_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/left_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
+	left_tab_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
 	left_tab_button->handler = this;
 	gl_ui->addWidget(left_tab_button);
 	
 	right_tab_button = new GLUIButton();
-	right_tab_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/right_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
+	right_tab_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
 	right_tab_button->handler = this;
 	gl_ui->addWidget(right_tab_button);
 	
 	selfie_button = new GLUIButton();
-	selfie_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/Selfie.png", Vec2f(-0.9f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Selfie view");
+	selfie_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(-0.9f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Selfie view");
 	selfie_button->toggleable = true;
 	selfie_button->handler = this;
 	gl_ui->addWidget(selfie_button);
 	
 	microphone_button = new GLUIButton();
-	microphone_button->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/buttons/microphone.png", Vec2f(-0.8f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Enable microphone for voice chat");
+	microphone_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/microphone.png", Vec2f(-0.8f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Enable microphone for voice chat");
 	microphone_button->toggleable = true;
 	microphone_button->handler = this;
 	gl_ui->addWidget(microphone_button);

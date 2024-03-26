@@ -69,6 +69,7 @@ class SettingsStore;
 class TextRendererFontFace;
 struct URLParseResults;
 class Resource;
+class AsyncTextureLoader;
 
 
 struct DownloadingResourceInfo
@@ -178,7 +179,8 @@ public:
 public:
 	void loadModelForObject(WorldObject* ob);
 	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level);
-	void loadModelForAvatar(Avatar* ob);
+	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
+	void loadModelForAvatar(Avatar* avatar);
 	void loadScriptForObject(WorldObject* ob);
 	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
 	void doBiomeScatteringForObject(WorldObject* ob);
@@ -310,6 +312,7 @@ public:
 
 
 	std::string base_dir_path;
+	std::string resources_dir_path; // = base_dir_path + "/data/resources"
 	std::string appdata_path;
 	ArgumentParser parsed_args;
 
@@ -358,7 +361,6 @@ public:
 
 	ParcelRef selected_parcel;
 
-	std::string resources_dir;
 	Reference<ResourceManager> resource_manager;
 
 
@@ -583,6 +585,8 @@ public:
 
 	Reference<ParticleManager> particle_manager;
 
+	Reference<AsyncTextureLoader> async_texture_loader;
+
 	glare::StackAllocator stack_allocator;
 
 
@@ -625,4 +629,6 @@ public:
 	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down, B_down;
 
 	std::vector<Reference<ThreadMessage> > temp_msgs;
+
+	bool extracted_anim_data_loaded;
 };

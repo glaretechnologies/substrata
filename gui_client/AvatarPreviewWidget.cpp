@@ -147,7 +147,7 @@ void AvatarPreviewWidget::initializeGL()
 	{
 		try
 		{
-			opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir_path + "/resources/cirrus.exr"));
+			opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir_path + "/data/resources/cirrus.exr"));
 		}
 		catch(glare::Exception& e)
 		{
@@ -169,7 +169,7 @@ void AvatarPreviewWidget::initializeGL()
 		OpenGLMaterial env_mat;
 		try
 		{
-			env_mat.albedo_texture = opengl_engine->getTexture(base_dir_path + "/resources/sky_no_sun.exr");
+			env_mat.albedo_texture = opengl_engine->getTexture(base_dir_path + "/data/resources/sky_no_sun.exr");
 		}
 		catch(glare::Exception& e)
 		{
@@ -191,7 +191,7 @@ void AvatarPreviewWidget::initializeGL()
 		ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
 		try
 		{
-			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
+			ob->materials[0].albedo_texture = opengl_engine->getTexture(base_dir_path + "/data/resources/obstacle.png");
 		}
 		catch(glare::Exception& e)
 		{

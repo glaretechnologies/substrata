@@ -155,8 +155,11 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	stack_allocator(/*size (B)=*/4 * 1024 * 1024),
 	server_protocol_version(0),
 	settings(NULL),
-	ui_interface(NULL)
+	ui_interface(NULL),
+	extracted_anim_data_loaded(false)
 {
+	resources_dir_path = base_dir_path + "/data/resources";
+
 	SHIFT_down = false;
 	CTRL_down = false;
 	W_down = false;
@@ -229,6 +232,29 @@ void GUIClient::staticShutdown()
 }
 
 
+#if EMSCRIPTEN
+
+static void onAnimDataLoad(unsigned int firstarg, void* userdata_arg, const char* filename)
+{
+	// conPrint("onAnimDataLoad: " + std::string(filename) + ", firstarg: " + toString(firstarg));
+
+	GUIClient* gui_client = (GUIClient*)userdata_arg;
+	gui_client->extracted_anim_data_loaded = true;
+}
+
+static void onAnimDataError(unsigned int, void* userdata_arg, int http_status_code)
+{
+	conPrint("onAnimDataError: " + toString(http_status_code));
+}
+
+static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_complete)
+{
+	conPrint("onAnimDataProgress: " + toString(percent_complete));
+}
+
+#endif // EMSCRIPTEN
+
+
 void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_)
 {
 	settings = settings_store_;
@@ -242,18 +268,18 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 	this->load_distance = dist;
 	this->load_distance2 = dist*dist;
 
-	this->resources_dir = cache_dir + "/resources";
-	FileUtils::createDirIfDoesNotExist(this->resources_dir);
+	const std::string resources_dir = cache_dir + "/resources";
+	FileUtils::createDirIfDoesNotExist(resources_dir);
 
 	print("resources_dir: " + resources_dir);
-	resource_manager = new ResourceManager(this->resources_dir);
+	resource_manager = new ResourceManager(resources_dir);
 
 
 	// The user may have changed the resources dir (by changing the custom cache directory) since last time we ran.
 	// In this case, we want to check if each resource is actually present on disk in the current resources dir.
 	const std::string last_resources_dir = settings->getStringValue("last_resources_dir", "");
-	const bool resources_dir_changed = last_resources_dir != this->resources_dir;
-	settings->setStringValue("last_resources_dir", this->resources_dir);
+	const bool resources_dir_changed = last_resources_dir != resources_dir;
+	settings->setStringValue("last_resources_dir", resources_dir);
 
 	const std::string resources_db_path = appdata_path + "/resources_db";
 	try
@@ -282,7 +308,7 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 			if(!resource_manager->isFileForURLPresent(mesh_URL))
 			{
 				conPrint("Copying '" + mesh_URL + "' into resource dir...");
-				resource_manager->copyLocalFileToResourceDir(base_dir_path + "/resources/" + mesh_URL, mesh_URL);
+				resource_manager->copyLocalFileToResourceDir(resources_dir_path + "/" + mesh_URL, mesh_URL);
 			}
 		}
 	}
@@ -309,7 +335,7 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 		// Load a wind sound and create a non-spatial audio source, to use for a rushing effect when the player moves fast.
 		// TODO: Load wind noise off main thread. (Take about 11ms to load on my 5950x).
 		//Timer timer;
-		glare::SoundFileRef sound = audio_engine.getOrLoadSoundFile(base_dir_path + "/resources/sounds/wind_noise_48000_hz_mono.mp3");
+		glare::SoundFileRef sound = audio_engine.getOrLoadSoundFile(resources_dir_path + "/sounds/wind_noise_48000_hz_mono.mp3");
 		//conPrint("Loading wind sound took " + timer.elapsedString());
 
 		wind_audio_source = new glare::AudioSource();
@@ -355,8 +381,17 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 	if(show_minimap)
 		minimap.create(opengl_engine, /*main_window_=*/this, gl_ui);
 
-	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, opengl_engine.ptr());
-	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
+	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
+#if !EMSCRIPTEN
+	this->async_texture_loader = new AsyncTextureLoader(/*local_path_prefix=*/base_dir_path + "/data", opengl_engine.ptr());
+
+	opengl_engine->startAsyncLoadingData(this->async_texture_loader.ptr());
+
+	// For emscripten, wait until we connect to server.
+	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, /*async_tex_loader=*/async_texture_loader.ptr(), opengl_engine.ptr());
+
+	particle_manager = new ParticleManager(this->base_dir_path, /*async_tex_loader=*/async_texture_loader.ptr(), opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
+#endif
 
 
 	const float sun_phi = 1.f;
@@ -528,12 +563,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 
 	// Make shader for parcels
 	{
-#if EMSCRIPTEN
-		const std::string use_shader_dir = base_dir_path + "/shaders";
-#else
 		const std::string use_shader_dir = base_dir_path + "/data/shaders";
-#endif
-
 		const std::string version_directive    = opengl_engine->getVersionDirective();
 		const std::string preprocessor_defines = opengl_engine->getPreprocessorDefines();
 				
@@ -580,7 +610,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 				
 			// Load animation data
 			{
-				FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
+				FileInStream file(resources_dir_path + "/extracted_avatar_anim.bin");
 				test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
 			}
 
@@ -929,7 +959,7 @@ void GUIClient::startLoadingTextureForObject(const Vec4f& centroid_ws, float aab
 	TextureParams tex_params;
 	tex_params.use_sRGB = use_sRGB;
 	tex_params.allow_compression = allow_compression;
-	startLoadingTextureIfPresent(lod_tex_url,centroid_ws, aabb_ws_longest_len, use_max_dist_for_ob_lod_level, importance_factor, tex_params);
+	startLoadingTextureIfPresent(lod_tex_url, centroid_ws, aabb_ws_longest_len, use_max_dist_for_ob_lod_level, importance_factor, tex_params);
 }
 
 
@@ -938,10 +968,15 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
-		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
+		const WorldMaterial* mat = ob.materials[i].ptr();
+		if(!mat->colour_texture_url.empty())
+			startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
+		if(!mat->emission_texture_url.empty())
+			startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
+		if(!mat->roughness.texture_url.empty())
+			startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
+		if(!mat->normal_map_url.empty())
+			startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
 	}
 
 	// Start loading lightmap
@@ -985,10 +1020,15 @@ void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
-		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
+		const WorldMaterial* mat = av.avatar_settings.materials[i].ptr();
+		if(!mat->colour_texture_url.empty())
+			startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
+		if(!mat->emission_texture_url.empty())
+			startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
+		if(!mat->roughness.texture_url.empty())
+			startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
+		if(!mat->normal_map_url.empty())
+			startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
 	}
 }
 
@@ -2020,6 +2060,70 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 }
 
 
+void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
+{
+	removeAndDeleteGLObjectForAvatar(*avatar);
+
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
+
+	// Create gl and physics object now
+	avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
+		*resource_manager, ob_to_world_matrix);
+
+	mesh_data->meshDataBecameUsed();
+	avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+	// Load animation data for ready-player-me type avatars
+	if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
+	{
+#if EMSCRIPTEN
+		FileInStream file("/extracted_avatar_anim.bin");
+#else
+		FileInStream file(resources_dir_path + "/extracted_avatar_anim.bin");
+#endif
+		const GLMemUsage old_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
+
+		avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+
+		const GLMemUsage new_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
+
+		// The mesh manager keeps a running total of the amount of memory used by inserted meshes.  Therefore it needs to be informed if the size of one of them changes.
+		mesh_manager.meshMemoryAllocatedChanged(old_mem_usage, new_mem_usage);
+	}
+
+	avatar->graphics.build();
+
+	assignedLoadedOpenGLTexturesToMats(avatar, *opengl_engine, *resource_manager);
+
+	// Enable materalise effect if needed
+	const float current_time = (float)Clock::getTimeSinceInit();
+	const bool use_materialise_effect = avatar->use_materialise_effect_on_load && (current_time - avatar->materialise_effect_start_time < 2.0f);
+
+	for(size_t z=0; z<avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+	{
+		avatar->graphics.skinned_gl_ob->materials[z].materialise_effect = use_materialise_effect;
+		avatar->graphics.skinned_gl_ob->materials[z].materialise_start_time = avatar->materialise_effect_start_time;
+	}
+
+	avatar->graphics.loaded_lod_level = av_lod_level;
+
+	opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
+
+	// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
+	const bool our_avatar = avatar->uid == this->client_avatar_uid;
+	if(our_avatar)
+	{
+		std::string gesture_name;
+		bool animate_head, loop_anim;
+		if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+		{
+			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+			avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
+		}
+	}
+}
+
+
 // Check if the avatar model file is downloaded.
 // If so, load the model into the OpenGL engine.
 // If not, queue up the model download.
@@ -2039,15 +2143,13 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 	if(avatar->graphics.skinned_gl_ob.nonNull() && /*&& !ob->using_placeholder_model && */(avatar->graphics.loaded_lod_level == ob_lod_level))
 		return;
 
-	const std::string default_model_url = "xbot_glb_3242545562312850498.bmesh";
-	//const std::string use_model_url = avatar->avatar_settings.model_url.empty() ? default_model_url : avatar->avatar_settings.model_url;
-	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
 	
 
 	// If the avatar model URL is empty, we will be using the default xbot model.  Need to make it be rotated from y-up to z-up, and assign materials.
 	if(avatar->avatar_settings.model_url.empty())
 	{
+		const std::string default_model_url = "xbot_glb_3242545562312850498.bmesh";
 		avatar->avatar_settings.model_url = default_model_url;
 		avatar->avatar_settings.materials.resize(2);
 
@@ -2065,8 +2167,6 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
 	}
 
-
-	//ui->glWidget->makeCurrent();
 
 	try
 	{
@@ -2092,8 +2192,6 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 
 		avatar->graphics.loaded_lod_level = ob_lod_level;
 
-		// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
-
 
 		Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
 		if(mesh_data.nonNull())
@@ -2101,61 +2199,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
 			if(is_meshdata_loaded_into_opengl)
 			{
-				removeAndDeleteGLObjectForAvatar(*avatar);
-
-				const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
-
-				// Create gl and physics object now
-				avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
-					*resource_manager, ob_to_world_matrix);
-
-				mesh_data->meshDataBecameUsed();
-				avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
-
-				// Load animation data for ready-player-me type avatars
-				if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
-				{
-					FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
-
-					const GLMemUsage old_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
-
-					avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
-
-					const GLMemUsage new_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
-
-					// The mesh manager keeps a running total of the amount of memory used by inserted meshes.  Therefore it needs to be informed if the size of one of them changes.
-					mesh_manager.meshMemoryAllocatedChanged(old_mem_usage, new_mem_usage);
-				}
-
-				avatar->graphics.build();
-
-				assignedLoadedOpenGLTexturesToMats(avatar, *opengl_engine, *resource_manager);
-
-				// Enable materalise effect if needed
-				const float current_time = (float)Clock::getTimeSinceInit();
-				const bool use_materialise_effect = avatar->use_materialise_effect_on_load && (current_time - avatar->materialise_effect_start_time < 2.0f);
-
-				for(size_t z=0; z<avatar->graphics.skinned_gl_ob->materials.size(); ++z)
-				{
-					avatar->graphics.skinned_gl_ob->materials[z].materialise_effect = use_materialise_effect;
-					avatar->graphics.skinned_gl_ob->materials[z].materialise_start_time = avatar->materialise_effect_start_time;
-				}
-
-				avatar->graphics.loaded_lod_level = ob_lod_level;
-
-				opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
-
-				// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
-				if(our_avatar)
-				{
-					std::string gesture_name;
-					bool animate_head, loop_anim;
-					if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
-					{
-						const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-						avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
-					}
-				}
+				loadPresentAvatarModel(avatar, ob_lod_level, mesh_data);
 
 				added_opengl_ob = true;
 			}
@@ -3356,7 +3400,7 @@ void GUIClient::processLoading()
 					auto waiting_av_res = this->loading_model_URL_to_avatar_UID_map.find(cur_loading_lod_model_url);
 					if(waiting_av_res != this->loading_model_URL_to_avatar_UID_map.end())
 					{
-						std::set<UID>& waiting_avatars = waiting_av_res->second;
+						const std::set<UID>& waiting_avatars = waiting_av_res->second;
 						for(auto it = waiting_avatars.begin(); it != waiting_avatars.end(); ++it)
 						{
 							const UID waiting_uid = *it;
@@ -3377,63 +3421,7 @@ void GUIClient::processLoading()
 									{
 										try
 										{
-											// Remove any existing OpenGL and physics model
-											removeAndDeleteGLObjectForAvatar(*av);
-
-											// Create GLObject for this avatar
-											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*av);
-
-											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, cur_loading_mesh_data, av_lod_level, av->avatar_settings.materials, /*lightmap_url=*/std::string(),
-												*resource_manager, ob_to_world_matrix);
-
-											// Enable materalise effect if needed
-											const float current_time = (float)Clock::getTimeSinceInit();
-											const bool use_materialise_effect = av->use_materialise_effect_on_load && (current_time - av->materialise_effect_start_time < 2.0f);
-
-											for(size_t z=0; z<av->graphics.skinned_gl_ob->materials.size(); ++z)
-											{
-												av->graphics.skinned_gl_ob->materials[z].materialise_effect = use_materialise_effect;
-												av->graphics.skinned_gl_ob->materials[z].materialise_start_time = av->materialise_effect_start_time;
-											}
-
-											mesh_data->meshDataBecameUsed();
-											av->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
-
-											// Load animation data for ready-player-me type avatars
-											if(!av->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
-											{
-												FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
-
-												const GLMemUsage old_mem_usage = av->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
-
-												av->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
-
-												const GLMemUsage new_mem_usage = av->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
-
-												// The mesh manager keeps a running total of the amount of memory used by inserted meshes.  Therefore it needs to be informed if the size of one of them changes.
-												mesh_manager.meshMemoryAllocatedChanged(old_mem_usage, new_mem_usage);
-											}
-
-											av->graphics.build();
-										
-											//TEMP av->loaded_lod_level = ob_lod_level;
-
-											assert(av->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid());
-
-											assignedLoadedOpenGLTexturesToMats(av, *opengl_engine, *resource_manager);
-
-											opengl_engine->addObject(av->graphics.skinned_gl_ob);
-
-											// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
-											if(our_avatar)
-											{
-												std::string gesture_name;
-												bool animate_head, loop_anim;
-												if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
-												{
-													av->graphics.performGesture(world_state->getCurrentGlobalTime(), gesture_name, animate_head, loop_anim);
-												}
-											}
+											loadPresentAvatarModel(av, av_lod_level, mesh_data);
 										}
 										catch(glare::Exception& e)
 										{
@@ -4807,7 +4795,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				// conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3) + ", playing " + last_footstep_timer.elapsedStringNSigFigs(3) + " after last footstep");
 
 				const int rnd_src_i = rng.nextUInt(4);
-				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
+				audio_engine.playOneShotSound(resources_dir_path + "/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
 
 				last_footstep_timer.reset();
 			}
@@ -4819,7 +4807,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
 
 			const int rnd_src_i = rng.nextUInt(4);
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
+			audio_engine.playOneShotSound(resources_dir_path + "/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
 		}
 	}
 	proximity_loader.updateCamPos(campos);
@@ -5636,6 +5624,17 @@ void GUIClient::updateParcelGraphics()
 
 void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero)
 {
+#if EMSCRIPTEN
+	// Wait until we have done the async load of extracted_anim_data.bin before we start loading avatars.
+	// This is not optimal (could download models/textures while we are loading extracted_anim_data.bin), but that would be complicated to code 
+	// so this will do for now.
+	if(!extracted_anim_data_loaded)
+	{
+		// conPrint("GUIClient::updateAvatarGraphics(): waiting until extracted_anim_data_loaded...");
+		return;
+	}
+#endif
+
 	// Update avatar graphics
 	temp_av_positions.clear();
 	if(world_state.nonNull())
@@ -5741,7 +5740,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 							opengl_engine->addObject(avatar->nametag_gl_ob); // Add to 3d engine
 
 							// Play entry teleport sound
-							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
+							audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
 						}
 					} // End if reload_opengl_model
 
@@ -5890,7 +5889,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 							//footstep_sources[rnd_src_i]->cur_read_i = 0;
 							//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
 							const int rnd_src_i = rng.nextUInt(4);
-							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
+							audio_engine.playOneShotSound(resources_dir_path + "/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
 						}
 
 						for(int i=0; i<anim_events.num_blobs; ++i)
@@ -6427,7 +6426,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
+			audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
 				(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 		}
 		else if(dynamic_cast<const AudioStreamToServerStartedMessage*>(msg))
@@ -8332,7 +8331,7 @@ void GUIClient::summonBike()
 
 
 	// Load materials:
-	IndigoXMLDoc doc(this->base_dir_path + "/resources/bike_mats.xml");
+	IndigoXMLDoc doc(this->resources_dir_path + "/bike_mats.xml");
 
 	pugi::xml_node root = doc.getRootElement();
 
@@ -8359,7 +8358,7 @@ void GUIClient::summonBike()
 	new_world_object->scale = Vec3f(0.18f);
 	new_world_object->setAABBOS(aabb_os);
 
-	new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_bike_script.xml");
+	new_world_object->script = FileUtils::readEntireFileTextMode(this->resources_dir_path + "/summoned_bike_script.xml");
 
 	new_world_object->mass = 200;
 
@@ -8451,7 +8450,7 @@ void GUIClient::summonHovercar()
 
 
 	// Load materials:
-	IndigoXMLDoc doc(this->base_dir_path + "/resources/hovercar_mats.xml");
+	IndigoXMLDoc doc(this->resources_dir_path + "/hovercar_mats.xml");
 
 	pugi::xml_node root = doc.getRootElement();
 
@@ -8478,7 +8477,7 @@ void GUIClient::summonHovercar()
 	new_world_object->scale = Vec3f(1.f);
 	new_world_object->setAABBOS(aabb_os);
 
-	new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_hovercar_script.xml");
+	new_world_object->script = FileUtils::readEntireFileTextMode(this->resources_dir_path + "/summoned_hovercar_script.xml");
 
 	new_world_object->mass = 1000;
 
@@ -9396,8 +9395,12 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	if(particle_manager.nonNull())
 	{
 		particle_manager->clear();
-		particle_manager = NULL;;
+		particle_manager = NULL;
 	}
+
+#if EMSCRIPTEN
+	async_texture_loader = NULL;
+#endif
 
 	if(terrain_system.nonNull())
 	{
@@ -9454,6 +9457,22 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 
 	//-------------------------------- Do connect process --------------------------------
 
+	// Start downloading extracted_avatar_anim.bin with an Async HTTP request.
+	// When it's done this->extracted_anim_data_loaded will be set in onAnimDataLoad().
+	// We will postpone loading avatar models until extracted_avatar_anim.bin is loaded.
+#if EMSCRIPTEN
+	if(!extracted_anim_data_loaded)
+	{
+		const bool use_TLS = this->server_hostname != "localhost"; // Don't use TLS on localhost for now, for testing.
+		const std::string protocol = use_TLS ? "https" : "http";
+		const std::string http_URL = protocol + "://" + this->server_hostname + "/webclient/data/resources/extracted_avatar_anim.bin";
+
+		const std::string local_abs_path = "/extracted_avatar_anim.bin";
+
+		emscripten_async_wget2(http_URL.c_str(), local_abs_path.c_str(), /*requesttype =*/"GET", /*POST params=*/"", /*userdata arg=*/this, onAnimDataLoad, onAnimDataError, onAnimDataProgress);
+	}
+#endif
+
 	// Move player position back to near origin.
 	this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
 	this->cam_controller.setFirstAndThirdPersonPositions(spawn_pos);
@@ -9494,11 +9513,17 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	// Turn it on as soon as the player tries to move.
 	this->player_physics.setGravityEnabled(false);
 
+#if EMSCRIPTEN
+	// For Emscripten, since this data is loaded from the webserver, now we know the server hostname, start loading these textures asynchronously.
+	this->async_texture_loader = new AsyncTextureLoader(this->server_hostname, /*url_path_prefix=*/"/webclient/data", opengl_engine.ptr());
+	opengl_engine->startAsyncLoadingData(this->async_texture_loader.ptr());
+#endif
+
 	assert(terrain_decal_manager.isNull());
-	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, opengl_engine.ptr());
+	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr());
 
 	assert(particle_manager.isNull());
-	particle_manager = new ParticleManager(this->base_dir_path, opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
+	particle_manager = new ParticleManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
 
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
@@ -10305,7 +10330,7 @@ void GUIClient::pickUpSelectedObject()
 
 			// Play pick up sound, in the direction of the selection point
 			const Vec4f to_pickup_point = normalise(selection_point_ws - origin);
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/select_mono.wav", origin + to_pickup_point * 0.4f);
+			audio_engine.playOneShotSound(resources_dir_path + "/sounds/select_mono.wav", origin + to_pickup_point * 0.4f);
 		}
 	}
 }
@@ -11163,7 +11188,7 @@ GLObjectRef GUIClient::makeSpeakerGLObject()
 	gl_ob->materials.resize(1);
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
-	gl_ob->materials[0].albedo_texture = opengl_engine->getTexture(base_dir_path + "/resources/buttons/vol_icon.png");
+	gl_ob->materials[0].albedo_texture = opengl_engine->getTexture(resources_dir_path + "/buttons/vol_icon.png");
 	gl_ob->materials[0].cast_shadows = false;
 	return gl_ob;
 }

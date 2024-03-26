@@ -37,24 +37,24 @@ void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_worl
 void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
 	if(!resource_manager.isFileForURLPresent("Quad_obj_17249492137259942610.bmesh"))
-		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
+		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/data/resources/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
 //	if(!resource_manager.isFileForURLPresent("grass_2819211535648845788.bmesh"))
 //		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/grass_2819211535648845788.bmesh", "grass_2819211535648845788.bmesh");
 
 	if(elm_imposters_tex.isNull())
-		elm_imposters_tex = opengl_engine.getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
+		elm_imposters_tex = opengl_engine.getTexture(base_dir_path + "/data/resources/imposters/elm_imposters.png");
 	
 	if(elm_bark_tex.isNull())
-		elm_bark_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_bark_11255090336016867094.jpg");
+		elm_bark_tex = opengl_engine.getTexture(base_dir_path + "/data/resources/elm_bark_11255090336016867094.jpg");
 	
 	if(elm_leaf_tex.isNull())
-		elm_leaf_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_frontface.png");
+		elm_leaf_tex = opengl_engine.getTexture(base_dir_path + "/data/resources/elm_leaf_frontface.png");
 	
 	if(elm_leaf_backface_tex.isNull())
-		elm_leaf_backface_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_backface.png");
+		elm_leaf_backface_tex = opengl_engine.getTexture(base_dir_path + "/data/resources/elm_leaf_backface.png");
 
 	if(elm_leaf_transmission_tex.isNull())
-		elm_leaf_transmission_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_transmission.png");
+		elm_leaf_transmission_tex = opengl_engine.getTexture(base_dir_path + "/data/resources/elm_leaf_transmission.png");
 	
 	//if(elm_leaf_normal_map.isNull())
 	//	elm_leaf_normal_map = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_normals.png");
@@ -63,7 +63,7 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 	// Build elm tree opengl and physics geometry.
 	if(elm_tree_mesh_render_data.isNull())
 	{
-		const std::string model_path = base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh";
+		const std::string model_path = base_dir_path + "/data/resources/elm_RT_glb_3393252396927074015.bmesh";
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(model_path,

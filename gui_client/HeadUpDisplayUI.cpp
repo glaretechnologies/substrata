@@ -150,7 +150,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		{
 			// Create marker dot
 			GLUIImageRef im = new GLUIImage();
-			im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name, AVATAR_MARKER_DOT_Z);
+			im->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name, AVATAR_MARKER_DOT_Z);
 			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 			im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
@@ -170,7 +170,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		{
 			// Create marker arrow
 			GLUIImageRef im = new GLUIImage();
-			im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
+			im->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
 			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 			im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 			

@@ -132,7 +132,7 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 
 #if !EMSCRIPTEN // Grass scattering compute shader doesn't work in emscripten so don't bother loading grass textures for now.
 	{
-		const std::string grass_billboard_tex_path = base_dir_path + "/resources/grass clump billboard 2.png";
+		const std::string grass_billboard_tex_path = base_dir_path + "/data/resources/grass clump billboard 2.png";
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_billboard_tex_path));
 
 		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_billboard_tex_path);
@@ -147,7 +147,7 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 	}
 
 	{
-		const std::string grass_normal_map_path = base_dir_path + "/resources/grass clump billboard 2 normals.png";
+		const std::string grass_normal_map_path = base_dir_path + "/data/resources/grass clump billboard 2 normals.png";
 		opengl_engine->removeOpenGLTexture(OpenGLTextureKey(grass_normal_map_path));
 
 		Reference<Map2D> map = ImageDecoding::decodeImage(".", grass_normal_map_path);

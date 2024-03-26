@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "PhysicsObject.h"
+#include <opengl/AsyncTextureLoader.h>
 #include <opengl/IncludeOpenGL.h>
 #include <opengl/OpenGLTexture.h>
 #include <opengl/OpenGLEngine.h>
@@ -66,15 +67,17 @@ The basic idea is to simulate point particles with ray-traced collisions, and a 
 bouncing off surfaces and with wind resistance.
 See https://github.com/jrouwe/JoltPhysics/discussions/756 for a discussion of the approach.
 =====================================================================*/
-class ParticleManager : public RefCounted
+class ParticleManager : public RefCounted, public AsyncTextureLoadedHandler
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	ParticleManager(const std::string& base_dir_path, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, TerrainDecalManager* terrain_decal_manager);
+	ParticleManager(const std::string& base_dir_path, AsyncTextureLoader* async_tex_loader, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, TerrainDecalManager* terrain_decal_manager);
 	~ParticleManager();
 
 	void clear();
+
+	virtual void textureLoaded(Reference<OpenGLTexture> texture, const std::string& local_filename) override;
 
 	void addParticle(const Particle& particle);
 
@@ -101,4 +104,6 @@ private:
 	Reference<OpenGLTexture> foam_sprite_right;
 	Reference<OpenGLTexture> foam_sprite_rear;
 	Reference<OpenGLTexture> foam_sprite_front;
+
+	AsyncTextureLoader* async_tex_loader;
 };
