@@ -6,11 +6,12 @@ Copyright Glare Technologies Limited 2023 -
 #include "TerrainDecalManager.h"
 
 
-TerrainDecalManager::TerrainDecalManager(const std::string& base_dir_path, OpenGLEngine* opengl_engine_)
-:	opengl_engine(opengl_engine_)
+TerrainDecalManager::TerrainDecalManager(const std::string& base_dir_path, AsyncTextureLoader* async_tex_loader_, OpenGLEngine* opengl_engine_)
+:	opengl_engine(opengl_engine_),
+	async_tex_loader(async_tex_loader_)
 {
-	foam_texture        = opengl_engine->getTexture(base_dir_path + "/resources/foam_windowed.ktx2");
-	foam_sprite_front	= opengl_engine->getTexture(base_dir_path + "/resources/sprites/foam_sprite_front.ktx2");
+	async_tex_loader->startLoadingTexture("/resources/foam_windowed.ktx2", this);
+	async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_front.ktx2", this);
 }
 
 
@@ -20,8 +21,27 @@ TerrainDecalManager::~TerrainDecalManager()
 }
 
 
+void TerrainDecalManager::textureLoaded(Reference<OpenGLTexture> texture, const std::string& local_filename)
+{
+	// conPrint("TerrainDecalManager::textureLoaded: local_filename: '" + local_filename + "'");
+
+	if(local_filename == "/resources/foam_windowed.ktx2")
+		foam_texture = texture;
+	else if(local_filename == "/resources/sprites/foam_sprite_front.ktx2")
+		foam_sprite_front = texture;
+	else
+	{
+		assert(0);
+		conPrint("unknown local_filename: " + local_filename);
+	}
+}
+
+
 void TerrainDecalManager::clear()
 {
+	async_tex_loader->cancelLoadingTexture("/resources/foam_windowed.ktx2");
+	async_tex_loader->cancelLoadingTexture("/resources/sprites/foam_sprite_front.ktx2");
+
 	for(size_t i=0; i<foam_decals.size(); ++i)
 	{
 		opengl_engine->addObject(foam_decals[i].decal_ob);

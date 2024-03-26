@@ -193,40 +193,25 @@ def copyVCRedist(vs_version, target_dir)
 end
 
 
-# Remove .svn folders
-def delete_svn_from_dir(base_dirpath)
-	Dir.glob(base_dirpath + "/**/*", File::FNM_DOTMATCH).each do |f|
-		if File.exists?(f) && File.split(f)[1] == ".svn"
-			puts "Deleting '" + f + "'..."
-			FileUtils.rm_r(f)
-		end
-	end
-end
-
-
-
 def copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, dist_dir, vs_version = $vs_version, config = $config_name_release, copy_build_output = true)
 	
-	FileUtils.cp_r(substrata_repos_dir + "/resources", dist_dir, :verbose => true)
-	
 	FileUtils.mkdir_p("#{dist_dir}/data", :verbose => true) # Make 'data' dir, so that setting it as a target will make data/shaders be created etc..
+
+	FileUtils.cp_r(substrata_repos_dir + "/resources", dist_dir + "/data", :verbose => true)
 	
-	FileUtils.cp_r(substrata_repos_dir + "/shaders", "#{dist_dir}/data", :verbose => true) # Copy OpenGL shaders from the cyberspace repo.
+	FileUtils.cp_r(substrata_repos_dir + "/shaders", dist_dir + "/data", :verbose => true) # Copy OpenGL shaders from the Substrata repo.
 	
 	# Copy misc. files.
 	#FileUtils.cp("../lang/ISL_stdlib.txt", dist_dir, :verbose => true)
 	
 	# Copy OpenGL shaders.
-	FileUtils.cp_r("#{glare_core_repos_dir}/opengl/shaders", "#{dist_dir}/data", :verbose => true)
+	FileUtils.cp_r("#{glare_core_repos_dir}/opengl/shaders", dist_dir + "/data", :verbose => true)
 	
 	# Copy OpenGL data.
-	FileUtils.cp_r("#{glare_core_repos_dir}/opengl/gl_data", "#{dist_dir}/data", :verbose => true)
-
-	# remove .svn stuff.
-	delete_svn_from_dir(dist_dir)
+	FileUtils.cp_r("#{glare_core_repos_dir}/opengl/gl_data", dist_dir + "/data", :verbose => true)
 
 	# Copy licence.txt
-	FileUtils.cp_r(substrata_repos_dir + "/docs/licence.txt", "#{dist_dir}/", :verbose => true)
+	FileUtils.cp_r(substrata_repos_dir + "/docs/licence.txt", dist_dir + "/", :verbose => true)
 
 	# Make sure files are group/other readable, they weren't for some reason.  The Dir.glob gets all files (recursively) in dir.
 	FileUtils.chmod("u=wr,go=rr", Dir.glob("#{dist_dir}/data/shaders/*.*"))

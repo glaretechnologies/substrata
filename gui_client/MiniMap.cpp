@@ -87,7 +87,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 
 	// Create facing arrow image
 	arrow_image = new GLUIImage();
-	arrow_image->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2), Vec2f(0.005f), 
+	arrow_image->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2), Vec2f(0.005f), 
 		/*tooltip=*/"You", ARROW_IMAGE_Z);
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
@@ -413,7 +413,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 								tile.ob->material.tex_matrix = Matrix2f(scale, 0, 0, -scale);  // See diagrams below for explanation
 								tile.ob->material.tex_translation = Vec2f(lower_left_coords.x, 1 - lower_left_coords.y);
 
-								const std::string local_path = resource->getLocalAbsPath(gui_client->resources_dir);
+								const std::string local_path = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
 
 								OpenGLTextureRef tile_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(local_path));
 								if(tile_tex.nonNull())
@@ -736,7 +736,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	{
 		// Create marker dot
 		GLUIImageRef im = new GLUIImage();
-		im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
+		im->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
@@ -753,7 +753,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	{
 		// Create marker arrow
 		GLUIImageRef im = new GLUIImage();
-		im->create(*gl_ui, opengl_engine, gui_client->base_dir_path + "/resources/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
+		im->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 			

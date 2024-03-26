@@ -168,7 +168,7 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 			0 // heap size bound
 		));
 
-		vm_args.source_buffers.push_back(::Winter::SourceBuffer::loadFromDisk(base_cyberspace_path + "/resources/winter_stdlib.txt"));
+		vm_args.source_buffers.push_back(::Winter::SourceBuffer::loadFromDisk(base_cyberspace_path + "/data/resources/winter_stdlib.txt"));
 		vm_args.source_buffers.push_back(new Winter::SourceBuffer("buffer", shader));
 
 

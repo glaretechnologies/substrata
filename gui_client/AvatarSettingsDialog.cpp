@@ -136,7 +136,7 @@ void AvatarSettingsDialog::animationComboBoxIndexChanged(int index)
 void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, bool show_error_dialogs)
 {
 	const std::string use_local_path = local_path.empty() ? 
-		(base_dir_path + "/resources/xbot.glb") :
+		(base_dir_path + "/data/resources/xbot.glb") :
 		local_path;
 
 	this->avatarPreviewGLWidget->makeCurrent();
@@ -173,7 +173,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		//printVar(foot_bottom_height);
 		if(true)
 		{
-			FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
+			FileInStream file(base_dir_path + "/data/resources/extracted_avatar_anim.bin");
 			preview_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
 
 			// If we loaded the extracted_avatar_anim bone data, then the avatar will be floating off the ground for female leg lengths, so move down.

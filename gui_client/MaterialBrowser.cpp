@@ -117,7 +117,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		OpenGLMaterial env_mat;
 		try
 		{
-			env_mat.albedo_texture = opengl_engine->getTexture(basedir_path + "/resources/sky_no_sun.exr");
+			env_mat.albedo_texture = opengl_engine->getTexture(basedir_path + "/data/resources/sky_no_sun.exr");
 		}
 		catch(glare::Exception& e)
 		{
@@ -182,7 +182,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 	try
 	{
-		const std::vector<std::string> filepaths = FileUtils::getFilesInDirWithExtensionFullPaths(basedir_path + "/resources/materials", "submat");
+		const std::vector<std::string> filepaths = FileUtils::getFilesInDirWithExtensionFullPaths(basedir_path + "/data/resources/materials", "submat");
 
 		for(size_t i=0; i<filepaths.size(); ++i)
 		{

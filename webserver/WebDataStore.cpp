@@ -105,7 +105,9 @@ static bool shouldCompressFile(const std::string& path)
 		hasExtensionStringView(path, "css") || 
 		hasExtensionStringView(path, "wasm") || 
 		hasExtensionStringView(path, "html") ||
-		hasExtensionStringView(path, "data");
+		hasExtensionStringView(path, "data") ||
+		hasExtensionStringView(path, "bin") ||
+		hasExtensionStringView(path, "ktx2");
 }
 
 
@@ -187,10 +189,11 @@ void WebDataStore::loadAndCompressFiles()
 
 		try
 		{
-			//conPrint("Loading file '" + path + "'...");
 			Reference<WebDataStoreFile> file = loadAndMaybeCompressFile(path);
 
 			const std::string use_relative_path = StringUtils::replaceCharacter(relative_path, '\\', '/'); // Replace backslashes with forward slashes.
+
+			// conPrint("Loading webclient file '" + path + "', using relative path '" + use_relative_path + "'");
 			{
 				Lock lock(mutex);
 				webclient_dir_files[use_relative_path] = file;

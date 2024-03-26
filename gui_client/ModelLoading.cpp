@@ -760,7 +760,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				ob->materials[i].tex_path = "resources/obstacle.png";
+				ob->materials[i].tex_path = "data/resources/obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
@@ -800,7 +800,7 @@ void ModelLoading::makeGLObjectForModelFile(
 		{
 			// Assign dummy mat
 			gl_ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-			gl_ob->materials[i].tex_path = "resources/obstacle.png";
+			gl_ob->materials[i].tex_path = "data/resources/obstacle.png";
 			gl_ob->materials[i].roughness = 0.5f;
 			gl_ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
@@ -901,7 +901,7 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_e
 		{
 			// Assign dummy mat
 			ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.7f, 0.7f, 0.7f));
-			ob->materials[i].tex_path = "resources/obstacle.png";
+			ob->materials[i].tex_path = "data/resources/obstacle.png";
 			ob->materials[i].roughness = 0.5f;
 		}
 	}

@@ -85,7 +85,7 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 
 	for(size_t i=0; i<models.size(); ++i)
 	{
-		const std::string image_path = base_dir_path + "/resources/models/" + models[i] + ".png";
+		const std::string image_path = base_dir_path + "/data/resources/models/" + models[i] + ".png";
 
 		listWidget->addItem(new QListWidgetItem(QIcon(QtUtils::toQString(image_path)), QtUtils::toQString(models[i])));
 	}
@@ -131,7 +131,7 @@ void AddObjectDialog::modelSelected(QListWidgetItem* selected_item)
 
 		this->listWidget->setCurrentItem(NULL);
 
-		const std::string model_path = base_dir_path + "/resources/models/" + model + ".obj";
+		const std::string model_path = base_dir_path + "/data/resources/models/" + model + ".obj";
 
 		this->result_path = model_path;
 
@@ -143,7 +143,7 @@ void AddObjectDialog::modelSelected(QListWidgetItem* selected_item)
 void AddObjectDialog::modelDoubleClicked(QListWidgetItem* selected_item)
 {
 	const std::string model = QtUtils::toStdString(selected_item->text());
-	const std::string model_path = base_dir_path + "/resources/models/" + model + ".obj";
+	const std::string model_path = base_dir_path + "/data/resources/models/" + model + ".obj";
 	this->result_path = model_path;
 	accept();
 }

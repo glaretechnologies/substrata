@@ -413,7 +413,7 @@ void MainWindow::afterGLInitInitialise()
 		const std::string font_path = "/System/Library/Fonts/SFNS.ttf";
 #else
 		// Linux:
-		const std::string font_path = base_dir_path + "/resources/TruenoLight-E2pg.otf";
+		const std::string font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
 #endif
 
 	TextRendererRef text_renderer = new TextRenderer();
@@ -1856,7 +1856,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			// Copy audio file to local resources dir.  UploadResourceThread will read from here.
 			gui_client.resource_manager->copyLocalFileToResourceDir(path, audio_file_URL);
 
-			const std::string model_obj_path = base_dir_path + "/resources/models/Capsule.obj";
+			const std::string model_obj_path = base_dir_path + "/data/resources/models/Capsule.obj";
 			const std::string model_URL = "Capsule_obj_7611321750126528672.bmesh"; // NOTE: Assuming server already has capsule mesh as a resource
 
 		
@@ -3792,6 +3792,8 @@ int main(int argc, char *argv[])
 					server_URL = start_loc_URL_setting;
 			}
 
+			mw.afterGLInitInitialise();
+
 			try
 			{
 				URLParseResults parse_results = URLParser::parseURL(server_URL);
@@ -3802,9 +3804,6 @@ int main(int argc, char *argv[])
 			{
 				QtUtils::showErrorMessageDialog(e.what(), &mw);
 			}
-
-
-			mw.afterGLInitInitialise();
 
 			app_exec_res = app.exec();
 
