@@ -34,10 +34,10 @@ CameraController::CameraController()
 	current_third_person_target_pos = Vec3d(0,0,2);
 	selfie_mode = false;
 
-	start_cam_rot_z = 0;
-	end_cam_rot_z = 0;
-	start_transition_time = -2;
-	end_transition_time = -1;
+	//start_cam_rot_z = 0;
+	//end_cam_rot_z = 0;
+	//start_transition_time = -2;
+	//end_transition_time = -1;
 
 	third_person_cam_dist = 3.f;
 
@@ -278,8 +278,8 @@ void CameraController::setSelfieModeEnabled(double cur_time, bool enabled)
 {
 	selfie_mode = enabled;
 
-	start_transition_time = cur_time;
-	end_transition_time = cur_time + 1;
+	//start_transition_time = cur_time;
+	//end_transition_time = cur_time + 1;
 }
 
 

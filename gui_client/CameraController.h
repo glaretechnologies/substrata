@@ -83,10 +83,10 @@ private:
 
 	bool selfie_mode;
 	// For 3rd person/selfie cam:
-	float start_cam_rot_z;
-	float end_cam_rot_z;
-	double start_transition_time;
-	double end_transition_time;
+	//float start_cam_rot_z;
+	//float end_cam_rot_z;
+	//double start_transition_time;
+	//double end_transition_time;
 
 	float third_person_cam_dist;
 public:
