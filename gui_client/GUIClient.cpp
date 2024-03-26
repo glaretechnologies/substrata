@@ -2473,7 +2473,7 @@ void GUIClient::doBiomeScatteringForObject(WorldObject* ob)
 	{
 		if(!biome_manager->isObjectInBiome(ob))
 		{
-			biome_manager->initTexturesAndModels(base_dir_path, *opengl_engine, *resource_manager);
+			biome_manager->initTexturesAndModels(resources_dir_path, *opengl_engine, *resource_manager);
 		}
 	}
 #endif
@@ -11206,7 +11206,7 @@ void GUIClient::updateGroundPlane()
 	{
 		try
 		{
-			biome_manager->initTexturesAndModels(base_dir_path, *opengl_engine, *resource_manager); // TEMP NEW
+			biome_manager->initTexturesAndModels(resources_dir_path, *opengl_engine, *resource_manager); // TEMP NEW
 		}
 		catch(glare::Exception& e)
 		{

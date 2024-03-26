@@ -38,7 +38,7 @@ public:
 	// Remove all biome opengl and physics objects from the opengl and physics engines.
 	void clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_world);
 
-	void initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager);
+	void initTexturesAndModels(const std::string& resources_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager);
 
 	Reference<OpenGLTexture> elm_imposters_tex;
 	Reference<OpenGLTexture> elm_bark_tex;
