@@ -249,7 +249,7 @@ static void onAnimDataError(unsigned int, void* userdata_arg, int http_status_co
 
 static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_complete)
 {
-	conPrint("onAnimDataProgress: " + toString(percent_complete));
+	// conPrint("onAnimDataProgress: " + toString(percent_complete));
 }
 
 #endif // EMSCRIPTEN
