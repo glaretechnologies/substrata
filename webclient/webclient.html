@@ -8,18 +8,20 @@
 		<style>
 		#canvas {
 			width:100%;
-			height:95vh; /* percentage of viewport height %/
+			height:100vh; /* percentage of viewport height */
 			border: none;
-			margin: none;
+			display: block; /* Needed to get rid of 4 pixel region under the canvas */
+		}
+		body {
+			margin: 0;
+			padding: 0;
 		}
 		</style>
 	</head>
 	<body>
-	<div id="status">downloading...</div>
+		<div id="status">downloading...</div>
 
-	<div>
 		<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-	</div>
 
 	<script type='text/javascript'>
 		var statusElement = document.getElementById('status');
