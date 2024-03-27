@@ -67,6 +67,8 @@ cyb_output_test_builds_resources_dir = cyberspace_output + "/test_builds/data/re
 FileUtils.mkdir_p(cyb_output_resources_dir, :verbose => true)             if !File.exists?(cyb_output_resources_dir)             # Make cyberspace_output + "/data" dir if it doesn't exist already.
 FileUtils.mkdir_p(cyb_output_test_builds_resources_dir, :verbose => true) if !File.exists?(cyb_output_test_builds_resources_dir) # Make cyberspace_output + "/test_builds/data" dir if it doesn't exist already.
 
+FileUtils.cp_r(substrata_dir + "/webclient/webclient.html",            cyberspace_output,                                                   :verbose=>true)
+FileUtils.cp_r(substrata_dir + "/webclient/webclient.html",            cyberspace_output + "/test_builds",                                  :verbose=>true)
 FileUtils.cp_r(substrata_dir + "/resources/sprites",                   cyb_output_resources_dir,                                            :verbose=>true)
 FileUtils.cp_r(substrata_dir + "/resources/sprites",                   cyb_output_test_builds_resources_dir,                                :verbose=>true)
 FileUtils.cp_r(substrata_dir + "/resources/extracted_avatar_anim.bin", cyb_output_resources_dir             + "/extracted_avatar_anim.bin", :verbose=>true)
