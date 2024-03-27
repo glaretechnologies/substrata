@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "ModelLoading.h"
 #include "../shared/ResourceManager.h"
 #include "../indigo/TextureServer.h"
+#include "graphics/SRGBUtils.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
 #include "../dll/IndigoStringUtils.h"
@@ -136,7 +137,7 @@ void AvatarSettingsDialog::animationComboBoxIndexChanged(int index)
 void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, bool show_error_dialogs)
 {
 	const std::string use_local_path = local_path.empty() ? 
-		(base_dir_path + "/data/resources/xbot.glb") :
+		(base_dir_path + "/data/resources/xbot_glb_3242545562312850498.bmesh") :
 		local_path;
 
 	this->avatarPreviewGLWidget->makeCurrent();
@@ -157,6 +158,22 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		this->preview_gl_ob = results.gl_ob;
 		this->loaded_mesh = results.batched_mesh;
 		this->loaded_materials = results.materials;
+
+		if(local_path.empty()) // If we used xbot_glb_3242545562312850498.bmesh we need to rotate it upright
+		{
+			this->preview_gl_ob->ob_to_world_matrix = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+
+			this->preview_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Avatar::defaultMat0Col());
+			this->preview_gl_ob->materials[0].metallic_frac = Avatar::default_mat0_metallic_frac;
+			this->preview_gl_ob->materials[0].roughness = Avatar::default_mat0_roughness;
+			this->preview_gl_ob->materials[0].albedo_texture = NULL;
+			this->preview_gl_ob->materials[0].tex_path.clear();
+
+			this->preview_gl_ob->materials[1].albedo_linear_rgb = toLinearSRGB(Avatar::defaultMat1Col());
+			this->preview_gl_ob->materials[1].metallic_frac = Avatar::default_mat1_metallic_frac;
+			this->preview_gl_ob->materials[1].albedo_texture = NULL;
+			this->preview_gl_ob->materials[1].tex_path.clear();
+		}
 
 		/*Vec4f original_left_eye_pos = preview_gl_ob->mesh_data->animation_data.getNodePositionModelSpace("LeftEye");
 		if(original_left_eye_pos == Vec4f(0,0,0,1))

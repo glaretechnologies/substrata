@@ -2154,13 +2154,13 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		avatar->avatar_settings.materials.resize(2);
 
 		avatar->avatar_settings.materials[0] = new WorldMaterial();
-		avatar->avatar_settings.materials[0]->colour_rgb = Colour3f(0.5f, 0.6f, 0.7f);
-		avatar->avatar_settings.materials[0]->metallic_fraction.val = 0.5f;
-		avatar->avatar_settings.materials[0]->roughness.val = 0.3f;
+		avatar->avatar_settings.materials[0]->colour_rgb = Avatar::defaultMat0Col();
+		avatar->avatar_settings.materials[0]->metallic_fraction.val = Avatar::default_mat0_metallic_frac;
+		avatar->avatar_settings.materials[0]->roughness.val = Avatar::default_mat0_roughness;
 
 		avatar->avatar_settings.materials[1] = new WorldMaterial();
-		avatar->avatar_settings.materials[1]->colour_rgb = Colour3f(0.8f);
-		avatar->avatar_settings.materials[1]->metallic_fraction.val = 0.0f;
+		avatar->avatar_settings.materials[1]->colour_rgb = Avatar::defaultMat1Col();
+		avatar->avatar_settings.materials[1]->metallic_fraction.val = Avatar::default_mat1_metallic_frac;
 
 		const float EYE_HEIGHT = 1.67f;
 		const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
@@ -9431,6 +9431,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 void GUIClient::connectToServer(const URLParseResults& parse_res)
 {
+	this->last_url_parse_results = parse_res;
+
 	// By default, randomly vary the spawn position a bit so players don't spawn inside other players.
 	const double spawn_r = 4.0;
 	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), PlayerPhysics::getEyeHeight());
@@ -9476,7 +9478,14 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	// Move player position back to near origin.
 	this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
 	this->cam_controller.setFirstAndThirdPersonPositions(spawn_pos);
-	
+
+	if(parse_res.parsed_sun_vert_angle || parse_res.parsed_sun_azimuth_angle)
+	{
+		const float theta = myClamp(::degreeToRad((float)parse_res.sun_vert_angle), 0.01f, Maths::pi<float>() - 0.01f);
+		const float phi   = ::degreeToRad((float)parse_res.sun_azimuth_angle);
+		const Vec4f sundir = GeometrySampling::dirForSphericalCoords(phi, theta);
+		opengl_engine->setSunDir(sundir);
+	}
 
 	world_state = new WorldState();
 	world_state->url_whitelist->loadDefaultWhitelist();

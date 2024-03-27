@@ -85,7 +85,13 @@ public:
 #if GUI_CLIENT
 	bool isOurAvatar() const { return our_avatar; }
 #endif
-	
+
+	static Colour3f defaultMat0Col() { return Colour3f(0.5f, 0.6f, 0.7f); }
+	static Colour3f defaultMat1Col() { return Colour3f(0.8f); }
+	static constexpr float default_mat0_metallic_frac = 0.5f;
+	static constexpr float default_mat1_metallic_frac = 0.0f;
+	static constexpr float default_mat0_roughness = 0.3f;
+
 
 	UID uid;
 	std::string name;
