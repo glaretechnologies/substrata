@@ -16,6 +16,17 @@
 			margin: 0;
 			padding: 0;
 		}
+		#status {
+			font-family: 'Arial', sans-serif;
+			font-size: 1.5em;
+			color: rgb(150, 150, 150); /* font colour */
+			margin-left: auto;
+			margin-right: auto;
+			margin-top: 100px;
+			padding: 20px;
+			width: 30%;
+			border: 2px solid rgb(150, 150, 150);
+		}
 		</style>
 	</head>
 	<body>
@@ -44,14 +55,13 @@
 			},
 			totalDependencies: 0,
 			monitorRunDependencies: (left) => {
-				this.totalDependencies = Math.max(this.totalDependencies, left);
-				Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+				Module.totalDependencies = Math.max(Module.totalDependencies, left);
+				Module.setStatus(left ? 'Preparing... (' + (Module.totalDependencies-left) + '/' + Module.totalDependencies + ')' : 'All downloads complete.');
 			},
 			calledRun: false,
 			onRuntimeInitialized: () => {
-				console.log("~~~~~~~~~~~~~~~~ onRuntimeInitialized() ~~~~~~~~~~");
-				statusElement.innerHTML = "onRuntimeInitialized";
-				//statusElement.style.display = 'none';
+				//console.log("~~~~~~~~~~~~~~~~ onRuntimeInitialized() ~~~~~~~~~~");
+				statusElement.style.display = 'none';
 			}
 		};
 
