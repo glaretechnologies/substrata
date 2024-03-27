@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #if USE_QT
-#include "../qt/QtUtils.h"
+#include <qt/QtUtils.h>
 #include <QtCore/QSettings>
 #endif
 #include <AESEncryption.h>
