@@ -67,7 +67,7 @@ The basic idea is to simulate point particles with ray-traced collisions, and a 
 bouncing off surfaces and with wind resistance.
 See https://github.com/jrouwe/JoltPhysics/discussions/756 for a discussion of the approach.
 =====================================================================*/
-class ParticleManager : public RefCounted, public AsyncTextureLoadedHandler
+class ParticleManager final : public RefCounted, public AsyncTextureLoadedHandler
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
