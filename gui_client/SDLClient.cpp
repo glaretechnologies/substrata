@@ -338,29 +338,9 @@ int main(int argc, char** argv)
 
 		if(search.size() >= 1)
 		{
-			std::map<std::string, std::string> queries = URL::parseQuery(search.substr(1)); // Remove '?' prefix from search string, then parse into keys and values.
+			const std::map<std::string, std::string> queries = URL::parseQuery(search.substr(1)); // Remove '?' prefix from search string, then parse into keys and values.
 
-			if(queries.count("world"))
-				url_parse_results.userpath = queries["world"];
-
-			if(queries.count("x"))
-			{
-				url_parse_results.x = stringToDouble(queries["x"]);
-				url_parse_results.parsed_x = true;
-			}
-			if(queries.count("y"))
-			{
-				url_parse_results.y = stringToDouble(queries["y"]);
-				url_parse_results.parsed_y = true;
-			}
-			if(queries.count("z"))
-			{
-				url_parse_results.z = stringToDouble(queries["z"]);
-				url_parse_results.parsed_z = true;
-			}
-
-			if(queries.count("heading"))
-				url_parse_results.heading = stringToDouble(queries["heading"]);
+			URLParser::processQueryKeyValues(queries, url_parse_results);
 		}
 #else
 		std::string server_URL = "sub://substrata.info"; // Default URL
@@ -798,6 +778,12 @@ static void doOneMainLoopIter()
 		// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
 		url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 2) + 
 			"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1);
+
+		// If the original URL had an explicit sun angle in it, keep it.
+		if(gui_client->last_url_parse_results.parsed_sun_azimuth_angle)
+			url_path += "&sun_azimuth_angle=" + doubleToStringNDecimalPlaces(gui_client->last_url_parse_results.sun_azimuth_angle, 1);
+		if(gui_client->last_url_parse_results.parsed_sun_vert_angle)
+			url_path += "&sun_vert_angle=" + doubleToStringNDecimalPlaces(gui_client->last_url_parse_results.sun_vert_angle, 1);
 	
 		updateURL(url_path.c_str());
 

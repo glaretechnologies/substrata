@@ -70,16 +70,17 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	}
 
 	URLParseResults res;
+	res.hostname = hostname;
+	res.userpath = userpath;
 	res.heading = 90;
 	res.parsed_x = false;
 	res.parsed_y = false;
 	res.parsed_z = false;
 	res.parsed_parcel_uid = parcel_index != -123;
 	res.parcel_uid = parcel_index;
-
-	double x = DEFAULT_X;
-	double y = DEFAULT_Y;
-	double z = DEFAULT_Z;
+	res.x = DEFAULT_X;
+	res.y = DEFAULT_Y;
+	res.z = DEFAULT_Z;
 
 	if(parser.currentIsChar('?'))
 	{
@@ -88,35 +89,48 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 		const std::string query_string = URL.substr(parser.currentPos());
 		std::map<std::string, std::string> query_keyvalues = URL::parseQuery(query_string);
 
-		if(query_keyvalues.count("x"))
-		{
-			x = stringToDouble(query_keyvalues["x"]);
-			res.parsed_x = true;
-		}
-		if(query_keyvalues.count("y"))
-		{
-			y = stringToDouble(query_keyvalues["y"]);
-			res.parsed_y = true;
-		}
-		if(query_keyvalues.count("z"))
-		{
-			z = stringToDouble(query_keyvalues["z"]);
-			res.parsed_z = true;
-		}
-	
-		if(query_keyvalues.count("world"))
-			userpath = stringToDouble(query_keyvalues["world"]); // An alternative way of specifying the world/user name
-
-		if(query_keyvalues.count("heading"))
-			res.heading = stringToDouble(query_keyvalues["heading"]);
+		processQueryKeyValues(query_keyvalues, res);
 	}
 	
-	res.hostname = hostname;
-	res.userpath = userpath;
-	res.x = x;
-	res.y = y;
-	res.z = z;
 	return res;
+}
+
+
+void URLParser::processQueryKeyValues(const std::map<std::string, std::string>& query_keyvalues, URLParseResults& res)
+{
+	if(query_keyvalues.count("x"))
+	{
+		res.x = stringToDouble(query_keyvalues.find("x")->second);
+		res.parsed_x = true;
+	}
+	if(query_keyvalues.count("y"))
+	{
+		res.y = stringToDouble(query_keyvalues.find("y")->second);
+		res.parsed_y = true;
+	}
+	if(query_keyvalues.count("z"))
+	{
+		res.z = stringToDouble(query_keyvalues.find("z")->second);
+		res.parsed_z = true;
+	}
+	
+	if(query_keyvalues.count("world"))
+		res.userpath = query_keyvalues.find("world")->second; // An alternative way of specifying the world/user name
+
+	if(query_keyvalues.count("heading"))
+		res.heading = stringToDouble(query_keyvalues.find("heading")->second);
+
+	if(query_keyvalues.count("sun_vert_angle"))
+	{
+		res.sun_vert_angle = stringToDouble(query_keyvalues.find("sun_vert_angle")->second);
+		res.parsed_sun_vert_angle = true;
+	}
+
+	if(query_keyvalues.count("sun_azimuth_angle"))
+	{
+		res.sun_azimuth_angle = stringToDouble(query_keyvalues.find("sun_azimuth_angle")->second);
+		res.parsed_sun_azimuth_angle = true;
+	}
 }
 
 

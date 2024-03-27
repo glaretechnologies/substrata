@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
+#include "URLParser.h"
 #include "WorldState.h"
 #include "EmscriptenResourceDownloader.h"
 #include "../shared/WorldSettings.h"
@@ -67,7 +68,6 @@ struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 class SettingsStore;
 class TextRendererFontFace;
-struct URLParseResults;
 class Resource;
 class AsyncTextureLoader;
 
@@ -631,4 +631,6 @@ public:
 	std::vector<Reference<ThreadMessage> > temp_msgs;
 
 	bool extracted_anim_data_loaded;
+
+	URLParseResults last_url_parse_results;
 };
