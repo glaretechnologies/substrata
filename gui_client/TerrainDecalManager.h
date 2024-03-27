@@ -40,7 +40,7 @@ struct FoamDecal
 TerrainDecalManager
 -------------------
 =====================================================================*/
-class TerrainDecalManager : public RefCounted, public AsyncTextureLoadedHandler
+class TerrainDecalManager final : public RefCounted, public AsyncTextureLoadedHandler
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
