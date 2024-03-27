@@ -3838,15 +3838,15 @@ void GUIClient::updateObjectsWithDiagnosticVis()
 
 void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out)
 {
-	bool cam_changed = false;
 	bool move_key_pressed = false;
 
+#if 0
 	// Handle gamepad input
 	double gamepad_strafe_leftright = 0;
 	double gamepad_strafe_forwardsback = 0;
 	double gamepad_turn_leftright = 0;
 	double gamepad_turn_updown = 0;
-#if 0
+
 	if(gamepad)
 	{
 		gamepad_strafe_leftright = gamepad->axisLeftX();
@@ -3856,18 +3856,15 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 		gamepad_turn_updown = gamepad->axisRightY();
 
 		//if(gamepad->axisLeftY() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisLeftY())); cam_changed = true; }
+		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisLeftY())); }
 
 		//if(gamepad->axisRightX() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -gamepad->axisRightX())); cam_changed = true; }
+		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -gamepad->axisRightX())); }
 
 		//if(gamepad->axisRightY() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisRightY())); cam_changed = true; }
+		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisRightY())); }
 	}
 #endif
-
-	if(gamepad_strafe_leftright != 0 || gamepad_strafe_forwardsback != 0 || gamepad_turn_leftright != 0 || gamepad_turn_updown != 0)
-		cam_changed = true;
 
 	input_out.SHIFT_down =	false;
 	input_out.CTRL_down =	false;
@@ -3910,26 +3907,26 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 		const float selfie_move_factor = cam_controller.selfieModeEnabled() ? -1.f : 1.f;
 
 		if(W_down || up_down)
-		{	player_physics.processMoveForwards(1.f * selfie_move_factor, SHIFT_down, this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processMoveForwards(1.f * selfie_move_factor, SHIFT_down, this->cam_controller); move_key_pressed = true; }
 		if(S_down || down_down)
-		{	player_physics.processMoveForwards(-1.f * selfie_move_factor, SHIFT_down, this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processMoveForwards(-1.f * selfie_move_factor, SHIFT_down, this->cam_controller); move_key_pressed = true; }
 		if(A_down)
-		{	player_physics.processStrafeRight(-1.f * selfie_move_factor, SHIFT_down, this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processStrafeRight(-1.f * selfie_move_factor, SHIFT_down, this->cam_controller); move_key_pressed = true; }
 		if(D_down)
-		{	player_physics.processStrafeRight(1.f * selfie_move_factor, SHIFT_down, this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processStrafeRight(1.f * selfie_move_factor, SHIFT_down, this->cam_controller); move_key_pressed = true; }
 
 		// Move vertically up or down in flymode.
 		if(space_down)
-		{	player_physics.processMoveUp(1.f, SHIFT_down, this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processMoveUp(1.f, SHIFT_down, this->cam_controller); move_key_pressed = true; }
 		if(C_down && !CTRL_down) // Check CTRL_down to prevent CTRL+C shortcut moving camera up.
-		{	player_physics.processMoveUp(-1.f, SHIFT_down, this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processMoveUp(-1.f, SHIFT_down, this->cam_controller); move_key_pressed = true; }
 
 		// Turn left or right
 		const float base_rotate_speed = 200;
 		if(left_down)
-		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
+		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); }
 		if(right_down)
-		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
+		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); }
 
 
 		input_out.SHIFT_down =	SHIFT_down;
@@ -3955,22 +3952,22 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 
 		// Move vertically up or down in flymode.
 		if(gamepad->buttonR2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * pow(gamepad->buttonR2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processMoveUp(gamepad_move_speed_factor * pow(gamepad->buttonR2(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
 
 		if(gamepad->buttonL2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * -pow(gamepad->buttonL2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processMoveUp(gamepad_move_speed_factor * -pow(gamepad->buttonL2(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
 
 		if(gamepad->axisLeftX() != 0)
-		{	player_physics.processStrafeRight(gamepad_move_speed_factor * pow(gamepad->axisLeftX(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processStrafeRight(gamepad_move_speed_factor * pow(gamepad->axisLeftX(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
 
 		if(gamepad->axisLeftY() != 0)
-		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(gamepad->axisLeftY(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(gamepad->axisLeftY(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
 
 		if(gamepad->axisRightX() != 0)
-		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(gamepad->axisRightX(), 3.0f))); cam_changed = true; }
+		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(gamepad->axisRightX(), 3.0f))); }
 
 		if(gamepad->axisRightY() != 0)
-		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(gamepad->axisRightY(), 3.f), 0)); cam_changed = true; }
+		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(gamepad->axisRightY(), 3.f), 0)); }
 	}
 #endif
 
