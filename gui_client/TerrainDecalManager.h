@@ -69,4 +69,5 @@ private:
 	std::vector<FoamDecal> foam_decals;
 
 	AsyncTextureLoader* async_tex_loader;
+	std::vector<AsyncTextureLoadingHandle> loading_handles;
 };
