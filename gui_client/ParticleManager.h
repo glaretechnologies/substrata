@@ -106,4 +106,5 @@ private:
 	Reference<OpenGLTexture> foam_sprite_front;
 
 	AsyncTextureLoader* async_tex_loader;
+	std::vector<AsyncTextureLoadingHandle> loading_handles;
 };
