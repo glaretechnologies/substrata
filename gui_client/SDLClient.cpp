@@ -764,7 +764,8 @@ static void doOneMainLoopIter()
 
 #if EMSCRIPTEN
 	// Update URL with current camera position
-	if(last_update_URL_timer->elapsed() > 0.1)
+	// We can't do this too often or we will get an "Attempt to use history.replacestate() more than 100 times per 30 seconds" error in Safari.
+	if(last_update_URL_timer->elapsed() > 0.5)
 	{
 		std::string url_path = "/webclient?";
 
