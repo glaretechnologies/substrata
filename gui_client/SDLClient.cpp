@@ -38,6 +38,7 @@ Copyright Glare Technologies Limited 2024 -
 #if EMSCRIPTEN
 #include <emscripten.h>
 #include <emscripten/html5.h>
+#include <unistd.h>
 #endif
 
 
@@ -270,8 +271,12 @@ int main(int argc, char** argv)
 		settings.shadow_mapping = true;
 		settings.depth_fog = true;
 		settings.render_water_caustics = true;
-		settings.allow_multi_draw_indirect = true; // TEMP
-		settings.allow_bindless_textures = true; // TEMP
+
+		if(parsed_args.isArgPresent("--no_MDI"))
+			settings.allow_multi_draw_indirect = false;
+		if(parsed_args.isArgPresent("--no_bindless"))
+			settings.allow_bindless_textures = false;
+
 #if defined(EMSCRIPTEN)
 		settings.max_tex_CPU_mem_usage = 512 * 1024 * 1024ull;
 #endif
@@ -512,10 +517,30 @@ static bool do_graphics_diagnostics = false;
 static bool do_physics_diagnostics = false;
 static bool do_terrain_diagnostics = false;
 
+static size_t last_total_memory = 0;
+static uintptr_t last_dynamic_top = 0;
+
+
 static void doOneMainLoopIter()
 {
 	if(SDL_GL_MakeCurrent(win, gl_context) != 0)
 		conPrint("SDL_GL_MakeCurrent failed.");
+
+
+#if 0 // EMSCRIPTEN // Print when memory size increases
+	const size_t total_memory = (size_t)EM_ASM_PTR(return HEAP8.length);
+	const uintptr_t dynamic_top = (uintptr_t)sbrk(0);
+	if(total_memory != last_total_memory)
+	{
+		conPrint("************* total_memory increased to " + ::getMBSizeString(total_memory));
+		last_total_memory = total_memory;
+	}
+	if(dynamic_top != last_dynamic_top)
+	{
+		conPrint("************* dynamic_top increased to " + ::getMBSizeString((size_t)dynamic_top));
+		last_dynamic_top = dynamic_top;
+	}
+#endif
 
 
 	MouseCursorState mouse_cursor_state;
