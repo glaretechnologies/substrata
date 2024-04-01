@@ -173,6 +173,17 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 			this->preview_gl_ob->materials[1].metallic_frac = Avatar::default_mat1_metallic_frac;
 			this->preview_gl_ob->materials[1].albedo_texture = NULL;
 			this->preview_gl_ob->materials[1].tex_path.clear();
+
+
+			loaded_materials.resize(2);
+			loaded_materials[0] = new WorldMaterial();
+			loaded_materials[0]->colour_rgb = Avatar::defaultMat0Col();
+			loaded_materials[0]->metallic_fraction.val = Avatar::default_mat0_metallic_frac;
+			loaded_materials[0]->roughness.val = Avatar::default_mat0_roughness;
+
+			loaded_materials[1] = new WorldMaterial();
+			loaded_materials[1]->colour_rgb = Avatar::defaultMat1Col();
+			loaded_materials[1]->metallic_fraction.val = Avatar::default_mat1_metallic_frac;
 		}
 
 		/*Vec4f original_left_eye_pos = preview_gl_ob->mesh_data->animation_data.getNodePositionModelSpace("LeftEye");
