@@ -155,21 +155,8 @@ void AddObjectPreviewWidget::initializeGL()
 	cam_target_pos = Vec4f(0,0,0.2f,1);
 
 	// Add env mat
-	{
-		OpenGLMaterial env_mat;
-		try
-		{
-			env_mat.albedo_texture = opengl_engine->getTexture(base_dir_path + "/data/resources/sky_no_sun.exr");
-		}
-		catch(glare::Exception& e)
-		{
-			assert(0);
-			conPrint("ERROR: " + e.what());
-		}
-		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
-
-		opengl_engine->setEnvMat(env_mat);
-	}
+	OpenGLMaterial env_mat;
+	opengl_engine->setEnvMat(env_mat);
 
 	// target_marker_ob = opengl_engine->makeAABBObject(cam_target_pos + Vec4f(0,0,0,0), cam_target_pos + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f));
 	// opengl_engine->addObject(target_marker_ob);
