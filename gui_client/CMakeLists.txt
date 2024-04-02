@@ -813,9 +813,9 @@ include_directories(${cef_binary_dist_dir})
 
 
 #============== ImGui ==============
-set(imguidir 	"${GLARE_CORE_LIBS_ENV}/imgui")
-
 if(USE_SDL)
+	set(imguidir 	"${GLARE_CORE_TRUNK_DIR_ENV}/ImGui")
+
 	set (imgui
 	${imguidir}/imgui.cpp
 	${imguidir}/imgui.h
@@ -832,6 +832,8 @@ if(USE_SDL)
 	${imguidir}/backends/imgui_impl_opengl3.cpp
 	${imguidir}/backends/imgui_impl_opengl3.h
 	)
+
+	include_directories(${imguidir})
 endif()
 
 
@@ -1018,9 +1020,6 @@ if(USE_SDL)
 	else()
 		include_directories(${SDL_BUILD_DIR}/include-config-/SDL2)
 	endif()
-	
-	
-	include_directories(${imguidir})
 	
 	add_definitions(-DUSE_SDL=1)
 else()
