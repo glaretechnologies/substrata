@@ -234,16 +234,6 @@ cmake --build .
 
 
 
-ImGui (required for building webclient and for SDL build)
-=========================================================
-Clone ImGui repo into your libs directory (e.g. the directory you set the GLARE_CORE_LIBS env var to):
-
-	cd C:/programming
-	git clone https://github.com/ocornut/imgui.git
-
-
-
-
 
 Building the web client with Emscripten
 =======================================
