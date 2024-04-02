@@ -816,7 +816,7 @@ include_directories(${cef_binary_dist_dir})
 if(USE_SDL)
 	set(imguidir 	"${GLARE_CORE_TRUNK_DIR_ENV}/ImGui")
 
-	set (imgui
+	set(imgui
 	${imguidir}/imgui.cpp
 	${imguidir}/imgui.h
 	${imguidir}/imgui_demo.cpp
