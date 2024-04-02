@@ -1,7 +1,4 @@
 
-in vec3 normal_cs; // cam (view) space
-in vec3 normal_ws; // world space
-in vec3 pos_cs;
 in vec3 pos_ws;
 in vec2 texture_coords;
 
