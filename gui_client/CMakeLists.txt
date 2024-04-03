@@ -1051,7 +1051,6 @@ if(EMSCRIPTEN)
 		"-s USE_WEBGL=1"
 		"-sMIN_WEBGL_VERSION=2"
 		"-sMAX_WEBGL_VERSION=2"
-		"-sGL_ENABLE_GET_PROC_ADDRESS"
 #		"-sNO_DISABLE_EXCEPTION_CATCHING"
 	#	"--emrun"   # https://emscripten.org/docs/compiling/Running-html-files-with-emrun.html
 		#"-gsource-map" # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
