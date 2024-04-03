@@ -394,13 +394,15 @@ int main(int argc, char** argv)
 		{
 			doOneMainLoopIter();
 		}
-
-		SDL_Quit();
-
-		opengl_engine = NULL;
 #endif
 
 		conPrint("main finished...");
+
+		gui_client->shutdown();
+		delete gui_client;
+		gui_client = NULL; 
+
+		opengl_engine = NULL;
 
 		high_priority_task_manager->waitForTasksToComplete();
 		main_task_manager->waitForTasksToComplete();
@@ -410,7 +412,10 @@ int main(int argc, char** argv)
 		delete high_priority_task_manager;
 		delete main_task_manager;
 
+
 		GUIClient::staticShutdown();
+
+		SDL_Quit();
 		return 0;
 	}
 	catch(glare::Exception& e)
@@ -661,7 +666,9 @@ static void doOneMainLoopIter()
 	SDL_Event e;
 	while(SDL_PollEvent(&e))
 	{
-		if(!SDL_GetRelativeMouseMode() && ImGui::GetIO().WantCaptureMouse)
+		// Pass mouse events onto ImGUI if applicable.
+		if((e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEWHEEL) &&
+			!SDL_GetRelativeMouseMode() && ImGui::GetIO().WantCaptureMouse)
 		{
 			ImGui_ImplSDL2_ProcessEvent(&e); // Pass event onto ImGUI
 			continue;
@@ -692,7 +699,7 @@ static void doOneMainLoopIter()
 		}
 		else if(e.type == SDL_KEYDOWN)
 		{
-			if(e.key.keysym.sym == SDLK_F1)
+			if(e.key.keysym.sym == SDLK_F1 || e.key.keysym.sym == SDLK_F2)
 				show_imgui_info_window = !show_imgui_info_window;
 
 			KeyEvent key_event;
