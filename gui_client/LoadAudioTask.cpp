@@ -69,6 +69,10 @@ void LoadAudioTask::run(size_t thread_index)
 	{
 		result_msg_queue->enqueue(new LogMessage("Error while loading audio: " + e.what()));
 	}
+	catch(std::bad_alloc&)
+	{
+		result_msg_queue->enqueue(new LogMessage("Error while loading audio: failed to allocate mem (bad_alloc)"));
+	}
 
 
 #if EMSCRIPTEN
