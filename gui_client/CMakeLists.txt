@@ -1057,9 +1057,8 @@ if(EMSCRIPTEN)
 		#"-gsource-map" # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
 		#"--profiling"  			# https://emscripten.org/docs/tools_reference/emcc.html
 		"-fwasm-exceptions"  # Enable WASM-based exception support: https://emscripten.org/docs/porting/exceptions.html
-		#"-sALLOW_MEMORY_GROWTH"
-		"-sINITIAL_MEMORY=3500MB" # "If ALLOW_MEMORY_GROWTH is set, this initial amount of memory can increase later; if not, then it is the final and total amount of memory." (https://emscripten.org/docs/tools_reference/settings_reference.html)
-		#"-sMAXIMUM_MEMORY=4GB"
+		"-sALLOW_MEMORY_GROWTH"
+		"-sMAXIMUM_MEMORY=4000MB" # Default is 2GB.
 		"-pthread"
 	#	"-s USE_SDL=2"
 		"-sPTHREAD_POOL_SIZE=26" # See calculation above
