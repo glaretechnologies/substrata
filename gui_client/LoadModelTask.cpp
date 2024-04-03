@@ -117,6 +117,10 @@ void LoadModelTask::run(size_t thread_index)
 	{
 		result_msg_queue->enqueue(new LogMessage("Error while loading model: " + e.what()));
 	}
+	catch(std::bad_alloc&)
+	{
+		result_msg_queue->enqueue(new LogMessage("Error while loading model: failed to allocate mem (bad_alloc)"));
+	}
 
 
 #if EMSCRIPTEN

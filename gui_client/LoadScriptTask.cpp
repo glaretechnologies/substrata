@@ -44,4 +44,8 @@ void LoadScriptTask::run(size_t thread_index)
 	{
 		result_msg_queue->enqueue(new LogMessage("Error while loading script: " + e.what()));
 	}
+	catch(std::bad_alloc&)
+	{
+		result_msg_queue->enqueue(new LogMessage("Error while loading script: failed to allocate mem (bad_alloc)"));
+	}
 }
