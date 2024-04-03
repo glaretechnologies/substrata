@@ -13,6 +13,23 @@
 # "c:/programming/Qt\qt-everywhere-src-6.2.4\configure.bat" -prefix "c:/programming/Qt/6.2.4-vs2022-64" -opensource -confirm-license -force-debug-info -nomake tests -nomake examples -opengl desktop -no-dbus  -skip qt3d -skip qtactiveqt -skip qtandroidextras -skip qtcanvas3d -skip qtcharts -skip qtconnectivity -skip qtdatavis3d -skip qtgraphicaleffects -skip qtlocation -skip qtpurchasing -skip qtquickcontrols -skip qtquickcontrols2 -skip qtscript -skip qtscxml -skip qtsensors -skip qtserialbus -skip qtserialport -skip qtsvg -skip qtvirtualkeyboard -skip qtwayland -skip qtwebchannel -skip qtwebengine -skip qtwebsockets -skip qtwebview -skip qtxmlpatterns -skip qtremoteobjects -skip qtwebglplugin -skip qtnetworkauth -skip qtspeech -skip qtmacextras -skip qtx11extras -debug-and-release -mp -platform win32-msvc
 #
 # Make sure to delete CMakeCache.txt before reconfiguring stuff!
+#
+#
+# On Mac there now seems to be a problem where Qt doesn't install the header files properly into the 'include' dir.  We can fix that ourselves:
+# cd /home/nick/libs/Qt/5.15.10
+# mkdir include/QtCore
+# cp lib/QtCore.framework/Headers/* include/QtCore/
+# mkdir include/QtWidgets/
+# cp lib/QtWidgets.framework/Headers/* include/QtWidgets/
+# mkdir include/QtGui
+# cp lib/QtGui.framework/Headers/* include/QtGui/
+# mkdir include/QtOpenGL
+# cp lib/QtOpenGL.framework/Headers/* include/QtOpenGL/
+# mkdir include/QtMultimedia
+# cp lib/QtMultimedia.framework/Headers/* include/QtMultimedia/
+# mkdir include/QtNetwork
+# cp lib/QtNetwork.framework/Headers/* include/QtNetwork/
+#
 
 require 'fileutils'
 require 'digest'
