@@ -81,21 +81,17 @@ if(EMSCRIPTEN)
 	
 	add_definitions(-msimd128)
 	add_definitions(-msse4.1)
-#	add_definitions(-msse4.2)
+	#add_definitions(-msse4.2)
+
+	#add_definitions("-sGL_ASSERTIONS")
+	#add_definitions("-fsanitize=address")
 	
-	#add_definitions(-O0) # Disable optimisations
-	
-#	add_definitions(-O2)
-#	#add_definitions("--profiling")			# https://emscripten.org/docs/tools_reference/emcc.html
-#	add_definitions(-DNDEBUG)
+	#add_definitions("--profiling")			# https://emscripten.org/docs/tools_reference/emcc.html
+	#add_definitions("-gsource-map") # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html  NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
 	
 	include_directories("${GLARE_CORE_LIBS_ENV}/emsdk/upstream/emscripten/cache/sysroot/include")
 	
-	#add_definitions("-gsource-map") # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html  NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
-	
-	#add_definitions("-s USE_SDL=2") # NOTE: uses old version of SDL2 which we don't want.
-	
-	
+		
 	
 	SET(COMMON_C_CXX_OPTIONS_DEBUG				"-O0 -g")
 	SET(COMMON_C_CXX_OPTIONS_RELEASE			"-O3 -DNDEBUG")
