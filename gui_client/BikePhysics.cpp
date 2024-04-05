@@ -252,49 +252,62 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	}
 
 
-	engine_audio_source = new glare::AudioSource();
-	engine_audio_source->type = glare::AudioSource::SourceType_Streaming;
-	engine_audio_source->pos = object->getCentroidWS();
-	engine_audio_source->debugname = "bike engine";
-	engine_audio_source->volume = 2.5f;
-	engine_audio_source->mix_sources.resize(3);
-	engine_audio_source->mix_sources[0].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Slow_Idle_Steady_01_44100_hz_mono.mp3");
-	engine_audio_source->mix_sources[1].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Medium_Speed_Steady_01_44100hz_mono.mp3");
-	engine_audio_source->mix_sources[2].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_High_Speed_Steady_01_44100hz_mono.mp3");
-	engine_audio_source->sampling_rate = 44100;
+	try
+	{
+#if !EMSCRIPTEN // Sound doesn't work on web currently, and the sounds are not included in dist currently, so don't try and load.
+		engine_audio_source = new glare::AudioSource();
+		engine_audio_source->type = glare::AudioSource::SourceType_Streaming;
+		engine_audio_source->pos = object->getCentroidWS();
+		engine_audio_source->debugname = "bike engine";
+		engine_audio_source->volume = 2.5f;
+		engine_audio_source->mix_sources.resize(3);
+		engine_audio_source->mix_sources[0].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Slow_Idle_Steady_01_44100_hz_mono.mp3");
+		engine_audio_source->mix_sources[1].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Medium_Speed_Steady_01_44100hz_mono.mp3");
+		engine_audio_source->mix_sources[2].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_High_Speed_Steady_01_44100hz_mono.mp3");
+		engine_audio_source->sampling_rate = 44100;
 
-	glare::SoundFileRef tire_squeal_sound = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/tires_squal_loop_44100.wav");
+		glare::SoundFileRef tire_squeal_sound = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/tires_squal_loop_44100.wav");
 
-	wheel_audio_source[0] = new glare::AudioSource();
-	wheel_audio_source[0]->type = glare::AudioSource::SourceType_Looping;
-	wheel_audio_source[0]->pos = object->getCentroidWS();
-	wheel_audio_source[0]->debugname = "front wheel";
-	wheel_audio_source[0]->volume = 0.f;
-	wheel_audio_source[0]->shared_buffer = tire_squeal_sound->buf;
+		wheel_audio_source[0] = new glare::AudioSource();
+		wheel_audio_source[0]->type = glare::AudioSource::SourceType_Looping;
+		wheel_audio_source[0]->pos = object->getCentroidWS();
+		wheel_audio_source[0]->debugname = "front wheel";
+		wheel_audio_source[0]->volume = 0.f;
+		wheel_audio_source[0]->shared_buffer = tire_squeal_sound->buf;
 	
-	wheel_audio_source[1] = new glare::AudioSource();
-	wheel_audio_source[1]->type = glare::AudioSource::SourceType_Looping;
-	wheel_audio_source[1]->pos = object->getCentroidWS();
-	wheel_audio_source[1]->debugname = "rear wheel";
-	wheel_audio_source[1]->volume = 0.f;
-	wheel_audio_source[1]->shared_buffer = tire_squeal_sound->buf;
+		wheel_audio_source[1] = new glare::AudioSource();
+		wheel_audio_source[1]->type = glare::AudioSource::SourceType_Looping;
+		wheel_audio_source[1]->pos = object->getCentroidWS();
+		wheel_audio_source[1]->debugname = "rear wheel";
+		wheel_audio_source[1]->volume = 0.f;
+		wheel_audio_source[1]->shared_buffer = tire_squeal_sound->buf;
 		
-	audio_engine->addSource(engine_audio_source);
-	audio_engine->addSource(wheel_audio_source[0]);
-	audio_engine->addSource(wheel_audio_source[1]);
+		audio_engine->addSource(engine_audio_source);
+		audio_engine->addSource(wheel_audio_source[0]);
+		audio_engine->addSource(wheel_audio_source[1]);
+#endif
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Error loading bike sounds: " + e.what());
+		assert(0);
+	}
 }
 
 
 BikePhysics::~BikePhysics()
 {
-	m_audio_engine->removeSource(engine_audio_source);
-	engine_audio_source = NULL;
+	if(engine_audio_source.nonNull())
+	{
+		m_audio_engine->removeSource(engine_audio_source);
+		engine_audio_source = NULL;
 	
-	m_audio_engine->removeSource(wheel_audio_source[0]);
-	wheel_audio_source[0] = NULL;
+		m_audio_engine->removeSource(wheel_audio_source[0]);
+		wheel_audio_source[0] = NULL;
 
-	m_audio_engine->removeSource(wheel_audio_source[1]);
-	wheel_audio_source[1] = NULL;
+		m_audio_engine->removeSource(wheel_audio_source[1]);
+		wheel_audio_source[1] = NULL;
+	}
 
 	m_physics_world->physics_system->RemoveConstraint(vehicle_constraint);
 	m_physics_world->physics_system->RemoveStepListener(vehicle_constraint);
@@ -683,55 +696,57 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 
 	// ---------------------------------- audio -----------------------------------
-
-	// Set mix parameters for the engine sound.  Actual mixing will get done in the ResonanceThread.
+	if(engine_audio_source.nonNull()) // If bike audio was initialised:
 	{
-		Lock lock(m_audio_engine->mutex);
+		// Set mix parameters for the engine sound.  Actual mixing will get done in the ResonanceThread.
+		{
+			Lock lock(m_audio_engine->mutex);
 
-		const float current_RPM = controller->GetEngine().GetCurrentRPM();
-		const float cur_engine_freq = current_RPM / 60.f;
-		//printVar(current_RPM);
+			const float current_RPM = controller->GetEngine().GetCurrentRPM();
+			const float cur_engine_freq = current_RPM / 60.f;
+			//printVar(current_RPM);
 
-		const float low_source_freq = 43.f / 2; // From Audacity spectrum analysis
-		const float low_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / low_source_freq * ((float)/*engine_low_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
+			const float low_source_freq = 43.f / 2; // From Audacity spectrum analysis
+			const float low_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / low_source_freq * ((float)/*engine_low_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
 
-		const float mid_source_freq = 72.f;
-		const float mid_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / mid_source_freq * ((float)/*engine_mid_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
+			const float mid_source_freq = 72.f;
+			const float mid_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / mid_source_freq * ((float)/*engine_mid_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
 
-		const float high_source_freq = 122.f;
-		const float high_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / high_source_freq * ((float)/*engine_high_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
+			const float high_source_freq = 122.f;
+			const float high_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / high_source_freq * ((float)/*engine_high_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
 
-		//printVar(mid_source_delta);
-		//printVar(low_source_delta);
-		//printVar(high_source_delta);
+			//printVar(mid_source_delta);
+			//printVar(low_source_delta);
+			//printVar(high_source_delta);
 
-		float high_intensity_factor = 0.9f * Maths::smoothStep(mid_source_freq * 0.6f, high_source_freq, cur_engine_freq);
-		float low_intensity_factor = (1 - Maths::smoothStep(low_source_freq, mid_source_freq, cur_engine_freq) * 0.8f) * (1 - high_intensity_factor);
-		float mid_intensity_factor = (1 - low_intensity_factor) * (1 - high_intensity_factor);
+			float high_intensity_factor = 0.9f * Maths::smoothStep(mid_source_freq * 0.6f, high_source_freq, cur_engine_freq);
+			float low_intensity_factor = (1 - Maths::smoothStep(low_source_freq, mid_source_freq, cur_engine_freq) * 0.8f) * (1 - high_intensity_factor);
+			float mid_intensity_factor = (1 - low_intensity_factor) * (1 - high_intensity_factor);
 			
-		// Intensity = amplitude^2, amplitude = sqrt(intensity)
-		float low_factor  = std::sqrt(myMax(0.f, low_intensity_factor));
-		float mid_factor  = std::sqrt(myMax(0.f, mid_intensity_factor)); 
-		float high_factor = std::sqrt(myMax(0.f, high_intensity_factor));
+			// Intensity = amplitude^2, amplitude = sqrt(intensity)
+			float low_factor  = std::sqrt(myMax(0.f, low_intensity_factor));
+			float mid_factor  = std::sqrt(myMax(0.f, mid_intensity_factor)); 
+			float high_factor = std::sqrt(myMax(0.f, high_intensity_factor));
 
-		//printVar(low_intensity_factor);
-		//printVar(mid_intensity_factor);
-		//printVar(high_intensity_factor);
-		//printVar(doppler_factor);
+			//printVar(low_intensity_factor);
+			//printVar(mid_intensity_factor);
+			//printVar(high_intensity_factor);
+			//printVar(doppler_factor);
 
-		engine_audio_source->mix_sources[0].source_delta = low_source_delta;
-		engine_audio_source->mix_sources[1].source_delta = mid_source_delta;
-		engine_audio_source->mix_sources[2].source_delta = high_source_delta;
+			engine_audio_source->mix_sources[0].source_delta = low_source_delta;
+			engine_audio_source->mix_sources[1].source_delta = mid_source_delta;
+			engine_audio_source->mix_sources[2].source_delta = high_source_delta;
 
-		engine_audio_source->mix_sources[0].mix_factor = low_factor;
-		engine_audio_source->mix_sources[1].mix_factor = mid_factor;
-		engine_audio_source->mix_sources[2].mix_factor = high_factor;
+			engine_audio_source->mix_sources[0].mix_factor = low_factor;
+			engine_audio_source->mix_sources[1].mix_factor = mid_factor;
+			engine_audio_source->mix_sources[2].mix_factor = high_factor;
+		}
+
+		engine_audio_source->pos = to_world * Vec4f(0,0,0,1);
+		m_audio_engine->sourcePositionUpdated(*engine_audio_source);
 	}
 
-	engine_audio_source->pos = to_world * Vec4f(0,0,0,1);
-	m_audio_engine->sourcePositionUpdated(*engine_audio_source);
-
-	// Set volume for tire squeal sounds
+	// Set volume for tire squeal sounds, do tire-skid smoke/dust particle effects
 	for(int i=0; i<2; ++i)
 	{
 		if(vehicle_constraint->GetWheel(i)->HasContact())
@@ -778,21 +793,25 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 			const float skid_volume = myMin(3.f, skid_speed * 1.f);
 
-			wheel_audio_source[i]->pos = contact_point_ws;
-			if(wheel_audio_source[i]->volume != skid_volume)
+			if(wheel_audio_source->nonNull())
 			{
-				wheel_audio_source[i]->volume = skid_volume;
-				m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
+				wheel_audio_source[i]->pos = contact_point_ws;
+				if(wheel_audio_source[i]->volume != skid_volume)
+				{
+					wheel_audio_source[i]->volume = skid_volume;
+					m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
+				}
+				m_audio_engine->sourcePositionUpdated(*wheel_audio_source[i]);
 			}
-			m_audio_engine->sourcePositionUpdated(*wheel_audio_source[i]);
 		}
 		else // Else if wheel is not in contact with ground, set volume to zero.
 		{
-			if(wheel_audio_source[i]->volume != 0.f)
-			{
-				wheel_audio_source[i]->volume = 0.f;
-				m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
-			}
+			if(wheel_audio_source[i].nonNull())
+				if(wheel_audio_source[i]->volume != 0.f)
+				{
+					wheel_audio_source[i]->volume = 0.f;
+					m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
+				}
 		}
 	}
 
