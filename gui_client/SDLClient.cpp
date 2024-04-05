@@ -203,8 +203,11 @@ int main(int argc, char** argv)
 		int primary_H = 1100;
 
 #if EMSCRIPTEN
-		// This seems to return the canvas width and height before it is properly sized to the full window width, so don't bother calling it.
+		// This seems to return the canvas width and height before it is properly sized to the full window width (e.g. is 300x150px), so don't bother calling it.
 		// emscripten_get_canvas_element_size("#canvas", &primary_W, &primary_H);
+		
+		primary_W = 256; // Use small resolution in case these values are used, in which case we don't want to allocate a massive buffer that then gets thrown away.
+		primary_H = 256;
 #endif
 
 #if EMSCRIPTEN
@@ -547,6 +550,152 @@ static void doOneMainLoopIter()
 	}
 #endif
 
+	// Handle any events
+	SDL_Event e;
+	while(SDL_PollEvent(&e))
+	{
+		if(show_imgui_info_window)
+			ImGui_ImplSDL2_ProcessEvent(&e); // Pass event onto ImGUI
+
+		const bool imgui_captures_mouse_ev    = show_imgui_info_window && ImGui::GetIO().WantCaptureMouse;
+		const bool imgui_captures_keyboard_ev = show_imgui_info_window && ImGui::GetIO().WantCaptureKeyboard;
+
+		if(e.type == SDL_QUIT) // "An SDL_QUIT event is generated when the user clicks on the close button of the last existing window" - https://wiki.libsdl.org/SDL_EventType#Remarks
+		{
+			quit = true;
+		}
+		else if(e.type == SDL_WINDOWEVENT) // If user closes the window:
+		{
+			if(e.window.event == SDL_WINDOWEVENT_CLOSE)
+			{
+				quit = true;
+			}
+			else if(/*e.window.event == SDL_WINDOWEVENT_RESIZED || */e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+			{
+				int w, h;
+				SDL_GL_GetDrawableSize(win, &w, &h);
+
+				conPrint("Got size changed event, SDL drawable size is " + toString(w) + " x " + toString(h));
+						
+				opengl_engine->setViewportDims(w, h);
+				opengl_engine->setMainViewportDims(w, h);
+
+				gui_client->viewportResized(w, h);
+			}
+		}
+		else if(e.type == SDL_KEYDOWN)
+		{
+			if(e.key.keysym.sym == SDLK_F1 || e.key.keysym.sym == SDLK_F2)
+				show_imgui_info_window = !show_imgui_info_window;
+
+			if(!imgui_captures_keyboard_ev)
+			{
+				KeyEvent key_event;
+				convertFromSDKKeyEvent(e, key_event);
+
+				gui_client->keyPressed(key_event);
+			}
+		}
+		else if(e.type == SDL_KEYUP)
+		{
+			if(!imgui_captures_keyboard_ev)
+			{
+				KeyEvent key_event;
+				convertFromSDKKeyEvent(e, key_event);
+
+				gui_client->keyReleased(key_event);
+			}
+		}
+		else if(e.type == SDL_MOUSEMOTION)
+		{
+			// conPrint("SDL_MOUSEMOTION, pos: " + Vec2i(e.motion.x, e.motion.y).toString());
+			if(!imgui_captures_mouse_ev)
+			{
+				if(true/* camcam_rot_on_mouse_move_enabled*/  && (e.motion.state & SDL_BUTTON_LMASK))
+				{
+					Vec2i delta(e.motion.xrel, -e.motion.yrel);
+
+					// conPrint("delta: " + delta.toString());
+
+					const double speed_factor = 0.35; // To make delta similar to what Qt gives.
+					gui_client->cam_controller.update(Vec3d(0, 0, 0), Vec2d(delta.y, delta.x) * speed_factor);
+
+					// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.
+					// QCursor::setPos() does not work on mac, and also gives a message about Substrata trying to control the computer, which we want to avoid.
+					// So don't use setPos() on Mac.
+#if !defined(OSX) && !defined(EMSCRIPTEN)
+					SDL_WarpMouseInWindow(win, mouse_move_origin.x, mouse_move_origin.y);
+#endif
+
+					SDL_GetMouseState(&mouse_move_origin.x, &mouse_move_origin.y);
+				}
+			
+
+				MouseEvent move_event;
+				move_event.cursor_pos = Vec2i(e.motion.x, e.motion.y);
+				move_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.motion.x, (float)e.motion.y));
+				move_event.modifiers = convertSDLModifiers(SDL_GetModState());
+				gui_client->mouseMoved(move_event);
+			}
+		}
+		else if(e.type == SDL_MOUSEBUTTONDOWN)
+		{
+			if(!imgui_captures_mouse_ev)
+			{
+				// conPrint("SDL_MOUSEBUTTONDOWN, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
+
+				SDL_GetMouseState(&mouse_move_origin.x, &mouse_move_origin.y);
+
+				MouseEvent mouse_event;
+				mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
+				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
+				mouse_event.button = convertSDLMouseButton(e.button.button);
+				mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
+
+				if(e.button.clicks == 1) // Single click:
+				{
+					SDL_SetRelativeMouseMode(SDL_TRUE);
+				}
+				else if(e.button.clicks == 2) // Double click:
+				{
+					gui_client->doObjectSelectionTraceForMouseEvent(mouse_event);
+				}
+			}
+		}
+		else if(e.type == SDL_MOUSEBUTTONUP)
+		{
+			if(!imgui_captures_mouse_ev)
+			{
+				// conPrint("SDL_MOUSEBUTTONUP, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
+
+				if(e.button.clicks == 1) // Single click:
+				{
+					SDL_SetRelativeMouseMode(SDL_FALSE);
+
+					MouseEvent mouse_event;
+					mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
+					mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
+					mouse_event.button = convertSDLMouseButton(e.button.button);
+					mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
+					gui_client->mouseClicked(mouse_event);
+				}
+			}
+		}
+		else if(e.type == SDL_MOUSEWHEEL)
+		{
+			if(!imgui_captures_mouse_ev)
+			{
+				MouseWheelEvent wheel_event;
+				wheel_event.cursor_pos = Vec2i(e.wheel.mouseX, e.wheel.mouseY);
+				wheel_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.wheel.mouseX, (float)e.wheel.mouseY));
+				const float scale_factor = 100; // To bring in line with what we get from Qt's angleDelta().
+				wheel_event.angle_delta = Vec2i((int)(e.wheel.preciseX * scale_factor), (int)(e.wheel.preciseY * scale_factor));
+				wheel_event.modifiers = convertSDLModifiers(SDL_GetModState());
+				gui_client->onMouseWheelEvent(wheel_event);
+			}
+		}
+	}
+
 
 	MouseCursorState mouse_cursor_state;
 	{
@@ -662,137 +811,7 @@ static void doOneMainLoopIter()
 
 	time_since_last_frame->reset();
 
-	// Handle any events
-	SDL_Event e;
-	while(SDL_PollEvent(&e))
-	{
-		// Pass mouse events onto ImGUI if applicable.
-		if((e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEWHEEL) &&
-			!SDL_GetRelativeMouseMode() && ImGui::GetIO().WantCaptureMouse)
-		{
-			ImGui_ImplSDL2_ProcessEvent(&e); // Pass event onto ImGUI
-			continue;
-		}
-
-		if(e.type == SDL_QUIT) // "An SDL_QUIT event is generated when the user clicks on the close button of the last existing window" - https://wiki.libsdl.org/SDL_EventType#Remarks
-		{
-			quit = true;
-		}
-		else if(e.type == SDL_WINDOWEVENT) // If user closes the window:
-		{
-			if(e.window.event == SDL_WINDOWEVENT_CLOSE)
-			{
-				quit = true;
-			}
-			else if(/*e.window.event == SDL_WINDOWEVENT_RESIZED || */e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-			{
-				int w, h;
-				SDL_GL_GetDrawableSize(win, &w, &h);
-
-				// conPrint("Got size changed event, SDL drawable size is " + toString(w) + " x " + toString(h));
-						
-				opengl_engine->setViewportDims(w, h);
-				opengl_engine->setMainViewportDims(w, h);
-
-				gui_client->viewportResized(w, h);
-			}
-		}
-		else if(e.type == SDL_KEYDOWN)
-		{
-			if(e.key.keysym.sym == SDLK_F1 || e.key.keysym.sym == SDLK_F2)
-				show_imgui_info_window = !show_imgui_info_window;
-
-			KeyEvent key_event;
-			convertFromSDKKeyEvent(e, key_event);
-
-			gui_client->keyPressed(key_event);
-		}
-		else if(e.type == SDL_KEYUP)
-		{
-			KeyEvent key_event;
-			convertFromSDKKeyEvent(e, key_event);
-
-			gui_client->keyReleased(key_event);
-		}
-		else if(e.type == SDL_MOUSEMOTION)
-		{
-			// conPrint("SDL_MOUSEMOTION, pos: " + Vec2i(e.motion.x, e.motion.y).toString());
-
-			if(true/* camcam_rot_on_mouse_move_enabled*/  && (e.motion.state & SDL_BUTTON_LMASK))
-			{
-				Vec2i delta(e.motion.xrel, -e.motion.yrel);
-
-				// conPrint("delta: " + delta.toString());
-
-				const double speed_factor = 0.35; // To make delta similar to what Qt gives.
-				gui_client->cam_controller.update(Vec3d(0, 0, 0), Vec2d(delta.y, delta.x) * speed_factor);
-
-				// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.
-				// QCursor::setPos() does not work on mac, and also gives a message about Substrata trying to control the computer, which we want to avoid.
-				// So don't use setPos() on Mac.
-#if !defined(OSX) && !defined(EMSCRIPTEN)
-				SDL_WarpMouseInWindow(win, mouse_move_origin.x, mouse_move_origin.y);
-#endif
-
-				SDL_GetMouseState(&mouse_move_origin.x, &mouse_move_origin.y);
-			}
-			
-
-			MouseEvent move_event;
-			move_event.cursor_pos = Vec2i(e.motion.x, e.motion.y);
-			move_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.motion.x, (float)e.motion.y));
-			move_event.modifiers = convertSDLModifiers(SDL_GetModState());
-			gui_client->mouseMoved(move_event);
-		}
-		else if(e.type == SDL_MOUSEBUTTONDOWN)
-		{
-			// conPrint("SDL_MOUSEBUTTONDOWN, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
-
-			SDL_GetMouseState(&mouse_move_origin.x, &mouse_move_origin.y);
-
-			MouseEvent mouse_event;
-			mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
-			mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
-			mouse_event.button = convertSDLMouseButton(e.button.button);
-			mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
-
-			if(e.button.clicks == 1) // Single click:
-			{
-				SDL_SetRelativeMouseMode(SDL_TRUE);
-			}
-			else if(e.button.clicks == 2) // Double click:
-			{
-				gui_client->doObjectSelectionTraceForMouseEvent(mouse_event);
-			}
-		}
-		else if(e.type == SDL_MOUSEBUTTONUP)
-		{
-			// conPrint("SDL_MOUSEBUTTONUP, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
-
-			if(e.button.clicks == 1) // Single click:
-			{
-				SDL_SetRelativeMouseMode(SDL_FALSE);
-
-				MouseEvent mouse_event;
-				mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
-				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
-				mouse_event.button = convertSDLMouseButton(e.button.button);
-				mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
-				gui_client->mouseClicked(mouse_event);
-			}
-		}
-		else if(e.type == SDL_MOUSEWHEEL)
-		{
-			MouseWheelEvent wheel_event;
-			wheel_event.cursor_pos = Vec2i(e.wheel.mouseX, e.wheel.mouseY);
-			wheel_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.wheel.mouseX, (float)e.wheel.mouseY));
-			const float scale_factor = 100; // To bring in line with what we get from Qt's angleDelta().
-			wheel_event.angle_delta = Vec2i((int)(e.wheel.preciseX * scale_factor), (int)(e.wheel.preciseY * scale_factor));
-			wheel_event.modifiers = convertSDLModifiers(SDL_GetModState());
-			gui_client->onMouseWheelEvent(wheel_event);
-
-		}
-	}
+	
 
 #if EMSCRIPTEN
 	// Update URL with current camera position
