@@ -97,7 +97,7 @@ public:
 		// Create a mapping table from object to broad phase layer
 		mObjectToBroadPhase[Layers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
 		mObjectToBroadPhase[Layers::MOVING] = BroadPhaseLayers::MOVING;
-		mObjectToBroadPhase[Layers::NON_COLLIDABLE] = BroadPhaseLayers::MOVING; // NOTE: this a good thing to do?
+		mObjectToBroadPhase[Layers::NON_COLLIDABLE] = BroadPhaseLayers::MOVING; // NOTE: this a good thing to do? // TODO: Change to NON_MOVING?
 	}
 
 	virtual uint32 GetNumBroadPhaseLayers() const override
@@ -135,11 +135,11 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 	{
 		switch(inLayer1)
 		{
-		case Layers::NON_MOVING:
+		case Layers::NON_MOVING: // If an object is non-moving, it should only collide with moving objects
 			return inLayer2 == BroadPhaseLayers::MOVING;
-		case Layers::MOVING:
+		case Layers::MOVING: // If an object is moving, it can collide with both moving and non-moving objects
 			return true;
-		case Layers::NON_COLLIDABLE:
+		case Layers::NON_COLLIDABLE: // non-collidable objects don't collide with any layers
 			return false;
 		default:
 			assert(false);
@@ -178,6 +178,8 @@ static void* joltAllocate(size_t size)
 #else
 	void* ptr = malloc(size);
 #endif
+	if(!ptr)
+		throw std::bad_alloc();
 	TracyAllocS(ptr, size, /*call stack capture depth=*/10);
 	return ptr;
 }
