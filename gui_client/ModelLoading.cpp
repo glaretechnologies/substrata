@@ -84,8 +84,12 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	 
 	so
 	L_e = L_v / (683.002 lm/W * 106.856 * 10^-9 m)
+
+	emission_scale = L_e * 1.0e-9					[ 1.0e-9 factor is to bring floating point numbers into fp16 range]
+	emission_scale = 1.0e-9 * L_v / (683.002 lm/W * 106.856 * 10^-9 m)
+	               = L_v * (1.0e-9 / (683.002 lm/W * 106.856 * 10^-9 m))
 	*/
-	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum / (683.002f * 106.856e-9f);
+	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum * (1.0e-9f / (683.002f * 106.856e-9f)); // 1.0e-9f factor to avoid floating point issues.
 
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.metallic_roughness_tex_path = mat.roughness.texture_url;
@@ -130,7 +134,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 
 	opengl_mat.emission_linear_rgb = sanitiseAndConvertToLinearEmissionColour(mat.emission_rgb);
 	opengl_mat.emission_tex_path = mat.emission_texture_url;
-	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum / (683.002f * 106.856e-9f); // See comments above
+	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum * (1.0e-9f / (683.002f * 106.856e-9f)); // See comments above
 
 
 	if(!mat.emission_texture_url.empty())
@@ -671,7 +675,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			gl_ob->materials[i].emission_tex_path               = emission_tex_path;
 			gl_ob->materials[i].normal_map_path                 = normal_map_path;
 			gl_ob->materials[i].emission_linear_rgb             = sanitiseEmissionColour(gltf_mat.emissive_factor); // Note that gltf_mat.emissive_factor is already linear.
-			gl_ob->materials[i].emission_scale                  = use_emission ? L_e : 0.f;
+			gl_ob->materials[i].emission_scale                  = use_emission ? (L_e * 1.0e-9f) : 0.f; // 1.0e-9f factor to avoid floating point issues.
 			gl_ob->materials[i].roughness                       = gltf_mat.roughness;
 			gl_ob->materials[i].alpha                           = gltf_mat.alpha;
 			gl_ob->materials[i].transparent                     = gltf_mat.alpha < 1.0f;

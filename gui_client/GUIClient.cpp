@@ -571,7 +571,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 			"parcel hologram prog",
 			new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
 			new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
-			opengl_engine->getAndIncrNextProgramIndex()
+			opengl_engine->getAndIncrNextProgramIndex(),
+			/*wait for build to complete=*/true
 		);
 		opengl_engine->addProgram(parcel_shader_prog);
 		// Let any glare::Exception thrown fall through to below.
@@ -1486,7 +1487,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 	}
 }
 
-
+// Compute approximate spectral radiance of the emitter, from the given luminous flux, multiplied by 1.0e-9 (to avoid precision issues in shaders)
 static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_angle_start, float cone_cos_angle_end, float& scale_out)
 {
 	if(ob.materials.size() >= 1 && ob.materials[0].nonNull())
@@ -1514,7 +1515,7 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 		L_e = 1 / (683 * 106 * 10^-9 * 2pi(1 - cos(alpha))
 		*/
 		const float use_cone_angle = (std::acos(cone_cos_angle_start) + std::acos(cone_cos_angle_end)) * 0.5f; // Average of start and end cone angles.
-		const float L_e = ob.materials[0]->emission_lum_flux_or_lum / (683.002f * 106.856e-9f * Maths::get2Pi<float>() * (1 - cos(use_cone_angle)));
+		const float L_e = ob.materials[0]->emission_lum_flux_or_lum / (683.002f * 106.856e-9f * Maths::get2Pi<float>() * (1 - cos(use_cone_angle))) * 1.0e-9f;
 		scale_out = L_e;
 		return Colour4f(ob.materials[0]->colour_rgb.r * L_e, ob.materials[0]->colour_rgb.g * L_e, ob.materials[0]->colour_rgb.b * L_e, 1.f);
 	}
@@ -1757,7 +1758,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(0.f);
 				opengl_ob->materials[0].emission_linear_rgb = Colour3f(1.f);
 				const float luminance = 24000; // nits.  Chosen so videos look about the right brightness in daylight.
-				opengl_ob->materials[0].emission_scale = luminance / (683.002f * 106.856e-9f); // See ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths()
+				opengl_ob->materials[0].emission_scale = luminance / (683.002f * 106.856e-9f) * 1.0e-9f; // See ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths().  1.0e-9f factor to avoid floating point issues.
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
 				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
@@ -1798,7 +1799,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(0.f);
 				opengl_ob->materials[0].emission_linear_rgb = Colour3f(1.f);
 				const float luminance = 24000; // nits.  Chosen so videos look about the right brightness in daylight.
-				opengl_ob->materials[0].emission_scale = luminance / (683.002f * 106.856e-9f); // See ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths()
+				opengl_ob->materials[0].emission_scale = luminance / (683.002f * 106.856e-9f) * 1.0e-9f; // See ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths()  1.0e-9f factor to avoid floating point issues.
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
 				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
@@ -3141,9 +3142,8 @@ void GUIClient::checkForLODChanges()
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
 #if EMSCRIPTEN
 		const float proj_len_viewable_threshold_ = proj_len_viewable_threshold;
-#else
-		const float load_distance2_ = this->load_distance2;
 #endif
+		const float load_distance2_ = this->load_distance2;
 
 		glare::FastIterMapValueInfo<UID, WorldObjectRef>* const objects_data = this->world_state->objects.vector.data();
 		const size_t objects_size                                            = this->world_state->objects.vector.size();
@@ -3163,13 +3163,14 @@ void GUIClient::checkForLODChanges()
 			WorldObject* const ob = objects_data[i].value.ptr();
 
 			const float cam_to_ob_d2 = ob->getCentroidWS().getDist2(cam_pos);
+			//const float cam_to_ob_d2 = ob->getAABBWS().getClosestPointInAABB(cam_pos).getDist2(cam_pos);
 #if EMSCRIPTEN
 			const float recip_dist = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(cam_to_ob_d2)));
 			//assert(epsEqual(recip_dist, 1 / sqrt(cam_to_ob_d2)));
 
 			const float proj_len = ob->getBiasedAABBLength() * recip_dist;
 
-			const bool in_proximity = proj_len > proj_len_viewable_threshold_;
+			const bool in_proximity = (proj_len > proj_len_viewable_threshold_) && (cam_to_ob_d2 < load_distance2_);
 #else
 			const bool in_proximity = cam_to_ob_d2 < load_distance2_;
 #endif

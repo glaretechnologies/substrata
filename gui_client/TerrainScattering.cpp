@@ -336,7 +336,7 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 		const std::string use_shader_dir = opengl_engine->getDataDir() + "/shaders";
 		OpenGLShaderRef build_imposters_compute_shader = new OpenGLShader(use_shader_dir + "/build_imposters_compute_shader.glsl", opengl_engine->getVersionDirective(), 
 			opengl_engine->getPreprocessorDefinesWithCommonVertStructs(), GL_COMPUTE_SHADER);
-		build_imposters_prog = new OpenGLProgram("build imposters", build_imposters_compute_shader, /*frag shader=*/NULL, opengl_engine->getAndIncrNextProgramIndex());
+		build_imposters_prog = new OpenGLProgram("build imposters", build_imposters_compute_shader, /*frag shader=*/NULL, opengl_engine->getAndIncrNextProgramIndex(), /*wait for build to complete=*/true);
 
 		terrain_height_map_location       = build_imposters_prog->getUniformLocation("terrain_height_map");
 		terrain_mask_tex_location         = build_imposters_prog->getUniformLocation("terrain_mask_tex");
@@ -494,6 +494,9 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 		(section_y - DETAIL_MASK_MAP_SECTION_RES/2) * detail_mask_map_width_m
 	);
 
+
+#if 1
+
 	// Do pass to render detail vegetation mask
 	opengl_engine->renderMaskMap(*section.mask_map_gl_tex, botleft_ws, /*world capture width=*/detail_mask_map_width_m);
 	section.gl_tex_valid = true;
@@ -516,6 +519,15 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(section.detail_mask_map->getData(), section.detail_mask_map->getDataSize()));
 #endif
 	//conPrint("\nTerrain scattering: reading back texture took " + timer.elapsedStringMSWIthNSigFigs(4) + "");
+
+#else
+	if(section.detail_mask_map.isNull())
+	{
+		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 3); // GL_RGB
+		section.detail_mask_map->zero();
+	}
+	section.gl_tex_valid = true;
+#endif
 
 
 	// Build non-zero mipmap
