@@ -279,7 +279,7 @@ void GlWidget::initializeGL()
 	{
 		try
 		{
-			opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir_path + "/resources/cirrus.exr"));
+			opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir_path + "/data/resources/cirrus.exr"));
 		}
 		catch(glare::Exception& e)
 		{
