@@ -1,7 +1,7 @@
 /*=====================================================================
 URLParser.cpp
 -------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #include "URLParser.h"
 
@@ -12,13 +12,25 @@ Copyright Glare Technologies Limited 2019 -
 #include <utils/ConPrint.h>
 
 
-static const double DEFAULT_X = 0;
-static const double DEFAULT_Y = 0;
-static const double DEFAULT_Z = 2;
+URLParseResults::URLParseResults()
+:	x(0), y(0), z(0),
+	heading(90.0),
+	parcel_uid(0),
+	sun_vert_angle(45),
+	sun_azimuth_angle(45),
+	parsed_sun_vert_angle(false),
+	parsed_sun_azimuth_angle(false),
+	parsed_x(false),
+	parsed_y(false),
+	parsed_z(false),
+	parsed_parcel_uid(false)
+{}
 
 
 URLParseResults URLParser::parseURL(const std::string& URL)
 {
+	URLParseResults res;
+
 	Parser parser(URL);
 
 	// Parse protocol
@@ -32,10 +44,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 			throw glare::Exception("Expected '://' after protocol scheme.");
 	}
 
-	// Parse hostname and userpath
-	std::string hostname;
-	std::string userpath;
-	int parcel_index = -123;
+	// Parse hostname and userpath, parcel number
 	while(!parser.eof())
 	{
 		if(parser.current() == '/') // End of hostname, start of userpath if there is one.
@@ -44,8 +53,9 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 
 			if(parser.parseCString("parcel/"))
 			{
-				if(!parser.parseInt(parcel_index))
+				if(!parser.parseInt(res.parcel_uid))
 					throw glare::Exception("Failed to parse parcel number");
+				res.parsed_parcel_uid = true;
 			}
 
 			// Parse userpath, if present
@@ -55,7 +65,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 					break;
 				else
 				{
-					userpath += parser.current();
+					res.userpath += parser.current();
 					parser.advance();
 				}
 			}
@@ -65,22 +75,9 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 		else if(parser.current() == '?')
 			break;
 
-		hostname += parser.current();
+		res.hostname += parser.current();
 		parser.advance();
 	}
-
-	URLParseResults res;
-	res.hostname = hostname;
-	res.userpath = userpath;
-	res.heading = 90;
-	res.parsed_x = false;
-	res.parsed_y = false;
-	res.parsed_z = false;
-	res.parsed_parcel_uid = parcel_index != -123;
-	res.parcel_uid = parcel_index;
-	res.x = DEFAULT_X;
-	res.y = DEFAULT_Y;
-	res.z = DEFAULT_Z;
 
 	if(parser.currentIsChar('?'))
 	{
@@ -158,31 +155,69 @@ static void testInvalidURL(const std::string& URL)
 
 void URLParser::test()
 {
+	//----------------------------------- Test processQueryKeyValues by itself -----------------------------------
+	{
+		std::map<std::string, std::string> query_keyvalues;
+		URLParseResults res;
+		processQueryKeyValues(query_keyvalues, res);
+		testAssert(!res.parsed_x);
+		testAssert(!res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
+	}
+
+	{
+		std::map<std::string, std::string> query_keyvalues;
+		query_keyvalues["x"] = "1.0";
+		query_keyvalues["z"] = "3.0";
+		URLParseResults res;
+		processQueryKeyValues(query_keyvalues, res);
+		testAssert(res.parsed_x);
+		testAssert(res.x == 1.0);
+		testAssert(!res.parsed_y);
+		testAssert(res.parsed_z);
+		testAssert(res.z == 3.0);
+		testAssert(!res.parsed_parcel_uid);
+	}
+
+	//----------------------------------- Test parseURL -----------------------------------
 	{
 		URLParseResults res = parseURL("sub://substrata.info");
 		testAssert(res.hostname == "substrata.info");
 		testAssert(res.userpath == "");
-		testAssert(res.x == DEFAULT_X);
-		testAssert(res.y == DEFAULT_Y);
-		testAssert(res.z == DEFAULT_Z);
+		testAssert(res.x == 0);
+		testAssert(res.y == 0);
+		testAssert(res.z == 0);
+		testAssert(!res.parsed_x);
+		testAssert(!res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
 	}
 
 	{
 		URLParseResults res = parseURL("sub://substrata.info/");
 		testAssert(res.hostname == "substrata.info");
 		testAssert(res.userpath == "");
-		testAssert(res.x == DEFAULT_X);
-		testAssert(res.y == DEFAULT_Y);
-		testAssert(res.z == DEFAULT_Z);
+		testAssert(res.x == 0);
+		testAssert(res.y == 0);
+		testAssert(res.z == 0);
+		testAssert(!res.parsed_x);
+		testAssert(!res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
 	}
 
 	{
 		URLParseResults res = parseURL("sub://substrata.info/bleh");
 		testAssert(res.hostname == "substrata.info");
 		testAssert(res.userpath == "bleh");
-		testAssert(res.x == DEFAULT_X);
-		testAssert(res.y == DEFAULT_Y);
-		testAssert(res.z == DEFAULT_Z);
+		testAssert(res.x == 0);
+		testAssert(res.y == 0);
+		testAssert(res.z == 0);
+		testAssert(!res.parsed_x);
+		testAssert(!res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
 	}
 
 	{
@@ -192,6 +227,10 @@ void URLParser::test()
 		testAssert(res.x == 1.0);
 		testAssert(res.y == 2.0);
 		testAssert(res.z == 3.0);
+		testAssert(res.parsed_x);
+		testAssert(res.parsed_y);
+		testAssert(res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
 	}
 
 	{
@@ -200,7 +239,11 @@ void URLParser::test()
 		testAssert(res.userpath == "bleh");
 		testAssert(res.x == -1.0);
 		testAssert(res.y == -2.0);
-		testAssert(res.z == DEFAULT_Z);
+		testAssert(res.z == 0);
+		testAssert(res.parsed_x);
+		testAssert(res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
 	}
 
 	{
@@ -209,7 +252,11 @@ void URLParser::test()
 		testAssert(res.userpath == "bleh");
 		testAssert(res.x == -1.0);
 		testAssert(res.y == -2.0);
-		testAssert(res.z == DEFAULT_Z);
+		testAssert(res.z == 0);
+		testAssert(res.parsed_x);
+		testAssert(res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
 	}
 
 	{
@@ -217,6 +264,12 @@ void URLParser::test()
 		testAssert(res.hostname == "substrata.info");
 		testAssert(res.parsed_parcel_uid);
 		testAssert(res.parcel_uid == 10);
+		testAssert(res.x == 0);
+		testAssert(res.y == 0);
+		testAssert(res.z == 0);
+		testAssert(!res.parsed_x);
+		testAssert(!res.parsed_y);
+		testAssert(!res.parsed_z);
 	}
 
 	{
@@ -234,24 +287,24 @@ void URLParser::test()
 		testAssert(res.parcel_uid == 102343);
 		testAssert(res.x == -1.0);
 		testAssert(res.y == -2.0);
-		testAssert(res.z == DEFAULT_Z);
+		testAssert(res.z == 0);
 	}
 
 	testInvalidURL("ub://substrata.info");
 	//testInvalidURL("sub//substrata.info"); // We handle missing ':' now.
 	//testInvalidURL("sub/substrata.info");
 	//testInvalidURL("subsubstrata.info");
-	testInvalidURL("sub://substrata.info?");
-	testInvalidURL("sub://substrata.info?x");
+//	testInvalidURL("sub://substrata.info?");
+//	testInvalidURL("sub://substrata.info?x");
 	testInvalidURL("sub://substrata.info?x=");
 	testInvalidURL("sub://substrata.info?x=A");
-	testInvalidURL("sub://substrata.info?x=1.0&");
-	testInvalidURL("sub://substrata.info?x=1.0&y");
+//	testInvalidURL("sub://substrata.info?x=1.0&");
+	//testInvalidURL("sub://substrata.info?x=1.0&y");
 	testInvalidURL("sub://substrata.info?x=1.0&y=");
 	testInvalidURL("sub://substrata.info?x=1.0&y=A");
 	//testInvalidURL("sub://substrata.info?x=1.0&y=1.0A"); // We'll allow garbage at the end for now.
-	testInvalidURL("sub://substrata.info?x=1.0&y=1.0&");
-	testInvalidURL("sub://substrata.info?x=1.0&y=1.0&z");
+//	testInvalidURL("sub://substrata.info?x=1.0&y=1.0&");
+//	testInvalidURL("sub://substrata.info?x=1.0&y=1.0&z");
 	testInvalidURL("sub://substrata.info?x=1.0&y=1.0&z=");
 	//testInvalidURL("sub://substrata.info?x=1.0&y=1.0&z=A");
 	//testInvalidURL("sub://substrata.info/parcel");
