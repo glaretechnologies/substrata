@@ -1,7 +1,7 @@
 /*=====================================================================
 URLParser.h
 -----------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2019 -
 
 struct URLParseResults
 {
-	URLParseResults() : heading(90.0), sun_vert_angle(45), sun_azimuth_angle(45), parsed_sun_vert_angle(false), parsed_sun_azimuth_angle(false) {}
+	URLParseResults();
 
 	std::string hostname;
 	std::string userpath; // = worldname
