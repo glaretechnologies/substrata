@@ -1048,23 +1048,17 @@ if(EMSCRIPTEN)
 	# Total:										26
 	
 	target_link_options(${CURRENT_TARGET} PRIVATE
-		"-s USE_WEBGL=1"
 		"-sMIN_WEBGL_VERSION=2"
 		"-sMAX_WEBGL_VERSION=2"
-#		"-sNO_DISABLE_EXCEPTION_CATCHING"
-	#	"--emrun"   # https://emscripten.org/docs/compiling/Running-html-files-with-emrun.html
 		#"-gsource-map" # Generate a source map using LLVM debug information: https://emscripten.org/docs/tools_reference/emcc.html NOTE: doesn't seem to work, doesn't give line numbers in stack traces.
 		#"--profiling"  			# https://emscripten.org/docs/tools_reference/emcc.html
 		"-fwasm-exceptions"  # Enable WASM-based exception support: https://emscripten.org/docs/porting/exceptions.html
 		"-sALLOW_MEMORY_GROWTH"
 		"-sMAXIMUM_MEMORY=4000MB" # Default is 2GB.
 		"-pthread"
-	#	"-s USE_SDL=2"
+		"-sENVIRONMENT=web,worker" # Specify that the JS code only supports running in web/web workers.(Not node.js etc.)
 		"-sPTHREAD_POOL_SIZE=26" # See calculation above
 		"-sSTACK_SIZE=262144"
-		#"-sMAIN_MODULE=2"
-		#"-O0" # https://github.com/emscripten-core/emscripten/issues/17019
-		#"-O2"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
 		--use-preload-cache # Cache the preloaded data in IndexedDB for subsequent page visits.
 		--preload-file data # Use preloaded data, read it from the 'data' directory in the Emscripten build dir.
