@@ -38,6 +38,9 @@ For example:
 	cd substrata/scripts
 
 	ruby build_jpegturbo.rb
+
+If you want to build with Qt for the user interface (you can make a SDL build instead, which is easier but doesn't have the full UI):
+
 	ruby build_qt.rb
 
 
@@ -58,6 +61,9 @@ On Mac/linux, x64 architecture:
 
 On Mac, ARM64 architecture:
 	cmake ../substrata -DCEF_SUPPORT=OFF -DCMAKE_BUILD_TYPE=Debug -DTARGET_ARM64=ON
+
+
+To build with SDL instead of with Qt, add the -DUSE_SDL=ON option to the above cmake command line.
 
 
 Start build:	
@@ -150,9 +156,6 @@ Change debug C++ code generation  / Runtime Library to "Multi-threaded DLL (/MD)
 
 
 
-
-
-
 CEF on Mac
 ===========
 To allow the pre-built spotify binaries to be loaded:
@@ -170,7 +173,6 @@ codesign --options runtime --deep --force --verify --verbose --sign "Developer I
 
 
 codesign --options runtime --deep --force --verify --verbose --sign "Developer ID Application: Glare Technologies UK Limited" "/Users/nick/programming/cyberspace_output/test_builds/gui_client.app/Contents/Frameworks/Chromium Embedded Framework.framework"
-
 
 
 CEF on Linux
@@ -193,8 +195,9 @@ make libcef_dll_wrapper -j 12
 
 
 
-Building SDL (optional)
-=======================
+Building SDL
+============
+Building SDL is optional for the native build (can be used instead of Qt), but is required for the web build.
 Download SDL source, e.g https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.0.zip
 Unzip in ~programming/SDL, e.g.
 C:\programming\SDL\SDL-release-2.30.0
@@ -224,12 +227,14 @@ cmake --build .
 
 
 Building libjpeg-turbo with Emscripten
-See https://github.com/libjpeg-turbo/libjpeg-turbo/issues/250#issuecomment-944487299
 ======================================
-mkdir C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
-cd C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
-cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -G "Ninja" -DWITH_SIMD=0 -DENABLE_SHARED=0 ..\libjpeg-turbo-3.0.0\
-cmake --build .
+Required for webclient
+See https://github.com/libjpeg-turbo/libjpeg-turbo/issues/250#issuecomment-944487299
+
+	mkdir C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
+	cd C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
+	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -G "Ninja" -DWITH_SIMD=0 -DENABLE_SHARED=0 ..\libjpeg-turbo-3.0.0\
+	cmake --build .
 
 
 
