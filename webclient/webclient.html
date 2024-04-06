@@ -62,6 +62,22 @@
 			onRuntimeInitialized: () => {
 				//console.log("~~~~~~~~~~~~~~~~ onRuntimeInitialized() ~~~~~~~~~~");
 				statusElement.style.display = 'none';
+			},
+			locateFile: function (path, prefix) {
+				// Update URLs with cache-busting suffixes
+				//console.log("locateFile(): path: " + path + ", prefix: " + prefix)
+				let suffix = ""
+				if (path === "gui_client.data") {
+					suffix = "?hash=GUI_CLIENT_DATA_HASH";
+				}
+				else if (path == "gui_client.wasm") {
+					suffix = "?hash=GUI_CLIENT_WASM_HASH";
+				}
+				else if (path == "gui_client.worker.js") {
+					suffix = "?hash=GUI_CLIENT_WORKER_JS_HASH";
+				}
+				//console.log("Using suffix '" + suffix + "'");
+				return prefix + path + suffix;
 			}
 		};
 
@@ -75,6 +91,6 @@
 			};
 		};
 		</script>
-		<script async type="text/javascript" src="/webclient/gui_client.js"></script>
+		<script async type="text/javascript" src="/webclient/gui_client.js?hash=GUI_CLIENT_JS_HASH"></script>
 	</body>
 </html>

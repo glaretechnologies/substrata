@@ -274,6 +274,11 @@ Now do the build:
 	cmake --build . --target gui_client
 
 
+Now run update_webclient_cache_busting_hashes.rb, to update webclient.html with 'cache-busting' hashes - e.g. file hashes that indicate to the web browser to download updated files.
+
+	ruby C:\code\substrata\scripts\update_webclient_cache_busting_hashes.rb C:\code\substrata
+
+
 Running the web client
 ----------------------
 In Substrata server config (e.g. "C:\Users\xx\AppData\Roaming\Substrata\server_data\substrata_server_config.xml"), set webclient dir to emscripten build dir, e.g.
