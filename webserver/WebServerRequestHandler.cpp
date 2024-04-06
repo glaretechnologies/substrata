@@ -569,9 +569,13 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/webclient/") || request.path == "/webclient" || request.path == "/gui_client.data")
 		{
 			std::string path;
+			bool cache = true;
 			if(request.path == "/webclient")
+			{
 				path = "webclient.html";
-			else if(request.path == "/gui_client.data") // gui_client.js fetches gui_client.data from this URL path, not sure how to change it.
+				cache = false; // /webclient needs to be uncached, as it may change, especially with new cache-busting URLs for updated files like gui_client.wasm.
+			}
+			else if(request.path == "/gui_client.data") // gui_client.js fetches gui_client.data from this URL path.
 				path = "gui_client.data";
 			else
 				path = ::eatPrefix(request.path, "/webclient/");
@@ -587,7 +591,9 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			if(store_file.nonNull())
 			{
 				const std::string& content_type = store_file->content_type;
-				const int max_age_s = 3600*24*14;
+
+				// We are using cache-busting hashes in webclient.html, so can set a very long max age.
+				const int max_age_s = cache ? 1000000000 : 0;
 				if(request.zstd_accept_encoding && !store_file->zstd_compressed_data.empty())
 				{
 					web::ResponseUtils::writeHTTPOKHeaderWithCacheMaxAgeAndContentEncoding(reply_info, store_file->zstd_compressed_data.data(), store_file->zstd_compressed_data.size(), 
