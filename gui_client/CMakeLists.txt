@@ -1231,7 +1231,9 @@ elseif(APPLE)
      
 else() # linux
 
-	add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
+	if(CEF_SUPPORT)
+		add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
+	endif()
 
 	add_definitions(-D__LINUX_PULSE__) # Add config choice define for RTAudio
 
