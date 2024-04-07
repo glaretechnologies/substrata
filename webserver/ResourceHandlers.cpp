@@ -165,7 +165,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 							"HTTP/1.1 206 Partial Content\r\n"
 							"Content-Type: " + content_type + "\r\n"
 							"Content-Range: bytes " + toString(range.start) + "-" + toString(use_range_end - 1) + "/" + toString(file.fileSize()) + "\r\n" // Note that ranges are inclusive, hence the - 1.
-							"Cache-Control: max-age=100000000\r\n"
+							"Cache-Control: max-age=1000000000, immutable\r\n"
 							"Connection: Keep-Alive\r\n"
 							"Content-Length: " + toString(range_size) + "\r\n"
 							"\r\n";
@@ -184,7 +184,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				{
 					// conPrint("handleResourceRequest: serving data for '" + resource_URL + "' (len: " + toString(file.fileSize()) + " B)");
 
-					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*max age(s)=*/100000000);
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheControl(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*cache control=*/"max-age=1000000000, immutable");
 
 					// conPrint("\thandleResourceRequest: sent data. (len: " + toString(file.fileSize()) + ")");
 				}

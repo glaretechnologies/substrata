@@ -592,21 +592,20 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			{
 				const std::string& content_type = store_file->content_type;
 
-				// We are using cache-busting hashes in webclient.html, so can set a very long max age.
-				const int max_age_s = cache ? 1000000000 : 0;
+				// We are using cache-busting hashes in webclient.html, so can set a very long max age and use 'immutable' when caching.
+				const char* cache_control_val = cache ? "max-age=1000000000, immutable" : "max-age=0"; 
+				
 				if(request.zstd_accept_encoding && !store_file->zstd_compressed_data.empty())
 				{
-					web::ResponseUtils::writeHTTPOKHeaderWithCacheMaxAgeAndContentEncoding(reply_info, store_file->zstd_compressed_data.data(), store_file->zstd_compressed_data.size(), 
-						content_type, "zstd", max_age_s);
+					web::ResponseUtils::writeHTTPOKHeaderWithCacheControlAndContentEncoding(reply_info, store_file->zstd_compressed_data.data(), store_file->zstd_compressed_data.size(), content_type, cache_control_val, "zstd");
 				}
 				else if(request.deflate_accept_encoding && !store_file->deflate_compressed_data.empty())
 				{
-					web::ResponseUtils::writeHTTPOKHeaderWithCacheMaxAgeAndContentEncoding(reply_info, store_file->deflate_compressed_data.data(), store_file->deflate_compressed_data.size(), 
-						content_type, "deflate", max_age_s);
+					web::ResponseUtils::writeHTTPOKHeaderWithCacheControlAndContentEncoding(reply_info, store_file->deflate_compressed_data.data(), store_file->deflate_compressed_data.size(), content_type, cache_control_val, "deflate");
 				}
 				else
 				{
-					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, store_file->uncompressed_data.data(), store_file->uncompressed_data.size(), content_type, max_age_s);
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheControl(reply_info, store_file->uncompressed_data.data(), store_file->uncompressed_data.size(), content_type, cache_control_val);
 				}
 			}
 			else
