@@ -7903,6 +7903,9 @@ bool GUIClient::isObjectWithPosition(const Vec3d& pos)
 
 void GUIClient::addParcelObjects()
 {
+	if(this->world_state.isNull())
+		return;
+
 	// Iterate over all parcels, add models for them
 	Lock lock(this->world_state->mutex);
 	try
