@@ -214,22 +214,35 @@ cmake --build . --config Release
 Copy SDL2.dll files to substrata output dir.
 
 
-Making Emscripten SDL build (required for Webclient)
--------------------------------------------
-cd C:\programming\SDL
-mkdir sdl_2.30.0_build_emscripten
-cd sdl_2.30.0_build_emscripten
-cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -DSDL_PTHREADS=ON -G "Ninja" ..\SDL-release-2.30.0
-cmake --build .
 
 
 
+Building the web client with Emscripten
+=======================================
+The Substrata web client uses Emscripten to compile C++ code to WASM, which the web browser executes to run the web client.
+
+Install Emscripten SDK
+----------------------
+Install Emscripten SDK, see instructions at https://emscripten.org/docs/getting_started/downloads.html
+You can just follow the 'Installation instructions using the emsdk (recommended)' instructions.
+
+
+Making Emscripten SDL build
+---------------------------
+Assuming you have followed the instructions in 'Building SDL' section above already:
+
+	cd C:\programming\SDL
+	mkdir sdl_2.30.0_build_emscripten
+	cd sdl_2.30.0_build_emscripten
+	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -DSDL_PTHREADS=ON -G "Ninja" ..\SDL-release-2.30.0
+	cmake --build .
 
 
 Building libjpeg-turbo with Emscripten
-======================================
-Required for webclient
-See https://github.com/libjpeg-turbo/libjpeg-turbo/issues/250#issuecomment-944487299
+--------------------------------------
+Assuming you have followed the 'ruby build_jpegturbo.rb' step above already:
+
+(See https://github.com/libjpeg-turbo/libjpeg-turbo/issues/250#issuecomment-944487299 regarding libjpeg-turbo Emscripten support)
 
 	mkdir C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
 	cd C:\programming\libjpeg-turbo\libjpeg-turbo-emscripten-build
@@ -238,15 +251,8 @@ See https://github.com/libjpeg-turbo/libjpeg-turbo/issues/250#issuecomment-94448
 
 
 
-
-
-Building the web client with Emscripten
-=======================================
-Install Emscripten SDK (https://emscripten.org/docs/getting_started/downloads.html)
-
-Make Emscripten SDL build as described above in 'Making Emscripten SDL build' section.
-
-Get ImGUI as described above
+Building Substrata itself with Emscripten
+-----------------------------------------
 
 Make a build directory, e.g.
 	make C:\programming\substrata\emscripten_build
@@ -255,7 +261,8 @@ Make a build directory, e.g.
 Use Cmake to make a cmake project, making it use the Emscripten toolchain.
 Use the path to where you installed the Emscripten SDK. (In my case have installed it to C:\programming\emsdk)
 Also specifiy path to where you checked out substrata source code dir, e.g.  c:\code\substrata
-You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -DCMAKE_BUILD_TYPE=RelWithDebInfo or -DCMAKE_BUILD_TYPE=Release
+You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -DCMAKE_BUILD_TYPE=RelWithDebInfo or -DCMAKE_BUILD_TYPE=Release.
+Start with 'Debug' or 'RelWithDebInfo' build type.
 
 	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON -DCEF_SUPPORT=OFF
 
@@ -263,7 +270,7 @@ You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -
 Make data directory to be bundled
 ---------------------------------
 The data directory contains resources (textures, models etc.) that substrata needs to run.
-The 'data' folder gets packaged up into gui_client.data.
+The 'data' folder gets packaged up into gui_client.data, which is preloaded by Emscripten at runtime.
 In your emscripten build dir (e.g. C:\programming\substrata\emscripten_build), run the make_emscripten_preload_data.rb script, passing in your substrata source directory as the first argument:
 
 	ruby C:\code\substrata\scripts\make_emscripten_preload_data.rb C:\code\substrata
