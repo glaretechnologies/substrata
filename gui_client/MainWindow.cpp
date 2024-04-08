@@ -2601,6 +2601,9 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 #if QT_VERSION_MAJOR >= 6
 	QImage framebuffer = ui->glWidget->grabFramebuffer();
 #else
+	if(opengl_engine.nonNull())
+		opengl_engine->setReadFrameBufferToDefault();// Make sure we are reading from the default framebuffer.  Get an OpenGL error if we don't call this.
+
 	QImage framebuffer = ui->glWidget->grabFrameBuffer();
 #endif
 	
