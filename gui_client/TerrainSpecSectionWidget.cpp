@@ -29,5 +29,6 @@ void TerrainSpecSectionWidget::updateControlsEditable(bool editable)
 	ySpinBox->setReadOnly(!editable);
 	heightmapURLFileSelectWidget->setReadOnly(!editable);
 	maskMapURLFileSelectWidget->setReadOnly(!editable);
+	treeMaskMapURLFileSelectWidget->setReadOnly(!editable);
 	removeTerrainSectionPushButton->setEnabled(editable);
 }

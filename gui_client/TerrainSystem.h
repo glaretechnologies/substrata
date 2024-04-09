@@ -41,6 +41,7 @@ struct TerrainPathSpecSection
 
 	std::string heightmap_path;
 	std::string mask_map_path;
+	std::string tree_mask_map_path;
 };
 
 struct TerrainPathSpec
@@ -62,11 +63,14 @@ struct TerrainDataSection
 {
 	std::string heightmap_path;
 	std::string mask_map_path;
+	std::string tree_mask_map_path;
 
 	Map2DRef heightmap;
 	OpenGLTextureRef heightmap_gl_tex;
 	Map2DRef maskmap;
 	OpenGLTextureRef mask_gl_tex;
+
+	Map2DRef treemaskmap;
 };
 
 
@@ -172,6 +176,7 @@ public:
 
 
 	Colour4f evalTerrainMask(float p_x, float p_y) const;
+	float evalTreeMask(float p_x, float p_y) const; // Return value >= 0.5: tree allowed
 	float evalTerrainHeight(float p_x, float p_y, float quad_w) const;
 
 private:

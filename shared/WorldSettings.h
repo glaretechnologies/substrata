@@ -24,6 +24,7 @@ struct TerrainSpecSection
 
 	std::string heightmap_URL;
 	std::string mask_map_URL;
+	std::string tree_mask_map_URL;
 };
 
 struct TerrainSpec

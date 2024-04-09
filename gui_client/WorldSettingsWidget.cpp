@@ -64,6 +64,7 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 		new_section_widget->ySpinBox->setValue(section_spec.y);
 		new_section_widget->heightmapURLFileSelectWidget->setFilename(QtUtils::toQString(section_spec.heightmap_URL));
 		new_section_widget->maskMapURLFileSelectWidget->setFilename(QtUtils::toQString(section_spec.mask_map_URL));
+		new_section_widget->treeMaskMapURLFileSelectWidget->setFilename(QtUtils::toQString(section_spec.tree_mask_map_URL));
 
 		const bool editable = main_window->connectedToUsersPersonalWorldOrGodUser();
 		new_section_widget->updateControlsEditable(editable);
@@ -122,6 +123,7 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 			section.y = section_widget->ySpinBox->value();
 			section.heightmap_URL = getURLForFileSelectWidget(section_widget->heightmapURLFileSelectWidget);
 			section.mask_map_URL = getURLForFileSelectWidget(section_widget->maskMapURLFileSelectWidget);
+			section.tree_mask_map_URL = getURLForFileSelectWidget(section_widget->treeMaskMapURLFileSelectWidget);
 
 			world_settings_out.terrain_spec.section_specs.push_back(section);
 		}

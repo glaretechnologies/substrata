@@ -40,6 +40,8 @@ void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 			URLs_out.insert(DependencyURL(section_spec.heightmap_URL));
 		if(!section_spec.mask_map_URL.empty())
 			URLs_out.insert(DependencyURL(section_spec.mask_map_URL));
+		if(!section_spec.tree_mask_map_URL.empty())
+			URLs_out.insert(DependencyURL(section_spec.tree_mask_map_URL));
 	}
 
 	for(int i=0; i<4; ++i)
@@ -52,7 +54,7 @@ void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 }
 
 
-static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 2;
+static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 3;
 
 
 void WorldSettings::writeToStream(OutStream& stream) const
@@ -84,6 +86,13 @@ void WorldSettings::writeToStream(OutStream& stream) const
 	buffer.writeUInt32(terrain_spec.flags);
 
 	buffer.writeFloat(terrain_spec.default_terrain_z); // New in v2
+
+	// New in v3: Write tree_mask_map_URLs
+	for(size_t i=0; i<terrain_spec.section_specs.size(); ++i)
+	{
+		const TerrainSpecSection& section_spec = terrain_spec.section_specs[i];
+		buffer.writeStringLengthFirst(section_spec.tree_mask_map_URL);
+	}
 
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)buffer.buf.size();
@@ -142,6 +151,16 @@ void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 
 	if(version >= 2)
 		settings.terrain_spec.default_terrain_z = buffer_stream.readFloat();
+
+	if(version >= 3)
+	{
+		// Read tree_mask_map_URLs
+		for(uint32 i=0; i<num_section_specs; ++i)
+		{
+			TerrainSpecSection& section_spec = settings.terrain_spec.section_specs[i];
+			section_spec.tree_mask_map_URL = buffer_stream.readStringLengthFirst(/*max_string_length=*/1024);
+		}
+	}
 
 	// We effectively skip any remaining data we have not processed by discarding buffer_stream.
 }

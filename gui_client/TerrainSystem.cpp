@@ -267,6 +267,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].mask_gl_tex      = default_mask_tex;
 			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].heightmap_path = section_spec.heightmap_path;
 			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].mask_map_path  = section_spec.mask_map_path;
+			terrain_data_sections[dest_x + dest_y*TERRAIN_DATA_SECTION_RES].tree_mask_map_path  = section_spec.tree_mask_map_path;
 		}
 	}
 
@@ -450,6 +451,11 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 			section.mask_gl_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path));
 			used_texture = true;
 		}
+		if(section.tree_mask_map_path == path)
+		{
+			section.treemaskmap = map;
+			used_texture = true;
+		}
 	}
 
 	if(used_texture)
@@ -481,6 +487,8 @@ bool TerrainSystem::isTextureUsedByTerrain(const std::string& path) const
 		if(section.heightmap_path == path)
 			return true;
 		if(section.mask_map_path == path)
+			return true;
+		if(section.tree_mask_map_path == path)
 			return true;
 	}
 
@@ -731,6 +739,26 @@ Colour4f TerrainSystem::evalTerrainMask(float p_x, float p_y) const
 		return Colour4f(1,0,0,0);
 
 	return section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
+}
+
+
+// Return value >= 0.5: tree allowed
+// p_x, p_y are world space coordinates.
+float TerrainSystem::evalTreeMask(float p_x, float p_y) const
+{
+	const float nx = p_x * terrain_scale_factor + 0.5f; // Offset by 0.5 so that the central heightmap is centered at (0,0,0).
+	const float ny = p_y * terrain_scale_factor + 0.5f;
+
+	// Work out which source terrain data section we are reading from
+	const int section_x = Maths::floorToInt(nx) + TERRAIN_SECTION_OFFSET;
+	const int section_y = Maths::floorToInt(ny) + TERRAIN_SECTION_OFFSET;
+	if(section_x < 0 || section_x >= 8 || section_y < 0 || section_y >= 8)
+		return 1;
+	const TerrainDataSection& section = terrain_data_sections[section_x + section_y*TERRAIN_DATA_SECTION_RES]; // terrain_data_sections.elem(section_x, section_y);
+	if(section.treemaskmap.isNull())
+		return 1; // If there is no tree mask map, trees are allowed by default.
+
+	return section.treemaskmap->sampleSingleChannelTiled(nx, 1.f - ny, /*channel=*/0);
 }
 
 

@@ -1145,6 +1145,10 @@ void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_inde
 		if(vegetation_mask < 0.5f)
 			continue;
 
+		const float tree_mask = terrain_system_->evalTreeMask(pos[0], pos[1]);
+		if(tree_mask < 0.5f)
+			continue;
+
 		const Vec4i begin = truncateToVec4i((pos - Vec4f(min_dist)) * recip_cell_w);
 		const Vec4i end   = truncateToVec4i((pos + Vec4f(min_dist)) * recip_cell_w);
 
