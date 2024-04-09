@@ -92,7 +92,7 @@ void ServerTestSuite::test()
 	runTest([&]() { LODGeneration::test();												});
 	runTest([&]() { WebSocketTests::test();												});
 	runTest([&]() { GIFDecoder::test();													}, /*mem leak allowed=*/true); // NOTE: leaks mem due to https://sourceforge.net/p/giflib/bugs/165/
-	runTest([&]() { PNGDecoder::test();													});
+	runTest([&]() { PNGDecoder::test(".");												});
 	runTest([&]() { glare::BestFitAllocator::test();									}, /*mem leak allowed=*/true); // Some tests intentionally leak mem
 	runTest([&]() { FormatDecoderGLTF::test();											});
 	runTest([&]() { DatabaseTests::test();												});
