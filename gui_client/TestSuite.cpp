@@ -121,6 +121,14 @@ void TestSuite::test()
 
 	PhysicsWorld::init(); // Needed to set memory allocator functions for Jolt, before ModelLoading tests etc.
 
+#if EMSCRIPTEN
+	const std::string base_dir_path = "."; // Shoudn't be used
+#else
+	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
+#endif
+
+	runTest([&]() { JPEGDecoder::test(base_dir_path); });
+	runTest([&]() { PNGDecoder::test(base_dir_path); });
 	runTest([&]() { Vec4i::test(); });
 	runTest([&]() { glare::testFastPoolAllocator(); });
 	runTest([&]() { glare::TaskTests::test(); });
@@ -184,9 +192,6 @@ void TestSuite::test()
 	runTest([&]() { KTXDecoder::test(); });
 	runTest([&]() { FormatDecoderVox::test(); });
 	runTest([&]() { GIFDecoder::test(); }, /*mem leak allowed=*/true);
-	runTest([&]() { PNGDecoder::test(); });
-	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
-	runTest([&]() { JPEGDecoder::test(base_dir_path); });
 	runTest([&]() { TLSSocketTests::test(); }, /*mem leak allowed=*/true);
 	runTest([&]() { HTTPClient::test(); }, /*mem leak allowed=*/true); // Leaks, probably due to TLS leaks.
 	runTest([&]() { SMTPClient::test(); });
