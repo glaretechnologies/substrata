@@ -11241,6 +11241,8 @@ void GUIClient::updateGroundPlane()
 				path_spec.section_specs[i].heightmap_path = resource_manager->pathForURL(spec.section_specs[i].heightmap_URL);
 			if(!spec.section_specs[i].mask_map_URL.empty())
 				path_spec.section_specs[i].mask_map_path  = resource_manager->pathForURL(spec.section_specs[i].mask_map_URL);
+			if(!spec.section_specs[i].tree_mask_map_URL.empty())
+				path_spec.section_specs[i].tree_mask_map_path  = resource_manager->pathForURL(spec.section_specs[i].tree_mask_map_URL);
 		}
 
 		for(int i=0; i<4; ++i)
@@ -11295,6 +11297,14 @@ void GUIClient::updateGroundPlane()
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
 				startDownloadingResource(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
 			}
+			if(!section_spec.tree_mask_map_URL.empty())
+			{
+				DownloadingResourceInfo info;
+				info.texture_params = maskmap_tex_params;
+				info.pos = Vec3d(centroid_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				startDownloadingResource(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
+			}
 		}
 
 		for(int i=0; i<4; ++i)
@@ -11335,6 +11345,11 @@ void GUIClient::updateGroundPlane()
 			if(!section_spec.mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.mask_map_URL))
 				load_item_queue.enqueueItem(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL), maskmap_tex_params, /*is terrain map=*/true), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+
+			if(!section_spec.tree_mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.tree_mask_map_URL))
+				load_item_queue.enqueueItem(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len, 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL), maskmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 
