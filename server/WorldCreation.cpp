@@ -1030,6 +1030,82 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	}
 
 
+	// Make hillside parcels
+	// highest existing parcel id is 1385
+	{
+		const Vec3f parcel_positions[] = 
+		{
+			Vec3f(-794.1, -249, 109.06),
+			Vec3f(-756.4, -212, 90.38), 
+			Vec3f(-802.4, -210.8, 113.79),
+			Vec3f(-751.3, -178.5, 87.20),
+			Vec3f(-765.9, -138.0, 94.91),
+			Vec3f(-735.1, -108.6, 77.71),
+			Vec3f(-780.8, -85.2, 101.63),
+			Vec3f(-848.2, -178.6, 134.33),
+			Vec3f(-815.6, -151, 122.7),
+			Vec3f(-812, -46, 115.7),
+			Vec3f(-750, 30.8, 74.89),
+			Vec3f(-777, 103.2, 82.8),
+			Vec3f(-850, 9.7, 123),
+			Vec3f(-853, -108, 137.5),
+			Vec3f(-880, -35, 141.5),
+			Vec3f(-777, -306, 96.3),
+			Vec3f(-685, -69.7, 50.3),
+			Vec3f(-777, 162, 76.3),
+			Vec3f(-795.7, -378, 103.5),
+			Vec3f(-745, -461, 79.05),
+			Vec3f(-709, -370, 65.0),
+			Vec3f(-666, -451, 45.8),
+			Vec3f(-748, -512, 72.3),
+			Vec3f(-704, -575, 48.2),
+			Vec3f(-699, -702, 19.5),
+			Vec3f(-669, -512, 42.0),
+			Vec3f(-637, -555, 18.5),
+			Vec3f(-735, -641, 42.9),
+		};
+
+		PCG32 rng(1);
+
+		for(int i=0; i<staticArrayNumElems(parcel_positions); ++i)
+		{
+			const Vec3f pos = parcel_positions[i];
+
+			const ParcelID parcel_id(1386 + i);
+
+			//TEMP: remove existing parcel
+			//world_state->getRootWorldState()->parcels.erase(parcel_id);
+
+			if(world_state->getRootWorldState()->parcels.count(parcel_id) == 0)
+			{
+				ParcelRef parcel = new Parcel();
+				parcel->state = Parcel::State_Alive;
+				parcel->id = parcel_id;
+				parcel->owner_id = UserID(0);
+				parcel->admin_ids.push_back(UserID(0));
+				parcel->writer_ids.push_back(UserID(0));
+				parcel->created_time = TimeStamp::currentTime();
+				parcel->zbounds = Vec2d(pos.z - 20, pos.z + 8);
+
+				const double parcel_w = 22 + rng.unitRandom() * 8;
+
+				parcel->verts[0] = Vec2d(pos.x,            pos.y - 7);
+				parcel->verts[1] = Vec2d(pos.x + parcel_w, pos.y - 7);
+				parcel->verts[2] = Vec2d(pos.x + parcel_w, pos.y - 7 + parcel_w);
+				parcel->verts[3] = Vec2d(pos.x,            pos.y - 7 + parcel_w);
+
+				parcel->build();
+
+				world_state->getRootWorldState()->parcels[parcel_id] = parcel;
+				world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+				world_state->markAsChanged();
+
+				conPrint("Added hillside parcel with UID " + parcel_id.toString());
+			}
+		}
+	}
+
+
 
 	// Add road objects
 	if(false)
