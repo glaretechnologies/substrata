@@ -86,6 +86,7 @@ static const uint32 SUB_ETH_TRANSACTIONS_CHUNK = 108;
 static const uint32 LAST_PARCEL_SALE_UPDATE_CHUNK = 109;
 static const uint32 MAP_TILE_INFO_CHUNK = 110;
 static const uint32 ETH_INFO_CHUNK = 111;
+static const uint32 NEWS_POST_CHUNK = 112;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -111,6 +112,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_sub_eth_transactions = 0;
 	size_t num_tiles_read = 0;
 	size_t num_world_settings = 0;
+	size_t num_news_posts = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -282,6 +284,16 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					trans->database_key = database_key;
 					sub_eth_transactions[trans->id] = trans;
 					num_sub_eth_transactions++;
+				}
+				else if(chunk == NEWS_POST_CHUNK)
+				{
+					// Deserialise NewsPost
+					NewsPostRef post = new NewsPost();
+					readNewsPostFromStream(stream, *post);
+
+					post->database_key = database_key;
+					news_posts[post->id] = post;
+					num_news_posts++;
 				}
 				else if(chunk == ETH_INFO_CHUNK)
 				{
@@ -561,7 +573,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
-		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings in " + timer.elapsedStringNSigFigs(4));
+		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
+		toString(num_news_posts) + " news posts in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -830,6 +843,7 @@ void ServerAllWorldsState::serialiseToDisk()
 		size_t num_users = 0;
 		size_t num_resources = 0;
 		size_t num_world_settings = 0;
+		size_t num_news_posts = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -1050,6 +1064,26 @@ void ServerAllWorldsState::serialiseToDisk()
 
 			db_dirty_sub_eth_transactions.clear();
 		}
+		
+		// Write NewsPosts
+		{
+			for(auto it=db_dirty_news_posts.begin(); it != db_dirty_news_posts.end(); ++it)
+			{
+				NewsPost* post = it->ptr();
+				temp_buf.clear();
+				temp_buf.writeUInt32(NEWS_POST_CHUNK);
+				writeToStream(*post, temp_buf);
+
+				if(!post->database_key.valid())
+					post->database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(post->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
+
+				num_news_posts++;
+			}
+
+			db_dirty_screenshots.clear();
+		}
 
 		// Write MAP_TILE_INFO_CHUNK
 		if(map_tile_info.db_dirty)
@@ -1125,7 +1159,8 @@ void ServerAllWorldsState::serialiseToDisk()
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(num_users) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
 			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " +
-			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles, " + toString(num_world_settings) + " world setting(s) in " + timer.elapsedStringNSigFigs(4));
+			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles, " + toString(num_world_settings) + " world setting(s), " + 
+			toString(num_news_posts) + "news post(s) in " + timer.elapsedStringNSigFigs(4));
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -1200,6 +1235,19 @@ uint64 ServerAllWorldsState::getNextScreenshotUID()
 		if(tile_info.prev_tile_screenshot.nonNull())
 			highest_id = myMax(highest_id, tile_info.prev_tile_screenshot->id);
 	}
+
+	return highest_id + 1;
+}
+
+
+uint64 ServerAllWorldsState::getNextNewsPostUID()
+{
+	Lock lock(mutex);
+
+	uint64 highest_id = 0;
+
+	for(auto it = news_posts.begin(); it != news_posts.end(); ++it)
+		highest_id = myMax(highest_id, it->first);
 
 	return highest_id + 1;
 }

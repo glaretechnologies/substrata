@@ -12,6 +12,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
 #include "../shared/WorldSettings.h"
+#include "NewsPost.h"
 #include "User.h"
 #include "Order.h"
 #include "UserWebSession.h"
@@ -125,6 +126,7 @@ public:
 	uint64 getNextOrderUID(); // Gets and then increments next_order_uid.  Locks mutex.
 	uint64 getNextSubEthTransactionUID();
 	uint64 getNextScreenshotUID();
+	uint64 getNextNewsPostUID();
 
 	void markAsChanged() { changed = 1; }
 	void clearChangedFlag() { changed = 0; }
@@ -142,6 +144,7 @@ public:
 	void addUserWebSessionAsDBDirty(const UserWebSessionRef screenshot)		REQUIRES(mutex) { db_dirty_userwebsessions.insert(screenshot); changed = 1; }
 	void addScreenshotAsDBDirty(const ScreenshotRef screenshot)				REQUIRES(mutex) { db_dirty_screenshots.insert(screenshot); changed = 1; }
 	void addUserAsDBDirty(const UserRef user)								REQUIRES(mutex) { db_dirty_users.insert(user); changed = 1; }
+	void addNewsPostAsDBDirty(const NewsPostRef post)						REQUIRES(mutex) { db_dirty_news_posts.insert(post); changed = 1; }
 
 	void addEverythingToDirtySets();
 
@@ -165,6 +168,8 @@ public:
 	std::map<uint64, ScreenshotRef> screenshots GUARDED_BY(mutex);// Screenshot id to ScreenshotRef
 
 	std::map<uint64, SubEthTransactionRef> sub_eth_transactions GUARDED_BY(mutex); // SubEthTransaction id to SubEthTransaction
+
+	std::map<uint64, NewsPostRef> news_posts GUARDED_BY(mutex); // NewsPost id to NewsPost
 
 
 	// For the map:
@@ -201,6 +206,7 @@ public:
 	// Sets of objects that should be written to (updated) in the database.
 	std::unordered_set<ResourceRef, ResourceRefHash>					db_dirty_resources				GUARDED_BY(mutex);
 	std::unordered_set<SubEthTransactionRef, SubEthTransactionRefHash>	db_dirty_sub_eth_transactions	GUARDED_BY(mutex);
+	std::unordered_set<NewsPostRef, NewsPostRefHash>					db_dirty_news_posts				GUARDED_BY(mutex);
 	std::unordered_set<OrderRef, OrderRefHash>							db_dirty_orders					GUARDED_BY(mutex);
 	std::unordered_set<ParcelAuctionRef, ParcelAuctionRefHash>			db_dirty_parcel_auctions		GUARDED_BY(mutex);
 	std::unordered_set<UserWebSessionRef, UserWebSessionRefHash>		db_dirty_userwebsessions		GUARDED_BY(mutex);

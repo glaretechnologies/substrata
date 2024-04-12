@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <StringUtils.h>
 #include <PlatformUtils.h>
 #include <WebDataStore.h>
+#include <webserver/ResponseUtils.h>
 
 
 namespace MainPageHandlers
@@ -61,7 +62,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" class=\"logo-root-page\" />";
 
 
-	std::string auction_html;
+	std::string auction_html, latest_news_html;
 	{ // lock scope
 		Lock lock(world_state.mutex);
 
@@ -136,6 +137,36 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		if(num_auctions_shown == 0 && opensea_num_shown == 0)
 			auction_html += "<p>Sorry, there are no parcels for sale here right now.  Please check back later!</p>";
 
+
+
+		// Build latest news HTML
+		latest_news_html += "<div class=\"root-news-div-container\">\n";		const int max_num_to_display = 4;
+		int num_displayed = 0;
+		for(auto it = world_state.news_posts.rbegin(); it != world_state.news_posts.rend() && num_displayed < max_num_to_display; ++it)
+		{
+			NewsPost* post = it->second.ptr();
+
+			if(post->state == NewsPost::State_published)
+			{
+				latest_news_html += "<div class=\"root-news-div\">";
+
+				const std::string post_url = "/news_post/" + toString(post->id);
+
+				if(post->thumbnail_URL.empty())
+					latest_news_html += "<div class=\"root-news-thumb-div\"><a href=\"" + post_url + "\"><img src=\"/files/default_thumb.jpg\" class=\"root-news-thumbnail\" /></a></div>";
+				else
+					latest_news_html += "<div class=\"root-news-thumb-div\"><a href=\"" + post_url + "\"><img src=\"" + post->thumbnail_URL + "\" class=\"root-news-thumbnail\" /></a></div>";
+
+				latest_news_html += "<div class=\"root-news-title\"><a href=\"" + post_url + "\">" + post->title + "</a></div>";
+				//latest_news_html += "<div class=\"root-news-content\"><a href=\"" + post_url + "\">" + web::ResponseUtils::getPrefixWithStrippedTags(post->content, /*max len=*/200) + "</a></div>";
+
+				latest_news_html += "</div>";
+
+				num_displayed++;
+			}
+		}
+		latest_news_html += "</div>\n";
+
 	} // end lock scope
 
 
@@ -144,6 +175,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	{
 		page_out += std::string(store_file->uncompressed_data.begin(), store_file->uncompressed_data.end());
 	}
+
+	StringUtils::replaceFirstInPlace(page_out, "LATEST_NEWS_HTML", latest_news_html);
 
 	StringUtils::replaceFirstInPlace(page_out, "LAND_PARCELS_FOR_SALE_HTML", auction_html);
 

@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "WebDataStore.h"
 #include "AdminHandlers.h"
 #include "MainPageHandlers.h"
+#include "NewsPostHandlers.h"
 #include "WebsiteExcep.h"
 #include "Escaping.h"
 #include "LoginHandlers.h"
@@ -228,6 +229,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetUserAllowDynTexUpdatePost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_new_news_post")
+		{
+			AdminHandlers::handleNewNewsPostPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
@@ -255,6 +260,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/claim_parcel_owner_by_nft_post")
 		{
 			AccountHandlers::handleClaimParcelOwnerByNFTPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/edit_news_post_post")
+		{
+			NewsPostHandlers::handleEditNewsPostPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/delete_news_post")
+		{
+			NewsPostHandlers::handleDeleteNewsPostPost(*this->world_state, request, reply_info);
 		}
 		else
 		{
@@ -379,6 +392,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::renderSubEthTransactionsPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_news_posts")
+		{
+			AdminHandlers::renderAdminNewsPostsPage(*this->world_state, request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/admin_sub_eth_transaction/"))
 		{
 			AdminHandlers::renderAdminSubEthTransactionPage(*this->world_state, request, reply_info);
@@ -466,6 +483,18 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/tile")
 		{
 			ScreenshotHandlers::handleMapTileRequest(*world_state, *data_store, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/news_post/")) // News post ID follows
+		{
+			NewsPostHandlers::renderNewsPostPage(*world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/edit_news_post"))
+		{
+			NewsPostHandlers::renderEditNewsPostPage(*world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/news"))
+		{
+			NewsPostHandlers::renderAllNewsPage(*world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{
