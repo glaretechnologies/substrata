@@ -1,14 +1,13 @@
-body
-{
+body {
 	margin-top: 0;
 	margin-bottom: 40px;
 	margin-left: auto;
 	margin-right: auto;
-	max-width:650px;
-	line-height:1.6;
-	font-size:18px;
-	color:#222;
-	padding:0 10px;
+	max-width: 1000px;
+	line-height: 1.6;
+	font-size: 18px;
+	color: #222;
+	padding: 0 10px;
 	font-family: Helvetica;
 }
 .root-body
@@ -159,3 +158,52 @@ td
 	font-family: "Lucida Console", Courier, monospace;
 }
 
+.root-news-div-container {
+	/* Use grid layout, works pretty well with putting items side by side, also works well with having a little bit of space between them */
+	display: grid;
+	/*auto-fit: Fit whatever columns there are into the space. Prefer expanding columns to fill space rather than empty columns.*/
+	grid-template-columns: repeat(auto-fit, minmax(/*min=*/230px, /*max=*/1fr));
+	grid-auto-flow: row;
+	gap: 15px 15px;
+}
+
+.root-news-div {
+	margin-bottom: 30px;
+}
+
+
+.root-news-thumb-div {
+	min-height: 160px;
+}
+
+.root-news-thumbnail {
+	width: 230px;
+}
+
+.root-news-title {
+	font-weight: bold;
+}
+
+.root-news-title a { /*override link colour*/
+	color: black;
+}
+
+.root-news-content {
+}
+
+.root-news-content a { /*override link colour*/
+	color: black;
+	text-decoration: none;
+}
+
+.news-image {
+	max-width: 650px;
+}
+
+.news-post-timestamp {
+	font-size: 0.8em;
+}
+
+.news-post-content{
+	margin-bottom: 60px;
+}

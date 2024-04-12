@@ -20,14 +20,25 @@ Substrata is almost completely open-source, check out the source code <a href="h
 <h2>Downloads</h2>
 <p>To explore Substrata you will need to install the free client software for your platform:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.15_Setup.exe">Substrata_v1.2.15_Setup.exe</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.19_Setup.exe">Substrata_v1.2.19_Setup.exe</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.15_x64.pkg">Substrata_v1.2.15_x64.pkg</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.19_x64.pkg">Substrata_v1.2.19_x64.pkg</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.15.tar.gz">Substrata_v1.2.15.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.19.tar.gz">Substrata_v1.2.19.tar.gz</a>
 </p>
+
+
+<h2>Latest News</h2>
+
+LATEST_NEWS_HTML
+
+<br/>
+<br/>
+<a href="/news">See all news</a> or find us on Twitter/X:
+<a href="https://twitter.com/SubstrataVr" ><img width="20px" src="/files/twitter.png" />@SubstrataVr</a>
+
 
 <h2>Buy a land parcel</h2>
 
@@ -40,9 +51,11 @@ LAND_PARCELS_FOR_SALE_HTML
 <p>
 <a href="https://discord.gg/R6tfYn3" ><img width="200px" src="/files/join_us_on_discord.png" /></a>
 </p>
+<!--
 <p>
 <a href="https://twitter.com/SubstrataVr" ><img width="60px" src="/files/twitter.png" />@SubstrataVr</a>
 </p>
+-->
 
 <h2>Screenshots</h2>
 

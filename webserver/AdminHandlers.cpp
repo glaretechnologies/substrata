@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "RequestInfo.h"
 #include "Response.h"
 #include "Escaping.h"
+#include "RuntimeCheck.h"
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
 #include "LoginHandlers.h"
@@ -29,7 +30,8 @@ std::string sharedAdminHeader(ServerAllWorldsState& world_state, const web::Requ
 	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Admin");
 
 	page_out += "<p><a href=\"/admin\">Main admin page</a> | <a href=\"/admin_users\">Users</a> | <a href=\"/admin_parcels\">Parcels</a> | ";
-	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a> | <a href=\"/admin_map\">Map</a></p>";
+	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a> | <a href=\"/admin_map\">Map</a> | ";
+	page_out += "<a href=\"/admin_news_posts\">News Posts</a></p>";
 
 	return page_out;
 }
@@ -740,6 +742,58 @@ void renderAdminOrderPage(ServerAllWorldsState& world_state, const web::RequestI
 				"confirmed: " + boolToString(order->confirmed);
 
 			page_out += "</p>    \n";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminNewsPostsPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		page_out += "<h2>News Posts</h2>\n";
+
+		//-----------------------
+		page_out += "<hr/>";
+		page_out += "<form action=\"/admin_new_news_post\" method=\"post\">";
+		page_out += "<input type=\"submit\" value=\"New news post\">";
+		page_out += "</form>";
+		page_out += "<hr/>";
+		//-----------------------
+
+		for(auto it = world_state.news_posts.begin(); it != world_state.news_posts.end(); ++it)
+		{
+			const NewsPost* news_post = it->second.ptr();
+
+			// Look up owner
+			std::string creator_username;
+			auto user_res = world_state.user_id_to_users.find(news_post->creator_id);
+			if(user_res == world_state.user_id_to_users.end())
+				creator_username = "[No user found]";
+			else
+				creator_username = user_res->second->name;
+
+			page_out += "<p>\n";
+			page_out += "<a href=\"/news_post/" + toString(news_post->id) + "\">News Post " + toString(news_post->id) + "</a><br/>" +
+				"creator: " + web::Escaping::HTMLEscape(creator_username) + "<br/>" +
+				"content: " + web::Escaping::HTMLEscape(news_post->content) + "<br/>" +
+				"created " + news_post->created_time.timeAgoDescription() + "<br/>" +
+				"last modified " + news_post->last_modified_time.timeAgoDescription() + "<br/>" + 
+				"State: " + NewsPost::stateString(news_post->state) + "<br/>";
+
+			page_out += "</p>\n";
+			page_out += "<br/>  \n";
 		}
 	} // End Lock scope
 
@@ -1900,6 +1954,48 @@ void handleSetUserAllowDynTexUpdatePost(ServerAllWorldsState& world_state, const
 	{
 		if(!request.fuzzing)
 			conPrint("handleSetUserAllowDynTexUpdatePost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleNewNewsPostPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		NewsPostRef news_post = new NewsPost();
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			User* user = LoginHandlers::getLoggedInUser(world_state, request);
+			runtimeCheck(user != NULL);
+
+			news_post->id = world_state.getNextNewsPostUID();
+			news_post->creator_id = user->id;
+			news_post->created_time = TimeStamp::currentTime();
+			news_post->last_modified_time = TimeStamp::currentTime();
+
+			world_state.news_posts.insert(std::make_pair(news_post->id, news_post));
+
+			world_state.addNewsPostAsDBDirty(news_post);
+
+			world_state.markAsChanged();
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/news_post/" + toString(news_post->id));
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleNewNewsPostPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
