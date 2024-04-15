@@ -1,14 +1,48 @@
+
+
+<div class="top-logo-section"><img src="/files/logo_main_page.png" width="100px"/></div>
+<div class="top-section">
+	
+	<img id="top-image" src="/files/screenshot_1712762167.png" class="top-image" />
+
+	<div class="top-intro-section">
+Our mission is to create the metaverse.  Substrata is open-source, with as few technical limits as possible.
+Experience long view distances and massive worlds.
+	</div>
+
+	<div class="play-webclient-div"><a href="/webclient">Enter Substrata in your browser</a></div>
+
+	<!--<div style="clear:both;"></div>-->
+</div>
+
+<div class="hidden" id="top-image-paths">
+/files/night_hillside.jpg,
+/files/screenshot_1707832339.png,
+/files/hillside.jpg
+</div>
+
+<link rel="prefetch" href="/files/night_hillside.jpg" as="image" />
+<link rel="prefetch" href="/files/screenshot_1707832339.png" as="image" />
+<link rel="prefetch" href="/files/files/hillside.jpg" as="image" />
+
+
 <p>
-Substrata is a powerful and free metaverse.  Chat with other users, race motorcycles against them, or explore places that other users have created.
+<!--Substrata is a powerful and free metaverse.  Chat with other users, race motorcycles against them, or explore places that other users have created.-->
+<!--Our mission is to create the metaverse.  Substrata is open-source, with as few technical limits as possible.
+Experience long view distances and massive worlds.-->
 
 </p>
 
-<iframe width="650" height="365" src="https://www.youtube.com/embed/x2upXpaS4fk" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen=""></iframe>
+<!--<iframe width="650" height="365" src="https://www.youtube.com/embed/x2upXpaS4fk" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen=""></iframe>-->
 
+
+
+<div class="root-rest-of-body">
+
+<h2>About</h2>
 <p>
-Want to build something in the main world?  Land parcels in Substrata are <a href="/parcel_auction_list">for sale</a>.  You can optionally sell and trade your land as Ethereum NFTs.
+Chat with other users, race motorcycles against them, build in your own personal world, or buy a land parcel and build your metaverse presence in the main world.
 </p>
-
 <p>
 Substrata is almost completely open-source, check out the source code <a href="https://github.com/glaretechnologies/substrata">on GitHub here</a>.
 </p>
@@ -17,8 +51,8 @@ Substrata is almost completely open-source, check out the source code <a href="h
 <p><a href="/faq">Read general question and answers about Substrata</a></p>
 <p><a href="/running_your_own_server">Running your own Substrata server</a></p>
 
-<h2>Downloads</h2>
-<p>To explore Substrata you will need to install the free client software for your platform:</p>
+<h2 id="downloads">Downloads</h2>
+<p>You can enter <a href="http://localhost/webclient">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
 <p>
 Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.19_Setup.exe">Substrata_v1.2.19_Setup.exe</a>
 </p>
@@ -65,3 +99,8 @@ LAND_PARCELS_FOR_SALE_HTML
 <a href="/files/screenshot_1677157540.jpg"><img src="/files/screenshot_1677157540_320.jpg" /></a>
 <a href="/files/screenshot_1658323708.jpg"><img src="/files/screenshot_1658323708_320.jpg" /></a>
 <a href="/files/screenshot_1681830037.jpg"><img src="/files/screenshot_1681830037_320.jpg" /></a>
+
+
+</div> <!-- end root-rest-of-body div-->
+
+
