@@ -1,5 +1,6 @@
 Prerequisites
 =============
+git (used to check out source)
 ruby (used by substrata build scripts)
 cmake (used for substrata build)
 Python (used by LLVM build)
@@ -7,7 +8,8 @@ Python (used by LLVM build)
 
 Check out source
 ================
-	cd ~/programming
+Pick a directory to check out the source to (e.g. c:/programming or ~/programming on Mac/Linux).
+Change into that directory, then
 
 	git clone https://github.com/glaretechnologies/glare-core.git
 	git clone https://github.com/glaretechnologies/winter.git
@@ -16,27 +18,32 @@ Check out source
 
 Build libraries that Substrata uses
 ===================================
-	mkdir libs
 
 Set needed env vars:
 GLARE_CORE_LIBS is where library build scripts will build libraries: Qt, LLVM, Libjpegturbo etc.
 WINTER_DIR just has the path to the checked out Winter repo.
 GLARE_CORE_TRUNK_DIR just has the path to the checked out Glare-core repo.
 CYBERSPACE_OUTPUT is where the built executables will be placed.
-
-For example:
-	export GLARE_CORE_LIBS=/Users/XX/programming/libs
+For example on Mac:
+	export GLARE_CORE_LIBS=/Users/XX/programming
 	export WINTER_DIR=/Users/XX/programming/winter
 	export GLARE_CORE_TRUNK_DIR=/Users/XX/programming/glare-core
 	export CYBERSPACE_OUTPUT=/Users/XX/programming/substrata_output
+Or on windows:
+Set GLARE_CORE_LIBS to c:/programming
+Set WINTER_DIR to c:/programming/winter
+Set GLARE_CORE_TRUNK_DIR to c:/programming/glare-core
+Set CYBERSPACE_OUTPUT to c:/programming/substrata_output
+
+In your programming dir (e.g. c:/programming or ~/programming on Mac/Linux):
 
 	cd glare-core/scripts
 	ruby build_libressl.rb
 	ruby build_llvm.rb
 
-	cd ../../
-	cd substrata/scripts
+In your programming dir
 
+	cd substrata/scripts
 	ruby build_jpegturbo.rb
 
 If you want to build with Qt for the user interface (you can make a SDL build instead, which is easier but doesn't have the full UI):
@@ -49,7 +56,8 @@ CEF is used for web-views. (embedded browser widgets)
 
 Build Substrata
 ================
-	cd ../../
+In your programming dir (e.g. c:/programming or ~/programming on Mac/Linux):
+
 	mkdir substrata_build
 	cd substrata_build
 
@@ -79,7 +87,8 @@ To build with e.g. 8 threads:
 Running Substrata
 =================
 
-	cd ../
+In your programming dir (e.g. c:/programming or ~/programming on Mac/Linux):
+
 	cd substrata/scripts
 	ruby copy_files_to_output.rb --no_cef
 
@@ -254,8 +263,8 @@ Assuming you have followed the 'ruby build_jpegturbo.rb' step above already:
 Building Substrata itself with Emscripten
 -----------------------------------------
 
-Make a build directory, e.g.
-	make C:\programming\substrata\emscripten_build
+Make a build directory and change into it, e.g.
+	mkdir C:\programming\substrata\emscripten_build
 	cd C:\programming\substrata\emscripten_build
 
 Use Cmake to make a cmake project, making it use the Emscripten toolchain.
@@ -273,7 +282,7 @@ The data directory contains resources (textures, models etc.) that substrata nee
 The 'data' folder gets packaged up into gui_client.data, which is preloaded by Emscripten at runtime.
 In your emscripten build dir (e.g. C:\programming\substrata\emscripten_build), run the make_emscripten_preload_data.rb script, passing in your substrata source directory as the first argument:
 
-	ruby C:\code\substrata\scripts\make_emscripten_preload_data.rb C:\code\substrata
+	ruby C:\programming\substrata\scripts\make_emscripten_preload_data.rb C:\programming\substrata
 
 
 Now do the build:
@@ -283,7 +292,7 @@ Now do the build:
 
 Now run update_webclient_cache_busting_hashes.rb, to update webclient.html with 'cache-busting' hashes - e.g. file hashes that indicate to the web browser to download updated files.
 
-	ruby C:\code\substrata\scripts\update_webclient_cache_busting_hashes.rb C:\code\substrata
+	ruby C:\programming\substrata\scripts\update_webclient_cache_busting_hashes.rb C:\programming\substrata
 
 
 Running the web client
