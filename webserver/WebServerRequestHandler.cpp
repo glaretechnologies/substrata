@@ -296,7 +296,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(request.path == "/about_substrata")
 		{
-			MainPageHandlers::renderAboutSubstrataPage(*this->world_state, request, reply_info);
+			MainPageHandlers::renderAboutSubstrataPage(*this->world_state, *this->data_store, request, reply_info);
 		}
 		else if(request.path == "/running_your_own_server")
 		{

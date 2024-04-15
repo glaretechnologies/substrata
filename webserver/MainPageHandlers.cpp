@@ -648,146 +648,15 @@ void renderAboutScripting(ServerAllWorldsState& world_state, WebDataStore& data_
 }
 
 
-void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderAboutSubstrataPage(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Our vision for Substrata");
 
-	page += "<p>Substrata is a free, online 3D metaverse, where users can explore, chat, play and build.</p>";
-
-	page += "<a href=\"/files/substrata_24th_may_2021.jpg\"><img src=\"/files/substrata_24th_may_2021_small.jpg\" /></a>";
-	page += "<div class=\"caption\">Substrata as of 24th May 2021</div>";
-
-	page += " We are aiming for Substrata to become one of the most important, and maybe the dominant 3D metaverse on the internet - "
-		" just like the Web is the dominant '2D metaverse' today.";
-
-	page += " Read on for how we plan to achieve this!";
-
-	page += "<h2>Beautiful and realistic graphics</h2>";
-
-	page += "We are using the code and knowledge from the development of <a href=\"https://www.indigorenderer.com/\">Indigo Renderer</a>, a photorealistic ray tracer, "
-		" <a href=\"https://www.chaoticafractals.com/\">Chaotica Fractals</a>, "
-		"and more than 10 years of work in the high-end graphics area, in the development of Substrata."
-		" For example, we use Indigo to bake lightmaps for Substrata, which allows highly accurate lighting with global illumination, while still running on normal computers.";
-
-	page += "<a href=\"/files/indigo_ref2.jpg\"><img src=\"/files/indigo_ref2_small.jpg\" /></a>";
-	page += "<div class=\"caption\">A gallery in Substrata visualised in Indigo.  Art by <a href=\"https://codyellingham.com/\">Cody Ellingham</a></div>";
-
-	page += "<a href=\"/files/lightmaps.jpg\"><img src=\"/files/lightmaps_small.jpg\" /></a>";
-	page += "<div class=\"caption\">Lighting information from Indigo ready to be baked into lightmaps</div>";
-
-
-	page += "Our 3D engine also focuses on handling the large amounts of dynamic content needed for a shared metaverse."
-		" We tested loading the entire of the <a href=\"https://www.cryptovoxels.com/\">Cryptovoxels</a> world into the engine and rendering it in realtime to test the engine scalability:";
-
-	page += "<a href=\"/files/CV_world.jpg\"><img src=\"/files/CV_world_small.jpg\" /></a>";
-	page += "<div class=\"caption\">The entire Cryptovoxels world (as of March 2021) rendered in Substrata</div>";
-
-	page += "<h2>A main shared world</h2>";
-
-	page += "The main world on substrata.info is where new users will join the world.  The centre of this world will be like a "
-		" town square or forum.";
-
-	page += "<h2>Free-form content creation by users</h2>";
-
-	page += "<p>Our philosophy is that users should be free to create whatever they want on their parcels or in their personal worlds, with as few limits as possible.";
-	page += " Technical limits such as 3D model and texture resolution are things we will be trying to reduce as much as possible by improving our 3D engine and trying to make it as scalable as possible.";
-	page += " We expect this to be a major area of ongoing development - basically trying to make the engine keep up with what users are throwing at it.</p>";
-
-	page += "<a href=\"/files/illuvio.jpg\"><img src=\"/files/illuvio_small.jpg\" /></a>";
-	page += "<div class=\"caption\">Illuvio's strange Susbtrata parcel</a></div>";
-
-	page += "<p>We expect to allow not-safe-for-work (NSFW, e.g. adult) content, but hidden behind a show-NSFW option that will be off by default.";
-	page += " We will of course not allow illegal content, see our <a href=\"/terms\">terms of service</a> for more detail on that matter.</p>";
-
-	page += "<h2>Immersive Audio</h2>";
-
-	page += "Audio is an important aspect of immersion in a virtual world, together with graphics.  We already have spatial audio up and running:";
-
-	page += "<iframe src=\"https://player.vimeo.com/video/554206954?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479\" width=\"650\" height=\"366\" frameborder=\"0\" allow=\"autoplay; fullscreen; picture-in-picture\" "
-		" allowfullscreen title=\"Spatial audio footsteps\"></iframe>";
-	page += "<div class=\"caption\">Spatial audio footsteps - listen with headphones!</div>";
-
-	page += "Users will be able to upload their own sounds, or even procedurally generate sounds:";
-
-	page += "<iframe src=\"https://player.vimeo.com/video/554207024?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479\" width=\"650\" height=\"366\" frameborder=\"0\" allow=\"autoplay; fullscreen; picture-in-picture\" "
-		"allowfullscreen title=\"Spatial audio cubes\"></iframe>";
-	page += "<div class=\"caption\">Spatial audio with procedurally generated audio sources - listen with headphones!</div>";
-
-	page += "<h2>Land Sales</h2>";
-	page += " Users can purchase land parcels in this main shared world - "
-		"<a href=\"/parcel_auction_list\">see the parcels currently for sale</a>.  In general, the closer"
-		" the parcel is to the centre of the world, the more expensive it will be, as it will get more exposure to foot traffic.  "
-		"Think owning a property on Times Square in New York.";
-
-	page += " We sell land on Substrata (as opposed to just giving it away for free) for various reasons:";
-	page += "<ul><li>Revenue from sales helps fund code development and server costs</li>";
-	page += "<li>Steady land sales results in a manageable influx of new builders (users who can edit objects in their parcels), allowing us to fix bugs and tweak features steadily"
-		" without having to deal with thousands of simultaneous new builders</li>";
-	page += "<li>Owning land incentivises users to improve it by building cool stuff on it (in theory at least!).</li>";
-	page += "</ul>";
-
-	page += "We want to support a secondary market in land sales, see <a href=\"/about_parcel_sales\">about parcel sales</a> for more info.";
-
-	page += "<h2>Personal worlds</h2>";
-	page += "<p>Each user also has their own personal world, which anyone can visit, at sub://substrata.info/username in the Substrata client software. "
-		"Users can upload and build whatever they want in there (with some disk usage limits etc..)";
-
-	
-	page += "<h2>Running a server to serve your parcel</h2>";
-
-	page += "Imagine if the entire Web ran on Google's computers - that wouldn't be very democratic and decentralised.";
-	page += " Instead, today anyone can run a webserver, and serve a website from it, if you have the right software installed on it.";
-
-	page += " In a similar vein, you will be able to run some server software on your own server, to serve data for your substrata.info parcel.";
-	page += " This has a few advantages:";
-	page += "<ul><li>No file size or disk usage restrictions - you can serve 3d models, textures, and movies with as high resolution as you wish.";
-	page += " Just bear in mind that user clients may display lower resolutions of your assets.";
-
-	page += "</li><li>Full control over objects in your parcel - If you are a programmer, you can script / program the objects in your parcel to do"
-		" anything you wish.  Since the code is running on your server, there are no sandboxing issues or restrictions on what the code can do.";
-	page += "</li></ul>";
-	page += "<h2>Running a server to serve your own world</h2>";
-
-	page += "You will also be able to run the substrata server software on your server, to run an entire world, with parcels, users etc..";
-	page += " We intend for substrata.info to remain the main world however!";
-
-
-	page += "<h2>Open Source</h2>";
-
-	page += "We plan to open-source Substrata at some point, probably once the world on substrata.info has reached critical mass.";
-	page += " I think open source is essential for Substrata to really become widely used and the bedrock of the metaverse.";
-
-	page += "<h2>Open Protocol</h2>";
-	page += "We will publish documentation on the Substrata network protocol, and all other documentation required for interoperability,"
-		" such as the 3d mesh format specification.  This will allow other programmers to implement Substrata clients, servers, bots, "
-		"agents etc..";
-
-	page += "<h2>Other goals</h2>";
-
-	page += "<h3>Voice chat with other users with spatial audio</h3>"
-		"You will be able to chat using a headset with other users nearby in virtual space to you.";
-
-	page += "<h3>VR headset support via OpenXR</h3>"
-		"This will allow Substrata to be viewable in VR headsets that work with desktop computers.";
-
-	page += "<h3>Customisable Avatars</h3>";
-
-	page += "<h2>About us</h2>";
-	page += "<p>As mentioned above, We at Glare Technologies are the developers of <a href=\"https://www.indigorenderer.com/\">Indigo Renderer</a> and"
-		" <a href=\"https://www.chaoticafractals.com/\">Chaotica Fractals</a></p>";
-
-	page += "<p>Personally speaking, I have been developing Metaverses for around 20 years now (with some gaps), the first one dating from around 2001!</p>";
-
-	page += "<p>I was inspired by books like Snow Crash and Neuromancer.  More recently, with the return of VR headsets and the rise in virtual worlds linked with NFT sales, and "
-		" the speed of modern computers and internet connections, the time looks right to have another crack at a metaverse.</p>";
-
-	page += " - Nicholas Chapman, founder, Glare Technologies Ltd.";
-
-
-	page += "<p>Thoughts on this doc? Come discuss on our <a href=\"https://discord.com/invite/R6tfYn3\">Discord</a> or <a href=\"https://twitter.com/SubstrataVr\">Twitter</a></p>";
-
-	page += "<br/><br/>";
-	page += "<a href=\"/\">&lt; Home</a>";
+	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("about_substrata.htmlfrag");
+	if(store_file.nonNull())
+	{
+		page += std::string(store_file->uncompressed_data.begin(), store_file->uncompressed_data.end());
+	}
 
 	page += WebServerResponseUtils::standardFooter(request_info, true);
 
