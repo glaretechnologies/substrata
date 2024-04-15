@@ -59,7 +59,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		"	</div>																									\n"; // End login div
 
 
-	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" class=\"logo-root-page\" />";
+	//page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" class=\"logo-root-page\" />";
 
 
 	std::string auction_html, latest_news_html;
@@ -180,6 +180,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 	StringUtils::replaceFirstInPlace(page_out, "LAND_PARCELS_FOR_SALE_HTML", auction_html);
 
+	page_out += "<script src=\"/files/root-page.js\"></script>";
 	
 	page_out += WebServerResponseUtils::standardFooter(request_info, true);
 
