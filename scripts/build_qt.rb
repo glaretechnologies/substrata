@@ -243,14 +243,14 @@ def buildWindows(config, vs_version)
 	install_dir_name = getInstallDir(vs_version)
 	build_dir_name = install_dir_name + "_build"
 	
-	if Dir.exists?(install_dir_name)
+	if Dir.exist?(install_dir_name)
 		FileUtils.rm_r(install_dir_name)
 		puts "Deleted old install dir."
 	end
 	
 	FileUtils.mkdir(install_dir_name)
 	
-	if Dir.exists?(build_dir_name)
+	if Dir.exist?(build_dir_name)
 		FileUtils.rm_r(build_dir_name)
 		puts "Deleted old build dir."
 	end
@@ -354,7 +354,7 @@ EOF
 	
 	# Delete the build dir when we are done.
 	# Source is in source, pdb files are copied to install dir.
-	if Dir.exists?(build_dir_name)
+	if Dir.exist?(build_dir_name)
 		FileUtils.rm_r(build_dir_name)
 		puts "Deleted build dir."
 	end
@@ -406,7 +406,7 @@ def buildUnix()
 	
 	FileUtils.mkdir(install_dir_name)
 	
-	if Dir.exists?(build_dir_name)
+	if Dir.exist?(build_dir_name)
 		FileUtils.rm_r(build_dir_name)
 		puts "Deleted old build dir."
 	end
@@ -477,7 +477,7 @@ def buildUnix()
 	
 	# Delete the build dir when we are done.
 	# Source is in source, everything we need is copied to install dir.
-	if Dir.exists?(build_dir_name)
+	if Dir.exist?(build_dir_name)
 		FileUtils.rm_r(build_dir_name)
 		puts "Deleted build dir."
 	end
@@ -549,7 +549,7 @@ end
 
 $indigo_qt_dir = "#{$glare_core_libs_dir}/Qt"
 
-FileUtils.mkdir($indigo_qt_dir, :verbose=>true) if !Dir.exists?($indigo_qt_dir)
+FileUtils.mkdir($indigo_qt_dir, :verbose=>true) if !Dir.exist?($indigo_qt_dir)
 puts "Chdir to \"#{$indigo_qt_dir}\"."
 Dir.chdir($indigo_qt_dir)
 

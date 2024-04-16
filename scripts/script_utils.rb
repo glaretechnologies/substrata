@@ -296,8 +296,8 @@ def extractArchiveIfNotExtraced(archive, target_dir, silent = false)
 	
 	temp_extract_dir = "temp_#{target_dir}"
 	
-	FileUtils.rm_r(target_dir) if Dir.exists?(target_dir)
-	FileUtils.rm_r(temp_extract_dir) if Dir.exists?(temp_extract_dir)
+	FileUtils.rm_r(target_dir) if Dir.exist?(target_dir)
+	FileUtils.rm_r(temp_extract_dir) if Dir.exist?(temp_extract_dir)
 	
 	FileUtils.mkdir(temp_extract_dir)
 	
@@ -305,7 +305,7 @@ def extractArchiveIfNotExtraced(archive, target_dir, silent = false)
 		extractArchive("../" + archive, silent)
 	end
 	
-	if Dir.exists?(temp_extract_dir + "/" + target_dir)
+	if Dir.exist?(temp_extract_dir + "/" + target_dir)
 		FileUtils.touch("#{temp_extract_dir}/#{target_dir}/glare-extract.success")
 		FileUtils.mv(temp_extract_dir + "/" + target_dir, ".")
 		FileUtils.rm_r(temp_extract_dir)

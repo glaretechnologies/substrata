@@ -137,7 +137,7 @@ end
 
 $indigo_libjpegturbo_dir = "#{$glare_core_dir}/libjpeg-turbo"
 
-FileUtils.mkdir($indigo_libjpegturbo_dir, :verbose=>true) if !Dir.exists?($indigo_libjpegturbo_dir)
+FileUtils.mkdir($indigo_libjpegturbo_dir, :verbose=>true) if !Dir.exist?($indigo_libjpegturbo_dir)
 puts "Chdir to \"#{$indigo_libjpegturbo_dir}\"."
 Dir.chdir($indigo_libjpegturbo_dir)
 
