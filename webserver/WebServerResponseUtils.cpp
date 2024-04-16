@@ -45,7 +45,7 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"		<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">		\n"
 		"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\" />	\n" 
 		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>												\n"
-		"		<link href=\"/files/main.css\" rel=\"stylesheet\" />														\n"
+		"		<link href=\"/files/main.css?v=2\" rel=\"stylesheet\" />														\n"
 		"		<link rel=\"icon\" type=\"image/png\" href=\"/files/favicon.png\">											\n"
 		+ extra_header_tags + 
 		"		</head>																										\n";

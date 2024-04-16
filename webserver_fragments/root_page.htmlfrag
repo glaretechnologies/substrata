@@ -3,27 +3,27 @@
 <div class="top-logo-section"><img src="/files/logo_main_page.png" width="100px"/></div>
 <div class="top-section">
 	
-	<img id="top-image" src="/files/screenshot_1712762167.png" class="top-image" />
+	<img id="top-image" src="/files/night_hillside.jpg" class="top-image" />
 
-	<div class="top-intro-section">
+	<div class="top-section-text-container">
+		<div class="top-intro-section">
 Our mission is to create the metaverse.  Substrata is open-source, with as few technical limits as possible.
 Experience long view distances and massive worlds.
+		</div>
+
+		<div class="play-webclient-div"><a href="/webclient">Enter Substrata in your browser</a></div>
 	</div>
-
-	<div class="play-webclient-div"><a href="/webclient">Enter Substrata in your browser</a></div>
-
-	<!--<div style="clear:both;"></div>-->
 </div>
 
 <div class="hidden" id="top-image-paths">
 /files/night_hillside.jpg,
-/files/screenshot_1707832339.png,
+/files/screenshot_1707832339.jpg,
 /files/hillside.jpg
 </div>
 
 <link rel="prefetch" href="/files/night_hillside.jpg" as="image" />
-<link rel="prefetch" href="/files/screenshot_1707832339.png" as="image" />
-<link rel="prefetch" href="/files/files/hillside.jpg" as="image" />
+<link rel="prefetch" href="/files/screenshot_1707832339.jpg" as="image" />
+<link rel="prefetch" href="/files/hillside.jpg" as="image" />
 
 
 <p>
@@ -52,7 +52,7 @@ Substrata is almost completely open-source, check out the source code <a href="h
 <p><a href="/running_your_own_server">Running your own Substrata server</a></p>
 
 <h2 id="downloads">Downloads</h2>
-<p>You can enter <a href="http://localhost/webclient">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
+<p>You can enter <a href="/webclient">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
 <p>
 Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.19_Setup.exe">Substrata_v1.2.19_Setup.exe</a>
 </p>
@@ -68,8 +68,7 @@ Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_
 
 LATEST_NEWS_HTML
 
-<br/>
-<br/>
+
 <a href="/news">See all news</a> or find us on Twitter/X:
 <a href="https://twitter.com/SubstrataVr" ><img width="20px" src="/files/twitter.png" />@SubstrataVr</a>
 
@@ -78,7 +77,7 @@ LATEST_NEWS_HTML
 
 LAND_PARCELS_FOR_SALE_HTML
 
-<br/> <a href="/parcel_auction_list">View all parcels for sale</a>
+<a href="/parcel_auction_list">View all parcels for sale</a>
 
 <h2>Community</h2>
 
@@ -93,13 +92,14 @@ LAND_PARCELS_FOR_SALE_HTML
 
 <h2>Screenshots</h2>
 
-<a href="/files/screenshot_1681705718.jpg"><img src="/files/screenshot_1681705718_320.jpg" /></a>
-<a href="/files/screenshot_1681735424.jpg"><img src="/files/screenshot_1681735424_320.jpg" /></a>
-<a href="/files/screenshot_1646832805.jpg"><img src="/files/screenshot_1646832805_320.jpg" /></a>
-<a href="/files/screenshot_1677157540.jpg"><img src="/files/screenshot_1677157540_320.jpg" /></a>
-<a href="/files/screenshot_1658323708.jpg"><img src="/files/screenshot_1658323708_320.jpg" /></a>
-<a href="/files/screenshot_1681830037.jpg"><img src="/files/screenshot_1681830037_320.jpg" /></a>
-
+<div class="screenshot-container">
+<a href="/files/screenshot_1681705718.jpg"><img src="/files/screenshot_1681705718_320.jpg" class="root-screenshot-img"/></a>
+<a href="/files/screenshot_1681735424.jpg"><img src="/files/screenshot_1681735424_320.jpg" class="root-screenshot-img"/></a>
+<a href="/files/screenshot_1646832805.jpg"><img src="/files/screenshot_1646832805_320.jpg" class="root-screenshot-img"/></a>
+<a href="/files/screenshot_1677157540.jpg"><img src="/files/screenshot_1677157540_320.jpg" class="root-screenshot-img"/></a>
+<a href="/files/screenshot_1658323708.jpg"><img src="/files/screenshot_1658323708_320.jpg" class="root-screenshot-img"/></a>
+<a href="/files/screenshot_1681830037.jpg"><img src="/files/screenshot_1681830037_320.jpg" class="root-screenshot-img"/></a>
+</div>
 
 </div> <!-- end root-rest-of-body div-->
 

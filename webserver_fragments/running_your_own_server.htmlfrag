@@ -128,12 +128,12 @@ cd c:/substrata_server
 
 <p>Run Substrata, then enter sub://localhost in the URL bar:</p>
 
-<img src="/files/substrata_localhost.PNG" alt="Substrata connecting to localhost"/>
+<img src="/files/substrata_localhost.PNG" alt="Substrata connecting to localhost" class="article-image" />
 
 <p>You should see an empty Substrata world.</p>
 <p>
 Create a user in your Substrata client using the 'Sign Up' link in the top right of your Substrata client.  The first user you create will be the admin user, and will have permissions to create and destroy objects anywhere, 
-as well as to administer the server via the admin web interface.</p>
+as well as to administer the server via the admin web interface.
 </p>
 
 <h2>Visiting the local web interface</h2>
@@ -144,13 +144,13 @@ as well as to administer the server via the admin web interface.</p>
 You should see a basic substrata website:  
 </p>
 
-<img src="/files/substrata_website_localhost.PNG" alt="Substrata localhost website" />
+<img src="/files/substrata_website_localhost.PNG" alt="Substrata localhost website" class="article-image" />
 
 <p>You can log into the web interface using the same username and password you just created in your Substrata client.</p>
 
 <p>Once you have logged in, you can click on your name in the upper right of the page, then click on 'Admin Page' on the upper right of the page again, to access the administrator web interface:</p>
 
-<img src="/files/admin_page.PNG" alt="Substrata admin web interface" />
+<img src="/files/admin_page.PNG" alt="Substrata admin web interface" class="article-image" />
 
 <h2>Video tutorial</h2>
 
