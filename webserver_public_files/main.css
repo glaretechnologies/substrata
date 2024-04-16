@@ -24,19 +24,24 @@ body {
 }
 
 .root-rest-of-body {
-	/*max-width: 1000px;*/
-	width: 70vw;
+	max-width: 1000px;
+	width: 75vw;
 	margin-left: auto;
 	margin-right: auto;
 }
 
-.standard-body
+/* This is the body class for all pages apart from the root page. */
+.standard-body 
 {
 	margin-top: 60px;
+	width: 75vw;
 }
 h1,h2,h3
 {
 	line-height: 1.2;
+}
+h2 {
+	margin-top: 45px;
 }
 table
 {
@@ -174,11 +179,31 @@ td
 	font-family: "Lucida Console", Courier, monospace;
 }
 
+
+.root-auction-list-container {
+	/* Use grid layout, works pretty well with putting items side by side, also works well with having a little bit of space between them */
+	display: grid;
+	/*auto-fit: Fit whatever columns there are into the space. Prefer expanding columns to fill space rather than empty columns.*/
+	grid-template-columns: repeat(auto-fit, minmax( /*min=*/ 230px, /*max=*/ 230px));
+	grid-auto-flow: row;
+	gap: 15px 15px;
+}
+
+.root-auction-div {
+	margin-bottom: 30px;
+}
+
+.root-auction-thumbnail {
+	width: 230px; /* for consistency with root-news-thumbnail width*/
+	object-fit: cover;
+}
+
+
 .root-news-div-container {
 	/* Use grid layout, works pretty well with putting items side by side, also works well with having a little bit of space between them */
 	display: grid;
 	/*auto-fit: Fit whatever columns there are into the space. Prefer expanding columns to fill space rather than empty columns.*/
-	grid-template-columns: repeat(auto-fit, minmax(/*min=*/230px, /*max=*/1fr));
+	grid-template-columns: repeat(auto-fit, minmax( /*min=*/ 230px, /*max=*/ 230px));
 	grid-auto-flow: row;
 	gap: 15px 15px;
 }
@@ -194,6 +219,8 @@ td
 
 .root-news-thumbnail {
 	width: 230px;
+	height: 131px;
+	object-fit: cover;
 }
 
 .root-news-title {
@@ -225,24 +252,6 @@ td
 }
 
 
-.play-webclient-div {
-	position: absolute;
-	top: 300px;
-	left: 50vw;
-	transform: translate(-50%, 0);
-	background-color: rgba(0, 0, 0, 0.6);
-	color: white;
-	border-radius: 0px;
-	margin: 0px;
-	padding: 10px;
-	font-size: 1.3em;
-}
-
-.play-webclient-div a { /*override link colour*/
-	/*color: black;*/
-	color: white;
-}
-
 
 .top-section {
 	position: relative; /*needed because position: absolute positions relative to 'positioned' ancestor*/
@@ -252,18 +261,41 @@ td
 	width: 100vw;
 }
 
-.top-intro-section {
+.top-section-text-container {
 	position: absolute;
-	top: 100px;
+	width: 75vw;
+	top: 150px;
 	left: 50vw;
 	transform: translate(-50%, 0);
-	background-color: rgba(0, 0, 0, 0.6);
+	
 	color: white;
 	border-radius: 0px;
 	margin: 0px;
 	padding: 10px;
 	font-size: 1.0em;
 }
+
+.top-intro-section {
+	padding: 10px;
+	background-color: rgba(0, 0, 0, 0.6);
+	margin-bottom: 40px;
+}
+
+
+.play-webclient-div {
+	padding: 10px;
+	background-color: rgba(0, 0, 0, 0.6);
+	font-size: 1.3em;
+	margin-left: auto;
+	margin-right: auto;
+	width: fit-content; /* make the div just as wide as the 'Enter Substrata in your browser' text */
+}
+
+.play-webclient-div a { /*override link colour*/
+	color: white;
+}
+
+
 
 .top-image {
 	width: 100vw;
@@ -288,4 +320,22 @@ td
 
 #top-image.fadeOut {
 	opacity: 0;
+}
+
+.screenshot-container {
+	display: grid;
+	/*auto-fit: Fit whatever columns there are into the space. Prefer expanding columns to fill space rather than empty columns.*/
+	grid-template-columns: repeat(auto-fit, minmax( /*min=*/ 230px, /*max=*/ 230px));
+	grid-auto-flow: row;
+	gap: 15px 15px;
+}
+
+.root-screenshot-img {
+	width: 230px;
+	height: 131px;
+	object-fit: cover;
+}
+
+.article-image {
+	max-width: 75vw;
 }
