@@ -247,31 +247,41 @@ def downloadFileHTTPSIfNotOnDisk(disk_path, uri_string)
 end
 
 
+# Returns true if tar.exe is present on the system.  Should be built into Windows 10 build 17063+ (see https://blogs.windows.com/windows-insider/2017/12/19/announcing-windows-10-insider-preview-build-17063-pc/)
+def haveTar()
+	return Kernel.system("tar --version") # "system returns true if the command gives zero exit status, false for non zero exit status"
+end
+
 # Extract the archive to the current working directory.
 def extractArchive(archive, silent = false)
 	if OS.windows?
-		sevenz_path = "C:\\Program Files\\7-Zip\\7z.exe"
-		silent_flag = silent ? " > nul" : ""
+		if haveTar()
+			puts "Extracting #{archive} with tar..."
+			exec_command("tar -x -f \"#{archive}\"")
+		else
+			sevenz_path = "7z.exe"
+			silent_flag = silent ? " > nul" : ""
 
-		if archive.include?(".tar.gz") || archive.include?(".tar.xz")
-			puts "Extracting #{archive} (silently)..."
-			# Extract with 7zip. -y option won't show any prompts and assumes yes in all prompts. Redirect to nul because there is no silent option.
-			exec_command("\"#{sevenz_path}\" x #{archive} -y#{silent_flag}")
-			puts "Done."
+			if archive.include?(".tar.gz") || archive.include?(".tar.xz")
+				puts "Extracting #{archive} (silently)..."
+				# Extract with 7zip. -y option won't show any prompts and assumes yes in all prompts. Redirect to nul because there is no silent option.
+				exec_command("\"#{sevenz_path}\" x #{archive} -y#{silent_flag}")
+				puts "Done."
 
-			tar_archive = File.basename(archive[0..-4]) # remove ".gz"
+				tar_archive = File.basename(archive[0..-4]) # remove ".gz"
 
-			puts "Extracting #{tar_archive} (silently)..."
-			exec_command("\"#{sevenz_path}\" x #{tar_archive} -y#{silent_flag}")
-			puts "Done."
+				puts "Extracting #{tar_archive} (silently)..."
+				exec_command("\"#{sevenz_path}\" x #{tar_archive} -y#{silent_flag}")
+				puts "Done."
 
-			if File.exists?(tar_archive)
-				FileUtils.rm_r(tar_archive)
+				if File.exists?(tar_archive)
+					FileUtils.rm_r(tar_archive)
+				end
+			elsif archive.include?(".zip")
+				puts "Extracting #{archive} (silently)..."
+				exec_command("\"#{sevenz_path}\" x #{archive} -y#{silent_flag}")
+				puts "Done."
 			end
-		elsif archive.include?(".zip")
-			puts "Extracting #{archive} (silently)..."
-			exec_command("\"#{sevenz_path}\" x #{archive} -y#{silent_flag}")
-			puts "Done."
 		end
 	else
 		if archive.include?(".tar.gz") || archive.include?(".tar.xz")
