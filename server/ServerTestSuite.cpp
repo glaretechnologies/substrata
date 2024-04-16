@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../ethereum/Signing.h"
 #include "../ethereum/Infura.h"
 #include <networking/HTTPClient.h>
+#include <webserver/ResponseUtils.h>
 #include <WebWorkerThreadTests.h>
 #include <WebSocketTests.h>
 #include <graphics/FormatDecoderGLTF.h>
@@ -82,6 +83,7 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { web::ResponseUtils::test();											});
 	runTest([&]() { Parser::doUnitTests();												});
 	runTest([&]() { StringUtils::test();												});
 	runTest([&]() { CryptoRNG::test();													});
