@@ -25,8 +25,9 @@ void ObInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cl
 	gl_ui = gl_ui_;
 
 	info_text_view = new GLUITextView();
-	info_text_view->create(*gl_ui, opengl_engine, "YO", Vec2f(-100.f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/""); // Create off-screen
-	info_text_view->handler = this;
+	GLUITextView::GLUITextViewCreateArgs create_args;
+	info_text_view->create(*gl_ui, opengl_engine, "", Vec2f(-100.f, 0.1f), create_args); // Create off-screen
+	//info_text_view->handler = this;
 	gl_ui->addWidget(info_text_view);
 
 	updateWidgetPositions();
@@ -76,13 +77,13 @@ void ObInfoUI::showMessage(const std::string& message, const Vec2f& gl_coords)
 
 	info_text_view->setText(*gl_ui, message);
 
-	const Vec2f tex_dims = info_text_view->getTextureDimensions();
+	//const Vec2f text_dims = info_text_view->getDims();
 
-	const float scale_y = 70.0f / opengl_engine->getViewPortWidth(); // ~50 px high
-	const float scale_x = 70.0f / opengl_engine->getViewPortWidth() * ((float)tex_dims.x / (float)tex_dims.y);
+	//const float scale_y = 70.0f / opengl_engine->getViewPortWidth(); // ~50 px high
+	//const float scale_x = 70.0f / opengl_engine->getViewPortWidth() * ((float)tex_dims.x / (float)tex_dims.y);
 
-	const float use_w = scale_x;
-	const float use_h = scale_y;
+	//const float use_w = scale_x;
+	//const float use_h = scale_y;
 
 	//const int max_w_pixels = 900;
 	//const float max_w = (float)max_w_pixels / opengl_engine->getViewPortWidth();
@@ -92,13 +93,33 @@ void ObInfoUI::showMessage(const std::string& message, const Vec2f& gl_coords)
 
 	const float vert_offset = 0.1f; // ((float)100 / opengl_engine->getViewPortHeight()) / y_scale;
 
-	info_text_view->setPosAndDims(/*botleft=*/coords + Vec2f(-0.3f, -vert_offset), /*dims=*/Vec2f(use_w, use_h));
+	info_text_view->setPos(*gl_ui, /*botleft=*/coords + Vec2f(-0.3f, -vert_offset));
+
+
+	//const Vec2f tex_dims = info_text_view->getTextureDimensions();
+
+	//const float scale_y = 70.0f / opengl_engine->getViewPortWidth(); // ~50 px high
+	//const float scale_x = 70.0f / opengl_engine->getViewPortWidth() * ((float)tex_dims.x / (float)tex_dims.y);
+
+	//const float use_w = scale_x;
+	//const float use_h = scale_y;
+
+	////const int max_w_pixels = 900;
+	////const float max_w = (float)max_w_pixels / opengl_engine->getViewPortWidth();
+	////
+	////const float use_w = myMin(max_w, 1.8f);
+	////const float use_h = use_w * (tex_dims.y / tex_dims.x);
+
+	//const float vert_offset = 0.1f; // ((float)100 / opengl_engine->getViewPortHeight()) / y_scale;
+
+	//info_text_view->setPosAndDims(/*botleft=*/coords + Vec2f(-0.3f, -vert_offset), /*dims=*/Vec2f(use_w, use_h));
 }
 
 
 void ObInfoUI::hideMessage()
 {
-	info_text_view->setPosAndDims(/*botleft=*/Vec2f(-100.f, -100.f), /*dims=*/Vec2f(0.6f, 0.2f)); // Position off-screen
+	//info_text_view->setPosAndDims(/*botleft=*/Vec2f(-100.f, -100.f), /*dims=*/Vec2f(0.6f, 0.2f)); // Position off-screen
+	info_text_view->setPos(*gl_ui, /*botleft=*/Vec2f(-100.f, -100.f)); // Position off-screen
 }
 
 

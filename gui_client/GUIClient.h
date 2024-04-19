@@ -109,7 +109,8 @@ public:
 	static void staticShutdown();
 
 	void initialise(const std::string& cache_dir, SettingsStore* settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_);
-	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine, Reference<TextRendererFontFace> text_renderer_font);
+	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine, 
+		const std::vector<Reference<TextRendererFontFace>>& fonts, const std::vector<Reference<TextRendererFontFace>>& emoji_fonts);
 
 	void shutdown();
 

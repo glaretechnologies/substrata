@@ -31,19 +31,17 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 void MiscInfoUI::destroy()
 {
 	if(admin_msg_text_view.nonNull())
-	{
 		gl_ui->removeWidget(admin_msg_text_view);
-		admin_msg_text_view->destroy();
-		admin_msg_text_view = NULL;
-	}
-	
-	if(speed_text_view.nonNull())
-	{
-		gl_ui->removeWidget(speed_text_view);
-		speed_text_view->destroy();
-		speed_text_view = NULL;
-	}
+	admin_msg_text_view = NULL;
 
+	for(size_t i=0; i<prebuilt_digits.size(); ++i)
+		gl_ui->removeWidget(prebuilt_digits[i]);
+	prebuilt_digits.clear();
+
+	if(unit_string_view.nonNull())
+		gl_ui->removeWidget(unit_string_view);
+	unit_string_view = NULL;
+	
 	gl_ui = NULL;
 	opengl_engine = NULL;
 }
@@ -66,9 +64,9 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 		if(admin_msg_text_view.isNull())
 		{
 			admin_msg_text_view = new GLUITextView();
-			admin_msg_text_view->create(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(0.1f, 0.9f), /*dims=*/Vec2f(0.1f, 0.1f), /*tooltip=*/""); // Create off-screen
+			GLUITextView::GLUITextViewCreateArgs create_args;
+			admin_msg_text_view->create(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(0.1f, 0.9f), create_args); // Create off-screen
 			admin_msg_text_view->setColour(Colour3f(1.0f, 0.6f, 0.3f));
-			admin_msg_text_view->handler = this;
 			gl_ui->addWidget(admin_msg_text_view);
 		}
 
@@ -78,20 +76,64 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 	}
 }
 
+static const int speed_margin_px = 30; // pixels between bottom of viewport and text baseline.
+static const int speed_font_size_px = 60;
+static const int speed_font_x_advance = 50; // between digits
 
 void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 {
-	const std::string msg = doubleToStringMaxNDecimalPlaces(speed_km_per_h, 0) + " km/h";
-	if(speed_text_view.isNull())
+	const float text_y = -gl_ui->getViewportMinMaxY(opengl_engine) + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
+
+	// The approach we will take here is to pre-create the digits 0-9 in the ones, tens and hundreds places, and then only make the digits corresponding to the current speed visible.
+	// This will avoid any runtime allocs.
+	// prebuilt_digits will be laid out like:
+	// 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, ..
+	// |   \   \
+	// |   tens  ones
+	// hundreds
+
+	if(prebuilt_digits.empty())
 	{
-		speed_text_view = new GLUITextView();
-		speed_text_view->create(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(0.1f, 0.9f), /*dims=*/Vec2f(0.1f, 0.1f), /*tooltip=*/""); // Create off-screen
-		speed_text_view->setColour(Colour3f(1.0f, 1.0f, 1.0f));
-		speed_text_view->handler = this;
-		gl_ui->addWidget(speed_text_view);
+		prebuilt_digits.resize(30);
+		for(int i=0; i<30; ++i)
+		{
+			const int digit_val = i / 3;
+			const int digit_place = i % 3;
+			prebuilt_digits[i] = new GLUITextView();
+			GLUITextView::GLUITextViewCreateArgs create_args;
+			create_args.font_size_px = speed_font_size_px;
+			create_args.background_alpha = 0;
+			prebuilt_digits[i]->create(*gl_ui, opengl_engine, toString(digit_val), Vec2f(0.f + (-3 + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y), create_args);
+		}
 	}
 
-	speed_text_view->setText(*gl_ui, msg);
+	const int speed_int = (int)speed_km_per_h;
+
+	for(int i=0; i<3; ++i) // For each digit place:
+	{
+		const int place_1_val = (i == 0) ? 100 : ((i == 1) ? 10 : 1);
+		const int digit_val = (speed_int / place_1_val) % 10;
+
+		for(int z=0; z<10; ++z) // For digit val z at digit place i:
+		{
+			const bool should_draw = (digit_val == z) && ((speed_int >= place_1_val) || (i == 2 && speed_int == 0)); // Don't show leading zeroes.  But if speed = 0, we do need to show one zero.
+			prebuilt_digits[z*3 + i]->setVisible(should_draw);
+		}
+	}
+
+	if(unit_string_view.isNull())
+	{
+		const std::string msg = " km/h";
+		unit_string_view = new GLUITextView();
+		GLUITextView::GLUITextViewCreateArgs create_args;
+		create_args.font_size_px = speed_font_size_px;
+		create_args.background_alpha = 0;
+		unit_string_view->create(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y), create_args); // Create off-screen
+		unit_string_view->setColour(Colour3f(1.0f, 1.0f, 1.0f));
+		gl_ui->addWidget(unit_string_view);
+	}
+	else
+		unit_string_view->setVisible(true);
 
 	updateWidgetPositions();
 }
@@ -99,17 +141,6 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 
 void MiscInfoUI::showVehicleInfo(const std::string& msg)
 {
-	if(speed_text_view.isNull())
-	{
-		speed_text_view = new GLUITextView();
-		speed_text_view->create(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(0.1f, 0.9f), /*dims=*/Vec2f(0.1f, 0.1f), /*tooltip=*/""); // Create off-screen
-		speed_text_view->setColour(Colour3f(1.0f, 1.0f, 1.0f));
-		speed_text_view->handler = this;
-		gl_ui->addWidget(speed_text_view);
-	}
-
-	speed_text_view->setText(*gl_ui, msg);
-
 	updateWidgetPositions();
 }
 
@@ -118,12 +149,12 @@ void MiscInfoUI::showVehicleInfo(const std::string& msg)
 void MiscInfoUI::hideVehicleSpeed()
 {
 	// Destroy/remove speed_text_view
-	if(speed_text_view.nonNull())
-	{
-		gl_ui->removeWidget(speed_text_view);
-		speed_text_view->destroy();
-		speed_text_view = NULL;
-	}
+
+	for(size_t i=0; i<prebuilt_digits.size(); ++i)
+		prebuilt_digits[i]->setVisible(false);
+
+	if(unit_string_view.nonNull())
+		unit_string_view->setVisible(false);
 }
 
 
@@ -143,29 +174,24 @@ void MiscInfoUI::updateWidgetPositions()
 		{
 			const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
 
-			const Vec2f tex_dims = admin_msg_text_view->getTextureDimensions();
+			const Vec2f text_dims = admin_msg_text_view->getDims();
 
-			const float use_w = tex_dims.x / opengl_engine->getViewPortWidth();
-			const float use_h = use_w * (tex_dims.y / tex_dims.x);
+			const float vert_margin = 50.f / opengl_engine->getViewPortWidth(); // 50 pixels
 
-			const float vert_offset = 50.f / opengl_engine->getViewPortWidth(); // 50 pixels
-
-			admin_msg_text_view->setPosAndDims(/*botleft=*/Vec2f(-0.4f, min_max_y - use_h - vert_offset), /*dims=*/Vec2f(use_w, use_h));
+			admin_msg_text_view->setPos(*gl_ui, /*botleft=*/Vec2f(-0.4f, min_max_y - text_dims.y - vert_margin));
 		}
 		
-		if(speed_text_view.nonNull())
+
+		const float text_y = -gl_ui->getViewportMinMaxY(opengl_engine) + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
+
+		// 0, 0, 0, 1, 1, 1, 2, 2, 2
+		for(int i=0; i<(int)prebuilt_digits.size(); ++i)
 		{
-			const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
-
-			const Vec2f tex_dims = speed_text_view->getTextureDimensions();
-
-			const float use_w = tex_dims.x / opengl_engine->getViewPortWidth();
-			const float use_h = use_w * (tex_dims.y / tex_dims.x);
-
-			const float vert_offset = 50.f / opengl_engine->getViewPortWidth(); // 50 pixels
-
-			speed_text_view->setPosAndDims(/*botleft=*/Vec2f(-use_w/2, min_max_y - vert_offset * 2), /*dims=*/Vec2f(use_w, use_h)); // Position horizontally centred at top of screen.
+			const int digit_place = i % 3;
+			prebuilt_digits[i]->setPos(*gl_ui, Vec2f(0.f + (-3 + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y));
 		}
+		if(unit_string_view.nonNull())
+			unit_string_view->setPos(*gl_ui, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y));
 	}
 }
 
