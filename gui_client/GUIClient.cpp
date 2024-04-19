@@ -12154,6 +12154,12 @@ void GUIClient::updateNotifications(double cur_time)
 				gl_ui->getViewportMinMaxY(opengl_engine) - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)
 			)
 		);
+
+		// Make the notification fade out when it is nearly time to remove it.
+		const float frac = (cur_time - it->creation_time) / NOTIFICATION_DISPLAY_TIME;
+		const float alpha = myClamp(1.f - Maths::smoothStep(0.8f, 1.2f, frac) * 2, 0.f, 1.f);
+		it->text_view->glui_text->overlay_ob->material.alpha = alpha;
+		it->text_view->background_overlay_ob->material.alpha = alpha;
 	}
 }
 
