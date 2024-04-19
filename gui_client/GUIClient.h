@@ -621,7 +621,6 @@ public:
 	bool voxel_edit_face_marker_in_engine;
 
 	UIInterface* ui_interface;
-	Reference<TextRendererFontFace> text_renderer_font;
 
 	Timer total_timer;
 	Timer discovery_udp_packet_timer;

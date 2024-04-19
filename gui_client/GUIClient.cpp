@@ -11160,7 +11160,9 @@ void GUIClient::viewportResized(int w, int h)
 
 GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 {
-	const TextRendererFontFace::SizeInfo size_info = text_renderer_font->getTextSize(nametag);
+	TextRendererFontFace* font = gl_ui->getBestMatchingFont(/*font_size_px=*/36, /*emoji=*/false);
+
+	const TextRendererFontFace::SizeInfo size_info = font->getTextSize(nametag);
 
 	const int use_font_height = size_info.max_bounds.y; //text_renderer_font->getFontSizePixels();
 	const int padding_x = (int)(use_font_height * 1.0f);
@@ -11169,7 +11171,7 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 	ImageMapUInt8Ref map = new ImageMapUInt8(size_info.getSize().x + padding_x * 2, use_font_height + padding_y * 2, 3);
 	map->set(240);
 
-	text_renderer_font->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f));
+	font->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f));
 
 
 	GLObjectRef gl_ob = opengl_engine->allocateObject();
