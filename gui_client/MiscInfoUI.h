@@ -48,7 +48,9 @@ private:
 
 	GLUITextViewRef admin_msg_text_view;
 
-	GLUITextViewRef speed_text_view;
+	std::vector<GLUITextViewRef> prebuilt_digits;
+
+	GLUITextViewRef unit_string_view; // e.g. km/h
 
 	GLUIRef gl_ui;
 

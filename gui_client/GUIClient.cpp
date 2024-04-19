@@ -361,13 +361,13 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 static const float arc_handle_half_angle = 1.5f;
 
 
-void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine_, Reference<TextRendererFontFace> text_renderer_font_)
+void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine_, 
+	const std::vector<Reference<TextRendererFontFace>>& fonts, const std::vector<Reference<TextRendererFontFace>>& emoji_fonts)
 {
 	opengl_engine = opengl_engine_;
-	text_renderer_font = text_renderer_font_;
 
 	gl_ui = new GLUI();
-	gl_ui->create(opengl_engine, (float)device_pixel_ratio, text_renderer_font);
+	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts);
 
 	gesture_ui.create(opengl_engine, /*main_window_=*/this, gl_ui);
 
@@ -3797,11 +3797,11 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 
 
 			const std::string diag_text = "physics_owner_id: " + toString(ob->physics_owner_id) + " since " + doubleToStringNSigFigs(world_state->getCurrentGlobalTime() - ob->last_physics_ownership_change_global_time, 2) + " s";
-			const Vec2f dims(0.4f, 0.05f);
 			if(ob->diagnostic_text_view.isNull())
 			{
 				ob->diagnostic_text_view = new GLUITextView();
-				ob->diagnostic_text_view->create(*this->gl_ui, this->opengl_engine, diag_text, Vec2f(0.f, 0.f), dims, "");
+				GLUITextView::GLUITextViewCreateArgs create_args;
+				ob->diagnostic_text_view->create(*this->gl_ui, this->opengl_engine, diag_text, Vec2f(0.f, 0.f), create_args);
 			}
 			else
 			{
@@ -3813,7 +3813,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 				{
 					Vec2f botleft(normed_coords.x, normed_coords.y);
 
-					ob->diagnostic_text_view->setPosAndDims(botleft, dims);
+					ob->diagnostic_text_view->setPos(*gl_ui, botleft);
 				}
 			}
 		}
@@ -4603,17 +4603,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
 		// Show vehicle speed on UI: Disabled until we can not create a zillion textures for this.
-		if(false)
+		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 		{
-			if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
-			{
-				//const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
-				//misc_info_ui.showVehicleSpeed(speed_km_h);
-				misc_info_ui.showVehicleInfo(vehicle_controller_inside->getUIInfoMsg());
-			}
-			else
-				misc_info_ui.hideVehicleSpeed();
+			const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
+			misc_info_ui.showVehicleSpeed(speed_km_h);
+			//misc_info_ui.showVehicleInfo(vehicle_controller_inside->getUIInfoMsg());
 		}
+		else
+			misc_info_ui.hideVehicleSpeed();
 
 		// Update debug player-physics visualisation spheres
 		if(false)
@@ -11968,6 +11965,36 @@ void GUIClient::keyPressed(KeyEvent& e)
 	else if(e.key == Key::Key_V)
 	{
 		ui_interface->toggleThirdPersonCameraMode();
+	}
+	else if(e.key == Key::Key_B)
+	{
+		if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl))
+		{
+			conPrint("CTRL+B detected, summoning bike...");
+			try
+			{
+				summonBike();
+			}
+			catch(glare::Exception& e)
+			{
+				showErrorNotification(e.what());
+			}
+		}
+	}
+	else if(e.key == Key::Key_H)
+	{
+		if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl))
+		{
+			conPrint("CTRL+H detected, summoning hovercar...");
+			try
+			{
+				summonHovercar();
+			}
+			catch(glare::Exception& e)
+			{
+				showErrorNotification(e.what());
+			}
+		}
 	}
 	if(this->selected_ob.nonNull())
 	{

@@ -110,5 +110,5 @@ public:
 	std::string logged_in_username;
 	GUIClient* gui_client;
 
-	Reference<TextRendererFontFace> font;
+	//Reference<TextRendererFontFace> font;
 };

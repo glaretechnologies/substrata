@@ -408,22 +408,35 @@ void MainWindow::afterGLInitInitialise()
 
 	// NOTE: this code is also in SDLClient.cpp
 #if defined(_WIN32)
-		const std::string font_path = PlatformUtils::getFontsDirPath() + "/Segoeui.ttf"; // SegoeUI is shipped with Windows 7 onwards: https://learn.microsoft.com/en-us/typography/fonts/windows_7_font_list
+		const std::string font_path       = PlatformUtils::getFontsDirPath() + "/Segoeui.ttf"; // SegoeUI is shipped with Windows 7 onwards: https://learn.microsoft.com/en-us/typography/fonts/windows_7_font_list
+		const std::string emoji_font_path = PlatformUtils::getFontsDirPath() + "/Seguiemj.ttf";
 #elif defined(__APPLE__)
 		const std::string font_path = "/System/Library/Fonts/SFNS.ttf";
+		const std::string emoji_font_path = "/System/Library/Fonts/SFNS.ttf";
 #else
 		// Linux:
 		const std::string font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
+		const std::string emoji_font_path = base_dir + "/data/resources/TruenoLight-E2pg.otf"; 
 #endif
 
 	TextRendererRef text_renderer = new TextRenderer();
-	TextRendererFontFaceRef font = new TextRendererFontFace(text_renderer, font_path, 40);
+
+	std::vector<TextRendererFontFaceRef> fonts;
+	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 18));
+	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 24));
+	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 36));
+	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 48));
+	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 60));
+	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 72));
+
+	std::vector<TextRendererFontFaceRef> emoji_fonts;
+	emoji_fonts.push_back(new TextRendererFontFace(text_renderer, emoji_font_path, 18));
 
 
 	const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, which have twice the density of qt pixel coordinates.
 
 	const bool show_minimap = MainOptionsDialog::getShowMinimap(this->settings);
-	gui_client.afterGLInitInitialise((double)device_pixel_ratio, show_minimap, ui->glWidget->opengl_engine, font);
+	gui_client.afterGLInitInitialise((double)device_pixel_ratio, show_minimap, ui->glWidget->opengl_engine, fonts, emoji_fonts);
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
