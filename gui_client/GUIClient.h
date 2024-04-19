@@ -188,6 +188,7 @@ public:
 	void loadAudioForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
+	void updateNotifications(double cur_time);
 	void updateParcelGraphics();
 	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
 	void setThirdPersonCameraPosition(double dt);
@@ -633,4 +634,11 @@ public:
 	bool extracted_anim_data_loaded;
 
 	URLParseResults last_url_parse_results;
+
+	struct Notification
+	{
+		double creation_time;
+		GLUITextViewRef text_view;
+	};
+	std::list<Notification> notifications;
 };

@@ -22,8 +22,6 @@ public:
 	virtual void updateOnlineUsersList() override; // Works off world state avatars.
 	virtual void showHTMLMessageBox(const std::string& title, const std::string& msg) override;
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) override;
-	virtual void showErrorNotification(const std::string& msg) override;
-	virtual void showInfoNotification(const std::string& msg) override;
 
 	virtual void logMessage(const std::string& msg) override; // Appends to LogWindow log display.
 

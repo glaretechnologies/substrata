@@ -4264,6 +4264,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	//ui->indigoView->timerThink();
 
+	updateNotifications(cur_time);
+
 	updateGroundPlane();
 
 
@@ -10351,7 +10353,8 @@ void GUIClient::dropSelectedObject()
 		MessageUtils::initPacket(scratch_packet, Protocol::UserDeselectedObject);
 		writeToStream(selected_ob->uid, scratch_packet);
 
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
+		if(client_thread.nonNull())
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 		opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
 
@@ -12123,13 +12126,87 @@ void GUIClient::focusOut()
 }
 
 
+static const size_t MAX_NUM_NOTIFICATIONS = 5;
+static const double NOTIFICATION_DISPLAY_TIME = 5.0;
+
+
+void GUIClient::updateNotifications(double cur_time)
+{
+	//------------- Check to see if we should remove any old notifications ------------
+	for(auto it = notifications.begin(); it != notifications.end();)
+	{
+		if(cur_time >  it->creation_time + NOTIFICATION_DISPLAY_TIME)
+		{
+			gl_ui->removeWidget(it->text_view); // Remove the notification from the UI
+			it = notifications.erase(it); // remove from list
+		}
+		else
+			++it;
+	}
+
+	// Go through list again and update position of all notifications
+	int i=0;
+	for(auto it = notifications.begin(); it != notifications.end(); ++it, ++i)
+	{
+		it->text_view->setPos(*gl_ui, 
+			Vec2f(
+				-gl_ui->getUIWidthForDevIndepPixelWidth(150), 
+				gl_ui->getViewportMinMaxY(opengl_engine) - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)
+			)
+		);
+	}
+}
+
+
 void GUIClient::showErrorNotification(const std::string& message)
 {
-	ui_interface->showErrorNotification(message);
+	GLUITextViewRef text_view = new GLUITextView();
+	GLUITextView::GLUITextViewCreateArgs args;
+	args.background_colour = toLinearSRGB(Colour3f(1, 200/255.f, 200/255.f));
+	//args.background_alpha = 0.8f;
+	args.text_colour = Colour3f(0.f);
+	args.padding_px = 8;
+	text_view->create(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
+
+	gl_ui->addWidget(text_view);
+
+	Notification n;
+	n.creation_time = Clock::getTimeSinceInit();
+	n.text_view = text_view;
+	notifications.push_back(n);
+
+	if(notifications.size() > MAX_NUM_NOTIFICATIONS)
+	{
+		// Remove the first (oldest) notification
+		Notification& notification = notifications.front();
+		gl_ui->removeWidget(notification.text_view);
+		notifications.pop_front(); // remove from list
+	}
 }
 
 
 void GUIClient::showInfoNotification(const std::string& message)
 {
-	ui_interface->showInfoNotification(message);
+	GLUITextViewRef text_view = new GLUITextView();
+	GLUITextView::GLUITextViewCreateArgs args;
+	args.background_colour = toLinearSRGB(Colour3f(239/255.f, 228/255.f, 176/255.f));
+	//args.background_alpha = 0.8f;
+	args.text_colour = Colour3f(0.f);
+	args.padding_px = 8;
+	text_view->create(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
+
+	gl_ui->addWidget(text_view);
+
+	Notification n;
+	n.creation_time = Clock::getTimeSinceInit();
+	n.text_view = text_view;
+	notifications.push_back(n);
+
+	if(notifications.size() > MAX_NUM_NOTIFICATIONS)
+	{
+		// Remove the first (oldest) notification
+		Notification& notification = notifications.front();
+		gl_ui->removeWidget(notification.text_view);
+		notifications.pop_front(); // remove from list
+	}
 }
