@@ -49,16 +49,6 @@ static void doPrint(const std::string& s)
 }
 
 
-void SDLUIInterface::showErrorNotification(const std::string& msg)
-{
-	doPrint("Error: " + msg); // TEMP
-}
-
-void SDLUIInterface::showInfoNotification(const std::string& msg)
-{
-	doPrint("Info: " + msg); // TEMP
-}
-
 void SDLUIInterface::logMessage(const std::string& msg)
 {
 	doPrint("Log: " + msg); // TEMP

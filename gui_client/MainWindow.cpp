@@ -605,62 +605,15 @@ void MainWindow::printStr(const std::string& s) // Print a message without a new
 }
 
 
-static const size_t MAX_NUM_NOTIFICATIONS = 5;
-
-
 void MainWindow::showErrorNotification(const std::string& message)
 {
-	QLabel* label = new QLabel(ui->notificationContainer);
-	label->setText(QtUtils::toQString(message));
-	label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-
-	label->setStyleSheet("QLabel { padding: 6px; background-color : rgb(255, 200, 200); }");
-
-	ui->notificationContainer->layout()->addWidget(label);
-
-	Notification n;
-	n.creation_time = Clock::getTimeSinceInit();
-	n.label = label;
-	notifications.push_back(n);
-
-	if(notifications.size() == 1)
-		ui->infoDockWidget->show();
-	else if(notifications.size() > MAX_NUM_NOTIFICATIONS)
-	{
-		// Remove the first notification
-		Notification& notification = notifications.front();
-		ui->notificationContainer->layout()->removeWidget(notification.label);
-		notification.label->deleteLater();
-		notifications.pop_front(); // remove from list
-	}
+	gui_client.showErrorNotification(message);
 }
 
 
 void MainWindow::showInfoNotification(const std::string& message)
 {
-	QLabel* label = new QLabel(ui->notificationContainer);
-	label->setText(QtUtils::toQString(message));
-	label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-
-	label->setStyleSheet("QLabel { padding: 6px; background-color : rgb(239, 228, 176); }");
-
-	ui->notificationContainer->layout()->addWidget(label);
-
-	Notification n;
-	n.creation_time = Clock::getTimeSinceInit();
-	n.label = label;
-	notifications.push_back(n);
-
-	if(notifications.size() == 1)
-		ui->infoDockWidget->show();
-	else if(notifications.size() > MAX_NUM_NOTIFICATIONS)
-	{
-		// Remove the first notification
-		Notification& notification = notifications.front();
-		ui->notificationContainer->layout()->removeWidget(notification.label);
-		notification.label->deleteLater();
-		notifications.pop_front(); // remove from list
-	}
+	gui_client.showInfoNotification(message);
 }
 
 
@@ -1059,32 +1012,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	runScreenshotCode();
 	
-	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-	//------------- Check to see if we should remove any old notifications ------------
-	const double notification_display_time = 5;
-	for(auto it = notifications.begin(); it != notifications.end();)
-	{
-		if(cur_time >  it->creation_time + notification_display_time)
-		{
-			// Remove the notification
-			ui->notificationContainer->layout()->removeWidget(it->label);
-			it->label->deleteLater();
-			it = notifications.erase(it); // remove from list
-
-			// Make the info dock widget resize.  See https://stackoverflow.com/a/30472749/7495926
-			QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-			ui->infoDockWidget->resize(ui->infoDockWidget->sizeHint());
-
-			// Hide the info dock widget if there are no remaining widgets.
-			if(notifications.empty())
-				ui->infoDockWidget->hide();
-		}		
-		else
-			++it;
-	}
-
-
 	// Update URL Bar
 	// NOTE: use doubleToStringNDecimalPlaces instead of doubleToStringMaxNDecimalPlaces, as the latter is distracting due to flickering URL length when moving.
 	if(this->url_widget->shouldBeUpdated())

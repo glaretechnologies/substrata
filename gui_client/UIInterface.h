@@ -31,8 +31,6 @@ public:
 
 	virtual void showHTMLMessageBox(const std::string& title, const std::string& msg) = 0;
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) = 0;
-	virtual void showErrorNotification(const std::string& msg) = 0;
-	virtual void showInfoNotification(const std::string& msg) = 0;
 
 	virtual void logMessage(const std::string& msg) = 0;
 

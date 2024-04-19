@@ -147,6 +147,9 @@ private:
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 
 public:
+	void showErrorNotification(const std::string& msg);
+	void showInfoNotification(const std::string& msg);
+
 	//------------------------------------------------- UIInterface -----------------------------------------------------------
 	virtual void appendChatMessage(const std::string& msg) override;
 	virtual void clearChatMessages() override;
@@ -154,8 +157,6 @@ public:
 	virtual void updateOnlineUsersList() override; // Works off world state avatars.
 	virtual void showHTMLMessageBox(const std::string& title, const std::string& msg) override;
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) override;
-	virtual void showErrorNotification(const std::string& msg) override;
-	virtual void showInfoNotification(const std::string& msg) override;
 
 	virtual void logMessage(const std::string& msg) override; // Appends to LogWindow log display.
 
@@ -276,14 +277,6 @@ public:
 	double last_timerEvent_CPU_work_elapsed;
 	double last_updateGL_time;
 private:
-	struct Notification
-	{
-		double creation_time;
-		QLabel* label;
-	};
-
-	std::list<Notification> notifications;
-
 	bool need_help_info_dock_widget_position; // We may need to position the Help info dock widget to the bottom right of the GL view.
 	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
 	
