@@ -167,7 +167,7 @@ int main(int argc, char** argv)
 		const std::string emoji_font_path = "/System/Library/Fonts/SFNS.ttf";
 #else
 		// Linux:
-		const std::string font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
+		const std::string font_path       = base_dir + "/data/resources/TruenoLight-E2pg.otf";
 		const std::string emoji_font_path = base_dir + "/data/resources/TruenoLight-E2pg.otf"; 
 #endif
 
@@ -540,9 +540,13 @@ static bool do_terrain_diagnostics = false;
 static size_t last_total_memory = 0;
 static uintptr_t last_dynamic_top = 0;
 
+static double last_timerEvent_CPU_work_elapsed = 0;
+double last_updateGL_time = 0;
 
 static void doOneMainLoopIter()
 {
+	Timer loop_iter_timer;
+
 	if(SDL_GL_MakeCurrent(win, gl_context) != 0)
 		conPrint("SDL_GL_MakeCurrent failed.");
 
@@ -738,6 +742,10 @@ static void doOneMainLoopIter()
 	}
 #endif
 
+	last_timerEvent_CPU_work_elapsed = loop_iter_timer.elapsed(); // Everything before graphics draw
+
+	Timer drawing_timer;
+
 	int gl_w, gl_h;
 	SDL_GL_GetDrawableSize(win, &gl_w, &gl_h);
 	if(gl_w > 0 && gl_h > 0)
@@ -803,8 +811,6 @@ static void doOneMainLoopIter()
 
 				if((diagnostics_timer->elapsed() > 1.0) || diag_changed)
 				{
-					double last_timerEvent_CPU_work_elapsed = 0;
-					double last_updateGL_time = 0;
 					last_diagnostics = gui_client->getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, do_terrain_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
 					diagnostics_timer->reset();
 				}
@@ -820,6 +826,8 @@ static void doOneMainLoopIter()
 	
 	// Display
 	SDL_GL_SwapWindow(win);
+
+	last_updateGL_time = drawing_timer.elapsed();
 
 	time_since_last_frame->reset();
 
