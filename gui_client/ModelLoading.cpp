@@ -1526,27 +1526,25 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Load rendering data into GPU mem if requested.
 	if(do_opengl_stuff)
 	{
+		mesh_data->vbo_handle = vert_buf_allocator->allocateVertexDataSpace(mesh_data->vertex_spec.vertStride(), mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
+
 		if(!mesh_data->vert_index_buffer_uint8.empty())
 		{
-			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint8.data(), mesh_data->vert_index_buffer_uint8.dataSizeBytes());
+			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexDataSpace(mesh_data->vert_index_buffer_uint8.data(), mesh_data->vert_index_buffer_uint8.dataSizeBytes());
 			assert(mesh_data->getIndexType() == GL_UNSIGNED_BYTE);
 		}
 		else if(!mesh_data->vert_index_buffer_uint16.empty())
 		{
-			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint16.data(), mesh_data->vert_index_buffer_uint16.dataSizeBytes());
+			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexDataSpace(mesh_data->vert_index_buffer_uint16.data(), mesh_data->vert_index_buffer_uint16.dataSizeBytes());
 			assert(mesh_data->getIndexType() == GL_UNSIGNED_SHORT);
 		}
 		else
 		{
-			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer.data(), mesh_data->vert_index_buffer.dataSizeBytes());
+			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexDataSpace(mesh_data->vert_index_buffer.data(), mesh_data->vert_index_buffer.dataSizeBytes());
 			assert(mesh_data->getIndexType() == GL_UNSIGNED_INT);
 		}
 
-		mesh_data->vbo_handle = vert_buf_allocator->allocate(mesh_data->vertex_spec, mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
-
-#if DO_INDIVIDUAL_VAO_ALLOC
-		mesh_data->individual_vao = new VAO(mesh_data->vbo_handle.vbo, mesh_data->indices_vbo_handle.index_vbo, mesh_data->vertex_spec);
-#endif
+		vert_buf_allocator->getOrCreateAndAssignVAOForMesh(*mesh_data, mesh_data->vertex_spec);
 
 		mesh_data->vert_data.clearAndFreeMem();
 		mesh_data->vert_index_buffer.clearAndFreeMem();

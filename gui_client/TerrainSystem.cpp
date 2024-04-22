@@ -217,7 +217,7 @@ static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* o
 		indices[offset + 5] = (uint16)((y + 1) * vert_res_with_borders + x    ); // top left
 	}
 
-	return opengl_engine->vert_buf_allocator->allocateIndexData(vert_index_buffer_uint16.data(), vert_index_buffer_uint16.dataSizeBytes());
+	return opengl_engine->vert_buf_allocator->allocateIndexDataSpace(vert_index_buffer_uint16.data(), vert_index_buffer_uint16.dataSizeBytes());
 }
 
 
@@ -1643,11 +1643,10 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 			else
 				conPrint("Erropr. invalid msg.chunk_data.vert_res_with_borders");
 
-			mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocate(mesh_data->vertex_spec, mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
+			mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocateVertexDataSpace(mesh_data->vertex_spec.vertStride(), mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
 
-#if DO_INDIVIDUAL_VAO_ALLOC
-			mesh_data->individual_vao = new VAO(mesh_data->vbo_handle.vbo, mesh_data->indices_vbo_handle.index_vbo, mesh_data->vertex_spec);
-#endif
+			opengl_engine->vert_buf_allocator->getOrCreateAndAssignVAOForMesh(*mesh_data, mesh_data->vertex_spec);
+
 			// Now data has been uploaded to GPU, clear CPU mem
 			mesh_data->vert_data.clearAndFreeMem();
 			mesh_data->vert_index_buffer.clearAndFreeMem();

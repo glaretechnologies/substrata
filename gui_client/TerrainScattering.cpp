@@ -1413,8 +1413,6 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 	aabb_os.min_ -= Vec4f(6,6,0,0);
 	aabb_os.max_ += Vec4f(6,6,15,0);
 
-	mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocate(mesh_data->vertex_spec, temp_vert_data.ptr, temp_vert_data.size);
-
 	// Build index data
 	glare::StackAllocation temp_index_data(sizeof(uint16) * N * 6, /*alignment=*/8, bump_allocator);
 	uint16* const indices = (uint16*)temp_index_data.ptr;
@@ -1441,11 +1439,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 		indices[offset + 5] = (uint16)(i * 4 + 3); // top left
 	}
 
-	meshdata.indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(indices, temp_index_data.size);
-
-#if DO_INDIVIDUAL_VAO_ALLOC
-	meshdata.individual_vao = new VAO(meshdata.vbo_handle.vbo, meshdata.indices_vbo_handle.index_vbo, meshdata.vertex_spec);
-#endif
+	opengl_engine->vert_buf_allocator->allocateBufferSpaceAndVAO(meshdata, mesh_data->vertex_spec, temp_vert_data.ptr, temp_vert_data.size, indices, temp_index_data.size);
 
 	meshdata.aabb_os = aabb_os;
 
@@ -1545,7 +1539,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::StackAllocat
 
 	const size_t total_vert_data_size_B = N * 4 * vert_size_B;
 	
-	mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocate(mesh_data->vertex_spec, NULL, total_vert_data_size_B);
+	mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocateVertexDataSpace(vert_size_B, NULL, total_vert_data_size_B);
 
 	// Build index data
 	glare::StackAllocation temp_index_data(sizeof(uint16) * N * 6, /*alignment=*/8, bump_allocator);
@@ -1573,11 +1567,9 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::StackAllocat
 		indices[offset + 5] = (uint16)(i * 4 + 3); // top left
 	}
 
-	meshdata.indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexData(indices, temp_index_data.size);
+	meshdata.indices_vbo_handle = opengl_engine->vert_buf_allocator->allocateIndexDataSpace(indices, temp_index_data.size);
 
-#if DO_INDIVIDUAL_VAO_ALLOC
-	meshdata.individual_vao = new VAO(meshdata.vbo_handle.vbo, meshdata.indices_vbo_handle.index_vbo, meshdata.vertex_spec);
-#endif
+	opengl_engine->vert_buf_allocator->getOrCreateAndAssignVAOForMesh(meshdata, meshdata.vertex_spec);
 
 	GLObjectRef gl_ob = new GLObject();
 	gl_ob->ob_to_world_matrix = Matrix4f::identity();
