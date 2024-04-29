@@ -82,7 +82,7 @@ static const int speed_font_x_advance = 50; // between digits
 
 void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 {
-	const float text_y = -gl_ui->getViewportMinMaxY(opengl_engine) + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
+	const float text_y = -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
 
 	// The approach we will take here is to pre-create the digits 0-9 in the ones, tens and hundreds places, and then only make the digits corresponding to the current speed visible.
 	// This will avoid any runtime allocs.
@@ -172,7 +172,7 @@ void MiscInfoUI::updateWidgetPositions()
 	{
 		if(admin_msg_text_view.nonNull())
 		{
-			const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
+			const float min_max_y = gl_ui->getViewportMinMaxY();
 
 			const Vec2f text_dims = admin_msg_text_view->getDims();
 
@@ -182,7 +182,7 @@ void MiscInfoUI::updateWidgetPositions()
 		}
 		
 
-		const float text_y = -gl_ui->getViewportMinMaxY(opengl_engine) + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
+		const float text_y = -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
 
 		// 0, 0, 0, 1, 1, 1, 2, 2, 2
 		for(int i=0; i<(int)prebuilt_digits.size(); ++i)

@@ -224,7 +224,6 @@ ${CMAKE_SOURCE_DIR}/gui_client/TerrainTests.h
 ${CMAKE_SOURCE_DIR}/gui_client/TestSuite.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/TestSuite.h
 ${CMAKE_SOURCE_DIR}/gui_client/ThreadMessages.h
-${CMAKE_SOURCE_DIR}/gui_client/UIEvents.h
 ${CMAKE_SOURCE_DIR}/gui_client/UIInterface.h
 ${CMAKE_SOURCE_DIR}/gui_client/UndoBuffer.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/UndoBuffer.h
@@ -243,6 +242,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/WorldState.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/WorldState.h
 ${CMAKE_SOURCE_DIR}/gui_client/EmscriptenResourceDownloader.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/EmscriptenResourceDownloader.h
+${CMAKE_SOURCE_DIR}/gui_client/ChatUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ChatUI.h
 )
 
 

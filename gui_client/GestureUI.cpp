@@ -75,7 +75,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 
 	gestures_visible = gui_client->getSettingsStore()->getBoolValue("GestureUI/gestures_visible", /*default val=*/false);
 
-	const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
+	const float min_max_y = gl_ui->getViewportMinMaxY();
 
 	for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
 	{
@@ -93,29 +93,29 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 
 	// Create left and right tab buttons
 	left_tab_button = new GLUIButton();
-	left_tab_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
+	left_tab_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
 	left_tab_button->handler = this;
 	gl_ui->addWidget(left_tab_button);
 	
 	right_tab_button = new GLUIButton();
-	right_tab_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
+	right_tab_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
 	right_tab_button->handler = this;
 	gl_ui->addWidget(right_tab_button);
 	
 	selfie_button = new GLUIButton();
-	selfie_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(-0.9f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Selfie view");
+	selfie_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(0), Vec2f(0.1f, 0.1f), /*tooltip=*/"Selfie view");
 	selfie_button->toggleable = true;
 	selfie_button->handler = this;
 	gl_ui->addWidget(selfie_button);
 	
 	microphone_button = new GLUIButton();
-	microphone_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/microphone.png", Vec2f(-0.8f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Enable microphone for voice chat");
+	microphone_button->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/microphone.png", Vec2f(0), Vec2f(0.1f, 0.1f), /*tooltip=*/"Enable microphone for voice chat");
 	microphone_button->toggleable = true;
 	microphone_button->handler = this;
 	gl_ui->addWidget(microphone_button);
 
 	mic_level_image = new GLUIImage();
-	mic_level_image->create(*gl_ui, opengl_engine, ""/*gui_client->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(-0.7f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Microphone input indicator");
+	mic_level_image->create(*gl_ui, opengl_engine, ""/*gui_client->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(0), Vec2f(0.1f, 0.1f), /*tooltip=*/"Microphone input indicator");
 	gl_ui->addWidget(mic_level_image);
 
 	updateWidgetPositions();
@@ -214,7 +214,7 @@ void GestureUI::updateWidgetPositions()
 {
 	if(gl_ui.nonNull())
 	{
-		const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
+		const float min_max_y = gl_ui->getViewportMinMaxY();
 
 		const float BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS);
 
@@ -242,10 +242,10 @@ void GestureUI::updateWidgetPositions()
 			else
 				left_tab_button->setPosAndDims(Vec2f(1000, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING)); // hide
 
+			const float selfie_button_x = /*-1 + SPACING*/-0.05f;
+			selfie_button->setPosAndDims(Vec2f(selfie_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
-			selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
-
-			const float mic_button_x = -1 + SPACING + BUTTON_W + SPACING;
+			const float mic_button_x = selfie_button_x + BUTTON_W + SPACING;
 			microphone_button->setPosAndDims(Vec2f(mic_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
 			mic_level_image->setPosAndDims(Vec2f(mic_button_x + BUTTON_W * 0.8f, -min_max_y + SPACING + BUTTON_H * 0.2f), Vec2f(BUTTON_H * 0.2f, 0));

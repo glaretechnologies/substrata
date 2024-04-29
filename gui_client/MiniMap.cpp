@@ -79,7 +79,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 
 	// Create minimap image
 	minimap_image = new GLUIImage();
-	minimap_image->create(*gl_ui, opengl_engine, "", Vec2f(1 - margin - minimap_width, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
+	minimap_image->create(*gl_ui, opengl_engine, "", Vec2f(1 - margin - minimap_width, gl_ui->getViewportMinMaxY() - margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
 	minimap_image->overlay_ob->material.albedo_texture = minimap_texture;
 	minimap_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	minimap_image->handler = this;
@@ -87,7 +87,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 
 	// Create facing arrow image
 	arrow_image = new GLUIImage();
-	arrow_image->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2), Vec2f(0.005f), 
+	arrow_image->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY() - margin - minimap_width/2), Vec2f(0.005f), 
 		/*tooltip=*/"You", ARROW_IMAGE_Z);
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
@@ -315,7 +315,7 @@ void MiniMap::think()
 	const float heading = (float)gui_client->cam_controller.getAngles().x;
 
 	const float arrow_width = gl_ui->getUIWidthForDevIndepPixelWidth(arrow_width_px);
-	arrow_image->setTransform(Vec2f(1 - margin - minimap_width/2 - arrow_width/2, gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2 - arrow_width/2), 
+	arrow_image->setTransform(Vec2f(1 - margin - minimap_width/2 - arrow_width/2, gl_ui->getViewportMinMaxY() - margin - minimap_width/2 - arrow_width/2), 
 		/*dims=*/Vec2f(arrow_width), 
 		/*rotation=*/heading,
 		/*z=*/ARROW_IMAGE_Z);
@@ -640,7 +640,7 @@ void MiniMap::updateWidgetPositions()
 	{
 		if(minimap_image.nonNull())
 		{
-			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY(opengl_engine) - minimap_width - margin), Vec2f(minimap_width), MINIMAP_Z);
+			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY() - minimap_width - margin), Vec2f(minimap_width), MINIMAP_Z);
 		}
 	}
 }
@@ -652,7 +652,7 @@ Vec2f MiniMap::mapUICoordsForWorldSpacePos(const Vec3d& pos)
 
 	const Vec2f cam_to_pos_xy_ws((float)cam_to_pos_ws.x, (float)cam_to_pos_ws.y);
 
-	const Vec2f map_centre_ui(1 - margin - minimap_width/2,  gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width/2);
+	const Vec2f map_centre_ui(1 - margin - minimap_width/2,  gl_ui->getViewportMinMaxY() - margin - minimap_width/2);
 
 	return map_centre_ui + minimap_width * cam_to_pos_xy_ws / map_width_ws;
 }
@@ -669,8 +669,8 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	const float in_map_margin_w = 0.02f;
 	const float map_min_x = 1 - margin - minimap_width + in_map_margin_w;
 	const float map_max_x = 1 - margin - in_map_margin_w;
-	const float map_min_y = gl_ui->getViewportMinMaxY(opengl_engine) - margin - minimap_width + in_map_margin_w;
-	const float map_max_y = gl_ui->getViewportMinMaxY(opengl_engine) - margin - in_map_margin_w;
+	const float map_min_y = gl_ui->getViewportMinMaxY() - margin - minimap_width + in_map_margin_w;
+	const float map_max_y = gl_ui->getViewportMinMaxY() - margin - in_map_margin_w;
 
 	Vec2f clamped_ui_coords;
 	clamped_ui_coords.x = myClamp(ui_coords.x, map_min_x, map_max_x);
