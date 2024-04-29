@@ -7,7 +7,6 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "GUIClient.h"
-#include "UIEvents.h"
 #include "EmbeddedBrowser.h"
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
@@ -17,6 +16,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <maths/vec2.h>
 #include <webserver/Escaping.h>
 #include <networking/URL.h>
+#include <ui/UIEvents.h>
 #include <utils/FileInStream.h>
 #include <utils/PlatformUtils.h>
 #include <utils/Base64.h>

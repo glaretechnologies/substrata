@@ -7,13 +7,13 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "GUIClient.h"
-#include "UIEvents.h"
 #include "WorldState.h"
 #include "CEFInternal.h"
 #include "CEF.h"
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
 #include "../audio/AudioEngine.h"
+#include <ui/UIEvents.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
 #include <maths/vec2.h>
