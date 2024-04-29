@@ -22,7 +22,7 @@ ChatUI::~ChatUI()
 
 static const float widget_w = 0.6f;
 static const float corner_radius_px = 8;
-static const int font_size_px = 14;
+static const int font_size_px = 12;
 
 
 void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
