@@ -362,24 +362,26 @@ static const float arc_handle_half_angle = 1.5f;
 
 
 void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine_, 
-	const std::vector<Reference<TextRendererFontFace>>& fonts, const std::vector<Reference<TextRendererFontFace>>& emoji_fonts)
+	const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts)
 {
 	opengl_engine = opengl_engine_;
 
 	gl_ui = new GLUI();
 	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts);
 
-	gesture_ui.create(opengl_engine, /*main_window_=*/this, gl_ui);
+	gesture_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
-	ob_info_ui.create(opengl_engine, /*main_window_=*/this, gl_ui);
+	ob_info_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
-	misc_info_ui.create(opengl_engine, /*main_window_=*/this, gl_ui);
+	misc_info_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 	
-	hud_ui.create(opengl_engine, /*main_window_=*/this, gl_ui);
+	hud_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+
+	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
 
 	if(show_minimap)
-		minimap.create(opengl_engine, /*main_window_=*/this, gl_ui);
+		minimap.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
 	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
 #if !EMSCRIPTEN
@@ -749,6 +751,8 @@ void GUIClient::shutdown()
 	
 	hud_ui.destroy();
 
+	chat_ui.destroy();
+
 	minimap.destroy();
 
 	if(gl_ui.nonNull())
@@ -853,6 +857,33 @@ bool GUIClient::checkAddModelToProcessingSet(const std::string& url, bool dynami
 	ModelProcessingKey key(url, dynamic_physics_shape);
 	auto res = models_processing.insert(key);
 	return res.second; // Was model inserted? (will be false if already present in set)
+}
+
+
+static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStream& packet)
+{
+	MessageUtils::updatePacketLengthField(packet);
+
+	client_thread.enqueueDataToSend(packet.buf);
+}
+
+
+void GUIClient::sendChatMessage(const std::string& message)
+{
+	//conPrint("GUIClient::sendChatMessage()");
+
+	if(this->connection_state == ServerConnectionState_NotConnected)
+	{
+		showErrorNotification("Can't send a chat message when not connected to server.");
+	}
+	else
+	{
+		// Make message packet and enqueue to send
+		MessageUtils::initPacket(scratch_packet, Protocol::ChatMessageID);
+		scratch_packet.writeStringLengthFirst(message);
+
+		enqueueMessageToSend(*client_thread, scratch_packet);
+	}
 }
 
 
@@ -2892,14 +2923,6 @@ bool GUIClient::objectModificationAllowedWithMsg(const WorldObject& ob, const st
 }
 
 
-static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStream& packet)
-{
-	MessageUtils::updatePacketLengthField(packet);
-
-	client_thread.enqueueDataToSend(packet.buf);
-}
-
-
 // ObLoadingCallbacks interface callback function:
 // NOTE: not currently called.
 //void GUIClient::loadObject(WorldObjectRef ob)
@@ -3837,7 +3860,7 @@ void GUIClient::updateObjectsWithDiagnosticVis()
 }
 
 
-void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out)
+void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out)
 {
 	bool move_key_pressed = false;
 
@@ -3888,23 +3911,43 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 	// TODO: Find an equivalent solution to GetAsyncKeyState on Mac/Linux.
 	if(ui_interface->hasFocus() && ui_interface->isKeyboardCameraMoveEnabled()/*cam_move_on_key_input_enabled*/)
 	{
+		if(world_render_has_keyboard_focus)
+		{
 #ifdef _WIN32
-		SHIFT_down =	GetAsyncKeyState(VK_SHIFT);
-		CTRL_down	=	GetAsyncKeyState(VK_CONTROL);
-		W_down =		GetAsyncKeyState('W');
-		S_down =		GetAsyncKeyState('S');
-		A_down =		GetAsyncKeyState('A');
-		D_down =		GetAsyncKeyState('D');
-		space_down =	GetAsyncKeyState(' ');
-		C_down =		GetAsyncKeyState('C');
-		left_down =		GetAsyncKeyState(VK_LEFT);
-		right_down =	GetAsyncKeyState(VK_RIGHT);
-		up_down =		GetAsyncKeyState(VK_UP);
-		down_down =		GetAsyncKeyState(VK_DOWN);
-		B_down = 		GetAsyncKeyState('B');
+			SHIFT_down =	GetAsyncKeyState(VK_SHIFT);
+			CTRL_down	=	GetAsyncKeyState(VK_CONTROL);
+			W_down =		GetAsyncKeyState('W');
+			S_down =		GetAsyncKeyState('S');
+			A_down =		GetAsyncKeyState('A');
+			D_down =		GetAsyncKeyState('D');
+			space_down =	GetAsyncKeyState(' ');
+			C_down =		GetAsyncKeyState('C');
+			left_down =		GetAsyncKeyState(VK_LEFT);
+			right_down =	GetAsyncKeyState(VK_RIGHT);
+			up_down =		GetAsyncKeyState(VK_UP);
+			down_down =		GetAsyncKeyState(VK_DOWN);
+			B_down = 		GetAsyncKeyState('B');
 #else
-		// CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
+			// CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
 #endif
+		}
+		else
+		{
+			SHIFT_down = false;
+			CTRL_down = false;
+			A_down = false;
+			W_down = false;
+			S_down = false;
+			D_down = false;
+			space_down = false;
+			C_down = false; 
+			left_down = false;
+			right_down = false;
+			up_down = false;
+			down_down = false;
+			B_down = false;
+		}
+
 		const float selfie_move_factor = cam_controller.selfieModeEnabled() ? -1.f : 1.f;
 
 		if(W_down || up_down)
@@ -3982,6 +4025,9 @@ void GUIClient::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_ou
 
 void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
+	if(gl_ui.nonNull())
+		gl_ui->think();
+
 	// If we are connected to a server, send a UDP packet to it occasionally, so the server can work out which UDP port
 	// we are listening on.
 #if !defined(EMSCRIPTEN)
@@ -4156,6 +4202,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	
 	gesture_ui.think();
 	hud_ui.think();
+	chat_ui.think();
 	minimap.think();
 
 	updateObjectsWithDiagnosticVis();
@@ -4306,9 +4353,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	UpdateEvents physics_events;
 
 	PlayerPhysicsInput physics_input;
+
+	const bool world_render_has_keyboard_focus = gl_ui->getKeyboardFocusWidget().isNull();
+
 	{
 		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
-		processPlayerPhysicsInput((float)dt, /*input_out=*/physics_input); // sets player physics move impulse.
+		processPlayerPhysicsInput((float)dt, world_render_has_keyboard_focus, /*input_out=*/physics_input); // sets player physics move impulse.
 	}
 
 	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
@@ -5656,6 +5706,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
 						web::Escaping::HTMLEscape(avatar->name) + "</span> left.</i>");
 
+					chat_ui.appendMessage(avatar->name, avatar->name_colour, " left.");
+
 					// Remove any OpenGL object for it
 					avatar->graphics.destroy(*opengl_engine);
 
@@ -6574,6 +6626,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
 						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> is here.</i>");
 					ui_interface->updateOnlineUsersList();
+
+					chat_ui.appendMessage(avatar->name, avatar->name_colour, " is here.");
 				}
 			}
 		}
@@ -6593,6 +6647,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
 						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>");
 					ui_interface->updateOnlineUsersList();
+
+					chat_ui.appendMessage(avatar->name, avatar->name_colour, " joined.");
 				}
 			}
 		}
@@ -6656,6 +6712,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				ui_interface->appendChatMessage(
 					"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(m->name) + "</span>: " +
 					web::Escaping::HTMLEscape(m->msg) + "</p>");
+
+				chat_ui.appendMessage(m->name, col, ": " + m->msg);
 			}
 		}
 		else if(dynamic_cast<const InfoMessage*>(msg))
@@ -11157,13 +11215,14 @@ void GUIClient::viewportResized(int w, int h)
 	ob_info_ui.viewportResized(w, h);
 	misc_info_ui.viewportResized(w, h);
 	hud_ui.viewportResized(w, h);
+	chat_ui.viewportResized(w, h);
 	minimap.viewportResized(w, h);
 }
 
 
 GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 {
-	TextRendererFontFace* font = gl_ui->getBestMatchingFont(/*font_size_px=*/36, /*emoji=*/false);
+	TextRendererFontFace* font = gl_ui->getFont(/*font_size_px=*/36, /*emoji=*/false);
 
 	const TextRendererFontFace::SizeInfo size_info = font->getTextSize(nametag);
 
@@ -11636,6 +11695,10 @@ static bool keyIsDeleteKey(int keycode)
 
 void GUIClient::keyPressed(KeyEvent& e)
 {
+	gl_ui->handleKeyPressedEvent(e);
+	if(e.accepted)
+		return;
+
 	// Update our key-state variables, jump if space was pressed.
 	{
 		SHIFT_down = BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Shift);// (e->modifiers() & ShiftModifier);
@@ -12151,12 +12214,12 @@ void GUIClient::updateNotifications(double cur_time)
 		it->text_view->setPos(*gl_ui, 
 			Vec2f(
 				-gl_ui->getUIWidthForDevIndepPixelWidth(150), 
-				gl_ui->getViewportMinMaxY(opengl_engine) - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)
+				gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)
 			)
 		);
 
 		// Make the notification fade out when it is nearly time to remove it.
-		const float frac = (cur_time - it->creation_time) / NOTIFICATION_DISPLAY_TIME;
+		const float frac = (float)((cur_time - it->creation_time) / NOTIFICATION_DISPLAY_TIME);
 		const float alpha = myClamp(1.f - Maths::smoothStep(0.8f, 1.2f, frac) * 2, 0.f, 1.f);
 		it->text_view->glui_text->overlay_ob->material.alpha = alpha;
 		it->text_view->background_overlay_ob->material.alpha = alpha;

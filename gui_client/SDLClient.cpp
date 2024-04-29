@@ -47,12 +47,52 @@ Copyright Glare Technologies Limited 2024 -
 #pragma comment(linker, "/SUBSYSTEM:CONSOLE")
 #endif
 
-
 #if !defined(EMSCRIPTEN)
 #define EM_BOOL bool
 #endif
 
 static void doOneMainLoopIter();
+
+
+class SDLClientGLUICallbacks : public GLUICallbacks
+{
+public:
+	SDLClientGLUICallbacks() : sys_cursor_arrow(NULL), sys_cursor_Ibeam(NULL) {}
+
+	virtual void startTextInput()
+	{
+		//conPrint("startTextInput");
+		SDL_StartTextInput();
+	}
+
+	virtual void stopTextInput()
+	{
+		//conPrint("stopTextInput");
+		SDL_StopTextInput();
+	}
+
+	virtual void setMouseCursor(MouseCursor cursor)
+	{
+		//conPrint("setMouseCursor");
+		if(cursor == MouseCursor_Arrow)
+		{
+			if(!sys_cursor_arrow)
+				sys_cursor_arrow = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+			SDL_SetCursor(sys_cursor_arrow);
+		}
+		else if(cursor == MouseCursor_IBeam)
+		{
+			if(!sys_cursor_Ibeam)
+				sys_cursor_Ibeam = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
+			SDL_SetCursor(sys_cursor_Ibeam);
+		}
+		else
+			assert(0);
+	}
+
+	SDL_Cursor* sys_cursor_arrow;
+	SDL_Cursor* sys_cursor_Ibeam;
+};
 
 
 static void setGLAttribute(SDL_GLattr attr, int value)
@@ -173,16 +213,8 @@ int main(int argc, char** argv)
 
 		TextRendererRef text_renderer = new TextRenderer();
 
-		std::vector<TextRendererFontFaceRef> fonts;
-		fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 18));
-		fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 24));
-		fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 36));
-		fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 48));
-		fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 60));
-		fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 72));
-
-		std::vector<TextRendererFontFaceRef> emoji_fonts;
-		emoji_fonts.push_back(new TextRendererFontFace(text_renderer, emoji_font_path, 18));
+		TextRendererFontFaceSizeSetRef fonts       = new TextRendererFontFaceSizeSet(text_renderer, font_path);
+		TextRendererFontFaceSizeSetRef emoji_fonts = new TextRendererFontFaceSizeSet(text_renderer, emoji_font_path);
 
 
 		timer = new Timer();
@@ -342,6 +374,8 @@ int main(int argc, char** argv)
 
 		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, /*show minimap=*/true, opengl_engine, fonts, emoji_fonts);
 
+		gui_client->gl_ui->callbacks = new SDLClientGLUICallbacks();
+
 
 		URLParseResults url_parse_results;
 #if EMSCRIPTEN
@@ -471,6 +505,8 @@ static inline Key getKeyForSDLKey(SDL_Keycode sym)
 		case SDLK_BACKSPACE: return Key_Backspace;
 		case SDLK_DELETE: return Key_Delete;
 		case SDLK_SPACE: return Key_Space;
+		case SDLK_RETURN: return Key_Return;
+		case SDLK_KP_ENTER: return Key_Enter;
 		case SDLK_LEFTBRACKET: return Key_LeftBracket;
 		case SDLK_RIGHTBRACKET: return Key_RightBracket;
 		case SDLK_PAGEUP: return Key_PageUp;
@@ -530,6 +566,11 @@ static void convertFromSDKKeyEvent(SDL_Event ev, KeyEvent& key_event)
 	key_event.native_virtual_key = 0; // TODO
 	// TODO: set key_event.text
 	key_event.modifiers = convertSDLModifiers((SDL_Keymod)ev.key.keysym.mod);
+}
+
+static void convertFromSDLTextInputEvent(SDL_Event ev, TextInputEvent& text_input_event)
+{
+	text_input_event.text = std::string(ev.text.text);
 }
 
 
@@ -609,7 +650,17 @@ static void doOneMainLoopIter()
 				KeyEvent key_event;
 				convertFromSDKKeyEvent(e, key_event);
 
-				gui_client->keyPressed(key_event);
+				if(key_event.key == Key_V && (key_event.modifiers & (uint32)Modifiers::Ctrl))
+				{
+					TextInputEvent text_input_event;
+					char* keyboard_text = SDL_GetClipboardText(); // Caller must call SDL_free() on the returned pointer when done with it
+					text_input_event.text = std::string(keyboard_text);
+					SDL_free(keyboard_text);
+
+					gui_client->gl_ui->handleTextInputEvent(text_input_event);
+				}
+				else
+					gui_client->keyPressed(key_event);
 			}
 		}
 		else if(e.type == SDL_KEYUP)
@@ -621,6 +672,13 @@ static void doOneMainLoopIter()
 
 				gui_client->keyReleased(key_event);
 			}
+		}
+		else if(e.type == SDL_TEXTINPUT)
+		{
+			TextInputEvent text_input_event;
+			convertFromSDLTextInputEvent(e, text_input_event);
+
+			gui_client->gl_ui->handleTextInputEvent(text_input_event);
 		}
 		else if(e.type == SDL_MOUSEMOTION)
 		{
@@ -670,7 +728,11 @@ static void doOneMainLoopIter()
 
 				if(e.button.clicks == 1) // Single click:
 				{
-					SDL_SetRelativeMouseMode(SDL_TRUE);
+					gui_client->mouseClicked(mouse_event);
+					if(!mouse_event.accepted)
+					{
+						SDL_SetRelativeMouseMode(SDL_TRUE);
+					}
 				}
 				else if(e.button.clicks == 2) // Double click:
 				{
@@ -687,13 +749,6 @@ static void doOneMainLoopIter()
 				if(e.button.clicks == 1) // Single click:
 				{
 					SDL_SetRelativeMouseMode(SDL_FALSE);
-
-					MouseEvent mouse_event;
-					mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
-					mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
-					mouse_event.button = convertSDLMouseButton(e.button.button);
-					mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
-					gui_client->mouseClicked(mouse_event);
 				}
 			}
 		}
@@ -865,3 +920,4 @@ static void doOneMainLoopIter()
 
 	num_frames++;
 }
+

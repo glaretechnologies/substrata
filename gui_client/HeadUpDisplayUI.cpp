@@ -140,7 +140,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 #else
 		// Don't clamp marker to screen, just hide if off screen.
 		Vec2f clamped_ui_coords = ui_coords;
-		const bool on_screen = (ui_coords.x >= -1) || (ui_coords.x <= 1) || (ui_coords.y >= gl_ui->getViewportMinMaxY(opengl_engine)) || (ui_coords.y <= gl_ui->getViewportMinMaxY(opengl_engine));
+		const bool on_screen = (ui_coords.x >= -1) || (ui_coords.x <= 1) || (ui_coords.y >= gl_ui->getViewportMinMaxY()) || (ui_coords.y <= gl_ui->getViewportMinMaxY());
 #endif
 		
 		// Create (if needed) and/or position marker dot.

@@ -11,12 +11,12 @@ Copyright Glare Technologies Limited 2024 -
 #include "CameraController.h"
 #include "UIInterface.h"
 #include "ProximityLoader.h"
-#include "UIEvents.h"
 #include "UndoBuffer.h"
 #include "GestureUI.h"
 #include "ObInfoUI.h"
 #include "MiscInfoUI.h"
 #include "HeadUpDisplayUI.h"
+#include "ChatUI.h"
 #include "MiniMap.h"
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../audio/MicReadThread.h" // For MicReadStatus
 #include "../opengl/TextureLoading.h"
 #include "../shared/WorldObject.h"
+#include <ui/UIEvents.h>
 #include <utils/ArgumentParser.h>
 #include <utils/Timer.h>
 #include <utils/StackAllocator.h>
@@ -110,7 +111,7 @@ public:
 
 	void initialise(const std::string& cache_dir, SettingsStore* settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_);
 	void afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine, 
-		const std::vector<Reference<TextRendererFontFace>>& fonts, const std::vector<Reference<TextRendererFontFace>>& emoji_fonts);
+		const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts);
 
 	void shutdown();
 
@@ -225,6 +226,7 @@ public:
 	void checkForAudioRangeChanges();
 
 	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
+	void sendChatMessage(const std::string& message);
 
 	// If the object was not in a parcel with write permissions at all, returns false.
 	// If the object can not be made to fit in the current parcel, returns false.
@@ -291,7 +293,7 @@ public:
 	void updateDiagnosticAABBForObject(WorldObject* ob); // Returns if vis still valid/needed.
 	void updateObjectsWithDiagnosticVis();
 
-	void processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out);
+	void processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out);
 
 	void enableMaterialisationEffectOnOb(WorldObject& ob);
 	void enableMaterialisationEffectOnAvatar(Avatar& ob);
@@ -528,6 +530,7 @@ public:
 	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
 	MiscInfoUI misc_info_ui; // For showing messages from the server etc.
 	HeadUpDisplayUI hud_ui;
+	ChatUI chat_ui;
 	MiniMap minimap;
 
 	bool running_destructor;
