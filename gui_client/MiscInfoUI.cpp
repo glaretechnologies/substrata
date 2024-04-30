@@ -76,8 +76,8 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 	}
 }
 
-static const int speed_margin_px = 30; // pixels between bottom of viewport and text baseline.
-static const int speed_font_size_px = 60;
+static const int speed_margin_px = 70; // pixels between bottom of viewport and text baseline.
+static const int speed_font_size_px = 40;
 static const int speed_font_x_advance = 50; // between digits
 
 void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
