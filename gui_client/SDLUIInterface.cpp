@@ -12,6 +12,9 @@ Copyright Glare Technologies Limited 2022 -
 #include <graphics/TextRenderer.h>
 #include <SDL.h>
 #include <iostream>
+#if EMSCRIPTEN
+#include <emscripten.h>
+#endif
 
 
 void SDLUIInterface::appendChatMessage(const std::string& msg)
@@ -246,8 +249,25 @@ void SDLUIInterface::enableFirstPersonCamera()
 	gui_client->thirdPersonCameraToggled(false);
 }
 
+
+#if EMSCRIPTEN
+
+// Define openURLInBrowser(const char* URL) function
+EM_JS(void, openURLInBrowser, (const char* URL), {
+	window.open(UTF8ToString(URL), "mozillaTab"); // See https://developer.mozilla.org/en-US/docs/Web/API/Window/open
+});
+
+#endif
+
+
 void SDLUIInterface::openURL(const std::string& URL)
 {
+	conPrint("SDLUIInterface::openURL: URL: " + URL);
+#if EMSCRIPTEN
+	openURLInBrowser(URL.c_str());
+#else
+	SDL_OpenURL(URL.c_str());
+#endif
 }
 
 Vec2i SDLUIInterface::getMouseCursorWidgetPos() // Get mouse cursor position, relative to gl widget.
