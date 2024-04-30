@@ -3822,9 +3822,8 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 			const std::string diag_text = "physics_owner_id: " + toString(ob->physics_owner_id) + " since " + doubleToStringNSigFigs(world_state->getCurrentGlobalTime() - ob->last_physics_ownership_change_global_time, 2) + " s";
 			if(ob->diagnostic_text_view.isNull())
 			{
-				ob->diagnostic_text_view = new GLUITextView();
 				GLUITextView::GLUITextViewCreateArgs create_args;
-				ob->diagnostic_text_view->create(*this->gl_ui, this->opengl_engine, diag_text, Vec2f(0.f, 0.f), create_args);
+				ob->diagnostic_text_view = new GLUITextView(*this->gl_ui, this->opengl_engine, diag_text, Vec2f(0.f, 0.f), create_args);
 			}
 			else
 			{
@@ -12229,13 +12228,12 @@ void GUIClient::updateNotifications(double cur_time)
 
 void GUIClient::showErrorNotification(const std::string& message)
 {
-	GLUITextViewRef text_view = new GLUITextView();
 	GLUITextView::GLUITextViewCreateArgs args;
 	args.background_colour = toLinearSRGB(Colour3f(1, 200/255.f, 200/255.f));
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	text_view->create(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -12256,13 +12254,12 @@ void GUIClient::showErrorNotification(const std::string& message)
 
 void GUIClient::showInfoNotification(const std::string& message)
 {
-	GLUITextViewRef text_view = new GLUITextView();
 	GLUITextView::GLUITextViewCreateArgs args;
 	args.background_colour = toLinearSRGB(Colour3f(239/255.f, 228/255.f, 176/255.f));
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	text_view->create(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
