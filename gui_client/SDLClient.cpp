@@ -142,15 +142,18 @@ static bool show_imgui_info_window = false;
 
 #if EMSCRIPTEN
 
+// Define getLocationHost() function
 EM_JS(char*, getLocationHost, (), {
 	return stringToNewUTF8(window.location.host);
 });
 
+// Define getLocationSearch() function
 // Get the ?a=b part of the URL (see https://developer.mozilla.org/en-US/docs/Web/API/Location)
 EM_JS(char*, getLocationSearch, (), {
 	return stringToNewUTF8(window.location.search);
 });
 
+// Define updateURL(const char* new_URL) function
 EM_JS(void, updateURL, (const char* new_URL), {
 	history.replaceState(null, "",  UTF8ToString(new_URL)); // See https://developer.mozilla.org/en-US/docs/Web/API/History/replaceState
 });
