@@ -37,8 +37,6 @@ public:
 
 	void hideMessage();
 
-	//bool handleMouseClick(const Vec2f& gl_coords);
-	//bool handleMouseMoved(const Vec2f& gl_coords);
 	void viewportResized(int w, int h);
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
@@ -47,8 +45,6 @@ private:
 	void updateWidgetPositions();
 //public:
 	GUIClient* gui_client;
-
-	//GLUIButtonRef selfie_button;
 
 	GLUITextViewRef info_text_view;
 
