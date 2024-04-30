@@ -39,6 +39,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <emscripten.h>
 #include <emscripten/html5.h>
 #include <unistd.h>
+#include "emscripten_browser_clipboard.h"
 #endif
 
 
@@ -422,6 +423,24 @@ int main(int argc, char** argv)
 #endif
 
 		gui_client->connectToServer(url_parse_results);
+
+
+#if EMSCRIPTEN
+		// Stop SDL from accepting Ctrl+V events, so that paste events will be properly triggered.
+		EM_ASM({
+			window.addEventListener('keydown', function(event){
+				if (event.ctrlKey && event.key == 'v')
+					event.stopImmediatePropagation();
+			}, true);
+		});
+
+		// Set a lambda as a callback to handle pasted data:
+		emscripten_browser_clipboard::paste([](const std::string& paste_data, void* /*callback_data*/){
+			TextInputEvent text_input_event;
+			text_input_event.text = paste_data;
+			gui_client->gl_ui->handleTextInputEvent(text_input_event);
+		});
+#endif
 
 
 		//---------------------- Set env material -------------------
