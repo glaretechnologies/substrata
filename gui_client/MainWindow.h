@@ -96,8 +96,8 @@ private slots:;
 	void sendChatMessageSlot();
 	void sendLightmapNeededFlagsSlot();
 
-	void glWidgetMouseClicked(QMouseEvent* e);
 	void glWidgetMousePressed(QMouseEvent* e);
+	void glWidgetMouseReleased(QMouseEvent* e);
 	void glWidgetMouseDoubleClicked(QMouseEvent* e);
 	void glWidgetMouseMoved(QMouseEvent* e);
 	void glWidgetKeyPressed(QKeyEvent* e);
@@ -106,6 +106,7 @@ private slots:;
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 	void glWidgetViewportResized(int w, int h);
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
+	void glWidgetPasteShortcutTriggered();
 
 	void objectTransformEditedSlot();
 	void objectEditedSlot();

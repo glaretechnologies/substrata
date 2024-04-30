@@ -224,8 +224,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
-	connect(ui->glWidget, SIGNAL(mouseClicked(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mousePressed(QMouseEvent*)), this, SLOT(glWidgetMousePressed(QMouseEvent*)));
+	connect(ui->glWidget, SIGNAL(mouseReleased(QMouseEvent*)), this, SLOT(glWidgetMouseReleased(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseDoubleClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
@@ -234,7 +234,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(on_actionCopy_Object_triggered()));
-	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(on_actionPaste_Object_triggered()));
+	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(glWidgetPasteShortcutTriggered()));
 	connect(ui->objectEditor, SIGNAL(objectTransformChanged()), this, SLOT(objectTransformEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
@@ -378,6 +378,35 @@ void MainWindow::initialise()
 }
 
 
+class MainWindowGLUICallbacks : public GLUICallbacks
+{
+public:
+	MainWindowGLUICallbacks() {}
+
+	virtual void startTextInput()
+	{}
+
+	virtual void stopTextInput()
+	{}
+
+	virtual void setMouseCursor(MouseCursor cursor)
+	{
+		if(cursor == MouseCursor_Arrow)
+		{
+			main_window->ui->glWidget->setCursor(Qt::ArrowCursor);
+		}
+		else if(cursor == MouseCursor_IBeam)
+		{
+			main_window->ui->glWidget->setCursor(Qt::IBeamCursor);
+		}
+		else
+			assert(0);
+	}
+
+	MainWindow* main_window;
+};
+
+
 void MainWindow::afterGLInitInitialise()
 {
 	if(settings->value("mainwindow/showParcels", QVariant(false)).toBool())
@@ -421,22 +450,18 @@ void MainWindow::afterGLInitInitialise()
 
 	TextRendererRef text_renderer = new TextRenderer();
 
-	std::vector<TextRendererFontFaceRef> fonts;
-	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 18));
-	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 24));
-	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 36));
-	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 48));
-	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 60));
-	fonts.push_back(new TextRendererFontFace(text_renderer, font_path, 72));
-
-	std::vector<TextRendererFontFaceRef> emoji_fonts;
-	emoji_fonts.push_back(new TextRendererFontFace(text_renderer, emoji_font_path, 18));
+	TextRendererFontFaceSizeSetRef fonts       = new TextRendererFontFaceSizeSet(text_renderer, font_path);
+	TextRendererFontFaceSizeSetRef emoji_fonts = new TextRendererFontFaceSizeSet(text_renderer, emoji_font_path);
 
 
 	const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, which have twice the density of qt pixel coordinates.
 
 	const bool show_minimap = MainOptionsDialog::getShowMinimap(this->settings);
 	gui_client.afterGLInitInitialise((double)device_pixel_ratio, show_minimap, ui->glWidget->opengl_engine, fonts, emoji_fonts);
+
+	MainWindowGLUICallbacks* glui_callbacks = new MainWindowGLUICallbacks();
+	glui_callbacks->main_window = this;
+	gui_client.gl_ui->callbacks = glui_callbacks;
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
@@ -2082,6 +2107,26 @@ void MainWindow::on_actionPaste_Object_triggered()
 }
 
 
+void MainWindow::glWidgetPasteShortcutTriggered()
+{
+	if(gui_client.gl_ui->getKeyboardFocusWidget().nonNull())
+	{
+		QClipboard* clipboard = QGuiApplication::clipboard();
+		const QMimeData* mime_data = clipboard->mimeData();
+
+		if(mime_data->hasText())
+		{
+			TextInputEvent text_input_event;
+			text_input_event.text = QtUtils::toStdString(mime_data->text());
+			gui_client.gl_ui->handleTextInputEvent(text_input_event);
+		}
+		return;
+	}
+	else
+		on_actionPaste_Object_triggered();
+}
+
+
 void MainWindow::on_actionCloneObject_triggered()
 {
 	if(gui_client.selected_ob.nonNull())
@@ -2995,13 +3040,26 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
 
 	gui_client.mousePressed(mouse_event);
+
+	if(mouse_event.accepted)
+	{
+		e->accept();
+		return;
+	}
+
+	gui_client.mouseClicked(mouse_event);
+
+	if(mouse_event.accepted)
+	{
+		e->accept();
+		return;
+	}
 }
 
 
-// This is emitted from GlWidget::mouseReleaseEvent().
-void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
+void MainWindow::glWidgetMouseReleased(QMouseEvent* e)
 {
-	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+	/*const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
 	MouseEvent mouse_event;
@@ -3016,7 +3074,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 	{
 		e->accept();
 		return;
-	}
+	}*/
 }
 
 
@@ -3235,7 +3293,7 @@ void setKeyEventFromQt(const QKeyEvent* e, KeyEvent& event_out)
 	
 	ev.key = Key::Key_None;
 	ev.native_virtual_key = e->nativeVirtualKey();
-	ev.text = QtUtils::toStdString(e->text());
+	//ev.text = QtUtils::toStdString(e->text());
 	ev.modifiers = fromQtModifiers(e->modifiers());
 
 	const int qt_key = e->key();
@@ -3249,6 +3307,10 @@ void setKeyEventFromQt(const QKeyEvent* e, KeyEvent& event_out)
 		ev.key = Key::Key_Delete;
 	else if(qt_key == Qt::Key::Key_Space)
 		ev.key = Key::Key_Space;
+	else if(qt_key == Qt::Key::Key_Enter)
+		ev.key = Key::Key_Enter;
+	else if(qt_key == Qt::Key::Key_Return)
+		ev.key = Key::Key_Return;
 
 	else if(qt_key == Qt::Key::Key_BracketLeft)
 		ev.key = Key::Key_LeftBracket;
@@ -3259,6 +3321,11 @@ void setKeyEventFromQt(const QKeyEvent* e, KeyEvent& event_out)
 		ev.key = Key::Key_PageUp;
 	else if(qt_key == Qt::Key::Key_PageDown)
 		ev.key = Key::Key_PageDown;
+
+	else if(qt_key == Qt::Key::Key_Home)
+		ev.key = Key::Key_Home;
+	else if(qt_key == Qt::Key::Key_End)
+		ev.key = Key::Key_End;
 
 	else if(qt_key == Qt::Key::Key_Equal)
 		ev.key = Key::Key_Equals;
@@ -3294,6 +3361,23 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 {
 	KeyEvent key_event;
 	setKeyEventFromQt(e, key_event);
+
+	if(!e->text().isEmpty() && 
+		key_event.key != Key::Key_Backspace && 
+		key_event.key != Key::Key_Delete &&
+		key_event.key != Key::Key_Left &&
+		key_event.key != Key::Key_Right &&
+		key_event.key != Key::Key_Return &&
+		key_event.key != Key::Key_Enter &&
+		key_event.key != Key::Key_Escape
+		)
+	{
+		TextInputEvent text_input_event;
+		text_input_event.text = QtUtils::toStdString(e->text());
+		gui_client.gl_ui->handleTextInputEvent(text_input_event);
+		if(text_input_event.accepted)
+			return;
+	}
 
 	gui_client.keyPressed(key_event);
 }
