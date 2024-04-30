@@ -71,72 +71,24 @@ void ObInfoUI::showHyperLink(const std::string& URL, const Vec2f& gl_coords)
 
 void ObInfoUI::showMessage(const std::string& message, const Vec2f& gl_coords)
 {
-	// Convert from gl_coords to UI x/y coords
-	const float y_scale = 1 / opengl_engine->getViewPortAspectRatio();
-	const Vec2f coords(gl_coords.x, gl_coords.y * y_scale);
+	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(gl_coords);
 
 	info_text_view->setText(*gl_ui, message);
 
-	//const Vec2f text_dims = info_text_view->getDims();
+	info_text_view->setPos(*gl_ui, /*botleft=*/coords + Vec2f(-gl_ui->getUIWidthForDevIndepPixelWidth(100), -gl_ui->getUIWidthForDevIndepPixelWidth(50)));
 
-	//const float scale_y = 70.0f / opengl_engine->getViewPortWidth(); // ~50 px high
-	//const float scale_x = 70.0f / opengl_engine->getViewPortWidth() * ((float)tex_dims.x / (float)tex_dims.y);
-
-	//const float use_w = scale_x;
-	//const float use_h = scale_y;
-
-	//const int max_w_pixels = 900;
-	//const float max_w = (float)max_w_pixels / opengl_engine->getViewPortWidth();
-	//
-	//const float use_w = myMin(max_w, 1.8f);
-	//const float use_h = use_w * (tex_dims.y / tex_dims.x);
-
-	const float vert_offset = 0.1f; // ((float)100 / opengl_engine->getViewPortHeight()) / y_scale;
-
-	info_text_view->setPos(*gl_ui, /*botleft=*/coords + Vec2f(-0.3f, -vert_offset));
-
-
-	//const Vec2f tex_dims = info_text_view->getTextureDimensions();
-
-	//const float scale_y = 70.0f / opengl_engine->getViewPortWidth(); // ~50 px high
-	//const float scale_x = 70.0f / opengl_engine->getViewPortWidth() * ((float)tex_dims.x / (float)tex_dims.y);
-
-	//const float use_w = scale_x;
-	//const float use_h = scale_y;
-
-	////const int max_w_pixels = 900;
-	////const float max_w = (float)max_w_pixels / opengl_engine->getViewPortWidth();
-	////
-	////const float use_w = myMin(max_w, 1.8f);
-	////const float use_h = use_w * (tex_dims.y / tex_dims.x);
-
-	//const float vert_offset = 0.1f; // ((float)100 / opengl_engine->getViewPortHeight()) / y_scale;
-
-	//info_text_view->setPosAndDims(/*botleft=*/coords + Vec2f(-0.3f, -vert_offset), /*dims=*/Vec2f(use_w, use_h));
+	info_text_view->setVisible(true);
 }
 
 
 void ObInfoUI::hideMessage()
 {
-	//info_text_view->setPosAndDims(/*botleft=*/Vec2f(-100.f, -100.f), /*dims=*/Vec2f(0.6f, 0.2f)); // Position off-screen
-	info_text_view->setPos(*gl_ui, /*botleft=*/Vec2f(-100.f, -100.f)); // Position off-screen
+	info_text_view->setVisible(false);
 }
 
 
 void ObInfoUI::updateWidgetPositions()
 {
-	if(gl_ui.nonNull())
-	{
-		//const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
-		//
-		//const float SPACING = 0.02f;
-		//const float BUTTON_W = 0.07f;
-		//const float BUTTON_H = 0.07f;
-		//
-		//selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
-
-		
-	}
 }
 
 
@@ -160,7 +112,6 @@ void ObInfoUI::eventOccurred(GLUICallbackEvent& event)
 			event.accepted = true;
 
 			conPrint("Clicked on text view!");
-			//gui_client->setSelfieModeEnabled(selfie_button->toggled);
 		}
 	}
 }
