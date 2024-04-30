@@ -42,13 +42,12 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 	opengl_engine->addOverlayObject(background_overlay_ob);
 
 
-	chat_line_edit = new GLUILineEdit();
 	GLUILineEdit::GLUILineEditCreateArgs create_args;
 	create_args.width = widget_w;
 	create_args.background_colour = Colour3f(0.0f);
 	create_args.background_alpha = 0.8f;
 	create_args.font_size_px = font_size_px;
-	chat_line_edit->create(*gl_ui, opengl_engine, /*dummy botleft=*/Vec2f(0.f), create_args);
+	chat_line_edit = new GLUILineEdit(*gl_ui, opengl_engine, /*dummy botleft=*/Vec2f(0.f), create_args);
 
 	GLUILineEdit* chat_line_edit_ptr = chat_line_edit.ptr();
 	chat_line_edit->on_enter_pressed = [chat_line_edit_ptr, gui_client_]()
