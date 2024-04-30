@@ -82,7 +82,7 @@ protected:
 signals:;
 	void widgetShowSignal();
 	void mousePressed(QMouseEvent* e);
-	void mouseClicked(QMouseEvent* e);
+	void mouseReleased(QMouseEvent* e);
 	void mouseMoved(QMouseEvent* e);
 	void keyPressed(QKeyEvent* e);
 	void keyReleased(QKeyEvent* e);

@@ -416,7 +416,7 @@ void GlWidget::mouseReleaseEvent(QMouseEvent* e)
 		//conPrint("Click at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
 		//conPrint("Click at " + toString(e->pos().x()) + ", " + toString(e->pos().y()));
 
-		emit mouseClicked(e);
+		emit mouseReleased(e);
 	}
 }
 

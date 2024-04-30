@@ -530,6 +530,8 @@ static inline Key getKeyForSDLKey(SDL_Keycode sym)
 		case SDLK_RIGHTBRACKET: return Key_RightBracket;
 		case SDLK_PAGEUP: return Key_PageUp;
 		case SDLK_PAGEDOWN: return Key_PageDown;
+		case SDLK_HOME: return Key_Home;
+		case SDLK_END: return Key_End;
 		case SDLK_EQUALS: return Key_Equals;
 		case SDLK_PLUS: return Key_Plus;
 		case SDLK_MINUS: return Key_Minus;
