@@ -619,6 +619,7 @@ static double last_timerEvent_CPU_work_elapsed = 0;
 double last_updateGL_time = 0;
 
 static bool doing_cam_rotate_mouse_drag = false; // Is the mouse pointer hidden, and will moving the mouse rotate the camera?
+// TODO: replace with ui_interface->getCamRotationOnMouseDragEnabled
 
 
 static void doOneMainLoopIter()
