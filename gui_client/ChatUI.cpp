@@ -88,21 +88,37 @@ void ChatUI::think()
 
 void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avatar_colour, const std::string& msg)
 {
-	ChatMessage chatmessage;
-	GLUITextView::GLUITextViewCreateArgs name_args;
-	name_args.text_colour = avatar_colour;
-	name_args.font_size_px = font_size_px;
-	name_args.background_alpha = 0;
-	chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, avatar_name, Vec2f(0.f), name_args);
-	gl_ui->addWidget(chatmessage.name_text);
+	// Add
+	{
+		ChatMessage chatmessage;
+		GLUITextView::GLUITextViewCreateArgs name_args;
+		name_args.text_colour = avatar_colour;
+		name_args.font_size_px = font_size_px;
+		name_args.background_alpha = 0;
+		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, avatar_name, Vec2f(0.f), name_args);
+		gl_ui->addWidget(chatmessage.name_text);
 
-	GLUITextView::GLUITextViewCreateArgs msg_args;
-	msg_args.font_size_px = font_size_px;
-	msg_args.background_alpha = 0;
-	chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, msg, Vec2f(0.f), msg_args);
-	gl_ui->addWidget(chatmessage.msg_text);
+		GLUITextView::GLUITextViewCreateArgs msg_args;
+		msg_args.font_size_px = font_size_px;
+		msg_args.background_alpha = 0;
+		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, msg, Vec2f(0.f), msg_args);
+		gl_ui->addWidget(chatmessage.msg_text);
 
-	messages.push_back(chatmessage);
+		messages.push_back(chatmessage);
+	}
+
+
+	// Remove old messages if we exceed max num messages
+	const size_t MAX_NUM_MESSAGES = 30;
+	if(messages.size() > MAX_NUM_MESSAGES)
+	{
+		ChatMessage removed_msg = messages.front();
+		messages.pop_front();
+
+		gl_ui->removeWidget(removed_msg.name_text);
+		gl_ui->removeWidget(removed_msg.msg_text);
+	}
+
 
 	updateWidgetTransforms();
 }
