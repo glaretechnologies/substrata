@@ -571,6 +571,16 @@ static MouseButton convertSDLMouseButton(uint8 sdl_button)
 }
 
 
+static uint32 convertSDLMouseButtonState(uint32 sdl_state)
+{
+	uint32 res = 0;
+	if(sdl_state & SDL_BUTTON_LMASK) res |= (uint32)MouseButton::Left;
+	if(sdl_state & SDL_BUTTON_MMASK) res |= (uint32)MouseButton::Middle;
+	if(sdl_state & SDL_BUTTON_RMASK) res |= (uint32)MouseButton::Right;
+	return res;
+}
+
+
 static uint32 convertSDLModifiers(SDL_Keymod sdl_keymod)
 {
 	uint32 modifiers = 0;
@@ -607,6 +617,9 @@ static uintptr_t last_dynamic_top = 0;
 
 static double last_timerEvent_CPU_work_elapsed = 0;
 double last_updateGL_time = 0;
+
+static bool doing_cam_rotate_mouse_drag = false; // Is the mouse pointer hidden, and will moving the mouse rotate the camera?
+
 
 static void doOneMainLoopIter()
 {
@@ -674,7 +687,19 @@ static void doOneMainLoopIter()
 				KeyEvent key_event;
 				convertFromSDKKeyEvent(e, key_event);
 
-				if(key_event.key == Key_V && (key_event.modifiers & (uint32)Modifiers::Ctrl))
+				if(key_event.key == Key_X && (key_event.modifiers & (uint32)Modifiers::Ctrl)) // Check for cut command
+				{
+					std::string new_clipboard_contents;
+					gui_client->gl_ui->handleCutEvent(new_clipboard_contents);
+					SDL_SetClipboardText(new_clipboard_contents.c_str());
+				}
+				else if(key_event.key == Key_C && (key_event.modifiers & (uint32)Modifiers::Ctrl)) // Check for copy command
+				{
+					std::string new_clipboard_contents;
+					gui_client->gl_ui->handleCopyEvent(new_clipboard_contents);
+					SDL_SetClipboardText(new_clipboard_contents.c_str());
+				}
+				else if(key_event.key == Key_V && (key_event.modifiers & (uint32)Modifiers::Ctrl)) // Check for paste command
 				{
 					TextInputEvent text_input_event;
 					char* keyboard_text = SDL_GetClipboardText(); // Caller must call SDL_free() on the returned pointer when done with it
@@ -709,7 +734,7 @@ static void doOneMainLoopIter()
 			// conPrint("SDL_MOUSEMOTION, pos: " + Vec2i(e.motion.x, e.motion.y).toString());
 			if(!imgui_captures_mouse_ev)
 			{
-				if(true/* camcam_rot_on_mouse_move_enabled*/  && (e.motion.state & SDL_BUTTON_LMASK))
+				if(doing_cam_rotate_mouse_drag && (e.motion.state & SDL_BUTTON_LMASK))
 				{
 					Vec2i delta(e.motion.xrel, -e.motion.yrel);
 
@@ -733,6 +758,7 @@ static void doOneMainLoopIter()
 				move_event.cursor_pos = Vec2i(e.motion.x, e.motion.y);
 				move_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.motion.x, (float)e.motion.y));
 				move_event.modifiers = convertSDLModifiers(SDL_GetModState());
+				move_event.button_state = convertSDLMouseButtonState(e.motion.state);
 				gui_client->mouseMoved(move_event);
 			}
 		}
@@ -752,15 +778,17 @@ static void doOneMainLoopIter()
 
 				if(e.button.clicks == 1) // Single click:
 				{
-					gui_client->mouseClicked(mouse_event);
+					gui_client->mousePressed(mouse_event);
 					if(!mouse_event.accepted)
 					{
-						SDL_SetRelativeMouseMode(SDL_TRUE);
+						//conPrint("Entering relative mouse mode...");
+						SDL_SetRelativeMouseMode(SDL_TRUE); // Hide mouse cursor and constrain to window and report relative mouse motion.
+						doing_cam_rotate_mouse_drag = true;
 					}
 				}
 				else if(e.button.clicks == 2) // Double click:
 				{
-					gui_client->doObjectSelectionTraceForMouseEvent(mouse_event);
+					gui_client->mouseDoubleClicked(mouse_event);
 				}
 			}
 		}
@@ -768,11 +796,19 @@ static void doOneMainLoopIter()
 		{
 			if(!imgui_captures_mouse_ev)
 			{
+				MouseEvent mouse_event;
+				mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
+				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
+				mouse_event.button = convertSDLMouseButton(e.button.button);
+				mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
+				gui_client->gl_ui->handleMouseRelease(mouse_event);
+
 				// conPrint("SDL_MOUSEBUTTONUP, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
 
 				if(e.button.clicks == 1) // Single click:
 				{
 					SDL_SetRelativeMouseMode(SDL_FALSE);
+					doing_cam_rotate_mouse_drag = false;
 				}
 			}
 		}

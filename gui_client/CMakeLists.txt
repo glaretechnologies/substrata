@@ -520,6 +520,10 @@ SET(audio
 ../audio/MicReadThread.h
 )
 
+SET(ui
+${GLARE_CORE_TRUNK_DIR_ENV}/ui/UIEvents.h
+)
+
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver)
 
 
@@ -934,6 +938,7 @@ SOURCE_GROUP(opus FILES ${opus_src})
 SOURCE_GROUP(tracy FILES ${tracy_files})
 SOURCE_GROUP(freetype FILES ${freetype})
 SOURCE_GROUP(imgui FILES ${imgui})
+SOURCE_GROUP(ui FILES ${ui})
 
 
 
@@ -1007,6 +1012,7 @@ ${opus_src}
 ${tracy_files}
 ${imgui}
 ${freetype}
+${ui}
 )
 
 add_definitions(-DGUI_CLIENT=1)

@@ -161,7 +161,8 @@ public:
 	void objectEdited();
 	void posAndRot3DControlsToggled(bool enabled);
 	void mousePressed(MouseEvent& e);
-	void mouseClicked(MouseEvent& e);
+	void mouseReleased(MouseEvent& e);
+	void mouseDoubleClicked(MouseEvent& e);
 	void doObjectSelectionTraceForMouseEvent(MouseEvent& e);
 	void updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& gl_coords, MouseEvent* mouse_event);
 	void mouseMoved(MouseEvent& mouse_event);
