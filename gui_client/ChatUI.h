@@ -47,8 +47,8 @@ private:
 
 	struct ChatMessage
 	{
-		GLUITextRef name_text;
-		GLUITextRef msg_text;
+		GLUITextViewRef name_text;
+		GLUITextViewRef msg_text;
 	};
 
 	std::list<ChatMessage> messages;

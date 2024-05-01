@@ -89,14 +89,18 @@ void ChatUI::think()
 void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avatar_colour, const std::string& msg)
 {
 	ChatMessage chatmessage;
-	GLUIText::GLUITextCreateArgs name_args;
-	name_args.colour = avatar_colour;
+	GLUITextView::GLUITextViewCreateArgs name_args;
+	name_args.text_colour = avatar_colour;
 	name_args.font_size_px = font_size_px;
-	chatmessage.name_text = new GLUIText(*gl_ui, opengl_engine, avatar_name, Vec2f(0.f), name_args);
+	name_args.background_alpha = 0;
+	chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, avatar_name, Vec2f(0.f), name_args);
+	gl_ui->addWidget(chatmessage.name_text);
 
-	GLUIText::GLUITextCreateArgs msg_args;
+	GLUITextView::GLUITextViewCreateArgs msg_args;
 	msg_args.font_size_px = font_size_px;
-	chatmessage.msg_text = new GLUIText(*gl_ui, opengl_engine, msg, Vec2f(0.f), msg_args);
+	msg_args.background_alpha = 0;
+	chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, msg, Vec2f(0.f), msg_args);
+	gl_ui->addWidget(chatmessage.msg_text);
 
 	messages.push_back(chatmessage);
 
@@ -160,11 +164,11 @@ void ChatUI::updateWidgetTransforms()
 	{
 		ChatMessage& msg = *it;
 
-		msg.name_text->setPos(/*botleft=*/Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20 + msgs_padding_w_px), y));
-		msg.name_text->overlay_ob->clip_region = clip_region;
+		msg.name_text->setPos(*gl_ui, /*botleft=*/Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20 + msgs_padding_w_px), y));
+		msg.name_text->glui_text->overlay_ob->clip_region = clip_region;
 
-		msg.msg_text->setPos(/*botleft=*/Vec2f(msg.name_text->getRect().getMax().x/* + gl_ui->getUIWidthForDevIndepPixelWidth(20)*/, y));
-		msg.msg_text->overlay_ob->clip_region = clip_region;
+		msg.msg_text->setPos(*gl_ui, /*botleft=*/Vec2f(msg.name_text->getRect().getMax().x/* + gl_ui->getUIWidthForDevIndepPixelWidth(20)*/, y));
+		msg.msg_text->glui_text->overlay_ob->clip_region = clip_region;
 
 		const float max_msg_y = myMax(msg.name_text->getRect().getMax().y, msg.msg_text->getRect().getMax().y);
 

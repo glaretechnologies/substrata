@@ -9999,6 +9999,13 @@ void GUIClient::mousePressed(MouseEvent& e)
 {
 	// conPrint("GUIClient::mousePressed");
 
+	if(gl_ui.nonNull())
+	{
+		gl_ui->handleMousePress(e);
+		if(e.accepted)
+			return;
+	}
+
 	// Trace through scene to see if we are clicking on a web-view
 	if(this->physics_world.nonNull())
 	{
@@ -10101,6 +10108,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 
 // This is emitted from GlWidget::mouseReleaseEvent().
+#if 0
 void GUIClient::mouseClicked(MouseEvent& e)
 {
 	// conPrint("GUIClient::mouseClicked");
@@ -10261,6 +10269,21 @@ void GUIClient::mouseClicked(MouseEvent& e)
 		}
 		
 	}
+}
+#endif
+
+
+void GUIClient::mouseDoubleClicked(MouseEvent& mouse_event)
+{
+	if(gl_ui.nonNull())
+	{
+		gl_ui->handleMouseDoubleClick(mouse_event);
+		if(mouse_event.accepted)
+			return;
+	}
+
+
+	doObjectSelectionTraceForMouseEvent(mouse_event);
 }
 
 
@@ -10634,7 +10657,7 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 {
 	if(gl_ui.nonNull())
 	{
-		const bool accepted = gl_ui->handleMouseMoved(mouse_event.gl_coords);
+		const bool accepted = gl_ui->handleMouseMoved(mouse_event);
 		if(accepted)
 		{
 			mouse_event.accepted = true;
@@ -11216,6 +11239,10 @@ void GUIClient::viewportResized(int w, int h)
 	hud_ui.viewportResized(w, h);
 	chat_ui.viewportResized(w, h);
 	minimap.viewportResized(w, h);
+}
+
+void GUIClient::mouseReleased(MouseEvent& e)
+{
 }
 
 
