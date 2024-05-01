@@ -141,6 +141,10 @@ GlWidget::GlWidget(QWidget *parent)
 	connect(copy_shortcut, SIGNAL(activated()), this, SIGNAL(copyShortcutActivated()));
 	copy_shortcut->setContext(Qt::WidgetWithChildrenShortcut); // We only want CTRL+C to work for the graphics view when it has focus.
 
+	QShortcut* cut_shortcut = new QShortcut(QKeySequence(tr("Ctrl+X")), this);
+	connect(cut_shortcut, SIGNAL(activated()), this, SIGNAL(cutShortcutActivated()));
+	cut_shortcut->setContext(Qt::WidgetWithChildrenShortcut); // We only want CTRL+X to work for the graphics view when it has focus.
+
 	QShortcut* paste_shortcut = new QShortcut(QKeySequence(tr("Ctrl+V")), this);
 	connect(paste_shortcut, SIGNAL(activated()), this, SIGNAL(pasteShortcutActivated()));
 	paste_shortcut->setContext(Qt::WidgetWithChildrenShortcut); // We only want CTRL+V to work for the graphics view when it has focus.

@@ -106,6 +106,8 @@ private slots:;
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 	void glWidgetViewportResized(int w, int h);
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
+	void glWidgetCutShortcutTriggered();
+	void glWidgetCopyShortcutTriggered();
 	void glWidgetPasteShortcutTriggered();
 
 	void objectTransformEditedSlot();
@@ -203,7 +205,7 @@ public:
 	virtual void startObEditorTimerIfNotActive() override;
 	virtual void startLightmapFlagTimer() override;
 
-	virtual void setCamRotationOnMouseMoveEnabled(bool enabled) override;
+	virtual void setCamRotationOnMouseDragEnabled(bool enabled) override;
 	virtual bool isCursorHidden() override;
 	virtual void hideCursor() override;
 
