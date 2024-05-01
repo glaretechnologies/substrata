@@ -437,7 +437,7 @@ int main(int argc, char** argv)
 			}, true);
 		});
 
-		// Set a lambda as a callback to handle pasted data:
+		// Set paste event callback.  The lambda function will execute when a paste action is detected in the browser.
 		emscripten_browser_clipboard::paste([](const std::string& paste_data, void* /*callback_data*/){
 			TextInputEvent text_input_event;
 			text_input_event.text = paste_data;
@@ -690,15 +690,25 @@ static void doOneMainLoopIter()
 
 				if(key_event.key == Key_X && (key_event.modifiers & (uint32)Modifiers::Ctrl)) // Check for cut command
 				{
+					//conPrint("CTRL + X detected");
 					std::string new_clipboard_contents;
 					gui_client->gl_ui->handleCutEvent(new_clipboard_contents);
+#if EMSCRIPTEN
+					emscripten_browser_clipboard::copy(new_clipboard_contents);
+#else
 					SDL_SetClipboardText(new_clipboard_contents.c_str());
+#endif
 				}
 				else if(key_event.key == Key_C && (key_event.modifiers & (uint32)Modifiers::Ctrl)) // Check for copy command
 				{
+					//conPrint("CTRL + C detected");
 					std::string new_clipboard_contents;
 					gui_client->gl_ui->handleCopyEvent(new_clipboard_contents);
+#if EMSCRIPTEN
+					emscripten_browser_clipboard::copy(new_clipboard_contents);
+#else
 					SDL_SetClipboardText(new_clipboard_contents.c_str());
+#endif
 				}
 				else if(key_event.key == Key_V && (key_event.modifiers & (uint32)Modifiers::Ctrl)) // Check for paste command
 				{
