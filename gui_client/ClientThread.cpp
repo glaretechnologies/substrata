@@ -851,7 +851,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::ChatMessageID:
 		{
-			conPrint("ChatMessage");
+			//conPrint("ChatMessage");
 			const std::string name = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 			const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 			out_msg_queue->enqueue(new ChatMessage(name, msg));
