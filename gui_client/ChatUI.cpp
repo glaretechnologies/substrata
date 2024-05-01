@@ -42,7 +42,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 	opengl_engine->addOverlayObject(background_overlay_ob);
 
 
-	GLUILineEdit::GLUILineEditCreateArgs create_args;
+	GLUILineEdit::CreateArgs create_args;
 	create_args.width = widget_w;
 	create_args.background_colour = Colour3f(0.0f);
 	create_args.background_alpha = 0.8f;
@@ -91,14 +91,14 @@ void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avata
 	// Add
 	{
 		ChatMessage chatmessage;
-		GLUITextView::GLUITextViewCreateArgs name_args;
+		GLUITextView::CreateArgs name_args;
 		name_args.text_colour = avatar_colour;
 		name_args.font_size_px = font_size_px;
 		name_args.background_alpha = 0;
 		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, avatar_name, Vec2f(0.f), name_args);
 		gl_ui->addWidget(chatmessage.name_text);
 
-		GLUITextView::GLUITextViewCreateArgs msg_args;
+		GLUITextView::CreateArgs msg_args;
 		msg_args.font_size_px = font_size_px;
 		msg_args.background_alpha = 0;
 		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, msg, Vec2f(0.f), msg_args);

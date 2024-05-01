@@ -24,7 +24,7 @@ void ObInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cl
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
-	GLUITextView::GLUITextViewCreateArgs create_args;
+	GLUITextView::CreateArgs create_args;
 	info_text_view = new GLUITextView(*gl_ui, opengl_engine, "", Vec2f(0.f), create_args);
 	info_text_view->setVisible(false);
 	//info_text_view->handler = this;
