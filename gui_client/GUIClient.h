@@ -212,7 +212,7 @@ public:
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
 	// Action will be printed in error message, could be "modify" or "delete"
 	bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob) const;
-	bool areEditingVoxels() const;
+	bool selectedObjectIsVoxelOb() const;
 	bool isObjectWithPosition(const Vec3d& pos);
 	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const;
 public:
