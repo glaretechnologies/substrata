@@ -233,7 +233,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(focusOutSignal()), this, SLOT(glWidgetFocusOut()));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
-	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(on_actionCopy_Object_triggered()));
+	connect(ui->glWidget, SIGNAL(cutShortcutActivated()), this, SLOT(glWidgetCutShortcutTriggered()));
+	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(glWidgetCopyShortcutTriggered()));
 	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(glWidgetPasteShortcutTriggered()));
 	connect(ui->objectEditor, SIGNAL(objectTransformChanged()), this, SLOT(objectTransformEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
@@ -2107,6 +2108,40 @@ void MainWindow::on_actionPaste_Object_triggered()
 }
 
 
+void MainWindow::glWidgetCutShortcutTriggered()
+{
+	if(gui_client.gl_ui->getKeyboardFocusWidget().nonNull())
+	{
+		std::string new_clipboard_content;
+		gui_client.gl_ui->handleCutEvent(new_clipboard_content);
+
+		QMimeData* mime_data = new QMimeData();
+		mime_data->setText(QtUtils::toQString(new_clipboard_content));
+
+		QGuiApplication::clipboard()->setMimeData(mime_data);
+	}
+}
+
+
+void MainWindow::glWidgetCopyShortcutTriggered()
+{
+	if(gui_client.gl_ui->getKeyboardFocusWidget().nonNull())
+	{
+		std::string new_clipboard_content;
+		gui_client.gl_ui->handleCopyEvent(new_clipboard_content);
+
+		QMimeData* mime_data = new QMimeData();
+		mime_data->setText(QtUtils::toQString(new_clipboard_content));
+
+		QGuiApplication::clipboard()->setMimeData(mime_data);
+	}
+	else
+	{
+		on_actionCopy_Object_triggered();
+	}
+}
+
+
 void MainWindow::glWidgetPasteShortcutTriggered()
 {
 	if(gui_client.gl_ui->getKeyboardFocusWidget().nonNull())
@@ -3016,6 +3051,16 @@ static MouseButton fromQtMouseButton(Qt::MouseButton b)
 }
 
 
+static uint32 fromQTMouseButtons(Qt::MouseButtons b)
+{
+	uint32 res = 0;
+	if(BitUtils::isBitSet((uint32)b, (uint32)Qt::MouseButton::LeftButton))   res |= MouseButton::Left;
+	if(BitUtils::isBitSet((uint32)b, (uint32)Qt::MouseButton::MiddleButton)) res |= MouseButton::Middle;
+	if(BitUtils::isBitSet((uint32)b, (uint32)Qt::MouseButton::RightButton))  res |= MouseButton::Right;
+	return res;
+}
+
+
 static uint32 fromQtModifiers(Qt::KeyboardModifiers modifiers)
 {
 	const bool ctrl_key_down = (modifiers & Qt::ControlModifier) != 0;
@@ -3042,24 +3087,13 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 	gui_client.mousePressed(mouse_event);
 
 	if(mouse_event.accepted)
-	{
 		e->accept();
-		return;
-	}
-
-	gui_client.mouseClicked(mouse_event);
-
-	if(mouse_event.accepted)
-	{
-		e->accept();
-		return;
-	}
 }
 
 
 void MainWindow::glWidgetMouseReleased(QMouseEvent* e)
 {
-	/*const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
 	MouseEvent mouse_event;
@@ -3068,13 +3102,10 @@ void MainWindow::glWidgetMouseReleased(QMouseEvent* e)
 	mouse_event.button = fromQtMouseButton(e->button());
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
 
-	gui_client.mouseClicked(mouse_event);
+	gui_client.mouseReleased(mouse_event);
 
 	if(mouse_event.accepted)
-	{
 		e->accept();
-		return;
-	}*/
 }
 
 
@@ -3100,9 +3131,9 @@ void MainWindow::startLightmapFlagTimer()
 }
 
 
-void MainWindow::setCamRotationOnMouseMoveEnabled(bool enabled)
+void MainWindow::setCamRotationOnMouseDragEnabled(bool enabled)
 {
-	ui->glWidget->setCamRotationOnMouseMoveEnabled(enabled);
+	ui->glWidget->setCamRotationOnMouseDragEnabled(enabled);
 }
 
 
@@ -3253,7 +3284,16 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 {
 	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
 
-	doObjectSelectionTraceForMouseEvent(e);
+	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+
+	MouseEvent mouse_event;
+	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
+	mouse_event.gl_coords = gl_coords;
+	mouse_event.button = fromQtMouseButton(e->button());
+	mouse_event.modifiers = fromQtModifiers(e->modifiers());
+
+	gui_client.mouseDoubleClicked(mouse_event);
 }
 
 
@@ -3269,6 +3309,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
 	mouse_event.gl_coords = gl_coords;
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
+	mouse_event.button_state = fromQTMouseButtons(e->buttons());
 
 	gui_client.mouseMoved(mouse_event);
 

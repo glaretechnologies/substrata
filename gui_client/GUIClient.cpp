@@ -10003,8 +10003,13 @@ void GUIClient::mousePressed(MouseEvent& e)
 	{
 		gl_ui->handleMousePress(e);
 		if(e.accepted)
+		{
+			ui_interface->setCamRotationOnMouseDragEnabled(false); // If the user clicked on a UI widget, we don't want click+mouse dragging to move the camera.
 			return;
+		}
 	}
+
+	ui_interface->setCamRotationOnMouseDragEnabled(true);
 
 	// Trace through scene to see if we are clicking on a web-view
 	if(this->physics_world.nonNull())
@@ -10064,7 +10069,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 				// Usually when the mouse button is held down, moving the mouse rotates the camera.
 				// But when we have grabbed an arrow or rotation arc, it moves the object instead.  So don't rotate the camera.
-				ui_interface->setCamRotationOnMouseMoveEnabled(false);
+				ui_interface->setCamRotationOnMouseDragEnabled(false);
 
 				undo_buffer.startWorldObjectEdit(*this->selected_ob);
 			}

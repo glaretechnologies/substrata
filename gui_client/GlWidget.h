@@ -52,7 +52,7 @@ public:
 
 	void setCameraController(CameraController* cam_controller_);
 
-	void setCamRotationOnMouseMoveEnabled(bool enabled) { cam_rot_on_mouse_move_enabled = enabled; }
+	void setCamRotationOnMouseDragEnabled(bool enabled) { cam_rot_on_mouse_move_enabled = enabled; }
 	void setKeyboardCameraMoveEnabled(bool enabled) { cam_move_on_key_input_enabled = enabled; }
 	bool isKeyboardCameraMoveEnabled() { return cam_move_on_key_input_enabled; }
 	void hideCursor();
@@ -84,11 +84,12 @@ signals:;
 	void mousePressed(QMouseEvent* e);
 	void mouseReleased(QMouseEvent* e);
 	void mouseMoved(QMouseEvent* e);
-	void keyPressed(QKeyEvent* e);
-	void keyReleased(QKeyEvent* e);
 	void mouseWheelSignal(QWheelEvent* e);
 	void mouseDoubleClickedSignal(QMouseEvent* e);
+	void keyPressed(QKeyEvent* e);
+	void keyReleased(QKeyEvent* e);
 	void viewportResizedSignal(int w, int h);
+	void cutShortcutActivated();
 	void copyShortcutActivated();
 	void pasteShortcutActivated();
 	void focusOutSignal();
