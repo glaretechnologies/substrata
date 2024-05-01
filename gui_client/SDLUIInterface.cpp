@@ -187,7 +187,7 @@ void SDLUIInterface::startLightmapFlagTimer()
 {
 }
 
-void SDLUIInterface::setCamRotationOnMouseMoveEnabled(bool enabled)
+void SDLUIInterface::setCamRotationOnMouseDragEnabled(bool enabled)
 {
 
 }
