@@ -7436,7 +7436,7 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 {
 	bool should_display_voxel_edit_marker = false;
 	bool should_display_voxel_edit_face_marker = false;
-	if(areEditingVoxels())
+	if(selectedObjectIsVoxelOb())
 	{
 		// NOTE: Stupid qt: QApplication::keyboardModifiers() doesn't update properly when just CTRL is pressed/released, without any other events.
 		// So use GetAsyncKeyState on Windows, since it actually works.
@@ -7936,7 +7936,7 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 }
 
 
-bool GUIClient::areEditingVoxels() const
+bool GUIClient::selectedObjectIsVoxelOb() const
 {
 	return this->selected_ob.nonNull() && this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup;
 }
@@ -10011,7 +10011,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 	ui_interface->setCamRotationOnMouseDragEnabled(true);
 
-	// Trace through scene to see if we are clicking on a web-view
+	// Trace through scene to see if we are clicking on a web-view.  Send mousePressed events to the web view if so.
 	if(this->physics_world.nonNull())
 	{
 		// Trace ray through scene
@@ -10104,81 +10104,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 		}
 	}
 
-	// If we didn't grab any control, we will be in camera-rotate mode, so hide the mouse cursor.
-	if(grabbed_axis < 0)
-	{
-		ui_interface->hideCursor();
-	}
-}
-
-
-// This is emitted from GlWidget::mouseReleaseEvent().
-#if 0
-void GUIClient::mouseClicked(MouseEvent& e)
-{
-	// conPrint("GUIClient::mouseClicked");
-
-	const Vec2f gl_coords = e.gl_coords;
-
-	if(gl_ui.nonNull())
-	{
-		const bool accepted = gl_ui->handleMouseClick(gl_coords);
-		if(accepted)
-		{
-			e.accepted = true;
-			return;
-		}
-	}
-
-	if(grabbed_axis != -1 && selected_ob.nonNull())
-	{
-		undo_buffer.finishWorldObjectEdit(*selected_ob);
-		grabbed_axis = -1;
-	}
-	ui_interface->setCamRotationOnMouseMoveEnabled(true);
-
-	updateSelectedObjectPlacementBeam(); // Update so that rot arc handles snap back oriented to camera.
-
-	if(selected_ob.nonNull())
-	{
-		selected_ob->decompressVoxels(); // Make sure voxels are decompressed for this object.
-	}
-
-
-	// Trace through scene to see if we are clicking on a web-view
-	if(this->physics_world.nonNull())
-	{
-		// Trace ray through scene
-		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
-
-		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
-
-		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
-		{
-			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
-
-			const Vec4f hitpos_ws = origin + dir * results.hit_t;
-			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
-
-			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
-				Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
-				Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
-
-			if(ob->web_view_data.nonNull()) // If this is a web-view object:
-			{
-				ob->web_view_data->mouseReleased(&e, uvs);
-			}
-			else if(ob->browser_vid_player.nonNull()) // If this is a video object:
-			{
-				ob->browser_vid_player->mouseReleased(&e, uvs);
-			}
-		}
-	}
-
-
-	if(areEditingVoxels())
+	if(selectedObjectIsVoxelOb())
 	{
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
@@ -10272,10 +10198,59 @@ void GUIClient::mouseClicked(MouseEvent& e)
 				}
 			}
 		}
-		
+	}
+
+	// If we didn't grab any control, we will be in camera-rotate mode, so hide the mouse cursor.
+	if(grabbed_axis < 0)
+	{
+		ui_interface->hideCursor();
 	}
 }
-#endif
+
+
+void GUIClient::mouseReleased(MouseEvent& e)
+{
+	updateSelectedObjectPlacementBeam(); // Update so that rot arc handles snap back oriented to camera.
+
+	// If we were dragging an object along a movement axis, we have released the mouse button and hence finished the movement.  un-grab the axis.
+	if(grabbed_axis != -1 && selected_ob.nonNull())
+	{
+		undo_buffer.finishWorldObjectEdit(*selected_ob);
+		grabbed_axis = -1;
+	}
+
+	// Trace through scene to see if we are clicking on a web-view.  Send mouseReleased events to the web view if so.
+	if(this->physics_world.nonNull())
+	{
+		// Trace ray through scene
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
+
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+
+		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
+		{
+			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+			const Vec4f hitpos_ws = origin + dir * results.hit_t;
+			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+			const Vec2f uvs = (hitpos_os[1] < 0.5f) ? // if y coordinate is closer to y=0 than y=1:
+				Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+				Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
+			if(ob->web_view_data.nonNull()) // If this is a web-view object:
+			{
+				ob->web_view_data->mouseReleased(&e, uvs);
+			}
+			else if(ob->browser_vid_player.nonNull()) // If this is a video object:
+			{
+				ob->browser_vid_player->mouseReleased(&e, uvs);
+			}
+		}
+	}
+}
 
 
 void GUIClient::mouseDoubleClicked(MouseEvent& mouse_event)
@@ -10286,7 +10261,6 @@ void GUIClient::mouseDoubleClicked(MouseEvent& mouse_event)
 		if(mouse_event.accepted)
 			return;
 	}
-
 
 	doObjectSelectionTraceForMouseEvent(mouse_event);
 }
@@ -11244,10 +11218,6 @@ void GUIClient::viewportResized(int w, int h)
 	hud_ui.viewportResized(w, h);
 	chat_ui.viewportResized(w, h);
 	minimap.viewportResized(w, h);
-}
-
-void GUIClient::mouseReleased(MouseEvent& e)
-{
 }
 
 
