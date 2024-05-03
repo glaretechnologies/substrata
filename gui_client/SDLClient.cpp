@@ -158,6 +158,11 @@ EM_JS(void, updateURL, (const char* new_URL), {
 	history.replaceState(null, "",  UTF8ToString(new_URL)); // See https://developer.mozilla.org/en-US/docs/Web/API/History/replaceState
 });
 
+// Define getUserAgentString() function
+EM_JS(char*, getUserAgentString, (), {
+	return stringToNewUTF8(window.navigator.userAgent);
+});
+
 #endif
 
 int main(int argc, char** argv)
@@ -311,6 +316,21 @@ int main(int argc, char** argv)
 
 		EXRDecoder::setTaskManager(main_task_manager);
 
+		bool on_apple_device = false;
+#if defined(EMSCRIPTEN)
+		char* user_agent_str = getUserAgentString();
+		const std::string user_agent(user_agent_str);
+		free(user_agent_str);
+
+		conPrint("user_agent: " + user_agent);
+		on_apple_device = StringUtils::containsString(user_agent, "Mac OS") || StringUtils::containsString(user_agent, "iPhone OS");
+#else
+		#if defined(__APPLE__)
+		on_apple_device = true;
+		#endif
+#endif
+		printVar(on_apple_device);
+
 
 		// Initialise ImGUI
 		ImGui::CreateContext();
@@ -328,6 +348,9 @@ int main(int argc, char** argv)
 			settings.allow_multi_draw_indirect = false;
 		if(parsed_args.isArgPresent("--no_bindless"))
 			settings.allow_bindless_textures = false;
+
+		if(on_apple_device)
+			settings.use_multiple_phong_uniform_bufs = true; // Work around Mac OpenGL bug with changing the phong uniform buffer between rendering batches (see https://issues.chromium.org/issues/338348430)
 
 #if defined(EMSCRIPTEN)
 		settings.max_tex_CPU_mem_usage = 512 * 1024 * 1024ull;
