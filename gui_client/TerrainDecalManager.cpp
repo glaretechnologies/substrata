@@ -91,7 +91,7 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 	ob->materials.resize(1);
 	ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
 	ob->materials[0].alpha = opacity;
-	ob->materials[0].double_sided = true;
+	ob->materials[0].simple_double_sided = true;
 	ob->materials[0].decal = true;
 	if(decal_type == DecalType_ThickFoam)
 		ob->materials[0].albedo_texture = foam_texture;

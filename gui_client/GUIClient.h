@@ -299,6 +299,8 @@ public:
 	void enableMaterialisationEffectOnOb(WorldObject& ob);
 	void enableMaterialisationEffectOnAvatar(Avatar& ob);
 
+	void createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix, WorldObject* ob, bool use_materialise_effect, PhysicsObjectRef& physics_ob_out, GLObjectRef& opengl_ob_out);
+
 public:
 	//	PhysicsWorldEventListener:
 	virtual void physicsObjectEnteredWater(PhysicsObject& ob);
@@ -392,6 +394,8 @@ public:
 
 	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
 	PhysicsShape hypercard_quad_shape;
+
+	PhysicsShape text_quad_shape;
 
 	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh; // For images, web-views etc.
 	PhysicsShape image_cube_shape;

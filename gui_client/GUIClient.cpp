@@ -466,18 +466,15 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 	// Make hypercard physics mesh
 	{
 		Indigo::MeshRef mesh = new Indigo::Mesh();
-
-		unsigned int v_start = 0;
 		{
 			mesh->addVertex(Indigo::Vec3f(0,0,0));
 			mesh->addVertex(Indigo::Vec3f(0,0,1));
 			mesh->addVertex(Indigo::Vec3f(0,1,1));
 			mesh->addVertex(Indigo::Vec3f(0,1,0));
-			const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+			const unsigned int vertex_indices[]   = {0, 1, 2};
 			mesh->addTriangle(vertex_indices, vertex_indices, 0);
-			const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+			const unsigned int vertex_indices_2[] = {0, 2, 3};
 			mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
-			v_start += 4;
 		}
 		mesh->endOfModel();
 
@@ -485,6 +482,23 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 	}
 
 	hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0), /*vert_res=*/2);
+
+	{
+		Indigo::MeshRef mesh = new Indigo::Mesh();
+		{
+			mesh->addVertex(Indigo::Vec3f(0,0,0));
+			mesh->addVertex(Indigo::Vec3f(1,0,0));
+			mesh->addVertex(Indigo::Vec3f(1,1,0));
+			mesh->addVertex(Indigo::Vec3f(0,1,0));
+			const unsigned int vertex_indices[]   = {0, 1, 2};
+			mesh->addTriangle(vertex_indices, vertex_indices, 0);
+			const unsigned int vertex_indices_2[] = {0, 2, 3};
+			mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		}
+		mesh->endOfModel();
+
+		text_quad_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	}
 
 	// Make spotlight meshes
 	{
@@ -1559,6 +1573,68 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 }
 
 
+void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix, WorldObject* ob, bool use_materialise_effect, PhysicsObjectRef& physics_ob_out, GLObjectRef& opengl_ob_out)
+{
+	Rect2f rect_os;
+	OpenGLTextureRef atlas_texture;
+
+	const std::string use_text = ob->content.empty() ? " " : ob->content;
+
+	const int font_size_px = 42;
+
+	std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
+	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine, gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
+		/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, rect_os, atlas_texture, char_positions_font_coords);
+
+	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
+	physics_ob->shape = PhysicsWorld::createScaledShapeForShape(this->text_quad_shape, Vec3f(rect_os.getWidths().x, rect_os.getWidths().y, 1.f));
+	physics_ob->userdata = ob;
+	physics_ob->userdata_type = 0;
+	physics_ob->ob_uid = ob->uid;
+	physics_ob->pos = ob->pos.toVec4fPoint();
+	physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+	physics_ob->scale = useScaleForWorldOb(/*physics_quad_scale*/ob->scale);
+
+
+	GLObjectRef opengl_ob = opengl_engine->allocateObject();
+	opengl_ob->mesh_data = meshdata;
+	opengl_ob->materials.resize(1);
+
+	if(ob->materials.size() >= 1)
+		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[0]);
+
+
+	opengl_ob->materials[0].alpha_blend = true; // Make use alpha blending
+	opengl_ob->materials[0].sdf_text = true;
+
+	if(ob->materials.size() >= 1)
+	{
+		opengl_ob->materials[0].alpha = ob->materials[0]->opacity.val;
+		opengl_ob->materials[0].transparent = BitUtils::isBitSet(ob->materials[0]->flags, WorldMaterial::HOLOGRAM_FLAG);
+
+		if(ob->materials[0]->emission_lum_flux_or_lum > 0)
+			opengl_ob->materials[0].emission_texture = atlas_texture;
+
+		if(BitUtils::isBitSet(ob->materials[0]->flags, WorldMaterial::HOLOGRAM_FLAG))
+			opengl_ob->materials[0].alpha_blend = false;
+
+	}
+
+	opengl_ob->materials[0].tex_matrix = Matrix2f::identity();
+	opengl_ob->materials[0].albedo_texture = atlas_texture;
+
+
+
+	opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+	opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+	opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+
+	physics_ob_out = physics_ob;
+	opengl_ob_out = opengl_ob;
+}
+
+
 // Load or reload an object's 3d model.
 // 
 // Check if the model file is downloaded.
@@ -1698,6 +1774,25 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
 				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
 
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+				ob->loaded_content = ob->content;
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
+
+				physics_world->addObject(ob->physics_object);
+			}
+		}
+		if(ob->object_type == WorldObject::ObjectType_Text)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob;
+				GLObjectRef opengl_ob;
+				createGLAndPhysicsObsForText(ob_to_world_matrix, ob, use_materialise_effect, physics_ob, opengl_ob);
 
 				ob->opengl_engine_ob = opengl_ob;
 				ob->physics_object = physics_ob;
@@ -8958,6 +9053,29 @@ void GUIClient::objectEdited()
 							selected_ob->loaded_content = selected_ob->content;
 						}
 					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Text)
+					{
+						// Re-create opengl and physics objects
+
+						removeAndDeleteGLAndPhysicsObjectsForOb(*selected_ob);
+
+						PhysicsObjectRef new_physics_ob;
+						GLObjectRef new_opengl_ob;
+						createGLAndPhysicsObsForText(new_ob_to_world_matrix, selected_ob.ptr(), /*use_materialise_effect*/false, new_physics_ob, new_opengl_ob);
+
+						selected_ob->opengl_engine_ob = new_opengl_ob;
+						selected_ob->physics_object = new_physics_ob;
+						selected_ob->loaded_content = selected_ob->content;
+						selected_ob->setAABBOS(new_opengl_ob->mesh_data->aabb_os);
+
+						opengl_engine->addObject(selected_ob->opengl_engine_ob);
+
+						physics_world->addObject(selected_ob->physics_object);
+
+						opengl_ob = new_opengl_ob;
+
+						opengl_engine->selectObject(new_opengl_ob);
+					}
 					else if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
 					{
 						GLLightRef light = this->selected_ob->opengl_light;
@@ -11234,7 +11352,7 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 	ImageMapUInt8Ref map = new ImageMapUInt8(size_info.getSize().x + padding_x * 2, use_font_height + padding_y * 2, 3);
 	map->set(240);
 
-	font->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f));
+	font->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f), /*render SDF=*/false);
 
 
 	GLObjectRef gl_ob = opengl_engine->allocateObject();
