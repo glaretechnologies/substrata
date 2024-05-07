@@ -203,6 +203,7 @@ int main(int argc, char *argv[])
 		syntax["--enable_dev_mode"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["--save_sanitised_database"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
+		syntax["--db_path"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg: path to database file on disk
 
 		std::vector<std::string> args;
 		for(int i=0; i<argc; ++i)
@@ -315,8 +316,11 @@ int main(int argc, char *argv[])
 #endif
 		FileUtils::createDirIfDoesNotExist(server.screenshot_dir);
 
-
-		const std::string server_state_path = server_state_dir + "/server_state.bin";
+		std::string server_state_path;
+		if(parsed_args.isArgPresent("--db_path"))
+			server_state_path = parsed_args.getArgStringValue("--db_path");
+		else
+			server_state_path = server_state_dir + "/server_state.bin"; // If --db_path is not on command line, use default path.
 
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path);
