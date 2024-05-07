@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1418</width>
-    <height>957</height>
+    <width>1422</width>
+    <height>966</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,7 +34,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1418</width>
+     <width>1422</width>
      <height>21</height>
     </rect>
    </property>
@@ -60,6 +60,7 @@
     <addaction name="separator"/>
     <addaction name="actionAddObject"/>
     <addaction name="actionAddHypercard"/>
+    <addaction name="actionAdd_Text"/>
     <addaction name="actionAdd_Spotlight"/>
     <addaction name="actionAdd_Audio_Source"/>
     <addaction name="actionAdd_Web_View"/>
@@ -256,7 +257,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>261</height>
+          <height>230</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -353,7 +354,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>261</height>
+          <height>230</height>
          </rect>
         </property>
        </widget>
@@ -676,6 +677,11 @@
   <action name="actionAdd_Video">
    <property name="text">
     <string>Add Video</string>
+   </property>
+  </action>
+  <action name="actionAdd_Text">
+   <property name="text">
+    <string>Add Text</string>
    </property>
   </action>
  </widget>

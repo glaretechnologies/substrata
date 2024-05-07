@@ -98,7 +98,7 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 
 	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
 	opengl_mat.use_wind_vert_shader = BitUtils::isBitSet(mat.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND);
-	opengl_mat.double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
+	opengl_mat.simple_double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
@@ -164,7 +164,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 
 	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
 	opengl_mat.use_wind_vert_shader = BitUtils::isBitSet(mat.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND);
-	opengl_mat.double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
+	opengl_mat.simple_double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
 
 	opengl_mat.fresnel_scale = 0.3f;
 

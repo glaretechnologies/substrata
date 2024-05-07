@@ -889,7 +889,7 @@ ${freetypedir}/src/psaux/psaux.c
 ${freetypedir}/src/pshinter/pshinter.c
 ${freetypedir}/src/psnames/psnames.c
 ${freetypedir}/src/raster/raster.c
-#${freetypedir}/src/sdf/sdf.c
+${freetypedir}/src/sdf/sdf.c
 ${freetypedir}/src/sfnt/sfnt.c
 ${freetypedir}/src/smooth/smooth.c
 ${freetypedir}/src/svg/svg.c

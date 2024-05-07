@@ -126,6 +126,8 @@ public:
 
 	static PhysicsShape createCOMOffsetShapeForShape(const PhysicsShape& shape, const Vec4f& COM_offset);
 
+	static PhysicsShape createScaledShapeForShape(const PhysicsShape& shape, const Vec3f& scale);
+
 	void think(double dt);
 
 #if USE_JOLT

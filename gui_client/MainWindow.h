@@ -52,6 +52,7 @@ private slots:;
 	void on_actionAvatarSettings_triggered();
 	void on_actionAddObject_triggered();
 	void on_actionAddHypercard_triggered();
+	void on_actionAdd_Text_triggered();
 	void on_actionAdd_Voxels_triggered();
 	void on_actionAdd_Spotlight_triggered();
 	void on_actionAdd_Web_View_triggered();

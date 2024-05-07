@@ -404,6 +404,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Spotlight: return "spotlight";
 	case ObjectType_WebView: return "web view";
 	case ObjectType_Video: return "video";
+	case ObjectType_Text: return "text";
 	default: return "Unknown";
 	}
 }

@@ -1143,6 +1143,20 @@ PhysicsShape PhysicsWorld::createCOMOffsetShapeForShape(const PhysicsShape& orig
 }
 
 
+PhysicsShape PhysicsWorld::createScaledShapeForShape(const PhysicsShape& original_shape, const Vec3f& scale)
+{
+	JPH::Result<JPH::Ref<JPH::Shape>> result = JPH::ScaledShapeSettings(original_shape.jolt_shape, JPH::Vec3(scale.x, scale.y, scale.z)).Create();
+
+	if(result.HasError())
+		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+
+	PhysicsShape scaled_shape;
+	scaled_shape.jolt_shape = result.Get();
+	scaled_shape.size_B = original_shape.size_B;
+	return scaled_shape;
+}
+
+
 void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 {
 	assert(object->pos.isFinite());

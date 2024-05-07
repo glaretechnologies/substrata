@@ -1582,6 +1582,58 @@ void MainWindow::on_actionAddHypercard_triggered()
 }
 
 
+void MainWindow::on_actionAdd_Text_triggered()
+{
+	const float quad_w = 0.4f;
+	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + gui_client.cam_controller.getForwardsVec() * 2.0f -
+		gui_client.cam_controller.getUpVec() * quad_w * 0.5f -
+		gui_client.cam_controller.getRightVec() * quad_w * 0.5f;
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = gui_client.haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create hypercards in a parcel that you have write permissions for.");
+		return;
+	}
+
+	Quatf rot_upright = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+	Quatf face_cam_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>())); // Round to nearest 45 degree angle.
+	Quatf total_rot = face_cam_rot * rot_upright;
+	Vec4f total_rot_axis;
+	float total_rot_angle;
+	total_rot.toAxisAndAngle(total_rot_axis, total_rot_angle);
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_Text;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = toVec3f(total_rot_axis);
+	new_world_object->angle = total_rot_angle;
+	new_world_object->scale = Vec3f(0.4f);
+	new_world_object->content = "Some Text";
+	new_world_object->setAABBOS(js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1)));
+
+	new_world_object->materials.resize(1);
+	new_world_object->materials[0] = new WorldMaterial();
+	new_world_object->materials[0]->flags = WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG | WorldMaterial::DOUBLE_SIDED_FLAG;
+
+	// Send CreateObject message to server
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+	}
+
+	showInfoNotification("Added Text.");
+}
+
+
 void MainWindow::on_actionAdd_Spotlight_triggered()
 {
 	const float quad_w = 0.4f;

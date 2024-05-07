@@ -91,7 +91,7 @@ void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, 
 		elm_tree_gl_materials[1].fresnel_scale = 0.3f;
 		elm_tree_gl_materials[1].imposterable = true; // Mark mats as imposterable so they can smoothly blend out
 		elm_tree_gl_materials[1].use_wind_vert_shader = true;
-		elm_tree_gl_materials[1].double_sided = true;
+		elm_tree_gl_materials[1].fancy_double_sided = true;
 		elm_tree_gl_materials[1].albedo_texture = elm_leaf_tex;
 		elm_tree_gl_materials[1].backface_albedo_texture = elm_leaf_backface_tex;
 		elm_tree_gl_materials[1].transmission_texture = elm_leaf_transmission_tex;

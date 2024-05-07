@@ -236,7 +236,8 @@ public:
 		ObjectType_VoxelGroup = 2,
 		ObjectType_Spotlight = 3,
 		ObjectType_WebView = 4,
-		ObjectType_Video = 5 // A Youtube or Twitch video, or mp4 video, with video-specific UI.
+		ObjectType_Video = 5, // A Youtube or Twitch video, or mp4 video, with video-specific UI.
+		ObjectType_Text = 6 // Text displayed on a quad
 	};
 
 	static std::string objectTypeString(ObjectType t);
@@ -265,7 +266,7 @@ public:
 	std::string lightmap_url;
 	std::string script;
 	std::string content; // For ObjectType_Hypercard
-	std::string target_url; // For ObjectType_Hypercard
+	std::string target_url;
 	Vec3d pos;
 	Vec3f axis;
 	float angle;
