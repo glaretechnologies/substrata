@@ -1599,36 +1599,38 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	GLObjectRef opengl_ob = opengl_engine->allocateObject();
 	opengl_ob->mesh_data = meshdata;
 	opengl_ob->materials.resize(1);
+	OpenGLMaterial& gl_mat_0 = opengl_ob->materials[0];
 
 	if(ob->materials.size() >= 1)
-		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[0]);
+		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, *this->resource_manager, gl_mat_0);
 
 
-	opengl_ob->materials[0].alpha_blend = true; // Make use alpha blending
-	opengl_ob->materials[0].sdf_text = true;
+	gl_mat_0.alpha_blend = true; // Make use alpha blending
+	gl_mat_0.sdf_text = true;
 
 	if(ob->materials.size() >= 1)
 	{
-		opengl_ob->materials[0].alpha = ob->materials[0]->opacity.val;
-		opengl_ob->materials[0].transparent = BitUtils::isBitSet(ob->materials[0]->flags, WorldMaterial::HOLOGRAM_FLAG);
+		gl_mat_0.alpha = ob->materials[0]->opacity.val;
+		gl_mat_0.transparent = BitUtils::isBitSet(ob->materials[0]->flags, WorldMaterial::HOLOGRAM_FLAG);
 
 		if(ob->materials[0]->emission_lum_flux_or_lum > 0)
-			opengl_ob->materials[0].emission_texture = atlas_texture;
+			gl_mat_0.emission_texture = atlas_texture;
 
 		if(BitUtils::isBitSet(ob->materials[0]->flags, WorldMaterial::HOLOGRAM_FLAG))
-			opengl_ob->materials[0].alpha_blend = false;
+			gl_mat_0.alpha_blend = false;
 
 	}
 
-	opengl_ob->materials[0].tex_matrix = Matrix2f::identity();
-	opengl_ob->materials[0].albedo_texture = atlas_texture;
+	gl_mat_0.tex_matrix = Matrix2f::identity();
+	//gl_mat_0.albedo_texture = atlas_texture;
+	gl_mat_0.transmission_texture = atlas_texture;
 
 
 
 	opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
-	opengl_ob->materials[0].materialise_effect = use_materialise_effect;
-	opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+	gl_mat_0.materialise_effect = use_materialise_effect;
+	gl_mat_0.materialise_start_time = ob->materialise_effect_start_time;
 
 	physics_ob_out = physics_ob;
 	opengl_ob_out = opengl_ob;
@@ -1801,6 +1803,8 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				opengl_engine->addObject(ob->opengl_engine_ob);
 
 				physics_world->addObject(ob->physics_object);
+
+				assignedLoadedOpenGLTexturesToMats(ob, *opengl_engine, *resource_manager);
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
@@ -11349,7 +11353,7 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 	const int padding_x = (int)(use_font_height * 1.0f);
 	const int padding_y = (int)(use_font_height * 0.6f);
 
-	ImageMapUInt8Ref map = new ImageMapUInt8(size_info.getSize().x + padding_x * 2, use_font_height + padding_y * 2, 3);
+	ImageMapUInt8Ref map = new ImageMapUInt8(size_info.glyphSize().x + padding_x * 2, use_font_height + padding_y * 2, 3);
 	map->set(240);
 
 	font->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f), /*render SDF=*/false);
