@@ -2205,7 +2205,7 @@ void MainWindow::glWidgetPasteShortcutTriggered()
 		{
 			TextInputEvent text_input_event;
 			text_input_event.text = QtUtils::toStdString(mime_data->text());
-			gui_client.gl_ui->handleTextInputEvent(text_input_event);
+			gui_client.handleTextInputEvent(text_input_event);
 		}
 		return;
 	}
@@ -3467,7 +3467,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	{
 		TextInputEvent text_input_event;
 		text_input_event.text = QtUtils::toStdString(e->text());
-		gui_client.gl_ui->handleTextInputEvent(text_input_event);
+		gui_client.handleTextInputEvent(text_input_event);
 		if(text_input_event.accepted)
 			return;
 	}

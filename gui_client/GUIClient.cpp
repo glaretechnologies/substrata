@@ -12294,6 +12294,23 @@ void GUIClient::keyReleased(KeyEvent& e)
 }
 
 
+void GUIClient::handleTextInputEvent(TextInputEvent& text_input_event)
+{
+	if(gl_ui.nonNull())
+	{
+		gl_ui->handleTextInputEvent(text_input_event);
+		if(text_input_event.accepted)
+			return;
+	}
+
+	if(selected_ob.nonNull() && selected_ob->web_view_data.nonNull()) // If we have a web-view object selected, send keyboard input to it:
+	{
+		ui_interface->setKeyboardCameraMoveEnabled(false); // We don't want WASD keys etc. to move the camera while we enter text into the webview, so disable camera moving from the keyboard.
+		selected_ob->web_view_data->handleTextInputEvent(text_input_event);
+	}
+}
+
+
 void GUIClient::focusOut()
 {
 	SHIFT_down = false;

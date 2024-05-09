@@ -95,7 +95,7 @@ public:
 						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while uploading to texture buffer.
 
 						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
-						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4), /*bind_needed=*/true);
+						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, width * rect.height * 4), /*bind_needed=*/true);
 					}
 				}
 				else
@@ -1243,12 +1243,12 @@ void EmbeddedBrowser::keyPressed(KeyEvent* e)
 	if(embedded_cef_browser.nonNull())
 		embedded_cef_browser->sendKeyEvent(KEYEVENT_RAWKEYDOWN, e->key, e->native_virtual_key, modifiers);
 
-	if(!e->text.empty())
-	{
-		//conPrint(QtUtils::toStdString(e->text()));
-		if(embedded_cef_browser.nonNull())
-			embedded_cef_browser->sendKeyEvent(KEYEVENT_CHAR, e->text[0]/*e->text().at(0).toLatin1()*/, e->native_virtual_key, modifiers);
-	}
+	//if(!e->text.empty())
+	//{
+	//	//conPrint(QtUtils::toStdString(e->text()));
+	//	if(embedded_cef_browser.nonNull())
+	//		embedded_cef_browser->sendKeyEvent(KEYEVENT_CHAR, e->text[0]/*e->text().at(0).toLatin1()*/, e->native_virtual_key, modifiers);
+	//}
 #endif
 }
 
@@ -1260,5 +1260,19 @@ void EmbeddedBrowser::keyReleased(KeyEvent* e)
 
 	if(embedded_cef_browser.nonNull())
 		embedded_cef_browser->sendKeyEvent(KEYEVENT_KEYUP, e->key, e->native_virtual_key, modifiers);
+#endif
+}
+
+void EmbeddedBrowser::handleTextInputEvent(TextInputEvent& e)
+{
+#if CEF_SUPPORT
+	if(!e.text.empty())
+	{
+		const uint32 modifiers = 0;//convertToCEFModifiers(e.modifiers);
+
+		//conPrint(QtUtils::toStdString(e->text()));
+		if(embedded_cef_browser.nonNull())
+			embedded_cef_browser->sendKeyEvent(KEYEVENT_CHAR, e.text[0]/*e->text().at(0).toLatin1()*/, e.text[0]/*e.native_virtual_key*/, modifiers);
+	}
 #endif
 }

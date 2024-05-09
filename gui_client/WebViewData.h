@@ -16,6 +16,7 @@ class OpenGLEngine;
 class MouseEvent;
 class MouseWheelEvent;
 class KeyEvent;
+class TextInputEvent;
 template <class T> class Vec2;
 
 
@@ -38,6 +39,7 @@ public:
 
 	void keyPressed(KeyEvent* e);
 	void keyReleased(KeyEvent* e);
+	void handleTextInputEvent(TextInputEvent& e);
 
 private:
 	std::string loaded_target_url;

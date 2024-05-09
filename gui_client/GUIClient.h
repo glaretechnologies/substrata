@@ -271,6 +271,7 @@ public:
 
 	void keyPressed(KeyEvent& e);
 	void keyReleased(KeyEvent& e);
+	void handleTextInputEvent(TextInputEvent& text_input_event);
 	void focusOut();
 
 	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
