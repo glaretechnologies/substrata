@@ -441,12 +441,12 @@ void MainWindow::afterGLInitInitialise()
 		const std::string font_path       = PlatformUtils::getFontsDirPath() + "/Segoeui.ttf"; // SegoeUI is shipped with Windows 7 onwards: https://learn.microsoft.com/en-us/typography/fonts/windows_7_font_list
 		const std::string emoji_font_path = PlatformUtils::getFontsDirPath() + "/Seguiemj.ttf";
 #elif defined(__APPLE__)
-		const std::string font_path = "/System/Library/Fonts/SFNS.ttf";
+		const std::string font_path       = "/System/Library/Fonts/SFNS.ttf";
 		const std::string emoji_font_path = "/System/Library/Fonts/SFNS.ttf";
 #else
 		// Linux:
-		const std::string font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
-		const std::string emoji_font_path = base_dir + "/data/resources/TruenoLight-E2pg.otf"; 
+		const std::string font_path       = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
+		const std::string emoji_font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf"; 
 #endif
 
 	TextRendererRef text_renderer = new TextRenderer();
