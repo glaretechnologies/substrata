@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <maths/vec2.h>
 #include <webserver/Escaping.h>
 #include <networking/URL.h>
+#include <graphics/Drawing.h>
 #include <ui/UIEvents.h>
 #include <utils/FileInStream.h>
 #include <utils/PlatformUtils.h>
@@ -46,32 +47,32 @@ static const int button_top_y = (int)((1080.0 / 1920) * text_tex_W) - 120;
 static const int button_H = 60;
 
 
-static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::string& text)
+static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, GLUI* glui, const std::string& text)
 {
-#if 1 // USE_SDL
-	return NULL; // TEMP TODO REFACTOR
-#else
+	TextRendererFontFace* font = glui->getFont(/*font size px=*/16, /*emoji=*/false);
+
 	const int W = text_tex_W;
 	const int H = (int)((1080.0 / 1920) * W);
 
-	QImage qimage(W, H, QImage::Format_RGBA8888); // The 32 bit Qt formats seem faster than the 24 bit formats.
-	qimage.fill(QColor(220, 220, 220));
-	QPainter painter(&qimage);
-	painter.setPen(QPen(QColor(30, 30, 30)));
-	painter.setFont(QFont("helvetica", 20, QFont::Normal));
-	const int padding = 20;
-	painter.drawText(QRect(padding, padding, W - padding*2, H - padding*2), Qt::TextWordWrap | Qt::AlignLeft, QtUtils::toQString(text));
+	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
+	map->set(255);
 
-	painter.drawRect(W/2 - 100, button_top_y, 200, button_H);
+	const TextRendererFontFace::SizeInfo size_info = font->getTextSize(text);
+	font->drawText(*map, text, W/2 - size_info.glyphSize().x/2, H/2, Colour3f(0,0,0), /*render SDF=*/false);
 
-	//painter.setPen(QPen(QColor(30, 30, 30)));
-	//painter.setFont(QFont("helvetica", 20, QFont::Normal));
-	painter.drawText(QRect(button_left_x, button_top_y, /*width=*/button_W, /*height=*/button_H), Qt::AlignVCenter | Qt::AlignHCenter, "Load"); // y=0 at top
+	const uint8 col[4] = { 30, 30, 30, 255 };
+	Drawing::drawRect(*map, /*x0=*/W/2 - button_W/2, /*y0=*/button_top_y, /*wdith=*/button_W, /*height=*/button_H, col);
 
-	OpenGLTextureRef tex = new OpenGLTexture(W, H, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
-	tex->loadIntoExistingTexture(/*mipmap level=*/0, W, H, /*row stride B=*/qimage.bytesPerLine(), ArrayRef<uint8>(qimage.constBits(), qimage.sizeInBytes()), /*bind_needed=*/true);
+
+	const TextRendererFontFace::SizeInfo load_size_info = font->getTextSize("Load");
+	font->drawText(*map, "Load", W/2 - load_size_info.glyphSize().x/2, button_top_y + button_H - 22, Colour3f(30.f / 255), /*render SDF=*/false);
+
+
+	TextureParams params;
+	params.use_mipmaps = false;
+	params.allow_compression = false;
+	OpenGLTextureRef tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(text), *map, params);
 	return tex;
-#endif
 }
 
 
@@ -146,8 +147,8 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 					{
 						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
-						assert(!showing_click_to_load_text);
-						ob->opengl_engine_ob->materials[0].emission_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url); // TEMP
+						//assert(!showing_click_to_load_text);
+						ob->opengl_engine_ob->materials[0].emission_texture = makeTextTexture(opengl_engine, gui_client->gl_ui.ptr(), "Click below to load " + ob->target_url);
 						opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 						showing_click_to_load_text = true;
 					}
@@ -189,7 +190,7 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 					gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
 					user_clicked_to_load = false;
-					ob->opengl_engine_ob->materials[0].emission_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url);
+					ob->opengl_engine_ob->materials[0].emission_texture = makeTextTexture(opengl_engine, gui_client->gl_ui.ptr(), "Click below to load " + ob->target_url);
 					opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 					showing_click_to_load_text = true;
 				}
@@ -231,86 +232,6 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 		}
 	}
 #endif // CEF_SUPPORT
-
-#if 0
-	{
-		if(time_since_last_webview_display.elapsed() > 0.0333) // Max 30 fps
-		{
-			if(webview_qimage.size() != webview->size())
-			{
-				webview_qimage = QImage(webview->size(), QImage::Format_RGBA8888); // The 32 bit Qt formats seem faster than the 24 bit formats.
-			}
-
-			const int W = webview_qimage.width();
-			const int H = webview_qimage.height();
-
-			QPainter painter(&webview_qimage);
-
-			// Draw the web-view to the QImage
-			webview->render(&painter);
-
-			// Draw hovered-over link URL at bottom left
-			if(!this->current_hovered_URL.isEmpty())
-			{
-				QFont system_font = QApplication::font();
-				system_font.setPointSize(16);
-
-				QFontMetrics metrics(system_font);
-				QRect text_rect = metrics.boundingRect(this->current_hovered_URL);
-
-				//printVar(text_rect.x());
-				//printVar(text_rect.y());
-				//printVar(text_rect.top());
-				//printVar(text_rect.bottom());
-				//printVar(text_rect.left());
-				//printVar(text_rect.right());
-				/*
-				For example:
-				text_rect.x(): 0
-				text_rect.y(): -23
-				text_rect.top(): -23
-				text_rect.bottom(): 4
-				text_rect.left(): 0
-				text_rect.right(): 464
-				*/
-				const int x_padding = 12; // in pixels
-				const int y_padding = 12; // in pixels
-				const int link_W = text_rect.width()  + x_padding*2;
-				const int link_H = -text_rect.top() + y_padding*2;
-
-				painter.setPen(QPen(QColor(200, 200, 200)));
-				painter.fillRect(0, H - link_H, link_W, link_H, QBrush(QColor(200, 200, 200), Qt::SolidPattern));
-
-				painter.setPen(QPen(QColor(0, 0, 0)));
-				painter.setFont(system_font);
-				painter.drawText(QPoint(x_padding, /*font baseline y=*/H - y_padding), this->current_hovered_URL);
-			}
-
-			// Draw loading indicator
-			if(loading_in_progress)
-			{
-				const int loading_bar_w = (int)((float)W * cur_load_progress / 100.f);
-				const int loading_bar_h = 8;
-				painter.fillRect(0, H - loading_bar_h, loading_bar_w, loading_bar_h, QBrush(QColor(100, 100, 255), Qt::SolidPattern));
-			}
-
-			painter.end();
-
-			if(ob->opengl_engine_ob->materials[0].albedo_texture.isNull())
-			{
-				ob->opengl_engine_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, opengl_engine, OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
-			}
-
-			// Update texture
-			ob->opengl_engine_ob->materials[0].albedo_texture->load(W, H, /*row stride B=*/webview_qimage.bytesPerLine(), ArrayRef<uint8>(webview_qimage.constBits(), webview_qimage.sizeInBytes()));
-
-
-			//webview_qimage.save("webview_qimage.png", "png");
-
-			time_since_last_webview_display.reset();
-		}
-	}
-#endif
 }
 
 
@@ -361,4 +282,11 @@ void WebViewData::keyReleased(KeyEvent* e)
 {
 	if(browser.nonNull())
 		browser->keyReleased(e);
+}
+
+
+void WebViewData::handleTextInputEvent(TextInputEvent& e)
+{
+	if(browser.nonNull())
+		browser->handleTextInputEvent(e);
 }
