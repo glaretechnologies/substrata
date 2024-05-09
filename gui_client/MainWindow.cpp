@@ -203,6 +203,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 		// State was not restored.  This will be the case for new Substrata installs.
 		// Hide some dock widgets to provide a slightly simpler user experience.
 		// Hide everything but chat and help-info dock widgets.
+
+		// NOTE: to test this code-path, can delete the windowState Registry key in "Computer\HKEY_CURRENT_USER\SOFTWARE\Glare Technologies\Cyberspace\mainwindow" with regedit.
+		this->ui->chatDockWidget->hide();
 		this->ui->editorDockWidget->hide();
 		this->ui->materialBrowserDockWidget->hide();
 		this->ui->environmentDockWidget->hide();
