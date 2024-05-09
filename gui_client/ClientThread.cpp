@@ -1118,12 +1118,12 @@ void ClientThread::doRun()
 	catch(MySocketExcep& e)
 	{
 		conPrint("ClientThread: Socket error: " + e.what());
-		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what()));
+		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what(), /*closed_gracefully=*/e.excepType() == MySocketExcep::ExcepType_ConnectionClosedGracefully));
 	}
 	catch(glare::Exception& e)
 	{
 		conPrint("ClientThread: glare::Exception: " + e.what());
-		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what()));
+		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what(), /*closed_gracefully=*/false));
 	}
 
 	out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage());

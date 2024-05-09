@@ -6691,7 +6691,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg))
 		{
 			const ClientDisconnectedFromServerMessage* m = static_cast<const ClientDisconnectedFromServerMessage*>(msg);
-			if(!m->error_message.empty())
+			if(!m->error_message.empty() && !m->closed_gracefully)
 			{
 				showErrorNotification(m->error_message);
 			}
