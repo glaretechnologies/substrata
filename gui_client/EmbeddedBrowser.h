@@ -15,6 +15,7 @@ class WorldObject;
 class MouseEvent;
 class MouseWheelEvent;
 class KeyEvent;
+class TextInputEvent;
 class EmbeddedBrowserCEFBrowser;
 class OpenGLEngine;
 class OpenGLTexture;
@@ -48,6 +49,7 @@ public:
 
 	void keyPressed(KeyEvent* e);
 	void keyReleased(KeyEvent* e);
+	void handleTextInputEvent(TextInputEvent& e);
 
 private:
 	Reference<EmbeddedBrowserCEFBrowser> embedded_cef_browser;
