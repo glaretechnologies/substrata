@@ -149,9 +149,10 @@ public:
 class ClientDisconnectedFromServerMessage : public ThreadMessage
 {
 public:
-	ClientDisconnectedFromServerMessage() {}
-	ClientDisconnectedFromServerMessage(const std::string& error_message_) : error_message(error_message_) {}
+	ClientDisconnectedFromServerMessage() : closed_gracefully(true) {}
+	ClientDisconnectedFromServerMessage(const std::string& error_message_, bool closed_gracefully_) : error_message(error_message_), closed_gracefully(closed_gracefully_) {}
 	std::string error_message;
+	bool closed_gracefully;
 };
 
 
