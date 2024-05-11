@@ -49,9 +49,8 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
-	bool isCreated();
-
-	void setVisible(bool visible);
+	void setVisible(bool visible); // Set expand, collapse button visibility, plus call setMapAndMarkersVisible().
+	void setMapAndMarkersVisible(bool visible);
 
 	void think();
 
@@ -59,6 +58,8 @@ public:
 
 	void updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos);
 	void removeMarkerForAvatar(Avatar* avatar);
+
+	void handleMouseMoved(MouseEvent& mouse_event);
 
 	//virtual bool doHandleMouseMoved(const Vec2f& coords) override;
 
@@ -80,6 +81,9 @@ private:
 	GLUIImageRef minimap_image;
 	GLUIImageRef arrow_image;
 
+	bool expanded;
+	GLUIButtonRef collapse_button;
+	GLUIButtonRef expand_button;
 
 	Array2D<MapTile> tiles;
 	int last_centre_x, last_centre_y;

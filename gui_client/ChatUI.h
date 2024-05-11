@@ -38,6 +38,9 @@ public:
 
 	void viewportResized(int w, int h);
 
+	void handleMouseMoved(MouseEvent& mouse_event);
+
+
 	void updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos);
 	void removeMarkerForAvatar(Avatar* avatar);
 
@@ -53,11 +56,16 @@ private:
 
 	std::list<ChatMessage> messages;
 
+	bool expanded;
 	OverlayObjectRef background_overlay_ob;
+	GLUIButtonRef collapse_button;
+	GLUIButtonRef expand_button;
 	Vec2i last_viewport_dims;
 	GUIClient* gui_client;
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
+	
+	Vec2f last_background_top_right_pos;
 
 	GLUILineEditRef chat_line_edit;
 };

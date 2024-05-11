@@ -361,7 +361,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 static const float arc_handle_half_angle = 1.5f;
 
 
-void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minimap, Reference<OpenGLEngine> opengl_engine_, 
+void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine_, 
 	const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts)
 {
 	opengl_engine = opengl_engine_;
@@ -379,9 +379,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, bool show_minim
 
 	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
-
-	if(show_minimap)
-		minimap.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	minimap.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
 	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
 #if !EMSCRIPTEN
@@ -10764,6 +10762,9 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 			mouse_event.accepted = true;
 			return;
 		}
+
+		chat_ui.handleMouseMoved(mouse_event);
+		minimap.handleMouseMoved(mouse_event);
 	}
 
 	if(!ui_interface->isCursorHidden())

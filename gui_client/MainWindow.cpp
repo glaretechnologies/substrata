@@ -460,8 +460,7 @@ void MainWindow::afterGLInitInitialise()
 
 	const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, which have twice the density of qt pixel coordinates.
 
-	const bool show_minimap = MainOptionsDialog::getShowMinimap(this->settings);
-	gui_client.afterGLInitInitialise((double)device_pixel_ratio, show_minimap, ui->glWidget->opengl_engine, fonts, emoji_fonts);
+	gui_client.afterGLInitInitialise((double)device_pixel_ratio, ui->glWidget->opengl_engine, fonts, emoji_fonts);
 
 	MainWindowGLUICallbacks* glui_callbacks = new MainWindowGLUICallbacks();
 	glui_callbacks->main_window = this;
@@ -2753,16 +2752,6 @@ void MainWindow::on_actionOptions_triggered()
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
-
-		// Create or destroy minimap if minimap option has changed.
-		if(d.getShowMinimap(this->settings) && !gui_client.minimap.isCreated())
-		{
-			gui_client.minimap.create(opengl_engine, &gui_client, gui_client.gl_ui);
-		}
-		else if(!d.getShowMinimap(this->settings) && gui_client.minimap.isCreated())
-		{
-			gui_client.minimap.destroy();
-		}
 	}
 
 	gui_client.mic_read_thread_manager.enqueueMessage(new InputVolumeScaleChangedMessage(
