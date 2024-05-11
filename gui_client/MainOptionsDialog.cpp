@@ -169,8 +169,6 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 	inputDeviceComboBox->setCurrentIndex(inputDeviceComboBox->findText(settings->value(inputDeviceNameKey(), "Default").toString()));
 
 	inputVolumeScaleHorizontalSlider->setValue(						settings->value(inputScaleFactorNameKey(), 100).toInt());
-
-	SignalBlocker::setChecked(this->showMinimapCheckBox,			settings->value(showMinimapKey(),			/*default val=*/true).toBool());
 }
 
 
@@ -194,8 +192,6 @@ void MainOptionsDialog::accepted()
 
 	settings->setValue(inputDeviceNameKey(),						this->inputDeviceComboBox->currentText());
 	settings->setValue(inputScaleFactorNameKey(),					this->inputVolumeScaleHorizontalSlider->value());
-
-	settings->setValue(showMinimapKey(),							this->showMinimapCheckBox->isChecked());
 }
 
 

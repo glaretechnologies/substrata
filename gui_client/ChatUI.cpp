@@ -30,6 +30,8 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
+	expanded = true;
+	last_background_top_right_pos = Vec2f(0.f);
 
 	// Create background quad to go behind text
 	background_overlay_ob = new OverlayObject();
@@ -61,6 +63,27 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 		};
 
 	gl_ui->addWidget(chat_line_edit);
+
+
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Hide chat";
+		args.button_colour = Colour3f(0.2f);
+		args.mouseover_button_colour = Colour3f(0.4f);
+		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+		collapse_button->handler = this;
+		gl_ui->addWidget(collapse_button);
+	}
+
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Show chat";
+		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+		expand_button->handler = this;
+		expand_button->setVisible(false);
+		gl_ui->addWidget(expand_button);
+	}
+
 
 	updateWidgetTransforms();
 }
@@ -133,6 +156,32 @@ void ChatUI::viewportResized(int w, int h)
 }
 
 
+static const float button_spacing_px = 10;
+static const float button_w_px = 20;
+
+void ChatUI::handleMouseMoved(MouseEvent& mouse_event)
+{
+	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(mouse_event.gl_coords);
+
+	if(expanded)
+	{
+		//const float msgs_background_ob_y = -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(50);
+
+		/*bool mouse_over = 
+			coords.x <= -1.f + background_w + gl_ui->getUIWidthForDevIndepPixelWidth(60) &&
+			coords.y <= -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(50) + background_h;*/
+
+		const float extra_mouse_over_px = 10;
+		const float to_button_right_w = gl_ui->getUIWidthForDevIndepPixelWidth(button_spacing_px + button_w_px + extra_mouse_over_px);
+		const bool mouse_over = 
+			coords.x < (last_background_top_right_pos.x + to_button_right_w) && 
+			coords.y < (last_background_top_right_pos.y + gl_ui->getUIWidthForDevIndepPixelWidth(extra_mouse_over_px));
+
+		collapse_button->setVisible(mouse_over);
+	}
+}
+
+
 void ChatUI::updateWidgetTransforms()
 {
 	//---------------------------- Update chat_line_edit ----------------------------
@@ -142,6 +191,8 @@ void ChatUI::updateWidgetTransforms()
 
 
 	//---------------------------- Update background_overlay_ob ----------------------------
+	const float background_w = widget_w;
+	const float background_h = 0.5f;
 
 	const float y_scale = opengl_engine->getViewPortAspectRatio(); // scale from GL UI to opengl coords
 	const float z = 0.1f;
@@ -150,8 +201,8 @@ void ChatUI::updateWidgetTransforms()
 	//background_overlay_ob->ob_to_world_matrix = Matrix4f::translationMatrix(background_pos.x, background_pos.y * y_scale, z) * Matrix4f::scaleMatrix(background_w, background_h * y_scale, 1);
 	background_overlay_ob->ob_to_world_matrix = Matrix4f::translationMatrix(background_pos.x, background_pos.y * y_scale, z) * Matrix4f::scaleMatrix(1, y_scale, 1);
 
-	const float background_w = widget_w;
-	const float background_h = 0.5f;
+	this->last_background_top_right_pos = background_pos + Vec2f(background_w, background_h);
+	
 
 	if(this->last_viewport_dims != opengl_engine->getViewportDims())
 	{
@@ -190,9 +241,53 @@ void ChatUI::updateWidgetTransforms()
 
 		y = max_msg_y + vert_spacing;
 	}
+
+	//---------------------------- Update collapse_button ----------------------------
+	const float button_w = gl_ui->getUIWidthForDevIndepPixelWidth(button_w_px);
+	const float button_h = gl_ui->getUIWidthForDevIndepPixelWidth(50);
+	collapse_button->setPosAndDims(Vec2f(background_pos.x + background_w + gl_ui->getUIWidthForDevIndepPixelWidth(button_spacing_px), background_pos.y + background_h - button_h), Vec2f(button_w, button_h));
+
+	//---------------------------- Update expand_button ----------------------------
+	expand_button->setPosAndDims(Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20), -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(20) /*background_pos.y *//*+ background_h - button_h*/), Vec2f(button_w, button_h));
 }
 
 
 void ChatUI::eventOccurred(GLUICallbackEvent& event)
 {
+	if(event.widget == this->collapse_button.ptr())
+	{
+		assert(expanded);
+
+		background_overlay_ob->draw = false;
+		collapse_button->setVisible(false);
+		expand_button->setVisible(true);
+		chat_line_edit->setVisible(false);
+
+		for(auto it = messages.begin(); it != messages.end(); ++it)
+		{
+			ChatMessage& msg = *it;
+			msg.name_text->setVisible(false);
+			msg.msg_text->setVisible(false);
+		}
+
+		expanded = false;
+	}
+	else if(event.widget == this->expand_button.ptr())
+	{
+		assert(!expanded);
+
+		background_overlay_ob->draw = true;
+		collapse_button->setVisible(true);
+		expand_button->setVisible(false);
+		chat_line_edit->setVisible(true);
+
+		for(auto it = messages.begin(); it != messages.end(); ++it)
+		{
+			ChatMessage& msg = *it;
+			msg.name_text->setVisible(true);
+			msg.msg_text->setVisible(true);
+		}
+
+		expanded = true;
+	}
 }

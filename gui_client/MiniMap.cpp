@@ -74,6 +74,8 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
+
+	expanded = true;
 	
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
@@ -92,6 +94,27 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
 	gl_ui->addWidget(arrow_image);
+
+	
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Hide minimap";
+		args.button_colour = Colour3f(0.2f);
+		args.mouseover_button_colour = Colour3f(0.4f);
+		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+		collapse_button->handler = this;
+		gl_ui->addWidget(collapse_button);
+	}
+
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Show minimap";
+		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+		expand_button->handler = this;
+		expand_button->setVisible(false);
+		gl_ui->addWidget(expand_button);
+	}
+
 
 	{
 		ImageMapUInt8Ref default_detail_col_map = new ImageMapUInt8(1, 1, 4);
@@ -205,13 +228,16 @@ void MiniMap::destroy()
 }
 
 
-bool MiniMap::isCreated()
+void MiniMap::setVisible(bool visible)
 {
-	return gl_ui.nonNull();
+	this->expand_button->setVisible(visible && !expanded);
+	this->collapse_button->setVisible(visible && expanded);
+
+	setMapAndMarkersVisible(visible);
 }
 
 
-void MiniMap::setVisible(bool visible)
+void MiniMap::setMapAndMarkersVisible(bool visible)
 {
 	if(gl_ui.nonNull())
 	{
@@ -238,6 +264,9 @@ void MiniMap::setVisible(bool visible)
 void MiniMap::think()
 {
 	if(gl_ui.isNull())
+		return;
+
+	if(minimap_image.nonNull() && !minimap_image->isVisible()) // If map is hidden, don't do any work.
 		return;
 
 	const Vec3d campos = gui_client->cam_controller.getFirstPersonPosition();
@@ -634,6 +663,30 @@ void MiniMap::viewportResized(int w, int h)
 }
 
 
+static const float button_spacing_px = 10;
+static const float button_w_px = 20;
+static const float button_h_px = 50;
+
+
+void MiniMap::handleMouseMoved(MouseEvent& mouse_event)
+{
+	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(mouse_event.gl_coords);
+
+	if(expanded)
+	{
+		const float extra_mouse_over_px = 10;
+		const float to_button_left_w = gl_ui->getUIWidthForDevIndepPixelWidth(button_spacing_px + button_w_px + extra_mouse_over_px);
+
+		const Vec2f last_minimap_bot_left_pos = minimap_image->rect.getMin();
+		const bool mouse_over = 
+			coords.x > (last_minimap_bot_left_pos.x - to_button_left_w) && 
+			coords.y > (last_minimap_bot_left_pos.y - gl_ui->getUIWidthForDevIndepPixelWidth(extra_mouse_over_px));
+
+		collapse_button->setVisible(mouse_over);
+	}
+}
+
+
 void MiniMap::updateWidgetPositions()
 {
 	if(gl_ui.nonNull())
@@ -641,6 +694,18 @@ void MiniMap::updateWidgetPositions()
 		if(minimap_image.nonNull())
 		{
 			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY() - minimap_width - margin), Vec2f(minimap_width), MINIMAP_Z);
+
+			//last_minimap_bot_left_pos = minimap_image->rect.getMin();
+
+			Vec2f minimap_botleft = minimap_image->getPos();
+			//---------------------------- Update collapse_button ----------------------------
+			const float button_w = gl_ui->getUIWidthForDevIndepPixelWidth(button_w_px);
+			const float button_h = gl_ui->getUIWidthForDevIndepPixelWidth(button_h_px);
+			collapse_button->setPosAndDims(Vec2f(minimap_botleft.x - gl_ui->getUIWidthForDevIndepPixelWidth(button_w_px + button_spacing_px), minimap_botleft.y), Vec2f(button_w, button_h));
+
+			//---------------------------- Update expand_button ----------------------------
+			expand_button->setPosAndDims(Vec2f(1.f - gl_ui->getUIWidthForDevIndepPixelWidth(20 + button_w_px), gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(20 + button_h_px)), Vec2f(button_w, button_h));
+
 		}
 	}
 }
@@ -662,6 +727,10 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 {
 	if(gl_ui.isNull())
 		return;
+
+	if(minimap_image.nonNull() && !minimap_image->isVisible()) // If map is hidden, don't do any work.
+		return;
+
 
 	const Vec2f ui_coords = mapUICoordsForWorldSpacePos(avatar_pos);
 
@@ -794,7 +863,28 @@ void MiniMap::removeMarkerForAvatar(Avatar* avatar)
 
 void MiniMap::eventOccurred(GLUICallbackEvent& event)
 {
-	conPrint("MiniMap::eventOccurred");
+	if(event.widget == this->collapse_button.ptr())
+	{
+		assert(expanded);
+
+		setMapAndMarkersVisible(false);
+
+		collapse_button->setVisible(false);
+		expand_button->setVisible(true);
+
+		expanded = false;
+	}
+	else if(event.widget == this->expand_button.ptr())
+	{
+		assert(!expanded);
+
+		setMapAndMarkersVisible(true);
+
+		collapse_button->setVisible(true);
+		expand_button->setVisible(false);
+
+		expanded = true;
+	}
 }
 
 
@@ -802,6 +892,10 @@ void MiniMap::mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event)
 {
 	if(gl_ui.isNull())
 		return;
+
+	if(minimap_image.nonNull() && !minimap_image->isVisible()) // If map is hidden, don't do any work.
+		return;
+
 
 	//conPrint("MiniMap::mouseWheelEventOccurred, angle_delta_y: " + toString(event.wheel_event->angle_delta_y));
 	event.accepted = true;
