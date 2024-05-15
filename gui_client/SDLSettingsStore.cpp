@@ -55,25 +55,32 @@ void SDLSettingsStore::setStringValue(const std::string& key, const std::string&
 #else
 
 
-static bool doesRegValueExist(const std::string& key)
+static void getRegSubKeyAndValueName(const std::string& setting_key, std::string& subkey_out, std::string& value_name_out)
+{
+	std::vector<std::string> keyparts = ::split(setting_key, '/');
+	if(keyparts.size() == 0)
+		throw glare::Exception("setting_key.size() == 0");
+
+	subkey_out = "SOFTWARE\\Glare Technologies\\Cyberspace\\";
+	for(size_t i=0; i+1<keyparts.size(); ++i)
+	{
+		subkey_out += keyparts[i];
+		if(i + 2 < keyparts.size())
+			subkey_out += "\\";
+	}
+	value_name_out = keyparts.back();
+}
+
+
+static bool doesRegValueExist(const std::string& setting_key)
 {
 	// TODO: improve
 	try
 	{
-		std::vector<std::string> keyparts = ::split(key, '/');
-		if(keyparts.size() == 0)
-			throw glare::Exception("keyparts.size() == 0");
+		std::string subkey, value_name;
+		getRegSubKeyAndValueName(setting_key, subkey, value_name);
 
-		std::string path = "SOFTWARE\\Glare Technologies\\Cyberspace\\";
-		for(size_t i=0; i+1<keyparts.size(); ++i)
-		{
-			path += keyparts[i];
-			if(i + 2 < keyparts.size())
-				path += "\\";
-		}
-		std::string regvalue = keyparts.back();
-
-		const std::string stringval = PlatformUtils::getStringRegKey(PlatformUtils::RegHKey_CurrentUser, path, regvalue);
+		const std::string stringval = PlatformUtils::getStringRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name);
 		return true;
 	}
 	catch(glare::Exception&)
@@ -82,24 +89,25 @@ static bool doesRegValueExist(const std::string& key)
 	}
 }
 
-static const std::string getRegStringVal(const std::string& key)
+
+static const std::string getRegStringVal(const std::string& setting_key)
 {
-	std::vector<std::string> keyparts = ::split(key, '/');
-	if(keyparts.size() == 0)
-		throw glare::Exception("keyparts.size() == 0");
+	std::string subkey, value_name;
+	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 
-	std::string path = "SOFTWARE\\Glare Technologies\\Cyberspace\\";
-	for(size_t i=0; i+1<keyparts.size(); ++i)
-	{
-		path += keyparts[i];
-		if(i + 2 < keyparts.size())
-			path += "\\";
-	}
-	std::string regvalue = keyparts.back();
-
-	const std::string stringval = PlatformUtils::getStringRegKey(PlatformUtils::RegHKey_CurrentUser, path, regvalue);
+	const std::string stringval = PlatformUtils::getStringRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name);
 	return stringval;
+
 }
+
+
+static uint32 getRegDWordVal(const std::string& setting_key)
+{
+	std::string subkey, value_name;
+	getRegSubKeyAndValueName(setting_key, subkey, value_name);
+	return PlatformUtils::getDWordRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name);
+}
+
 
 bool SDLSettingsStore::getBoolValue(const std::string& key, bool default_value)
 {
@@ -116,7 +124,7 @@ void SDLSettingsStore::setBoolValue(const std::string& key, bool value)
 int SDLSettingsStore::getIntValue(const std::string& key, int default_value)
 {
 	if(doesRegValueExist(key))
-		return stringToInt(getRegStringVal(key));
+		return (int)getRegDWordVal(key);
 	else
 		return default_value;
 }

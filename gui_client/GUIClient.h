@@ -532,12 +532,12 @@ public:
 	UID last_restored_ob_uid_in_edit;
 
 	GLUIRef gl_ui;
-	GestureUI gesture_ui;
+	GestureUI gesture_ui; // Draws gesture buttons, also selfie and enable mic button
 	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
 	MiscInfoUI misc_info_ui; // For showing messages from the server etc.
-	HeadUpDisplayUI hud_ui;
-	ChatUI chat_ui;
-	MiniMap minimap;
+	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
+	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
+	MiniMap minimap; // Draws minimap
 
 	bool running_destructor;
 

@@ -399,7 +399,7 @@ int main(int argc, char** argv)
 
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager);
 
-		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, /*show minimap=*/true, opengl_engine, fonts, emoji_fonts);
+		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, opengl_engine, fonts, emoji_fonts);
 
 		gui_client->gl_ui->callbacks = new SDLClientGLUICallbacks();
 
