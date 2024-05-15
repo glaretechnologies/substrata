@@ -11669,12 +11669,19 @@ void GUIClient::setMicForVoiceChatEnabled(bool enabled)
 	{
 		if(mic_read_thread_manager.getNumThreads() == 0)
 		{
-			Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(&this->msg_queue, this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port,
-				settings->getStringValue("setting/input_device_name", "Default"), //MainOptionsDialog::getInputDeviceName(settings),
-				settings->getIntValue("setting/input_scale_factor_name", /*default val=*/100) * 0.01f, // NOTE: stored in percent in settings //MainOptionsDialog::getInputScaleFactor(settings), // input_vol_scale_factor
-				&mic_read_status
-			);
-			mic_read_thread_manager.addThread(mic_read_thread);
+			try
+			{
+				Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(&this->msg_queue, this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port,
+					settings->getStringValue("setting/input_device_name", "Default"), //MainOptionsDialog::getInputDeviceName(settings),
+					settings->getIntValue("setting/input_scale_factor_name", /*default val=*/100) * 0.01f, // NOTE: stored in percent in settings //MainOptionsDialog::getInputScaleFactor(settings), // input_vol_scale_factor
+					&mic_read_status
+				);
+				mic_read_thread_manager.addThread(mic_read_thread);
+			}
+			catch(glare::Exception& e)
+			{
+				showInfoNotification("Failed to enable microphone input: " + e.what());
+			}
 		}
 	}
 	else
@@ -12354,7 +12361,8 @@ void GUIClient::updateNotifications(double cur_time)
 	{
 		it->text_view->setPos(*gl_ui, 
 			Vec2f(
-				-gl_ui->getUIWidthForDevIndepPixelWidth(150), 
+				myMax(-1.f, -it->text_view->getRect().getWidths().x / 2.f),
+				//-gl_ui->getUIWidthForDevIndepPixelWidth(150), 
 				gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)
 			)
 		);
