@@ -46,6 +46,7 @@ public:
 
 	virtual void eventOccurred(GLUICallbackEvent& event);
 private:
+	void setWidgetVisibilityForExpanded();
 	void updateWidgetTransforms();
 
 	struct ChatMessage
