@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "GUIClient.h"
+#include "SettingsStore.h"
 #include <graphics/SRGBUtils.h>
 #include <opengl/MeshPrimitiveBuilding.h>
 
@@ -30,7 +31,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
-	expanded = true;
+	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_chat", /*default_value=*/true);
 	last_background_top_right_pos = Vec2f(0.f);
 
 	// Create background quad to go behind text
@@ -84,7 +85,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 		gl_ui->addWidget(expand_button);
 	}
 
-
+	setWidgetVisibilityForExpanded();
 	updateWidgetTransforms();
 }
 
@@ -119,12 +120,14 @@ void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avata
 		name_args.font_size_px = font_size_px;
 		name_args.background_alpha = 0;
 		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, avatar_name, Vec2f(0.f), name_args);
+		chatmessage.name_text->setVisible(this->expanded);
 		gl_ui->addWidget(chatmessage.name_text);
 
 		GLUITextView::CreateArgs msg_args;
 		msg_args.font_size_px = font_size_px;
 		msg_args.background_alpha = 0;
 		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, msg, Vec2f(0.f), msg_args);
+		chatmessage.msg_text->setVisible(this->expanded);
 		gl_ui->addWidget(chatmessage.msg_text);
 
 		messages.push_back(chatmessage);
@@ -252,42 +255,36 @@ void ChatUI::updateWidgetTransforms()
 }
 
 
+void ChatUI::setWidgetVisibilityForExpanded()
+{
+	background_overlay_ob->draw = expanded;
+	collapse_button->setVisible(expanded);
+	expand_button->setVisible(!expanded);
+	chat_line_edit->setVisible(expanded);
+
+	for(auto it = messages.begin(); it != messages.end(); ++it)
+	{
+		ChatMessage& msg = *it;
+		msg.name_text->setVisible(expanded);
+		msg.msg_text->setVisible(expanded);
+	}
+}
+
+
 void ChatUI::eventOccurred(GLUICallbackEvent& event)
 {
 	if(event.widget == this->collapse_button.ptr())
 	{
 		assert(expanded);
-
-		background_overlay_ob->draw = false;
-		collapse_button->setVisible(false);
-		expand_button->setVisible(true);
-		chat_line_edit->setVisible(false);
-
-		for(auto it = messages.begin(); it != messages.end(); ++it)
-		{
-			ChatMessage& msg = *it;
-			msg.name_text->setVisible(false);
-			msg.msg_text->setVisible(false);
-		}
-
 		expanded = false;
 	}
 	else if(event.widget == this->expand_button.ptr())
 	{
 		assert(!expanded);
-
-		background_overlay_ob->draw = true;
-		collapse_button->setVisible(true);
-		expand_button->setVisible(false);
-		chat_line_edit->setVisible(true);
-
-		for(auto it = messages.begin(); it != messages.end(); ++it)
-		{
-			ChatMessage& msg = *it;
-			msg.name_text->setVisible(true);
-			msg.msg_text->setVisible(true);
-		}
-
 		expanded = true;
 	}
+
+	setWidgetVisibilityForExpanded();
+
+	gui_client->getSettingsStore()->setBoolValue("setting/show_chat", expanded);
 }

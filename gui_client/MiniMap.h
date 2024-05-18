@@ -69,6 +69,7 @@ public:
 
 	void handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMessage& msg);
 private:
+	void setWidgetVisibilityForExpanded();
 	void checkUpdateTilesForCurCamPosition();
 	void updateWidgetPositions();
 	void renderTilesToTexture();

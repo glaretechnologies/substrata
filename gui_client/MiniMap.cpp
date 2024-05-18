@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "IncludeOpenGL.h"
 #include "GUIClient.h"
 #include "ClientThread.h"
+#include "SettingsStore.h"
 #include "../shared/Protocol.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/ResourceManager.h"
@@ -75,7 +76,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
-	expanded = true;
+	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_minimap", /*default_value=*/true);
 	
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
@@ -101,7 +102,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 		args.tooltip = "Hide minimap";
 		args.button_colour = Colour3f(0.2f);
 		args.mouseover_button_colour = Colour3f(0.4f);
-		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(10.f), /*dims=*/Vec2f(0.1f), args);
 		collapse_button->handler = this;
 		gl_ui->addWidget(collapse_button);
 	}
@@ -109,7 +110,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Show minimap";
-		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(10.f), /*dims=*/Vec2f(0.1f), args);
 		expand_button->handler = this;
 		expand_button->setVisible(false);
 		gl_ui->addWidget(expand_button);
@@ -172,6 +173,9 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 		conPrint("Error: renderMaskMap(): framebuffer is not complete.");
 		assert(0);
 	}
+
+	updateWidgetPositions();
+	setWidgetVisibilityForExpanded();
 }
 
 
@@ -861,30 +865,31 @@ void MiniMap::removeMarkerForAvatar(Avatar* avatar)
 //}
 
 
+void MiniMap::setWidgetVisibilityForExpanded()
+{
+	setMapAndMarkersVisible(expanded);
+
+	collapse_button->setVisible(expanded);
+	expand_button->setVisible(!expanded);
+}
+
+
 void MiniMap::eventOccurred(GLUICallbackEvent& event)
 {
 	if(event.widget == this->collapse_button.ptr())
 	{
 		assert(expanded);
-
-		setMapAndMarkersVisible(false);
-
-		collapse_button->setVisible(false);
-		expand_button->setVisible(true);
-
 		expanded = false;
 	}
 	else if(event.widget == this->expand_button.ptr())
 	{
 		assert(!expanded);
-
-		setMapAndMarkersVisible(true);
-
-		collapse_button->setVisible(true);
-		expand_button->setVisible(false);
-
 		expanded = true;
 	}
+
+	setWidgetVisibilityForExpanded();
+
+	gui_client->getSettingsStore()->setBoolValue("setting/show_minimap", expanded);
 }
 
 

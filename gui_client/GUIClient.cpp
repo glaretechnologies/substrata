@@ -279,7 +279,8 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 	// In this case, we want to check if each resource is actually present on disk in the current resources dir.
 	const std::string last_resources_dir = settings->getStringValue("last_resources_dir", "");
 	const bool resources_dir_changed = last_resources_dir != resources_dir;
-	settings->setStringValue("last_resources_dir", resources_dir);
+	if(resources_dir_changed)
+		settings->setStringValue("last_resources_dir", resources_dir);
 
 	const std::string resources_db_path = appdata_path + "/resources_db";
 	try
@@ -1784,7 +1785,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				physics_world->addObject(ob->physics_object);
 			}
 		}
-		if(ob->object_type == WorldObject::ObjectType_Text)
+		else if(ob->object_type == WorldObject::ObjectType_Text)
 		{
 			if(ob->opengl_engine_ob.isNull())
 			{
