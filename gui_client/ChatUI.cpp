@@ -144,7 +144,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
 		GLUITextView::CreateArgs msg_args;
 		msg_args.font_size_px = font_size_px;
 		msg_args.background_alpha = 0;
-		msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
+		msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x;// + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
 		msg_args.max_width = text_area_w;
 		const std::string use_msg = UTF8Utils::isValidUTF8String(chatmessage.msg) ? chatmessage.msg : "[invalid]";
 		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, use_msg, Vec2f(0.f), msg_args);
