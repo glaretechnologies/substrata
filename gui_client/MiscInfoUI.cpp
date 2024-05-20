@@ -55,7 +55,6 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 		if(admin_msg_text_view.nonNull())
 		{
 			gl_ui->removeWidget(admin_msg_text_view);
-			admin_msg_text_view->destroy();
 			admin_msg_text_view = NULL;
 		}
 	}
@@ -171,7 +170,7 @@ void MiscInfoUI::updateWidgetPositions()
 		{
 			const float min_max_y = gl_ui->getViewportMinMaxY();
 
-			const Vec2f text_dims = admin_msg_text_view->getDims();
+			const Vec2f text_dims = admin_msg_text_view->getRect().getWidths();
 
 			const float vert_margin = 50.f / opengl_engine->getViewPortWidth(); // 50 pixels
 
