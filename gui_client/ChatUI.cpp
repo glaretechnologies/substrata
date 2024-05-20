@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "SettingsStore.h"
 #include <graphics/SRGBUtils.h>
 #include <opengl/MeshPrimitiveBuilding.h>
+#include <utils/UTF8Utils.h>
 
 
 ChatUI::ChatUI()
@@ -24,6 +25,7 @@ ChatUI::~ChatUI()
 static const float widget_w = 0.6f;
 static const float corner_radius_px = 8;
 static const int font_size_px = 12;
+static const int msgs_padding_w_px = 8;
 
 
 void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
@@ -85,6 +87,10 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 		gl_ui->addWidget(expand_button);
 	}
 
+	// TEMP: add some messages
+	//for(int i=0; i<20; ++i)
+	//	appendMessage("Nick: ", Colour3f(1.f, 0.8f, 0.2f), "Testing 123, new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path");
+
 	setWidgetVisibilityForExpanded();
 	updateWidgetTransforms();
 }
@@ -110,25 +116,61 @@ void ChatUI::think()
 }
 
 
+void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
+{
+	// Remove existing text views
+	if(chatmessage.name_text.nonNull())
+		gl_ui->removeWidget(chatmessage.name_text);
+	chatmessage.name_text = NULL;
+
+	if(chatmessage.msg_text.nonNull())
+		gl_ui->removeWidget(chatmessage.msg_text);
+	chatmessage.msg_text = NULL;
+
+
+	const float text_area_w = widget_w - gl_ui->getUIWidthForDevIndepPixelWidth(msgs_padding_w_px) * 2;
+	{
+		GLUITextView::CreateArgs name_args;
+		name_args.text_colour = chatmessage.avatar_colour;
+		name_args.font_size_px = font_size_px;
+		name_args.background_alpha = 0;
+		name_args.max_width = text_area_w;
+		const std::string use_avatar_name = UTF8Utils::isValidUTF8String(chatmessage.avatar_name) ? chatmessage.avatar_name : "[invalid]";
+		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, use_avatar_name, Vec2f(0.f), name_args);
+		chatmessage.name_text->setVisible(this->expanded);
+		gl_ui->addWidget(chatmessage.name_text);
+	}
+	{
+		GLUITextView::CreateArgs msg_args;
+		msg_args.font_size_px = font_size_px;
+		msg_args.background_alpha = 0;
+		msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
+		msg_args.max_width = text_area_w;
+		const std::string use_msg = UTF8Utils::isValidUTF8String(chatmessage.msg) ? chatmessage.msg : "[invalid]";
+		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, use_msg, Vec2f(0.f), msg_args);
+		chatmessage.msg_text->setVisible(this->expanded);
+		gl_ui->addWidget(chatmessage.msg_text);
+	}
+}
+
+
+void ChatUI::recreateMessageTextViews()
+{
+	for(auto it = messages.begin(); it != messages.end(); ++it)
+		recreateTextViewsForMessage(*it);
+}
+
+
 void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avatar_colour, const std::string& msg)
 {
 	// Add
 	{
 		ChatMessage chatmessage;
-		GLUITextView::CreateArgs name_args;
-		name_args.text_colour = avatar_colour;
-		name_args.font_size_px = font_size_px;
-		name_args.background_alpha = 0;
-		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, avatar_name, Vec2f(0.f), name_args);
-		chatmessage.name_text->setVisible(this->expanded);
-		gl_ui->addWidget(chatmessage.name_text);
+		chatmessage.avatar_name = avatar_name;
+		chatmessage.avatar_colour = avatar_colour;
+		chatmessage.msg = msg;
 
-		GLUITextView::CreateArgs msg_args;
-		msg_args.font_size_px = font_size_px;
-		msg_args.background_alpha = 0;
-		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, msg, Vec2f(0.f), msg_args);
-		chatmessage.msg_text->setVisible(this->expanded);
-		gl_ui->addWidget(chatmessage.msg_text);
+		recreateTextViewsForMessage(chatmessage);
 
 		messages.push_back(chatmessage);
 	}
@@ -154,6 +196,7 @@ void ChatUI::viewportResized(int w, int h)
 {
 	if(gl_ui.nonNull())
 	{
+		recreateMessageTextViews();
 		updateWidgetTransforms();
 	}
 }
@@ -223,7 +266,6 @@ void ChatUI::updateWidgetTransforms()
 
 	const float vert_spacing = gl_ui->getUIWidthForDevIndepPixelWidth(10);
 
-	const int msgs_padding_w_px = 8;
 	const float clip_padding_w = gl_ui->getUIWidthForDevIndepPixelWidth(msgs_padding_w_px);
 	
 	// Just use zero for bottom clip padding so as not to clip of descenders.
@@ -234,11 +276,15 @@ void ChatUI::updateWidgetTransforms()
 	{
 		ChatMessage& msg = *it;
 
-		msg.name_text->setPos(*gl_ui, /*botleft=*/Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20 + msgs_padding_w_px), y));
-		msg.name_text->glui_text->overlay_ob->clip_region = clip_region;
+		y += msg.msg_text->getRect().getWidths().y - gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px); // Move start position up to leave room for multi-line text views
 
-		msg.msg_text->setPos(*gl_ui, /*botleft=*/Vec2f(msg.name_text->getRect().getMax().x/* + gl_ui->getUIWidthForDevIndepPixelWidth(20)*/, y));
-		msg.msg_text->glui_text->overlay_ob->clip_region = clip_region;
+		const Vec2f line_0_botleft = Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20 + msgs_padding_w_px), y);
+
+		msg.name_text->setPos(*gl_ui, /*botleft=*/line_0_botleft);
+		msg.name_text->setClipRegion(clip_region);
+
+		msg.msg_text->setPos(*gl_ui, /*botleft=*/line_0_botleft); // Vec2f(msg.name_text->getRect().getMax().x/* + gl_ui->getUIWidthForDevIndepPixelWidth(20)*/, y));
+		msg.msg_text->setClipRegion(clip_region);
 
 		const float max_msg_y = myMax(msg.name_text->getRect().getMax().y, msg.msg_text->getRect().getMax().y);
 

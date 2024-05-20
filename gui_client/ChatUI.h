@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <opengl/ui/GLUITextView.h>
 #include <opengl/ui/GLUIImage.h>
 #include <opengl/ui/GLUILineEdit.h>
+#include "ClientThread.h"
 
 
 class GUIClient;
@@ -46,14 +47,20 @@ public:
 
 	virtual void eventOccurred(GLUICallbackEvent& event);
 private:
-	void setWidgetVisibilityForExpanded();
-	void updateWidgetTransforms();
-
 	struct ChatMessage
 	{
+		Colour3f avatar_colour;
+		std::string avatar_name, msg;
+
 		GLUITextViewRef name_text;
 		GLUITextViewRef msg_text;
 	};
+
+	void setWidgetVisibilityForExpanded();
+	void updateWidgetTransforms();
+	void recreateMessageTextViews();
+	void recreateTextViewsForMessage(ChatMessage& msg);
+
 
 	std::list<ChatMessage> messages;
 

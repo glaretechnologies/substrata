@@ -39,7 +39,6 @@ void ObInfoUI::destroy()
 	if(info_text_view.nonNull())
 	{
 		gl_ui->removeWidget(info_text_view);
-		info_text_view->destroy();
 		info_text_view = NULL;
 	}
 
