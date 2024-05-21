@@ -70,6 +70,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/IndigoXMLDoc.h"
 #include "../utils/RuntimeCheck.h"
 #include "../utils/MemAlloc.h"
+#include "../utils/UTF8Utils.h"
 #include "../networking/Networking.h"
 #include "../networking/URL.h"
 #include "../graphics/ImageMap.h"
@@ -1577,7 +1578,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	Rect2f rect_os;
 	OpenGLTextureRef atlas_texture;
 
-	const std::string use_text = ob->content.empty() ? " " : ob->content;
+	const std::string use_text = ob->content.empty() ? " " : UTF8Utils::sanitiseUTF8String(ob->content);
 
 	const int font_size_px = 42;
 
@@ -4298,7 +4299,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	
 	gesture_ui.think();
 	hud_ui.think();
-	chat_ui.think();
 	minimap.think();
 
 	updateObjectsWithDiagnosticVis();
@@ -12384,7 +12384,7 @@ void GUIClient::showErrorNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -12410,7 +12410,7 @@ void GUIClient::showInfoNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, message, Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 

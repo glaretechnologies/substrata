@@ -33,20 +33,16 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
-	void think();
-
 	void appendMessage(const std::string& avatar_name, const Colour3f& avatar_colour, const std::string& msg);
 
 	void viewportResized(int w, int h);
 
 	void handleMouseMoved(MouseEvent& mouse_event);
 
-
-	void updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos);
-	void removeMarkerForAvatar(Avatar* avatar);
-
 	virtual void eventOccurred(GLUICallbackEvent& event);
 private:
+	bool isInitialisedFully();
+
 	struct ChatMessage
 	{
 		Colour3f avatar_colour;

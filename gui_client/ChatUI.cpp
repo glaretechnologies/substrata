@@ -14,7 +14,8 @@ Copyright Glare Technologies Limited 2024 -
 
 
 ChatUI::ChatUI()
-:	gui_client(NULL)
+:	gui_client(NULL),
+	expanded(true)
 {}
 
 
@@ -36,63 +37,70 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_chat", /*default_value=*/true);
 	last_background_top_right_pos = Vec2f(0.f);
 
-	// Create background quad to go behind text
-	background_overlay_ob = new OverlayObject();
-	background_overlay_ob->material.albedo_linear_rgb = Colour3f(0);
-	background_overlay_ob->material.alpha = 0.8f;
-	// Init with dummy data, will be updated in updateWidgetTransforms()
-	background_overlay_ob->ob_to_world_matrix = Matrix4f::identity();
-	background_overlay_ob->mesh_data = opengl_engine->getUnitQuadMeshData(); // Dummy
-	this->last_viewport_dims = Vec2i(0); 
-	opengl_engine->addOverlayObject(background_overlay_ob);
+	try
+	{
+		// Create background quad to go behind text
+		background_overlay_ob = new OverlayObject();
+		background_overlay_ob->material.albedo_linear_rgb = Colour3f(0);
+		background_overlay_ob->material.alpha = 0.8f;
+		// Init with dummy data, will be updated in updateWidgetTransforms()
+		background_overlay_ob->ob_to_world_matrix = Matrix4f::identity();
+		background_overlay_ob->mesh_data = opengl_engine->getUnitQuadMeshData(); // Dummy
+		this->last_viewport_dims = Vec2i(0); 
+		opengl_engine->addOverlayObject(background_overlay_ob);
 
 
-	GLUILineEdit::CreateArgs create_args;
-	create_args.width = widget_w;
-	create_args.background_colour = Colour3f(0.0f);
-	create_args.background_alpha = 0.8f;
-	create_args.font_size_px = font_size_px;
-	chat_line_edit = new GLUILineEdit(*gl_ui, opengl_engine, /*dummy botleft=*/Vec2f(0.f), create_args);
+		GLUILineEdit::CreateArgs create_args;
+		create_args.width = widget_w;
+		create_args.background_colour = Colour3f(0.0f);
+		create_args.background_alpha = 0.8f;
+		create_args.font_size_px = font_size_px;
+		chat_line_edit = new GLUILineEdit(*gl_ui, opengl_engine, /*dummy botleft=*/Vec2f(0.f), create_args);
 
-	GLUILineEdit* chat_line_edit_ptr = chat_line_edit.ptr();
-	chat_line_edit->on_enter_pressed = [chat_line_edit_ptr, gui_client_]()
-		{
-			if(!chat_line_edit_ptr->getText().empty())
+		GLUILineEdit* chat_line_edit_ptr = chat_line_edit.ptr();
+		chat_line_edit->on_enter_pressed = [chat_line_edit_ptr, gui_client_]()
 			{
-				gui_client_->sendChatMessage(chat_line_edit_ptr->getText());
+				if(!chat_line_edit_ptr->getText().empty())
+				{
+					gui_client_->sendChatMessage(chat_line_edit_ptr->getText());
 
-				chat_line_edit_ptr->clear(); 
-			}
-		};
+					chat_line_edit_ptr->clear(); 
+				}
+			};
 
-	gl_ui->addWidget(chat_line_edit);
+		gl_ui->addWidget(chat_line_edit);
 
 
-	{
-		GLUIButton::CreateArgs args;
-		args.tooltip = "Hide chat";
-		args.button_colour = Colour3f(0.2f);
-		args.mouseover_button_colour = Colour3f(0.4f);
-		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
-		collapse_button->handler = this;
-		gl_ui->addWidget(collapse_button);
+		{
+			GLUIButton::CreateArgs args;
+			args.tooltip = "Hide chat";
+			args.button_colour = Colour3f(0.2f);
+			args.mouseover_button_colour = Colour3f(0.4f);
+			collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+			collapse_button->handler = this;
+			gl_ui->addWidget(collapse_button);
+		}
+
+		{
+			GLUIButton::CreateArgs args;
+			args.tooltip = "Show chat";
+			expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+			expand_button->handler = this;
+			expand_button->setVisible(false);
+			gl_ui->addWidget(expand_button);
+		}
+
+		// TEMP: add some messages
+		//for(int i=0; i<20; ++i)
+		//	appendMessage("Nick: ", Colour3f(1.f, 0.8f, 0.2f), "Testing 123, new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path");
+
+		setWidgetVisibilityForExpanded();
+		updateWidgetTransforms();
 	}
-
+	catch(glare::Exception& e)
 	{
-		GLUIButton::CreateArgs args;
-		args.tooltip = "Show chat";
-		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
-		expand_button->handler = this;
-		expand_button->setVisible(false);
-		gl_ui->addWidget(expand_button);
+		conPrint("Warning: Excep while creating ChatUI: " + e.what());
 	}
-
-	// TEMP: add some messages
-	//for(int i=0; i<20; ++i)
-	//	appendMessage("Nick: ", Colour3f(1.f, 0.8f, 0.2f), "Testing 123, new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path");
-
-	setWidgetVisibilityForExpanded();
-	updateWidgetTransforms();
 }
 
 
@@ -128,8 +136,14 @@ void ChatUI::destroy()
 }
 
 
-void ChatUI::think()
+bool ChatUI::isInitialisedFully()
 {
+	return 
+		gl_ui.nonNull() &&
+		background_overlay_ob.nonNull() &&
+		collapse_button.nonNull() &&
+		expand_button.nonNull() &&
+		chat_line_edit.nonNull();
 }
 
 
@@ -152,8 +166,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
 		name_args.font_size_px = font_size_px;
 		name_args.background_alpha = 0;
 		name_args.max_width = text_area_w;
-		const std::string use_avatar_name = UTF8Utils::isValidUTF8String(chatmessage.avatar_name) ? chatmessage.avatar_name : "[invalid]";
-		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, use_avatar_name, Vec2f(0.f), name_args);
+		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name), Vec2f(0.f), name_args);
 		chatmessage.name_text->setVisible(this->expanded);
 		gl_ui->addWidget(chatmessage.name_text);
 	}
@@ -163,8 +176,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
 		msg_args.background_alpha = 0;
 		msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x;// + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
 		msg_args.max_width = text_area_w;
-		const std::string use_msg = UTF8Utils::isValidUTF8String(chatmessage.msg) ? chatmessage.msg : "[invalid]";
-		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, use_msg, Vec2f(0.f), msg_args);
+		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(chatmessage.msg), Vec2f(0.f), msg_args);
 		chatmessage.msg_text->setVisible(this->expanded);
 		gl_ui->addWidget(chatmessage.msg_text);
 	}
@@ -180,6 +192,9 @@ void ChatUI::recreateMessageTextViews()
 
 void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avatar_colour, const std::string& msg)
 {
+	if(!isInitialisedFully())
+		return;
+
 	// Add
 	{
 		ChatMessage chatmessage;
@@ -211,19 +226,23 @@ void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avata
 
 void ChatUI::viewportResized(int w, int h)
 {
-	if(gl_ui.nonNull())
-	{
-		recreateMessageTextViews();
-		updateWidgetTransforms();
-	}
+	if(!isInitialisedFully())
+		return;
+
+	recreateMessageTextViews();
+	updateWidgetTransforms();
 }
 
 
 static const float button_spacing_px = 10;
 static const float button_w_px = 20;
 
+
 void ChatUI::handleMouseMoved(MouseEvent& mouse_event)
 {
+	if(!isInitialisedFully())
+		return;
+
 	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(mouse_event.gl_coords);
 
 	if(expanded)
@@ -247,6 +266,9 @@ void ChatUI::handleMouseMoved(MouseEvent& mouse_event)
 
 void ChatUI::updateWidgetTransforms()
 {
+	if(!isInitialisedFully())
+		return;
+
 	//---------------------------- Update chat_line_edit ----------------------------
 
 	const float chat_line_edit_y = -gl_ui->getViewportMinMaxY() + /*0.15f*/gl_ui->getUIWidthForDevIndepPixelWidth(20);
@@ -336,6 +358,9 @@ void ChatUI::setWidgetVisibilityForExpanded()
 
 void ChatUI::eventOccurred(GLUICallbackEvent& event)
 {
+	if(!isInitialisedFully())
+		return;
+
 	if(event.widget == this->collapse_button.ptr())
 	{
 		assert(expanded);
