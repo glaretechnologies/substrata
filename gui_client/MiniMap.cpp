@@ -221,6 +221,18 @@ void MiniMap::destroy()
 			gl_ui->removeWidget(arrow_image);
 			arrow_image = NULL;
 		}
+
+		if(collapse_button.nonNull())
+		{
+			gl_ui->removeWidget(collapse_button);
+			collapse_button = NULL;
+		}
+
+		if(expand_button.nonNull())
+		{
+			gl_ui->removeWidget(expand_button);
+			expand_button = NULL;
+		}
 	}
 
 	gl_ui = NULL;

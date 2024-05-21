@@ -98,6 +98,15 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 
 void ChatUI::destroy()
 {
+	// Remove + destroy message UI objects
+	for(auto it = messages.begin(); it != messages.end(); ++it)
+	{
+		ChatMessage& msg = *it;
+		gl_ui->removeWidget(msg.name_text);
+		gl_ui->removeWidget(msg.msg_text);
+	}
+	messages.clear();
+
 	if(background_overlay_ob.nonNull())
 		opengl_engine->removeOverlayObject(background_overlay_ob);
 	background_overlay_ob = NULL;
@@ -105,6 +114,14 @@ void ChatUI::destroy()
 	if(chat_line_edit.nonNull())
 		gl_ui->removeWidget(chat_line_edit);
 	chat_line_edit = NULL;
+
+	if(collapse_button.nonNull())
+		gl_ui->removeWidget(collapse_button);
+	collapse_button = NULL;
+
+	if(expand_button.nonNull())
+		gl_ui->removeWidget(expand_button);
+	expand_button = NULL;
 
 	gl_ui = NULL;
 	opengl_engine = NULL;
