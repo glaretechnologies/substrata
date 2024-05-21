@@ -74,8 +74,8 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Hide chat";
-			args.button_colour = Colour3f(0.2f);
-			args.mouseover_button_colour = Colour3f(0.4f);
+			//args.button_colour = Colour3f(0.2f);
+			//args.mouseover_button_colour = Colour3f(0.4f);
 			collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
 			collapse_button->handler = this;
 			gl_ui->addWidget(collapse_button);
@@ -84,7 +84,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Show chat";
-			expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+			expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/expand_chat_icon.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
 			expand_button->handler = this;
 			expand_button->setVisible(false);
 			gl_ui->addWidget(expand_button);
@@ -336,7 +336,10 @@ void ChatUI::updateWidgetTransforms()
 	collapse_button->setPosAndDims(Vec2f(background_pos.x + background_w + gl_ui->getUIWidthForDevIndepPixelWidth(button_spacing_px), background_pos.y + background_h - button_h), Vec2f(button_w, button_h));
 
 	//---------------------------- Update expand_button ----------------------------
-	expand_button->setPosAndDims(Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20), -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(20) /*background_pos.y *//*+ background_h - button_h*/), Vec2f(button_w, button_h));
+	const float expand_button_w_px = 36;
+	const float expand_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(expand_button_w_px);
+	expand_button->setPosAndDims(Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20), -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(20 - 6) /*background_pos.y *//*+ background_h - button_h*/), 
+		Vec2f(expand_button_w, expand_button_w));
 }
 
 
