@@ -128,8 +128,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	}
 
 	{	
-		mic_level_image = new GLUIImage();
-		mic_level_image->create(*gl_ui, opengl_engine, ""/*gui_client->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(0), Vec2f(0.1f, 0.1f), "Microphone input indicator");
+		mic_level_image = new GLUIImage(*gl_ui, opengl_engine, ""/*gui_client->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(0), Vec2f(0.1f, 0.1f), "Microphone input indicator");
 		gl_ui->addWidget(mic_level_image);
 	}
 
@@ -142,40 +141,32 @@ void GestureUI::destroy()
 	if(left_tab_button.nonNull())
 	{
 		gl_ui->removeWidget(left_tab_button);
-		left_tab_button->destroy();
 		left_tab_button = NULL;
 	}
 	if(right_tab_button.nonNull())
 	{
 		gl_ui->removeWidget(right_tab_button);
-		right_tab_button->destroy();
 		right_tab_button = NULL;
 	}
 	if(selfie_button.nonNull())
 	{
 		gl_ui->removeWidget(selfie_button);
-		selfie_button->destroy();
 		selfie_button = NULL;
 	}
 	if(microphone_button.nonNull())
 	{
 		gl_ui->removeWidget(microphone_button);
-		microphone_button->destroy();
 		microphone_button = NULL;
 	}
 	if(mic_level_image.nonNull())
 	{
 		gl_ui->removeWidget(mic_level_image);
-		mic_level_image->destroy();
 		mic_level_image = NULL;
 	}
 
 
 	for(size_t i=0; i<gesture_buttons.size(); ++i)
-	{
 		gl_ui->removeWidget(gesture_buttons[i]);
-		gesture_buttons[i]->destroy();
-	}
 	gesture_buttons.resize(0);
 
 	gl_ui = NULL;
@@ -433,6 +424,6 @@ void GestureUI::setCurrentMicLevel(float linear_level, float display_level)
 		const Colour3f green = toLinearSRGB(Colour3f(0, 54.5f/100, 8.6f/100));
 		const Colour3f red   = toLinearSRGB(Colour3f(78.7f / 100, 0, 0));
 
-		mic_level_image->overlay_ob->material.albedo_linear_rgb = Maths::lerp(green, red, Maths::smoothStep(0.9f, 0.95f, linear_level));
+		mic_level_image->setColour(Maths::lerp(green, red, Maths::smoothStep(0.9f, 0.95f, linear_level)));
 	}
 }

@@ -81,16 +81,14 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
 	// Create minimap image
-	minimap_image = new GLUIImage();
-	minimap_image->create(*gl_ui, opengl_engine, "", Vec2f(1 - margin - minimap_width, gl_ui->getViewportMinMaxY() - margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
+	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", Vec2f(1 - margin - minimap_width, gl_ui->getViewportMinMaxY() - margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
 	minimap_image->overlay_ob->material.albedo_texture = minimap_texture;
 	minimap_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	minimap_image->handler = this;
 	gl_ui->addWidget(minimap_image);
 
 	// Create facing arrow image
-	arrow_image = new GLUIImage();
-	arrow_image->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY() - margin - minimap_width/2), Vec2f(0.005f), 
+	arrow_image = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY() - margin - minimap_width/2), Vec2f(0.005f), 
 		/*tooltip=*/"You", ARROW_IMAGE_Z);
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
@@ -215,14 +213,12 @@ void MiniMap::destroy()
 		if(minimap_image.nonNull())
 		{
 			gl_ui->removeWidget(minimap_image);
-			minimap_image->destroy();
 			minimap_image = NULL;
 		}
 		
 		if(arrow_image.nonNull())
 		{
 			gl_ui->removeWidget(arrow_image);
-			arrow_image->destroy();
 			arrow_image = NULL;
 		}
 	}
@@ -808,8 +804,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker.isNull()) // If marker does not exist yet:
 	{
 		// Create marker dot
-		GLUIImageRef im = new GLUIImage();
-		im->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
+		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
@@ -825,8 +820,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker_arrow.isNull()) // If marker arrow does not exist yet:
 	{
 		// Create marker arrow
-		GLUIImageRef im = new GLUIImage();
-		im->create(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
+		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 			
