@@ -96,17 +96,17 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "View gestures";
-		left_tab_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
-		left_tab_button->handler = this;
-		gl_ui->addWidget(left_tab_button);
+		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Waving 1.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		expand_button->handler = this;
+		gl_ui->addWidget(expand_button);
 	}
 	
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Hide gestures";
-		right_tab_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
-		right_tab_button->handler = this;
-		gl_ui->addWidget(right_tab_button);
+		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		collapse_button->handler = this;
+		gl_ui->addWidget(collapse_button);
 	}
 	
 	{
@@ -138,15 +138,15 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 
 void GestureUI::destroy()
 {
-	if(left_tab_button.nonNull())
+	if(expand_button.nonNull())
 	{
-		gl_ui->removeWidget(left_tab_button);
-		left_tab_button = NULL;
+		gl_ui->removeWidget(expand_button);
+		expand_button = NULL;
 	}
-	if(right_tab_button.nonNull())
+	if(collapse_button.nonNull())
 	{
-		gl_ui->removeWidget(right_tab_button);
-		right_tab_button = NULL;
+		gl_ui->removeWidget(collapse_button);
+		collapse_button = NULL;
 	}
 	if(selfie_button.nonNull())
 	{
@@ -237,16 +237,19 @@ void GestureUI::updateWidgetPositions()
 			gesture_buttons[i]->setPosAndDims(Vec2f(x, -min_max_y + y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 		}
 
-		if(right_tab_button.nonNull())
+		if(collapse_button.nonNull())
 		{
-			const float TAB_BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(35);
+			const float TAB_BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(40/*35*/);
 
-			right_tab_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
+			static const float collapse_button_w_px = 20;
+			static const float collapse_button_h_px = 50;
+			const float collapse_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_w_px);
+			const float collapse_button_h = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_h_px);
 
-			if(!gestures_visible)
-				left_tab_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
-			else
-				left_tab_button->setPosAndDims(Vec2f(1000, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING)); // hide
+			collapse_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - collapse_button_w - SPACING, -min_max_y + BUTTON_H*2 + SPACING*2 - collapse_button_h), Vec2f(collapse_button_w, collapse_button_h));
+
+			expand_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, TAB_BUTTON_W/*BUTTON_H * 2 + SPACING*/));
+			expand_button->setVisible(!gestures_visible);
 
 			const float selfie_button_x = /*-1 + SPACING*/-0.05f;
 			selfie_button->setPosAndDims(Vec2f(selfie_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
@@ -276,8 +279,8 @@ void GestureUI::setVisible(bool visible)
 		for(size_t i=0; i<gesture_buttons.size(); ++i)
 			gesture_buttons[i]->setVisible(visible);
 
-		right_tab_button->setVisible(visible);
-		left_tab_button->setVisible(visible);
+		collapse_button->setVisible(visible);
+		expand_button->setVisible(visible);
 		selfie_button->setVisible(visible);
 		microphone_button->setVisible(visible);
 		mic_level_image->setVisible(visible);
@@ -324,14 +327,14 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 			}
 		}
 
-		if(button == left_tab_button.ptr())
+		if(button == expand_button.ptr())
 		{
 			event.accepted = true;
 			gestures_visible = true;
 			updateWidgetPositions();
 			gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
 		}
-		else if(button == right_tab_button.ptr())
+		else if(button == collapse_button.ptr())
 		{
 			event.accepted = true;
 			gestures_visible = false;

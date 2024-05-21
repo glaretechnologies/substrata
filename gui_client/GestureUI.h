@@ -61,8 +61,8 @@ private:
 
 	std::vector<GLUIButtonRef> gesture_buttons;
 
-	GLUIButtonRef left_tab_button;
-	GLUIButtonRef right_tab_button;
+	GLUIButtonRef expand_button;
+	GLUIButtonRef collapse_button;
 
 	GLUIButtonRef selfie_button;
 
