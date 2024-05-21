@@ -757,6 +757,11 @@ void GUIClient::shutdown()
 	
 	if(biome_manager) delete biome_manager;
 
+	// Remove the notifications from the UI
+	for(auto it = notifications.begin(); it != notifications.end(); ++it)
+		gl_ui->removeWidget(it->text_view); 
+	notifications.clear();
+
 	misc_info_ui.destroy();
 
 	ob_info_ui.destroy();
@@ -11634,13 +11639,13 @@ void GUIClient::stopGesture()
 
 	// Send AvatarStopGesture message
 	// If we are not logged in, we can't perform a gesture, so don't send a AvatarStopGesture message or we will just get error messages back from the server.
-	if(this->logged_in_user_id.valid())
-	{
+	//if(this->logged_in_user_id.valid())
+	//{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
 		writeToStream(this->client_avatar_uid, scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
-	}
+	//}
 }
 
 

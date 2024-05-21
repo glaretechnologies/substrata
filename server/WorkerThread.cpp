@@ -1164,12 +1164,12 @@ void WorkerThread::doRun()
 
 							//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
 
-							if(!client_user_id.valid())
-							{
-								writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
-							}
-							else
-							{
+							//if(!client_user_id.valid())
+							//{
+							//	writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
+							//}
+							//else
+							//{
 								// Enqueue AvatarPerformGesture messages to worker threads to send
 								MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 								writeToStream(avatar_uid, scratch_packet);
@@ -1177,7 +1177,7 @@ void WorkerThread::doRun()
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);
-							}
+							//}
 							break;
 						}
 					case Protocol::AvatarStopGesture:
@@ -1185,19 +1185,19 @@ void WorkerThread::doRun()
 							//conPrint("AvatarStopGesture");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
-							if(!client_user_id.valid())
-							{
-								writeErrorMessageToClient(socket, "You must be logged in to stop a gesture.");
-							}
-							else
-							{
+							//if(!client_user_id.valid())
+							//{
+							//	writeErrorMessageToClient(socket, "You must be logged in to stop a gesture.");
+							//}
+							//else
+							//{
 								// Enqueue AvatarStopGesture messages to worker threads to send
 								MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
 								writeToStream(avatar_uid, scratch_packet);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);
-							}
+							//}
 							break;
 						}
 					case Protocol::AvatarFullUpdate:
