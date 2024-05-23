@@ -228,10 +228,6 @@ void GlWidget::initializeGL()
 		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/true).toBool();
 	}
 
-#if OSX
-	bloom = false; // use_final_image_buffer seems to crash on Mac, don't use it.
-#endif
-
 	// Enable debug output (glDebugMessageCallback) in Debug and RelWithDebugInfo mode, e.g. when BUILD_TESTS is 1.
 	// Don't enable in Release mode, in case it has a performance cost.
 #if BUILD_TESTS
