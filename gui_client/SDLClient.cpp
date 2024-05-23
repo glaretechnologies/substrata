@@ -476,6 +476,12 @@ int main(int argc, char** argv)
 		}
 		opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir + "/data/resources/cirrus.exr"));
 
+
+
+		const bool bloom = settings_store->getBoolValue("setting/bloom", /*default val=*/true);
+		if(bloom)
+			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
+
 		
 		
 		conPrint("Starting main loop...");
