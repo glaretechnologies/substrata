@@ -15,8 +15,6 @@ Change into that directory, then
 	git clone https://github.com/glaretechnologies/winter.git
 	git clone https://github.com/glaretechnologies/substrata.git
 
-	git clone --depth 1 --branch 0.627 https://github.com/luau-lang/luau.git luau/0.627
-
 Build libraries that Substrata uses
 ===================================
 
@@ -45,7 +43,9 @@ In your programming dir (e.g. c:/programming or ~/programming on Mac/Linux):
 In your programming dir
 
 	cd substrata/scripts
+	ruby get_libs.rb
 	ruby build_jpegturbo.rb
+	
 
 If you want to build with Qt for the user interface (you can make a SDL build instead, which is easier but doesn't have the full UI):
 
