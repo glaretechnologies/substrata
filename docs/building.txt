@@ -15,6 +15,7 @@ Change into that directory, then
 	git clone https://github.com/glaretechnologies/winter.git
 	git clone https://github.com/glaretechnologies/substrata.git
 
+	git clone --depth 1 --branch 0.627 https://github.com/luau-lang/luau.git luau/0.627
 
 Build libraries that Substrata uses
 ===================================

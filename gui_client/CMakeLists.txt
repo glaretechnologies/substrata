@@ -918,6 +918,129 @@ else ()
 endif ()
 
 
+set(luaudir ${GLARE_CORE_LIBS_ENV}/luau/0.627)
+
+include_directories(${luaudir}/VM/include)
+include_directories(${luaudir}/common/include)
+include_directories(${luaudir}/AST/include)
+include_directories(${luaudir}/compiler/include)
+
+set(luau_vm
+${luaudir}/VM/src/lapi.cpp
+${luaudir}/VM/src/lapi.h
+${luaudir}/VM/src/laux.cpp
+${luaudir}/VM/src/lbaselib.cpp
+${luaudir}/VM/src/lbitlib.cpp
+${luaudir}/VM/src/lbuffer.cpp
+${luaudir}/VM/src/lbuffer.h
+${luaudir}/VM/src/lbuflib.cpp
+${luaudir}/VM/src/lbuiltins.cpp
+${luaudir}/VM/src/lbuiltins.h
+${luaudir}/VM/src/lbytecode.h
+${luaudir}/VM/src/lcommon.h
+${luaudir}/VM/src/lcorolib.cpp
+${luaudir}/VM/src/ldblib.cpp
+${luaudir}/VM/src/ldebug.cpp
+${luaudir}/VM/src/ldebug.h
+${luaudir}/VM/src/ldo.cpp
+${luaudir}/VM/src/ldo.h
+${luaudir}/VM/src/lfunc.cpp
+${luaudir}/VM/src/lfunc.h
+${luaudir}/VM/src/lgc.cpp
+${luaudir}/VM/src/lgc.h
+${luaudir}/VM/src/lgcdebug.cpp
+${luaudir}/VM/src/linit.cpp
+${luaudir}/VM/src/lmathlib.cpp
+${luaudir}/VM/src/lmem.cpp
+${luaudir}/VM/src/lmem.h
+${luaudir}/VM/src/lnumprint.cpp
+${luaudir}/VM/src/lnumutils.h
+${luaudir}/VM/src/lobject.cpp
+${luaudir}/VM/src/lobject.h
+${luaudir}/VM/src/loslib.cpp
+${luaudir}/VM/src/lperf.cpp
+${luaudir}/VM/src/lstate.cpp
+${luaudir}/VM/src/lstate.h
+${luaudir}/VM/src/lstring.cpp
+${luaudir}/VM/src/lstring.h
+${luaudir}/VM/src/lstrlib.cpp
+${luaudir}/VM/src/ltable.cpp
+${luaudir}/VM/src/ltable.h
+${luaudir}/VM/src/ltablib.cpp
+${luaudir}/VM/src/ltm.cpp
+${luaudir}/VM/src/ltm.h
+${luaudir}/VM/src/ludata.cpp
+${luaudir}/VM/src/ludata.h
+${luaudir}/VM/src/lutf8lib.cpp
+${luaudir}/VM/src/lvm.h
+${luaudir}/VM/src/lvmexecute.cpp
+${luaudir}/VM/src/lvmload.cpp
+${luaudir}/VM/src/lvmutils.cpp
+
+${luaudir}/VM/include/lua.h
+${luaudir}/VM/include/luaconf.h
+${luaudir}/VM/include/lualib.h
+)
+
+set(luau_compiler
+${luaudir}/compiler/src/BuiltinFolding.cpp
+${luaudir}/compiler/src/BuiltinFolding.h
+${luaudir}/compiler/src/Builtins.cpp
+${luaudir}/compiler/src/Builtins.h
+${luaudir}/compiler/src/BytecodeBuilder.cpp
+${luaudir}/compiler/src/Compiler.cpp
+${luaudir}/compiler/src/ConstantFolding.cpp
+${luaudir}/compiler/src/ConstantFolding.h
+${luaudir}/compiler/src/CostModel.cpp
+${luaudir}/compiler/src/CostModel.h
+${luaudir}/compiler/src/lcode.cpp
+${luaudir}/compiler/src/TableShape.cpp
+${luaudir}/compiler/src/TableShape.h
+${luaudir}/compiler/src/Types.cpp
+${luaudir}/compiler/src/Types.h
+${luaudir}/compiler/src/ValueTracking.cpp
+${luaudir}/compiler/src/ValueTracking.h
+
+${luaudir}/compiler/include/luacode.h
+${luaudir}/compiler/include/luau/BytecodeBuilder.h
+${luaudir}/compiler/include/luau/Compiler.h
+
+${luaudir}/AST/src/Ast.cpp
+${luaudir}/AST/src/Confusables.cpp
+${luaudir}/AST/src/Lexer.cpp
+${luaudir}/AST/src/Location.cpp
+${luaudir}/AST/src/Parser.cpp
+${luaudir}/AST/src/StringUtils.cpp
+${luaudir}/AST/src/TimeTrace.cpp
+
+${luaudir}/AST/include/luau/Ast.h
+${luaudir}/AST/include/luau/Confusables.h
+${luaudir}/AST/include/luau/Lexer.h
+${luaudir}/AST/include/luau/Location.h
+${luaudir}/AST/include/luau/ParseOptions.h
+${luaudir}/AST/include/luau/Parser.h
+${luaudir}/AST/include/luau/ParseResult.h
+${luaudir}/AST/include/luau/StringUtils.h
+${luaudir}/AST/include/luau/TimeTrace.h
+)
+
+
+
+set(lua
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaTests.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaTests.h
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaVM.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaVM.h
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaScript.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaScript.h
+)
+
+
+
+
+
+
+
 
 SET(rc_stuff "../icons/substrata.rc")
 
@@ -939,6 +1062,9 @@ SOURCE_GROUP(tracy FILES ${tracy_files})
 SOURCE_GROUP(freetype FILES ${freetype})
 SOURCE_GROUP(imgui FILES ${imgui})
 SOURCE_GROUP(ui FILES ${ui})
+SOURCE_GROUP(luau/luau_vm FILES ${luau_vm})
+SOURCE_GROUP(luau/luau_compiler FILES ${luau_compiler})
+SOURCE_GROUP(lua FILES ${lua})
 
 
 
@@ -1013,6 +1139,9 @@ ${tracy_files}
 ${imgui}
 ${freetype}
 ${ui}
+${luau_vm}
+${luau_compiler}
+${lua}
 )
 
 add_definitions(-DGUI_CLIENT=1)
@@ -1195,6 +1324,8 @@ elseif(WIN32)
 			debug "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MDd.lib"
 		)
 	endif()
+	
+	# target_link_options(${CURRENT_TARGET} PRIVATE "/SUBSYSTEM:CONSOLE")
 
 	# Disable ASLR (/DYNAMICBASE)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
