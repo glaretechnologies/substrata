@@ -922,7 +922,7 @@ set(luaudir ${GLARE_CORE_LIBS_ENV}/luau/0.627)
 
 include_directories(${luaudir}/VM/include)
 include_directories(${luaudir}/Common/include)
-include_directories(${luaudir}/AST/include)
+include_directories(${luaudir}/Ast/include)
 include_directories(${luaudir}/Compiler/include)
 
 set(luau_vm
