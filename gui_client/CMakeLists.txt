@@ -1005,23 +1005,23 @@ ${luaudir}/Compiler/include/luacode.h
 ${luaudir}/Compiler/include/Luau/BytecodeBuilder.h
 ${luaudir}/Compiler/include/Luau/Compiler.h
 
-${luaudir}/AST/src/Ast.cpp
-${luaudir}/AST/src/Confusables.cpp
-${luaudir}/AST/src/Lexer.cpp
-${luaudir}/AST/src/Location.cpp
-${luaudir}/AST/src/Parser.cpp
-${luaudir}/AST/src/StringUtils.cpp
-${luaudir}/AST/src/TimeTrace.cpp
+${luaudir}/Ast/src/Ast.cpp
+${luaudir}/Ast/src/Confusables.cpp
+${luaudir}/Ast/src/Lexer.cpp
+${luaudir}/Ast/src/Location.cpp
+${luaudir}/Ast/src/Parser.cpp
+${luaudir}/Ast/src/StringUtils.cpp
+${luaudir}/Ast/src/TimeTrace.cpp
 
-${luaudir}/AST/include/Luau/Ast.h
-${luaudir}/AST/include/Luau/Confusables.h
-${luaudir}/AST/include/Luau/Lexer.h
-${luaudir}/AST/include/Luau/Location.h
-${luaudir}/AST/include/Luau/ParseOptions.h
-${luaudir}/AST/include/Luau/Parser.h
-${luaudir}/AST/include/Luau/ParseResult.h
-${luaudir}/AST/include/Luau/StringUtils.h
-${luaudir}/AST/include/Luau/TimeTrace.h
+${luaudir}/Ast/include/Luau/Ast.h
+${luaudir}/Ast/include/Luau/Confusables.h
+${luaudir}/Ast/include/Luau/Lexer.h
+${luaudir}/Ast/include/Luau/Location.h
+${luaudir}/Ast/include/Luau/ParseOptions.h
+${luaudir}/Ast/include/Luau/Parser.h
+${luaudir}/Ast/include/Luau/ParseResult.h
+${luaudir}/Ast/include/Luau/StringUtils.h
+${luaudir}/Ast/include/Luau/TimeTrace.h
 )
 
 
