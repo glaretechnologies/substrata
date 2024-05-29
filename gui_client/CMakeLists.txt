@@ -921,9 +921,9 @@ endif ()
 set(luaudir ${GLARE_CORE_LIBS_ENV}/luau/0.627)
 
 include_directories(${luaudir}/VM/include)
-include_directories(${luaudir}/common/include)
+include_directories(${luaudir}/Common/include)
 include_directories(${luaudir}/AST/include)
-include_directories(${luaudir}/compiler/include)
+include_directories(${luaudir}/Compiler/include)
 
 set(luau_vm
 ${luaudir}/VM/src/lapi.cpp
@@ -983,27 +983,27 @@ ${luaudir}/VM/include/lualib.h
 )
 
 set(luau_compiler
-${luaudir}/compiler/src/BuiltinFolding.cpp
-${luaudir}/compiler/src/BuiltinFolding.h
-${luaudir}/compiler/src/Builtins.cpp
-${luaudir}/compiler/src/Builtins.h
-${luaudir}/compiler/src/BytecodeBuilder.cpp
-${luaudir}/compiler/src/Compiler.cpp
-${luaudir}/compiler/src/ConstantFolding.cpp
-${luaudir}/compiler/src/ConstantFolding.h
-${luaudir}/compiler/src/CostModel.cpp
-${luaudir}/compiler/src/CostModel.h
-${luaudir}/compiler/src/lcode.cpp
-${luaudir}/compiler/src/TableShape.cpp
-${luaudir}/compiler/src/TableShape.h
-${luaudir}/compiler/src/Types.cpp
-${luaudir}/compiler/src/Types.h
-${luaudir}/compiler/src/ValueTracking.cpp
-${luaudir}/compiler/src/ValueTracking.h
+${luaudir}/Compiler/src/BuiltinFolding.cpp
+${luaudir}/Compiler/src/BuiltinFolding.h
+${luaudir}/Compiler/src/Builtins.cpp
+${luaudir}/Compiler/src/Builtins.h
+${luaudir}/Compiler/src/BytecodeBuilder.cpp
+${luaudir}/Compiler/src/Compiler.cpp
+${luaudir}/Compiler/src/ConstantFolding.cpp
+${luaudir}/Compiler/src/ConstantFolding.h
+${luaudir}/Compiler/src/CostModel.cpp
+${luaudir}/Compiler/src/CostModel.h
+${luaudir}/Compiler/src/lcode.cpp
+${luaudir}/Compiler/src/TableShape.cpp
+${luaudir}/Compiler/src/TableShape.h
+${luaudir}/Compiler/src/Types.cpp
+${luaudir}/Compiler/src/Types.h
+${luaudir}/Compiler/src/ValueTracking.cpp
+${luaudir}/Compiler/src/ValueTracking.h
 
-${luaudir}/compiler/include/luacode.h
-${luaudir}/compiler/include/luau/BytecodeBuilder.h
-${luaudir}/compiler/include/luau/Compiler.h
+${luaudir}/Compiler/include/luacode.h
+${luaudir}/Compiler/include/Luau/BytecodeBuilder.h
+${luaudir}/Compiler/include/Luau/Compiler.h
 
 ${luaudir}/AST/src/Ast.cpp
 ${luaudir}/AST/src/Confusables.cpp
@@ -1013,15 +1013,15 @@ ${luaudir}/AST/src/Parser.cpp
 ${luaudir}/AST/src/StringUtils.cpp
 ${luaudir}/AST/src/TimeTrace.cpp
 
-${luaudir}/AST/include/luau/Ast.h
-${luaudir}/AST/include/luau/Confusables.h
-${luaudir}/AST/include/luau/Lexer.h
-${luaudir}/AST/include/luau/Location.h
-${luaudir}/AST/include/luau/ParseOptions.h
-${luaudir}/AST/include/luau/Parser.h
-${luaudir}/AST/include/luau/ParseResult.h
-${luaudir}/AST/include/luau/StringUtils.h
-${luaudir}/AST/include/luau/TimeTrace.h
+${luaudir}/AST/include/Luau/Ast.h
+${luaudir}/AST/include/Luau/Confusables.h
+${luaudir}/AST/include/Luau/Lexer.h
+${luaudir}/AST/include/Luau/Location.h
+${luaudir}/AST/include/Luau/ParseOptions.h
+${luaudir}/AST/include/Luau/Parser.h
+${luaudir}/AST/include/Luau/ParseResult.h
+${luaudir}/AST/include/Luau/StringUtils.h
+${luaudir}/AST/include/Luau/TimeTrace.h
 )
 
 
