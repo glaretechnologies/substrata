@@ -174,9 +174,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	user_details = new UserDetailsWidget(this);
 	ui->toolBar->addWidget(user_details);
 
-	// Make it so the toolbar can't be hidden, as it's confusing for users when it disappears.
-	ui->toolBar->toggleViewAction()->setEnabled(false);
-	
 	
 	// Open Log File
 	//const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
@@ -213,6 +210,11 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 		this->ui->diagnosticsDockWidget->hide();
 		this->ui->worldSettingsDockWidget->hide();
 	}
+
+	// Make it so the toolbar can't be hidden, as it's confusing for users when it disappears.
+	ui->toolBar->toggleViewAction()->setEnabled(false);
+	ui->toolBar->setVisible(true); // Toolbar should always be visible.  Somehow it can be made invisible with the 'right' mainwindow/windowState setting.
+
 
 	ui->worldSettingsWidget->init(this);
 
