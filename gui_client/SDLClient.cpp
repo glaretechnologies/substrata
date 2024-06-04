@@ -44,6 +44,8 @@ Copyright Glare Technologies Limited 2024 -
 
 
 // If we are building on Windows, and we are not in Release mode (e.g. BUILD_TESTS is enabled), then make sure the console window is shown.
+// Unfortunately the console window does not stay open if no breakpoint is hit.  The only way I know of fixing this is to manually set the 
+// subsystem in the VS project settings (Linker > System > SubSystem)
 #if defined(_WIN32) && defined(BUILD_TESTS)
 #pragma comment(linker, "/SUBSYSTEM:CONSOLE")
 #endif
@@ -481,6 +483,8 @@ int main(int argc, char** argv)
 		const bool bloom = settings_store->getBoolValue("setting/bloom", /*default val=*/true);
 		if(bloom)
 			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
+
+		opengl_engine->getCurrentScene()->draw_aurora = true;
 
 		
 		

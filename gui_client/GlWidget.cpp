@@ -297,6 +297,8 @@ void GlWidget::initializeGL()
 
 		if(bloom)
 			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
+
+		opengl_engine->getCurrentScene()->draw_aurora = true;
 	}
 }
 
