@@ -259,13 +259,11 @@ public:
 	UID uid;
 	uint32 object_type;
 
-	//std::string name;
 	std::string model_url;
-	//std::string material_url;
 	std::vector<WorldMaterialRef> materials;
 	std::string lightmap_url;
 	std::string script;
-	std::string content; // For ObjectType_Hypercard
+	std::string content; // For ObjectType_Hypercard, ObjectType_Text
 	std::string target_url;
 	Vec3d pos;
 	Vec3f axis;
