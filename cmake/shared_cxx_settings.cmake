@@ -92,19 +92,42 @@ if(EMSCRIPTEN)
 	include_directories("${GLARE_CORE_LIBS_ENV}/emsdk/upstream/emscripten/cache/sysroot/include")
 	
 		
+	# MESSAGE("original CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")                     # -g
+	# MESSAGE("original CMAKE_CXX_FLAGS_RELEASE: ${CMAKE_CXX_FLAGS_RELEASE}")                 # -O3 -DNDEBUG
+	# MESSAGE("original CMAKE_CXX_FLAGS_RELWITHDEBINFO: ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")   # -O2 -g -DNDEBUG
 	
-	SET(COMMON_C_CXX_OPTIONS_DEBUG				"-O0 -g")
+	# MESSAGE("original CMAKE_C_FLAGS_DEBUG: ${CMAKE_C_FLAGS_DEBUG}")                         # -g
+	# MESSAGE("original CMAKE_C_FLAGS_RELEASE: ${CMAKE_C_FLAGS_RELEASE}")                     # -O3 -DNDEBUG
+	# MESSAGE("original CMAKE_C_FLAGS_RELWITHDEBINFO: ${CMAKE_C_FLAGS_RELWITHDEBINFO}")       # -O2 -g -DNDEBUG
+	
+	# Use -g1 for faster builds.  The disadvantage relative to -g is that it doesn't have function names in call stacks.
+	SET(COMMON_C_CXX_OPTIONS_DEBUG				"-O0 -g1")
 	SET(COMMON_C_CXX_OPTIONS_RELEASE			"-O3 -DNDEBUG")
-	SET(COMMON_C_CXX_OPTIONS_RELWITHDEBINFO		"-O2 -g -DNDEBUG")
-
-	# Append optimisation flags.
-	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			${COMMON_C_CXX_OPTIONS_DEBUG}")
-	SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			${COMMON_C_CXX_OPTIONS_RELEASE}")
-	SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	${COMMON_C_CXX_OPTIONS_RELWITHDEBINFO}")
+	SET(COMMON_C_CXX_OPTIONS_RELWITHDEBINFO		"-O1 -g1 -DNDEBUG")  # NOTE: Using -O1 instead of -O2.  Links much faster (e.g. 2 seconds instead of 30 seconds)
 	
-	SET(CMAKE_C_FLAGS_DEBUG				"${CMAKE_C_FLAGS_DEBUG}				${COMMON_C_CXX_OPTIONS_DEBUG}")
-	SET(CMAKE_C_FLAGS_RELEASE			"${CMAKE_C_FLAGS_RELEASE}			${COMMON_C_CXX_OPTIONS_RELEASE}")
-	SET(CMAKE_C_FLAGS_RELWITHDEBINFO	"${CMAKE_C_FLAGS_RELWITHDEBINFO}	${COMMON_C_CXX_OPTIONS_RELWITHDEBINFO}")
+	# Emscripten build times
+	# (changing SDLClient.cpp)
+	# ========================
+	# Incremental build times with Emscripten, debug config: 
+	# 37s
+	# 
+	# Incremental build times with Emscripten, RelWithDebInfo config: 
+	# 33 s, 34 s
+	# without --use-preload-cache etc, still 34 s.
+	# 
+	# Incremental build times with Emscripten, RelWithDebInfo config, -O1 -g1 -DNDEBUG:
+	# ~ 6s 
+	# 
+	# Incremental build times with Emscripten, debug config, -O0 -g1:
+	# ~ 10s
+
+	SET(CMAKE_CXX_FLAGS_DEBUG			"${COMMON_C_CXX_OPTIONS_DEBUG}")
+	SET(CMAKE_CXX_FLAGS_RELEASE			"${COMMON_C_CXX_OPTIONS_RELEASE}")
+	SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${COMMON_C_CXX_OPTIONS_RELWITHDEBINFO}")
+	
+	SET(CMAKE_C_FLAGS_DEBUG				"${COMMON_C_CXX_OPTIONS_DEBUG}")
+	SET(CMAKE_C_FLAGS_RELEASE			"${COMMON_C_CXX_OPTIONS_RELEASE}")
+	SET(CMAKE_C_FLAGS_RELWITHDEBINFO	"${COMMON_C_CXX_OPTIONS_RELWITHDEBINFO}")
 
 elseif(WIN32)
 	# TEMP: needed for building LLVM with address sanitizer on Windows, which has:
