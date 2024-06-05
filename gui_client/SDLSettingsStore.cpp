@@ -16,6 +16,10 @@ Copyright Glare Technologies Limited 2023 -
 #endif
 
 
+SDLSettingsStore::SDLSettingsStore()
+{}
+
+
 SDLSettingsStore::~SDLSettingsStore()
 {}
 

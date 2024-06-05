@@ -18,6 +18,7 @@ SDLSettingsStore
 class SDLSettingsStore : public SettingsStore
 {
 public:
+	SDLSettingsStore();
 	virtual ~SDLSettingsStore();
 
 	virtual bool		getBoolValue(const std::string& key, bool default_value) override;
