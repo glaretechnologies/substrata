@@ -234,6 +234,9 @@ int main(int argc, char** argv)
 		diagnostics_timer = new Timer();
 		mem_usage_sampling_timer = new Timer();
 		last_update_URL_timer = new Timer();
+
+
+		SDLSettingsStore* settings_store = new SDLSettingsStore();
 	
 		//=========================== Init SDL and OpenGL ================================
 		if(SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -241,8 +244,6 @@ int main(int argc, char** argv)
 
 
 		// Set GL attributes, needs to be done before window creation.
-
-
 #if EMSCRIPTEN
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -252,8 +253,19 @@ int main(int argc, char** argv)
 		setGLAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
 		setGLAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 #endif
-		setGLAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); // enable MULTISAMPLE
-		setGLAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+
+		const bool use_MSAA = settings_store->getBoolValue("setting/MSAA", /*default value=*/true);
+		conPrint("Using MSAA: " + boolToString(use_MSAA));
+		if(use_MSAA)
+		{
+			setGLAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); // Enable MULTISAMPLE
+			setGLAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+		}
+		else
+		{
+			setGLAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0); // Disable MULTISAMPLE
+			setGLAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+		}
 
 		int primary_W = 1800;
 		int primary_H = 1100;
@@ -345,6 +357,7 @@ int main(int argc, char** argv)
 		settings.shadow_mapping = true;
 		settings.depth_fog = true;
 		settings.render_water_caustics = true;
+		settings.msaa_samples = use_MSAA ? 4 : 1;
 
 		if(parsed_args.isArgPresent("--no_MDI"))
 			settings.allow_multi_draw_indirect = false;
@@ -389,9 +402,6 @@ int main(int argc, char** argv)
 
 
 		std::string cache_dir = appdata_path;
-
-
-		SDLSettingsStore* settings_store = new SDLSettingsStore();
 
 
 		sdl_ui_interface = new SDLUIInterface();
