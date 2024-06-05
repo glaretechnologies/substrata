@@ -7265,6 +7265,17 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
 	msg += "stack allocator high water mark: " + getNiceByteSize(stack_allocator.highWaterMark()) + " / " + getNiceByteSize(stack_allocator.size()) + "\n";
 
+
+#ifdef NDEBUG
+	#ifdef BUILD_TESTS
+	msg += "Build config: RelWithDebInfo (NDEBUG and BUILD_TESTS defined)\n";
+	#else
+	msg += "Build config: Release (NDEBUG defined and BUILD_TESTS not defined)\n";
+	#endif
+#else
+	msg += "Build config: Debug (NDEBUG not defined)\n";
+#endif
+
 	if(opengl_engine.nonNull() && opengl_engine->mem_allocator.nonNull())
 	{
 		msg += "---------------Mem Allocator-----------------\n";
