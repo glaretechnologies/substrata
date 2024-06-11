@@ -1,7 +1,7 @@
 /*=====================================================================
 ISLSyntaxHighlighter.cpp
 ------------------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #include "ISLSyntaxHighlighter.h"
 
@@ -14,7 +14,7 @@ Copyright Glare Technologies Limited 2019 -
 
 ISLSyntaxHighlighter::ISLSyntaxHighlighter(QTextDocument *parent)
 :	QSyntaxHighlighter(parent),
-	error_index(-1)
+	cur_lang(Lang_Winter)
 {
 	HighlightingRule rule;
 
@@ -30,41 +30,83 @@ ISLSyntaxHighlighter::ISLSyntaxHighlighter(QTextDocument *parent)
 		comment_brush = QColor(100, 160, 100);
 	}*/
 
-	functionFormat.setFontItalic(true);
-	functionFormat.setForeground(function_expr_brush);
-	rule.pattern = QRegExp("\\b[A-Za-z0-9_]+(?=\\()");
-	rule.format = functionFormat;
-	highlightingRules.append(rule);
+	// Winter
+	{
+		functionFormat.setFontItalic(true);
+		functionFormat.setForeground(function_expr_brush);
+		rule.pattern = QRegExp("\\b[A-Za-z0-9_]+(?=\\()");
+		rule.format = functionFormat;
+		winter_highlightingRules.append(rule);
 
-	keywordFormat.setForeground(keyword_brush);
-	keywordFormat.setFontWeight(QFont::Bold);
-	QStringList keywordPatterns;
-	keywordPatterns << "\\bvec3\\b" << "\\breal\\b" << "\\bvec2\\b" << "\\bint\\b" << "\\bbool\\b" << "\\bstruct\\b" << 
-		"\\bdef\\b" << "\\blet\\b" << "\\bin\\b" << "\\bif\\b" << "\\bthen\\b" << "\\belse\\b";
+		keywordFormat.setForeground(keyword_brush);
+		keywordFormat.setFontWeight(QFont::Bold);
+		QStringList keywordPatterns;
+		keywordPatterns << "\\bvec3\\b" << "\\breal\\b" << "\\bvec2\\b" << "\\bint\\b" << "\\bbool\\b" << "\\bstruct\\b" << 
+			"\\bdef\\b" << "\\blet\\b" << "\\bin\\b" << "\\bif\\b" << "\\bthen\\b" << "\\belse\\b";
 
-	foreach (const QString &pattern, keywordPatterns) {
-		rule.pattern = QRegExp(pattern);
-		rule.format = keywordFormat;
-		highlightingRules.append(rule);
+		foreach (const QString &pattern, keywordPatterns) {
+			rule.pattern = QRegExp(pattern);
+			rule.format = keywordFormat;
+			winter_highlightingRules.append(rule);
+		}
+
+		quotationFormat.setForeground(string_literal_brush);
+		rule.pattern = QRegExp("\".*\"");
+		rule.format = quotationFormat;
+		winter_highlightingRules.append(rule);
+
+		singleLineCommentFormat.setForeground(comment_brush);
+		rule.pattern = QRegExp("#[^\n]*");
+		rule.format = singleLineCommentFormat;
+		winter_highlightingRules.append(rule);
 	}
 
-	quotationFormat.setForeground(string_literal_brush);
-	rule.pattern = QRegExp("\".*\"");
-	rule.format = quotationFormat;
-	highlightingRules.append(rule);
+	// Lua
+	{
+		functionFormat.setFontItalic(true);
+		functionFormat.setForeground(function_expr_brush);
+		rule.pattern = QRegExp("\\b[A-Za-z0-9_]+(?=\\()");
+		rule.format = functionFormat;
+		lua_highlightingRules.append(rule);
 
-	singleLineCommentFormat.setForeground(comment_brush);
-	rule.pattern = QRegExp("#[^\n]*");
-	rule.format = singleLineCommentFormat;
-	highlightingRules.append(rule);
+		keywordFormat.setForeground(keyword_brush);
+		keywordFormat.setFontWeight(QFont::Bold);
+		QStringList keywordPatterns;
+		keywordPatterns << "\\bNumber\\b" << "\\bBoolean\\b" << "\\bString\\b" << 
+			"\\bfunction\\b" << "\\blocal\\b" << "\\bif\\b" << "\\belse\\b" << "\\bthen\\b";
+
+		foreach (const QString &pattern, keywordPatterns) {
+			rule.pattern = QRegExp(pattern);
+			rule.format = keywordFormat;
+			lua_highlightingRules.append(rule);
+		}
+
+		quotationFormat.setForeground(string_literal_brush);
+		rule.pattern = QRegExp("\".*\"");
+		rule.format = quotationFormat;
+		lua_highlightingRules.append(rule);
+
+		singleQuotationFormat.setForeground(string_literal_brush);
+		rule.pattern = QRegExp("'.*'");
+		rule.format = singleQuotationFormat;
+		lua_highlightingRules.append(rule);
+
+		singleLineCommentFormat.setForeground(comment_brush);
+		rule.pattern = QRegExp("--[^\n]*");
+		rule.format = singleLineCommentFormat;
+		lua_highlightingRules.append(rule);
+	}
 }
 
 
-void ISLSyntaxHighlighter::showErrorAtCharIndex(int index, int len)
+void ISLSyntaxHighlighter::addErrorAtCharIndex(int index, int len)
 {
-	this->error_index = index;
-	this->error_len = len;
+	errors.push_back({index, len});
+}
 
+
+void ISLSyntaxHighlighter::doRehighlight()
+{
 	this->blockSignals(true);
 	rehighlight();
 	this->blockSignals(false);
@@ -73,17 +115,15 @@ void ISLSyntaxHighlighter::showErrorAtCharIndex(int index, int len)
 
 void ISLSyntaxHighlighter::clearError()
 {
-	this->error_index = -1;
-
-	this->blockSignals(true);
-	rehighlight();
-	this->blockSignals(false);
+	errors.clear();
 }
 
 
 void ISLSyntaxHighlighter::highlightBlock(const QString &text)
 {
-	foreach (const HighlightingRule &rule, highlightingRules) {
+	const QVector<HighlightingRule>& use_rules = (cur_lang == Lang_Winter) ? winter_highlightingRules : lua_highlightingRules;
+
+	foreach (const HighlightingRule &rule, use_rules) {
 		QRegExp expression(rule.pattern);
 		int index = expression.indexIn(text);
 		while (index >= 0) {
@@ -94,12 +134,12 @@ void ISLSyntaxHighlighter::highlightBlock(const QString &text)
 	}
 
 	const int block_start_index = this->currentBlock().position();
-
-	if(error_index != -1) // If there is an error to show:
+		
+	for(size_t i=0; i<errors.size(); ++i)
 	{
-		if(error_index >= block_start_index && error_index < (block_start_index + text.size()))
+		if(errors[i].index >= block_start_index && errors[i].index < (block_start_index + text.size()))
 		{
-			const int in_block_i = error_index - block_start_index;
+			const int in_block_i = errors[i].index - block_start_index;
 
 			// Underline text with a red squigly line.
 			const QTextCharFormat cur_format = format(in_block_i);
@@ -108,7 +148,7 @@ void ISLSyntaxHighlighter::highlightBlock(const QString &text)
 			error_format.setUnderlineColor(Qt::red);
 			error_format.setUnderlineStyle(QTextCharFormat::WaveUnderline);
 
-			setFormat(in_block_i, this->error_len, error_format);
+			setFormat(in_block_i, errors[i].len, error_format);
 		}
 	}
 }
