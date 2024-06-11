@@ -26,6 +26,9 @@ Copyright Glare Technologies Limited 2019 -
 #include "../../utils/Timer.h"
 #include "../../dll/IndigoStringUtils.h"
 
+#include <lua/LuaVM.h>
+#include <lua/LuaScript.h>
+
 
 const int SHADER_EDIT_TIMEOUT = 300;
 const int SYNTAX_HIGHLIGHT_TIMEOUT = 100;
@@ -130,7 +133,6 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 	if(hasPrefix(shader, "<?xml"))
 	{
 		// Try and parse script as XML
-
 		try
 		{
 			Reference<ObjectPathController> path_controller;
@@ -140,8 +142,9 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 
 			this->outputTextEdit->setPlainText("XML script built successfully.");
 
-			shaderEdit->blockSignals(true);
+			shaderEdit->blockSignals(true); // Block signals so a text edited signal is not emitted when highlighting text.
 			this->highlighter->clearError();
+			this->highlighter->doRehighlight();
 			shaderEdit->blockSignals(false);
 
 			QPixmap p(status_label_size);
@@ -162,9 +165,76 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			this->buildStatusLabel->setPixmap(p);
 		}
 	}
+	else if(hasPrefix(shader, "--lua"))
+	{
+		// Try and parse script as Lua
+
+		highlighter->setCurLang(ISLSyntaxHighlighter::Lang_Lua);
+
+		try
+		{
+			LuaVM lua_vm;
+			lua_vm.finishInitAndSandbox();
+
+			LuaScriptOptions options;
+			options.max_num_interrupts = 100000;
+			LuaScript lua_script(&lua_vm, options, /*script src=*/shader);
+
+			this->outputTextEdit->setPlainText("Lua script built successfully.");
+
+			shaderEdit->blockSignals(true);
+			this->highlighter->clearError();
+			this->highlighter->doRehighlight();
+			shaderEdit->blockSignals(false);
+
+			QPixmap p(status_label_size);
+			p.fill(Qt::green);
+			this->buildStatusLabel->setPixmap(p);
+		}
+		catch(LuaScriptExcepWithLocation& e)
+		{
+			this->highlighter->clearError();
+			std::string combined_msg;
+			for(size_t i=0; i<e.errors.size(); ++i)
+			{
+				const Luau::Location location = e.errors[i].location; // With zero-based indices
+				combined_msg += "Line " + toString(location.begin.line + 1) + ": " + e.errors[i].msg + "\n";
+
+				try
+				{
+					const size_t begin_char_index = StringUtils::getCharIndexForLinePosition(shader, location.begin.line, location.begin.column);
+					const size_t end_char_index   = StringUtils::getCharIndexForLinePosition(shader, location.end.line,   location.end.column);
+					this->highlighter->addErrorAtCharIndex((int)begin_char_index, (int)(end_char_index - begin_char_index));
+				}
+				catch(glare::Exception& ) // getCharIndexForLinePosition may throw
+				{
+					assert(false);
+				}
+			}
+			this->outputTextEdit->setPlainText(QtUtils::toQString(combined_msg));
+
+			shaderEdit->blockSignals(true); // Block signals so a text edited signal is not emitted when highlighting text.
+			this->highlighter->doRehighlight();
+			shaderEdit->blockSignals(false);
+
+			QPixmap p(status_label_size);
+			p.fill(Qt::red);
+			this->buildStatusLabel->setPixmap(p);
+		}
+		catch(glare::Exception& e)
+		{
+			this->outputTextEdit->setPlainText(QtUtils::toQString(e.what()));
+
+			QPixmap p(status_label_size);
+			p.fill(Qt::red);
+			this->buildStatusLabel->setPixmap(p);
+		}
+	}
 	else
 	{
 		// Try and parse script as Winter
+
+		highlighter->setCurLang(ISLSyntaxHighlighter::Lang_Winter);
 
 		try
 		{
@@ -184,6 +254,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 
 				shaderEdit->blockSignals(true);
 				this->highlighter->clearError();
+				this->highlighter->doRehighlight();
 				shaderEdit->blockSignals(false);
 
 				QPixmap p(status_label_size);
@@ -196,7 +267,9 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 
 				// Use error pos:
 				shaderEdit->blockSignals(true);
-				this->highlighter->showErrorAtCharIndex((int)error_pos.pos, (int)error_pos.len);
+				this->highlighter->clearError();
+				this->highlighter->addErrorAtCharIndex((int)error_pos.pos, (int)error_pos.len);
+				this->highlighter->doRehighlight();
 				shaderEdit->blockSignals(false);
 
 				QPixmap p(status_label_size);
