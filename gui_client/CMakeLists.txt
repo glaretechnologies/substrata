@@ -1037,6 +1037,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaVM.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaVM.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaScript.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaScript.h
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaUtils.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaUtils.h
 )
 
 
