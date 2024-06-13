@@ -920,6 +920,10 @@ endif ()
 
 set(luaudir ${GLARE_CORE_LIBS_ENV}/luau/0.627)
 
+if(NOT EXISTS ${luaudir}/VM/src/lapi.cpp)
+	message(FATAL_ERROR "Luau files not found, please run scripts/get_libs.rb to download them.")
+endif()
+
 include_directories(${luaudir}/VM/include)
 include_directories(${luaudir}/Common/include)
 include_directories(${luaudir}/Ast/include)
