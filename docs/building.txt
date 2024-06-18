@@ -39,13 +39,12 @@ In your programming dir (e.g. c:/programming or ~/programming on Mac/Linux):
 	cd glare-core/scripts
 	ruby build_libressl.rb
 	ruby build_llvm.rb
+	ruby build_jpegturbo.rb
 
 In your programming dir
 
 	cd substrata/scripts
 	ruby get_libs.rb
-	ruby build_jpegturbo.rb
-	
 
 If you want to build with Qt for the user interface (you can make a SDL build instead, which is easier but doesn't have the full UI):
 
