@@ -1601,7 +1601,7 @@ void MainWindow::on_actionAdd_Text_triggered()
 		if(ob_pos_in_parcel)
 			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
 		else
-			showErrorNotification("You can only create hypercards in a parcel that you have write permissions for.");
+			showErrorNotification("You can only create text in a parcel that you have write permissions for.");
 		return;
 	}
 
