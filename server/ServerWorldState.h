@@ -38,7 +38,7 @@ public:
 	std::map<UID, Reference<Avatar>> avatars;
 
 	std::map<UID, WorldObjectRef> objects;
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects;
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects; // TODO: could just use vector for this, and avoid duplicates by checking object dirty flag.
 
 	std::unordered_set<ParcelRef, ParcelRefHash> db_dirty_parcels;
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> db_dirty_world_objects;

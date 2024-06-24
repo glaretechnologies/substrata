@@ -290,6 +290,10 @@ ${UTILS_DIR}/GeneralMemAllocator.cpp
 ${UTILS_DIR}/GeneralMemAllocator.h
 ${UTILS_DIR}/TopologicalSort.cpp
 ${UTILS_DIR}/TopologicalSort.h
+${UTILS_DIR}/GenerationalArray.cpp
+${UTILS_DIR}/GenerationalArray.h
+${UTILS_DIR}/WeakRefCounted.h
+${UTILS_DIR}/WeakReference.h
 )
 
 
@@ -501,6 +505,137 @@ ${basisu_dir}/transcoder/basisu_transcoder.cpp
 )
 
 
+
+
+set(luaudir ${GLARE_CORE_LIBS_ENV}/luau/0.627)
+
+if(NOT EXISTS ${luaudir}/VM/src/lapi.cpp)
+	message(FATAL_ERROR "Luau files not found, please run scripts/get_libs.rb to download them.")
+endif()
+
+include_directories(${luaudir}/VM/include)
+include_directories(${luaudir}/Common/include)
+include_directories(${luaudir}/Ast/include)
+include_directories(${luaudir}/Compiler/include)
+
+set(luau_vm
+${luaudir}/VM/src/lapi.cpp
+${luaudir}/VM/src/lapi.h
+${luaudir}/VM/src/laux.cpp
+${luaudir}/VM/src/lbaselib.cpp
+${luaudir}/VM/src/lbitlib.cpp
+${luaudir}/VM/src/lbuffer.cpp
+${luaudir}/VM/src/lbuffer.h
+${luaudir}/VM/src/lbuflib.cpp
+${luaudir}/VM/src/lbuiltins.cpp
+${luaudir}/VM/src/lbuiltins.h
+${luaudir}/VM/src/lbytecode.h
+${luaudir}/VM/src/lcommon.h
+${luaudir}/VM/src/lcorolib.cpp
+${luaudir}/VM/src/ldblib.cpp
+${luaudir}/VM/src/ldebug.cpp
+${luaudir}/VM/src/ldebug.h
+${luaudir}/VM/src/ldo.cpp
+${luaudir}/VM/src/ldo.h
+${luaudir}/VM/src/lfunc.cpp
+${luaudir}/VM/src/lfunc.h
+${luaudir}/VM/src/lgc.cpp
+${luaudir}/VM/src/lgc.h
+${luaudir}/VM/src/lgcdebug.cpp
+${luaudir}/VM/src/linit.cpp
+${luaudir}/VM/src/lmathlib.cpp
+${luaudir}/VM/src/lmem.cpp
+${luaudir}/VM/src/lmem.h
+${luaudir}/VM/src/lnumprint.cpp
+${luaudir}/VM/src/lnumutils.h
+${luaudir}/VM/src/lobject.cpp
+${luaudir}/VM/src/lobject.h
+${luaudir}/VM/src/loslib.cpp
+${luaudir}/VM/src/lperf.cpp
+${luaudir}/VM/src/lstate.cpp
+${luaudir}/VM/src/lstate.h
+${luaudir}/VM/src/lstring.cpp
+${luaudir}/VM/src/lstring.h
+${luaudir}/VM/src/lstrlib.cpp
+${luaudir}/VM/src/ltable.cpp
+${luaudir}/VM/src/ltable.h
+${luaudir}/VM/src/ltablib.cpp
+${luaudir}/VM/src/ltm.cpp
+${luaudir}/VM/src/ltm.h
+${luaudir}/VM/src/ludata.cpp
+${luaudir}/VM/src/ludata.h
+${luaudir}/VM/src/lutf8lib.cpp
+${luaudir}/VM/src/lvm.h
+${luaudir}/VM/src/lvmexecute.cpp
+${luaudir}/VM/src/lvmload.cpp
+${luaudir}/VM/src/lvmutils.cpp
+
+${luaudir}/VM/include/lua.h
+${luaudir}/VM/include/luaconf.h
+${luaudir}/VM/include/lualib.h
+)
+
+set(luau_compiler
+${luaudir}/Compiler/src/BuiltinFolding.cpp
+${luaudir}/Compiler/src/BuiltinFolding.h
+${luaudir}/Compiler/src/Builtins.cpp
+${luaudir}/Compiler/src/Builtins.h
+${luaudir}/Compiler/src/BytecodeBuilder.cpp
+${luaudir}/Compiler/src/Compiler.cpp
+${luaudir}/Compiler/src/ConstantFolding.cpp
+${luaudir}/Compiler/src/ConstantFolding.h
+${luaudir}/Compiler/src/CostModel.cpp
+${luaudir}/Compiler/src/CostModel.h
+${luaudir}/Compiler/src/lcode.cpp
+${luaudir}/Compiler/src/TableShape.cpp
+${luaudir}/Compiler/src/TableShape.h
+${luaudir}/Compiler/src/Types.cpp
+${luaudir}/Compiler/src/Types.h
+${luaudir}/Compiler/src/ValueTracking.cpp
+${luaudir}/Compiler/src/ValueTracking.h
+
+${luaudir}/Compiler/include/luacode.h
+${luaudir}/Compiler/include/Luau/BytecodeBuilder.h
+${luaudir}/Compiler/include/Luau/Compiler.h
+
+${luaudir}/Ast/src/Ast.cpp
+${luaudir}/Ast/src/Confusables.cpp
+${luaudir}/Ast/src/Lexer.cpp
+${luaudir}/Ast/src/Location.cpp
+${luaudir}/Ast/src/Parser.cpp
+${luaudir}/Ast/src/StringUtils.cpp
+${luaudir}/Ast/src/TimeTrace.cpp
+
+${luaudir}/Ast/include/Luau/Ast.h
+${luaudir}/Ast/include/Luau/Confusables.h
+${luaudir}/Ast/include/Luau/Lexer.h
+${luaudir}/Ast/include/Luau/Location.h
+${luaudir}/Ast/include/Luau/ParseOptions.h
+${luaudir}/Ast/include/Luau/Parser.h
+${luaudir}/Ast/include/Luau/ParseResult.h
+${luaudir}/Ast/include/Luau/StringUtils.h
+${luaudir}/Ast/include/Luau/TimeTrace.h
+)
+
+
+
+set(lua
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaTests.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaTests.h
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaVM.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaVM.h
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaScript.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaScript.h
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaUtils.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lua/LuaUtils.h
+)
+
+
+
+
+
+
+
 # Add natvis file
 if(WIN32)
 set(natvis_files ${GLARE_CORE_TRUNK_DIR_ENV}/glare-core.natvis)
@@ -520,3 +655,6 @@ SOURCE_GROUP(dll FILES ${dll_src})
 SOURCE_GROUP(fft2d FILES ${fft2d})
 SOURCE_GROUP(xxhash FILES ${xxhash})
 SOURCE_GROUP(meshoptimizer FILES ${meshoptimizer})
+SOURCE_GROUP(luau/luau_vm FILES ${luau_vm})
+SOURCE_GROUP(luau/luau_compiler FILES ${luau_compiler})
+SOURCE_GROUP(lua FILES ${lua})

@@ -208,7 +208,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 				}
 				catch(glare::Exception& ) // getCharIndexForLinePosition may throw
 				{
-					assert(false);
+					//assert(false);
 				}
 			}
 			this->outputTextEdit->setPlainText(QtUtils::toQString(combined_msg));

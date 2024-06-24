@@ -24,11 +24,14 @@ Copyright Glare Technologies Limited 2024 -
 #include "URLParser.h"
 #include "WorldState.h"
 #include "EmscriptenResourceDownloader.h"
+#include "ScriptedObjectProximityChecker.h"
 #include "../shared/WorldSettings.h"
 #include "../audio/AudioEngine.h"
 #include "../audio/MicReadThread.h" // For MicReadStatus
 #include "../opengl/TextureLoading.h"
 #include "../shared/WorldObject.h"
+#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/TimerQueue.h"
 #include <ui/UIEvents.h>
 #include <utils/ArgumentParser.h>
 #include <utils/Timer.h>
@@ -36,6 +39,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/TaskManager.h>
 #include <utils/StandardPrintOutput.h>
 #include <utils/SocketBufferOutStream.h>
+#include <utils/GenerationalArray.h>
+#include <utils/UniqueRef.h>
 #include <maths/PCG32.h>
 #include <maths/LineSegment4f.h>
 #include <networking/IPAddress.h>
@@ -71,6 +76,7 @@ class SettingsStore;
 class TextRendererFontFace;
 class Resource;
 class AsyncTextureLoader;
+class SubstrataLuaVM;
 
 
 struct DownloadingResourceInfo
@@ -95,7 +101,7 @@ GUIClient
 GUI client code that is used by both the Native GUI client that uses Qt,
 and the web client that uses SDL.
 =====================================================================*/
-class GUIClient : public ObLoadingCallbacks, public PrintOutput, public PhysicsWorldEventListener
+class GUIClient : public ObLoadingCallbacks, public PrintOutput, public PhysicsWorldEventListener, public LuaScriptOutputHandler
 {
 public:
 	GUIClient(const std::string& base_dir_path, const std::string& appdata_path, const ArgumentParser& args);
@@ -302,8 +308,11 @@ public:
 
 	void createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix, WorldObject* ob, bool use_materialise_effect, PhysicsObjectRef& physics_ob_out, GLObjectRef& opengl_ob_out);
 
+	// LuaScriptOutputHandler interace:
+	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
+
 public:
-	//	PhysicsWorldEventListener:
+	//----------------------- PhysicsWorldEventListener interface -----------------------
 	virtual void physicsObjectEnteredWater(PhysicsObject& ob);
 
 	// NOTE: called off main thread, needs to be threadsafe
@@ -311,6 +320,7 @@ public:
 
 	// NOTE: called off main thread, needs to be threadsafe
 	virtual void contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold);
+	//----------------------- end PhysicsWorldEventListener interface -----------------------
 	
 
 public:
@@ -650,4 +660,21 @@ public:
 		GLUITextViewRef text_view;
 	};
 	std::list<Notification> notifications;
+
+	UniqueRef<SubstrataLuaVM> lua_vm;
+
+	TimerQueue timer_queue;
+	std::vector<TimerQueueTimer> temp_triggered_timers;
+
+	struct ContactAddedEvent
+	{
+		WorldObjectRef ob;
+	};
+
+	std::vector<ContactAddedEvent> player_contact_added_events;
+	Mutex player_contact_added_events_mutex;
+
+	ScriptedObjectProximityChecker scripted_ob_proximity_checker;
+
+	ParcelID cur_in_parcel_id;
 };

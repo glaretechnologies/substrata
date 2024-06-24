@@ -75,6 +75,7 @@ public:
 	PhysicsShape shape; // This has a ref to the undecorated shape, actual shape used may be a ScaledShape.
 
 	bool collidable; // Is this object solid, for the purposes of player physics?
+	bool is_sensor;
 
 	void* userdata;
 	int userdata_type; // 0 = WorldObject, 1 = Parcel, 2 = InstanceInfo

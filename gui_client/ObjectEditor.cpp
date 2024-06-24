@@ -83,6 +83,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->dynamicCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->sensorCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
 	connect(this->massDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->frictionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -226,6 +227,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 
 	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
 	SignalBlocker::setChecked(this->dynamicCheckBox, ob.isDynamic());
+	SignalBlocker::setChecked(this->sensorCheckBox, ob.isSensor());
 	
 	SignalBlocker::setValue(this->massDoubleSpinBox,		ob.mass);
 	SignalBlocker::setValue(this->frictionDoubleSpinBox,	ob.friction);
@@ -423,6 +425,8 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.changed_flags |= WorldObject::DYNAMIC_CHANGED;
 	ob_out.setDynamic(new_dynamic);
 
+	ob_out.setIsSensor(this->sensorCheckBox->isChecked());
+
 	const float new_mass		= (float)this->massDoubleSpinBox->value();
 	const float new_friction	= (float)this->frictionDoubleSpinBox->value();
 	const float new_restitution	= (float)this->restitutionDoubleSpinBox->value();
@@ -594,6 +598,7 @@ void ObjectEditor::setControlsEditable(bool editable)
 
 	this->collidableCheckBox->setEnabled(editable);
 	this->dynamicCheckBox->setEnabled(editable);
+	this->sensorCheckBox->setEnabled(editable);
 
 	this->matEditor->setControlsEditable(editable);
 

@@ -49,6 +49,12 @@ SET(shared_files
 ../shared/WorldSettings.h
 ../shared/WorldMaterial.cpp
 ../shared/WorldMaterial.h
+../shared/SubstrataLuaVM.cpp
+../shared/SubstrataLuaVM.h
+../shared/LuaScriptEvaluator.cpp
+../shared/LuaScriptEvaluator.h
+../shared/TimerQueue.cpp
+../shared/TimerQueue.h
 )
 
 ########### Webserver ################
@@ -250,12 +256,16 @@ ${webclient_files}
 ${substrata_private_webserver}
 ${substrata_private_server}
 ${basisu_files}
+${luau_vm}
+${luau_compiler}
+${lua}
 )
 
 
 #include(../cmake/shared_target_settings.cmake) # This has too much stuff we don't want.  Cherry-pick stuff from it instead.
 include(../cmake/ssl.cmake)
 
+add_definitions(-DSERVER=1)
 
 if(WIN32)
 

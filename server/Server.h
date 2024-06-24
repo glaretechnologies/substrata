@@ -9,8 +9,13 @@ Copyright Glare Technologies Limited 2016 -
 #include "ServerWorldState.h"
 #include "ThreadManager.h"
 #include "../shared/ResourceManager.h"
+#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/TimerQueue.h"
 #include <IPAddress.h>
+#include <utils/UniqueRef.h>
+#include <utils/Timer.h>
 class WorkerThread;
+class SubstrataLuaVM;
 
 
 class ServerConfig
@@ -39,17 +44,78 @@ struct ServerConnectedClientInfo
 };
 
 
+class UserUsedObjectThreadMessage : public ThreadMessage
+{
+public:
+	UserID client_user_id; // May be invalid if user is not logged in
+
+	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
+	UID object_uid;
+};
+
+class UserTouchedObjectThreadMessage : public ThreadMessage
+{
+public:
+	UserID client_user_id; // May be invalid if user is not logged in
+
+	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
+	UID object_uid;
+};
+
+class UserMovedNearToObjectThreadMessage : public ThreadMessage
+{
+public:
+	UserID client_user_id; // May be invalid if user is not logged in
+
+	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
+	UID object_uid;
+};
+
+class UserMovedAwayFromObjectThreadMessage : public ThreadMessage
+{
+public:
+	UserID client_user_id; // May be invalid if user is not logged in
+
+	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
+	UID object_uid;
+};
+
+class UserEnteredParcelThreadMessage : public ThreadMessage
+{
+public:
+	UserID client_user_id; // May be invalid if user is not logged in
+
+	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
+	UID object_uid;
+	ParcelID parcel_id;
+};
+
+class UserExitedParcelThreadMessage : public ThreadMessage
+{
+public:
+	UserID client_user_id; // May be invalid if user is not logged in
+
+	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
+	UID object_uid;
+	ParcelID parcel_id;
+};
+
+
 /*=====================================================================
 Server
 --------------------
 =====================================================================*/
-class Server
+class Server : public LuaScriptOutputHandler
 {
 public:
 	Server();
 
+	// LuaScriptOutputHandler interface:
+	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
+
 	double getCurrentGlobalTime() const;
 
+	void enqueueMsg(ThreadMessageRef msg);
 	void enqueueMsgForLodGenThread(ThreadMessageRef msg) { mesh_lod_gen_thread_manager.enqueueMessage(msg); }
 
 
@@ -72,6 +138,8 @@ public:
 
 	ThreadManager dyn_tex_updater_thread_manager;
 
+	ThreadSafeQueue<Reference<ThreadMessage> > message_queue; // Contains messages from worker threads to the main server thread.
+
 	std::string screenshot_dir;
 
 	ServerConfig config;
@@ -79,4 +147,10 @@ public:
 	Mutex connected_clients_mutex;
 	std::map<WorkerThread*, ServerConnectedClientInfo> connected_clients;
 	glare::AtomicInt connected_clients_changed;
+
+	UniqueRef<SubstrataLuaVM> lua_vm;
+
+	Timer total_timer;
+	TimerQueue timer_queue;
+	std::vector<TimerQueueTimer> temp_triggered_timers;
 };

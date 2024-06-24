@@ -116,6 +116,8 @@ public:
 	
 	void removeObject(const Reference<PhysicsObject>& object);
 
+	void activateObject(const Reference<PhysicsObject>& object);
+
 	static PhysicsShape createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob);
 	static PhysicsShape createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob);
 

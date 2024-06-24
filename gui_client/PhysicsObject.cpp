@@ -32,6 +32,7 @@ PhysicsObject::PhysicsObject(bool collidable_)
 	is_sphere = false;
 	is_cube = false;
 #endif
+	is_sensor = false;
 
 	mass = 100.f;
 	friction = 0.5f;
@@ -51,6 +52,7 @@ PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void*
 	is_sphere = false;
 	is_cube = false;
 #endif
+	is_sensor = false;
 
 	mass = 100.f;
 	friction = 0.5f;

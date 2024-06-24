@@ -1197,6 +1197,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
 			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
 
+		sphere_settings.mIsSensor = object->is_sensor;
 		sphere_settings.mFriction = myClamp(object->friction, 0.f, 1.f);
 		sphere_settings.mRestitution = myClamp(object->restitution, 0.f, 1.f);
 		sphere_settings.mMassPropertiesOverride.mMass = myMax(0.001f, object->mass);
@@ -1225,6 +1226,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
 			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
 
+		cube_settings.mIsSensor = object->is_sensor;
 		cube_settings.mFriction = myClamp(object->friction, 0.f, 1.f);
 		cube_settings.mRestitution = myClamp(object->restitution, 0.f, 1.f);
 		cube_settings.mMassPropertiesOverride.mMass = myMax(0.001f, object->mass);
@@ -1258,6 +1260,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
 			motion_type, object_layer);
 		
+		settings.mIsSensor = object->is_sensor;
 		settings.mFriction = myClamp(object->friction, 0.f, 1.f);
 		settings.mRestitution = myClamp(object->restitution, 0.f, 1.f);
 		settings.mMassPropertiesOverride.mMass = myMax(0.001f, object->mass);
@@ -1299,6 +1302,13 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 	}
 
 	this->objects_set.erase(object);
+}
+
+
+void PhysicsWorld::activateObject(const Reference<PhysicsObject>& object)
+{
+	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+	body_interface.ActivateBody(object->jolt_body_id);
 }
 
 

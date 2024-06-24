@@ -335,7 +335,6 @@ std::string ResourceManager::getDiagnostics() const
 			num_locally_deleted++;
 	}
 
-
 	std::string s;
 	s += "Num resources:       " + toString(resource_for_url.size()) + "\n";
 	s += "num_not_present:     " + toString(num_not_present) + "\n";
@@ -345,7 +344,7 @@ std::string ResourceManager::getDiagnostics() const
 	s += "num_locally_deleted: " + toString(num_locally_deleted) + "\n";
 
 	s += "Present resources:\n";
-	const int max_num_to_display = 32;
+	const int max_num_to_display = 16;
 	int i = 0;
 	for(auto it = resource_for_url.begin(); (it != resource_for_url.end()) && (i < max_num_to_display); ++it)
 	{
