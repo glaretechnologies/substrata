@@ -71,6 +71,8 @@ public:
 	Vec3f getLastXYPlaneVelRelativeToGround() const { return last_xy_plane_vel_rel_ground; }
 
 	Vec4f getLinearVel() const;
+	void setLinearVel(const Vec4f& new_v);
+	void addToLinearVel(const Vec4f& delta_v);
 
 	bool isRunPressed() const { return last_runpressed; }
 
@@ -109,5 +111,6 @@ private:
 
 	JPH::Ref<JPH::CharacterVirtual> jolt_character;
 
+public:
 	JPH::Ref<JPH::Character> interaction_character;
 };
