@@ -617,6 +617,29 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			}
 			break;
 		}
+	case Protocol::ObjectContentChanged:
+		{
+			//conPrint("ObjectContentChanged");
+			const UID object_uid = readUIDFromStream(msg_buffer);
+			const std::string new_content = msg_buffer.readStringLengthFirst(10000);
+			//conPrint("new_model_url: " + new_model_url);
+
+			// Look up existing object in world state
+			{
+				Lock lock(world_state->mutex);
+				auto res = world_state->objects.find(object_uid);
+				if(res != world_state->objects.end())
+				{
+					WorldObject* ob = res.getValue().ptr();
+
+					ob->content = new_content;
+
+					ob->from_remote_content_dirty = true;
+					world_state->dirty_from_remote_objects.insert(ob);
+				}
+			}
+			break;
+		}
 	case Protocol::ObjectFlagsChanged:
 		{
 			const UID object_uid = readUIDFromStream(msg_buffer);

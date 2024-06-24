@@ -31,6 +31,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <opengl/ui/GLUITextView.h>
 #endif // GUI_CLIENT
 #include "../shared/ResourceManager.h"
+#include "../shared/LuaScriptEvaluator.h"
 #include <zstd.h>
 
 
@@ -58,6 +59,7 @@ WorldObject::WorldObject() noexcept
 	from_remote_other_dirty = false;
 	from_remote_lightmap_url_dirty = false;
 	from_remote_model_url_dirty = false;
+	from_remote_content_dirty = false;
 	from_remote_flags_dirty = false;
 	from_remote_physics_ownership_dirty = false;
 	from_local_transform_dirty = false;
@@ -69,6 +71,7 @@ WorldObject::WorldObject() noexcept
 #if GUI_CLIENT
 	is_selected = false;
 	in_proximity = false;
+	in_script_proximity = false;
 	lightmap_baking = false;
 	current_lod_level = 0;
 	loading_or_loaded_model_lod_level = -10;

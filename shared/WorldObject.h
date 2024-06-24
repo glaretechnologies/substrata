@@ -38,6 +38,7 @@ namespace glare { class PoolAllocator; }
 namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
+class LuaScriptEvaluator;
 class Matrix4f;
 class RayMesh;
 namespace Indigo { class SceneNodeModel; }
@@ -185,6 +186,8 @@ public:
 	inline void setCollidable(bool c);
 	inline bool isDynamic() const;
 	inline void setDynamic(bool c);
+	inline bool isSensor() const;
+	inline void setIsSensor(bool c);
 
 	size_t getTotalMemUsage() const;
 
@@ -253,6 +256,7 @@ private:
 public:
 	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
 	bool in_proximity; // Is the object currently in load proximity to camera?
+	bool in_script_proximity; // Is the object currently in script proximity to camera?  For onUserMovedNearToObject and onUserMovedAwayFromObject events.
 private:
 	js::AABBox aabb_os; // Object-space AABB
 public:
@@ -278,6 +282,7 @@ public:
 	static const uint32 VIDEO_AUTOPLAY                          = 32; // For video objects, should the video auto-play?
 	static const uint32 VIDEO_LOOP                              = 64; // For video objects, should the video loop?
 	static const uint32 VIDEO_MUTED                             = 128; // For video objects, should the video be initially muted?
+	static const uint32 IS_SENSOR_FLAG                          = 256; // Is this a physics sensor?
 	uint32 flags;
 
 	TimeStamp created_time;
@@ -317,12 +322,15 @@ public:
 	bool from_remote_other_dirty;     // Something else has been changed remotely
 	bool from_remote_lightmap_url_dirty; // Lightmap URL has been changed remotely
 	bool from_remote_model_url_dirty; // Model URL has been changed remotely
+	bool from_remote_content_dirty; // Content has changed remotely.
 	bool from_remote_flags_dirty;     // Flags have been changed remotely
 	bool from_remote_physics_ownership_dirty; // Physics ownership has been changed remotely.
 
 	bool from_local_transform_dirty;  // Transformation has been changed locally
 	bool from_local_other_dirty;      // Something else has been changed locally
 	bool from_local_physics_dirty; // The physics engine has changed the state of an object locally.
+
+	bool was_just_created; // True if object was created from a State_JustCreated message, false if from a State_InitialSend message.
 
 	uint32 last_transform_update_avatar_uid; // Avatar UID of last client that sent the last ObjectTransformUpdate or ObjectPhysicsTransformUpdate for this message.
 	double last_transform_client_time;
@@ -385,7 +393,7 @@ public:
 	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.
 	float materialise_effect_start_time;
 
-	Reference<WinterShaderEvaluator> script_evaluator;
+	Reference<WinterShaderEvaluator> script_evaluator; // Winter script evaluator
 
 	Reference<Scripting::VehicleScript> vehicle_script;
 
@@ -439,6 +447,9 @@ public:
 
 	Vec4f linear_vel; // Just for storing before sending out in a ObjectPhysicsTransformUpdate message.
 	Vec4f angular_vel;
+
+	Reference<LuaScriptEvaluator> lua_script_evaluator;
+
 private:
 	VoxelGroup voxel_group;
 	js::Vector<uint8, 16> compressed_voxels;
@@ -485,6 +496,21 @@ void WorldObject::setDynamic(bool c)
 		flags |= DYNAMIC_FLAG;
 	else
 		flags &= ~DYNAMIC_FLAG;
+}
+
+
+bool WorldObject::isSensor() const
+{
+	return (flags & IS_SENSOR_FLAG) != 0;
+}
+
+
+void WorldObject::setIsSensor(bool c)
+{
+	if(c)
+		flags |= IS_SENSOR_FLAG;
+	else
+		flags &= ~IS_SENSOR_FLAG;
 }
 
 

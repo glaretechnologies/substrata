@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>618</width>
-    <height>1330</height>
+    <width>622</width>
+    <height>1367</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -787,6 +787,13 @@
           <widget class="QCheckBox" name="dynamicCheckBox">
            <property name="text">
             <string>Dynamic</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="sensorCheckBox">
+           <property name="text">
+            <string>Sensor</string>
            </property>
           </widget>
          </item>

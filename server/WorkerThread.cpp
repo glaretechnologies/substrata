@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../shared/WorldObject.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/FileTypes.h"
+#include "../shared/LuaScriptEvaluator.h"
 #include <vec3.h>
 #include <ConPrint.h>
 #include <Clock.h>
@@ -1605,6 +1606,25 @@ void WorkerThread::doRun()
 											ob->getDependencyURLSetBaseLevel(options, URLs);
 											for(auto it = URLs.begin(); it != URLs.end(); ++it)
 												sendGetFileMessageIfNeeded(it->URL);
+
+											// Add script evaluator if needed
+											if(hasPrefix(ob->script, "--lua"))
+											{
+												ob->lua_script_evaluator = NULL;
+												try
+												{
+													ob->lua_script_evaluator = new LuaScriptEvaluator(server->lua_vm.ptr(), /*script output handler=*/server, ob->script, ob);
+													ob->lua_script_evaluator->world_state = cur_world_state.ptr();
+												}
+												catch(LuaScriptExcepWithLocation& e)
+												{
+													conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
+												}
+												catch(glare::Exception& e)
+												{
+													conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.what());
+												}
+											}
 										}
 									}
 								} // End lock scope
@@ -2177,6 +2197,96 @@ void WorkerThread::doRun()
 
 								enqueuePacketToBroadcast(scratch_packet, server);
 							}
+							break;
+						}
+					case Protocol::UserUsedObjectMessage:
+						{
+							conPrintIfNotFuzzing("Received UserUsedObjectMessage msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							conPrintIfNotFuzzing("object_uid: " + object_uid.toString());
+
+							Reference<UserUsedObjectThreadMessage> msg = new UserUsedObjectThreadMessage();
+							msg->world = cur_world_state;
+							msg->client_user_id = client_user_id;
+							msg->object_uid = object_uid;
+							server->enqueueMsg(msg);
+
+							break;
+						}
+					case Protocol::UserTouchedObjectMessage:
+						{
+							conPrintIfNotFuzzing("Received UserTouchedObjectMessage msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							Reference<UserTouchedObjectThreadMessage> msg = new UserTouchedObjectThreadMessage();
+							msg->world = cur_world_state;
+							msg->client_user_id = client_user_id;
+							msg->object_uid = object_uid;
+							server->enqueueMsg(msg);
+
+							break;
+						}
+					case Protocol::UserMovedNearToObjectMessage:
+						{
+							conPrintIfNotFuzzing("Received UserMovedNearToObjectMessage msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							Reference<UserMovedNearToObjectThreadMessage> msg = new UserMovedNearToObjectThreadMessage();
+							msg->world = cur_world_state;
+							msg->client_user_id = client_user_id;
+							msg->object_uid = object_uid;
+							server->enqueueMsg(msg);
+
+							break;
+						}
+					case Protocol::UserMovedAwayFromObjectMessage:
+						{
+							conPrintIfNotFuzzing("Received UserMovedAwayFromObjectMessage msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							Reference<UserMovedAwayFromObjectThreadMessage> msg = new UserMovedAwayFromObjectThreadMessage();
+							msg->world = cur_world_state;
+							msg->client_user_id = client_user_id;
+							msg->object_uid = object_uid;
+							server->enqueueMsg(msg);
+
+							break;
+						}
+					case Protocol::UserEnteredParcelMessage:
+						{
+							conPrintIfNotFuzzing("Received UserEnteredParcelMessage msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
+
+							Reference<UserEnteredParcelThreadMessage> msg = new UserEnteredParcelThreadMessage();
+							msg->world = cur_world_state;
+							msg->client_user_id = client_user_id;
+							msg->object_uid = object_uid;
+							msg->parcel_id = parcel_id;
+							server->enqueueMsg(msg);
+
+							break;
+						}
+					case Protocol::UserExitedParcelMessage:
+						{
+							conPrintIfNotFuzzing("Received UserExitedParcelMessage msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
+
+							Reference<UserExitedParcelThreadMessage> msg = new UserExitedParcelThreadMessage();
+							msg->world = cur_world_state;
+							msg->client_user_id = client_user_id;
+							msg->object_uid = object_uid;
+							msg->parcel_id = parcel_id;
+							server->enqueueMsg(msg);
+
 							break;
 						}
 					case Protocol::LogInMessage: // Client wants to log in.

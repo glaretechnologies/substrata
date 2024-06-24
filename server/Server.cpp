@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/MessageUtils.h"
+#include "../shared/SubstrataLuaVM.h"
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
@@ -338,6 +339,13 @@ int main(int argc, char *argv[])
 		
 		server.world_state->denormaliseData();
 
+
+		// Create LUA VM
+		server.lua_vm.set(new SubstrataLuaVM());
+		server.lua_vm->server = &server;
+
+
+
 		// If there are explicit paths to cert file and private key file in server config, use them, otherwise use default paths.
 		std::string tls_certificate_path, tls_private_key_path;
 		if(!server_config.tls_certificate_path.empty())
@@ -465,6 +473,39 @@ int main(int argc, char *argv[])
 
 		server.dyn_tex_updater_thread_manager.addThread(new DynamicTextureUpdaterThread(&server, server.world_state.ptr()));
 
+		//----------------------------------------------- Create any Lua scripts for objects -----------------------------------------------
+		{ // Begin scope for world_state->mutex lock
+
+			Lock lock(server.world_state->mutex);
+			for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
+			{
+				Reference<ServerWorldState> world_state = world_it->second;
+				for(auto i = world_state->objects.begin(); i != world_state->objects.end(); ++i)
+				{
+					WorldObject* ob = i->second.ptr();
+					if(hasPrefix(ob->script, "--lua"))
+					{
+						ob->lua_script_evaluator = NULL;
+
+						try
+						{
+							ob->lua_script_evaluator = new LuaScriptEvaluator(server.lua_vm.ptr(), /*script output handler=*/&server, ob->script, ob);
+							ob->lua_script_evaluator->world_state = world_state.ptr();
+						}
+						catch(LuaScriptExcepWithLocation& e)
+						{
+							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
+						}
+						catch(glare::Exception& e)
+						{
+							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.what());
+						}
+					}
+				}
+			}
+		}
+		//----------------------------------------------- End create any Lua scripts for objects -----------------------------------------------
+
 		Timer save_state_timer;
 
 		// A map from world name to a vector of packets to send to clients connected to that world.
@@ -475,6 +516,132 @@ int main(int argc, char *argv[])
 		while(1)
 		{
 			PlatformUtils::Sleep(100);
+
+			// Do Lua timer callbacks
+			{
+				Lock lock(server.world_state->mutex);
+
+				const double cur_time = server.total_timer.elapsed();
+				server.timer_queue.update(cur_time, /*triggered_timers_out=*/server.temp_triggered_timers);
+
+				for(size_t i=0; i<server.temp_triggered_timers.size(); ++i)
+				{
+					TimerQueueTimer& timer = server.temp_triggered_timers[i];
+			
+					LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
+					if(script_evaluator)
+					{
+						// Check timer is still valid (has not been destroyed by destroyTimer), by checking the timer id with the same index is still equal to our timer id.
+						assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
+						if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
+						{
+							script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref); // Execute the Lua timer event callback function
+
+							if(timer.repeating)
+							{
+								// Re-insert timer with updated trigger time
+								timer.tigger_time = cur_time + timer.period;
+								server.timer_queue.addTimer(cur_time, timer);
+							}
+							else // Else if timer was a one-shot timer, 'destroy' it.
+							{
+								script_evaluator->destroyTimer(timer.timer_index);
+							}
+						}
+					}
+				}
+			}
+			
+			// Handle any queued messages from worker threads
+			{
+				const double cur_time = server.total_timer.elapsed();
+
+				Lock lock(server.message_queue.getMutex());
+				while(server.message_queue.unlockedNonEmpty())
+				{
+					Reference<ThreadMessage> msg = server.message_queue.unlockedDequeue();
+
+					if(dynamic_cast<UserUsedObjectThreadMessage*>(msg.ptr()))
+					{
+						const UserUsedObjectThreadMessage* used_msg = static_cast<UserUsedObjectThreadMessage*>(msg.ptr());
+
+						// Look up object
+						auto res = used_msg->world->objects.find(used_msg->object_uid);
+						if(res != used_msg->world->objects.end())
+						{
+							WorldObject* ob = res->second.ptr();
+							if(ob->lua_script_evaluator.nonNull())
+								ob->lua_script_evaluator->doOnUserUsedObject(used_msg->client_user_id);
+						}
+					}
+					else if(dynamic_cast<UserTouchedObjectThreadMessage*>(msg.ptr()))
+					{
+						const UserTouchedObjectThreadMessage* touched_msg = static_cast<UserTouchedObjectThreadMessage*>(msg.ptr());
+
+						// Look up object
+						auto res = touched_msg->world->objects.find(touched_msg->object_uid);
+						if(res != touched_msg->world->objects.end())
+						{
+							WorldObject* ob = res->second.ptr();
+							if(ob->lua_script_evaluator.nonNull())
+								ob->lua_script_evaluator->doOnUserTouchedObject(touched_msg->client_user_id, cur_time);
+						}
+					}
+					else if(dynamic_cast<UserMovedNearToObjectThreadMessage*>(msg.ptr()))
+					{
+						const UserMovedNearToObjectThreadMessage* moved_msg = static_cast<UserMovedNearToObjectThreadMessage*>(msg.ptr());
+
+						// Look up object
+						auto res = moved_msg->world->objects.find(moved_msg->object_uid);
+						if(res != moved_msg->world->objects.end())
+						{
+							WorldObject* ob = res->second.ptr();
+							if(ob->lua_script_evaluator.nonNull())
+								ob->lua_script_evaluator->doOnUserMovedNearToObject(moved_msg->client_user_id);
+						}
+					}
+					else if(dynamic_cast<UserMovedAwayFromObjectThreadMessage*>(msg.ptr()))
+					{
+						const UserMovedAwayFromObjectThreadMessage* moved_msg = static_cast<UserMovedAwayFromObjectThreadMessage*>(msg.ptr());
+
+						// Look up object
+						auto res = moved_msg->world->objects.find(moved_msg->object_uid);
+						if(res != moved_msg->world->objects.end())
+						{
+							WorldObject* ob = res->second.ptr();
+							if(ob->lua_script_evaluator.nonNull())
+								ob->lua_script_evaluator->doOnUserMovedAwayFromObject(moved_msg->client_user_id);
+						}
+					}
+					else if(dynamic_cast<UserEnteredParcelThreadMessage*>(msg.ptr()))
+					{
+						const UserEnteredParcelThreadMessage* parcel_msg = static_cast<UserEnteredParcelThreadMessage*>(msg.ptr());
+
+						// Look up object
+						auto res = parcel_msg->world->objects.find(parcel_msg->object_uid);
+						if(res != parcel_msg->world->objects.end())
+						{
+							WorldObject* ob = res->second.ptr();
+							if(ob->lua_script_evaluator.nonNull())
+								ob->lua_script_evaluator->doOnUserEnteredParcel(parcel_msg->client_user_id, parcel_msg->parcel_id);
+						}
+					}
+					else if(dynamic_cast<UserExitedParcelThreadMessage*>(msg.ptr()))
+					{
+						const UserExitedParcelThreadMessage* parcel_msg = static_cast<UserExitedParcelThreadMessage*>(msg.ptr());
+
+						// Look up object
+						auto res = parcel_msg->world->objects.find(parcel_msg->object_uid);
+						if(res != parcel_msg->world->objects.end())
+						{
+							WorldObject* ob = res->second.ptr();
+							if(ob->lua_script_evaluator.nonNull())
+								ob->lua_script_evaluator->doOnUserExitedParcel(parcel_msg->client_user_id, parcel_msg->parcel_id);
+						}
+					}
+				}
+			}
+
 
 			SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
@@ -694,6 +861,18 @@ int main(int argc, char *argv[])
 							ob->from_remote_model_url_dirty = false;
 							server.world_state->markAsChanged();
 						}
+						else if(ob->from_remote_content_dirty)
+						{
+							// Send ObjectContentChanged packet
+							MessageUtils::initPacket(scratch_packet, Protocol::ObjectContentChanged);
+							writeToStream(ob->uid, scratch_packet);
+							scratch_packet.writeStringLengthFirst(ob->content);
+
+							enqueueMessageToBroadcast(scratch_packet, world_packets);
+
+							ob->from_remote_content_dirty = false;
+							server.world_state->markAsChanged();
+						}
 						else if(ob->from_remote_flags_dirty)
 						{
 							// Send ObjectFlagsChanged packet
@@ -839,9 +1018,20 @@ Server::Server()
 }
 
 
+void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
+{
+	conPrint("LUA: " + std::string(s, len));
+}
+
 double Server::getCurrentGlobalTime() const
 {
 	return Clock::getTimeSinceInit();
+}
+
+
+void Server::enqueueMsg(ThreadMessageRef msg)
+{
+	message_queue.enqueue(msg);
 }
 
 

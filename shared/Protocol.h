@@ -81,6 +81,7 @@ const uint32 ObjectFlagsChanged		= 3011;
 const uint32 ObjectModelURLChanged	= 3012;
 const uint32 ObjectPhysicsOwnershipTaken	= 3013;
 const uint32 ObjectPhysicsTransformUpdate	= 3016;
+const uint32 ObjectContentChanged	= 3017;
 const uint32 SummonObject			= 3030;
 
 const uint32 CreateObject			= 3004; // Client wants to create an object.
@@ -126,6 +127,13 @@ const uint32 InvalidFileType		= 5105;
 //TEMP HACK move elsewhere
 const uint32 UserSelectedObject		= 6000;
 const uint32 UserDeselectedObject	= 6001;
+
+const uint32 UserUsedObjectMessage			= 6500;
+const uint32 UserTouchedObjectMessage		= 6501;
+const uint32 UserMovedNearToObjectMessage	= 6510;
+const uint32 UserMovedAwayFromObjectMessage	= 6511;
+const uint32 UserEnteredParcelMessage		= 6512;
+const uint32 UserExitedParcelMessage		= 6513;
 
 const uint32 InfoMessageID			= 7001;
 const uint32 ErrorMessageID			= 7002;

@@ -48,6 +48,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/ImageDecoding.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/FileTypes.h"
+#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaVM.h"
 #include "../server/User.h"
 #include "../shared/WorldSettings.h"
 #include "../maths/Quat.h"
@@ -160,6 +162,12 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	extracted_anim_data_loaded(false)
 {
 	resources_dir_path = base_dir_path + "/data/resources";
+
+	scripted_ob_proximity_checker.gui_client = this;
+
+	lua_vm.set(new SubstrataLuaVM());
+	lua_vm->gui_client = this;
+	lua_vm->player_physics = &this->player_physics;
 
 	SHIFT_down = false;
 	CTRL_down = false;
@@ -1593,6 +1601,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 
 	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
 	physics_ob->shape = PhysicsWorld::createScaledShapeForShape(this->text_quad_shape, Vec3f(rect_os.getWidths().x, rect_os.getWidths().y, 1.f));
+	physics_ob->is_sensor = ob->isSensor();
 	physics_ob->userdata = ob;
 	physics_ob->userdata_type = 0;
 	physics_ob->ob_uid = ob->uid;
@@ -1639,6 +1648,12 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 
 	physics_ob_out = physics_ob;
 	opengl_ob_out = opengl_ob;
+}
+
+
+void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
+{
+	conPrint(std::string(s, len));
 }
 
 
@@ -1743,6 +1758,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->shape = this->hypercard_quad_shape;
+				physics_ob->is_sensor = ob->isSensor();
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
 				physics_ob->ob_uid = ob->uid;
@@ -1820,6 +1836,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->shape = this->spotlight_shape;
+				physics_ob->is_sensor = ob->isSensor();
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
 				physics_ob->ob_uid = ob->uid;
@@ -1880,6 +1897,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->shape = this->image_cube_shape;
+				physics_ob->is_sensor = ob->isSensor();
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
 				physics_ob->ob_uid = ob->uid;
@@ -1921,6 +1939,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->shape = this->image_cube_shape;
+				physics_ob->is_sensor = ob->isSensor();
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
 				physics_ob->ob_uid = ob->uid;
@@ -2147,6 +2166,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 			use_shape = PhysicsWorld::createCOMOffsetShapeForShape(physics_shape_data->physics_shape, ob->centre_of_mass_offset_os.toVec4fVector());
 
 		ob->physics_object->shape = use_shape;
+		ob->physics_object->is_sensor = ob->isSensor();
 		ob->physics_object->userdata = ob;
 		ob->physics_object->userdata_type = 0;
 		ob->physics_object->ob_uid = ob->uid;
@@ -2165,6 +2185,9 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 		ob->physics_object->restitution = ob->restitution;
 
 		physics_world->addObject(ob->physics_object);
+
+		if(ob->was_just_created && ob->isDynamic())
+			physics_world->activateObject(ob->physics_object);
 	}
 
 
@@ -2477,6 +2500,22 @@ void GUIClient::loadScriptForObject(WorldObject* ob)
 				task->script_content = ob->script;
 				load_item_queue.enqueueItem(/*key=*/"script_" + ob->uid.toString(), *ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
 			}
+		}
+
+
+		if(hasPrefix(ob->script, "--lua"))
+		{
+			ob->lua_script_evaluator = NULL;
+			scripted_ob_proximity_checker.removeObject(ob);
+
+			ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob);
+
+			// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.
+			if(	ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined() || 
+				ob->lua_script_evaluator->isOnUserMovedAwayFromObjectDefined() ||
+				ob->lua_script_evaluator->isOnUserEnteredParcelDefined() || 
+				ob->lua_script_evaluator->isOnUserExitedParcelDefined())
+				scripted_ob_proximity_checker.addObject(ob);
 		}
 
 
@@ -3616,7 +3655,7 @@ void GUIClient::processLoading()
 									use_shape = PhysicsWorld::createCOMOffsetShapeForShape(cur_loading_physics_shape, voxel_ob->centre_of_mass_offset_os.toVec4fVector());
 
 								physics_ob->shape = use_shape;
-
+								physics_ob->is_sensor = voxel_ob->isSensor();
 								physics_ob->userdata = voxel_ob.ptr();
 								physics_ob->userdata_type = 0;
 								physics_ob->ob_uid = voxel_ob->uid;
@@ -3633,6 +3672,9 @@ void GUIClient::processLoading()
 								voxel_ob->physics_object = physics_ob;
 
 								physics_world->addObject(physics_ob);
+
+								if(voxel_ob->was_just_created && voxel_ob->isDynamic())
+									physics_world->activateObject(voxel_ob->physics_object);
 							}
 
 							const float current_time = (float)Clock::getTimeSinceInit();
@@ -4127,6 +4169,43 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 
 void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
+	scripted_ob_proximity_checker.think(cam_controller.getPosition().toVec4fPoint());
+
+	// Do Lua timer callbacks
+	if(false) // TEMP 
+	{
+		const double cur_time = total_timer.elapsed();
+		timer_queue.update(cur_time, /*triggered_timers_out=*/temp_triggered_timers);
+
+		for(size_t i=0; i<temp_triggered_timers.size(); ++i)
+		{
+			TimerQueueTimer& timer = temp_triggered_timers[i];
+			
+			LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
+			if(script_evaluator)
+			{
+				// Check timer is still valid (has not been destroyed by destroyTimer), by checking the timer id with the same index is still equal to our timer id.
+				assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
+				if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
+				{
+					script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref); // Execute the Lua timer event callback function
+
+					if(timer.repeating)
+					{
+						// Re-insert timer with updated trigger time
+						timer.tigger_time = cur_time + timer.period;
+						timer_queue.addTimer(cur_time, timer);
+					}
+					else // Else if timer was a one-shot timer, 'destroy' it.
+					{
+						script_evaluator->destroyTimer(timer.timer_index);
+					}
+				}
+			}
+		}
+	}
+
+
 	if(gl_ui.nonNull())
 		gl_ui->think();
 
@@ -4507,6 +4586,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
 							{
 								WorldObject* ob = (WorldObject*)physics_ob->userdata;
+
+								// conPrint("Player contacted object " + ob->uid.toString());
 						
 								if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
 								{
@@ -4516,6 +4597,34 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 						}
 					}
+
+					// Execute script events on any player contacted events.
+					for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+					{
+						PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+						if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
+						{
+							WorldObject* ob = (WorldObject*)physics_ob->userdata;
+					
+							// conPrint("timerEvent: player hit ob UID: " + ob->uid.toString());
+					
+							// Run script
+							if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserTouchedObjectDefined())
+							{
+								// Jolt creates contact added events very fast, so limit how often we call onUserTouchedObject.
+								if(ob->lua_script_evaluator->hasOnUserTouchedObjectCooledDown(cur_time))
+								{
+									ob->lua_script_evaluator->doOnUserTouchedObject(/*client id=*/this->logged_in_user_id, cur_time);
+
+									// Send message to server to execute onUserTouchedObject on the server
+									MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
+									writeToStream(ob->uid, scratch_packet);
+									enqueueMessageToSend(*client_thread, scratch_packet);
+								}
+							}
+						}
+					}
+
 					player_physics.contacted_events.resize(0);
 				}
 
@@ -4533,6 +4642,29 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				}
 			}
 		}
+	}
+
+	// Process any player_contact_added_events generated while running physics world update()
+	{
+		Lock lock(player_contact_added_events_mutex);
+
+		for(size_t i=0; i<player_contact_added_events.size(); ++i)
+		{
+			ContactAddedEvent& ev = player_contact_added_events[i];
+
+			if(ev.ob->lua_script_evaluator.nonNull() && ev.ob->lua_script_evaluator->isOnUserTouchedObjectDefined())
+			{
+				// Execute local script
+				ev.ob->lua_script_evaluator->doOnUserTouchedObject(/*client id=*/this->logged_in_user_id, cur_time);
+
+				// Send message to server to execute onUserTouchedObject on the server
+				MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
+				writeToStream(ev.ob->uid, scratch_packet);
+				enqueueMessageToSend(*client_thread, scratch_packet);
+			}
+		}
+
+		player_contact_added_events.clear();
 	}
 
 	player_physics.zeroMoveDesiredVel();
@@ -4970,7 +5102,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	if(world_state.nonNull())
 	{
 		//Timer timer;
-		bool in_parcel = false;
 		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
 		Lock lock(world_state->mutex);
 		const Parcel* parcel = world_state->getParcelPointIsIn(campos_vec3d);
@@ -4982,15 +5113,78 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				Vec4f((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.f)));
 
 			in_parcel_id = parcel->id;
-			in_parcel = true;
 
 			if(BitUtils::isBitSet(parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
 				mute_outside_audio = true;
 		}
 
-		audio_engine.setRoomEffectsEnabled(in_parcel);
+		audio_engine.setRoomEffectsEnabled(parcel != NULL);
 
 		//conPrint("Setting room effects took " + timer.elapsedStringNSigFigs(4));
+
+		// Check to see if we have changed the current parcel, and run any onUserEnteredParcel and onUserExitedParcel events
+		// for objects in those parcels
+		// cur_in_parcel_id is the id of the parcel we were in previously.
+		if(in_parcel_id != this->cur_in_parcel_id) // If we moved to a new parcel (or out of any parcel)
+		{
+			// Execute onUserExitedParcel events for any objects in parcel we just left
+			if(this->cur_in_parcel_id.valid())
+			{
+				// conPrint("User exited parcel: " + cur_in_parcel_id.toString());
+				auto res = world_state->parcels.find(this->cur_in_parcel_id);
+				if(res != world_state->parcels.end())
+				{
+					const Parcel* cur_parcel = res->second.ptr();
+					WorldObjectRef* const objects_data = scripted_ob_proximity_checker.objects.vector.data();
+					const size_t objects_size          = scripted_ob_proximity_checker.objects.vector.size();
+					for(size_t i=0; i<objects_size; ++i)
+					{
+						WorldObject* ob = objects_data[i].ptr();
+						if(cur_parcel->pointInParcel(ob->getCentroidWS())) // If object is in parcel we just left:
+						{
+							if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserExitedParcelDefined())
+							{
+								// Execute script locally
+								ob->lua_script_evaluator->doOnUserExitedParcel(/*client user id=*/logged_in_user_id, cur_in_parcel_id);
+
+								// Send msg to server to execute on server as well.
+								MessageUtils::initPacket(scratch_packet, Protocol::UserExitedParcelMessage);
+								writeToStream(ob->uid, scratch_packet);
+								writeToStream(cur_in_parcel_id, scratch_packet);
+								enqueueMessageToSend(*client_thread, scratch_packet);
+							}
+						}
+					}
+				}
+			}
+
+			if(parcel)
+			{
+				// conPrint("User entered new parcel: " + parcel->id.toString());
+				WorldObjectRef* const objects_data = scripted_ob_proximity_checker.objects.vector.data();
+				const size_t objects_size          = scripted_ob_proximity_checker.objects.vector.size();
+				for(size_t i=0; i<objects_size; ++i)
+				{
+					WorldObject* ob = objects_data[i].ptr();
+					if(parcel->pointInParcel(ob->getCentroidWS())) // If object is in parcel we just entered:
+					{
+						if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserEnteredParcelDefined())
+						{
+							// Execute script locally
+							ob->lua_script_evaluator->doOnUserEnteredParcel(/*client user id=*/logged_in_user_id, cur_in_parcel_id);
+
+							// Send msg to server to execute on server as well.
+							MessageUtils::initPacket(scratch_packet, Protocol::UserEnteredParcelMessage);
+							writeToStream(ob->uid, scratch_packet);
+							writeToStream(parcel->id, scratch_packet);
+							enqueueMessageToSend(*client_thread, scratch_packet);
+						}
+					}
+				}
+			}
+
+			this->cur_in_parcel_id = in_parcel_id;
+		}
 	}
 
 	//printVar(in_parcel_id.value());
@@ -5192,9 +5386,16 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						audio_obs.erase(ob);
 						obs_with_scripts.erase(ob);
 						obs_with_diagnostic_vis.erase(ob);
+
+						scripted_ob_proximity_checker.removeObject(ob);
 					}
 					else // Else if not dead:
 					{
+						if(ob->state == WorldObject::State_JustCreated)
+							ob->was_just_created = true;
+						else if(ob->state == WorldObject::State_InitialSend)
+							ob->was_just_created = false;
+
 						// Decompress voxel group
 						//ob->decompressVoxels();
 
@@ -5324,6 +5525,33 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						ui_interface->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
 
 					ob->from_remote_lightmap_url_dirty = false;
+				}
+				else if(ob->from_remote_content_dirty)
+				{
+					// conPrint("GUICLIENT: timerEvent(): handling from_remote_content_dirty..");
+
+					if(ob->object_type == WorldObject::ObjectType_Text)
+					{
+						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+						const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+
+						PhysicsObjectRef new_physics_ob;
+						GLObjectRef new_opengl_ob;
+						createGLAndPhysicsObsForText(ob_to_world_matrix, ob, /*use_materialise_effect*/false, new_physics_ob, new_opengl_ob);
+
+						ob->opengl_engine_ob = new_opengl_ob;
+						ob->physics_object = new_physics_ob;
+						ob->loaded_content = ob->content;
+						ob->setAABBOS(new_opengl_ob->mesh_data->aabb_os);
+
+						opengl_engine->addObject(ob->opengl_engine_ob);
+
+						physics_world->addObject(ob->physics_object);
+					}
+					// TODO: handle non-text objects.  Also move this code into some kind of objectChanged() function?
+
+					ob->from_remote_content_dirty = false;
 				}
 				else if(ob->from_remote_physics_ownership_dirty)
 				{
@@ -7405,33 +7633,44 @@ void GUIClient::physicsObjectEnteredWater(PhysicsObject& physics_ob)
 
 
 // NOTE: called from threads other than the main thread, needs to be threadsafe
-void GUIClient::contactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
+void GUIClient::contactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& contact_manifold)
 {
-	const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
-
-	for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
+	// Detect contact of the player interaction body with sensor bodies
+	const JPH::Body* player_contacted_ob = NULL; // The body that the player interaction character contacted.
+	if(player_physics.interaction_character)
 	{
-		Particle particle;
-		particle.pos = toVec4fPos(contact_manifold.mBaseOffset + contact_manifold.mRelativeContactPointsOn1[i]);
-		particle.area = 0.0001f;
-		particle.vel = av_vel + Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 2, 0) * 1.f;
-		particle.colour = Colour3f(0.6f, 0.4f, 0.3f);
-		particle.width = 0.1f;
-	
-		// Add to particles_creation_buf to create in main thread later
+		//conPrint("GUIClient::contactAdded: Player interaction object contact added (player == inBody2)");
+		if(player_physics.interaction_character->GetBodyID() == inBody1.GetID())
+			player_contacted_ob = &inBody2;
+		else if(player_physics.interaction_character->GetBodyID() == inBody2.GetID())
+			player_contacted_ob = &inBody1;
+
+		if(player_contacted_ob)
 		{
-			Lock lock(particles_creation_buf_mutex);
-			this->particles_creation_buf.push_back(particle);
+			//conPrint("GUIClient::contactAdded: Player interaction object contact added.  player_contacted_ob->IsSensor(): " + boolToString(player_contacted_ob->IsSensor()));
+			if(player_contacted_ob->IsSensor())
+			{
+				const uint64 user_data = player_contacted_ob->GetUserData();
+				if(user_data != 0)
+				{
+					PhysicsObject* physics_ob = (PhysicsObject*)user_data;
+					if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
+					{
+						WorldObject* ob = (WorldObject*)physics_ob->userdata;
+						// conPrint("GUIClient::contactAdded: Hit ob UID: " + ob->uid.toString());
+
+						// We can't call Lua scripts from this thread safely, make an event to process later.
+						{
+							Lock lock(player_contact_added_events_mutex);
+							player_contact_added_events.push_back(ContactAddedEvent({ob}));
+						}
+					}
+				}
+			}
 		}
 	}
-}
 
-
-// NOTE: called from threads other than the main thread, needs to be threadsafe
-void GUIClient::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
-{
-	const JPH::Vec3 relative_vel = inBody1.GetLinearVelocity() - inBody2.GetLinearVelocity();
-	if(relative_vel.LengthSq() > Maths::square(3.0f))
+	if(!player_contacted_ob) // For now, don't create dust particles when the player contacts something.
 	{
 		const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
 		for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
@@ -7447,6 +7686,41 @@ void GUIClient::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBo
 			{
 				Lock lock(particles_creation_buf_mutex);
 				this->particles_creation_buf.push_back(particle);
+			}
+		}
+	}
+}
+
+
+// NOTE: called from threads other than the main thread, needs to be threadsafe
+void GUIClient::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
+{
+	if(player_physics.interaction_character && 
+		(player_physics.interaction_character->GetBodyID() == inBody1.GetID()) ||
+		(player_physics.interaction_character->GetBodyID() == inBody2.GetID()))
+	{
+		//conPrint("Player interaction object contact persisted");
+	}
+	else
+	{
+		const JPH::Vec3 relative_vel = inBody1.GetLinearVelocity() - inBody2.GetLinearVelocity();
+		if(relative_vel.LengthSq() > Maths::square(3.0f))
+		{
+			const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
+			for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
+			{
+				Particle particle;
+				particle.pos = toVec4fPos(contact_manifold.mBaseOffset + contact_manifold.mRelativeContactPointsOn1[i]);
+				particle.area = 0.0001f;
+				particle.vel = av_vel + Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 2, 0) * 1.f;
+				particle.colour = Colour3f(0.6f, 0.4f, 0.3f);
+				particle.width = 0.1f;
+
+				// Add to particles_creation_buf to create in main thread later
+				{
+					Lock lock(particles_creation_buf_mutex);
+					this->particles_creation_buf.push_back(particle);
+				}
 			}
 		}
 	}
@@ -8834,6 +9108,7 @@ void GUIClient::objectEdited()
 					use_shape = PhysicsWorld::createCOMOffsetShapeForShape(physics_shape, selected_ob->centre_of_mass_offset_os.toVec4fVector());
 
 				selected_ob->physics_object->shape = use_shape;
+				selected_ob->physics_object->is_sensor = selected_ob->isSensor();
 				selected_ob->physics_object->userdata = selected_ob.ptr();
 				selected_ob->physics_object->userdata_type = 0;
 				selected_ob->physics_object->ob_uid = selected_ob->uid;
@@ -8929,6 +9204,7 @@ void GUIClient::objectEdited()
 					use_shape = PhysicsWorld::createCOMOffsetShapeForShape(use_shape, selected_ob->centre_of_mass_offset_os.toVec4fVector());
 
 				selected_ob->physics_object->shape = use_shape;
+				selected_ob->physics_object->is_sensor = selected_ob->isSensor();
 				selected_ob->physics_object->userdata = selected_ob.ptr();
 				selected_ob->physics_object->userdata_type = 0;
 				selected_ob->physics_object->ob_uid = selected_ob->uid;
@@ -9568,6 +9844,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	audio_obs.clear();
 	obs_with_scripts.clear();
 	obs_with_diagnostic_vis.clear();
+
+	scripted_ob_proximity_checker.clear();
 
 	path_controllers.clear();
 
@@ -10479,6 +10757,8 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 
 		opengl_engine->selectObject(gl_ob);
 
+		physics_ob->is_sensor = ob->isSensor();
+
 		assert(ob->physics_object.isNull());
 		ob->physics_object = physics_ob;
 		physics_ob->userdata = (void*)(ob.ptr());
@@ -10728,6 +11008,12 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 							ob_info_ui.showMessage("Press [E] to enter vehicle", gl_coords);
 						else
 							ob_info_ui.showMessage("Press [E] to right vehicle", gl_coords);
+						show_mouseover_info_ui = true;
+					}
+
+					if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserUsedObjectDefined())
+					{
+						ob_info_ui.showMessage("Press [E] to use", gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
@@ -12168,6 +12454,17 @@ void GUIClient::keyPressed(KeyEvent& e)
 
 							return;
 						}
+					}
+
+					// If the object has a script that has an onUserUsedObject event handler, send a UserUsedObjectMessage to the server
+					// So the script event handler can be run
+					if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserUsedObjectDefined())
+					{
+						// Make message packet and enqueue to send
+						MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);
+						writeToStream(ob->uid, scratch_packet);
+
+						enqueueMessageToSend(*client_thread, scratch_packet);
 					}
 				}
 			}

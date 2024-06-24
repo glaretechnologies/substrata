@@ -12,25 +12,33 @@ Copyright Glare Technologies Limited 2024 -
 #include <string>
 class PlayerPhysics;
 class GUIClient;
+class Server;
 class LuaVM;
 
 
 /*=====================================================================
 SubstrataLuaVM
-------------------
+--------------
 
 =====================================================================*/
 class SubstrataLuaVM : public RefCounted
 {
 public:
-	SubstrataLuaVM(GUIClient* gui_client, PlayerPhysics* player_physics);
-	virtual ~SubstrataLuaVM();
+	SubstrataLuaVM();
+	~SubstrataLuaVM();
 
 
 	UniqueRef<LuaVM> lua_vm;
 
+#if GUI_CLIENT
 	GUIClient* gui_client;
 	PlayerPhysics* player_physics;
+#endif
+
+#if SERVER
+	Server* server;
+#endif
 	
+	int worldObjectClassMetaTable_ref;
 	int userClassMetaTable_ref;
 };
