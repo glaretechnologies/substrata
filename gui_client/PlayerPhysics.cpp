@@ -9,6 +9,8 @@ Copyright Glare Technologies Limited 2022 -
 #include "CameraController.h"
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
+#include "../shared/WorldObject.h"
+#include "../shared/LuaScriptEvaluator.h"
 #include "JoltUtils.h"
 #include <StringUtils.h>
 #include <ConPrint.h>
@@ -79,10 +81,11 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 	}
 
 	// Create 'interaction' character.
+	// This interaction character is so contacts between sensor objects and the player can be detected.  (used for scripting)
+	// CharacterVirtual does not trigger such contacts.
 	// See https://github.com/jrouwe/JoltPhysics/discussions/239 ('Presence shape for virtual character controllers') and also 
 	// https://github.com/jrouwe/JoltPhysics/discussions/399 ('Pusher character object and step climbing interacting badly')
-	// We will give it a slightly larger radius than the virtual character, which seems to be needed to effectively push objects around.
-	if(false)
+	if(true)
 	{
 		JPH::RefConst<JPH::Shape> standing_shape = JPH::RotatedTranslatedShapeSettings(
 			JPH::Vec3(0, 0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding), // position
@@ -90,7 +93,7 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 			new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightStanding, /*inRadius=*/INTERACTION_SPHERE_RAD)).Create().Get();
 
 		JPH::Ref<JPH::CharacterSettings> settings = new JPH::CharacterSettings();
-		//settings->mLayer = Layers::PUSHER_CHARACTER;
+		settings->mLayer = Layers::MOVING;//PUSHER_CHARACTER;
 		settings->mShape = standing_shape;
 		settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
 
@@ -309,10 +312,12 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 
 	PlayerPhysicsObjectLayerFilter player_physics_filter;
 
+	JPH::IgnoreSingleBodyFilter player_physics_body_filter(interaction_character->GetBodyID()); // Don't collide with the interaction character
+
 	// Put the guts of ExtendedUpdate here, just so we can extract pre_stair_walk_position from the middle of it.
-#if 0
+#if 1
 	jolt_character->ExtendedUpdate(dtime, physics_world.physics_system->GetGravity(), settings, physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING), 
-		physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), { }, {}, *physics_world.temp_allocator);
+		physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), player_physics_body_filter, {}, *physics_world.temp_allocator);
 
 	const JPH::Vec3 pre_stair_walk_position = jolt_character->GetPosition();
 #else
@@ -322,7 +327,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	const JPH::Vec3 inGravity = physics_world.physics_system->GetGravity();
 	const JPH::BroadPhaseLayerFilter &inBroadPhaseLayerFilter = physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING);
 	const JPH::ObjectLayerFilter &inObjectLayerFilter = player_physics_filter;
-	const JPH::BodyFilter &inBodyFilter = {};
+
+	const JPH::BodyFilter &inBodyFilter = player_physics_body_filter;
 	const JPH::ShapeFilter &inShapeFilter = {};
 	JPH::TempAllocator &inAllocator = *physics_world.temp_allocator;
 
@@ -447,6 +453,29 @@ Vec4f PlayerPhysics::getLinearVel() const
 }
 
 
+void PlayerPhysics::setLinearVel(const Vec4f& new_linear_vel)
+{
+	if(jolt_character)
+		jolt_character->SetLinearVelocity(toJoltVec3(new_linear_vel));
+
+	if(interaction_character)
+		interaction_character->SetLinearVelocity(toJoltVec3(new_linear_vel));
+}
+
+
+void PlayerPhysics::addToLinearVel(const Vec4f& delta_v)
+{
+	if(jolt_character)
+	{
+		const Vec4f new_linear_vel = getLinearVel() + delta_v;
+		jolt_character->SetLinearVelocity(toJoltVec3(new_linear_vel));
+
+		if(interaction_character)
+			interaction_character->SetLinearVelocity(toJoltVec3(new_linear_vel));
+	}
+}
+
+
 bool PlayerPhysics::isMoveDesiredVelNonZero()
 {
 	return move_desired_vel.length2() != 0;
@@ -461,17 +490,14 @@ void PlayerPhysics::zeroMoveDesiredVel()
 
 void PlayerPhysics::OnContactAdded(const JPH::CharacterVirtual *inCharacter, const JPH::BodyID &inBodyID2, const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, JPH::CharacterContactSettings &ioSettings)
 {
-	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
-
-	if(body_interface.GetMotionType(inBodyID2) == JPH::EMotionType::Dynamic)
+	JPH::BodyLockRead lock(physics_system->GetBodyLockInterface(), inBodyID2);
+	if(lock.Succeeded())
 	{
-		const uint64 user_data = body_interface.GetUserData(inBodyID2);
+		const JPH::Body& body = lock.GetBody();
+		const uint64 user_data = body.GetUserData();
 		if(user_data != 0)
 		{
 			PhysicsObject* physics_ob = (PhysicsObject*)user_data;
-
-			//conPrint("Contact added");
-
 			contacted_events.push_back(ContactedEvent({physics_ob}));
 		}
 	}
