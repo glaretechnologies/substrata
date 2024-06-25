@@ -79,7 +79,7 @@ void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur
 	if(hit_error || (onUserTouchedObject_ref == LUA_NOREF))
 		return;
 
-	LuaStackChecker checker(lua_script->thread_state);
+	//LuaStackChecker checker(lua_script->thread_state);
 
 	// Jolt creates contactAdded events very fast, so limit how often we call onUserTouchedObject.
 	// TODO: rate limit per user.
@@ -126,7 +126,7 @@ void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id)
 	if(hit_error || (onUserUsedObject_ref == LUA_NOREF))
 		return;
 
-	LuaStackChecker checker(lua_script->thread_state);
+	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
@@ -158,7 +158,7 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id)
 	if(hit_error || (onUserMovedNearToObject_ref == LUA_NOREF))
 		return;
 
-	LuaStackChecker checker(lua_script->thread_state);
+	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
@@ -190,7 +190,7 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id)
 	if(hit_error || (onUserMovedAwayFromObject_ref == LUA_NOREF))
 		return;
 
-	LuaStackChecker checker(lua_script->thread_state);
+	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
@@ -222,7 +222,7 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID p
 	if(hit_error || (onUserEnteredParcel_ref == LUA_NOREF))
 		return;
 
-	LuaStackChecker checker(lua_script->thread_state);
+	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
@@ -250,11 +250,11 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID p
 
 void LuaScriptEvaluator::doOnUserExitedParcel(UserID client_user_id, ParcelID parcel_id)
 {
-	conPrint("LuaScriptEvaluator: doOnUserEnteredParcel");
+	conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
 	if(hit_error || (onUserExitedParcel_ref == LUA_NOREF))
 		return;
 
-	LuaStackChecker checker(lua_script->thread_state);
+	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
