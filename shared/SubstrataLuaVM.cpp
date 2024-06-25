@@ -25,6 +25,111 @@ Copyright Glare Technologies Limited 2024 -
 #include <Luau/Common.h>
 
 
+// String atom tables.  Used for fast selection of table fields without having to do string comparisons.
+struct StringAtom
+{
+	const char* str;
+	int atom;
+};
+
+enum Atom
+{
+	Atom_uid,
+	Atom_idx,
+
+	Atom_model_url,
+	Atom_pos,
+	Atom_axis,
+	Atom_angle,
+	Atom_scale,
+	Atom_collidable,
+	Atom_dynamic,
+	Atom_content,
+	Atom_video_autoplay,
+	Atom_video_loop,
+	Atom_video_muted,
+	Atom_mass,
+	Atom_friction,
+	Atom_restitution,
+	Atom_centre_of_mass_offset_os,
+	Atom_audio_source_url,
+	Atom_audio_volume,
+	Atom_getNumMaterials,
+	Atom_getMaterial,
+	Atom_script,
+	Atom_materials,
+
+	Atom_colour,
+	Atom_colour_texture_url,
+	Atom_emission_rgb,
+	Atom_emission_texture_url,
+	Atom_normal_map_url,
+	Atom_roughness_val,
+	Atom_roughness_texture_url,
+	Atom_metallic_fraction_val,
+	Atom_opacity_val,
+	Atom_tex_matrix,
+	Atom_emission_lum_flux_or_lum,
+	Atom_hologram,
+	Atom_double_sided,
+
+	Atom_setLinearVelocity,
+	Atom_createObject,
+	Atom_createTimer,
+	Atom_destroyTimer,
+};
+
+static StringAtom string_atoms[] = 
+{
+	StringAtom({"uid",						Atom_uid						}),
+	StringAtom({"idx",						Atom_idx						}),
+
+	// WorldObject
+	StringAtom({"model_url",				Atom_model_url					}),
+	StringAtom({"pos",						Atom_pos						}),
+	StringAtom({"axis",						Atom_axis						}),
+	StringAtom({"angle",					Atom_angle						}),
+	StringAtom({"scale",					Atom_scale						}),
+	StringAtom({"collidable",				Atom_collidable					}),
+	StringAtom({"dynamic",					Atom_dynamic,					}),
+	StringAtom({"content",					Atom_content,					}),
+	StringAtom({"video_autoplay",			Atom_video_autoplay,			}),
+	StringAtom({"video_loop",				Atom_video_loop,				}),
+	StringAtom({"video_muted",				Atom_video_muted,				}),
+	StringAtom({"mass",						Atom_mass,						}),
+	StringAtom({"friction",					Atom_friction,					}),
+	StringAtom({"restitution",				Atom_restitution,				}),
+	StringAtom({"centre_of_mass_offset_os",	Atom_centre_of_mass_offset_os,	}),
+	StringAtom({"audio_source_url",			Atom_audio_source_url,			}),
+	StringAtom({"audio_volume",				Atom_audio_volume,				}),
+	StringAtom({"getNumMaterials",			Atom_getNumMaterials,			}),
+	StringAtom({"getMaterial",				Atom_getMaterial,				}),
+	StringAtom({"script",					Atom_script,					}),
+	StringAtom({"materials",				Atom_materials,					}),
+
+	// WorldMaterial
+	StringAtom({"colour",					Atom_colour,					}),
+	StringAtom({"colour_texture_url",		Atom_colour_texture_url,		}),
+	StringAtom({"emission_rgb",				Atom_emission_rgb,				}),
+	StringAtom({"emission_texture_url",		Atom_emission_texture_url,		}),
+	StringAtom({"normal_map_url",			Atom_normal_map_url,			}),
+	StringAtom({"roughness_val",			Atom_roughness_val,				}),
+	StringAtom({"roughness_texture_url",	Atom_roughness_texture_url,		}),
+	StringAtom({"metallic_fraction_val",	Atom_metallic_fraction_val,		}),
+	StringAtom({"opacity_val",				Atom_opacity_val,				}),
+	StringAtom({"tex_matrix",				Atom_tex_matrix,				}),
+	StringAtom({"emission_lum_flux_or_lum",	Atom_emission_lum_flux_or_lum,	}),
+	StringAtom({"hologram",					Atom_hologram,					}),
+	StringAtom({"double_sided",				Atom_double_sided,				}),
+
+
+	StringAtom({"setLinearVelocity",		Atom_setLinearVelocity,			}),
+	StringAtom({"createObject",				Atom_createObject,				}),
+	StringAtom({"createTimer",				Atom_createTimer,				}),
+	StringAtom({"destroyTimer",				Atom_destroyTimer,				}),
+};
+
+
 // Construct a WorldMaterial from a table on the lua stack
 static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
 {
@@ -39,8 +144,6 @@ static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
 
 static int user_setLinearVelocity(lua_State* state)
 {
-	LuaUtils::printStack(state);
-
 	// Expected args:
 	// Arg 1: user : User
 	// Arg 2: velocity_change : vec3
@@ -290,8 +393,8 @@ static int getMaterial(lua_State* state)
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
 
-#if GUI_CLIENT
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+#if GUI_CLIENT
 
 	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
 	if(res == sub_lua_vm->gui_client->world_state->objects.end())
@@ -321,6 +424,10 @@ static int getMaterial(lua_State* state)
 	LuaUtils::setLightUserDataAsTableField(state, "uid", (void*)uid.value());
 	//LuaUtils::setNumberAsTableField(state, "idx", (double)index);
 	LuaUtils::setLightUserDataAsTableField(state, "idx", (void*)index);
+
+	// Set metatable to worldMaterialClassMetaTable_ref
+	lua_getref(state, sub_lua_vm->worldMaterialClassMetaTable_ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
+	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	return 1; // Count of returned values
 }
@@ -358,88 +465,88 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 	WorldObject* ob = res->second.ptr();
 #endif
 	
-	//size_t stringlen = 0;
-	const char* key_str = lua_tolstring(state, /*index=*/2, NULL/*&stringlen*/); // May return NULL if not a string
-	if(key_str)
+	int atom = -1;
+	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
+	switch(atom) // NOTE: The switch cases should be in the same order as the Atom enum values to ensure nice code-gen.
 	{
-		if(stringEqual(key_str, "pos"))
-		{
-			LuaUtils::pushVec3d(state, ob->pos);
-		}
-		else if(stringEqual(key_str, "axis"))
-		{
-			LuaUtils::pushVec3f(state, ob->axis);
-		}
-		else if(stringEqual(key_str, "angle"))
-		{
-			lua_pushnumber(state, ob->angle);
-		}
-		else if(stringEqual(key_str, "scale"))
-		{
-			LuaUtils::pushVec3f(state, ob->scale);
-		}
-		else if(stringEqual(key_str, "model_url"))
-		{
-			LuaUtils::pushString(state, ob->model_url);
-		}
-		else if(stringEqual(key_str, "collidable"))
-		{
-			lua_pushboolean(state, ob->isCollidable());
-		}
-		else if(stringEqual(key_str, "dynamic"))
-		{
-			lua_pushboolean(state, ob->isDynamic());
-		}
-		else if(stringEqual(key_str, "content"))
-		{
-			LuaUtils::pushString(state, ob->content);
-		}
-		else if(stringEqual(key_str, "video_autoplay"))
-		{
-			lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY));
-		}
-		else if(stringEqual(key_str, "video_loop"))
-		{
-			lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP));
-		}
-		else if(stringEqual(key_str, "video_muted"))
-		{
-			lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED));
-		}
-		else if(stringEqual(key_str, "mass"))
-		{
-			lua_pushnumber(state, ob->mass);
-		}
-		else if(stringEqual(key_str, "friction"))
-		{
-			lua_pushnumber(state, ob->friction);
-		}
-		else if(stringEqual(key_str, "restitution"))
-		{
-			lua_pushnumber(state, ob->restitution);
-		}
-		else if(stringEqual(key_str, "centre_of_mass_offset_os"))
-		{
-			LuaUtils::pushVec3f(state, ob->centre_of_mass_offset_os);
-		}
-		else if(stringEqual(key_str, "audio_source_url"))
-		{
-			LuaUtils::pushString(state, ob->audio_source_url);
-		}
-		else if(stringEqual(key_str, "audio_volume"))
-		{
-			lua_pushnumber(state, ob->audio_volume);
-		}
-		else if(stringEqual(key_str, "getNumMaterials"))
-		{
-			lua_pushcfunction(state, getNumMaterials, "getNumMaterials");
-		}
-		else if(stringEqual(key_str, "getMaterial"))
-		{
-			lua_pushcfunction(state, getMaterial, "getMaterial");
-		}
-		else
-			throw glare::Exception("Unknown field");
+	case Atom_model_url:
+		assert(stringEqual(key_str, "model_url"));
+		LuaUtils::pushString(state, ob->model_url);
+		break;
+	case Atom_pos:
+		assert(stringEqual(key_str, "pos"));
+		LuaUtils::pushVec3d(state, ob->pos);
+		break;
+	case Atom_axis:
+		assert(stringEqual(key_str, "axis"));
+		LuaUtils::pushVec3f(state, ob->axis);
+		break;
+	case Atom_angle:
+		assert(stringEqual(key_str, "angle"));
+		lua_pushnumber(state, ob->angle);
+		break;
+	case Atom_scale:
+		assert(stringEqual(key_str, "scale"));
+		LuaUtils::pushVec3f(state, ob->scale);
+		break;
+	case Atom_collidable:
+		assert(stringEqual(key_str, "collidable"));
+		lua_pushboolean(state, ob->isCollidable());
+		break;
+	case Atom_dynamic:
+		assert(stringEqual(key_str, "dynamic"));
+		lua_pushboolean(state, ob->isDynamic());
+		break;
+	case Atom_content:
+		assert(stringEqual(key_str, "content"));
+		LuaUtils::pushString(state, ob->content);
+		break;
+	case Atom_video_autoplay:
+		assert(stringEqual(key_str, "video_autoplay"));
+		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY));
+		break;
+	case Atom_video_loop:
+		assert(stringEqual(key_str, "video_loop"));
+		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP));
+		break;
+	case Atom_video_muted:
+		assert(stringEqual(key_str, "video_muted"));
+		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED));
+		break;
+	case Atom_mass:
+		assert(stringEqual(key_str, "mass"));
+		lua_pushnumber(state, ob->mass);
+		break;
+	case Atom_friction:
+		assert(stringEqual(key_str, "friction"));
+		lua_pushnumber(state, ob->friction);
+		break;	
+	case Atom_restitution:
+		assert(stringEqual(key_str, "restitution"));
+		lua_pushnumber(state, ob->restitution);
+		break;
+	case Atom_centre_of_mass_offset_os:
+		assert(stringEqual(key_str, "centre_of_mass_offset_os"));
+		LuaUtils::pushVec3f(state, ob->centre_of_mass_offset_os);
+		break;
+	case Atom_audio_source_url:
+		assert(stringEqual(key_str, "audio_source_url"));
+		LuaUtils::pushString(state, ob->audio_source_url);
+		break;
+	case Atom_audio_volume:
+		assert(stringEqual(key_str, "audio_source_url"));
+		lua_pushnumber(state, ob->audio_volume);
+		break;
+	case Atom_getNumMaterials:
+		assert(stringEqual(key_str, "getNumMaterials"));
+		lua_pushcfunction(state, getNumMaterials, "getNumMaterials");
+		break;
+	case Atom_getMaterial:
+		assert(stringEqual(key_str, "getMaterial"));
+		lua_pushcfunction(state, getMaterial, "getMaterial");
+		break;
+	default:
+		throw glare::Exception("Unknown field '" + std::string(key_str) + "'");
 	}
 
 	return 1; // Count of returned values
@@ -449,6 +556,10 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 // C++ implementation of __newindex for WorldObject class.  Used when a value is assigned to a WorldObject field
 static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 {
+#if GUI_CLIENT
+	return 0; // Count of returned values
+#else
+
 	// Arg 1: table 
 	// Arg 2: key
 	// Arg 3: value
@@ -457,15 +568,15 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
 
-#if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-	if(res == sub_lua_vm->gui_client->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
-
-	WorldObject* ob = res.getValue().ptr();
-#else
+//#if GUI_CLIENT
+//	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+//
+//	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
+//	if(res == sub_lua_vm->gui_client->world_state->objects.end())
+//		throw glare::Exception("No such object with given UID");
+//
+//	WorldObject* ob = res.getValue().ptr();
+//#else
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
@@ -474,131 +585,133 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		throw glare::Exception("No such object with given UID");
 
 	WorldObject* ob = res->second.ptr();
-#endif
+//#endif
 
-	// Read key
-	const char* key_str = lua_tolstring(state, /*index=*/2, NULL); // May return NULL if not a string
-	if(key_str)
+	bool transform_changed = false;
+	bool other_changed = false;
+
+	int atom = -1;
+	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
+	switch(atom) // NOTE: The switch cases should be in the same order as the Atom enum values to ensure nice code-gen.
 	{
-		bool transform_changed = false;
-		bool other_changed = false;
-		if(stringEqual(key_str, "pos"))
-		{
-			ob->pos = LuaUtils::getVec3d(state, /*index=*/3);
-			transform_changed = true;
-		}
-		else if(stringEqual(key_str, "axis"))
-		{
-			ob->axis = LuaUtils::getVec3f(state, /*index=*/3);
-			transform_changed = true;
-		}
-		else if(stringEqual(key_str, "angle"))
-		{
-			ob->angle = LuaUtils::getFloat(state, /*index=*/3);
-			transform_changed = true;
-		}
-		else if(stringEqual(key_str, "scale"))
-		{
-			ob->scale = LuaUtils::getVec3f(state, /*index=*/3);
-			transform_changed = true;
-		}
-		else if(stringEqual(key_str, "model_url"))
-		{
-			ob->model_url = LuaUtils::getString(state, /*index=*/3);
+	case Atom_model_url:
+		assert(stringEqual(key_str, "model_url"));
 
-			ob->content = LuaUtils::getString(state, /*index=*/3);
-			ob->from_remote_model_url_dirty = true; // TODO: rename
+		ob->model_url = LuaUtils::getString(state, /*index=*/3);
+
+		ob->content = LuaUtils::getString(state, /*index=*/3);
+		ob->from_remote_model_url_dirty = true; // TODO: rename
 
 #if SERVER
-			script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
 #endif
-		}
-		else if(stringEqual(key_str, "collidable"))
-		{
-			ob->setCollidable(lua_toboolean(state, /*index=*/3));
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "dynamic"))
-		{
-			ob->setDynamic(lua_toboolean(state, /*index=*/3));
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "content"))
-		{
-			ob->content = LuaUtils::getString(state, /*index=*/3);
-			ob->from_remote_content_dirty = true; // TODO: rename
+		break;
+	case Atom_pos:
+		assert(stringEqual(key_str, "pos"));
+		ob->pos = LuaUtils::getVec3d(state, /*index=*/3);
+		transform_changed = true;
+		break;
+	case Atom_axis:
+		assert(stringEqual(key_str, "axis"));
+		ob->axis = LuaUtils::getVec3f(state, /*index=*/3);
+		transform_changed = true;
+		break;
+	case Atom_angle:
+		assert(stringEqual(key_str, "angle"));
+		ob->angle = LuaUtils::getFloat(state, /*index=*/3);
+		transform_changed = true;
+		break;
+	case Atom_scale:
+		assert(stringEqual(key_str, "scale"));
+		ob->scale = LuaUtils::getVec3f(state, /*index=*/3);
+		transform_changed = true;
+		break;
+	case Atom_collidable:
+		assert(stringEqual(key_str, "collidable"));
+		ob->setCollidable(lua_toboolean(state, /*index=*/3));
+		other_changed = true;
+		break;
+	case Atom_dynamic:
+		ob->setDynamic(lua_toboolean(state, /*index=*/3));
+		other_changed = true;
+		break;
+	case Atom_content:
+		assert(stringEqual(key_str, "content"));
+		ob->content = LuaUtils::getString(state, /*index=*/3);
+		ob->from_remote_content_dirty = true; // TODO: rename
+#if SERVER
+		//script_evaluator->world_state->addWorldObjectAsDBDirty(ob);
+		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+#endif
+		break;
+	case Atom_video_autoplay:
+		assert(stringEqual(key_str, "video_autoplay"));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, lua_toboolean(state, /*index=*/3));
+		other_changed = true;
+		break;
+	case Atom_video_loop:
+		assert(stringEqual(key_str, "video_loop"));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP, lua_toboolean(state, /*index=*/3));
+		other_changed = true;
+		break;
+	case Atom_video_muted:
+		assert(stringEqual(key_str, "video_muted"));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_MUTED, lua_toboolean(state, /*index=*/3));
+		other_changed = true;
+		break;
+	case Atom_mass:
+		assert(stringEqual(key_str, "mass"));
+		ob->mass = LuaUtils::getFloat(state, /*index=*/3);
+		other_changed = true;
+		break;
+	case Atom_friction:
+		assert(stringEqual(key_str, "friction"));
+		ob->friction = LuaUtils::getFloat(state, /*index=*/3);
+		other_changed = true;
+		break;	
+	case Atom_restitution:
+		assert(stringEqual(key_str, "restitution"));
+		ob->restitution = LuaUtils::getFloat(state, /*index=*/3);
+		other_changed = true;
+		break;
+	case Atom_centre_of_mass_offset_os:
+		assert(stringEqual(key_str, "centre_of_mass_offset_os"));
+		ob->centre_of_mass_offset_os = LuaUtils::getVec3f(state, /*index=*/3);
+		other_changed = true;
+		break;
+	case Atom_audio_source_url:
+		assert(stringEqual(key_str, "audio_source_url"));
+		ob->audio_source_url = LuaUtils::getString(state, /*index=*/3);
+		other_changed = true;
+		break;
+	case Atom_audio_volume:
+		assert(stringEqual(key_str, "audio_volume"));
+		ob->audio_volume = LuaUtils::getFloat(state, /*index=*/3);
+		other_changed = true;
+		break;
+	default:
+		throw glare::Exception("Unknown field '" + std::string(key_str) + "'");
+	}
 
-#if SERVER
-			//script_evaluator->world_state->addWorldObjectAsDBDirty(ob);
-			script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-#endif
-		}
-		else if(stringEqual(key_str, "video_autoplay"))
-		{
-			BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, lua_toboolean(state, /*index=*/3));
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "video_loop"))
-		{
-			BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP, lua_toboolean(state, /*index=*/3));
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "video_muted"))
-		{
-			BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_MUTED, lua_toboolean(state, /*index=*/3));
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "mass"))
-		{
-			ob->mass = LuaUtils::getFloat(state, /*index=*/3);
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "friction"))
-		{
-			ob->friction = LuaUtils::getFloat(state, /*index=*/3);
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "restitution"))
-		{
-			ob->restitution = LuaUtils::getFloat(state, /*index=*/3);
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "centre_of_mass_offset_os"))
-		{
-			ob->centre_of_mass_offset_os = LuaUtils::getVec3f(state, /*index=*/3);
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "audio_source_url"))
-		{
-			ob->audio_source_url = LuaUtils::getString(state, /*index=*/3);
-			other_changed = true;
-		}
-		else if(stringEqual(key_str, "audio_volume"))
-		{
-			ob->audio_volume = LuaUtils::getFloat(state, /*index=*/3);
-			other_changed = true;
-		}
-		else
-			throw glare::Exception("Unknown field");
-
-		if(transform_changed)
-		{
-			ob->last_transform_update_avatar_uid = std::numeric_limits<uint32>::max();
-			ob->from_remote_transform_dirty = true; // TODO: rename
-#if SERVER
-			script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-#endif
-		}
-		else if(other_changed)
-		{
-			ob->from_remote_other_dirty = true; // TODO: rename
-#if SERVER
-			script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-#endif
-		}
+	if(transform_changed)
+	{
+		ob->last_transform_update_avatar_uid = std::numeric_limits<uint32>::max();
+		ob->from_remote_transform_dirty = true; // TODO: rename
+//#if SERVER
+		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+//#endif
+	}
+	else if(other_changed)
+	{
+		ob->from_remote_other_dirty = true; // TODO: rename
+//#if SERVER
+		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+//#endif
 	}
 
 	return 0; // Count of returned values
+
+#endif
 }
 
 
@@ -614,7 +727,8 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
 
 	// Get material index from the world material table
-	const size_t mat_index = (size_t)LuaUtils::getTableNumberField(state, /*table index=*/1, "idx");
+	//const size_t mat_index = (size_t)LuaUtils::getTableNumberField(state, /*table index=*/1, "idx");
+	const size_t mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "idx");
 
 #if GUI_CLIENT
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
@@ -640,66 +754,182 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 
 	WorldMaterial* mat = ob->materials[mat_index].ptr();
 	
-	const char* key_str = lua_tolstring(state, /*index=*/2, /*len=*/NULL); // May return NULL if not a string
-	if(key_str)
+	int atom = -1;
+	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
+	switch(atom) // NOTE: The switch cases should be in the same order as the Atom enum values to ensure nice code-gen.
 	{
-		if(stringEqual(key_str, "colour"))
-		{
-			LuaUtils::pushVec3f(state, mat->colour_rgb.toVec3());
-		}
-		else if(stringEqual(key_str, "colour_texture_url"))
-		{
-			LuaUtils::pushString(state, mat->colour_texture_url);
-		}
-		else if(stringEqual(key_str, "emission_rgb"))
-		{
-			LuaUtils::pushVec3f(state, mat->emission_rgb.toVec3());
-		}
-		else if(stringEqual(key_str, "emission_texture_url"))
-		{
-			LuaUtils::pushString(state, mat->emission_texture_url);
-		}
-		else if(stringEqual(key_str, "normal_map_url"))
-		{
-			LuaUtils::pushString(state, mat->normal_map_url);
-		}
-		else if(stringEqual(key_str, "roughness_val"))
-		{
-			lua_pushnumber(state, mat->roughness.val);
-		}
-		else if(stringEqual(key_str, "roughness_texture_url"))
-		{
-			LuaUtils::pushString(state, mat->roughness.texture_url);
-		}
-		else if(stringEqual(key_str, "metallic_fraction_val"))
-		{
-			lua_pushnumber(state, mat->metallic_fraction.val);
-		}
-		else if(stringEqual(key_str, "opacity_val"))
-		{
-			lua_pushnumber(state, mat->opacity.val);
-		}
-		else if(stringEqual(key_str, "tex_matrix"))
-		{
-			LuaUtils::pushMatrix2f(state, mat->tex_matrix);
-		}
-		else if(stringEqual(key_str, "emission_lum_flux_or_lum"))
-		{
-			lua_pushnumber(state, mat->emission_lum_flux_or_lum);
-		}
-		else if(stringEqual(key_str, "hologram"))
-		{
-			lua_pushboolean(state, BitUtils::isBitSet(mat->flags, WorldMaterial::HOLOGRAM_FLAG));
-		}
-		else if(stringEqual(key_str, "double_sided"))
-		{
-			lua_pushboolean(state, BitUtils::isBitSet(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG));
-		}
-		else
-			throw glare::Exception("Unknown field");
+	case Atom_colour:
+		assert(stringEqual(key_str, "colour"));
+		LuaUtils::pushVec3f(state, mat->colour_rgb.toVec3());
+		break;
+	case Atom_colour_texture_url:
+		assert(stringEqual(key_str, "colour_texture_url"));
+		LuaUtils::pushString(state, mat->colour_texture_url);
+		break;
+	case Atom_emission_rgb:
+		assert(stringEqual(key_str, "emission_rgb"));
+		LuaUtils::pushVec3f(state, mat->emission_rgb.toVec3());
+		break;
+	case Atom_emission_texture_url:
+		assert(stringEqual(key_str, "emission_texture_url"));
+		LuaUtils::pushString(state, mat->emission_texture_url);
+		break;
+	case Atom_normal_map_url:
+		assert(stringEqual(key_str, "normal_map_url"));
+		LuaUtils::pushString(state, mat->normal_map_url);
+		break;
+	case Atom_roughness_val:
+		assert(stringEqual(key_str, "roughness_val"));
+		lua_pushnumber(state, mat->roughness.val);
+		break;
+	case Atom_roughness_texture_url:
+		assert(stringEqual(key_str, "roughness_texture_url"));
+		LuaUtils::pushString(state, mat->roughness.texture_url);
+		break;
+	case Atom_metallic_fraction_val:
+		assert(stringEqual(key_str, "metallic_fraction_val"));
+		lua_pushnumber(state, mat->metallic_fraction.val);
+		break;
+	case Atom_opacity_val:
+		assert(stringEqual(key_str, "opacity_val"));
+		lua_pushnumber(state, mat->opacity.val);
+		break;
+	case Atom_tex_matrix:
+		assert(stringEqual(key_str, "tex_matrix"));
+		LuaUtils::pushMatrix2f(state, mat->tex_matrix);
+		break;
+	case Atom_emission_lum_flux_or_lum:
+		assert(stringEqual(key_str, "emission_lum_flux_or_lum"));
+		lua_pushnumber(state, mat->emission_lum_flux_or_lum);
+		break;
+	case Atom_hologram:
+		assert(stringEqual(key_str, "hologram"));
+		lua_pushboolean(state, BitUtils::isBitSet(mat->flags, WorldMaterial::HOLOGRAM_FLAG));
+		break;
+	case Atom_double_sided:
+		assert(stringEqual(key_str, "double_sided"));
+		lua_pushboolean(state, BitUtils::isBitSet(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG));
+		break;
+	default:
+		throw glare::Exception("Unknown field");
 	}
 
 	return 1; // Count of returned values
+}
+
+
+// C++ implementation of __newindex for WorldMaterial class.  Used when a value is assigned to a WorldMaterial field
+static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
+{
+#if GUI_CLIENT
+	return 0; // Count of returned values
+#else
+
+	// Arg 1: WorldMaterial
+	// Arg 2: key : string
+	// Arg 3: value
+	
+	// Get object UID from the world material table
+	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
+
+	// Get material index from the world material table
+	const size_t mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "idx");
+
+//#if GUI_CLIENT
+//	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+//
+//	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
+//	if(res == sub_lua_vm->gui_client->world_state->objects.end())
+//		throw glare::Exception("No such object with given UID");
+//
+//	WorldObject* ob = res.getValue().ptr();
+//#else
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	auto res = script_evaluator->world_state->objects.find(uid);
+	if(res == script_evaluator->world_state->objects.end())
+		throw glare::Exception("No such object with given UID");
+
+	WorldObject* ob = res->second.ptr();
+//#endif
+
+	if(mat_index > ob->materials.size())
+		throw glare::Exception("Invalid material index");
+
+	WorldMaterial* mat = ob->materials[mat_index].ptr();
+
+	// Read key
+	int atom = -1;
+	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
+	switch(atom) // NOTE: The switch cases should be in the same order as the Atom enum values to ensure nice code-gen.
+	{
+	case Atom_colour:
+		assert(stringEqual(key_str, "colour"));
+		mat->colour_rgb = Colour3f(LuaUtils::getVec3f(state, /*index=*/3));
+		break;
+	case Atom_colour_texture_url:
+		assert(stringEqual(key_str, "colour_texture_url"));
+		mat->colour_texture_url = LuaUtils::getString(state, /*index=*/3);
+		break;
+	case Atom_emission_rgb:
+		assert(stringEqual(key_str, "emission_rgb"));
+		mat->emission_rgb = Colour3f(LuaUtils::getVec3f(state, /*index=*/3));
+		break;
+	case Atom_emission_texture_url:
+		assert(stringEqual(key_str, "emission_texture_url"));
+		mat->emission_texture_url = LuaUtils::getString(state, /*index=*/3);
+		break;
+	case Atom_normal_map_url:
+		assert(stringEqual(key_str, "normal_map_url"));
+		mat->normal_map_url = LuaUtils::getString(state, /*index=*/3);
+		break;
+	case Atom_roughness_val:
+		assert(stringEqual(key_str, "roughness_val"));
+		mat->roughness.val = LuaUtils::getFloat(state, /*index=*/3);
+		break;
+	case Atom_roughness_texture_url:
+		assert(stringEqual(key_str, "roughness_texture_url"));
+		mat->roughness.texture_url = LuaUtils::getString(state, /*index=*/3);
+		break;
+	case Atom_metallic_fraction_val:
+		assert(stringEqual(key_str, "metallic_fraction_val"));
+		mat->metallic_fraction.val = LuaUtils::getFloat(state, /*index=*/3);
+		break;
+	case Atom_opacity_val:
+		assert(stringEqual(key_str, "opacity_val"));
+		mat->opacity.val = LuaUtils::getFloat(state, /*index=*/3);
+		break;
+	case Atom_tex_matrix:
+		assert(stringEqual(key_str, "tex_matrix"));
+		mat->tex_matrix = LuaUtils::getMatrix2f(state, /*index=*/3);
+		break;
+	case Atom_emission_lum_flux_or_lum:
+		assert(stringEqual(key_str, "emission_lum_flux_or_lum"));
+		mat->emission_lum_flux_or_lum = LuaUtils::getFloat(state, /*index=*/3);
+		break;
+	case Atom_hologram:
+		assert(stringEqual(key_str, "hologram"));
+		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::HOLOGRAM_FLAG, lua_toboolean(state, /*index=*/3));
+		break;
+	case Atom_double_sided:
+		assert(stringEqual(key_str, "double_sided"));
+		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG, lua_toboolean(state, /*index=*/3));
+		break;
+	default:
+		throw glare::Exception("Unknown field");
+	}
+
+//#if SERVER
+	// Mark the object as dirty, sending the updated object will send the updated material as well.
+	ob->from_remote_other_dirty = true; // TODO: rename
+	script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+//#endif
+
+	return 0; // Count of returned values
+
+#endif
 }
 
 
@@ -774,11 +1004,28 @@ static int userClassNewIndexMetaMethod(lua_State* state)
 }
 
 
+// "gets called when a string is created; returned atom can be retrieved via tostringatom"
+static int16_t glareLuaUserAtom(const char* str, size_t stringlen)
+{
+	// conPrint("glareLuaUserAtom(): str: " + std::string(str, stringlen));
+
+	for(size_t i=0; i<staticArrayNumElems(string_atoms); ++i)
+		if(stringEqual(str, string_atoms[i].str))
+			return (int16)string_atoms[i].atom;
+
+	assert(0); // We should have an atom value for every string?
+
+	return -1; // or use ATOM_UNDEF here?
+}
+
+
 SubstrataLuaVM::SubstrataLuaVM()
 {
 	lua_vm.set(new LuaVM());
 
 	lua_callbacks(lua_vm->state)->userdata = this;
+	lua_callbacks(lua_vm->state)->useratom = glareLuaUserAtom;
+
 
 	// Set some global functions
 	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
@@ -805,7 +1052,22 @@ SubstrataLuaVM::SubstrataLuaVM()
 	worldObjectClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldObjectMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop WorldObjectMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
-	// 
+
+
+	//--------------------------- Create WorldMaterial Metatable ---------------------------
+	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create WorldMaterial metatable
+			
+	// Set worldMaterialClassIndexMetaMethod as __index metamethod
+	lua_vm->setCFunctionAsTableField(worldMaterialClassIndexMetaMethod, /*debugname=*/"worldMaterialClassIndexMetaMethod", /*table index=*/-2, /*key=*/"__index");
+
+	// Set worldMaterialClassNewIndexMetaMethod as __newindex metamethod
+	lua_vm->setCFunctionAsTableField(worldMaterialClassNewIndexMetaMethod, /*debugname=*/"worldMaterialClassNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
+
+	worldMaterialClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldMaterialMetaTable.  Does not pop.
+	lua_pop(lua_vm->state, 1); // Pop WorldMaterialMetaTable from stack
+	//--------------------------- End create User Metatable ---------------------------
+	
+
 	//--------------------------- Create User Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create User metatable
 			

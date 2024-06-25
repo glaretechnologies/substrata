@@ -40,5 +40,6 @@ public:
 #endif
 	
 	int worldObjectClassMetaTable_ref;
+	int worldMaterialClassMetaTable_ref;
 	int userClassMetaTable_ref;
 };
