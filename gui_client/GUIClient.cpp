@@ -1800,7 +1800,6 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				ob->opengl_engine_ob = opengl_ob;
 				ob->physics_object = physics_ob;
-				ob->loaded_content = ob->content;
 
 				opengl_engine->addObject(ob->opengl_engine_ob);
 
@@ -1813,19 +1812,11 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 			{
 				assert(ob->physics_object.isNull());
 
-				PhysicsObjectRef physics_ob;
-				GLObjectRef opengl_ob;
-				createGLAndPhysicsObsForText(ob_to_world_matrix, ob, use_materialise_effect, physics_ob, opengl_ob);
+				BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
 
-				ob->opengl_engine_ob = opengl_ob;
-				ob->physics_object = physics_ob;
-				ob->loaded_content = ob->content;
+				recreateTextGraphicsAndPhysicsObs(ob);
 
-				opengl_engine->addObject(ob->opengl_engine_ob);
-
-				physics_world->addObject(ob->physics_object);
-
-				assignedLoadedOpenGLTexturesToMats(ob, *opengl_engine, *resource_manager);
+				loadScriptForObject(ob); // Load any script for the object.
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
@@ -1879,7 +1870,6 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 				ob->opengl_engine_ob = opengl_ob;
 				ob->opengl_light = light;
 				ob->physics_object = physics_ob;
-				ob->loaded_content = ob->content;
 
 				opengl_engine->addObject(ob->opengl_engine_ob);
 				opengl_engine->addLight(ob->opengl_light);
@@ -1919,7 +1909,6 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				ob->opengl_engine_ob = opengl_ob;
 				ob->physics_object = physics_ob;
-				ob->loaded_content = ob->content;
 
 				opengl_engine->addObject(ob->opengl_engine_ob);
 
@@ -1961,7 +1950,6 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				ob->opengl_engine_ob = opengl_ob;
 				ob->physics_object = physics_ob;
-				ob->loaded_content = ob->content;
 
 				opengl_engine->addObject(ob->opengl_engine_ob);
 
@@ -2456,6 +2444,9 @@ void GUIClient::loadScriptForObject(WorldObject* ob)
 	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
  	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
 	{
+		// Clear SCRIPT_CHANGED flag first.  That way if an exception is thrown below, we won't try and create the script again repeatedly on LOD changes etc.
+		BitUtils::zeroBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
+
 		// conPrint("GUIClient::loadScriptForObject(): SCRIPT_CHANGED bit was set, destroying script_evaluator.");
 		
 		removeObScriptingInfo(ob);
@@ -2517,9 +2508,6 @@ void GUIClient::loadScriptForObject(WorldObject* ob)
 				ob->lua_script_evaluator->isOnUserExitedParcelDefined())
 				scripted_ob_proximity_checker.addObject(ob);
 		}
-
-
-		BitUtils::zeroBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
 	}
 
 	
@@ -2855,12 +2843,12 @@ void GUIClient::updateSelectedObjectPlacementBeam()
 		Vec4f start_trace_pos = new_aabb_ws.centroid();
 		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
 		//this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e5f), trace_results);
-		this->physics_world->traceRay(start_trace_pos, Vec4f(0, 0, 1, 0), 1.0e5f, trace_results);
+		this->physics_world->traceRay(start_trace_pos, Vec4f(0, 0, 1, 0), 1.0e5f, /*ignore body id=*/JPH::BodyID(), trace_results);
 		const float up_beam_len = trace_results.hit_object ? trace_results.hit_t : new_aabb_ws.axisLength(2) * 0.5f;
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
 		const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0, 0, 1, 0) * (up_beam_len - 0.001f);
-		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e5f, trace_results);
+		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), trace_results);
 		const float down_beam_len = trace_results.hit_object ? trace_results.hit_t : 1000.0f;
 		const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0, 0, 1, 0);
 
@@ -5411,36 +5399,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							loadModelForObject(ob);
 							loadAudioForObject(ob);
 						}
-
-						//bool reload_opengl_model = false; // Do we need to load or reload model?
-						//if(ob->opengl_engine_ob.isNull())
-						//	reload_opengl_model = true;
-						//
-						//if(ob->object_type == WorldObject::ObjectType_Generic)
-						//{
-						//	if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
-						//		reload_opengl_model = true;
-						//}
-						//else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
-						//{
-						//	reload_opengl_model = true;
-						//}
-						//else if(ob->object_type == WorldObject::ObjectType_Hypercard)
-						//{
-						//	if(ob->loaded_content != ob->content)
-						//		reload_opengl_model = true;
-						//}
-						//else if(ob->object_type == WorldObject::ObjectType_Spotlight)
-						//{
-						//	// no reload needed
-						//}
-
-						//if(reload_opengl_model)
-						//{
-						//	// loadModelForObject(ob);
-						//}
-						//else
-						//{
 						
 						if(!ob->audio_source_url.empty() || ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video)
 							this->audio_obs.insert(ob);
@@ -5465,15 +5423,27 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 								opengl_engine->objectMaterialsUpdated(*opengl_ob);
 
+								if(ob->object_type == WorldObject::ObjectType_Spotlight)
+									updateSpotlightGraphicsEngineData(opengl_ob->ob_to_world_matrix, ob);
+
 								updateInstancedCopiesOfObject(ob);
 							}
 
 							if(ob == selected_ob.ptr())
 								ui_interface->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
 
+
+							if(ob->object_type == WorldObject::ObjectType_Text)
+							{
+								if(BitUtils::isBitSet(ob->changed_flags, WorldObject::CONTENT_CHANGED))
+								{
+									BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
+									recreateTextGraphicsAndPhysicsObs(ob);
+								}
+							}
+
 							loadAudioForObject(ob); // Check for re-loading audio if audio URL changed.
 						}
-						//}
 
 
 						if(ob->state == WorldObject::State_JustCreated)
@@ -5532,22 +5502,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 					if(ob->object_type == WorldObject::ObjectType_Text)
 					{
-						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-						const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
-
-						PhysicsObjectRef new_physics_ob;
-						GLObjectRef new_opengl_ob;
-						createGLAndPhysicsObsForText(ob_to_world_matrix, ob, /*use_materialise_effect*/false, new_physics_ob, new_opengl_ob);
-
-						ob->opengl_engine_ob = new_opengl_ob;
-						ob->physics_object = new_physics_ob;
-						ob->loaded_content = ob->content;
-						ob->setAABBOS(new_opengl_ob->mesh_data->aabb_os);
-
-						opengl_engine->addObject(ob->opengl_engine_ob);
-
-						physics_world->addObject(ob->physics_object);
+						recreateTextGraphicsAndPhysicsObs(ob);
+						BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
 					}
 					// TODO: handle non-text objects.  Also move this code into some kind of objectChanged() function?
 
@@ -6567,7 +6523,7 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 		// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 		RayTraceResult trace_results;
 		physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
-			/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, trace_results);
+			/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), trace_results);
 		
 		if(trace_results.hit_object)
 		{
@@ -7637,33 +7593,29 @@ void GUIClient::contactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2,
 {
 	// Detect contact of the player interaction body with sensor bodies
 	const JPH::Body* player_contacted_ob = NULL; // The body that the player interaction character contacted.
-	if(player_physics.interaction_character)
+	if(player_physics.getInteractionCharBodyID() == inBody1.GetID())
+		player_contacted_ob = &inBody2;
+	else if(player_physics.getInteractionCharBodyID() == inBody2.GetID())
+		player_contacted_ob = &inBody1;
+
+	if(player_contacted_ob)
 	{
-		//conPrint("GUIClient::contactAdded: Player interaction object contact added (player == inBody2)");
-		if(player_physics.interaction_character->GetBodyID() == inBody1.GetID())
-			player_contacted_ob = &inBody2;
-		else if(player_physics.interaction_character->GetBodyID() == inBody2.GetID())
-			player_contacted_ob = &inBody1;
-
-		if(player_contacted_ob)
+		//conPrint("GUIClient::contactAdded: Player interaction object contact added.  player_contacted_ob->IsSensor(): " + boolToString(player_contacted_ob->IsSensor()));
+		if(player_contacted_ob->IsSensor())
 		{
-			//conPrint("GUIClient::contactAdded: Player interaction object contact added.  player_contacted_ob->IsSensor(): " + boolToString(player_contacted_ob->IsSensor()));
-			if(player_contacted_ob->IsSensor())
+			const uint64 user_data = player_contacted_ob->GetUserData();
+			if(user_data != 0)
 			{
-				const uint64 user_data = player_contacted_ob->GetUserData();
-				if(user_data != 0)
+				PhysicsObject* physics_ob = (PhysicsObject*)user_data;
+				if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
 				{
-					PhysicsObject* physics_ob = (PhysicsObject*)user_data;
-					if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
-					{
-						WorldObject* ob = (WorldObject*)physics_ob->userdata;
-						// conPrint("GUIClient::contactAdded: Hit ob UID: " + ob->uid.toString());
+					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+					// conPrint("GUIClient::contactAdded: Hit ob UID: " + ob->uid.toString());
 
-						// We can't call Lua scripts from this thread safely, make an event to process later.
-						{
-							Lock lock(player_contact_added_events_mutex);
-							player_contact_added_events.push_back(ContactAddedEvent({ob}));
-						}
+					// We can't call Lua scripts from this thread safely, make an event to process later.
+					{
+						Lock lock(player_contact_added_events_mutex);
+						player_contact_added_events.push_back(ContactAddedEvent({ob}));
 					}
 				}
 			}
@@ -7695,9 +7647,8 @@ void GUIClient::contactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2,
 // NOTE: called from threads other than the main thread, needs to be threadsafe
 void GUIClient::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
 {
-	if(player_physics.interaction_character && 
-		(player_physics.interaction_character->GetBodyID() == inBody1.GetID()) ||
-		(player_physics.interaction_character->GetBodyID() == inBody2.GetID()))
+	if(	(player_physics.getInteractionCharBodyID() == inBody1.GetID()) ||
+		(player_physics.getInteractionCharBodyID() == inBody2.GetID()))
 	{
 		//conPrint("Player interaction object contact persisted");
 	}
@@ -7843,7 +7794,7 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 			const Vec4f dir = getDirForPixelTrace(mouse_cursor_state.cursor_pos.x, mouse_cursor_state.cursor_pos.y);
 			RayTraceResult results;
-			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 			if(results.hit_object)
 			{
 				const Vec4f hitpos_ws = origin + dir*results.hit_t;
@@ -8986,12 +8937,13 @@ void GUIClient::objectTransformEdited()
 				// Update spotlight data in opengl engine.
 				if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
 				{
-					GLLightRef light = this->selected_ob->opengl_light;
+					/*GLLightRef light = this->selected_ob->opengl_light;
 					if(light.nonNull())
 					{
 						light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
 						opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
-					}
+					}*/
+					updateSpotlightGraphicsEngineData(new_ob_to_world_matrix, selected_ob.ptr());
 				}
 
 				// Update transform of OpenGL object
@@ -9311,8 +9263,10 @@ void GUIClient::objectEdited()
 					}
 					else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 					{
-						if(selected_ob->content != selected_ob->loaded_content)
+						if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::CONTENT_CHANGED))
 						{
+							BitUtils::zeroBit(selected_ob->changed_flags, WorldObject::CONTENT_CHANGED);
+
 							// Re-create opengl-ob
 							//ui->glWidget->makeCurrent();
 
@@ -9343,62 +9297,22 @@ void GUIClient::objectEdited()
 							opengl_engine->objectMaterialsUpdated(*opengl_ob);
 
 							selected_ob->opengl_engine_ob = opengl_ob;
-
-							selected_ob->loaded_content = selected_ob->content;
 						}
 					}
 					else if(this->selected_ob->object_type == WorldObject::ObjectType_Text)
 					{
 						// Re-create opengl and physics objects
+						recreateTextGraphicsAndPhysicsObs(selected_ob.ptr());
 
-						removeAndDeleteGLAndPhysicsObjectsForOb(*selected_ob);
+						BitUtils::zeroBit(selected_ob->changed_flags, WorldObject::CONTENT_CHANGED);
 
-						PhysicsObjectRef new_physics_ob;
-						GLObjectRef new_opengl_ob;
-						createGLAndPhysicsObsForText(new_ob_to_world_matrix, selected_ob.ptr(), /*use_materialise_effect*/false, new_physics_ob, new_opengl_ob);
+						opengl_ob = selected_ob->opengl_engine_ob;//new_opengl_ob;
 
-						selected_ob->opengl_engine_ob = new_opengl_ob;
-						selected_ob->physics_object = new_physics_ob;
-						selected_ob->loaded_content = selected_ob->content;
-						selected_ob->setAABBOS(new_opengl_ob->mesh_data->aabb_os);
-
-						opengl_engine->addObject(selected_ob->opengl_engine_ob);
-
-						physics_world->addObject(selected_ob->physics_object);
-
-						opengl_ob = new_opengl_ob;
-
-						opengl_engine->selectObject(new_opengl_ob);
+						opengl_engine->selectObject(/*new_opengl_ob*/selected_ob->opengl_engine_ob);
 					}
 					else if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
 					{
-						GLLightRef light = this->selected_ob->opengl_light;
-						if(light.nonNull())
-						{
-							light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
-							float scale;
-							light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
-
-							//ui->glWidget->makeCurrent();
-							opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
-
-
-							// Use material[1] from the WorldObject as the light housing GL material.
-							opengl_ob->materials.resize(2);
-							if(this->selected_ob->materials.size() >= 2)
-								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
-							else
-								opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
-
-							// Apply a light emitting material to the light surface material in the spotlight model.
-							if(this->selected_ob->materials.size() >= 1)
-							{
-								opengl_ob->materials[1].emission_linear_rgb = toLinearSRGB(this->selected_ob->materials[0]->colour_rgb);
-								opengl_ob->materials[1].emission_scale = scale;
-							}
-
-							opengl_engine->objectMaterialsUpdated(*opengl_ob);
-						}
+						updateSpotlightGraphicsEngineData(new_ob_to_world_matrix, this->selected_ob.ptr());
 					}
 
 					// Update transform of OpenGL object
@@ -9505,6 +9419,61 @@ void GUIClient::objectEdited()
 		if(this->terrain_system.nonNull() && ::hasPrefix(selected_ob->content, "biome:"))
 			this->terrain_system->invalidateVegetationMap(selected_ob->getAABBWS());
 	}
+}
+
+
+void GUIClient::updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob)
+{
+	GLObjectRef opengl_ob = ob->opengl_engine_ob;
+	GLLightRef light = ob->opengl_light;
+	if(opengl_ob.nonNull() && light.nonNull())
+	{
+		light->gpu_data.dir = normalise(ob_to_world_matrix * Vec4f(0, 0, -1, 0));
+
+		float scale;
+		light->gpu_data.col = computeSpotlightColour(*ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
+
+		opengl_engine->setLightPos(light, ob->pos.toVec4fPoint());
+
+
+		// Use material[1] from the WorldObject as the light housing GL material.
+		opengl_ob->materials.resize(2);
+		if(ob->materials.size() >= 2)
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*//*ob_lod_level*/0, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
+		else
+			opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
+
+		// Apply a light emitting material to the light surface material in the spotlight model.
+		if(ob->materials.size() >= 1)
+		{
+			opengl_ob->materials[1].emission_linear_rgb = toLinearSRGB(ob->materials[0]->colour_rgb);
+			opengl_ob->materials[1].emission_scale = scale;
+		}
+
+		opengl_engine->objectMaterialsUpdated(*opengl_ob);
+	}
+}
+
+
+void GUIClient::recreateTextGraphicsAndPhysicsObs(WorldObject* ob)
+{
+	conPrint("recreateTextGraphicsAndPhysicsObs");
+
+	removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+
+	PhysicsObjectRef new_physics_ob;
+	GLObjectRef new_opengl_ob;
+	createGLAndPhysicsObsForText(ob_to_world_matrix, ob, /*use_materialise_effect*/false, new_physics_ob, new_opengl_ob);
+
+	ob->opengl_engine_ob = new_opengl_ob;
+	ob->physics_object = new_physics_ob;
+	ob->setAABBOS(new_opengl_ob->mesh_data->aabb_os);
+
+	opengl_engine->addObject(ob->opengl_engine_ob);
+
+	physics_world->addObject(ob->physics_object);
 }
 
 
@@ -10433,7 +10402,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -10523,7 +10492,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 		if(results.hit_object)
 		{
 			const Vec4f hitpos_ws = origin + dir*results.hit_t;
@@ -10641,7 +10610,7 @@ void GUIClient::mouseReleased(MouseEvent& e)
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -10858,7 +10827,7 @@ void GUIClient::doObjectSelectionTraceForMouseEvent(MouseEvent& e)
 	const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 
 	RayTraceResult results;
-	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 
 	if(results.hit_object)
 	{
@@ -10958,7 +10927,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 		const Vec4f dir = getDirForPixelTrace(cursor_pos.x, cursor_pos.y);
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 
 		bool show_mouseover_info_ui = false;
 		if(results.hit_object)
@@ -11583,7 +11552,7 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 		const Vec4f dir = getDirForPixelTrace((int)e.cursor_pos.x, (int)e.cursor_pos.y);
 	
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 	
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -12331,7 +12300,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 			const Vec4f dir = getDirForPixelTrace(widget_pos.x, widget_pos.y);
 
 			RayTraceResult results;
-			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
 
 			if(results.hit_object)
 			{

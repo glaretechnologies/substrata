@@ -327,7 +327,7 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 		RayTraceResult trace_results;
 		const float max_trace_dist = 12.f;
-		physics_world.traceRay(trace_origin, trace_dir, max_trace_dist, trace_results);
+		physics_world.traceRay(trace_origin, trace_dir, max_trace_dist, /*ignore body id=*/JPH::BodyID(), trace_results);
 
 		if(trace_results.hit_object)
 		{

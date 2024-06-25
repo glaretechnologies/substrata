@@ -337,19 +337,15 @@ public:
 
 	static const uint32 AUDIO_SOURCE_URL_CHANGED	= 1; // Set when audio_source_url is changed
 	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed
-	static const uint32 MODEL_URL_CHANGED			= 4;
-	static const uint32 DYNAMIC_CHANGED				= 8;
-	static const uint32 PHYSICS_VALUE_CHANGED		= 16;
-	static const uint32 PHYSICS_OWNER_CHANGED		= 32;
+	static const uint32 CONTENT_CHANGED				= 4; // Set when script is changed
+	static const uint32 MODEL_URL_CHANGED			= 8;
+	static const uint32 DYNAMIC_CHANGED				= 16;
+	static const uint32 PHYSICS_VALUE_CHANGED		= 32;
+	static const uint32 PHYSICS_OWNER_CHANGED		= 64;
 	uint32 changed_flags;
 
 	bool using_placeholder_model;
 
-	std::string loaded_content;
-
-	//std::string loaded_audio_source_url;
-
-	//std::string loaded_script;
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 
 	DatabaseKey database_key;

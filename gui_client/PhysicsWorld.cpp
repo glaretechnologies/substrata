@@ -1568,13 +1568,15 @@ const Vec4f PhysicsWorld::getPosInJolt(const Reference<PhysicsObject>& object)
 }
 
 
-void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const
+void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
 
+	JPH::IgnoreSingleBodyFilter player_physics_body_filter(ignore_body_id); // Don't collide with the interaction character
+
 	const JPH::RRayCast ray(toJoltVec3(origin), toJoltVec3(dir * max_t));
 	JPH::RayCastResult hit_result;
-	const bool found_hit = this->physics_system->GetNarrowPhaseQuery().CastRay(ray, hit_result);
+	const bool found_hit = this->physics_system->GetNarrowPhaseQuery().CastRay(ray, hit_result, {}, {}, player_physics_body_filter);
 	if(found_hit)
 	{
 		// Lock the body.  Use locking interface so we can call body->GetWorldSpaceSurfaceNormal().

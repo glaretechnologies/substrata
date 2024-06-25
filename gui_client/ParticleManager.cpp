@@ -156,7 +156,7 @@ void ParticleManager::think(const float dt)
 		RayTraceResult results;
 		results.hit_object = NULL;
 		//if(pos_delta.length2() > Maths::square(1.0e-3f))
-			physics_world->traceRay(particle.pos, particle.vel, dt, results);
+			physics_world->traceRay(particle.pos, particle.vel, dt, /*ignore body id=*/JPH::BodyID(), results);
 
 		float remaining_dt = dt;
 		if(results.hit_object)

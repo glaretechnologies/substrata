@@ -101,6 +101,8 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 		interaction_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
 
 		interaction_character->AddToPhysicsSystem(JPH::EActivation::Activate);
+
+		interaction_char_body_id = interaction_character->GetBodyID();
 	}
 }
 
@@ -111,6 +113,8 @@ void PlayerPhysics::shutdown()
 	{
 		interaction_character->RemoveFromPhysicsSystem();
 		interaction_character = NULL;
+
+		interaction_char_body_id = JPH::BodyID();
 	}
 
 	jolt_character = NULL;
