@@ -43,6 +43,8 @@ public:
 	void init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos);
 	void shutdown();
 
+	JPH::BodyID getInteractionCharBodyID() { return interaction_char_body_id; }
+
 	Vec3d getBottomPosition(); // Get point at the bottom of the player capsule object.
 	void setPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
 
@@ -111,6 +113,6 @@ private:
 
 	JPH::Ref<JPH::CharacterVirtual> jolt_character;
 
-public:
 	JPH::Ref<JPH::Character> interaction_character;
+	JPH::BodyID interaction_char_body_id;
 };

@@ -414,7 +414,11 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.changed_flags |= WorldObject::SCRIPT_CHANGED;
 	ob_out.script = new_script;
 
-	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
+	const std::string new_content = QtUtils::toIndString(this->contentTextEdit->toPlainText());
+	if(ob_out.content != new_content)
+		ob_out.changed_flags |= WorldObject::CONTENT_CHANGED;
+	ob_out.content = new_content;
+
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 
 	writeTransformMembersToObject(ob_out); // Set ob_out transform members

@@ -169,7 +169,7 @@ public:
 	size_t getNumObjects() const { return objects_set.size(); }
 	//----------------------------------------------------------------------------------------
 
-	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const;
+	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const;
 
 	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const;
 

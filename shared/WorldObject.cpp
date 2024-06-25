@@ -814,7 +814,20 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 		ob.changed_flags |= WorldObject::SCRIPT_CHANGED;
 	ob.script = new_script;
 
-	ob.content = stream.readStringLengthFirst(10000);
+	if(ob.content.empty())
+	{
+		ob.content = stream.readStringLengthFirst(10000);
+		if(!ob.content.empty())
+			ob.changed_flags |= WorldObject::CONTENT_CHANGED;
+	}
+	else
+	{
+		const std::string new_content = stream.readStringLengthFirst(10000);
+		if(ob.content != new_content)
+			ob.changed_flags |= WorldObject::CONTENT_CHANGED;
+		ob.content = new_content;
+	}
+
 	ob.target_url = stream.readStringLengthFirst(10000);
 
 	const std::string new_audio_source_url = stream.readStringLengthFirst(10000);

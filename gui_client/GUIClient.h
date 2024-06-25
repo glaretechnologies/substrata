@@ -307,6 +307,8 @@ public:
 	void enableMaterialisationEffectOnAvatar(Avatar& ob);
 
 	void createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix, WorldObject* ob, bool use_materialise_effect, PhysicsObjectRef& physics_ob_out, GLObjectRef& opengl_ob_out);
+	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
+	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
 
 	// LuaScriptOutputHandler interace:
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
