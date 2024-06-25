@@ -9457,7 +9457,7 @@ void GUIClient::updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_ma
 
 void GUIClient::recreateTextGraphicsAndPhysicsObs(WorldObject* ob)
 {
-	conPrint("recreateTextGraphicsAndPhysicsObs");
+	// conPrint("recreateTextGraphicsAndPhysicsObs");
 
 	removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
