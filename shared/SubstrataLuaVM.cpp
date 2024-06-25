@@ -534,7 +534,7 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		LuaUtils::pushString(state, ob->audio_source_url);
 		break;
 	case Atom_audio_volume:
-		assert(stringEqual(key_str, "audio_source_url"));
+		assert(stringEqual(key_str, "audio_volume"));
 		lua_pushnumber(state, ob->audio_volume);
 		break;
 	case Atom_getNumMaterials:
