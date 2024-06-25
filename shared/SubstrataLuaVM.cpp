@@ -32,7 +32,7 @@ struct StringAtom
 	int atom;
 };
 
-enum Atom
+enum StringAtomEnum
 {
 	Atom_uid,
 	Atom_idx,
@@ -142,11 +142,21 @@ static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
 }
 
 
+static void checkNumArgs(lua_State* state, int num_args_required)
+{
+	const int num_args = lua_gettop(state);
+	if(num_args < num_args_required)
+		throw glare::Exception("Expected " + toString(num_args_required) + " arg(s) to function, got " + toString(num_args) + ".\n" + LuaUtils::getCallStackAsString(state));
+}
+
+
 static int user_setLinearVelocity(lua_State* state)
 {
 	// Expected args:
 	// Arg 1: user : User
 	// Arg 2: velocity_change : vec3
+
+	checkNumArgs(state, /*num_args_required*/3);
 
 #if GUI_CLIENT
 	const double x = LuaUtils::getTableNumberField(state, /*table_index=*/2, "x");
@@ -175,9 +185,9 @@ static int createObject(lua_State* state)
 {
 	// Expected args:
 	// Arg 1: ob_params : Table
+
+	checkNumArgs(state, /*num_args_required*/1);
 	const int initial_stack_size = lua_gettop(state);
-	if(initial_stack_size < 1)
-		throw glare::Exception("createObject(): Expected 1 arg (ob params)");
 
 	if(!lua_istable(state, 1))
 		throw glare::Exception("createObject(): arg 1 (ob_params) was not a table");
@@ -269,19 +279,16 @@ static int createTimer(lua_State* state)
 
 	// Returns a timer handle : Number
 
-	const int initial_stack_size = lua_gettop(state);
-	if(initial_stack_size < 3)
-		throw glare::Exception("createTimer(): Expected 3 args");
+	checkNumArgs(state, /*num_args_required*/3);
 
-	
 	if(lua_type(state, /*index=*/1) != LUA_TFUNCTION)
 		throw glare::Exception("createTimer(): arg 1 must be a function");
 
 	// Get a reference to the onTimerEvent function
 	const int onTimerEvent_ref = lua_ref(state, /*index=*/1);
 
-	const double raw_interval_time = lua_tonumber(state, /*index=*/2);
-	const bool repeating = lua_toboolean(state, /*index=*/3);
+	const double raw_interval_time = LuaUtils::getDouble(state, /*index=*/2);
+	const bool repeating = LuaUtils::getBool(state, /*index=*/3);
 
 	// Don't allow the interval time to be too low.
 	const double interval_time = myMax(0.1, raw_interval_time);
@@ -337,7 +344,9 @@ static int destroyTimer(lua_State* state)
 {
 	// arg 1: timer_id : Number
 
-	const int timer_id = (int)lua_tonumber(state, /*index=*/1);
+	checkNumArgs(state, /*num_args_required*/1);
+
+	const int timer_id = (int)LuaUtils::getDouble(state, /*index=*/1);
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -352,32 +361,48 @@ static int destroyTimer(lua_State* state)
 }
 
 
+// Find a WorldObject for the given UID.  Throws exception if no such object with UID found.
+static WorldObject* getWorldObjectForUID(LuaScriptEvaluator* script_evaluator, const UID uid)
+{
+	// See if the UID is that of the script_evaluator object, in which case we can use the script_evaluator pointer and avoid the map lookup.
+	if(uid == script_evaluator->world_object->uid)
+		return script_evaluator->world_object;
+	else
+	{
+#if GUI_CLIENT
+		SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm; //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+		auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
+		if(res == sub_lua_vm->gui_client->world_state->objects.end())
+			throw glare::Exception("No such object with given UID");
+
+		return res.getValue().ptr();
+#elif SERVER
+		auto res = script_evaluator->world_state->objects.find(uid);
+		if(res == script_evaluator->world_state->objects.end())
+			throw glare::Exception("No such object with given UID");
+
+		return res->second.ptr();
+#endif
+	}
+}
+
+
 static int getNumMaterials(lua_State* state)
 {
 	// arg 1: ob : WorldObject
-	// 
+
+	checkNumArgs(state, /*num_args_required*/1);
+
 	// Get object UID
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
 	
-#if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-	if(res == sub_lua_vm->gui_client->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
-
-	WorldObject* ob = res.getValue().ptr();
-#else
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->objects.find(uid);
-	if(res == script_evaluator->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
-	WorldObject* ob = res->second.ptr();
-#endif
 
 	lua_pushnumber(state, (double)ob->materials.size());
 	return 1; // Count of returned values
@@ -388,31 +413,20 @@ static int getMaterial(lua_State* state)
 {
 	// arg 1: ob : WorldObject
 	// arg 2: index : Number
+
+	checkNumArgs(state, /*num_args_required*/2);
 	
 	// Get object UID
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
+	const size_t index = (size_t)LuaUtils::getDouble(state, /*index=*/2);
 
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-#if GUI_CLIENT
 
-	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-	if(res == sub_lua_vm->gui_client->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
-
-	WorldObject* ob = res.getValue().ptr();
-#else
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->objects.find(uid);
-	if(res == script_evaluator->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
-
-	WorldObject* ob = res->second.ptr();
-#endif
-
-	const size_t index = (size_t)lua_tonumber(state, /*index=*/2);
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
 	if(index > ob->materials.size())
 		throw glare::Exception("Invalid material index");
@@ -442,28 +456,17 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 	// arg 1 is table (WorldObject)
 	// arg 2 is the key (method name)
 
+	assert(lua_gettop(state) == 2); // Should be 2 args.
+
 	// Get object UID
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
 
-#if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-	if(res == sub_lua_vm->gui_client->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
-
-	WorldObject* ob = res.getValue().ptr();
-#else
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->objects.find(uid);
-	if(res == script_evaluator->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
-	WorldObject* ob = res->second.ptr();
-#endif
 	
 	int atom = -1;
 	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
@@ -563,29 +566,23 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	// Arg 1: table 
 	// Arg 2: key
 	// Arg 3: value
+
+	assert(lua_gettop(state) == 3); // Should be 3 args.
 	
 	// Get object UID
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
 
-//#if GUI_CLIENT
-//	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-//
-//	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-//	if(res == sub_lua_vm->gui_client->world_state->objects.end())
-//		throw glare::Exception("No such object with given UID");
-//
-//	WorldObject* ob = res.getValue().ptr();
-//#else
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->objects.find(uid);
-	if(res == script_evaluator->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
-	WorldObject* ob = res->second.ptr();
-//#endif
+	// Check permissions before we update object.
+	// A script has permissions to modify an object if and only if the creator of the script is also the creator of the object.
+	if(ob->creator_id != script_evaluator->world_object->creator_id)
+		throw glare::Exception("Script does not have permissions to modifiy object (ob UID: " + uid.toString() + ")");
+
 
 	bool transform_changed = false;
 	bool other_changed = false;
@@ -628,11 +625,11 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_collidable:
 		assert(stringEqual(key_str, "collidable"));
-		ob->setCollidable(lua_toboolean(state, /*index=*/3));
+		ob->setCollidable(LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	case Atom_dynamic:
-		ob->setDynamic(lua_toboolean(state, /*index=*/3));
+		ob->setDynamic(LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	case Atom_content:
@@ -646,17 +643,17 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_video_autoplay:
 		assert(stringEqual(key_str, "video_autoplay"));
-		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, lua_toboolean(state, /*index=*/3));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	case Atom_video_loop:
 		assert(stringEqual(key_str, "video_loop"));
-		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP, lua_toboolean(state, /*index=*/3));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP, LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	case Atom_video_muted:
 		assert(stringEqual(key_str, "video_muted"));
-		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_MUTED, lua_toboolean(state, /*index=*/3));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_MUTED, LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	case Atom_mass:
@@ -722,6 +719,8 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 	// arg 1 is table (WorldMaterial)
 	// arg 2 is the key (method name)
 
+	assert(lua_gettop(state) == 2); // Should be 2 args.
+
 	// Get object UID from the world material table
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
@@ -730,24 +729,12 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 	//const size_t mat_index = (size_t)LuaUtils::getTableNumberField(state, /*table index=*/1, "idx");
 	const size_t mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "idx");
 
-#if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-	if(res == sub_lua_vm->gui_client->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
-
-	WorldObject* ob = res.getValue().ptr();
-#else
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->objects.find(uid);
-	if(res == script_evaluator->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
-	WorldObject* ob = res->second.ptr();
-#endif
+
 
 	if(mat_index > ob->materials.size())
 		throw glare::Exception("Invalid material index");
@@ -828,6 +815,8 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	// Arg 1: WorldMaterial
 	// Arg 2: key : string
 	// Arg 3: value
+
+	assert(lua_gettop(state) == 3); // Should be 3 args.
 	
 	// Get object UID from the world material table
 	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
@@ -836,24 +825,15 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	// Get material index from the world material table
 	const size_t mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "idx");
 
-//#if GUI_CLIENT
-//	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-//
-//	auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-//	if(res == sub_lua_vm->gui_client->world_state->objects.end())
-//		throw glare::Exception("No such object with given UID");
-//
-//	WorldObject* ob = res.getValue().ptr();
-//#else
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->objects.find(uid);
-	if(res == script_evaluator->world_state->objects.end())
-		throw glare::Exception("No such object with given UID");
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
-	WorldObject* ob = res->second.ptr();
-//#endif
+	// Check permissions before we update object
+	if(ob->creator_id != script_evaluator->world_object->creator_id)
+		throw glare::Exception("Script does not have permissions to modifiy object (ob UID: " + uid.toString() + ")");
+
 
 	if(mat_index > ob->materials.size())
 		throw glare::Exception("Invalid material index");
@@ -911,11 +891,11 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_hologram:
 		assert(stringEqual(key_str, "hologram"));
-		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::HOLOGRAM_FLAG, lua_toboolean(state, /*index=*/3));
+		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::HOLOGRAM_FLAG, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	case Atom_double_sided:
 		assert(stringEqual(key_str, "double_sided"));
-		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG, lua_toboolean(state, /*index=*/3));
+		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	default:
 		throw glare::Exception("Unknown field");
@@ -938,6 +918,8 @@ static int userClassIndexMetaMethod(lua_State* state)
 {
 	// arg 1 is table
 	// arg 2 is the key (field name)
+
+	assert(lua_gettop(state) == 2); // Should be 2 args.
 
 #if SERVER
 	// Get user UID from the user table
@@ -987,18 +969,20 @@ static int userClassNewIndexMetaMethod(lua_State* state)
 	// Arg 1: table 
 	// Arg 2: key
 	// Arg 3: value
+
+	assert(lua_gettop(state) == 3); // Should be 3 args.
 	
 	// Read key
-	size_t stringlen = 0;
-	const char* key_str = lua_tolstring(state, /*index=*/2, &stringlen); // May return NULL if not a string
-	if(key_str)
-	{
-		
-	}
-
-	// By default, just do the assignment to the original table here.
-	//lua_rawsetfield(state, /*table index=*/1, key_str);
-	lua_rawset(state, /*table index=*/1); // Sets table[key] = value, pops key and value from stack.
+//	size_t stringlen = 0;
+//	const char* key_str = lua_tolstring(state, /*index=*/2, &stringlen); // May return NULL if not a string
+//	if(key_str)
+//	{
+//		
+//	}
+//
+//	// By default, just do the assignment to the original table here.
+//	//lua_rawsetfield(state, /*table index=*/1, key_str);
+//	lua_rawset(state, /*table index=*/1); // Sets table[key] = value, pops key and value from stack.
 
 	return 0; // Count of returned values
 }
@@ -1043,10 +1027,7 @@ SubstrataLuaVM::SubstrataLuaVM()
 	//--------------------------- Create WorldObject Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create WorldObject metatable
 			
-	// Set worldObjectClassIndexMetaMethod as __index metamethod
-	lua_vm->setCFunctionAsTableField(worldObjectClassIndexMetaMethod, /*debugname=*/"worldObjectClassIndexMetaMethod", /*table index=*/-2, /*key=*/"__index");
-
-	// Set worldObjectClassNewIndexMetaMethod as __newindex metamethod
+	lua_vm->setCFunctionAsTableField(worldObjectClassIndexMetaMethod,    /*debugname=*/"worldObjectClassIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(worldObjectClassNewIndexMetaMethod, /*debugname=*/"worldObjectClassNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
 
 	worldObjectClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldObjectMetaTable.  Does not pop.
@@ -1057,10 +1038,7 @@ SubstrataLuaVM::SubstrataLuaVM()
 	//--------------------------- Create WorldMaterial Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create WorldMaterial metatable
 			
-	// Set worldMaterialClassIndexMetaMethod as __index metamethod
-	lua_vm->setCFunctionAsTableField(worldMaterialClassIndexMetaMethod, /*debugname=*/"worldMaterialClassIndexMetaMethod", /*table index=*/-2, /*key=*/"__index");
-
-	// Set worldMaterialClassNewIndexMetaMethod as __newindex metamethod
+	lua_vm->setCFunctionAsTableField(worldMaterialClassIndexMetaMethod,    /*debugname=*/"worldMaterialClassIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(worldMaterialClassNewIndexMetaMethod, /*debugname=*/"worldMaterialClassNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
 
 	worldMaterialClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldMaterialMetaTable.  Does not pop.
@@ -1071,13 +1049,9 @@ SubstrataLuaVM::SubstrataLuaVM()
 	//--------------------------- Create User Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create User metatable
 			
-	// Set userIndexMetaMethod as __index metamethod
-	lua_vm->setCFunctionAsTableField(userClassIndexMetaMethod, /*debugname=*/"userIndexMetaMethod", /*table index=*/-2, /*key=*/"__index");
-
-	// Set glareLuaNewIndexMetaMethod as __newindex metamethod
+	lua_vm->setCFunctionAsTableField(userClassIndexMetaMethod,    /*debugname=*/"userIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(userClassNewIndexMetaMethod, /*debugname=*/"userNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
 
-	//lua_setglobal(lua_vm->state, "UserClassMetaTable"); // Pops a value from the stack and sets it as the new value of global name
 	userClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to UserClassMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop UserClassMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
