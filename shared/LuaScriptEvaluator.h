@@ -64,6 +64,7 @@ public:
 
 	SubstrataLuaVM* substrata_lua_vm;
 	UniqueRef<LuaScript> lua_script;
+	LuaScriptOutputHandler* script_output_handler;
 	bool hit_error;
 
 	double last_onUserTouchedObject_exec_time;

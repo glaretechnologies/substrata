@@ -23,6 +23,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Platform.h>
 #include <Mutex.h>
 #include <Database.h>
+#include <CircularBuffer.h>
 #include <map>
 #include <unordered_set>
 
@@ -96,6 +97,28 @@ struct MapTileInfo
 struct ServerCredentials
 {
 	std::map<std::string, std::string> creds;
+};
+
+
+struct UserScriptLogMessage
+{
+	TimeStamp time;
+
+	enum MessageType
+	{
+		MessageType_print,
+		MessageType_error
+	};
+	MessageType msg_type;
+
+	UID script_ob_uid;
+	std::string msg;
+};
+
+struct UserScriptLog : public ThreadSafeRefCounted
+{
+	CircularBuffer<UserScriptLogMessage> messages GUARDED_BY(mutex);
+	Mutex mutex;
 };
 
 
@@ -200,6 +223,9 @@ public:
 
 	// Ephemeral state - do we want to force the DynamicTextureUpdaterThread to do a run?
 	bool force_dyn_tex_update GUARDED_BY(mutex);
+
+	// Ephemeral state:
+	std::map<UserID, Reference<UserScriptLog> > user_script_log GUARDED_BY(mutex);
 
 	std::map<UserID, std::string> user_web_messages GUARDED_BY(mutex); // For displaying an informational or error message on the next webpage served to a user.
 

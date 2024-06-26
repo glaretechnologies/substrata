@@ -22,6 +22,8 @@ LogWindow::LogWindow(
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("LogWindow/geometry").toByteArray());
 	this->restoreState(settings->value("LogWindow/windowState").toByteArray());
+
+	openServerScriptLogLabel->setText(QtUtils::toQString("<a href=\"https://substrata.info/script_log\"><span>Show server script log</span></a>"));
 }
 
 
@@ -37,6 +39,12 @@ void LogWindow::closeEvent(QCloseEvent * event)
 	QMainWindow::closeEvent(event);
 }
 
+
+void LogWindow::on_openServerScriptLogLabel_linkActivated(const QString& link)
+{
+	// Emit a signal instead of opening the link directly, so that MainWindow can get the hostname we are connected to and use that in the URL.
+	emit openServerScriptLogSignal();
+}
 
 void LogWindow::saveWindowState()
 {

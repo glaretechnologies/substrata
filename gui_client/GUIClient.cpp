@@ -1653,7 +1653,29 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 
 void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 {
-	conPrint(std::string(s, len));
+	// If this is our script, print message to console and log
+
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	if(script_evaluator->world_object->creator_id == this->logged_in_user_id)
+	{
+		const std::string msg = "Lua (ob " + script_evaluator->world_object->uid.toString() + "): " + std::string(s, len);
+		conPrint(msg);
+		logMessage(msg);
+	}
+}
+
+
+void GUIClient::errorOccurred(LuaScript* script, const std::string& msg)
+{
+	// If this is our script, print message to console and log
+
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	if(script_evaluator->world_object->creator_id == this->logged_in_user_id)
+	{
+		const std::string full_msg = "Lua error (ob " + script_evaluator->world_object->uid.toString() + "): " + msg + "\nScript will be disabled.";
+		conPrint(full_msg);
+		logMessage(full_msg);
+	}
 }
 
 
@@ -12429,10 +12451,11 @@ void GUIClient::keyPressed(KeyEvent& e)
 					// So the script event handler can be run
 					if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserUsedObjectDefined())
 					{
-						// Make message packet and enqueue to send
+						ob->lua_script_evaluator->doOnUserUsedObject(logged_in_user_id);
+
+						// Make message packet and enqueue to send to execute event handler on server as well
 						MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);
 						writeToStream(ob->uid, scratch_packet);
-
 						enqueueMessageToSend(*client_thread, scratch_packet);
 					}
 				}

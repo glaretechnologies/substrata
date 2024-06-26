@@ -124,6 +124,7 @@ private slots:;
 	void materialSelectedInBrowser(const std::string& path);
 	void updateObjectEditorObTransformSlot();
 	void handleURL(const QUrl& url);
+	void openServerScriptLogSlot();
 public:
 	bool connectedToUsersPersonalWorldOrGodUser();
 	void webViewMouseDoubleClicked(QMouseEvent* e);

@@ -25,6 +25,13 @@
       </property>
      </widget>
     </item>
+    <item>
+     <widget class="QLabel" name="openServerScriptLogLabel">
+      <property name="text">
+       <string>Open server script log</string>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">

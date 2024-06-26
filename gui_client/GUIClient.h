@@ -310,8 +310,10 @@ public:
 	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
 	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
 
-	// LuaScriptOutputHandler interace:
+	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
+	virtual void errorOccurred(LuaScript* script, const std::string& msg) override;
+	//----------------------- end LuaScriptOutputHandler interface -----------------------
 
 public:
 	//----------------------- PhysicsWorldEventListener interface -----------------------
