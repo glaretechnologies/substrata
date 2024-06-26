@@ -15,9 +15,10 @@ Copyright Glare Technologies Limited 2024 -
 #include <lualib.h>
 
 
-LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler, 
+LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler_, 
 	const std::string& script_src, WorldObject* world_object_)
 :	substrata_lua_vm(substrata_lua_vm_),
+	script_output_handler(script_output_handler_),
 	hit_error(false),
 	last_onUserTouchedObject_exec_time(-1000),
 	world_object(world_object_),
@@ -28,7 +29,7 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 
 	LuaScriptOptions options;
 	options.max_num_interrupts = 10000;
-	options.script_output_handler = script_output_handler;
+	options.script_output_handler = script_output_handler_;
 	options.userdata = this;
 	lua_script.set(new LuaScript(substrata_lua_vm->lua_vm.ptr(), options, script_src));
 	lua_script->exec();
@@ -94,8 +95,6 @@ void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur
 
 	last_onUserTouchedObject_exec_time = cur_time;
 
-	conPrint("LuaScriptEvaluator::onUserTouchedObject: executing Lua onUserTouchedObject...");
-
 	try
 	{
 		lua_getref(lua_script->thread_state, onUserTouchedObject_ref); // Pushes onUserTouchedObject onto the stack.
@@ -109,12 +108,16 @@ void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur
 	}
 	catch(std::exception& e)
 	{
-		conPrint("Error while executing onUserTouchedObject: " + std::string(e.what()));
+		//conPrint("Error while executing onUserTouchedObject: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while executing onUserTouchedObject: " + e.what());
+		//conPrint("Error while executing onUserTouchedObject: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), e.what());
 		hit_error = true;
 	}
 }
@@ -122,7 +125,7 @@ void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur
 
 void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id)
 {
-	conPrint("LuaScriptEvaluator: doOnUserUsedObject");
+	//conPrint("LuaScriptEvaluator: doOnUserUsedObject");
 	if(hit_error || (onUserUsedObject_ref == LUA_NOREF))
 		return;
 
@@ -141,12 +144,16 @@ void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id)
 	}
 	catch(std::exception& e)
 	{
-		conPrint("Error while executing onUserUsedObject: " + std::string(e.what()));
+		//conPrint("Error while executing onUserUsedObject: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while executing onUserUsedObject: " + e.what());
+		//conPrint("Error while executing onUserUsedObject: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 }
@@ -154,7 +161,7 @@ void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id)
 
 void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id)
 {
-	conPrint("LuaScriptEvaluator: doOnUserMovedNearToObject");
+	//conPrint("LuaScriptEvaluator: doOnUserMovedNearToObject");
 	if(hit_error || (onUserMovedNearToObject_ref == LUA_NOREF))
 		return;
 
@@ -173,12 +180,16 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id)
 	}
 	catch(std::exception& e)
 	{
-		conPrint("Error while executing onUserMovedNearToObject: " + std::string(e.what()));
+		//conPrint("Error while executing onUserMovedNearToObject: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while executing onUserMovedNearToObject: " + e.what());
+		//conPrint("Error while executing onUserMovedNearToObject: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 }
@@ -186,7 +197,7 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id)
 
 void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id)
 {
-	conPrint("LuaScriptEvaluator: doOnUserMovedAwayFromObject");
+	//conPrint("LuaScriptEvaluator: doOnUserMovedAwayFromObject");
 	if(hit_error || (onUserMovedAwayFromObject_ref == LUA_NOREF))
 		return;
 
@@ -205,12 +216,16 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id)
 	}
 	catch(std::exception& e)
 	{
-		conPrint("Error while executing onUserMovedAwayFromObject: " + std::string(e.what()));
+		//conPrint("Error while executing onUserMovedAwayFromObject: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while executing onUserMovedAwayFromObject: " + e.what());
+		//conPrint("Error while executing onUserMovedAwayFromObject: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 }
@@ -218,7 +233,7 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id)
 
 void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID parcel_id)
 {
-	conPrint("LuaScriptEvaluator: doOnUserEnteredParcel");
+	//conPrint("LuaScriptEvaluator: doOnUserEnteredParcel");
 	if(hit_error || (onUserEnteredParcel_ref == LUA_NOREF))
 		return;
 
@@ -237,12 +252,16 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID p
 	}
 	catch(std::exception& e)
 	{
-		conPrint("Error while executing doOnUserEnteredParcel: " + std::string(e.what()));
+		//conPrint("Error while executing doOnUserEnteredParcel: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while executing doOnUserEnteredParcel: " + e.what());
+		//conPrint("Error while executing doOnUserEnteredParcel: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 }
@@ -250,7 +269,7 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID p
 
 void LuaScriptEvaluator::doOnUserExitedParcel(UserID client_user_id, ParcelID parcel_id)
 {
-	conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
+	//conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
 	if(hit_error || (onUserExitedParcel_ref == LUA_NOREF))
 		return;
 
@@ -269,12 +288,16 @@ void LuaScriptEvaluator::doOnUserExitedParcel(UserID client_user_id, ParcelID pa
 	}
 	catch(std::exception& e)
 	{
-		conPrint("Error while executing onUserExitedParcel_ref: " + std::string(e.what()));
+		//conPrint("Error while executing onUserExitedParcel: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while executing onUserExitedParcel_ref: " + e.what());
+		//conPrint("Error while executing onUserExitedParcel: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 }
@@ -296,13 +319,16 @@ void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref)
 	}
 	catch(std::exception& e)
 	{
-		//throw glare::Exception(e.what());
-		conPrint("Error while executing doOnTimerEvent: " + std::string(e.what()));
+		//conPrint("Error while executing doOnTimerEvent: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while executing doOnTimerEvent: " + e.what());
+		//conPrint("Error while executing doOnTimerEvent: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurred(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
 }

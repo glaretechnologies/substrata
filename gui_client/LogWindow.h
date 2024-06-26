@@ -27,6 +27,13 @@ public:
 	void appendLine(const std::string& msg);
 
 	void closeEvent(QCloseEvent* event);
+
+signals:;
+	void openServerScriptLogSignal();
+
+private slots:;
+	void on_openServerScriptLogLabel_linkActivated(const QString& link);
+
 private:
 	void saveWindowState();
 

@@ -472,6 +472,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::renderMakingParcelIntoNFTFailed(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/script_log")
+		{
+			AccountHandlers::renderScriptLog(*this->world_state, request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/p/")) // URL for parcel ERC 721 metadata JSON
 		{
 			ParcelHandlers::renderMetadata(*world_state, request, reply_info);

@@ -112,6 +112,7 @@ public:
 
 	// LuaScriptOutputHandler interface:
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
+	virtual void errorOccurred(LuaScript* script, const std::string& msg) override;
 
 	double getCurrentGlobalTime() const;
 

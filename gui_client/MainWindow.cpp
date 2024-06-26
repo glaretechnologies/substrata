@@ -188,6 +188,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	// Create the LogWindow early so we can log stuff to it.
 	log_window = new LogWindow(this, settings);
 
+	connect(log_window, SIGNAL(openServerScriptLogSignal()), this, SLOT(openServerScriptLogSlot()));
+
 
 	// Since we use a perspective projection matrix with infinite far distance, use a large max drawing distance.
 	ui->glWidget->max_draw_dist = 100000;
@@ -3544,6 +3546,14 @@ void MainWindow::handleURL(const QUrl &url)
 	{
 		QtUtils::showErrorMessageDialog("Error parsing URL: " + e.what(), this);
 	}
+}
+
+
+void MainWindow::openServerScriptLogSlot()
+{
+	const std::string hostname = gui_client.server_hostname.empty() ? "substrata.info" : gui_client.server_hostname;
+
+	QDesktopServices::openUrl(QtUtils::toQString("https://" + hostname + "/script_log"));
 }
 
 

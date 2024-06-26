@@ -1021,7 +1021,71 @@ Server::Server()
 void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 {
 	conPrint("LUA: " + std::string(s, len));
+
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	// Store log message for user in the per-user script message log.
+
+	const UserID script_user = script_evaluator->world_object->creator_id;
+
+	Reference<UserScriptLog> user_script_log;
+	{
+		Lock lock(world_state->mutex);
+		auto res = world_state->user_script_log.find(script_user);
+		if(res == world_state->user_script_log.end())
+		{
+			user_script_log = new UserScriptLog();
+			world_state->user_script_log.insert(std::make_pair(script_user, user_script_log));
+		}
+		else
+			user_script_log = res->second;
+	}
+
+	{
+		Lock lock(user_script_log->mutex);
+
+		user_script_log->messages.push_back(UserScriptLogMessage({TimeStamp::currentTime(), UserScriptLogMessage::MessageType_print, script_evaluator->world_object->uid, std::string(s, len)}));
+
+		if(user_script_log->messages.size() > 1000)
+			user_script_log->messages.pop_front();
+	}
 }
+
+
+void Server::errorOccurred(LuaScript* script, const std::string& msg)
+{
+	conPrint("LUA ERROR: " + msg);
+
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	// Store log message for user in the per-user script message log.
+
+	const UserID script_user = script_evaluator->world_object->creator_id;
+
+	Reference<UserScriptLog> user_script_log;
+	{
+		Lock lock(world_state->mutex);
+		auto res = world_state->user_script_log.find(script_user);
+		if(res == world_state->user_script_log.end())
+		{
+			user_script_log = new UserScriptLog();
+			world_state->user_script_log.insert(std::make_pair(script_user, user_script_log));
+		}
+		else
+			user_script_log = res->second;
+	}
+
+	{
+		Lock lock(user_script_log->mutex);
+
+		const std::string full_msg = msg +  + "\nScript will be disabled.";
+		user_script_log->messages.push_back(UserScriptLogMessage({TimeStamp::currentTime(), UserScriptLogMessage::MessageType_error, script_evaluator->world_object->uid, full_msg}));
+
+		if(user_script_log->messages.size() > 1000)
+			user_script_log->messages.pop_front();
+	}
+}
+
 
 double Server::getCurrentGlobalTime() const
 {

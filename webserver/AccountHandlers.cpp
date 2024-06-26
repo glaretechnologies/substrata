@@ -120,6 +120,10 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 
 		page += "<h2>Account</h2>\n";
 		page += "<a href=\"/change_password\">Change password</a>";
+
+
+		page += "<h2>Developer</h2>\n";
+		page += "<a href=\"/script_log\">Show script log</a>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
@@ -643,6 +647,69 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_succeeded");
 	else
 		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_failed");
+}
+
+
+void renderScriptLog(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+
+	// Get a reference to the script log for this user.
+	Reference<UserScriptLog> log;
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+		if(logged_in_user == NULL)
+		{
+			page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Script log");
+			page += "You must be logged in to view this page.";
+			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+			return;
+		}
+
+		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Script log");
+		page += "<div class=\"main\">   \n";
+
+		auto res = world_state.user_script_log.find(logged_in_user->id);
+		if(res != world_state.user_script_log.end())
+			log = res->second;
+	}
+
+	
+
+	// Do the conversion of the logs into the HTML without holding the main world_state mutex, since this could take a little while.
+	if(log.nonNull())
+	{
+		Lock lock(log->mutex);
+
+		page += "<pre class=\"script-log\">";
+
+		for(auto it = log->messages.beginIt(); it != log->messages.endIt(); ++it)
+		{
+			const UserScriptLogMessage& msg = *it;
+
+			page += "<span class=\"log-timestamp\">" + msg.time.RFC822FormatedString() + "</span>: <span class=\"log-ob\">ob " + msg.script_ob_uid.toString() + "</span>: ";
+			if(msg.msg_type == UserScriptLogMessage::MessageType_error)
+				page += "<span class=\"log-error\">";
+			else
+				page += "<span class=\"log-print\">";
+			page += web::Escaping::HTMLEscape(msg.msg);
+			page += "</span>\n";
+		}
+
+		page += "</pre>";
+	}
+	else
+	{
+		page += "[No messages]";
+	}
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
 }
 
 

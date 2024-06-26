@@ -339,3 +339,19 @@ td
 .article-image {
 	max-width: 75vw;
 }
+
+.script-log {
+	font-size: 0.9em;
+}
+
+.log-timestamp {
+	color: cadetblue;
+}
+.log-ob {
+	color:darkcyan
+}
+.log-error {
+	color: firebrick;
+}
+.log-print {
+}
