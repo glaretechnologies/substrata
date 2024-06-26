@@ -94,6 +94,17 @@ struct MapTileInfo
 };
 
 
+struct FeatureFlagInfo
+{
+	FeatureFlagInfo() : feature_flags(0), db_dirty(false) {}
+
+	uint64 feature_flags;
+
+	DatabaseKey database_key;
+	bool db_dirty; // If true, there is a change that has not been saved to the DB.
+};
+
+
 struct ServerCredentials
 {
 	std::map<std::string, std::string> creds;
@@ -201,6 +212,10 @@ public:
 	LastParcelUpdateInfo last_parcel_update_info;
 
 	EthInfo eth_info;
+
+	static const uint64 SERVER_SCRIPT_EXEC_FEATURE_FLAG                   = 1; // Is server-side script execution enabled?
+	FeatureFlagInfo feature_flag_info;
+
 
 	// Ephemeral state that is not serialised to disk.  Set by CoinbasePollerThread.
 	double BTC_per_EUR;

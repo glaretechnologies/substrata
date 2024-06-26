@@ -474,7 +474,9 @@ int main(int argc, char *argv[])
 		server.dyn_tex_updater_thread_manager.addThread(new DynamicTextureUpdaterThread(&server, server.world_state.ptr()));
 
 		//----------------------------------------------- Create any Lua scripts for objects -----------------------------------------------
+		if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 		{ // Begin scope for world_state->mutex lock
+			conPrint("Creating Lua scripts for objects...");
 
 			Lock lock(server.world_state->mutex);
 			for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
@@ -504,6 +506,8 @@ int main(int argc, char *argv[])
 				}
 			}
 		}
+		else
+			conPrint("Not creating any Lua scripts for objects, server-side script execution is disabled.");
 		//----------------------------------------------- End create any Lua scripts for objects -----------------------------------------------
 
 		Timer save_state_timer;
@@ -518,6 +522,7 @@ int main(int argc, char *argv[])
 			PlatformUtils::Sleep(100);
 
 			// Do Lua timer callbacks
+			if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 			{
 				Lock lock(server.world_state->mutex);
 

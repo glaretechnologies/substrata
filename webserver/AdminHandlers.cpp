@@ -85,6 +85,20 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 	page_out += "<input type=\"submit\" value=\"Force dynamic texture update checker to run\" onclick=\"return confirm('Are you sure you want to force the dynamic texture update checker to run?');\" >";
 	page_out += "</form>";
 
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		const bool script_exec_enabled = BitUtils::isBitSet(world_state.feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG);
+
+		page_out += "<p>Server-side script execution: " + (script_exec_enabled ? std::string("enabled") : std::string("disabled")) + "</p>";
+
+		page_out += "<form action=\"/admin_set_feature_flag_post\" method=\"post\">";
+		page_out += "<input type=\"hidden\" name=\"flag_bit_index\" value=\"" + toString(BitUtils::highestSetBitIndex(ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG)) + "\">";
+		page_out += "<input type=\"number\" name=\"new_value\" value=\"" + toString(script_exec_enabled ? 1 : 0) + "\">";
+		page_out += "<input type=\"submit\" value=\"Set server-side script execution enabled (1 / 0)\" onclick=\"return confirm('Are you sure you want to change server-side script execution?');\" >";
+		page_out += "</form>";
+	}
+
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
 
@@ -1848,6 +1862,45 @@ void handleSetReadOnlyModePost(ServerAllWorldsState& world_state, const web::Req
 	{
 		if(!request.fuzzing)
 			conPrint("handleSetReadOnlyModePost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleSetFeatureFlagPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			const int flag_bit_index = request.getPostIntField("flag_bit_index");
+			const int new_value  = request.getPostIntField("new_value");
+
+			if(flag_bit_index >= 0 && flag_bit_index < 64)
+			{
+				const uint64 bitflag = 1ull << flag_bit_index;
+				BitUtils::setOrZeroBit(world_state.feature_flag_info.feature_flags, bitflag, /*should set=*/new_value != 0);
+			}
+
+			world_state.feature_flag_info.db_dirty = true;
+			world_state.markAsChanged();
+
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin");
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleSetFeatureFlagPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

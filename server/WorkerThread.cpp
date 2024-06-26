@@ -1608,7 +1608,7 @@ void WorkerThread::doRun()
 												sendGetFileMessageIfNeeded(it->URL);
 
 											// Add script evaluator if needed
-											if(hasPrefix(ob->script, "--lua"))
+											if(hasPrefix(ob->script, "--lua") && BitUtils::isBitSet(world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 											{
 												ob->lua_script_evaluator = NULL;
 												try

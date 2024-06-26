@@ -87,12 +87,14 @@ static const uint32 LAST_PARCEL_SALE_UPDATE_CHUNK = 109;
 static const uint32 MAP_TILE_INFO_CHUNK = 110;
 static const uint32 ETH_INFO_CHUNK = 111;
 static const uint32 NEWS_POST_CHUNK = 112;
+static const uint32 FEATURE_FLAG_CHUNK = 113;
 static const uint32 EOS_CHUNK = 1000;
 
 
 static const uint32 PARCEL_SALE_UPDATE_VERSION = 1;
 static const uint32 MAP_TILE_INFO_VERSION = 1;
 static const uint32 ETH_INFO_CHUNK_VERSION = 1;
+static const uint32 FEATURE_FLAG_CHUNK_VERSION = 1;
 
 
 void ServerAllWorldsState::readFromDisk(const std::string& path)
@@ -303,6 +305,16 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					this->eth_info.database_key = database_key;
 					this->eth_info.min_next_nonce = stream.readInt32();
+				}
+				else if(chunk == FEATURE_FLAG_CHUNK)
+				{
+					const uint32 ff_info_v = stream.readInt32();
+					if(ff_info_v != FEATURE_FLAG_CHUNK_VERSION)
+						throw glare::Exception("invalid feature flag version: " + toString(ff_info_v));
+
+					this->feature_flag_info.database_key = database_key;
+
+					this->feature_flag_info.feature_flags = stream.readUInt64();
 				}
 				else if(chunk == LAST_PARCEL_SALE_UPDATE_CHUNK)
 				{
@@ -1154,13 +1166,29 @@ void ServerAllWorldsState::serialiseToDisk()
 			eth_info.db_dirty = false;
 		}
 
+		// Write FEATURE_FLAG_CHUNK
+		if(feature_flag_info.db_dirty)
+		{
+			temp_buf.clear();
+			temp_buf.writeUInt32(FEATURE_FLAG_CHUNK);
+			temp_buf.writeUInt32(FEATURE_FLAG_CHUNK_VERSION);
+			temp_buf.writeUInt64(feature_flag_info.feature_flags);
+
+			if(!feature_flag_info.database_key.valid())
+				feature_flag_info.database_key = database.allocUnusedKey(); // Get a new key
+
+			database.updateRecord(feature_flag_info.database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
+
+			feature_flag_info.db_dirty = false;
+		}
+
 		database.flush();
 
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(num_users) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
 			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " +
 			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles, " + toString(num_world_settings) + " world setting(s), " + 
-			toString(num_news_posts) + "news post(s) in " + timer.elapsedStringNSigFigs(4));
+			toString(num_news_posts) + " news post(s) in " + timer.elapsedStringNSigFigs(4));
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
