@@ -22,7 +22,7 @@ AboutDialog::AboutDialog(QWidget* parent, const std::string& appdata_path)
 	display_str += "<p>";
 	display_str += QtUtils::toIndString(tr("Copyright Glare Technologies Limited."));
 	display_str += "</p>";
-	display_str += "<a href=\"http://substrata.info\"><span style=\" text-decoration: underline; color:#222222;\">http://substrata.info</span></a>";
+	display_str += "<a href=\"https://substrata.info\"><span style=\" text-decoration: underline; color:#222222;\">http://substrata.info</span></a>";
 
 	this->text->setText(QtUtils::toQString(display_str));
 	this->text->setOpenExternalLinks(true);
