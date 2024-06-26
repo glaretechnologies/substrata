@@ -34,24 +34,24 @@ public:
 
 
 	bool hasOnUserTouchedObjectCooledDown(double cur_time);
-	void doOnUserTouchedObject(UserID client_user_id, double cur_time);
+	void doOnUserTouchedObject(UserID client_user_id, double cur_time) noexcept;
 	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != LUA_NOREF; }
 	
-	void doOnTimerEvent(int onTimerEvent_ref);
+	void doOnTimerEvent(int onTimerEvent_ref) noexcept;
 
-	void doOnUserUsedObject(UserID client_user_id); // client_user_id may be invalid if user is not logged in
+	void doOnUserUsedObject(UserID client_user_id) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserUsedObjectDefined() { return onUserUsedObject_ref != LUA_NOREF; }
 
-	void doOnUserMovedNearToObject(UserID client_user_id); // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedNearToObject(UserID client_user_id) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserMovedNearToObjectDefined() { return onUserMovedNearToObject_ref != LUA_NOREF; }
 	
-	void doOnUserMovedAwayFromObject(UserID client_user_id); // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedAwayFromObject(UserID client_user_id) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserMovedAwayFromObjectDefined() { return onUserMovedAwayFromObject_ref != LUA_NOREF; }
 
-	void doOnUserEnteredParcel(UserID client_user_id, ParcelID parcel_id); // client_user_id may be invalid if user is not logged in
+	void doOnUserEnteredParcel(UserID client_user_id, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserEnteredParcelDefined() { return onUserEnteredParcel_ref != LUA_NOREF; }
 
-	void doOnUserExitedParcel(UserID client_user_id, ParcelID parcel_id); // client_user_id may be invalid if user is not logged in
+	void doOnUserExitedParcel(UserID client_user_id, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserExitedParcelDefined() { return onUserExitedParcel_ref != LUA_NOREF; }
 
 	void destroyTimer(int timer_index);
