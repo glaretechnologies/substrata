@@ -1006,6 +1006,7 @@ static int16_t glareLuaUserAtom(const char* str, size_t stringlen)
 SubstrataLuaVM::SubstrataLuaVM()
 {
 	lua_vm.set(new LuaVM());
+	lua_vm->max_total_mem_allowed = 16 * 1024 * 1024;
 
 	lua_callbacks(lua_vm->state)->userdata = this;
 	lua_callbacks(lua_vm->state)->useratom = glareLuaUserAtom;

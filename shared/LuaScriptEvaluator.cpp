@@ -74,7 +74,7 @@ bool LuaScriptEvaluator::hasOnUserTouchedObjectCooledDown(double cur_time)
 }
 
 
-void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur_time)
+void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur_time) noexcept
 {
 	//conPrint("LuaScriptEvaluator: onUserTouchedObject");
 	if(hit_error || (onUserTouchedObject_ref == LUA_NOREF))
@@ -97,6 +97,8 @@ void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur
 
 	try
 	{
+		lua_script->resetExecutionTimeCounter();
+
 		lua_getref(lua_script->thread_state, onUserTouchedObject_ref); // Pushes onUserTouchedObject onto the stack.
 
 		pushUserTableOntoStack(client_user_id);
@@ -123,7 +125,7 @@ void LuaScriptEvaluator::doOnUserTouchedObject(UserID client_user_id, double cur
 }
 
 
-void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id)
+void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserUsedObject");
 	if(hit_error || (onUserUsedObject_ref == LUA_NOREF))
@@ -133,6 +135,8 @@ void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id)
 
 	try
 	{
+		lua_script->resetExecutionTimeCounter();
+
 		lua_getref(lua_script->thread_state, onUserUsedObject_ref); // Pushes onUserUsedObject onto the stack.
 		
 		pushUserTableOntoStack(client_user_id);
@@ -159,7 +163,7 @@ void LuaScriptEvaluator::doOnUserUsedObject(UserID client_user_id)
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id)
+void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserMovedNearToObject");
 	if(hit_error || (onUserMovedNearToObject_ref == LUA_NOREF))
@@ -169,6 +173,8 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id)
 
 	try
 	{
+		lua_script->resetExecutionTimeCounter();
+
 		lua_getref(lua_script->thread_state, onUserMovedNearToObject_ref); // Pushes onUserMovedNearToObject onto the stack.
 
 		pushUserTableOntoStack(client_user_id);
@@ -195,7 +201,7 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(UserID client_user_id)
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id)
+void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserMovedAwayFromObject");
 	if(hit_error || (onUserMovedAwayFromObject_ref == LUA_NOREF))
@@ -205,6 +211,8 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id)
 
 	try
 	{
+		lua_script->resetExecutionTimeCounter();
+
 		lua_getref(lua_script->thread_state, onUserMovedAwayFromObject_ref); // Pushes onUserMovedAwayFromObject onto the stack.
 
 		pushUserTableOntoStack(client_user_id);
@@ -231,7 +239,7 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(UserID client_user_id)
 }
 
 
-void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID parcel_id)
+void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID parcel_id) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserEnteredParcel");
 	if(hit_error || (onUserEnteredParcel_ref == LUA_NOREF))
@@ -241,6 +249,8 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID p
 
 	try
 	{
+		lua_script->resetExecutionTimeCounter();
+
 		lua_getref(lua_script->thread_state, onUserEnteredParcel_ref); // Pushes onUserEnteredParcel_ref onto the stack.
 
 		pushUserTableOntoStack(client_user_id);
@@ -267,7 +277,7 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(UserID client_user_id, ParcelID p
 }
 
 
-void LuaScriptEvaluator::doOnUserExitedParcel(UserID client_user_id, ParcelID parcel_id)
+void LuaScriptEvaluator::doOnUserExitedParcel(UserID client_user_id, ParcelID parcel_id) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
 	if(hit_error || (onUserExitedParcel_ref == LUA_NOREF))
@@ -277,6 +287,8 @@ void LuaScriptEvaluator::doOnUserExitedParcel(UserID client_user_id, ParcelID pa
 
 	try
 	{
+		lua_script->resetExecutionTimeCounter();
+
 		lua_getref(lua_script->thread_state, onUserExitedParcel_ref); // Pushes onUserExitedParcel_ref onto the stack.
 
 		pushUserTableOntoStack(client_user_id);
@@ -303,13 +315,15 @@ void LuaScriptEvaluator::doOnUserExitedParcel(UserID client_user_id, ParcelID pa
 }
 
 
-void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref)
+void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref) noexcept
 {
 	if(hit_error)
 		return;
 
 	try
 	{
+		lua_script->resetExecutionTimeCounter();
+
 		lua_getref(lua_script->thread_state, onTimerEvent_ref);  // Push function to be called onto stack
 
 		pushWorldObjectTableOntoStack();
@@ -383,5 +397,5 @@ void LuaScriptEvaluator::pushParcelTableOntoStack(ParcelID parcel_id)
 	//lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	// Set table UID field
-	LuaUtils::setLightUserDataAsTableField(lua_script->thread_state, "uid", (void*)parcel_id.value());
+	LuaUtils::setLightUserDataAsTableField(lua_script->thread_state, "uid", (void*)(uint64)parcel_id.value());
 }
