@@ -50,6 +50,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/FileTypes.h"
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/SubstrataLuaVM.h"
+#include "../shared/ObjectEventHandlers.h"
 #include "../server/User.h"
 #include "../shared/WorldSettings.h"
 #include "../maths/Quat.h"
@@ -4619,12 +4620,16 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							// conPrint("timerEvent: player hit ob UID: " + ob->uid.toString());
 					
 							// Run script
-							if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserTouchedObjectDefined())
+							if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserTouchedObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserTouchedObject_handlers.nonEmpty()))
 							{
 								// Jolt creates contact added events very fast, so limit how often we call onUserTouchedObject.
-								if(ob->lua_script_evaluator->hasOnUserTouchedObjectCooledDown(cur_time))
+								if(ob->lua_script_evaluator && ob->lua_script_evaluator->hasOnUserTouchedObjectCooledDown(cur_time))
 								{
-									ob->lua_script_evaluator->doOnUserTouchedObject(/*client id=*/this->logged_in_user_id, cur_time);
+									ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, cur_time);
+
+									// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
+									if(ob->event_handlers)
+										ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid, cur_time);
 
 									// Send message to server to execute onUserTouchedObject on the server
 									MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
@@ -4662,10 +4667,15 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		{
 			ContactAddedEvent& ev = player_contact_added_events[i];
 
-			if(ev.ob->lua_script_evaluator.nonNull() && ev.ob->lua_script_evaluator->isOnUserTouchedObjectDefined())
+			if((ev.ob->lua_script_evaluator && ev.ob->lua_script_evaluator->isOnUserTouchedObjectDefined()) || (ev.ob->event_handlers && ev.ob->event_handlers->onUserTouchedObject_handlers.nonEmpty()))
 			{
 				// Execute local script
-				ev.ob->lua_script_evaluator->doOnUserTouchedObject(/*client id=*/this->logged_in_user_id, cur_time);
+				if(ev.ob->lua_script_evaluator)
+					ev.ob->lua_script_evaluator->doOnUserTouchedObject(ev.ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ev.ob->uid, cur_time);
+
+				// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
+				if(ev.ob->event_handlers)
+					ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid, cur_time);
 
 				// Send message to server to execute onUserTouchedObject on the server
 				MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
@@ -5107,7 +5117,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	const Vec3d cam_angles = this->cam_controller.getAngles();
 
 	// Find out which parcel we are in, if any.
-	ParcelID in_parcel_id = ParcelID::invalidParcelID();
+	ParcelID new_in_parcel_id = ParcelID::invalidParcelID();
 	bool mute_outside_audio = false;
 	if(world_state.nonNull())
 	{
@@ -5122,7 +5132,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				Vec4f((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.f),
 				Vec4f((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.f)));
 
-			in_parcel_id = parcel->id;
+			new_in_parcel_id = parcel->id;
 
 			if(BitUtils::isBitSet(parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
 				mute_outside_audio = true;
@@ -5135,7 +5145,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		// Check to see if we have changed the current parcel, and run any onUserEnteredParcel and onUserExitedParcel events
 		// for objects in those parcels
 		// cur_in_parcel_id is the id of the parcel we were in previously.
-		if(in_parcel_id != this->cur_in_parcel_id) // If we moved to a new parcel (or out of any parcel)
+		if(new_in_parcel_id != this->cur_in_parcel_id) // If we moved to a new parcel (or out of any parcel)
 		{
 			// Execute onUserExitedParcel events for any objects in parcel we just left
 			if(this->cur_in_parcel_id.valid())
@@ -5152,10 +5162,15 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						WorldObject* ob = objects_data[i].ptr();
 						if(cur_parcel->pointInParcel(ob->getCentroidWS())) // If object is in parcel we just left:
 						{
-							if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserExitedParcelDefined())
+							if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserExitedParcelDefined()) || (ob->event_handlers && ob->event_handlers->onUserExitedParcel_handlers.nonEmpty()))
 							{
 								// Execute script locally
-								ob->lua_script_evaluator->doOnUserExitedParcel(/*client user id=*/logged_in_user_id, cur_in_parcel_id);
+								if(ob->lua_script_evaluator)
+									ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, cur_in_parcel_id);
+
+								// Execute onUserExitedParcel event handler in any other scripts that are listening for onUserExitedParcel for this object
+								if(ob->event_handlers.nonNull())
+									ob->event_handlers->executeOnUserExitedParcelHandlers(this->client_avatar_uid, ob->uid, cur_in_parcel_id);
 
 								// Send msg to server to execute on server as well.
 								MessageUtils::initPacket(scratch_packet, Protocol::UserExitedParcelMessage);
@@ -5178,10 +5193,15 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					WorldObject* ob = objects_data[i].ptr();
 					if(parcel->pointInParcel(ob->getCentroidWS())) // If object is in parcel we just entered:
 					{
-						if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserEnteredParcelDefined())
+						if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserEnteredParcelDefined()) || (ob->event_handlers && ob->event_handlers->onUserEnteredParcel_handlers.nonEmpty()))
 						{
 							// Execute script locally
-							ob->lua_script_evaluator->doOnUserEnteredParcel(/*client user id=*/logged_in_user_id, cur_in_parcel_id);
+							if(ob->lua_script_evaluator)
+								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, new_in_parcel_id);
+
+							// Execute onUserEnteredParcel event handler in any other scripts that are listening for onUserEnteredParcel for this object
+							if(ob->event_handlers.nonNull())
+								ob->event_handlers->executeOnUserEnteredParcelHandlers(this->client_avatar_uid, ob->uid, new_in_parcel_id);
 
 							// Send msg to server to execute on server as well.
 							MessageUtils::initPacket(scratch_packet, Protocol::UserEnteredParcelMessage);
@@ -5193,7 +5213,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				}
 			}
 
-			this->cur_in_parcel_id = in_parcel_id;
+			this->cur_in_parcel_id = new_in_parcel_id;
 		}
 	}
 
@@ -5241,7 +5261,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					const float old_mute_volume_factor = source->getMuteVolumeFactor();
 					if(mute_outside_audio) // If we are in a parcel, which has the mute-outside-audio option enabled:
 					{
-						if(source->userdata_1 != in_parcel_id.value()) // And the source is in another parcel (or not in any parcel):
+						if(source->userdata_1 != new_in_parcel_id.value()) // And the source is in another parcel (or not in any parcel):
 							source->startMuting(cur_time, 1);
 						else
 							source->startUnmuting(cur_time, 1);
@@ -11002,7 +11022,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						show_mouseover_info_ui = true;
 					}
 
-					if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserUsedObjectDefined())
+					if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserUsedObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty()))
 					{
 						ob_info_ui.showMessage("Press [E] to use", gl_coords);
 						show_mouseover_info_ui = true;
@@ -12449,9 +12469,14 @@ void GUIClient::keyPressed(KeyEvent& e)
 
 					// If the object has a script that has an onUserUsedObject event handler, send a UserUsedObjectMessage to the server
 					// So the script event handler can be run
-					if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserUsedObjectDefined())
+					if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserUsedObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty()))
 					{
-						ob->lua_script_evaluator->doOnUserUsedObject(logged_in_user_id);
+						if(ob->lua_script_evaluator)
+							ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid);
+
+						// Execute on any event handlers also
+						if(ob->event_handlers)
+							ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/this->client_avatar_uid, ob->uid);
 
 						// Make message packet and enqueue to send to execute event handler on server as well
 						MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);

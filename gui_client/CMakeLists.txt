@@ -487,6 +487,8 @@ SET(shared_files
 ../shared/SubstrataLuaVM.h
 ../shared/TimerQueue.cpp
 ../shared/TimerQueue.h
+../shared/ObjectEventHandlers.cpp
+../shared/ObjectEventHandlers.h
 )
 
 SET(client_indigo_files

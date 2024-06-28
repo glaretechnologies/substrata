@@ -1613,8 +1613,7 @@ void WorkerThread::doRun()
 												ob->lua_script_evaluator = NULL;
 												try
 												{
-													ob->lua_script_evaluator = new LuaScriptEvaluator(server->lua_vm.ptr(), /*script output handler=*/server, ob->script, ob);
-													ob->lua_script_evaluator->world_state = cur_world_state.ptr();
+													ob->lua_script_evaluator = new LuaScriptEvaluator(server->lua_vm.ptr(), /*script output handler=*/server, ob->script, ob, cur_world_state.ptr());
 												}
 												catch(LuaScriptExcepWithLocation& e)
 												{
@@ -2209,7 +2208,7 @@ void WorkerThread::doRun()
 
 							Reference<UserUsedObjectThreadMessage> msg = new UserUsedObjectThreadMessage();
 							msg->world = cur_world_state;
-							msg->client_user_id = client_user_id;
+							msg->avatar_uid = client_avatar_uid;
 							msg->object_uid = object_uid;
 							server->enqueueMsg(msg);
 
@@ -2223,7 +2222,7 @@ void WorkerThread::doRun()
 
 							Reference<UserTouchedObjectThreadMessage> msg = new UserTouchedObjectThreadMessage();
 							msg->world = cur_world_state;
-							msg->client_user_id = client_user_id;
+							msg->avatar_uid = client_avatar_uid;
 							msg->object_uid = object_uid;
 							server->enqueueMsg(msg);
 
@@ -2237,7 +2236,7 @@ void WorkerThread::doRun()
 
 							Reference<UserMovedNearToObjectThreadMessage> msg = new UserMovedNearToObjectThreadMessage();
 							msg->world = cur_world_state;
-							msg->client_user_id = client_user_id;
+							msg->avatar_uid = client_avatar_uid;
 							msg->object_uid = object_uid;
 							server->enqueueMsg(msg);
 
@@ -2251,7 +2250,7 @@ void WorkerThread::doRun()
 
 							Reference<UserMovedAwayFromObjectThreadMessage> msg = new UserMovedAwayFromObjectThreadMessage();
 							msg->world = cur_world_state;
-							msg->client_user_id = client_user_id;
+							msg->avatar_uid = client_avatar_uid;
 							msg->object_uid = object_uid;
 							server->enqueueMsg(msg);
 
@@ -2266,7 +2265,7 @@ void WorkerThread::doRun()
 
 							Reference<UserEnteredParcelThreadMessage> msg = new UserEnteredParcelThreadMessage();
 							msg->world = cur_world_state;
-							msg->client_user_id = client_user_id;
+							msg->avatar_uid = client_avatar_uid;
 							msg->object_uid = object_uid;
 							msg->parcel_id = parcel_id;
 							server->enqueueMsg(msg);
@@ -2282,7 +2281,7 @@ void WorkerThread::doRun()
 
 							Reference<UserExitedParcelThreadMessage> msg = new UserExitedParcelThreadMessage();
 							msg->world = cur_world_state;
-							msg->client_user_id = client_user_id;
+							msg->avatar_uid = client_avatar_uid;
 							msg->object_uid = object_uid;
 							msg->parcel_id = parcel_id;
 							server->enqueueMsg(msg);

@@ -47,7 +47,7 @@ struct ServerConnectedClientInfo
 class UserUsedObjectThreadMessage : public ThreadMessage
 {
 public:
-	UserID client_user_id; // May be invalid if user is not logged in
+	UID avatar_uid; // May be invalid if user is not logged in
 
 	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
 	UID object_uid;
@@ -56,7 +56,7 @@ public:
 class UserTouchedObjectThreadMessage : public ThreadMessage
 {
 public:
-	UserID client_user_id; // May be invalid if user is not logged in
+	UID avatar_uid; // May be invalid if user is not logged in
 
 	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
 	UID object_uid;
@@ -65,7 +65,7 @@ public:
 class UserMovedNearToObjectThreadMessage : public ThreadMessage
 {
 public:
-	UserID client_user_id; // May be invalid if user is not logged in
+	UID avatar_uid; // May be invalid if user is not logged in
 
 	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
 	UID object_uid;
@@ -74,7 +74,7 @@ public:
 class UserMovedAwayFromObjectThreadMessage : public ThreadMessage
 {
 public:
-	UserID client_user_id; // May be invalid if user is not logged in
+	UID avatar_uid; // May be invalid if user is not logged in
 
 	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
 	UID object_uid;
@@ -83,7 +83,7 @@ public:
 class UserEnteredParcelThreadMessage : public ThreadMessage
 {
 public:
-	UserID client_user_id; // May be invalid if user is not logged in
+	UID avatar_uid; // May be invalid if user is not logged in
 
 	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
 	UID object_uid;
@@ -93,7 +93,7 @@ public:
 class UserExitedParcelThreadMessage : public ThreadMessage
 {
 public:
-	UserID client_user_id; // May be invalid if user is not logged in
+	UID avatar_uid; // May be invalid if user is not logged in
 
 	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
 	UID object_uid;

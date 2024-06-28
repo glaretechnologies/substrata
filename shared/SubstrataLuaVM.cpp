@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "../shared/LuaScriptEvaluator.h"
+#include "../shared/ObjectEventHandlers.h"
 #include "WorldObject.h"
 #include "MessageUtils.h"
 #include "Protocol.h"
@@ -77,6 +78,17 @@ enum StringAtomEnum
 	Atom_createObject,
 	Atom_createTimer,
 	Atom_destroyTimer,
+
+	// Avatar
+	Atom_name,
+
+	// Events
+	Atom_onUserUsedObject,
+	Atom_onUserTouchedObject,
+	Atom_onUserMovedNearToObject,
+	Atom_onUserMovedAwayFromObject,
+	Atom_onUserEnteredParcel,
+	Atom_onUserExitedParcel,
 };
 
 static StringAtom string_atoms[] = 
@@ -127,6 +139,17 @@ static StringAtom string_atoms[] =
 	StringAtom({"createObject",				Atom_createObject,				}),
 	StringAtom({"createTimer",				Atom_createTimer,				}),
 	StringAtom({"destroyTimer",				Atom_destroyTimer,				}),
+
+	// Avatar
+	StringAtom({"name",						Atom_name,						}),
+
+	// Events:
+	StringAtom({"onUserUsedObject",			Atom_onUserUsedObject,			}),
+	StringAtom({"onUserTouchedObject",		Atom_onUserTouchedObject,		}),
+	StringAtom({"onUserMovedNearToObject",	Atom_onUserMovedNearToObject,	}),
+	StringAtom({"onUserMovedAwayFromObject",Atom_onUserMovedAwayFromObject,	}),
+	StringAtom({"onUserEnteredParcel",		Atom_onUserEnteredParcel,		}),
+	StringAtom({"onUserExitedParcel",		Atom_onUserExitedParcel,		}),
 };
 
 
@@ -187,7 +210,7 @@ static int createObject(lua_State* state)
 	// Arg 1: ob_params : Table
 
 	checkNumArgs(state, /*num_args_required*/1);
-	const int initial_stack_size = lua_gettop(state);
+	//const int initial_stack_size = lua_gettop(state);
 
 	if(!lua_istable(state, 1))
 		throw glare::Exception("createObject(): arg 1 (ob_params) was not a table");
@@ -237,7 +260,7 @@ static int createObject(lua_State* state)
 	}
 	lua_pop(state, 1); // Pop materials value
 
-	assert(lua_gettop(state) == initial_stack_size); // Check stack is same size as at the start of the function
+	//assert(lua_gettop(state) == initial_stack_size); // Check stack is same size as at the start of the function
 
 #if GUI_CLIENT
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
@@ -268,6 +291,118 @@ static int createObject(lua_State* state)
 #endif
 
 	return 0; // Count of returned values
+}
+
+
+// Find a WorldObject for the given UID.  Throws exception if no such object with UID found.
+static WorldObject* getWorldObjectForUID(LuaScriptEvaluator* script_evaluator, const UID uid)
+{
+	// See if the UID is that of the script_evaluator object, in which case we can use the script_evaluator pointer and avoid the map lookup.
+	if(uid == script_evaluator->world_object->uid)
+		return script_evaluator->world_object;
+	else
+	{
+#if GUI_CLIENT
+		SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm; //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+		auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
+		if(res == sub_lua_vm->gui_client->world_state->objects.end())
+			throw glare::Exception("No such object with given UID");
+
+		return res.getValue().ptr();
+#elif SERVER
+		auto res = script_evaluator->world_state->objects.find(uid);
+		if(res == script_evaluator->world_state->objects.end())
+			throw glare::Exception("No such object with given UID");
+
+		return res->second.ptr();
+#endif
+	}
+}
+
+
+static int luaGetWorldObjectForUID(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: uid : Number
+
+	checkNumArgs(state, /*num_args_required*/1);
+
+	const UID uid((uint64)LuaUtils::getDouble(state, /*index=*/1));
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	/*WorldObject* ob =*/ getWorldObjectForUID(script_evaluator, uid); // Just call this to throw an excep if no such object exists
+
+	script_evaluator->pushWorldObjectTableOntoStack(uid);
+	return 1;
+}
+
+
+static int luaAddEventListener(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: event_name : String
+	// Arg 2: ob : Object
+	// Arg 3: handler : Function
+
+	checkNumArgs(state, /*num_args_required*/1);
+	if(lua_type(state, /*index=*/3) != LUA_TFUNCTION)
+		throw glare::Exception("createTimer(): arg 1 must be a function");
+
+	int atom = -1;
+	const char* event_name = LuaUtils::getStringAndAtom(state, /*index=*/1, atom);
+
+	// Get object UID
+	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/2, "uid"));
+
+	// Get a reference to the handler function
+	const int handler_func_ref = lua_ref(state, /*index=*/3);
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid); // Just call this to throw an excep if no such object exists
+	if(ob->event_handlers.isNull())
+		ob->event_handlers = new ObjectEventHandlers();
+
+	HandlerFunc handler_func;
+	handler_func.script = WeakReference<LuaScriptEvaluator>(script_evaluator);
+	handler_func.handler_func_ref = handler_func_ref;
+
+	switch(atom)
+	{
+	case Atom_onUserUsedObject:
+		assert(stringEqual(event_name, "onUserUsedObject"));
+		ob->event_handlers->onUserUsedObject_handlers.addHandler(handler_func);
+		break;
+	case Atom_onUserTouchedObject:
+		assert(stringEqual(event_name, "onUserTouchedObject"));
+		ob->event_handlers->onUserTouchedObject_handlers.addHandler(handler_func);
+		break;
+	case Atom_onUserMovedNearToObject:
+		assert(stringEqual(event_name, "onUserMovedNearToObject"));
+		ob->event_handlers->onUserMovedNearToObject_handlers.addHandler(handler_func);
+		break;
+	case Atom_onUserMovedAwayFromObject:
+		assert(stringEqual(event_name, "onUserMovedAwayFromObject"));
+		ob->event_handlers->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
+		break;
+	case Atom_onUserEnteredParcel:
+		assert(stringEqual(event_name, "onUserEnteredParcel"));
+		ob->event_handlers->onUserEnteredParcel_handlers.addHandler(handler_func);
+		break;
+	case Atom_onUserExitedParcel:
+		assert(stringEqual(event_name, "onUserExitedParcel"));
+		ob->event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
+		break;
+	default:
+		throw glare::Exception("Unknown event '" + std::string(event_name) + "'");
+	}
+
+	return 0;
 }
 
 
@@ -361,33 +496,6 @@ static int destroyTimer(lua_State* state)
 }
 
 
-// Find a WorldObject for the given UID.  Throws exception if no such object with UID found.
-static WorldObject* getWorldObjectForUID(LuaScriptEvaluator* script_evaluator, const UID uid)
-{
-	// See if the UID is that of the script_evaluator object, in which case we can use the script_evaluator pointer and avoid the map lookup.
-	if(uid == script_evaluator->world_object->uid)
-		return script_evaluator->world_object;
-	else
-	{
-#if GUI_CLIENT
-		SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm; //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-		auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-		if(res == sub_lua_vm->gui_client->world_state->objects.end())
-			throw glare::Exception("No such object with given UID");
-
-		return res.getValue().ptr();
-#elif SERVER
-		auto res = script_evaluator->world_state->objects.find(uid);
-		if(res == script_evaluator->world_state->objects.end())
-			throw glare::Exception("No such object with given UID");
-
-		return res->second.ptr();
-#endif
-	}
-}
-
-
 static int getNumMaterials(lua_State* state)
 {
 	// arg 1: ob : WorldObject
@@ -447,9 +555,6 @@ static int getMaterial(lua_State* state)
 }
 
 
-
-
-
 // C++ implementation of __index for WorldObject class. Used when a WorldObject table field is read from.
 static int worldObjectClassIndexMetaMethod(lua_State* state)
 {
@@ -467,7 +572,6 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 
 	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
-	
 	int atom = -1;
 	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
 	switch(atom) // NOTE: The switch cases should be in the same order as the Atom enum values to ensure nice code-gen.
@@ -636,10 +740,8 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "content"));
 		ob->content = LuaUtils::getString(state, /*index=*/3);
 		ob->from_remote_content_dirty = true; // TODO: rename
-#if SERVER
 		//script_evaluator->world_state->addWorldObjectAsDBDirty(ob);
 		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-#endif
 		break;
 	case Atom_video_autoplay:
 		assert(stringEqual(key_str, "video_autoplay"));
@@ -694,20 +796,15 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	{
 		ob->last_transform_update_avatar_uid = std::numeric_limits<uint32>::max();
 		ob->from_remote_transform_dirty = true; // TODO: rename
-//#if SERVER
 		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-//#endif
 	}
 	else if(other_changed)
 	{
 		ob->from_remote_other_dirty = true; // TODO: rename
-//#if SERVER
 		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-//#endif
 	}
 
 	return 0; // Count of returned values
-
 #endif
 }
 
@@ -733,8 +830,6 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
 	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
-
-
 
 	if(mat_index > ob->materials.size())
 		throw glare::Exception("Invalid material index");
@@ -798,7 +893,7 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 		lua_pushboolean(state, BitUtils::isBitSet(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG));
 		break;
 	default:
-		throw glare::Exception("Unknown field");
+		throw glare::Exception("Unknown field '" + std::string(key_str) + "'");
 	}
 
 	return 1; // Count of returned values
@@ -898,14 +993,12 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	default:
-		throw glare::Exception("Unknown field");
+		throw glare::Exception("Unknown field '" + std::string(key_str) + "'");
 	}
 
-//#if SERVER
 	// Mark the object as dirty, sending the updated object will send the updated material as well.
 	ob->from_remote_other_dirty = true; // TODO: rename
 	script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-//#endif
 
 	return 0; // Count of returned values
 
@@ -916,18 +1009,51 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 // C++ implementation of __index for User class. Used when a User table field is read from.
 static int userClassIndexMetaMethod(lua_State* state)
 {
+	throw glare::Exception("Disabled");
+
 	// arg 1 is table
 	// arg 2 is the key (field name)
 
 	assert(lua_gettop(state) == 2); // Should be 2 args.
 
-#if SERVER
+	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+#if GUI_CLIENT
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	//LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	//LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	auto res = sub_lua_vm->gui_client->world_state->avatars.find(uid);
+	if(res == sub_lua_vm->gui_client->world_state->avatars.end())
+		throw glare::Exception("No such avatar with given UID");
+
+	Avatar* avatar = res->second.ptr();
+
+#elif SERVER
 	// Get user UID from the user table
-	//const UserID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+	//const UserID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "id"));
 
 	//SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
 	//auto res = sub_lua_vm->server->world_state->user_id_to_users.find(uid);
+	//if(res == sub_lua_vm->server->world_state->user_id_to_users.end())
+	//	throw glare::Exception("No such user with given UID");
+
+	//User* user = res->second.ptr();
+
+
+
+//	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	auto res = script_evaluator->world_state->avatars.find(uid);
+	if(res == script_evaluator->world_state->avatars.end())
+		throw glare::Exception("No such avatar with given UID");
+
+	Avatar* avatar = res->second.ptr();
 	//if(res == sub_lua_vm->server->world_state->user_id_to_users.end())
 	//	throw glare::Exception("No such user with given UID");
 
@@ -948,6 +1074,11 @@ static int userClassIndexMetaMethod(lua_State* state)
 			lua_pushcfunction(state, createObject, "createObject");
 			return 1;
 		}
+		else if(stringEqual(key_str, "pos"))
+		{
+			LuaUtils::pushVec3d(state, avatar->pos);
+			return 1;
+		}
 //#if SERVER
 //		else if(stringEqual(key_str, "name"))
 //		{
@@ -956,7 +1087,7 @@ static int userClassIndexMetaMethod(lua_State* state)
 //		}
 //#endif
 		else
-			throw glare::Exception("Unknown field");
+			throw glare::Exception("User class: Unknown field '" + std::string(key_str) + "'");
 	}
 
 	return 1; // Count of returned values
@@ -984,6 +1115,72 @@ static int userClassNewIndexMetaMethod(lua_State* state)
 //	//lua_rawsetfield(state, /*table index=*/1, key_str);
 //	lua_rawset(state, /*table index=*/1); // Sets table[key] = value, pops key and value from stack.
 
+	return 0; // Count of returned values
+}
+
+
+// C++ implementation of __index for Avatar class. Used when a Avatar table field is read from.
+static int avatarClassIndexMetaMethod(lua_State* state)
+{
+	// arg 1 is Avatar table
+	// arg 2 is the key (field name)
+
+	assert(lua_gettop(state) == 2); // Should be 2 args.
+
+	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+#if GUI_CLIENT
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	auto res = sub_lua_vm->gui_client->world_state->avatars.find(uid);
+	if(res == sub_lua_vm->gui_client->world_state->avatars.end())
+		throw glare::Exception("No such avatar with given UID");
+
+	Avatar* avatar = res->second.ptr();
+#elif SERVER
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	auto res = script_evaluator->world_state->avatars.find(uid);
+	if(res == script_evaluator->world_state->avatars.end())
+		throw glare::Exception("No such avatar with given UID");
+
+	Avatar* avatar = res->second.ptr();
+#endif
+
+	// Read key
+	int atom = -1;
+	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
+	switch(atom)
+	{
+	case Atom_setLinearVelocity:
+		assert(stringEqual(key_str, "setLinearVelocity"));
+		lua_pushcfunction(state, user_setLinearVelocity, "user_setLinearVelocity");
+		return 1;
+	case Atom_createObject:
+		assert(stringEqual(key_str, "createObject"));
+		lua_pushcfunction(state, createObject, "user_createObject"); // TODO: move to top-level function? 
+		return 1;
+	case Atom_pos:
+		assert(stringEqual(key_str, "pos"));
+		LuaUtils::pushVec3d(state, avatar->pos);
+		return 1;
+	case Atom_name:
+		assert(stringEqual(key_str, "name"));
+		LuaUtils::pushString(state, avatar->name);
+		return 1;
+	default:
+		throw glare::Exception("User class: Unknown field '" + std::string(key_str) + "'");
+	}
+}
+
+
+// C++ implementation of __newindex.  Used when a value is assigned to a table field.
+static int avatarClassNewIndexMetaMethod(lua_State* state)
+{
+	// Arg 1: table 
+	// Arg 2: key
+	// Arg 3: value
 	return 0; // Count of returned values
 }
 
@@ -1016,12 +1213,17 @@ SubstrataLuaVM::SubstrataLuaVM()
 	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
 	lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
 	
+	lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getWorldObjectForUID");
+	lua_setglobal(lua_vm->state, "getObjectForUID");
+
 	lua_pushcfunction(lua_vm->state, createTimer, /*debugname=*/"createTimer");
 	lua_setglobal(lua_vm->state, "createTimer");
 	
 	lua_pushcfunction(lua_vm->state, destroyTimer, /*debugname=*/"destroyTimer");
 	lua_setglobal(lua_vm->state, "destroyTimer");
-
+	
+	lua_pushcfunction(lua_vm->state, luaAddEventListener, /*debugname=*/"addEventListener");
+	lua_setglobal(lua_vm->state, "addEventListener");
 
 	//--------------------------- Create metatables for our classes ---------------------------
 
@@ -1056,6 +1258,17 @@ SubstrataLuaVM::SubstrataLuaVM()
 	userClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to UserClassMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop UserClassMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
+
+
+	//--------------------------- Create Avatar Metatable ---------------------------
+	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create Avatar metatable
+			
+	lua_vm->setCFunctionAsTableField(avatarClassIndexMetaMethod,    /*debugname=*/"avatarIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
+	lua_vm->setCFunctionAsTableField(avatarClassNewIndexMetaMethod, /*debugname=*/"avatarNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
+
+	avatarClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to AvatarClassMetaTable.  Does not pop.
+	lua_pop(lua_vm->state, 1); // Pop AvatarClassMetaTable from stack
+	//--------------------------- End create Avatar Metatable ---------------------------
 
 	lua_vm->finishInitAndSandbox();
 }

@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/Version.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/SubstrataLuaVM.h"
+#include "../shared/ObjectEventHandlers.h"
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
@@ -491,8 +492,7 @@ int main(int argc, char *argv[])
 
 						try
 						{
-							ob->lua_script_evaluator = new LuaScriptEvaluator(server.lua_vm.ptr(), /*script output handler=*/&server, ob->script, ob);
-							ob->lua_script_evaluator->world_state = world_state.ptr();
+							ob->lua_script_evaluator = new LuaScriptEvaluator(server.lua_vm.ptr(), /*script output handler=*/&server, ob->script, ob, world_state.ptr());
 						}
 						catch(LuaScriptExcepWithLocation& e)
 						{
@@ -575,8 +575,13 @@ int main(int argc, char *argv[])
 						if(res != used_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
-							if(ob->lua_script_evaluator.nonNull())
-								ob->lua_script_evaluator->doOnUserUsedObject(used_msg->client_user_id);
+
+							if(ob->lua_script_evaluator)
+								ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, used_msg->avatar_uid, ob->uid);
+
+							// Execute doOnUserUsedObject event handler in any other scripts that are listening for onUserUsedObject for this object
+							if(ob->event_handlers)
+								ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/used_msg->avatar_uid, ob->uid);
 						}
 					}
 					else if(dynamic_cast<UserTouchedObjectThreadMessage*>(msg.ptr()))
@@ -588,8 +593,13 @@ int main(int argc, char *argv[])
 						if(res != touched_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
-							if(ob->lua_script_evaluator.nonNull())
-								ob->lua_script_evaluator->doOnUserTouchedObject(touched_msg->client_user_id, cur_time);
+
+							if(ob->lua_script_evaluator)
+								ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, touched_msg->avatar_uid, ob->uid, cur_time);
+
+							// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
+							if(ob->event_handlers)
+								ob->event_handlers->executeOnUserTouchedObjectHandlers(touched_msg->avatar_uid, ob->uid, cur_time);
 						}
 					}
 					else if(dynamic_cast<UserMovedNearToObjectThreadMessage*>(msg.ptr()))
@@ -601,8 +611,13 @@ int main(int argc, char *argv[])
 						if(res != moved_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
-							if(ob->lua_script_evaluator.nonNull())
-								ob->lua_script_evaluator->doOnUserMovedNearToObject(moved_msg->client_user_id);
+
+							if(ob->lua_script_evaluator)
+								ob->lua_script_evaluator->doOnUserMovedNearToObject(ob->lua_script_evaluator->onUserMovedNearToObject_ref, moved_msg->avatar_uid, moved_msg->object_uid);
+
+							// Execute onUserMovedNearToObject event handler in any other scripts that are listening for onUserMovedNearToObject for this object
+							if(ob->event_handlers)
+								ob->event_handlers->executeOnUserMovedNearToObjectHandlers(moved_msg->avatar_uid, ob->uid);
 						}
 					}
 					else if(dynamic_cast<UserMovedAwayFromObjectThreadMessage*>(msg.ptr()))
@@ -614,8 +629,13 @@ int main(int argc, char *argv[])
 						if(res != moved_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
-							if(ob->lua_script_evaluator.nonNull())
-								ob->lua_script_evaluator->doOnUserMovedAwayFromObject(moved_msg->client_user_id);
+
+							if(ob->lua_script_evaluator)
+								ob->lua_script_evaluator->doOnUserMovedAwayFromObject(ob->lua_script_evaluator->onUserMovedAwayFromObject_ref, moved_msg->avatar_uid, moved_msg->object_uid);
+
+							// Execute event handler in any other scripts that are listening on this object
+							if(ob->event_handlers)
+								ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(moved_msg->avatar_uid, moved_msg->object_uid);
 						}
 					}
 					else if(dynamic_cast<UserEnteredParcelThreadMessage*>(msg.ptr()))
@@ -627,8 +647,13 @@ int main(int argc, char *argv[])
 						if(res != parcel_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
-							if(ob->lua_script_evaluator.nonNull())
-								ob->lua_script_evaluator->doOnUserEnteredParcel(parcel_msg->client_user_id, parcel_msg->parcel_id);
+
+							if(ob->lua_script_evaluator)
+								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
+
+							// Execute event handler in any other scripts that are listening on this object
+							if(ob->event_handlers)
+								ob->event_handlers->executeOnUserEnteredParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
 						}
 					}
 					else if(dynamic_cast<UserExitedParcelThreadMessage*>(msg.ptr()))
@@ -640,8 +665,13 @@ int main(int argc, char *argv[])
 						if(res != parcel_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
-							if(ob->lua_script_evaluator.nonNull())
-								ob->lua_script_evaluator->doOnUserExitedParcel(parcel_msg->client_user_id, parcel_msg->parcel_id);
+
+							if(ob->lua_script_evaluator)
+								ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
+
+							// Execute event handler in any other scripts that are listening on this object
+							if(ob->event_handlers)
+								ob->event_handlers->executeOnUserExitedParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
 						}
 					}
 				}
