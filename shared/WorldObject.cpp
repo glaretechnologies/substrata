@@ -32,6 +32,7 @@ Copyright Glare Technologies Limited 2016 -
 #endif // GUI_CLIENT
 #include "../shared/ResourceManager.h"
 #include "../shared/LuaScriptEvaluator.h"
+#include "../shared/ObjectEventHandlers.h"
 #include <zstd.h>
 
 

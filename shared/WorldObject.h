@@ -39,6 +39,7 @@ namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
 class LuaScriptEvaluator;
+class ObjectEventHandlers;
 class Matrix4f;
 class RayMesh;
 namespace Indigo { class SceneNodeModel; }
@@ -445,6 +446,8 @@ public:
 	Vec4f angular_vel;
 
 	Reference<LuaScriptEvaluator> lua_script_evaluator;
+
+	Reference<ObjectEventHandlers> event_handlers;
 
 private:
 	VoxelGroup voxel_group;

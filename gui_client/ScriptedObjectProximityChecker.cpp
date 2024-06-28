@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2024 -
 
 #include "GUIClient.h"
 #include "../shared/LuaScriptEvaluator.h"
+#include "../shared/ObjectEventHandlers.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/Protocol.h"
 
@@ -61,9 +62,14 @@ void ScriptedObjectProximityChecker::think(const Vec4f& campos)
 			if(new_in_proximity)
 			{
 				// Execute onUserMovedNearToObject locally
-				if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined())
+				if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserMovedNearToObject_handlers.nonEmpty()))
 				{
-					ob->lua_script_evaluator->doOnUserMovedNearToObject(gui_client->logged_in_user_id);
+					if(ob->lua_script_evaluator)
+						ob->lua_script_evaluator->doOnUserMovedNearToObject(ob->lua_script_evaluator->onUserMovedNearToObject_ref, gui_client->client_avatar_uid, ob->uid);
+
+					// Execute any event handlers also
+					if(ob->event_handlers)
+						ob->event_handlers->executeOnUserMovedNearToObjectHandlers(/*avatar_uid=*/gui_client->client_avatar_uid, ob->uid);
 
 					// Send message to server to execute on server as well
 					MessageUtils::initPacket(gui_client->scratch_packet, Protocol::UserMovedNearToObjectMessage);
@@ -74,9 +80,14 @@ void ScriptedObjectProximityChecker::think(const Vec4f& campos)
 			else
 			{
 				// Execute onUserMovedAwayFromObject locally
-				if(ob->lua_script_evaluator.nonNull() && ob->lua_script_evaluator->isOnUserMovedAwayFromObjectDefined())
+				if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserMovedAwayFromObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserMovedAwayFromObject_handlers.nonEmpty()))
 				{
-					ob->lua_script_evaluator->doOnUserMovedAwayFromObject(gui_client->logged_in_user_id);
+					if(ob->lua_script_evaluator)
+						ob->lua_script_evaluator->doOnUserMovedAwayFromObject(ob->lua_script_evaluator->onUserMovedAwayFromObject_ref, gui_client->client_avatar_uid, ob->uid);
+
+					// Execute any event handlers also
+					if(ob->event_handlers)
+						ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(/*avatar_uid=*/gui_client->client_avatar_uid, ob->uid);
 
 					// Send message to server to execute on server as well
 					MessageUtils::initPacket(gui_client->scratch_packet, Protocol::UserMovedAwayFromObjectMessage);

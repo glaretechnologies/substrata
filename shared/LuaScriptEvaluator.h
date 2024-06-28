@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "UserID.h"
+#include "UID.h"
 #include "ParcelID.h"
 #include <lua/LuaScript.h>
 #include <maths/Vec4f.h>
@@ -29,36 +30,41 @@ class LuaScriptEvaluator : public WeakRefCounted
 {
 public:
 	LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm, LuaScriptOutputHandler* script_output_handler, 
-		const std::string& script_src, WorldObject* world_object);
+		const std::string& script_src, WorldObject* world_object
+#if SERVER
+		,ServerWorldState* world_state // The world that the object belongs to.
+#endif
+	);
 	virtual ~LuaScriptEvaluator();
 
 
 	bool hasOnUserTouchedObjectCooledDown(double cur_time);
-	void doOnUserTouchedObject(UserID client_user_id, double cur_time) noexcept;
+	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, double cur_time) noexcept;
 	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != LUA_NOREF; }
 	
-	void doOnTimerEvent(int onTimerEvent_ref) noexcept;
-
-	void doOnUserUsedObject(UserID client_user_id) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserUsedObjectDefined() { return onUserUsedObject_ref != LUA_NOREF; }
 
-	void doOnUserMovedNearToObject(UserID client_user_id) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserMovedNearToObjectDefined() { return onUserMovedNearToObject_ref != LUA_NOREF; }
 	
-	void doOnUserMovedAwayFromObject(UserID client_user_id) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserMovedAwayFromObjectDefined() { return onUserMovedAwayFromObject_ref != LUA_NOREF; }
 
-	void doOnUserEnteredParcel(UserID client_user_id, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserEnteredParcelDefined() { return onUserEnteredParcel_ref != LUA_NOREF; }
 
-	void doOnUserExitedParcel(UserID client_user_id, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserExitedParcelDefined() { return onUserExitedParcel_ref != LUA_NOREF; }
+
+	void doOnTimerEvent(int onTimerEvent_ref) noexcept;
 
 	void destroyTimer(int timer_index);
 
-private:
+//private:
 	void pushUserTableOntoStack(UserID client_user_id);
-	void pushWorldObjectTableOntoStack(); // Push a table for this->world_object onto Lua stack.
+	void pushAvatarTableOntoStack(UID avatar_uid);
+	void pushWorldObjectTableOntoStack(UID uid); // OLD: Push a table for this->world_object onto Lua stack.
 	void pushParcelTableOntoStack(ParcelID parcel_id);
 public:
 

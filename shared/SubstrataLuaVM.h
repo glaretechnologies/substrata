@@ -42,4 +42,5 @@ public:
 	int worldObjectClassMetaTable_ref;
 	int worldMaterialClassMetaTable_ref;
 	int userClassMetaTable_ref;
+	int avatarClassMetaTable_ref;
 };

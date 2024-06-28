@@ -55,6 +55,8 @@ SET(shared_files
 ../shared/LuaScriptEvaluator.h
 ../shared/TimerQueue.cpp
 ../shared/TimerQueue.h
+../shared/ObjectEventHandlers.cpp
+../shared/ObjectEventHandlers.h
 )
 
 ########### Webserver ################
