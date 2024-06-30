@@ -36,9 +36,12 @@ const int SYNTAX_HIGHLIGHT_TIMEOUT = 100;
 
 ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_path_)
 :	QMainWindow(parent),
-	base_dir_path(base_dir_path_)
+	base_dir_path(base_dir_path_),
+	text_has_changed(false)
 {
 	setupUi(this);
+
+	this->outputTextEdit->shader_editor_dialog = this;
 
 	QSettings settings("Glare Technologies", "Cyberspace");
 	this->restoreGeometry(settings.value("shadereditor/geometry").toByteArray());
@@ -51,10 +54,15 @@ ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_pat
 	connect(syntax_highlight_timer, SIGNAL(timeout()), this, SLOT(buildCodeAndShowResults()));
 	syntax_highlight_timer->setSingleShot(true);
 
+	connect(shaderEdit, SIGNAL(cursorPositionChanged()), this, SLOT(shaderEditCursorPositionChanged()));
+
+
 	highlighter = new ISLSyntaxHighlighter(shaderEdit->document());
 
 	int tab_size = this->shaderEdit->fontMetrics().horizontalAdvance("eval");
 	this->shaderEdit->setTabStopDistance(tab_size);
+
+	cursorPositionLabel->setText(QString());
 }
 
 
@@ -93,6 +101,30 @@ QString ShaderEditorDialog::getShaderText()
 }
 
 
+void ShaderEditorDialog::mouseDoubleClickedInOutput(QMouseEvent* e)
+{
+	QTextCursor output_cursor = outputTextEdit->cursorForPosition(e->pos());
+
+	const int output_line_num = output_cursor.blockNumber();
+
+	if(output_line_num >= 0 && output_line_num < error_locations.size())
+	{
+		const ErrorLocation& loc = error_locations[output_line_num];
+
+		// See https://stackoverflow.com/questions/40081248/qt-how-to-move-textedit-cursor-to-specific-col-and-row
+		QTextCursor cursor = shaderEdit->textCursor();
+	
+		cursor.movePosition(QTextCursor::Start);
+		cursor.movePosition(QTextCursor::Down,  QTextCursor::MoveAnchor, loc.begin.line_num);
+		cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, loc.begin.char_num);
+	
+		shaderEdit->setTextCursor(cursor);
+
+		shaderEdit->setFocus();
+	}
+}
+
+
 void ShaderEditorDialog::keyPressEvent(QKeyEvent* event)
 {
 	if(event->key() == Qt::Key_Escape)
@@ -105,6 +137,9 @@ void ShaderEditorDialog::keyPressEvent(QKeyEvent* event)
 
 void ShaderEditorDialog::closeEvent(QCloseEvent* event)
 {
+	if(text_has_changed)
+		emit shaderChanged();
+
 	QSettings settings("Glare Technologies", "Cyberspace");
 	settings.setValue("shadereditor/geometry", saveGeometry());
 
@@ -112,8 +147,15 @@ void ShaderEditorDialog::closeEvent(QCloseEvent* event)
 }
 
 
+void ShaderEditorDialog::mouseDoubleClickEvent(QMouseEvent* e)
+{
+
+}
+
+
 void ShaderEditorDialog::on_shaderEdit_textChanged()
 {
+	text_has_changed = true;
 	emit_shader_changed_timer->start(SHADER_EDIT_TIMEOUT);
 	syntax_highlight_timer->start(SYNTAX_HIGHLIGHT_TIMEOUT);
 }
@@ -121,7 +163,13 @@ void ShaderEditorDialog::on_shaderEdit_textChanged()
 
 void ShaderEditorDialog::emitShaderChangedTimerFired()
 {
-	emit shaderChanged();
+	const std::string shader = QtUtils::toIndString(shaderEdit->document()->toPlainText());
+	if(hasPrefix(shader, "--lua"))
+	{
+		// For Lua scripts, don't emit shaderChanged and hence reload script immediately, rather wait until the shader editor is closed.
+	}
+	else
+		emit shaderChanged();
 }
 
 
@@ -194,17 +242,24 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 		catch(LuaScriptExcepWithLocation& e)
 		{
 			this->highlighter->clearError();
+			this->error_locations.clear();
+
 			std::string combined_msg;
 			for(size_t i=0; i<e.errors.size(); ++i)
 			{
 				const Luau::Location location = e.errors[i].location; // With zero-based indices
 				combined_msg += "Line " + toString(location.begin.line + 1) + ": " + e.errors[i].msg + "\n";
-
+				
 				try
 				{
 					const size_t begin_char_index = StringUtils::getCharIndexForLinePosition(shader, location.begin.line, location.begin.column);
 					const size_t end_char_index   = StringUtils::getCharIndexForLinePosition(shader, location.end.line,   location.end.column);
 					this->highlighter->addErrorAtCharIndex((int)begin_char_index, (int)(end_char_index - begin_char_index));
+
+					ErrorLocation loc;
+					loc.begin = SrcPosition({(int)location.begin.line, (int)location.begin.column});
+					loc.end   = SrcPosition({(int)location.end.line,   (int)location.end.column});
+					error_locations.push_back(loc);
 				}
 				catch(glare::Exception& ) // getCharIndexForLinePosition may throw
 				{
@@ -282,4 +337,14 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			this->outputTextEdit->setPlainText(QtUtils::toQString(e.what()));
 		}
 	}
+}
+
+
+void ShaderEditorDialog::shaderEditCursorPositionChanged()
+{
+	const int line_num = shaderEdit->textCursor().blockNumber() + 1;
+
+	const int col_num = shaderEdit->textCursor().positionInBlock() + 1;
+
+	cursorPositionLabel->setText(QtUtils::toQString("Line: " + toString(line_num) + ", Col: " + toString(col_num)));
 }

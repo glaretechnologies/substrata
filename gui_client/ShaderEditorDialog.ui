@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>882</width>
-    <height>511</height>
+    <width>1291</width>
+    <height>837</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -41,11 +41,28 @@
      </widget>
     </item>
     <item>
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string>Build results:</string>
-      </property>
-     </widget>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Build results:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="cursorPositionLabel">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Line number</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
     <item>
      <widget class="QLabel" name="buildStatusLabel">
@@ -55,7 +72,7 @@
      </widget>
     </item>
     <item>
-     <widget class="QTextEdit" name="outputTextEdit">
+     <widget class="ShaderEditorOutputTextEdit" name="outputTextEdit">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
         <horstretch>0</horstretch>
@@ -89,6 +106,13 @@
    </layout>
   </widget>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ShaderEditorOutputTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header>ShaderEditorOutputTextEdit.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

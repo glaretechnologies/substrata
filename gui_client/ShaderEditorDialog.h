@@ -31,12 +31,15 @@ public:
 
 	QString getShaderText();
 
+	void mouseDoubleClickedInOutput(QMouseEvent* e);
+
 signals:;
 	void shaderChanged();
 
 private:
 	virtual void keyPressEvent(QKeyEvent* event);
 	virtual void closeEvent(QCloseEvent* event);
+	virtual void mouseDoubleClickEvent(QMouseEvent *e);
 
 	QTimer* emit_shader_changed_timer;
 	QTimer* syntax_highlight_timer;
@@ -46,7 +49,21 @@ private slots:;
 	void on_shaderEdit_textChanged();
 	void emitShaderChangedTimerFired();
 	void buildCodeAndShowResults();
+	void shaderEditCursorPositionChanged();
 
 private:
 	std::string base_dir_path;
+	bool text_has_changed;
+
+	struct SrcPosition
+	{
+		int line_num, char_num;
+	};
+
+	struct ErrorLocation
+	{
+		SrcPosition begin, end;
+	};
+
+	std::vector<ErrorLocation> error_locations;
 };
