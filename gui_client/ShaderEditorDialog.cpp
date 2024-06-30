@@ -180,6 +180,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 	const std::string shader = QtUtils::toIndString(shaderEdit->document()->toPlainText());
 	if(hasPrefix(shader, "<?xml"))
 	{
+		buildResultsLabel->setText("Build Results (parsing as XML):");
 		// Try and parse script as XML
 		try
 		{
@@ -217,6 +218,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 	{
 		// Try and parse script as Lua
 
+		buildResultsLabel->setText("Build Results (parsing as Lua):");
 		highlighter->setCurLang(ISLSyntaxHighlighter::Lang_Lua);
 
 		try
@@ -289,6 +291,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 	{
 		// Try and parse script as Winter
 
+		buildResultsLabel->setText("Build Results (parsing as Winter):");
 		highlighter->setCurLang(ISLSyntaxHighlighter::Lang_Winter);
 
 		try
