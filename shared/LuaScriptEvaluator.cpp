@@ -61,32 +61,11 @@ LuaScriptEvaluator::~LuaScriptEvaluator()
 }
 
 
-// Checks the Lua stack size is the same upon destruction as it was upon construction.
-// Used to find bugs where we did something unbalanced with the stack.
-struct LuaStackChecker
-{
-	LuaStackChecker(lua_State* state_) : state(state_)
-	{
-		initial_stack_size = lua_gettop(state);
-	}
-	~LuaStackChecker()
-	{
-		const int cur_stack_size = lua_gettop(state);
-		assert(initial_stack_size == cur_stack_size);
-	}
-
-	lua_State* state;
-	int initial_stack_size;
-};
-
-
 void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, double cur_time) noexcept
 {
 	//conPrint("LuaScriptEvaluator: onUserTouchedObject");
 	if(hit_error || (func_ref == LUA_NOREF))
 		return;
-
-	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
@@ -124,8 +103,6 @@ void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob
 	if(hit_error || (func_ref == LUA_NOREF))
 		return;
 
-	//LuaStackChecker checker(lua_script->thread_state);
-
 	try
 	{
 		lua_script->resetExecutionTimeCounter();
@@ -161,8 +138,6 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid,
 	//conPrint("LuaScriptEvaluator: doOnUserMovedNearToObject");
 	if(hit_error || (func_ref == LUA_NOREF))
 		return;
-
-	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
@@ -200,8 +175,6 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_ui
 	if(hit_error || (func_ref == LUA_NOREF))
 		return;
 
-	//LuaStackChecker checker(lua_script->thread_state);
-
 	try
 	{
 		lua_script->resetExecutionTimeCounter();
@@ -238,8 +211,6 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID
 	if(hit_error || (func_ref == LUA_NOREF))
 		return;
 
-	//LuaStackChecker checker(lua_script->thread_state);
-
 	try
 	{
 		lua_script->resetExecutionTimeCounter();
@@ -275,8 +246,6 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 	//conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
 	if(hit_error || (func_ref == LUA_NOREF))
 		return;
-
-	//LuaStackChecker checker(lua_script->thread_state);
 
 	try
 	{
