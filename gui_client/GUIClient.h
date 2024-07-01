@@ -196,6 +196,7 @@ public:
 	void loadAudioForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
+	void showScriptMessage(const std::string& message);
 	void updateNotifications(double cur_time);
 	void updateParcelGraphics();
 	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
@@ -664,6 +665,8 @@ public:
 		GLUITextViewRef text_view;
 	};
 	std::list<Notification> notifications;
+
+	std::list<Notification> script_messages;
 
 	UniqueRef<SubstrataLuaVM> lua_vm;
 

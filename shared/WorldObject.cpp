@@ -83,6 +83,7 @@ WorldObject::WorldObject() noexcept
 
 	waypoint_index = 0;
 	dist_along_segment = 0;
+	last_touch_event_time = -1000.f;
 #endif
 	next_snapshot_i = 0;
 	next_insertable_snapshot_i = 0;

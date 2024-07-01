@@ -307,13 +307,13 @@ static WorldObject* getWorldObjectForUID(LuaScriptEvaluator* script_evaluator, c
 
 		auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
 		if(res == sub_lua_vm->gui_client->world_state->objects.end())
-			throw glare::Exception("No such object with given UID");
+			throw glare::Exception("No object with UID " + uid.toString());
 
 		return res.getValue().ptr();
 #elif SERVER
 		auto res = script_evaluator->world_state->objects.find(uid);
 		if(res == script_evaluator->world_state->objects.end())
-			throw glare::Exception("No such object with given UID");
+			throw glare::Exception("No object with UID " + uid.toString());
 
 		return res->second.ptr();
 #endif
@@ -340,6 +340,23 @@ static int luaGetWorldObjectForUID(lua_State* state)
 }
 
 
+static int getCurrentTime(lua_State* state)
+{
+	// Expected args:
+	// none
+
+	checkNumArgs(state, /*num_args_required*/0);
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+#if GUI_CLIENT
+	lua_pushnumber(state, sub_lua_vm->gui_client->world_state->getCurrentGlobalTime()); // NOTE: do we want to use global time for this?
+#elif SERVER
+	lua_pushnumber(state, sub_lua_vm->server->getCurrentGlobalTime()); // NOTE: do we want to use global time for this?
+#endif
+	return 1;
+}
+
+
 static int luaAddEventListener(lua_State* state)
 {
 	// Expected args:
@@ -347,7 +364,7 @@ static int luaAddEventListener(lua_State* state)
 	// Arg 2: ob : Object
 	// Arg 3: handler : Function
 
-	checkNumArgs(state, /*num_args_required*/1);
+	checkNumArgs(state, /*num_args_required*/3);
 	if(lua_type(state, /*index=*/3) != LUA_TFUNCTION)
 		throw glare::Exception("createTimer(): arg 1 must be a function");
 
@@ -355,7 +372,7 @@ static int luaAddEventListener(lua_State* state)
 	const char* event_name = LuaUtils::getStringAndAtom(state, /*index=*/1, atom);
 
 	// Get object UID
-	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/2, "uid"));
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/2, "uid"));
 
 	// Get a reference to the handler function
 	const int handler_func_ref = lua_ref(state, /*index=*/3);
@@ -364,7 +381,7 @@ static int luaAddEventListener(lua_State* state)
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
 
-	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid); // Just call this to throw an excep if no such object exists
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid); // Just call this to throw an excep if no such object exists
 	if(ob->event_handlers.isNull())
 		ob->event_handlers = new ObjectEventHandlers();
 
@@ -372,6 +389,7 @@ static int luaAddEventListener(lua_State* state)
 	handler_func.script = WeakReference<LuaScriptEvaluator>(script_evaluator);
 	handler_func.handler_func_ref = handler_func_ref;
 
+	bool added_spatial_event = false;
 	switch(atom)
 	{
 	case Atom_onUserUsedObject:
@@ -385,22 +403,59 @@ static int luaAddEventListener(lua_State* state)
 	case Atom_onUserMovedNearToObject:
 		assert(stringEqual(event_name, "onUserMovedNearToObject"));
 		ob->event_handlers->onUserMovedNearToObject_handlers.addHandler(handler_func);
+		added_spatial_event = true;
 		break;
 	case Atom_onUserMovedAwayFromObject:
 		assert(stringEqual(event_name, "onUserMovedAwayFromObject"));
 		ob->event_handlers->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
+		added_spatial_event = true;
 		break;
 	case Atom_onUserEnteredParcel:
 		assert(stringEqual(event_name, "onUserEnteredParcel"));
 		ob->event_handlers->onUserEnteredParcel_handlers.addHandler(handler_func);
+		added_spatial_event = true;
 		break;
 	case Atom_onUserExitedParcel:
 		assert(stringEqual(event_name, "onUserExitedParcel"));
 		ob->event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
+		added_spatial_event = true;
 		break;
 	default:
 		throw glare::Exception("Unknown event '" + std::string(event_name) + "'");
 	}
+
+#if GUI_CLIENT
+	if(added_spatial_event)
+	{
+		SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+		sub_lua_vm->gui_client->scripted_ob_proximity_checker.addObject(ob);
+	}
+#endif
+
+	return 0;
+}
+
+
+static int showMessageToUser(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: msg : String
+	// Arg 2: av : Avatar
+
+	checkNumArgs(state, /*num_args_required*/2);
+
+	const std::string msg = LuaUtils::getString(state, /*index=*/1);
+
+	const UID av_uid = UID((uint64)LuaUtils::getTableNumberField(state, /*table index=*/2, "uid"));
+
+#if GUI_CLIENT
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	if(av_uid == sub_lua_vm->gui_client->client_avatar_uid)
+	{
+		// We want to send to ourselves
+		sub_lua_vm->gui_client->showScriptMessage(msg);
+	}
+#endif
 
 	return 0;
 }
@@ -503,13 +558,13 @@ static int getNumMaterials(lua_State* state)
 	checkNumArgs(state, /*num_args_required*/1);
 
 	// Get object UID
-	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
-	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
+	//const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/2, "uid"));
 	
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
 
 
 	lua_pushnumber(state, (double)ob->materials.size());
@@ -525,8 +580,7 @@ static int getMaterial(lua_State* state)
 	checkNumArgs(state, /*num_args_required*/2);
 	
 	// Get object UID
-	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
-	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const size_t index = (size_t)LuaUtils::getDouble(state, /*index=*/2);
 
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
@@ -534,7 +588,7 @@ static int getMaterial(lua_State* state)
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
 
 	if(index > ob->materials.size())
 		throw glare::Exception("Invalid material index");
@@ -543,7 +597,7 @@ static int getMaterial(lua_State* state)
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/2);
 
 	//LuaUtils::setNumberAsTableField(state, "uid", (double)uid.value());
-	LuaUtils::setLightUserDataAsTableField(state, "uid", (void*)uid.value());
+	LuaUtils::setLightUserDataAsTableField(state, "uid", (void*)ob_uid.value());
 	//LuaUtils::setNumberAsTableField(state, "idx", (double)index);
 	LuaUtils::setLightUserDataAsTableField(state, "idx", (void*)index);
 
@@ -564,8 +618,7 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 	assert(lua_gettop(state) == 2); // Should be 2 args.
 
 	// Get object UID
-	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
-	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
+	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -674,8 +727,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	assert(lua_gettop(state) == 3); // Should be 3 args.
 	
 	// Get object UID
-	//const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
-	const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
+	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -1194,8 +1246,6 @@ static int16_t glareLuaUserAtom(const char* str, size_t stringlen)
 		if(stringEqual(str, string_atoms[i].str))
 			return (int16)string_atoms[i].atom;
 
-	assert(0); // We should have an atom value for every string?
-
 	return -1; // or use ATOM_UNDEF here?
 }
 
@@ -1215,6 +1265,12 @@ SubstrataLuaVM::SubstrataLuaVM()
 	
 	lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getWorldObjectForUID");
 	lua_setglobal(lua_vm->state, "getObjectForUID");
+	
+	lua_pushcfunction(lua_vm->state, getCurrentTime, /*debugname=*/"getCurrentTime");
+	lua_setglobal(lua_vm->state, "getCurrentTime");
+	
+	lua_pushcfunction(lua_vm->state, showMessageToUser, /*debugname=*/"showMessageToUser");
+	lua_setglobal(lua_vm->state, "showMessageToUser");
 
 	lua_pushcfunction(lua_vm->state, createTimer, /*debugname=*/"createTimer");
 	lua_setglobal(lua_vm->state, "createTimer");
