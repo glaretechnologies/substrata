@@ -68,7 +68,7 @@ void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID
 			z++;
 		}
 		else
-			onUserUsedObject_handlers.removeHandlerAtIndex(z); // This handler is dead, remove the reference to it from our handler list.
+			onUserTouchedObject_handlers.removeHandlerAtIndex(z); // This handler is dead, remove the reference to it from our handler list.
 	}
 }
 
