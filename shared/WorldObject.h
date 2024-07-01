@@ -413,6 +413,8 @@ public:
 	// For objects that are path controlled:
 	int waypoint_index;
 	float dist_along_segment;
+
+	double last_touch_event_time;
 #endif // GUI_CLIENT
 
 	float max_load_dist2;

@@ -571,6 +571,7 @@ int main(int argc, char *argv[])
 						const UserUsedObjectThreadMessage* used_msg = static_cast<UserUsedObjectThreadMessage*>(msg.ptr());
 
 						// Look up object
+						Lock world_lock(server.world_state->mutex); // Just hold the world state lock while executing script event handlers for now.
 						auto res = used_msg->world->objects.find(used_msg->object_uid);
 						if(res != used_msg->world->objects.end())
 						{
@@ -590,6 +591,7 @@ int main(int argc, char *argv[])
 
 						// Look up object
 						auto res = touched_msg->world->objects.find(touched_msg->object_uid);
+						Lock world_lock(server.world_state->mutex);
 						if(res != touched_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
@@ -608,6 +610,7 @@ int main(int argc, char *argv[])
 
 						// Look up object
 						auto res = moved_msg->world->objects.find(moved_msg->object_uid);
+						Lock world_lock(server.world_state->mutex);
 						if(res != moved_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
@@ -626,6 +629,7 @@ int main(int argc, char *argv[])
 
 						// Look up object
 						auto res = moved_msg->world->objects.find(moved_msg->object_uid);
+						Lock world_lock(server.world_state->mutex);
 						if(res != moved_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
@@ -644,6 +648,7 @@ int main(int argc, char *argv[])
 
 						// Look up object
 						auto res = parcel_msg->world->objects.find(parcel_msg->object_uid);
+						Lock world_lock(server.world_state->mutex);
 						if(res != parcel_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();
@@ -662,6 +667,7 @@ int main(int argc, char *argv[])
 
 						// Look up object
 						auto res = parcel_msg->world->objects.find(parcel_msg->object_uid);
+						Lock world_lock(server.world_state->mutex);
 						if(res != parcel_msg->world->objects.end())
 						{
 							WorldObject* ob = res->second.ptr();

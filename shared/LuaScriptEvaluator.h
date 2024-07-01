@@ -38,7 +38,6 @@ public:
 	virtual ~LuaScriptEvaluator();
 
 
-	bool hasOnUserTouchedObjectCooledDown(double cur_time);
 	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, double cur_time) noexcept;
 	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != LUA_NOREF; }
 	
@@ -72,8 +71,6 @@ public:
 	UniqueRef<LuaScript> lua_script;
 	LuaScriptOutputHandler* script_output_handler;
 	bool hit_error;
-
-	double last_onUserTouchedObject_exec_time;
 
 	WorldObject* world_object;
 #if SERVER

@@ -24,7 +24,6 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 :	substrata_lua_vm(substrata_lua_vm_),
 	script_output_handler(script_output_handler_),
 	hit_error(false),
-	last_onUserTouchedObject_exec_time(-1000),
 	world_object(world_object_),
 #if SERVER
 	world_state(world_state_),
@@ -81,13 +80,6 @@ struct LuaStackChecker
 };
 
 
-bool LuaScriptEvaluator::hasOnUserTouchedObjectCooledDown(double cur_time)
-{
-	const double time_since_last_exec = cur_time - last_onUserTouchedObject_exec_time;
-	return time_since_last_exec >= 1.0;
-}
-
-
 void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, double cur_time) noexcept
 {
 	//conPrint("LuaScriptEvaluator: onUserTouchedObject");
@@ -95,19 +87,6 @@ void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID
 		return;
 
 	//LuaStackChecker checker(lua_script->thread_state);
-
-	// Jolt creates contactAdded events very fast, so limit how often we call onUserTouchedObject.
-	// TODO: rate limit per user.
-	//const double time_since_last_exec = cur_time - last_onUserTouchedObject_exec_time;
-	//if(time_since_last_exec < 1.0)
-	//{
-	//	//conPrint("waiting...");
-	//	return;
-	//}
-	if(!hasOnUserTouchedObjectCooledDown(cur_time))
-		return;
-
-	last_onUserTouchedObject_exec_time = cur_time;
 
 	try
 	{
@@ -380,7 +359,7 @@ void LuaScriptEvaluator::pushUserTableOntoStack(UserID client_user_id)
 
 	// Set table UserID field
 	// NOTE: Actually using avatar id
-	LuaUtils::setNumberAsTableField(lua_script->thread_state, "id", client_user_id.value());
+	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", client_user_id.value()); // NOTE: Call it "uid" for consistency with object, parcel etc.
 
 	// Assign user metatable to the user table
 	lua_getref(lua_script->thread_state, substrata_lua_vm->userClassMetaTable_ref); // Push UserClassMetaTable onto stack
@@ -413,7 +392,7 @@ void LuaScriptEvaluator::pushWorldObjectTableOntoStack(UID uid)
 	lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	// Set table UID field
-	LuaUtils::setLightUserDataAsTableField(lua_script->thread_state, "uid", (void*)uid.value());
+	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)uid.value());
 }
 
 
@@ -427,5 +406,5 @@ void LuaScriptEvaluator::pushParcelTableOntoStack(ParcelID parcel_id)
 	//lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	// Set table UID field
-	LuaUtils::setLightUserDataAsTableField(lua_script->thread_state, "uid", (void*)(uint64)parcel_id.value());
+	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)parcel_id.value());
 }
