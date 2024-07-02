@@ -1067,7 +1067,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 		PCG32 rng(1);
 
-		for(int i=0; i<staticArrayNumElems(parcel_positions); ++i)
+		for(int i=0; i<(int)staticArrayNumElems(parcel_positions); ++i)
 		{
 			const Vec3f pos = parcel_positions[i];
 

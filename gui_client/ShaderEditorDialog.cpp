@@ -107,7 +107,7 @@ void ShaderEditorDialog::mouseDoubleClickedInOutput(QMouseEvent* e)
 
 	const int output_line_num = output_cursor.blockNumber();
 
-	if(output_line_num >= 0 && output_line_num < error_locations.size())
+	if(output_line_num >= 0 && output_line_num < (int)error_locations.size())
 	{
 		const ErrorLocation& loc = error_locations[output_line_num];
 
