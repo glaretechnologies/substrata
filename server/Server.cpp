@@ -559,8 +559,6 @@ int main(int argc, char *argv[])
 			
 			// Handle any queued messages from worker threads
 			{
-				const double cur_time = server.total_timer.elapsed();
-
 				Lock lock(server.message_queue.getMutex());
 				while(server.message_queue.unlockedNonEmpty())
 				{
@@ -597,11 +595,11 @@ int main(int argc, char *argv[])
 							WorldObject* ob = res->second.ptr();
 
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, touched_msg->avatar_uid, ob->uid, cur_time);
+								ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, touched_msg->avatar_uid, ob->uid);
 
 							// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserTouchedObjectHandlers(touched_msg->avatar_uid, ob->uid, cur_time);
+								ob->event_handlers->executeOnUserTouchedObjectHandlers(touched_msg->avatar_uid, ob->uid);
 						}
 					}
 					else if(dynamic_cast<UserMovedNearToObjectThreadMessage*>(msg.ptr()))

@@ -363,6 +363,9 @@ static int getCurrentTime(lua_State* state)
 }
 
 
+static const int MAX_NUM_OB_EVENT_LISTENS = 20;
+
+
 static int luaAddEventListener(lua_State* state)
 {
 	// Expected args:
@@ -386,6 +389,9 @@ static int luaAddEventListener(lua_State* state)
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
+	script_evaluator->num_obs_event_listening++;
+	if(script_evaluator->num_obs_event_listening > MAX_NUM_OB_EVENT_LISTENS)
+		throw glare::Exception("Script added too many event listeners, max is " + toString(MAX_NUM_OB_EVENT_LISTENS) + errorContextString(state));
 
 	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid); // Just call this to throw an excep if no such object exists
 	if(ob->event_handlers.isNull())
@@ -1132,11 +1138,6 @@ static int userClassIndexMetaMethod(lua_State* state)
 			lua_pushcfunction(state, user_setLinearVelocity, "user_setLinearVelocity");
 			return 1;
 		}
-		else if(stringEqual(key_str, "createObject"))
-		{
-			lua_pushcfunction(state, createObject, "createObject");
-			return 1;
-		}
 		else if(stringEqual(key_str, "pos"))
 		{
 			LuaUtils::pushVec3d(state, avatar->pos);
@@ -1222,10 +1223,6 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "setLinearVelocity"));
 		lua_pushcfunction(state, user_setLinearVelocity, "user_setLinearVelocity");
 		return 1;
-	case Atom_createObject:
-		assert(stringEqual(key_str, "createObject"));
-		lua_pushcfunction(state, createObject, "user_createObject"); // TODO: move to top-level function? 
-		return 1;
 	case Atom_pos:
 		assert(stringEqual(key_str, "pos"));
 		LuaUtils::pushVec3d(state, avatar->pos);
@@ -1273,8 +1270,8 @@ SubstrataLuaVM::SubstrataLuaVM()
 
 
 	// Set some global functions
-	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
-	lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
+//TEMP DISABLED	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
+//	lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
 	
 	lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getObjectForUID");
 	lua_setglobal(lua_vm->state, "getObjectForUID");
