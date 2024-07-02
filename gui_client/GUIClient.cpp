@@ -4635,11 +4635,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 									{
 										ob->last_touch_event_time = cur_time;
 
-										ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, cur_time);
+										ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid);
 
 										// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 										if(ob->event_handlers)
-											ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid, cur_time);
+											ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid);
 
 										// Send message to server to execute onUserTouchedObject on the server
 										MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
@@ -4684,11 +4684,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			{
 				// Execute local script
 				if(ev.ob->lua_script_evaluator)
-					ev.ob->lua_script_evaluator->doOnUserTouchedObject(ev.ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ev.ob->uid, cur_time);
+					ev.ob->lua_script_evaluator->doOnUserTouchedObject(ev.ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ev.ob->uid);
 
 				// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 				if(ev.ob->event_handlers)
-					ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid, cur_time);
+					ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid);
 
 				// Send message to server to execute onUserTouchedObject on the server
 				MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
