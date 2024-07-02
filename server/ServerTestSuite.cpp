@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "AccountHandlers.h"
+#include "ServerLuaScriptTests.h"
 #include "../shared/WorldObject.h"
 #include "../shared/LODGeneration.h"
 #include "../ethereum/RLP.h"
@@ -30,6 +31,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/Keccak256.h>
 #include <utils/CryptoRNG.h>
 #include <utils/Base64.h>
+#include <utils/ReferenceTest.h>
+#include <lua/LuaTests.h>
+#include <lua/LuaUtils.h>
 #include <functional>
 
 
@@ -83,6 +87,10 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { ReferenceTest::run();												});
+	runTest([&]() { ServerLuaScriptTests::test(); });
+	runTest([&]() { LuaUtils::test(); });
+	runTest([&]() { LuaTests::test(); });
 	runTest([&]() { web::ResponseUtils::test();											});
 	runTest([&]() { Parser::doUnitTests();												});
 	runTest([&]() { StringUtils::test();												});
