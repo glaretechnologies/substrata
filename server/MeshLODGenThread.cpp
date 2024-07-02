@@ -636,6 +636,8 @@ void MeshLODGenThread::doRun()
 			conPrint("MeshLODGenThread: Done generating LOD textures. (Elapsed: " + timer.elapsedStringNSigFigs(4));
 
 			//------------------------------------------- Generate each KTX texture, without holding the world lock -------------------------------------------
+// NOTE: Disable KTX texture generation currently, since basis universal has lots of compile warnings which clutter up the build output, and we don't use basisu KTX files currently.
+#if 0
 			conPrint("MeshLODGenThread: Generating KTX textures...");
 			timer.reset();
 
@@ -675,6 +677,7 @@ void MeshLODGenThread::doRun()
 			}
 
 			conPrint("MeshLODGenThread: Done generating KTX textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+#endif
 			//------------------------------------------- End Generate each KTX texture  -------------------------------------------
 		}
 	}
