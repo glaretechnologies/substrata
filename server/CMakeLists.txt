@@ -257,7 +257,7 @@ ${meshoptimizer}
 ${webclient_files}
 ${substrata_private_webserver}
 ${substrata_private_server}
-${basisu_files}
+#${basisu_files}
 ${luau_vm}
 ${luau_compiler}
 ${lua}

@@ -34,7 +34,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <dll/IndigoStringUtils.h>
 #include <dll/IndigoStringUtils.h>
 #if !GUI_CLIENT
-#include <encoder/basisu_comp.h>
+//#include <encoder/basisu_comp.h>
 #endif
 
 namespace LODGeneration
@@ -232,6 +232,7 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 }
 
 
+#if 0
 void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx_tex_path, glare::TaskManager& task_manager)
 {
 #if GUI_CLIENT
@@ -296,8 +297,10 @@ void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int
 	}
 #endif
 }
+#endif
 
 
+#if 0
 void writeBasisUniversalKTXFile(const ImageMapUInt8& imagemap, const std::string& path)
 {
 #if GUI_CLIENT
@@ -346,6 +349,7 @@ void writeBasisUniversalKTXFile(const ImageMapUInt8& imagemap, const std::string
 	conPrint("Basisu compression and writing of KTX file took " + timer.elapsedStringNSigFigs(3));
 #endif
 }
+#endif
 
 
 // Look up from cache or recompute.
@@ -502,7 +506,7 @@ void LODGeneration::test()
 		}
 
 
-#if !GUI_CLIENT  // generateKTXTexture is disabled in gui_client.
+#if 0 // !GUI_CLIENT  // generateKTXTexture is disabled in gui_client.
 		//------------------------------------------- Test KTX texture generation -------------------------------------------
 		// Test writing an 8 bit RGB KTX image.
 		{
