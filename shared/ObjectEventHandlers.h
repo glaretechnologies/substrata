@@ -44,7 +44,7 @@ class ObjectEventHandlers : public ThreadSafeRefCounted
 {
 public:
 	void executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob_uid);
-	void executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid, double cur_time);
+	void executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid);
 	void executeOnUserMovedNearToObjectHandlers(UID avatar_uid, UID ob_uid);
 	void executeOnUserMovedAwayFromObjectHandlers(UID avatar_uid, UID ob_uid);
 	void executeOnUserEnteredParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id);

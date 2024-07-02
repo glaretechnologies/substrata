@@ -35,10 +35,10 @@ public:
 		,ServerWorldState* world_state // The world that the object belongs to.
 #endif
 	);
-	virtual ~LuaScriptEvaluator();
+	~LuaScriptEvaluator();
 
 
-	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, double cur_time) noexcept;
+	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept;
 	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != LUA_NOREF; }
 	
 	void doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept; // client_user_id may be invalid if user is not logged in
@@ -87,6 +87,8 @@ public:
 	LuaTimerInfo timers[MAX_NUM_TIMERS];
 
 	int next_timer_id;
+
+	int num_obs_event_listening; // Number of objects that this script has added an event listener to.
 
 	int onUserTouchedObject_ref;
 	int onUserUsedObject_ref;

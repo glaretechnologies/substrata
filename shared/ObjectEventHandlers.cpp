@@ -56,7 +56,7 @@ void ObjectEventHandlers::executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob
 }
 
 
-void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid, double cur_time)
+void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid)
 {
 	// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 	for(size_t z=0; z<onUserTouchedObject_handlers.handler_funcs.size(); )
@@ -64,7 +64,7 @@ void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID
 		HandlerFunc& handler_func = onUserTouchedObject_handlers.handler_funcs[z];
 		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
 		{
-			eval->doOnUserTouchedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, cur_time);
+			eval->doOnUserTouchedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid);
 			z++;
 		}
 		else

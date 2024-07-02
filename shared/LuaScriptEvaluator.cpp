@@ -28,7 +28,8 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 #if SERVER
 	world_state(world_state_),
 #endif
-	next_timer_id(0)
+	next_timer_id(0),
+	num_obs_event_listening(0)
 {
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
 		timers[i].id = -1;
@@ -61,7 +62,7 @@ LuaScriptEvaluator::~LuaScriptEvaluator()
 }
 
 
-void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, double cur_time) noexcept
+void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept
 {
 	//conPrint("LuaScriptEvaluator: onUserTouchedObject");
 	if(hit_error || (func_ref == LUA_NOREF))
@@ -327,7 +328,6 @@ void LuaScriptEvaluator::pushUserTableOntoStack(UserID client_user_id)
 	lua_createtable(lua_script->thread_state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
 
 	// Set table UserID field
-	// NOTE: Actually using avatar id
 	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", client_user_id.value()); // NOTE: Call it "uid" for consistency with object, parcel etc.
 
 	// Assign user metatable to the user table
