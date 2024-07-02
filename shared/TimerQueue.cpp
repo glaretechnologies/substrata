@@ -127,6 +127,12 @@ void TimerQueue::update(double cur_time, std::vector<TimerQueueTimer>& triggered
 #endif
 }
 
+void TimerQueue::clear()
+{
+	while(!queue.empty())
+		queue.pop();
+}
+
 #if 0
 size_t TimerQueue::numValidTimersInBucket(size_t bucket_i)
 {

@@ -73,6 +73,8 @@ public:
 
 	void update(double cur_time, std::vector<TimerQueueTimer>& triggered_timers_out);
 
+	void clear(); // Just used for testing
+
 	static void test();
 
 private:
