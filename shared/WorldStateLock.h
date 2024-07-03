@@ -11,9 +11,14 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/Mutex.h>
 
 
+/*=====================================================================
+WorldStateMutex
+---------------
+Use the C++ type system to distinguish between the world state mutex and
+other mutexes.
+=====================================================================*/
 class WorldStateMutex : public Mutex
 {
-
 };
 
 
