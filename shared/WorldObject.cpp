@@ -850,7 +850,7 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 		ob.angle = 0;
 
 	//if(v >= 3)
-		ob.scale = readVec3FromStream<float>(stream);
+	ob.scale = readVec3FromStream<float>(stream);
 
 	ob.created_time.readFromStream(stream);
 	ob.last_modified_time.readFromStream(stream);
