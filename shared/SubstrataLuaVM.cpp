@@ -35,9 +35,11 @@ struct StringAtom
 
 enum StringAtomEnum
 {
+	// Common
 	Atom_uid,
 	Atom_idx,
 
+	// WorldObject
 	Atom_model_url,
 	Atom_pos,
 	Atom_axis,
@@ -60,6 +62,7 @@ enum StringAtomEnum
 	Atom_script,
 	Atom_materials,
 
+	// WorldMaterial
 	Atom_colour,
 	Atom_colour_texture_url,
 	Atom_emission_rgb,
@@ -74,13 +77,9 @@ enum StringAtomEnum
 	Atom_hologram,
 	Atom_double_sided,
 
-	Atom_setLinearVelocity,
-	Atom_createObject,
-	Atom_createTimer,
-	Atom_destroyTimer,
-
 	// Avatar
 	Atom_name,
+	Atom_linear_velocity,
 
 	// Events
 	Atom_onUserUsedObject,
@@ -93,6 +92,7 @@ enum StringAtomEnum
 
 static StringAtom string_atoms[] = 
 {
+	// Common
 	StringAtom({"uid",						Atom_uid						}),
 	StringAtom({"idx",						Atom_idx						}),
 
@@ -134,14 +134,9 @@ static StringAtom string_atoms[] =
 	StringAtom({"hologram",					Atom_hologram,					}),
 	StringAtom({"double_sided",				Atom_double_sided,				}),
 
-
-	StringAtom({"setLinearVelocity",		Atom_setLinearVelocity,			}),
-	StringAtom({"createObject",				Atom_createObject,				}),
-	StringAtom({"createTimer",				Atom_createTimer,				}),
-	StringAtom({"destroyTimer",				Atom_destroyTimer,				}),
-
 	// Avatar
 	StringAtom({"name",						Atom_name,						}),
+	StringAtom({"linear_velocity",			Atom_linear_velocity,			}),
 
 	// Events:
 	StringAtom({"onUserUsedObject",			Atom_onUserUsedObject,			}),
@@ -151,8 +146,6 @@ static StringAtom string_atoms[] =
 	StringAtom({"onUserEnteredParcel",		Atom_onUserEnteredParcel,		}),
 	StringAtom({"onUserExitedParcel",		Atom_onUserExitedParcel,		}),
 };
-
-
 
 
 #if GUI_CLIENT
@@ -195,27 +188,6 @@ static void checkNumArgs(lua_State* state, int num_args_required)
 	const int num_args = lua_gettop(state);
 	if(num_args < num_args_required)
 		throw glare::Exception("Expected " + toString(num_args_required) + " arg(s) to function, got " + toString(num_args) + "." + errorContextString(state));
-}
-
-
-static int user_setLinearVelocity(lua_State* state)
-{
-	// Expected args:
-	// Arg 1: user : User
-	// Arg 2: velocity_change : vec3
-
-	checkNumArgs(state, /*num_args_required*/3);
-
-#if GUI_CLIENT
-	const double x = LuaUtils::getTableNumberField(state, /*table_index=*/2, "x");
-	const double y = LuaUtils::getTableNumberField(state, /*table_index=*/2, "y");
-	const double z = LuaUtils::getTableNumberField(state, /*table_index=*/2, "z");
-
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	sub_lua_vm->player_physics->setLinearVel(Vec4f((float)x, (float)y, (float)z, 0));
-#endif
-
-	return 0; // Count of returned values
 }
 
 
@@ -1188,12 +1160,7 @@ static int userClassIndexMetaMethod(lua_State* state)
 	const char* key_str = lua_tolstring(state, /*index=*/2, /*stringlen=*/NULL); // May return NULL if not a string
 	if(key_str)
 	{
-		if(stringEqual(key_str, "setLinearVelocity"))
-		{
-			lua_pushcfunction(state, user_setLinearVelocity, "user_setLinearVelocity");
-			return 1;
-		}
-		else if(stringEqual(key_str, "pos"))
+		if(stringEqual(key_str, "pos"))
 		{
 			LuaUtils::pushVec3d(state, avatar->pos);
 			return 1;
@@ -1282,10 +1249,6 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
 	switch(atom)
 	{
-	case Atom_setLinearVelocity:
-		assert(stringEqual(key_str, "setLinearVelocity"));
-		lua_pushcfunction(state, user_setLinearVelocity, "user_setLinearVelocity");
-		return 1;
 	case Atom_pos:
 		assert(stringEqual(key_str, "pos"));
 		LuaUtils::pushVec3d(state, avatar->pos);
@@ -1294,8 +1257,17 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "name"));
 		LuaUtils::pushString(state, avatar->name);
 		return 1;
+	case Atom_linear_velocity:
+		assert(stringEqual(key_str, "linear_velocity"));
+#if GUI_CLIENT
+		LuaUtils::pushVec3f(state, Vec3f(sub_lua_vm->gui_client->player_physics.getLinearVel()));
+		return 1;
+#else // else server:
+		LuaUtils::pushVec3f(state, Vec3f(0.f));
+		return 1;
+#endif
 	default:
-		throw glare::Exception("User class: Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
+		throw glare::Exception("Avatar class: Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
 	}
 }
 
@@ -1306,6 +1278,56 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 	// Arg 1: table 
 	// Arg 2: key
 	// Arg 3: value
+
+#if GUI_CLIENT
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
+	checkHoldWorldStateMutex(script_evaluator, world_state);
+#endif
+
+	const UID avatar_uid = UID((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+	// Read key
+	int atom = -1;
+	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
+	switch(atom) // NOTE: The switch cases should be in the same order as the Atom enum values to ensure nice code-gen.
+	{
+		case Atom_pos:
+		{
+			assert(stringEqual(key_str, "pos"));
+#if GUI_CLIENT
+			if(avatar_uid == sub_lua_vm->gui_client->client_avatar_uid)
+			{
+				const Vec3d pos = LuaUtils::getVec3d(state, /*index=*/3);
+				sub_lua_vm->gui_client->player_physics.setPosition(pos);
+			}
+#endif
+			break;
+		}
+		case Atom_name:
+		{
+			assert(stringEqual(key_str, "name"));
+			throw glare::Exception("Can't set avatar name");
+			break;
+		}
+		case Atom_linear_velocity:
+		{
+			assert(stringEqual(key_str, "linear_velocity"));
+#if GUI_CLIENT
+			if(avatar_uid == sub_lua_vm->gui_client->client_avatar_uid)
+			{
+				const Vec3f new_linear_vel = LuaUtils::getVec3f(state, /*index=*/3);
+				sub_lua_vm->gui_client->player_physics.setLinearVel(new_linear_vel.toVec4fVector());
+			}
+#endif
+			break;
+		}
+	default:
+		throw glare::Exception("Avatar class: Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
+	}
+
 	return 0; // Count of returned values
 }
 
