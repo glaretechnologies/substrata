@@ -147,7 +147,7 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 		// Compute and assign aabb_ws to object.
 		if(!aabb_os.isEmpty()) // If we got a valid aabb_os:
 		{
-			Lock lock(world_state->mutex);
+			WorldStateLock lock(world_state->mutex);
 
 			const bool updating_aabb_ws = !(approxEq(aabb_os.min_, ob->getAABBOS().min_) && approxEq(aabb_os.max_, ob->getAABBOS().max_)); //aabb_os != ob->getAABBOS();
 			if(updating_aabb_ws)
@@ -157,7 +157,7 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 				conPrint("New AABB_os: "+ aabb_os.toString());
 
 				ob->setAABBOS(aabb_os);
-				world->addWorldObjectAsDBDirty(ob);
+				world->addWorldObjectAsDBDirty(ob, lock);
 			}
 		}
 	}
@@ -311,8 +311,8 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 							if(mat->flags != old_flags)
 							{
 								{
-									Lock lock(world_state->mutex);
-									world->addWorldObjectAsDBDirty(ob);
+									WorldStateLock lock(world_state->mutex);
+									world->addWorldObjectAsDBDirty(ob, lock);
 								}
 								conPrint("Updated mat flags: (for mat with tex " + tex_abs_path + "): is_hi_res: " + boolToString(is_high_res));
 							}
@@ -497,14 +497,15 @@ void MeshLODGenThread::doRun()
 			Timer timer;
 			
 			{
-				Lock lock(world_state->mutex);
+				WorldStateLock lock(world_state->mutex);
 
 				if(do_initial_full_scan)
 				{
 					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
 					{
 						ServerWorldState* world = world_it->second.ptr();
-						for(auto it = world->objects.begin(); it != world->objects.end(); ++it)
+						ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
+						for(auto it = objects.begin(); it != objects.end(); ++it)
 						{
 							WorldObject* ob = it->second.ptr();
 							try
@@ -533,8 +534,8 @@ void MeshLODGenThread::doRun()
 					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
 					{
 						ServerWorldState* world = world_it->second.ptr();
-						auto res = world->objects.find(ob_to_scan_UID);
-						if(res != world->objects.end())
+						auto res = world->getObjects(lock).find(ob_to_scan_UID);
+						if(res != world->getObjects(lock).end())
 						{
 							WorldObject* ob = res->second.ptr();
 							try

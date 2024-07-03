@@ -39,7 +39,7 @@ void HandlerList::removeHandlerAtIndex(size_t i)
 }
 
 
-void ObjectEventHandlers::executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob_uid)
+void ObjectEventHandlers::executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock)
 {
 	// Execute doOnUserUsedObject event handler in any other scripts that are listening for doOnUserUsedObject for this object
 	for(size_t z=0; z<onUserUsedObject_handlers.handler_funcs.size(); )
@@ -47,7 +47,7 @@ void ObjectEventHandlers::executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob
 		HandlerFunc& handler_func = onUserUsedObject_handlers.handler_funcs[z];
 		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
 		{
-			eval->doOnUserUsedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid);
+			eval->doOnUserUsedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
 		}
 		else
@@ -56,7 +56,7 @@ void ObjectEventHandlers::executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob
 }
 
 
-void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid)
+void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock)
 {
 	// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 	for(size_t z=0; z<onUserTouchedObject_handlers.handler_funcs.size(); )
@@ -64,7 +64,7 @@ void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID
 		HandlerFunc& handler_func = onUserTouchedObject_handlers.handler_funcs[z];
 		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
 		{
-			eval->doOnUserTouchedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid);
+			eval->doOnUserTouchedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
 		}
 		else
@@ -73,7 +73,7 @@ void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID
 }
 
 
-void ObjectEventHandlers::executeOnUserMovedNearToObjectHandlers(UID avatar_uid, UID ob_uid)
+void ObjectEventHandlers::executeOnUserMovedNearToObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock)
 {
 	// Execute doOnUserMovedNearToObject event handler in any other scripts that are listening for onUserMovedNearToObject for this object
 	for(size_t z=0; z<onUserMovedNearToObject_handlers.handler_funcs.size(); )
@@ -81,7 +81,7 @@ void ObjectEventHandlers::executeOnUserMovedNearToObjectHandlers(UID avatar_uid,
 		HandlerFunc& handler_func = onUserMovedNearToObject_handlers.handler_funcs[z];
 		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
 		{
-			eval->doOnUserMovedNearToObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid);
+			eval->doOnUserMovedNearToObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
 		}
 		else
@@ -90,7 +90,7 @@ void ObjectEventHandlers::executeOnUserMovedNearToObjectHandlers(UID avatar_uid,
 }
 
 
-void ObjectEventHandlers::executeOnUserMovedAwayFromObjectHandlers(UID avatar_uid, UID ob_uid)
+void ObjectEventHandlers::executeOnUserMovedAwayFromObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock)
 {
 	// Execute doOnUserMovedAwayFromObject event handler in any other scripts that are listening for onUserMovedAwayFromObject for this object
 	for(size_t z=0; z<onUserMovedAwayFromObject_handlers.handler_funcs.size(); )
@@ -98,7 +98,7 @@ void ObjectEventHandlers::executeOnUserMovedAwayFromObjectHandlers(UID avatar_ui
 		HandlerFunc& handler_func = onUserMovedAwayFromObject_handlers.handler_funcs[z];
 		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
 		{
-			eval->doOnUserMovedAwayFromObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid);
+			eval->doOnUserMovedAwayFromObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
 		}
 		else
@@ -107,14 +107,14 @@ void ObjectEventHandlers::executeOnUserMovedAwayFromObjectHandlers(UID avatar_ui
 }
 
 
-void ObjectEventHandlers::executeOnUserEnteredParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id)
+void ObjectEventHandlers::executeOnUserEnteredParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock)
 {
 	for(size_t z=0; z<onUserEnteredParcel_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserEnteredParcel_handlers.handler_funcs[z];
 		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
 		{
-			eval->doOnUserEnteredParcel(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, parcel_id);
+			eval->doOnUserEnteredParcel(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, parcel_id, world_state_lock);
 			z++;
 		}
 		else
@@ -123,14 +123,14 @@ void ObjectEventHandlers::executeOnUserEnteredParcelHandlers(UID avatar_uid, UID
 }
 
 
-void ObjectEventHandlers::executeOnUserExitedParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id)
+void ObjectEventHandlers::executeOnUserExitedParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock)
 {
 	for(size_t z=0; z<onUserExitedParcel_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserExitedParcel_handlers.handler_funcs[z];
 		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
 		{
-			eval->doOnUserExitedParcel(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, parcel_id);
+			eval->doOnUserExitedParcel(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, parcel_id, world_state_lock);
 			z++;
 		}
 		else

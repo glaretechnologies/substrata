@@ -48,12 +48,12 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 		page += "<div class=\"main\">   \n";
 
 		{ // lock scope
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			Reference<ServerWorldState> root_world = world_state.getRootWorldState();
 
-			auto res = root_world->parcels.find(ParcelID(parcel_id));
-			if(res == root_world->parcels.end())
+			auto res = root_world->getParcels(lock).find(ParcelID(parcel_id));
+			if(res == root_world->getParcels(lock).end())
 				throw glare::Exception("Couldn't find parcel");
 
 			const Parcel* parcel = res->second.ptr();
@@ -584,7 +584,7 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 
 		{ // Lock scope
 
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			// Lookup parcel
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
@@ -596,7 +596,7 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
 				{
 					parcel->description = new_descrip.str();
-					world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+					world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 					world_state.markAsChanged();
 
@@ -631,7 +631,7 @@ void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::Req
 
 		{ // Lock scope
 
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			// Lookup parcel
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
@@ -654,7 +654,7 @@ void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::Req
 						{
 							added_writer = true;
 							parcel->writer_ids.push_back(new_writer_user->id);
-							world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+							world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 							message = "Added user as writer.";
 						}
 						else
@@ -703,7 +703,7 @@ void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::
 		const UserID writer_id = UserID(request.getPostIntField("writer_id"));
 
 		{ // Lock scope
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			// Lookup parcel
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
@@ -721,7 +721,7 @@ void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::
 					else
 						world_state.setUserWebMessage(logged_in_user->id, "User was not a writer.");
 
-					world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+					world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 					world_state.denormaliseData(); // Update parcel writer names
 					world_state.markAsChanged();

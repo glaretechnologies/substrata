@@ -51,6 +51,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/SubstrataLuaVM.h"
 #include "../shared/ObjectEventHandlers.h"
+#include "../shared/WorldStateLock.h"
 #include "../server/User.h"
 #include "../shared/WorldSettings.h"
 #include "../maths/Quat.h"
@@ -1688,7 +1689,7 @@ void GUIClient::errorOccurred(LuaScript* script, const std::string& msg)
 // Also enqueue any downloads for missing resources such as textures.
 //
 // Also called from checkForLODChanges() when the object LOD level changes, and so we may need to load a new model and/or textures.
-void GUIClient::loadModelForObject(WorldObject* ob)
+void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock)
 {
 	// conPrint("loadModelForObject(): UID: " + ob->uid.toString());
 	const Vec4f campos = cam_controller.getPosition().toVec4fPoint();
@@ -1839,7 +1840,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				recreateTextGraphicsAndPhysicsObs(ob);
 
-				loadScriptForObject(ob); // Load any script for the object.
+				loadScriptForObject(ob, world_state_lock); // Load any script for the object.
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
@@ -1899,7 +1900,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 				physics_world->addObject(ob->physics_object);
 
-				loadScriptForObject(ob); // Load any script for the object.
+				loadScriptForObject(ob, world_state_lock); // Load any script for the object.
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_WebView)
@@ -2063,7 +2064,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 					assert(is_meshdata_loaded_into_opengl);
 					if(is_meshdata_loaded_into_opengl)
 					{
-						loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level);
+						loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level, world_state_lock);
 						added_opengl_ob = true;
 					}
 				}
@@ -2131,7 +2132,7 @@ void GUIClient::loadModelForObject(WorldObject* ob)
 
 
 // Create OpenGL and Physics objects for the WorldObject, given that the OpenGL and physics meshes are present in memory.
-void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level)
+void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, WorldStateLock& world_state_lock)
 {
 	removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
 
@@ -2218,7 +2219,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 	//ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
-	loadScriptForObject(ob); // Load any script for the object.
+	loadScriptForObject(ob, world_state_lock); // Load any script for the object.
 
 	// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 	if(this->selected_ob == ob)
@@ -2459,7 +2460,7 @@ void GUIClient::removeObScriptingInfo(WorldObject* ob)
 }
 
 
-void GUIClient::loadScriptForObject(WorldObject* ob)
+void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state_lock)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 	ZoneScoped; // Tracy profiler
@@ -2522,7 +2523,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob)
 			ob->lua_script_evaluator = NULL;
 			scripted_ob_proximity_checker.removeObject(ob);
 
-			ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob);
+			ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob, world_state_lock);
 
 			// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.
 			if(	ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined() || 
@@ -3314,7 +3315,7 @@ void GUIClient::checkForLODChanges()
 		
 	//Timer timer;
 	{
-		Lock lock(this->world_state->mutex);
+		WorldStateLock lock(this->world_state->mutex);
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
 #if EMSCRIPTEN
@@ -3366,7 +3367,7 @@ void GUIClient::checkForLODChanges()
 
 				if((lod_level != ob->current_lod_level)/* || ob->opengl_engine_ob.isNull()*/)
 				{
-					loadModelForObject(ob);
+					loadModelForObject(ob, lock);
 					ob->current_lod_level = lod_level;
 					// conPrint("Changing LOD level for object " + ob->uid.toString() + " to " + toString(lod_level));
 				}
@@ -3374,7 +3375,7 @@ void GUIClient::checkForLODChanges()
 				if(!ob->in_proximity) // If an object was out of load distance, and moved within load distance:
 				{
 					ob->in_proximity = true;
-					loadModelForObject(ob);
+					loadModelForObject(ob, lock);
 					ob->current_lod_level = lod_level;
 				}
 			}
@@ -3478,8 +3479,8 @@ void GUIClient::processLoading()
 		size_t total_bytes_uploaded = 0;
 		const size_t max_total_upload_bytes = 1024 * 1024;
 
-		int num_models_loaded = 0;
-		int num_textures_loaded = 0;
+		//int num_models_loaded = 0;
+		//int num_textures_loaded = 0;
 		//while((cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
 		while((tex_loading_progress.loadingInProgress() || cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && 
 			(total_bytes_uploaded < max_total_upload_bytes) && 
@@ -3528,7 +3529,7 @@ void GUIClient::processLoading()
 					const int loaded_model_lod_level = WorldObject::getLODLevelForURL(cur_loading_lod_model_url/*message->lod_model_url*/);
 
 					// Assign the loaded model for any objects using waiting for this model:
-					Lock lock(this->world_state->mutex);
+					WorldStateLock lock(this->world_state->mutex);
 
 					const ModelProcessingKey model_loading_key(cur_loading_lod_model_url, cur_loading_dynamic_physics_shape);
 					auto res = this->loading_model_URL_to_world_ob_UID_map.find(model_loading_key);
@@ -3560,7 +3561,7 @@ void GUIClient::processLoading()
 											if(!isFinite(ob->angle) || !ob->axis.isFinite())
 												throw glare::Exception("Invalid angle or axis");
 
-											loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level);
+											loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level, lock);
 										}
 										catch(glare::Exception& e)
 										{
@@ -3732,7 +3733,9 @@ void GUIClient::processLoading()
 
 								// ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
 
-								loadScriptForObject(voxel_ob.ptr()); // Load any script for the object.
+								WorldStateLock lock(this->world_state->mutex);
+
+								loadScriptForObject(voxel_ob.ptr(), lock); // Load any script for the object.
 							}
 
 							voxel_ob->loading_or_loaded_model_lod_level = cur_loading_voxel_ob_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
@@ -3800,7 +3803,7 @@ void GUIClient::processLoading()
 					//size_t loaded_size_B = 0;
 
 					// conPrint("Handling model loaded message, lod_model_url: " + message->lod_model_url);
-					num_models_loaded++;
+					//num_models_loaded++;
 
 					try
 					{
@@ -3871,7 +3874,7 @@ void GUIClient::processLoading()
 					texture_loaded_messages_to_process.pop_front();
 
 					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
-					num_textures_loaded++;
+					//num_textures_loaded++;
 
 					this->cur_loading_terrain_map = message->terrain_map;
 
@@ -4181,13 +4184,15 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
 	{
-		Lock lock(this->world_state->mutex);
-		scripted_ob_proximity_checker.think(cam_controller.getPosition().toVec4fPoint());
+		WorldStateLock lock(this->world_state->mutex);
+		scripted_ob_proximity_checker.think(cam_controller.getPosition().toVec4fPoint(), lock);
 	}
 
 	// Do Lua timer callbacks
 	if(false) // TEMP 
 	{
+		WorldStateLock lock(this->world_state->mutex);
+
 		const double cur_time = total_timer.elapsed();
 		timer_queue.update(cur_time, /*triggered_timers_out=*/temp_triggered_timers);
 
@@ -4202,7 +4207,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
 				if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
 				{
-					script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref); // Execute the Lua timer event callback function
+					script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
 
 					if(timer.repeating)
 					{
@@ -4615,7 +4620,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					// Execute script events on any player contacted events.
 					// These are events generated in PlayerPhysics::update() by contact between the virtual character controller and Jolt bodies.
 					{
-						Lock world_state_lock(this->world_state->mutex);
+						WorldStateLock world_state_lock(this->world_state->mutex);
 						for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
 						{
 							PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
@@ -4635,11 +4640,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 									{
 										ob->last_touch_event_time = cur_time;
 
-										ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid);
+										ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, world_state_lock);
 
 										// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 										if(ob->event_handlers)
-											ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid);
+											ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid, world_state_lock);
 
 										// Send message to server to execute onUserTouchedObject on the server
 										MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
@@ -4673,7 +4678,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// Process any player_contact_added_events generated while running physics world update()
 	// These are events generated by contact between the interaction character body and sensor Jolt bodies.
 	{
-		Lock world_state_lock(this->world_state->mutex);
+		WorldStateLock world_state_lock(this->world_state->mutex);
 		Lock lock(player_contact_added_events_mutex);
 
 		for(size_t i=0; i<player_contact_added_events.size(); ++i)
@@ -4684,11 +4689,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			{
 				// Execute local script
 				if(ev.ob->lua_script_evaluator)
-					ev.ob->lua_script_evaluator->doOnUserTouchedObject(ev.ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ev.ob->uid);
+					ev.ob->lua_script_evaluator->doOnUserTouchedObject(ev.ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ev.ob->uid, world_state_lock);
 
 				// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 				if(ev.ob->event_handlers)
-					ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid);
+					ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid, world_state_lock);
 
 				// Send message to server to execute onUserTouchedObject on the server
 				MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
@@ -5136,7 +5141,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	{
 		//Timer timer;
 		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
-		Lock lock(world_state->mutex);
+		WorldStateLock lock(world_state->mutex);
 		const Parcel* parcel = world_state->getParcelPointIsIn(campos_vec3d);
 		if(parcel)
 		{
@@ -5179,11 +5184,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							{
 								// Execute script locally
 								if(ob->lua_script_evaluator)
-									ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, cur_in_parcel_id);
+									ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, cur_in_parcel_id, lock);
 
 								// Execute onUserExitedParcel event handler in any other scripts that are listening for onUserExitedParcel for this object
 								if(ob->event_handlers.nonNull())
-									ob->event_handlers->executeOnUserExitedParcelHandlers(this->client_avatar_uid, ob->uid, cur_in_parcel_id);
+									ob->event_handlers->executeOnUserExitedParcelHandlers(this->client_avatar_uid, ob->uid, cur_in_parcel_id, lock);
 
 								// Send msg to server to execute on server as well.
 								MessageUtils::initPacket(scratch_packet, Protocol::UserExitedParcelMessage);
@@ -5210,11 +5215,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						{
 							// Execute script locally
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, new_in_parcel_id);
+								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, new_in_parcel_id, lock);
 
 							// Execute onUserEnteredParcel event handler in any other scripts that are listening for onUserEnteredParcel for this object
 							if(ob->event_handlers.nonNull())
-								ob->event_handlers->executeOnUserEnteredParcelHandlers(this->client_avatar_uid, ob->uid, new_in_parcel_id);
+								ob->event_handlers->executeOnUserEnteredParcelHandlers(this->client_avatar_uid, ob->uid, new_in_parcel_id, lock);
 
 							// Send msg to server to execute on server as well.
 							MessageUtils::initPacket(scratch_packet, Protocol::UserEnteredParcelMessage);
@@ -5385,7 +5390,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		try
 		{
-			Lock lock(this->world_state->mutex);
+			WorldStateLock lock(this->world_state->mutex);
 
 			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
 			{
@@ -5451,7 +5456,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 						if(ob->getCentroidWS().getDist2(campos) < this->load_distance2)
 						{
-							loadModelForObject(ob);
+							loadModelForObject(ob, lock);
 							loadAudioForObject(ob);
 						}
 						
@@ -9427,8 +9432,10 @@ void GUIClient::objectEdited()
 		{
 			try
 			{
+				WorldStateLock lock(this->world_state->mutex);
+
 				// Try loading script first
-				loadScriptForObject(this->selected_ob.ptr());
+				loadScriptForObject(this->selected_ob.ptr(), lock);
 
 				// If we got here, new script was valid and loaded successfully.
 					
@@ -12346,7 +12353,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 		}
 		else
 		{
-			Lock lock(world_state->mutex);
+			WorldStateLock lock(world_state->mutex);
 
 			const Vec2i widget_pos = ui_interface->getMouseCursorWidgetPos();
 
@@ -12487,11 +12494,11 @@ void GUIClient::keyPressed(KeyEvent& e)
 					if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserUsedObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty()))
 					{
 						if(ob->lua_script_evaluator)
-							ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid);
+							ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, lock);
 
 						// Execute on any event handlers also
 						if(ob->event_handlers)
-							ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/this->client_avatar_uid, ob->uid);
+							ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/this->client_avatar_uid, ob->uid, lock);
 
 						// Make message packet and enqueue to send to execute event handler on server as well
 						MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);

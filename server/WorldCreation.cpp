@@ -32,7 +32,7 @@ static const int parcel_coords[10][4][2] ={
 	{ { 45, 115 },{ 65, 115 },{ 65, 135 },{ 45, 135 } }, // 9
 };
 
-static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> world_state)
+static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> world_state, WorldStateLock& lock)
 {
 	// Add up then right parcels
 	for(int i=0; i<10; ++i)
@@ -52,14 +52,14 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 
 		test_parcel->build();
 
-		world_state->parcels[parcel_id] = test_parcel;
-		world_state->addParcelAsDBDirty(test_parcel);
+		world_state->getParcels(lock)[parcel_id] = test_parcel;
+		world_state->addParcelAsDBDirty(test_parcel, lock);
 	}
 }
 
 
 static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_topright, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state, Map2DRef road_map,
-	float base_w, float rng_width, float base_h, float rng_h)
+	float base_w, float rng_width, float base_h, float rng_h, WorldStateLock& lock)
 {
 	for(int i=0; i<100; ++i)
 	{
@@ -111,7 +111,8 @@ static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_to
 		}
 		 
 		// Check against existing parcels.
-		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+		//Lock lock(world_state->mutex);
+		for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
 		{
 			const Parcel* p = it->second.ptr();
 
@@ -143,8 +144,8 @@ static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_to
 
 			test_parcel->build();
 
-			world_state->parcels[parcel_id] = test_parcel;
-			world_state->addParcelAsDBDirty(test_parcel);
+			world_state->getParcels(lock)[parcel_id] = test_parcel;
+			world_state->addParcelAsDBDirty(test_parcel, lock);
 			return;
 		}
 	}
@@ -154,7 +155,7 @@ static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_to
 
 
 
-static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state, double parcel_w, double parcel_max_z)
+static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state, double parcel_w, double parcel_max_z, WorldStateLock& lock)
 {
 	// Randomly omit one of the 4 edge blocks
 	const int e = (int)(rng.unitRandom() * 3.9999);
@@ -201,8 +202,9 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 				}
 				else
 				{
-					world_state->parcels[parcel_id] = test_parcel;
-					world_state->addParcelAsDBDirty(test_parcel);
+					//Lock lock(world_state->mutex);
+					world_state->getParcels(lock)[parcel_id] = test_parcel;
+					world_state->addParcelAsDBDirty(test_parcel, lock);
 				}
 			}
 		}
@@ -242,8 +244,11 @@ static void makeTowerParcels(const Vec2d& botleft, int& next_id, Reference<Serve
 
 static WorldObjectRef findObWithModelURL(Reference<ServerAllWorldsState> world_state, const std::string& URL)
 {
+	WorldStateLock lock(world_state->mutex);
+
 	WorldObjectRef ob;
-	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end(); ++it)
+	//Lock lock(world_state->getRootWorldState()->mutex);
+	for(auto it = world_state->getRootWorldState()->getObjects(lock).begin(); it != world_state->getRootWorldState()->getObjects(lock).end(); ++it)
 	{
 		if(it->second->model_url == URL)
 			ob = it->second;
@@ -258,6 +263,8 @@ static WorldObjectRef findObWithModelURL(Reference<ServerAllWorldsState> world_s
 
 static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<ServerAllWorldsState> world_state, PCG32& rng, double parcel_w, double story_height, int num_stories)
 {
+	WorldStateLock lock(world_state->mutex);
+
 	// Find an object using room model to copy from
 	WorldObjectRef room1_ob = findObWithModelURL(world_state, "room1_show_noBeam_glb_5590447676997932357.bmesh");
 	WorldObjectRef room2_ob = findObWithModelURL(world_state, "room2_WindowsFLAT_glb_13600392068904710101.bmesh");
@@ -315,8 +322,8 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			for(size_t z=0; z<new_object->materials.size(); ++z)
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
-			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
 		}
 
 
@@ -351,9 +358,9 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			new_object->materials.resize(source_ob->materials.size());
 			for(size_t z=0; z<new_object->materials.size(); ++z)
 				new_object->materials[z] = source_ob->materials[z]->clone();
-
-			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+			
+			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
 		}
 
 		// Make couches etc..
@@ -401,8 +408,8 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			for(size_t z=0; z<new_object->materials.size(); ++z)
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
-			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
 		}
 
 		// Add carpet
@@ -437,8 +444,8 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			for(size_t z=0; z<new_object->materials.size(); ++z)
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
-			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
 		}
 
 		// Add couch 1
@@ -474,8 +481,8 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			for(size_t z=0; z<new_object->materials.size(); ++z)
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
-			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
 		}
 
 		// Add seat
@@ -513,8 +520,8 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			for(size_t z=0; z<new_object->materials.size(); ++z)
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
-			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
 		}
 
 		// Add lamp
@@ -553,8 +560,8 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			for(size_t z=0; z<new_object->materials.size(); ++z)
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
-			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
 		}
 	}
 }
@@ -578,7 +585,9 @@ static void makeRoad(ServerAllWorldsState& world_state, const Vec3d& pos, const 
 	test_object->materials[0]->tex_matrix = Matrix2f(scale.x / 10.f, 0, 0, scale.y / 10.f);
 	test_object->materials[0]->colour_texture_url = "stone_floor_jpg_6978110256346892991.jpg";
 
-	world_state.getRootWorldState()->objects[test_object->uid] = test_object;
+	WorldStateLock lock(world_state.mutex);
+
+	world_state.getRootWorldState()->getObjects(lock)[test_object->uid] = test_object;
 }
 
 
@@ -654,20 +663,20 @@ void WorldCreation::removeHypercardMaterials(ServerAllWorldsState& all_worlds_st
 
 	size_t num_updated = 0;
 	{
-		Lock lock(all_worlds_state.mutex);
+		WorldStateLock lock(all_worlds_state.mutex);
 
 		for(auto world_it = all_worlds_state.world_states.begin(); world_it != all_worlds_state.world_states.end(); ++world_it)
 		{
 			Reference<ServerWorldState> world_state = world_it->second;
 
-			for(auto i = world_state->objects.begin(); i != world_state->objects.end(); ++i)
+			for(auto i = world_state->getObjects(lock).begin(); i != world_state->getObjects(lock).end(); ++i)
 			{
 				WorldObject* ob = i->second.ptr();
 
 				if((ob->object_type == WorldObject::ObjectType_Hypercard) && !ob->materials.empty())
 				{
 					ob->materials.clear();
-					world_state->addWorldObjectAsDBDirty(ob);
+					world_state->addWorldObjectAsDBDirty(ob, lock);
 					num_updated++;
 				}
 			}
@@ -683,20 +692,22 @@ void WorldCreation::removeHypercardMaterials(ServerAllWorldsState& all_worlds_st
 
 void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_state)
 {
+	WorldStateLock lock(world_state->mutex);
+
 	// Add 'town square' parcels
-	if(world_state->getRootWorldState()->parcels.empty())
+	if(world_state->getRootWorldState()->getParcels(lock).empty())
 	{
 		conPrint("Adding some parcels!");
 
 		int next_id = 10;
-		makeParcels(Matrix2d(1, 0, 0, 1), next_id, world_state->getRootWorldState());
-		makeParcels(Matrix2d(-1, 0, 0, 1), next_id, world_state->getRootWorldState()); // Mirror in y axis (x' = -x)
-		makeParcels(Matrix2d(0, 1, 1, 0), next_id, world_state->getRootWorldState()); // Mirror in x=y line(x' = y, y' = x)
-		makeParcels(Matrix2d(0, 1, -1, 0), next_id, world_state->getRootWorldState()); // Rotate right 90 degrees (x' = y, y' = -x)
-		makeParcels(Matrix2d(1, 0, 0, -1), next_id, world_state->getRootWorldState()); // Mirror in x axis (y' = -y)
-		makeParcels(Matrix2d(-1, 0, 0, -1), next_id, world_state->getRootWorldState()); // Rotate 180 degrees (x' = -x, y' = -y)
-		makeParcels(Matrix2d(0, -1, -1, 0), next_id, world_state->getRootWorldState()); // Mirror in x=-y line (x' = -y, y' = -x)
-		makeParcels(Matrix2d(0, -1, 1, 0), next_id, world_state->getRootWorldState()); // Rotate left 90 degrees (x' = -y, y' = x)
+		makeParcels(Matrix2d(1, 0, 0, 1), next_id, world_state->getRootWorldState(), lock);
+		makeParcels(Matrix2d(-1, 0, 0, 1), next_id, world_state->getRootWorldState(), lock); // Mirror in y axis (x' = -x)
+		makeParcels(Matrix2d(0, 1, 1, 0), next_id, world_state->getRootWorldState(), lock); // Mirror in x=y line(x' = y, y' = x)
+		makeParcels(Matrix2d(0, 1, -1, 0), next_id, world_state->getRootWorldState(), lock); // Rotate right 90 degrees (x' = y, y' = -x)
+		makeParcels(Matrix2d(1, 0, 0, -1), next_id, world_state->getRootWorldState(), lock); // Mirror in x axis (y' = -y)
+		makeParcels(Matrix2d(-1, 0, 0, -1), next_id, world_state->getRootWorldState(), lock); // Rotate 180 degrees (x' = -x, y' = -y)
+		makeParcels(Matrix2d(0, -1, -1, 0), next_id, world_state->getRootWorldState(), lock); // Mirror in x=-y line (x' = -y, y' = -x)
+		makeParcels(Matrix2d(0, -1, 1, 0), next_id, world_state->getRootWorldState(), lock); // Rotate left 90 degrees (x' = -y, y' = x)
 
 		PCG32 rng(1);
 		const int D = 4;
@@ -709,14 +720,14 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 					// Special town square blocks
 				}
 				else
-					makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, world_state->getRootWorldState(), /*parcel_w=*/20, /*parcel_max_z=*/10);
+					makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, world_state->getRootWorldState(), /*parcel_w=*/20, /*parcel_max_z=*/10, lock);
 			}
 	}
 
 	// TEMP: make all parcels have zmax = 10
 	if(false)
 	{
-		for(auto i = world_state->getRootWorldState()->parcels.begin(); i != world_state->getRootWorldState()->parcels.end(); ++i)
+		for(auto i = world_state->getRootWorldState()->getParcels(lock).begin(); i != world_state->getRootWorldState()->getParcels(lock).end(); ++i)
 		{
 			ParcelRef parcel = i->second;
 			parcel->zbounds.y = 10.0f;
@@ -738,7 +749,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	//server.world_state->objects.clear();
 
 	ParcelID max_parcel_id(0);
-	for(auto it = world_state->getRootWorldState()->parcels.begin(); it != world_state->getRootWorldState()->parcels.end(); ++it)
+	for(auto it = world_state->getRootWorldState()->getParcels(lock).begin(); it != world_state->getRootWorldState()->getParcels(lock).end(); ++it)
 	{
 		const Parcel* parcel = it->second.ptr();
 		max_parcel_id = myMax(max_parcel_id, parcel->id);
@@ -767,7 +778,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 			parcel->build();
 
-			world_state->getRootWorldState()->parcels[parcel_id] = parcel;
+			world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
 		}
 	}
 
@@ -784,7 +795,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 	// Recompute max_parcel_id
 	max_parcel_id = ParcelID(0);
-	for(auto it = world_state->getRootWorldState()->parcels.begin(); it != world_state->getRootWorldState()->parcels.end(); ++it)
+	for(auto it = world_state->getRootWorldState()->getParcels(lock).begin(); it != world_state->getRootWorldState()->getParcels(lock).end(); ++it)
 	{
 		const Parcel* parcel = it->second.ptr();
 		max_parcel_id = myMax(max_parcel_id, parcel->id);
@@ -810,7 +821,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 			for(int i=0; i<300; ++i)
 				makeRandomParcel(/*region botleft=*/Vec2d(335.f, 75), /*region topright=*/Vec2d(335.f + 130.f, 205.f), rng, next_id, world_state->getRootWorldState(), road_map,
-					/*base width=*/3, /*rng width=*/4, /*base_h=*/4, /*rng_h=*/4);
+					/*base width=*/3, /*rng width=*/4, /*base_h=*/4, /*rng_h=*/4, lock);
 
 			conPrint("Made market district, parcel ids " + toString(start_id) + " to " + toString(next_id - 1));
 		}
@@ -829,7 +840,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 					{
 						const Vec2d botleft = Vec2d(335.f, -275) + offset;
 						makeRandomParcel(/*region botleft=*/botleft, /*region topright=*/botleft + Vec2d(60, 60), rng, next_id, world_state->getRootWorldState(), NULL/*road_map*/,
-							/*base width=*/8, /*rng width=*/40, /*base_h=*/8, /*rng_h=*/20);
+							/*base width=*/8, /*rng width=*/40, /*base_h=*/8, /*rng_h=*/20, lock);
 					}
 				}
 
@@ -858,8 +869,8 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 			parcel->build();
 
-			world_state->getRootWorldState()->parcels[parcel_id] = parcel;
-			world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+			world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
+			world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 		}
 		{
 			const ParcelID parcel_id(955);
@@ -879,8 +890,8 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 			parcel->build();
 
-			world_state->getRootWorldState()->parcels[parcel_id] = parcel;
-			world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+			world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
+			world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 		}
 	}
 
@@ -923,7 +934,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 				}
 				else
 					makeBlock(/*botleft=*/Vec2d(-275 + x * block_width, 335 + y * block_width), rng, next_id, world_state->getRootWorldState(), /*parcel_w=*/parcel_width,
-						/*parcel_max_z=*/15 + rng.unitRandom() * 8);
+						/*parcel_max_z=*/15 + rng.unitRandom() * 8, lock);
 			}
 
 		world_state->markAsChanged();
@@ -1076,7 +1087,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 			//TEMP: remove existing parcel
 			//world_state->getRootWorldState()->parcels.erase(parcel_id);
 
-			if(world_state->getRootWorldState()->parcels.count(parcel_id) == 0)
+			if(world_state->getRootWorldState()->getParcels(lock).count(parcel_id) == 0)
 			{
 				ParcelRef parcel = new Parcel();
 				parcel->state = Parcel::State_Alive;
@@ -1096,8 +1107,8 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 				parcel->build();
 
-				world_state->getRootWorldState()->parcels[parcel_id] = parcel;
-				world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+				world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
+				world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 				world_state->markAsChanged();
 
 				conPrint("Added hillside parcel with UID " + parcel_id.toString());
@@ -1111,7 +1122,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	if(false)
 	{
 		bool have_added_roads = false;
-		for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end(); ++it)
+		for(auto it = world_state->getRootWorldState()->getObjects(lock).begin(); it != world_state->getRootWorldState()->getObjects(lock).end(); ++it)
 		{
 			const WorldObject* object = it->second.ptr();
 			if(object->creator_id.value() == 0 && object->content == "road")
@@ -1124,10 +1135,10 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 		if(false)
 		{
 			// Remove all existing road objects (UID > 1000000)
-			for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end();)
+			for(auto it = world_state->getRootWorldState()->getObjects(lock).begin(); it != world_state->getRootWorldState()->getObjects(lock).end();)
 			{
 				if(it->second->uid.value() >= 1000000)
-					it = world_state->getRootWorldState()->objects.erase(it);
+					it = world_state->getRootWorldState()->getObjects(lock).erase(it);
 				else
 					++it;
 			}
@@ -1342,7 +1353,8 @@ void WorldCreation::createPhysicsTest(ServerAllWorldsState& all_worlds_state)
 		test_object->materials[0]->colour_texture_url = "stone_floor_jpg_6978110256346892991.jpg";
 
 		//all_worlds_state.getRootWorldState()->objects[test_object->uid] = test_object;
-		all_worlds_state.getRootWorldState()->objects.erase(test_object->uid);
+		WorldStateLock lock(all_worlds_state.mutex);
+		all_worlds_state.getRootWorldState()->getObjects(lock).erase(test_object->uid);
 		//all_worlds_state.getRootWorldState()->addWorldObjectAsDBDirty(test_object);
 
 

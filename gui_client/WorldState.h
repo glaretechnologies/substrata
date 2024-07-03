@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
 #include "../shared/GroundPatch.h"
+#include "../shared/WorldStateLock.h"
 #include <ThreadSafeRefCounted.h>
 #include <FastIterMap.h>
 #include <Mutex.h>
@@ -50,7 +51,7 @@ public:
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_remote_parcels GUARDED_BY(mutex);
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_local_parcels GUARDED_BY(mutex);
 
-	mutable Mutex mutex;
+	mutable WorldStateMutex mutex;
 
 
 	std::map<GroundPatchUID, GroundPatchRef> ground_patches;

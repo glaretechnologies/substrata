@@ -133,8 +133,11 @@ public:
 
 	void logMessage(const std::string& msg);
 	void logAndConPrintMessage(const std::string& msg);
-	void print(const std::string& s);
-	void printStr(const std::string& s);
+
+	//----------------------- PrintOutput interface -----------------------
+	virtual void print(const std::string& s) override;
+	virtual void printStr(const std::string& s) override;
+	//----------------------- End PrintOutput interface -----------------------
 
 	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGestureClicked(const std::string& gesture_name);
@@ -186,11 +189,11 @@ public:
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	GLObjectRef makeSpeakerGLObject();
 public:
-	void loadModelForObject(WorldObject* ob);
-	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level);
+	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock);
+	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, WorldStateLock& world_state_lock);
 	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
 	void loadModelForAvatar(Avatar* avatar);
-	void loadScriptForObject(WorldObject* ob);
+	void loadScriptForObject(WorldObject* ob, WorldStateLock& world_state_lock);
 	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
 	void doBiomeScatteringForObject(WorldObject* ob);
 	void loadAudioForObject(WorldObject* ob);
@@ -259,10 +262,11 @@ public:
 	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
 	void addPlaceholderObjectsForOb(WorldObject& ob);
 
-	// ObLoadingCallbacks interface
+	//----------------------- ObLoadingCallbacks interface -----------------------
 	//virtual void loadObject(WorldObjectRef ob);
-	virtual void unloadObject(WorldObjectRef ob);
-	virtual void newCellInProximity(const Vec3<int>& cell_coords);
+	virtual void unloadObject(WorldObjectRef ob) override;
+	virtual void newCellInProximity(const Vec3<int>& cell_coords) override;
+	//----------------------- End ObLoadingCallbacks interface -----------------------
 
 	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
 	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const js::AABBox& aabb_os) REQUIRES(world_state->mutex);
@@ -318,13 +322,13 @@ public:
 
 public:
 	//----------------------- PhysicsWorldEventListener interface -----------------------
-	virtual void physicsObjectEnteredWater(PhysicsObject& ob);
+	virtual void physicsObjectEnteredWater(PhysicsObject& ob) override;
 
 	// NOTE: called off main thread, needs to be threadsafe
-	virtual void contactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold);
+	virtual void contactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold) override;
 
 	// NOTE: called off main thread, needs to be threadsafe
-	virtual void contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold);
+	virtual void contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold) override;
 	//----------------------- end PhysicsWorldEventListener interface -----------------------
 	
 

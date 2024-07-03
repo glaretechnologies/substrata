@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/LinearIterSet.h"
 #include "../shared/WorldObject.h"
 class GUIClient;
+class WorldStateLock;
 
 
 /*=====================================================================
@@ -31,7 +32,7 @@ public:
 	void clear();
 
 	// Iterate over objects, see if the player has moved near to or away from any objects, and execute the relevant event handlers if so.
-	void think(const Vec4f& campos);
+	void think(const Vec4f& campos, WorldStateLock& world_state_lock);
 
 	glare::LinearIterSet<WorldObjectRef, WorldObjectRefHash> objects;
 

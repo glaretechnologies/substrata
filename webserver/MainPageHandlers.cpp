@@ -64,14 +64,15 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 	std::string auction_html, latest_news_html;
 	{ // lock scope
-		Lock lock(world_state.mutex);
+		WorldStateLock lock(world_state.mutex);
 
 		ServerWorldState* root_world = world_state.getRootWorldState().ptr();
 
 		int num_auctions_shown = 0; // Num substrata auctions shown
 		const TimeStamp now = TimeStamp::currentTime();
 		auction_html += "<div class=\"root-auction-list-container\">\n";
-		for(auto it = root_world->parcels.begin(); (it != root_world->parcels.end()) && (num_auctions_shown < 3); ++it)
+		const ServerWorldState::ParcelMapType& parcels = root_world->getParcels(lock);
+		for(auto it = parcels.begin(); (it != parcels.end()) && (num_auctions_shown < 3); ++it)
 		{
 			Parcel* parcel = it->second.ptr();
 
@@ -113,8 +114,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 			{
 				const OpenSeaParcelListing& listing = *it;
 
-				auto parcel_res = root_world->parcels.find(listing.parcel_id); // Look up parcel
-				if(parcel_res != root_world->parcels.end())
+				auto parcel_res = root_world->getParcels(lock).find(listing.parcel_id); // Look up parcel
+				if(parcel_res != root_world->getParcels(lock).end())
 				{
 					const Parcel* parcel = parcel_res->second.ptr();
 

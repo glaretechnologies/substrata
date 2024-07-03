@@ -198,13 +198,13 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 	else
 	{
 		{
-			Lock lock(world_state->mutex);
+			WorldStateLock lock(world_state->mutex);
 
 			const std::string substrata_URL = fetch_results.substrata_URL;
 
 			// Update object to use new texture
-			const auto ob_res = world_state->world_states[ob_with_dyn_tex.world_name]->objects.find(ob_with_dyn_tex.ob_uid);
-			if(ob_res != world_state->world_states[ob_with_dyn_tex.world_name]->objects.end())
+			const auto ob_res = world_state->world_states[ob_with_dyn_tex.world_name]->getObjects(lock).find(ob_with_dyn_tex.ob_uid);
+			if(ob_res != world_state->world_states[ob_with_dyn_tex.world_name]->getObjects(lock).end())
 			{
 				WorldObject* ob = ob_res->second.ptr();
 
@@ -236,11 +236,11 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 					{
 						conPrint("\tDynamicTextureUpdaterThread: Texture is different from existing texture, updating object...");
 
-						world_state->world_states[ob_with_dyn_tex.world_name]->addWorldObjectAsDBDirty(ob);
+						world_state->world_states[ob_with_dyn_tex.world_name]->addWorldObjectAsDBDirty(ob, lock);
 						world_state->markAsChanged();
 
 						ob->from_remote_other_dirty = true; // Set this so a ObjectFullUpdate message is sent to clients.
-						world_state->world_states[ob_with_dyn_tex.world_name]->dirty_from_remote_objects.insert(ob);
+						world_state->world_states[ob_with_dyn_tex.world_name]->getDirtyFromRemoteObjects(lock).insert(ob);
 
 						// Send a message to MeshLODGenThread to generate LOD textures for this new texture (if not already generated)
 						CheckGenResourcesForObject* msg = new CheckGenResourcesForObject();
@@ -295,12 +295,13 @@ void DynamicTextureUpdaterThread::doRun()
 			std::vector<ObWithDynamicTexture> obs_with_dyn_textures;
 
 			{
-				Lock lock(world_state->mutex);
+				WorldStateLock lock(world_state->mutex);
 
 				for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
 				{
 					ServerWorldState* world = world_it->second.ptr();
-					for(auto it = world->objects.begin(); it != world->objects.end(); ++it)
+					ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
+					for(auto it = objects.begin(); it != objects.end(); ++it)
 					{
 						WorldObject* ob = it->second.ptr();
 						try

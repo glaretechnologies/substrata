@@ -41,8 +41,8 @@ public:
 	void logAndConPrintMessage(const std::string& msg); // Print to console, and appends to LogWindow log display.
 
 	// PrintOutput interface
-	virtual void print(const std::string& s); // Print a message and a newline character.
-	virtual void printStr(const std::string& s); // Print a message without a newline character.
+	virtual void print(const std::string& s) override; // Print a message and a newline character.
+	virtual void printStr(const std::string& s) override; // Print a message without a newline character.
 
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
 signals:;
@@ -132,10 +132,10 @@ private:
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result);
 #else
-	bool nativeEvent(const QByteArray& event_type, void* message, long* result);
+	bool nativeEvent(const QByteArray& event_type, void* message, long* result) override;
 #endif
-	virtual void closeEvent(QCloseEvent* event);
-	virtual void timerEvent(QTimerEvent* event);
+	virtual void closeEvent(QCloseEvent* event) override;
+	virtual void timerEvent(QTimerEvent* event) override;
 	void startMainTimer();
 	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	void doObjectSelectionTraceForMouseEvent(QMouseEvent* e);
@@ -146,8 +146,8 @@ private:
 	void setUpForScreenshot();
 	void saveScreenshot(); // Throws glare::Exception on failure
 
-	virtual void dragEnterEvent(QDragEnterEvent* event);
-	virtual void dropEvent(QDropEvent* event);
+	virtual void dragEnterEvent(QDragEnterEvent* event) override;
+	virtual void dropEvent(QDropEvent* event) override;
 
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 

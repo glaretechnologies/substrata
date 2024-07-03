@@ -871,7 +871,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 
 		{ // Lock scope
 
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			// Lookup parcel
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
@@ -940,7 +940,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 				parcel->parcel_auction_ids.push_back(auction->id);
 
 				world_state.addParcelAuctionAsDBDirty(auction);
-				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_auction/" + toString(auction->id));
 			}
@@ -1028,7 +1028,7 @@ void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::Requ
 
 		{ // Lock scope
 
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			// Lookup parcel
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
@@ -1042,7 +1042,7 @@ void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::Requ
 				// Set parcel admins and writers to the new user as well.
 				parcel->admin_ids  = std::vector<UserID>(1, UserID(new_owner_id));
 				parcel->writer_ids = std::vector<UserID>(1, UserID(new_owner_id));
-				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 				world_state.denormaliseData(); // Update denormalised data which includes parcel owner name
 
@@ -1111,7 +1111,7 @@ void handleMarkParcelAsNotNFTPost(ServerAllWorldsState& world_state, const web::
 
 		{ // Lock scope
 
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			// Lookup parcel
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
@@ -1119,7 +1119,7 @@ void handleMarkParcelAsNotNFTPost(ServerAllWorldsState& world_state, const web::
 			{
 				Parcel* parcel = res->second.ptr();
 				parcel->nft_status = Parcel::NFTStatus_NotNFT;
-				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 				world_state.markAsChanged();
 
@@ -1149,7 +1149,7 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 		const int parcel_id = request.getPostIntField("parcel_id");
 
 		{ // Lock scope
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 
@@ -1184,7 +1184,7 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 
 				parcel->minting_transaction_id = transaction->id;
 				
-				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 				world_state.sub_eth_transactions[transaction->id] = transaction;
 
@@ -1545,7 +1545,7 @@ void handleRegenerateMultipleParcelScreenshots(ServerAllWorldsState& world_state
 
 		{ // Lock scope
 
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			for(auto it = world_state.getRootWorldState()->parcels.begin(); it != world_state.getRootWorldState()->parcels.end(); ++it)
 			{
@@ -1590,7 +1590,7 @@ void handleRegenerateMultipleParcelScreenshots(ServerAllWorldsState& world_state
 							world_state.addScreenshotAsDBDirty(shot);
 						}
 
-						world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+						world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 						world_state.markAsChanged();
 
 						conPrint("Created screenshots for parcel " + parcel->id.toString());

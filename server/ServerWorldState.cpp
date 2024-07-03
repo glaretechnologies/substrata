@@ -101,7 +101,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 {
 	conPrint("Reading world state from '" + path + "'...");
 
-	Lock lock(mutex);
+	WorldStateLock lock(mutex);
 
 	Timer timer;
 
@@ -162,7 +162,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 
 					world_ob->database_key = database_key;
-					world_states[world_name]->objects[world_ob->uid] = world_ob; // Add to object map
+					world_states[world_name]->getObjects(lock)[world_ob->uid] = world_ob; // Add to object map
 					num_obs++;
 
 					next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
@@ -191,7 +191,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					readFromStream(stream, *parcel);
 
 					parcel->database_key = database_key;
-					world_states[world_name]->parcels[parcel->id] = parcel; // Add to parcel map
+					world_states[world_name]->getParcels(lock)[parcel->id] = parcel; // Add to parcel map
 					num_parcels++;
 				}
 				else if(chunk == WORLD_SETTINGS_CHUNK)
@@ -412,7 +412,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				//TEMP HACK: clear lightmap needed flag
 				BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 
-				current_world->objects[world_ob->uid] = world_ob; // Add to object map
+				current_world->getObjects(lock)[world_ob->uid] = world_ob; // Add to object map
 				num_obs++;
 
 				next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
@@ -432,7 +432,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				ParcelRef parcel = new Parcel();
 				readFromStream(stream, *parcel);
 
-				current_world->parcels[parcel->id] = parcel; // Add to parcel map
+				current_world->getParcels(lock)[parcel->id] = parcel; // Add to parcel map
 				num_parcels++;
 			}
 			else if(chunk == RESOURCE_CHUNK)
@@ -570,7 +570,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
 	{
 		Reference<ServerWorldState> world_state = world_it->second;
-		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+		for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
 		{
 			/*WorldObject* ob = it->second.ptr();
 			if(!ob->voxel_group.voxels.empty() && ob->compressed_voxels.empty())
@@ -592,7 +592,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 void ServerAllWorldsState::addEverythingToDirtySets()
 {
-	Lock lock(mutex);
+	WorldStateLock lock(mutex);
 
 	for(auto it = resource_manager->getResourcesForURL().begin(); it != resource_manager->getResourcesForURL().end(); ++it)
 		db_dirty_resources.insert(it->second);
@@ -607,11 +607,11 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 	{
 		Reference<ServerWorldState> world_state = world_it->second;
 
-		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
-			world_state->db_dirty_world_objects.insert(it->second);
+		for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
+			world_state->getDBDirtyWorldObjects(lock).insert(it->second);
 
-		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
-			world_state->db_dirty_parcels.insert(it->second);
+		for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
+			world_state->getDBDirtyParcels(lock).insert(it->second);
 	}
 
 	for(auto it = user_web_sessions.begin(); it != user_web_sessions.end(); ++it)
@@ -651,21 +651,21 @@ void ServerAllWorldsState::clearAndReset() // Just for fuzzing
 
 void ServerAllWorldsState::denormaliseData()
 {
-	Lock lock(mutex);
+	WorldStateLock lock(mutex);
 
 	for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
 	{
 		Reference<ServerWorldState> world_state = world_it->second;
 
 		// Build cached fields like WorldObject::creator_name
-		for(auto i=world_state->objects.begin(); i != world_state->objects.end(); ++i)
+		for(auto i=world_state->getObjects(lock).begin(); i != world_state->getObjects(lock).end(); ++i)
 		{
 			auto res = user_id_to_users.find(i->second->creator_id);
 			if(res != user_id_to_users.end())
 				i->second->creator_name = res->second->name;
 		}
 
-		for(auto i=world_state->parcels.begin(); i != world_state->parcels.end(); ++i)
+		for(auto i=world_state->getParcels(lock).begin(); i != world_state->getParcels(lock).end(); ++i)
 		{
 			Parcel* parcel = i->second.ptr();
 
@@ -710,7 +710,7 @@ void ServerAllWorldsState::saveSanitisedDatabase()
 {
 	conPrint("Saving sanitised world state to disk...");
 
-	Lock lock(mutex);
+	WorldStateLock lock(mutex);
 
 	try
 	{
@@ -722,13 +722,13 @@ void ServerAllWorldsState::saveSanitisedDatabase()
 			Reference<ServerWorldState> world_state = world_it->second;
 
 			// Sanitise parcels
-			for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+			for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
 			{
 				Parcel* parcel = it->second.ptr();
 				parcel->minting_transaction_id = std::numeric_limits<uint64>::max();
 				parcel->parcel_auction_ids.clear();
 
-				world_state->db_dirty_parcels.insert(parcel); // Mark parcel as dirty
+				world_state->getDBDirtyParcels(lock).insert(parcel); // Mark parcel as dirty
 			}
 		}
 
@@ -825,7 +825,7 @@ void ServerAllWorldsState::saveSanitisedDatabase()
 		// ETH_INFO_CHUNK
 
 		// Write to disk.  Will do the updates we have added to dirty sets, and delete records we have added to db_records_to_delete.
-		serialiseToDisk();
+		serialiseToDisk(lock);
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -835,7 +835,7 @@ void ServerAllWorldsState::saveSanitisedDatabase()
 
 
 // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
-void ServerAllWorldsState::serialiseToDisk()
+void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 {
 	conPrint("Saving world state to disk...");
 
@@ -878,7 +878,7 @@ void ServerAllWorldsState::serialiseToDisk()
 
 			// Write objects
 			{
-				for(auto it = world_state->db_dirty_world_objects.begin(); it != world_state->db_dirty_world_objects.end(); ++it)
+				for(auto it = world_state->getDBDirtyWorldObjects(lock).begin(); it != world_state->getDBDirtyWorldObjects(lock).end(); ++it)
 				{
 					WorldObject* ob = it->ptr();
 					temp_buf.clear();
@@ -894,12 +894,12 @@ void ServerAllWorldsState::serialiseToDisk()
 					num_obs++;
 				}
 
-				world_state->db_dirty_world_objects.clear();
+				world_state->getDBDirtyWorldObjects(lock).clear();
 			}
 
 			// Write parcels
 			{
-				for(auto it = world_state->db_dirty_parcels.begin(); it != world_state->db_dirty_parcels.end(); ++it)
+				for(auto it = world_state->getDBDirtyParcels(lock).begin(); it != world_state->getDBDirtyParcels(lock).end(); ++it)
 				{
 					Parcel* parcel = it->ptr();
 					temp_buf.clear();
@@ -915,7 +915,7 @@ void ServerAllWorldsState::serialiseToDisk()
 					num_parcels++;
 				}
 
-				world_state->db_dirty_parcels.clear();
+				world_state->getDBDirtyParcels(lock).clear();
 			}
 
 			// Save the world settings if dirty

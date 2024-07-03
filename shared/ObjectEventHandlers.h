@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/WeakReference.h>
 #include <vector>
+class WorldStateLock;
 
 
 struct HandlerFunc
@@ -43,12 +44,12 @@ on the object that owns the ObjectEventHandlers instance.
 class ObjectEventHandlers : public ThreadSafeRefCounted
 {
 public:
-	void executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob_uid);
-	void executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid);
-	void executeOnUserMovedNearToObjectHandlers(UID avatar_uid, UID ob_uid);
-	void executeOnUserMovedAwayFromObjectHandlers(UID avatar_uid, UID ob_uid);
-	void executeOnUserEnteredParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id);
-	void executeOnUserExitedParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id);
+	void executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);
+	void executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);
+	void executeOnUserMovedNearToObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);
+	void executeOnUserMovedAwayFromObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);
+	void executeOnUserEnteredParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock);
+	void executeOnUserExitedParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock);
 
 	HandlerList onUserUsedObject_handlers;
 	HandlerList onUserTouchedObject_handlers;

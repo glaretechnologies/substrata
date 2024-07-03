@@ -475,7 +475,7 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 
 		const ParcelID parcel_id(request_info.getPostIntField("parcel_id"));
 
-		Lock lock(world_state.mutex);
+		WorldStateLock lock(world_state.mutex);
 
 		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
 		if(logged_in_user == NULL)
@@ -518,7 +518,7 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 		world_state.addSubEthTransactionAsDBDirty(transaction);
 
 		parcel->minting_transaction_id = transaction->id;
-		world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+		world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 		world_state.sub_eth_transactions[transaction->id] = transaction;
 
@@ -607,7 +607,7 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 			// The logged in user does indeed own the parcel NFT.  So assign ownership of the parcel.
 
 			{ // lock scope
-				Lock lock(world_state.mutex);
+				WorldStateLock lock(world_state.mutex);
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
 				if(logged_in_user == NULL)
@@ -626,7 +626,7 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 				parcel->admin_ids  = std::vector<UserID>(1, UserID(logged_in_user->id));
 				parcel->writer_ids = std::vector<UserID>(1, UserID(logged_in_user->id));
 				
-				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 				// TODO: Log ownership change?
 
