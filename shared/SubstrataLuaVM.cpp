@@ -1384,6 +1384,8 @@ SubstrataLuaVM::SubstrataLuaVM()
 	lua_vm->setCFunctionAsTableField(worldObjectClassIndexMetaMethod,    /*debugname=*/"worldObjectClassIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(worldObjectClassNewIndexMetaMethod, /*debugname=*/"worldObjectClassNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
 
+	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
+
 	worldObjectClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldObjectMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop WorldObjectMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
@@ -1394,6 +1396,8 @@ SubstrataLuaVM::SubstrataLuaVM()
 			
 	lua_vm->setCFunctionAsTableField(worldMaterialClassIndexMetaMethod,    /*debugname=*/"worldMaterialClassIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(worldMaterialClassNewIndexMetaMethod, /*debugname=*/"worldMaterialClassNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
+
+	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
 
 	worldMaterialClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldMaterialMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop WorldMaterialMetaTable from stack
@@ -1406,6 +1410,8 @@ SubstrataLuaVM::SubstrataLuaVM()
 	lua_vm->setCFunctionAsTableField(userClassIndexMetaMethod,    /*debugname=*/"userIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(userClassNewIndexMetaMethod, /*debugname=*/"userNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
 
+	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
+
 	userClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to UserClassMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop UserClassMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
@@ -1416,6 +1422,8 @@ SubstrataLuaVM::SubstrataLuaVM()
 			
 	lua_vm->setCFunctionAsTableField(avatarClassIndexMetaMethod,    /*debugname=*/"avatarIndexMetaMethod",    /*table index=*/-2, /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(avatarClassNewIndexMetaMethod, /*debugname=*/"avatarNewIndexMetaMethod", /*table index=*/-2, /*key=*/"__newindex");
+
+	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
 
 	avatarClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to AvatarClassMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop AvatarClassMetaTable from stack
