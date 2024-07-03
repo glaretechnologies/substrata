@@ -302,13 +302,14 @@ void WorkerThread::handleResourceUploadConnection()
 		{
 			std::vector<UID> ob_uids; // UIDs of objects which use this resource
 			{
-				Lock lock(server->world_state->mutex);
+				WorldStateLock lock(server->world_state->mutex);
 				for(auto world_it = server->world_state->world_states.begin(); world_it != server->world_state->world_states.end(); ++world_it)
 				{
 					ServerWorldState* world = world_it->second.ptr();
 
 					std::set<DependencyURL> URLs;
-					for(auto it = world->objects.begin(); it != world->objects.end(); ++it)
+					const ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
+					for(auto it = objects.begin(); it != objects.end(); ++it)
 					{
 						const WorldObject* ob = it->second.ptr();
 						URLs.clear();
@@ -671,19 +672,19 @@ void WorkerThread::handleEthBotConnection()
 
 					// Mark parcel as minted as an NFT
 					{ // lock scope
-						Lock lock(server->world_state->mutex);
+						WorldStateLock lock(server->world_state->mutex);
 
 						trans->state = SubEthTransaction::State_Completed; // State_Submitted;
 						trans->transaction_hash = transaction_hash;
 
 						server->world_state->addSubEthTransactionAsDBDirty(trans);
 
-						auto parcel_res = server->world_state->getRootWorldState()->parcels.find(trans->parcel_id);
-						if(parcel_res != server->world_state->getRootWorldState()->parcels.end())
+						auto parcel_res = server->world_state->getRootWorldState()->getParcels(lock).find(trans->parcel_id);
+						if(parcel_res != server->world_state->getRootWorldState()->getParcels(lock).end())
 						{
 							Parcel* parcel = parcel_res->second.ptr();
 							parcel->nft_status = Parcel::NFTStatus_MintedNFT;
-							server->world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+							server->world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 							server->world_state->markAsChanged();
 						}
 					} // End lock scope
@@ -728,15 +729,16 @@ void WorkerThread::handleEthBotConnection()
 }
 
 
-static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state)
+static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock)
 {
 	assert(user_id.valid());
 
 	const Vec4f ob_pos = ob.pos.toVec4fPoint();
 
-	for(auto& it : world_state.parcels)
+	ServerWorldState::ParcelMapType& parcels = world_state.getParcels(lock);
+	for(ServerWorldState::ParcelMapType::iterator it = parcels.begin(); it != parcels.end(); ++it)
 	{
-		const Parcel* parcel = it.second.ptr();
+		const Parcel* parcel = it->second.ptr();
 		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(user_id))
 			return true;
 	}
@@ -746,7 +748,8 @@ static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject&
 
 
 // NOTE: world state mutex should be locked before calling this method.
-static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, bool allow_light_mapper_bot_full_perms)
+static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, bool allow_light_mapper_bot_full_perms,
+	WorldStateLock& lock)
 {
 	if(user_id.valid())
 	{
@@ -754,7 +757,7 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& u
 			isGodUser(user_id) || // or if the user is the god user (id 0)
 			(allow_light_mapper_bot_full_perms && (user_name == "lightmapperbot")) || // lightmapper bot has full write permissions for now.
 			(!connected_world_name.empty() && (user_name == connected_world_name)) || // or if this is the user's personal world
-			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state); // Can modify objects owned by other people if they are in parcels you have write permissions for.
+			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 	}
 	else
 		return false;
@@ -957,8 +960,9 @@ void WorkerThread::doRun()
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 				{ // Lock scope
-					Lock lock(world_state->mutex);
-					for(auto it = cur_world_state->avatars.begin(); it != cur_world_state->avatars.end(); ++it)
+					WorldStateLock lock(world_state->mutex);
+					const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+					for(auto it = avatars.begin(); it != avatars.end(); ++it)
 					{
 						const Avatar* avatar = it->second.getPointer();
 
@@ -994,8 +998,8 @@ void WorkerThread::doRun()
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 				{ // Lock scope
-					Lock lock(world_state->mutex);
-					for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
+					WorldStateLock lock(world_state->mutex);
+					for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
 					{
 						const Parcel* parcel = it->second.getPointer();
 
@@ -1142,9 +1146,10 @@ void WorkerThread::doRun()
 
 							// Look up existing avatar in world state
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->avatars.find(avatar_uid);
-								if(res != cur_world_state->avatars.end())
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
 								{
 									Avatar* avatar = res->second.getPointer();
 									avatar->pos = pos;
@@ -1211,9 +1216,10 @@ void WorkerThread::doRun()
 
 							// Look up existing avatar in world state
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->avatars.find(avatar_uid);
-								if(res != cur_world_state->avatars.end())
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
 								{
 									Avatar* avatar = res->second.getPointer();
 									avatar->copyNetworkStateFrom(temp_avatar);
@@ -1273,9 +1279,10 @@ void WorkerThread::doRun()
 
 							// Look up existing avatar in world state
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->avatars.find(use_avatar_uid);
-								if(res == cur_world_state->avatars.end())
+								WorldStateLock lock(world_state->mutex);
+								ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(use_avatar_uid);
+								if(res == avatars.end())
 								{
 									// Avatar for UID not already created, create it now.
 									AvatarRef avatar = new Avatar();
@@ -1283,7 +1290,7 @@ void WorkerThread::doRun()
 									avatar->copyNetworkStateFrom(temp_avatar);
 									avatar->state = Avatar::State_JustCreated;
 									avatar->other_dirty = true;
-									cur_world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
+									avatars.insert(std::make_pair(use_avatar_uid, avatar));
 
 									conPrintIfNotFuzzing("created new avatar");
 								}
@@ -1309,9 +1316,10 @@ void WorkerThread::doRun()
 
 							// Mark avatar as dead
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->avatars.find(avatar_uid);
-								if(res != cur_world_state->avatars.end())
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
 								{
 									Avatar* avatar = res->second.getPointer();
 									avatar->state = Avatar::State_Dead;
@@ -1378,14 +1386,14 @@ void WorkerThread::doRun()
 								std::string err_msg_to_client;
 								// Look up existing object in world state
 								{
-									Lock lock(world_state->mutex);
-									auto res = cur_world_state->objects.find(object_uid);
-									if(res != cur_world_state->objects.end())
+									WorldStateLock lock(world_state->mutex);
+									auto res = cur_world_state->getObjects(lock).find(object_uid);
+									if(res != cur_world_state->getObjects(lock).end())
 									{
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
 											err_msg_to_client = "You must be the owner of this object to change it.";
 										else
 										{
@@ -1397,8 +1405,8 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_transform_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob);
-											cur_world_state->dirty_from_remote_objects.insert(ob);
+											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											world_state->markAsChanged();
 										}
@@ -1433,9 +1441,9 @@ void WorkerThread::doRun()
 								std::string err_msg_to_client;
 								bool send_summon_object_msg = false;
 								{
-									Lock lock(world_state->mutex);
-									auto res = cur_world_state->objects.find(summon_msg.object_uid); // Look up existing object in world state
-									if(res != cur_world_state->objects.end())
+									WorldStateLock lock(world_state->mutex);
+									auto res = cur_world_state->getObjects(lock).find(summon_msg.object_uid); // Look up existing object in world state
+									if(res != cur_world_state->getObjects(lock).end())
 									{
 										WorldObject* ob = res->second.getPointer();
 
@@ -1454,7 +1462,7 @@ void WorkerThread::doRun()
 												ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 												ob->last_modified_time = TimeStamp::currentTime();
 
-												cur_world_state->addWorldObjectAsDBDirty(ob); // Object state has changed, so save to DB.
+												cur_world_state->addWorldObjectAsDBDirty(ob, lock); // Object state has changed, so save to DB.
 												world_state->markAsChanged();
 
 												send_summon_object_msg = true;
@@ -1511,9 +1519,9 @@ void WorkerThread::doRun()
 								std::string err_msg_to_client;
 								// Look up existing object in world state
 								{
-									Lock lock(world_state->mutex);
-									auto res = cur_world_state->objects.find(object_uid);
-									if(res != cur_world_state->objects.end())
+									WorldStateLock lock(world_state->mutex);
+									auto res = cur_world_state->getObjects(lock).find(object_uid);
+									if(res != cur_world_state->getObjects(lock).end())
 									{
 										WorldObject* ob = res->second.getPointer();
 
@@ -1538,8 +1546,8 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_physics_transform_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob);
-											cur_world_state->dirty_from_remote_objects.insert(ob);
+											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											world_state->markAsChanged();
 										}
@@ -1574,14 +1582,14 @@ void WorkerThread::doRun()
 								// Look up existing object in world state
 								bool send_must_be_owner_msg = false;
 								{
-									Lock lock(world_state->mutex);
-									auto res = cur_world_state->objects.find(object_uid);
-									if(res != cur_world_state->objects.end())
+									WorldStateLock lock(world_state->mutex);
+									auto res = cur_world_state->getObjects(lock).find(object_uid);
+									if(res != cur_world_state->getObjects(lock).end())
 									{
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
 										{
 											send_must_be_owner_msg = true;
 										}
@@ -1595,8 +1603,8 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_other_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob);
-											cur_world_state->dirty_from_remote_objects.insert(ob);
+											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											world_state->markAsChanged();
 
@@ -1613,7 +1621,7 @@ void WorkerThread::doRun()
 												ob->lua_script_evaluator = NULL;
 												try
 												{
-													ob->lua_script_evaluator = new LuaScriptEvaluator(server->lua_vm.ptr(), /*script output handler=*/server, ob->script, ob, cur_world_state.ptr());
+													ob->lua_script_evaluator = new LuaScriptEvaluator(server->lua_vm.ptr(), /*script output handler=*/server, ob->script, ob, cur_world_state.ptr(), lock);
 												}
 												catch(LuaScriptExcepWithLocation& e)
 												{
@@ -1641,9 +1649,9 @@ void WorkerThread::doRun()
 
 							// Look up existing object in world state
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->objects.find(object_uid);
-								if(res != cur_world_state->objects.end())
+								WorldStateLock lock(world_state->mutex);
+								auto res = cur_world_state->getObjects(lock).find(object_uid);
+								if(res != cur_world_state->getObjects(lock).end())
 								{
 									WorldObject* ob = res->second.getPointer();
 
@@ -1653,8 +1661,8 @@ void WorkerThread::doRun()
 										ob->last_modified_time = TimeStamp::currentTime();
 
 										ob->from_remote_lightmap_url_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob);
-										cur_world_state->dirty_from_remote_objects.insert(ob);
+										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 										world_state->markAsChanged();
 									}
@@ -1670,9 +1678,9 @@ void WorkerThread::doRun()
 
 							// Look up existing object in world state
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->objects.find(object_uid);
-								if(res != cur_world_state->objects.end())
+								WorldStateLock lock(world_state->mutex);
+								auto res = cur_world_state->getObjects(lock).find(object_uid);
+								if(res != cur_world_state->getObjects(lock).end())
 								{
 									WorldObject* ob = res->second.getPointer();
 
@@ -1682,8 +1690,8 @@ void WorkerThread::doRun()
 										ob->last_modified_time = TimeStamp::currentTime();
 
 										ob->from_remote_model_url_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob);
-										cur_world_state->dirty_from_remote_objects.insert(ob);
+										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 										world_state->markAsChanged();
 									}
@@ -1699,9 +1707,9 @@ void WorkerThread::doRun()
 
 							// Look up existing object in world state
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->objects.find(object_uid);
-								if(res != cur_world_state->objects.end())
+								WorldStateLock lock(world_state->mutex);
+								auto res = cur_world_state->getObjects(lock).find(object_uid);
+								if(res != cur_world_state->getObjects(lock).end())
 								{
 									WorldObject* ob = res->second.getPointer();
 
@@ -1711,8 +1719,8 @@ void WorkerThread::doRun()
 										ob->last_modified_time = TimeStamp::currentTime();
 
 										ob->from_remote_flags_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob);
-										cur_world_state->dirty_from_remote_objects.insert(ob);
+										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 										world_state->markAsChanged();
 									}
@@ -1730,9 +1738,9 @@ void WorkerThread::doRun()
 
 							// Look up existing object in world state
 							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->objects.find(object_uid);
-								if(res != cur_world_state->objects.end())
+								WorldStateLock lock(world_state->mutex);
+								auto res = cur_world_state->getObjects(lock).find(object_uid);
+								if(res != cur_world_state->getObjects(lock).end())
 								{
 									WorldObject* ob = res->second.getPointer();
 
@@ -1796,14 +1804,14 @@ void WorkerThread::doRun()
 
 								// Insert object into world state
 								{
-									::Lock lock(world_state->mutex);
+									::WorldStateLock lock(world_state->mutex);
 
 									new_ob->uid = world_state->getNextObjectUID();
 									new_ob->state = WorldObject::State_JustCreated;
 									new_ob->from_remote_other_dirty = true;
-									cur_world_state->addWorldObjectAsDBDirty(new_ob);
-									cur_world_state->dirty_from_remote_objects.insert(new_ob);
-									cur_world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
+									cur_world_state->addWorldObjectAsDBDirty(new_ob, lock);
+									cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);
+									cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
 
 									world_state->markAsChanged();
 								}
@@ -1829,14 +1837,14 @@ void WorkerThread::doRun()
 							{
 								bool send_must_be_owner_msg = false;
 								{
-									Lock lock(world_state->mutex);
-									auto res = cur_world_state->objects.find(object_uid);
-									if(res != cur_world_state->objects.end())
+									WorldStateLock lock(world_state->mutex);
+									auto res = cur_world_state->getObjects(lock).find(object_uid);
+									if(res != cur_world_state->getObjects(lock).end())
 									{
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms);
+										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock);
 										if(!have_delete_perms)
 											send_must_be_owner_msg = true;
 										else
@@ -1844,8 +1852,8 @@ void WorkerThread::doRun()
 											// Mark object as dead
 											ob->state = WorldObject::State_Dead;
 											ob->from_remote_other_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob);
-											cur_world_state->dirty_from_remote_objects.insert(ob);
+											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											world_state->markAsChanged();
 										}
@@ -1864,8 +1872,9 @@ void WorkerThread::doRun()
 							SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder); // Will contain several messages
 
 							{
-								Lock lock(world_state->mutex);
-								for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
+								for(auto it = objects.begin(); it != objects.end(); ++it)
 								{
 									const WorldObject* ob = it->second.getPointer();
 
@@ -1925,8 +1934,9 @@ void WorkerThread::doRun()
 							int num_obs_written = 0;
 
 							{ // Lock scope
-								Lock lock(world_state->mutex);
-								for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
+								for(auto it = objects.begin(); it != objects.end(); ++it)
 								{
 									const WorldObject* ob = it->second.ptr();
 
@@ -2004,8 +2014,9 @@ void WorkerThread::doRun()
 							obs.reserve(16384);
 
 							{ // Lock scope
-								Lock lock(world_state->mutex);
-								for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
+								for(auto it = objects.begin(); it != objects.end(); ++it)
 								{
 									const WorldObject* ob = it->second.ptr();
 									const Vec4f ob_pos_vec4f = ob->pos.toVec4fPoint();
@@ -2079,9 +2090,9 @@ void WorkerThread::doRun()
 							// Send all current parcel data to client
 							MessageUtils::initPacket(scratch_packet, Protocol::ParcelList);
 							{
-								Lock lock(world_state->mutex);
-								scratch_packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
-								for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
+								WorldStateLock lock(world_state->mutex);
+								scratch_packet.writeUInt64(cur_world_state->getParcels(lock).size()); // Write num parcels
+								for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
 									writeToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
 							}
 							MessageUtils::updatePacketLengthField(scratch_packet);
@@ -2111,9 +2122,9 @@ void WorkerThread::doRun()
 								// Look up existing parcel in world state
 								std::string error_msg;
 								{
-									Lock lock(world_state->mutex);
-									auto res = cur_world_state->parcels.find(parcel_id);
-									if(res != cur_world_state->parcels.end())
+									WorldStateLock lock(world_state->mutex);
+									auto res = cur_world_state->getParcels(lock).find(parcel_id);
+									if(res != cur_world_state->getParcels(lock).end())
 									{
 										Parcel* parcel = res->second.getPointer();
 
@@ -2127,7 +2138,7 @@ void WorkerThread::doRun()
 											parcel->copyNetworkStateFrom(temp_parcel, /*restrict_changes=*/true); // restrict changes to stuff clients are allowed to change
 
 											//parcel->from_remote_other_dirty = true;
-											cur_world_state->addParcelAsDBDirty(parcel);
+											cur_world_state->addParcelAsDBDirty(parcel, lock);
 											//cur_world_state->dirty_from_remote_parcels.insert(ob);
 
 											world_state->markAsChanged();
@@ -2687,11 +2698,12 @@ void WorkerThread::doRun()
 	// Mark avatar corresponding to client as dead.  Note that we want to do this after catching any exceptions, so avatar is removed on broken connections etc.
 	if(cur_world_state.nonNull())
 	{
-		Lock lock(world_state->mutex);
-		if(cur_world_state->avatars.count(client_avatar_uid) == 1)
+		WorldStateLock lock(world_state->mutex);
+		ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+		if(avatars.count(client_avatar_uid) == 1)
 		{
-			cur_world_state->avatars[client_avatar_uid]->state = Avatar::State_Dead;
-			cur_world_state->avatars[client_avatar_uid]->other_dirty = true;
+			avatars[client_avatar_uid]->state = Avatar::State_Dead;
+			avatars[client_avatar_uid]->other_dirty = true;
 		}
 	}
 

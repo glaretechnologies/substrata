@@ -7,19 +7,43 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "SubstrataLuaVM.h"
+#include "WorldStateLock.h"
 #include "WorldObject.h"
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
+#include <utils/Lock.h>
 #include <lua/LuaUtils.h>
 #include <lualib.h>
 
 
+// Sets script_evaluator->cur_world_state_lock pointer to the world_state_lock address for the lifetime of the object.
+// This is so functions that are called from lua code can check that we hold the world state lock.
+class SetCurWorldStateLockClass
+{
+public:
+	SetCurWorldStateLockClass(LuaScriptEvaluator* script_evaluator_, WorldStateLock& world_state_lock)
+	:	script_evaluator(script_evaluator_)
+	{
+		script_evaluator_->cur_world_state_lock = &world_state_lock;
+	}
+
+	~SetCurWorldStateLockClass()
+	{
+		script_evaluator->cur_world_state_lock = nullptr;
+	}
+
+private:
+	LuaScriptEvaluator* script_evaluator;
+};
+
+
 LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler_, 
-	const std::string& script_src, WorldObject* world_object_
+	const std::string& script_src, WorldObject* world_object_,
 #if SERVER
-		,ServerWorldState* world_state_ // The world that the object belongs to.
+		ServerWorldState* world_state_, // The world that the object belongs to.
 #endif
+	WorldStateLock& world_state_lock
 )
 :	substrata_lua_vm(substrata_lua_vm_),
 	script_output_handler(script_output_handler_),
@@ -29,7 +53,8 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 	world_state(world_state_),
 #endif
 	next_timer_id(0),
-	num_obs_event_listening(0)
+	num_obs_event_listening(0),
+	cur_world_state_lock(nullptr)
 {
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
 		timers[i].id = -1;
@@ -46,6 +71,8 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 	options.script_output_handler = script_output_handler_;
 	options.userdata = this;
 	lua_script.set(new LuaScript(substrata_lua_vm->lua_vm.ptr(), options, script_src));
+
+	SetCurWorldStateLockClass lock_setter(this, world_state_lock);
 	lua_script->exec();
 
 	onUserTouchedObject_ref       = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserTouchedObject");
@@ -62,7 +89,7 @@ LuaScriptEvaluator::~LuaScriptEvaluator()
 }
 
 
-void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept
+void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: onUserTouchedObject");
 	if(hit_error || (func_ref == LUA_NOREF))
@@ -70,6 +97,8 @@ void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID
 
 	try
 	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
 		lua_script->resetExecutionTimeCounter();
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes function onto the stack.
@@ -98,7 +127,7 @@ void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID
 }
 
 
-void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept
+void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserUsedObject");
 	if(hit_error || (func_ref == LUA_NOREF))
@@ -106,6 +135,8 @@ void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob
 
 	try
 	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
 		lua_script->resetExecutionTimeCounter();
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes onUserUsedObject onto the stack.
@@ -134,7 +165,7 @@ void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept
+void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserMovedNearToObject");
 	if(hit_error || (func_ref == LUA_NOREF))
@@ -142,6 +173,8 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid,
 
 	try
 	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
 		lua_script->resetExecutionTimeCounter();
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
@@ -170,7 +203,7 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid,
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept
+void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserMovedAwayFromObject");
 	if(hit_error || (func_ref == LUA_NOREF))
@@ -178,6 +211,8 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_ui
 
 	try
 	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
 		lua_script->resetExecutionTimeCounter();
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
@@ -206,7 +241,7 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_ui
 }
 
 
-void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id) noexcept
+void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserEnteredParcel");
 	if(hit_error || (func_ref == LUA_NOREF))
@@ -214,6 +249,8 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID
 
 	try
 	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
 		lua_script->resetExecutionTimeCounter();
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
@@ -242,7 +279,7 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID
 }
 
 
-void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id) noexcept
+void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
 	if(hit_error || (func_ref == LUA_NOREF))
@@ -250,6 +287,8 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 
 	try
 	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
 		lua_script->resetExecutionTimeCounter();
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
@@ -278,13 +317,15 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 }
 
 
-void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref) noexcept
+void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error)
 		return;
 
 	try
 	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
 		lua_script->resetExecutionTimeCounter();
 
 		lua_getref(lua_script->thread_state, onTimerEvent_ref);  // Push function to be called onto stack
@@ -351,7 +392,7 @@ void LuaScriptEvaluator::pushAvatarTableOntoStack(UID avatar_uid)
 }
 
 
-void LuaScriptEvaluator::pushWorldObjectTableOntoStack(UID uid)
+void LuaScriptEvaluator::pushWorldObjectTableOntoStack(UID ob_uid)
 {
 	// Create worldObject table
 	lua_createtable(lua_script->thread_state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
@@ -361,7 +402,7 @@ void LuaScriptEvaluator::pushWorldObjectTableOntoStack(UID uid)
 	lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	// Set table UID field
-	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)uid.value());
+	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)ob_uid.value());
 }
 
 

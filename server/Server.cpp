@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/MessageUtils.h"
 #include "../shared/SubstrataLuaVM.h"
 #include "../shared/ObjectEventHandlers.h"
+#include "../shared/WorldStateLock.h"
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
@@ -479,11 +480,12 @@ int main(int argc, char *argv[])
 		{ // Begin scope for world_state->mutex lock
 			conPrint("Creating Lua scripts for objects...");
 
-			Lock lock(server.world_state->mutex);
+			WorldStateLock lock(server.world_state->mutex);
 			for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
 			{
 				Reference<ServerWorldState> world_state = world_it->second;
-				for(auto i = world_state->objects.begin(); i != world_state->objects.end(); ++i)
+				ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
+				for(auto i = objects.begin(); i != objects.end(); ++i)
 				{
 					WorldObject* ob = i->second.ptr();
 					if(hasPrefix(ob->script, "--lua"))
@@ -492,7 +494,7 @@ int main(int argc, char *argv[])
 
 						try
 						{
-							ob->lua_script_evaluator = new LuaScriptEvaluator(server.lua_vm.ptr(), /*script output handler=*/&server, ob->script, ob, world_state.ptr());
+							ob->lua_script_evaluator = new LuaScriptEvaluator(server.lua_vm.ptr(), /*script output handler=*/&server, ob->script, ob, world_state.ptr(), lock);
 						}
 						catch(LuaScriptExcepWithLocation& e)
 						{
@@ -524,7 +526,7 @@ int main(int argc, char *argv[])
 			// Do Lua timer callbacks
 			if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 			{
-				Lock lock(server.world_state->mutex);
+				WorldStateLock lock(server.world_state->mutex);
 
 				const double cur_time = server.total_timer.elapsed();
 				server.timer_queue.update(cur_time, /*triggered_timers_out=*/server.temp_triggered_timers);
@@ -540,7 +542,7 @@ int main(int argc, char *argv[])
 						assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
 						if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
 						{
-							script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref); // Execute the Lua timer event callback function
+							script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
 
 							if(timer.repeating)
 							{
@@ -559,7 +561,7 @@ int main(int argc, char *argv[])
 			
 			// Handle any queued messages from worker threads
 			{
-				Lock lock(server.message_queue.getMutex());
+				Lock queue_lock(server.message_queue.getMutex());
 				while(server.message_queue.unlockedNonEmpty())
 				{
 					Reference<ThreadMessage> msg = server.message_queue.unlockedDequeue();
@@ -569,18 +571,18 @@ int main(int argc, char *argv[])
 						const UserUsedObjectThreadMessage* used_msg = static_cast<UserUsedObjectThreadMessage*>(msg.ptr());
 
 						// Look up object
-						Lock world_lock(server.world_state->mutex); // Just hold the world state lock while executing script event handlers for now.
-						auto res = used_msg->world->objects.find(used_msg->object_uid);
-						if(res != used_msg->world->objects.end())
+						WorldStateLock world_lock(server.world_state->mutex); // Just hold the world state lock while executing script event handlers for now.
+						auto res = used_msg->world->getObjects(world_lock).find(used_msg->object_uid);
+						if(res != used_msg->world->getObjects(world_lock).end())
 						{
 							WorldObject* ob = res->second.ptr();
 
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, used_msg->avatar_uid, ob->uid);
+								ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, used_msg->avatar_uid, ob->uid, world_lock);
 
 							// Execute doOnUserUsedObject event handler in any other scripts that are listening for onUserUsedObject for this object
 							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/used_msg->avatar_uid, ob->uid);
+								ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/used_msg->avatar_uid, ob->uid, world_lock);
 						}
 					}
 					else if(dynamic_cast<UserTouchedObjectThreadMessage*>(msg.ptr()))
@@ -588,18 +590,18 @@ int main(int argc, char *argv[])
 						const UserTouchedObjectThreadMessage* touched_msg = static_cast<UserTouchedObjectThreadMessage*>(msg.ptr());
 
 						// Look up object
-						auto res = touched_msg->world->objects.find(touched_msg->object_uid);
-						Lock world_lock(server.world_state->mutex);
-						if(res != touched_msg->world->objects.end())
+						WorldStateLock world_lock(server.world_state->mutex);
+						auto res = touched_msg->world->getObjects(world_lock).find(touched_msg->object_uid);
+						if(res != touched_msg->world->getObjects(world_lock).end())
 						{
 							WorldObject* ob = res->second.ptr();
 
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, touched_msg->avatar_uid, ob->uid);
+								ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, touched_msg->avatar_uid, ob->uid, world_lock);
 
 							// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
 							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserTouchedObjectHandlers(touched_msg->avatar_uid, ob->uid);
+								ob->event_handlers->executeOnUserTouchedObjectHandlers(touched_msg->avatar_uid, ob->uid, world_lock);
 						}
 					}
 					else if(dynamic_cast<UserMovedNearToObjectThreadMessage*>(msg.ptr()))
@@ -607,18 +609,18 @@ int main(int argc, char *argv[])
 						const UserMovedNearToObjectThreadMessage* moved_msg = static_cast<UserMovedNearToObjectThreadMessage*>(msg.ptr());
 
 						// Look up object
-						auto res = moved_msg->world->objects.find(moved_msg->object_uid);
-						Lock world_lock(server.world_state->mutex);
-						if(res != moved_msg->world->objects.end())
+						WorldStateLock world_lock(server.world_state->mutex);
+						auto res = moved_msg->world->getObjects(world_lock).find(moved_msg->object_uid);
+						if(res != moved_msg->world->getObjects(world_lock).end())
 						{
 							WorldObject* ob = res->second.ptr();
 
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserMovedNearToObject(ob->lua_script_evaluator->onUserMovedNearToObject_ref, moved_msg->avatar_uid, moved_msg->object_uid);
+								ob->lua_script_evaluator->doOnUserMovedNearToObject(ob->lua_script_evaluator->onUserMovedNearToObject_ref, moved_msg->avatar_uid, moved_msg->object_uid, world_lock);
 
 							// Execute onUserMovedNearToObject event handler in any other scripts that are listening for onUserMovedNearToObject for this object
 							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserMovedNearToObjectHandlers(moved_msg->avatar_uid, ob->uid);
+								ob->event_handlers->executeOnUserMovedNearToObjectHandlers(moved_msg->avatar_uid, ob->uid, world_lock);
 						}
 					}
 					else if(dynamic_cast<UserMovedAwayFromObjectThreadMessage*>(msg.ptr()))
@@ -626,18 +628,18 @@ int main(int argc, char *argv[])
 						const UserMovedAwayFromObjectThreadMessage* moved_msg = static_cast<UserMovedAwayFromObjectThreadMessage*>(msg.ptr());
 
 						// Look up object
-						auto res = moved_msg->world->objects.find(moved_msg->object_uid);
-						Lock world_lock(server.world_state->mutex);
-						if(res != moved_msg->world->objects.end())
+						WorldStateLock world_lock(server.world_state->mutex);
+						auto res = moved_msg->world->getObjects(world_lock).find(moved_msg->object_uid);
+						if(res != moved_msg->world->getObjects(world_lock).end())
 						{
 							WorldObject* ob = res->second.ptr();
 
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserMovedAwayFromObject(ob->lua_script_evaluator->onUserMovedAwayFromObject_ref, moved_msg->avatar_uid, moved_msg->object_uid);
+								ob->lua_script_evaluator->doOnUserMovedAwayFromObject(ob->lua_script_evaluator->onUserMovedAwayFromObject_ref, moved_msg->avatar_uid, moved_msg->object_uid, world_lock);
 
 							// Execute event handler in any other scripts that are listening on this object
 							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(moved_msg->avatar_uid, moved_msg->object_uid);
+								ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(moved_msg->avatar_uid, moved_msg->object_uid, world_lock);
 						}
 					}
 					else if(dynamic_cast<UserEnteredParcelThreadMessage*>(msg.ptr()))
@@ -645,18 +647,18 @@ int main(int argc, char *argv[])
 						const UserEnteredParcelThreadMessage* parcel_msg = static_cast<UserEnteredParcelThreadMessage*>(msg.ptr());
 
 						// Look up object
-						auto res = parcel_msg->world->objects.find(parcel_msg->object_uid);
-						Lock world_lock(server.world_state->mutex);
-						if(res != parcel_msg->world->objects.end())
+						WorldStateLock world_lock(server.world_state->mutex);
+						auto res = parcel_msg->world->getObjects(world_lock).find(parcel_msg->object_uid);
+						if(res != parcel_msg->world->getObjects(world_lock).end())
 						{
 							WorldObject* ob = res->second.ptr();
 
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
+								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
 
 							// Execute event handler in any other scripts that are listening on this object
 							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserEnteredParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
+								ob->event_handlers->executeOnUserEnteredParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
 						}
 					}
 					else if(dynamic_cast<UserExitedParcelThreadMessage*>(msg.ptr()))
@@ -664,18 +666,18 @@ int main(int argc, char *argv[])
 						const UserExitedParcelThreadMessage* parcel_msg = static_cast<UserExitedParcelThreadMessage*>(msg.ptr());
 
 						// Look up object
-						auto res = parcel_msg->world->objects.find(parcel_msg->object_uid);
-						Lock world_lock(server.world_state->mutex);
-						if(res != parcel_msg->world->objects.end())
+						WorldStateLock world_lock(server.world_state->mutex);
+						auto res = parcel_msg->world->getObjects(world_lock).find(parcel_msg->object_uid);
+						if(res != parcel_msg->world->getObjects(world_lock).end())
 						{
 							WorldObject* ob = res->second.ptr();
 
 							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
+								ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
 
 							// Execute event handler in any other scripts that are listening on this object
 							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserExitedParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id);
+								ob->event_handlers->executeOnUserExitedParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
 						}
 					}
 				}
@@ -686,7 +688,7 @@ int main(int argc, char *argv[])
 
 			{ // Begin scope for world_state->mutex lock
 
-				Lock lock(server.world_state->mutex);
+				WorldStateLock lock(server.world_state->mutex);
 
 				for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
 				{
@@ -695,7 +697,8 @@ int main(int argc, char *argv[])
 					std::vector<std::string>& world_packets = broadcast_packets[world_it->first];
 
 					// Generate packets for avatar changes
-					for(auto i = world_state->avatars.begin(); i != world_state->avatars.end();)
+					const ServerWorldState::AvatarMapType& avatars = world_state->getAvatars(lock);
+					for(auto i = avatars.begin(); i != avatars.end();)
 					{
 						Avatar* avatar = i->second.getPointer();
 						if(avatar->other_dirty)
@@ -737,7 +740,7 @@ int main(int argc, char *argv[])
 								// Remove avatar from avatar map
 								auto old_avatar_iterator = i;
 								i++;
-								world_state->avatars.erase(old_avatar_iterator);
+								world_state->getAvatars(lock).erase(old_avatar_iterator);
 
 								conPrint("Removed avatar from world_state->avatars");
 							}
@@ -771,7 +774,8 @@ int main(int argc, char *argv[])
 
 
 					// Generate packets for object changes
-					for(auto i = world_state->dirty_from_remote_objects.begin(); i != world_state->dirty_from_remote_objects.end(); ++i)
+					ServerWorldState::DirtyFromRemoteObjectSetType& dirty_from_remote_objects = world_state->getDirtyFromRemoteObjects(lock);
+					for(auto i = dirty_from_remote_objects.begin(); i != dirty_from_remote_objects.end(); ++i)
 					{
 						WorldObject* ob = i->ptr();
 						if(ob->from_remote_other_dirty)
@@ -811,13 +815,13 @@ int main(int argc, char *argv[])
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								// Remove from dirty-set, so it's not updated in DB.
-								world_state->db_dirty_world_objects.erase(ob);
+								world_state->getDBDirtyWorldObjects(lock).erase(ob);
 
 								// Add DB record to list of records to be deleted.
 								server.world_state->db_records_to_delete.insert(ob->database_key);
 
 								// Remove ob from object map
-								world_state->objects.erase(ob->uid);
+								world_state->getObjects(lock).erase(ob->uid);
 
 								conPrint("Removed object from world_state->objects");
 								server.world_state->markAsChanged();
@@ -924,10 +928,9 @@ int main(int argc, char *argv[])
 							ob->from_remote_flags_dirty = false;
 							server.world_state->markAsChanged();
 						}
-
 					}
 
-					world_state->dirty_from_remote_objects.clear();
+					dirty_from_remote_objects.clear();
 				} // End for each server world
 
 
@@ -1018,9 +1021,9 @@ int main(int argc, char *argv[])
 				try
 				{
 					// Save world state to disk
-					Lock lock2(server.world_state->mutex);
+					WorldStateLock lock2(server.world_state->mutex);
 
-					server.world_state->serialiseToDisk();
+					server.world_state->serialiseToDisk(lock2);
 
 					server.world_state->clearChangedFlag();
 					save_state_timer.reset();

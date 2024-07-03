@@ -153,7 +153,25 @@ static StringAtom string_atoms[] =
 };
 
 
+
+
+#if GUI_CLIENT
+// Define this function to satisfy the Thread Safety Analysis.  Checks that we hold the world state lock.
+// ASSERT_CAPABILITY means that after this function has finished executing, the calling thread is guaranteed to hold world_state->mutex.
+static inline void checkHoldWorldStateMutex(LuaScriptEvaluator* script_evaluator, WorldState* world_state) ASSERT_CAPABILITY(world_state->mutex)
+{
+	// Don't bother checking the actual mutex addresses, just rely on the type system (WorldStateLock) and assume we don't mix up multiple WorldStateLocks, which should be unlikely.
+	if(!(script_evaluator->cur_world_state_lock)) // && (&script_evaluator->cur_world_state_lock->getMutex() == &world_state->mutex)))
+	{
+		assert(0);
+		throw glare::Exception("Internal error: didn't hold correct world state lock");
+	}
+}
+#endif
+
+
 // Construct a WorldMaterial from a table on the lua stack
+#if 0
 static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
 {
 	WorldMaterialRef mat = new WorldMaterial();
@@ -163,6 +181,7 @@ static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
 
 	return mat;
 }
+#endif
 
 
 static std::string errorContextString(lua_State* state)
@@ -200,7 +219,7 @@ static int user_setLinearVelocity(lua_State* state)
 }
 
 
-#if GUI_CLIENT
+#if 0 // GUI_CLIENT
 static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStream& packet)
 {
 	MessageUtils::updatePacketLengthField(packet);
@@ -210,6 +229,7 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 #endif
 
 
+#if 0 // TEMP DISABLED
 static int createObject(lua_State* state)
 {
 	// Expected args:
@@ -285,23 +305,29 @@ static int createObject(lua_State* state)
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	ob->uid = sub_lua_vm->server->world_state->getNextObjectUID();
-	ob->state = WorldObject::State_JustCreated;
-	ob->from_remote_other_dirty = true;
+	{
+		ob->uid = sub_lua_vm->server->world_state->getNextObjectUID();
+		ob->state = WorldObject::State_JustCreated;
+		ob->from_remote_other_dirty = true;
 	
-	//cur_world_state->addWorldObjectAsDBDirty(new_ob); // TEMP: don't add to DB
+		//cur_world_state->addWorldObjectAsDBDirty(new_ob); // TEMP: don't add to DB
 
-	script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
-	script_evaluator->world_state->objects.insert(std::make_pair(ob->uid, ob));
+		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
+		script_evaluator->world_state->getObjects(*script_evaluator->cur_world_state_lock).insert(std::make_pair(ob->uid, ob));
+	}
 
 #endif
 
 	return 0; // Count of returned values
 }
+#endif
 
 
 // Find a WorldObject for the given UID.  Throws exception if no such object with UID found.
 static WorldObject* getWorldObjectForUID(LuaScriptEvaluator* script_evaluator, const UID uid)
+#if GUI_CLIENT
+	
+#endif
 {
 	// See if the UID is that of the script_evaluator object, in which case we can use the script_evaluator pointer and avoid the map lookup.
 	if(uid == script_evaluator->world_object->uid)
@@ -309,19 +335,35 @@ static WorldObject* getWorldObjectForUID(LuaScriptEvaluator* script_evaluator, c
 	else
 	{
 #if GUI_CLIENT
-		SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm; //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
+		{
+			SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm; //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
+			WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
 
-		auto res = sub_lua_vm->gui_client->world_state->objects.find(uid);
-		if(res == sub_lua_vm->gui_client->world_state->objects.end())
-			throw glare::Exception("getObjectForUID(): No object with UID " + uid.toString());
+			checkHoldWorldStateMutex(script_evaluator, world_state);
 
-		return res.getValue().ptr();
+			auto res = world_state->objects.find(uid);
+			if(res == world_state->objects.end())
+				throw glare::Exception("getObjectForUID(): No object with UID " + uid.toString());
+
+			return res.getValue().ptr();
+		}
 #elif SERVER
-		auto res = script_evaluator->world_state->objects.find(uid);
-		if(res == script_evaluator->world_state->objects.end())
-			throw glare::Exception("getObjectForUID(): No object with UID " + uid.toString());
+		{
+			if(script_evaluator->cur_world_state_lock == nullptr)
+			{
+				assert(0);
+				throw glare::Exception("Internal error: cur_world_state_lock was null");
+			}
 
-		return res->second.ptr();
+
+			ServerWorldState::ObjectMapType& objects = script_evaluator->world_state->getObjects(*script_evaluator->cur_world_state_lock);
+
+			auto res = objects.find(uid);
+			if(res == objects.end())
+				throw glare::Exception("getObjectForUID(): No object with UID " + uid.toString());
+
+			return res->second.ptr();
+		}
 #endif
 	}
 }
@@ -401,7 +443,7 @@ static int luaAddEventListener(lua_State* state)
 	handler_func.script = WeakReference<LuaScriptEvaluator>(script_evaluator);
 	handler_func.handler_func_ref = handler_func_ref;
 
-	bool added_spatial_event = false;
+	[[maybe_unused]] bool added_spatial_event = false;
 	switch(atom)
 	{
 	case Atom_onUserUsedObject:
@@ -458,7 +500,11 @@ static int showMessageToUser(lua_State* state)
 
 	const std::string msg = LuaUtils::getString(state, /*index=*/1);
 
+#if GUI_CLIENT
 	const UID av_uid = UID((uint64)LuaUtils::getTableNumberField(state, /*table index=*/2, "uid"));
+#else
+	LuaUtils::getTableNumberField(state, /*table index=*/2, "uid"); // Check for UID anyway
+#endif
 
 #if GUI_CLIENT
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
@@ -746,6 +792,12 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
+	if(script_evaluator->cur_world_state_lock == nullptr)
+	{
+		assert(0);
+		throw glare::Exception("Internal error: cur_world_state_lock was null");
+	}
+
 	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
 	// Check permissions before we update object.
@@ -770,7 +822,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		ob->from_remote_model_url_dirty = true; // TODO: rename
 
 #if SERVER
-		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 #endif
 		break;
 	case Atom_pos:
@@ -807,7 +859,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		ob->content = LuaUtils::getString(state, /*index=*/3);
 		ob->from_remote_content_dirty = true; // TODO: rename
 		//script_evaluator->world_state->addWorldObjectAsDBDirty(ob);
-		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 		break;
 	case Atom_video_autoplay:
 		assert(stringEqual(key_str, "video_autoplay"));
@@ -862,12 +914,12 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	{
 		ob->last_transform_update_avatar_uid = std::numeric_limits<uint32>::max();
 		ob->from_remote_transform_dirty = true; // TODO: rename
-		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 	}
 	else if(other_changed)
 	{
 		ob->from_remote_other_dirty = true; // TODO: rename
-		script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 	}
 
 	return 0; // Count of returned values
@@ -1066,7 +1118,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 
 	// Mark the object as dirty, sending the updated object will send the updated material as well.
 	ob->from_remote_other_dirty = true; // TODO: rename
-	script_evaluator->world_state->dirty_from_remote_objects.insert(ob);
+	script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 
 	return 0; // Count of returned values
 
@@ -1118,11 +1170,14 @@ static int userClassIndexMetaMethod(lua_State* state)
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->avatars.find(uid);
-	if(res == script_evaluator->world_state->avatars.end())
+	if(script_evaluator->cur_world_state_lock == nullptr)
+		throw glare::Exception("Internal error: cur_world_state_lock was null");
+	const ServerWorldState::AvatarMapType& avatars = script_evaluator->world_state->getAvatars(*script_evaluator->cur_world_state_lock);
+	auto res = avatars.find(uid);
+	if(res == avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
-	Avatar* avatar = res->second.ptr();
+	const Avatar* avatar = res->second.ptr();
 	//if(res == sub_lua_vm->server->world_state->user_id_to_users.end())
 	//	throw glare::Exception("No such user with given UID");
 
@@ -1195,20 +1250,28 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 
 	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
 #if GUI_CLIENT
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
+	checkHoldWorldStateMutex(script_evaluator, world_state);
 
-	auto res = sub_lua_vm->gui_client->world_state->avatars.find(uid);
-	if(res == sub_lua_vm->gui_client->world_state->avatars.end())
+	auto res = world_state->avatars.find(uid);
+	if(res == world_state->avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
 	Avatar* avatar = res->second.ptr();
 #elif SERVER
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
-	auto res = script_evaluator->world_state->avatars.find(uid);
-	if(res == script_evaluator->world_state->avatars.end())
+
+	if(script_evaluator->cur_world_state_lock == nullptr)
+		throw glare::Exception("Internal error: cur_world_state_lock was null");
+	const ServerWorldState::AvatarMapType& avatars = script_evaluator->world_state->getAvatars(*script_evaluator->cur_world_state_lock);
+
+	auto res = avatars.find(uid);
+	if(res == avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
 	Avatar* avatar = res->second.ptr();

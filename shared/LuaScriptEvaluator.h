@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2024 -
 class SubstrataLuaVM;
 class WorldObject;
 class ServerWorldState;
+class WorldStateLock;
 
 
 /*=====================================================================
@@ -30,40 +31,41 @@ class LuaScriptEvaluator : public WeakRefCounted
 {
 public:
 	LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm, LuaScriptOutputHandler* script_output_handler, 
-		const std::string& script_src, WorldObject* world_object
+		const std::string& script_src, WorldObject* world_object,
 #if SERVER
-		,ServerWorldState* world_state // The world that the object belongs to.
+		ServerWorldState* world_state, // The world that the object belongs to.
 #endif
+		WorldStateLock& world_state_lock // Since this constructor executes Lua code, we need to hold the world state lock
 	);
 	~LuaScriptEvaluator();
 
 
-	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept;
+	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept;
 	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != LUA_NOREF; }
 	
-	void doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserUsedObjectDefined() { return onUserUsedObject_ref != LUA_NOREF; }
 
-	void doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserMovedNearToObjectDefined() { return onUserMovedNearToObject_ref != LUA_NOREF; }
 	
-	void doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserMovedAwayFromObjectDefined() { return onUserMovedAwayFromObject_ref != LUA_NOREF; }
 
-	void doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserEnteredParcelDefined() { return onUserEnteredParcel_ref != LUA_NOREF; }
 
-	void doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 	bool isOnUserExitedParcelDefined() { return onUserExitedParcel_ref != LUA_NOREF; }
 
-	void doOnTimerEvent(int onTimerEvent_ref) noexcept;
+	void doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
 
 	void destroyTimer(int timer_index);
 
 //private:
 	void pushUserTableOntoStack(UserID client_user_id);
 	void pushAvatarTableOntoStack(UID avatar_uid);
-	void pushWorldObjectTableOntoStack(UID uid); // OLD: Push a table for this->world_object onto Lua stack.
+	void pushWorldObjectTableOntoStack(UID ob_uid); // OLD: Push a table for this->world_object onto Lua stack.
 	void pushParcelTableOntoStack(ParcelID parcel_id);
 public:
 
@@ -76,6 +78,8 @@ public:
 #if SERVER
 	ServerWorldState* world_state; // The world that the object belongs to.
 #endif
+
+	WorldStateLock* cur_world_state_lock; // Non-null if the world state lock is currently held by this thread, null otherwise.
 
 	static const int MAX_NUM_TIMERS = 4;
 

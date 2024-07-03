@@ -1,8 +1,7 @@
 /*=====================================================================
 ServerWorldState.h
 ------------------
-Copyright Glare Technologies Limited 2021 -
-Generated at 2016-01-12 12:22:34 +1300
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
@@ -12,6 +11,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
 #include "../shared/WorldSettings.h"
+#include "../shared/WorldStateLock.h"
 #include "NewsPost.h"
 #include "User.h"
 #include "Order.h"
@@ -26,26 +26,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <CircularBuffer.h>
 #include <map>
 #include <unordered_set>
-
-
-class ServerWorldState : public ThreadSafeRefCounted
-{
-public:
-	void addParcelAsDBDirty(const ParcelRef parcel) { db_dirty_parcels.insert(parcel); }
-	void addWorldObjectAsDBDirty(const WorldObjectRef ob) { db_dirty_world_objects.insert(ob); }
-
-	WorldSettings world_settings;
-
-	std::map<UID, Reference<Avatar>> avatars;
-
-	std::map<UID, WorldObjectRef> objects;
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects; // TODO: could just use vector for this, and avoid duplicates by checking object dirty flag.
-
-	std::unordered_set<ParcelRef, ParcelRefHash> db_dirty_parcels;
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> db_dirty_world_objects;
-
-	std::map<ParcelID, ParcelRef> parcels;
-};
+class ServerWorldState;
 
 
 struct OpenSeaParcelListing
@@ -136,6 +117,48 @@ struct UserScriptLog : public ThreadSafeRefCounted
 /*=====================================================================
 ServerWorldState
 ----------------
+State for a particular world.
+
+Due to limitations of the Thread Safety Analysis, which doesn't seem to handle
+references in maps, we will enforce that the using thread holds the world state mutex by making
+members private and having accessor methods that take a WorldStateLock argument.
+=====================================================================*/
+class ServerWorldState : public ThreadSafeRefCounted
+{
+public:
+	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }
+	void addWorldObjectAsDBDirty(const WorldObjectRef ob, WorldStateLock& /*world_state_lock*/) { db_dirty_world_objects.insert(ob); }
+
+	WorldSettings world_settings;
+
+	typedef std::map<UID, Reference<Avatar>> AvatarMapType;
+	typedef std::map<UID, WorldObjectRef> ObjectMapType;
+	typedef std::map<ParcelID, ParcelRef> ParcelMapType;
+	typedef std::unordered_set<WorldObjectRef, WorldObjectRefHash> DirtyFromRemoteObjectSetType;
+
+	AvatarMapType& getAvatars(WorldStateLock& /*world_state_lock*/) { return avatars; }
+	ObjectMapType& getObjects(WorldStateLock& /*world_state_lock*/) { return objects; }
+	ParcelMapType& getParcels(WorldStateLock& /*world_state_lock*/) { return parcels; }
+	
+	ParcelMapType parcels; // TODO: make private.  Lots of compile errors to fix when doing so.
+
+	DirtyFromRemoteObjectSetType&                           getDirtyFromRemoteObjects(WorldStateLock& /*world_state_lock*/) { return dirty_from_remote_objects; }
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash>& getDBDirtyWorldObjects(WorldStateLock& /*world_state_lock*/) { return db_dirty_world_objects; }
+	std::unordered_set<ParcelRef, ParcelRefHash>&           getDBDirtyParcels(WorldStateLock& /*world_state_lock*/) { return db_dirty_parcels; }
+
+private:
+	ObjectMapType objects;
+	DirtyFromRemoteObjectSetType dirty_from_remote_objects; // TODO: could just use vector for this, and avoid duplicates by checking object dirty flag.
+	AvatarMapType avatars;
+	
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> db_dirty_world_objects;
+	std::unordered_set<ParcelRef, ParcelRefHash> db_dirty_parcels;
+};
+
+
+/*=====================================================================
+ServerAllWorldsState
+--------------------
 
 =====================================================================*/
 class ServerAllWorldsState : public ThreadSafeRefCounted
@@ -146,8 +169,8 @@ public:
 
 	void readFromDisk(const std::string& path);
 	void createNewDatabase(const std::string& path);
-	void serialiseToDisk() REQUIRES(mutex); // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
-	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.  Mutex should be locked already.
+	void serialiseToDisk(WorldStateLock& lock) REQUIRES(mutex); // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
+	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.
 
 	// Removes sensitive information from the database, such as user passwords, email addresses, billing information, web sessions etc.
 	// Then saves the updates to disk.
@@ -259,7 +282,7 @@ public:
 
 	ServerCredentials server_credentials;
 
-	mutable ::Mutex mutex;
+	mutable ::WorldStateMutex mutex;
 private:
 	GLARE_DISABLE_COPY(ServerAllWorldsState);
 

@@ -37,7 +37,7 @@ void ScriptedObjectProximityChecker::clear()
 
 
 // Iterate over objects, see if the player has moved near to or away from any objects, and execute the relevant event handlers if so.
-void ScriptedObjectProximityChecker::think(const Vec4f& campos)
+void ScriptedObjectProximityChecker::think(const Vec4f& campos, WorldStateLock& world_state_lock)
 {
 	WorldObjectRef* const objects_data = objects.vector.data();
 	const size_t objects_size          = objects.vector.size();
@@ -65,11 +65,11 @@ void ScriptedObjectProximityChecker::think(const Vec4f& campos)
 				if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserMovedNearToObject_handlers.nonEmpty()))
 				{
 					if(ob->lua_script_evaluator)
-						ob->lua_script_evaluator->doOnUserMovedNearToObject(ob->lua_script_evaluator->onUserMovedNearToObject_ref, gui_client->client_avatar_uid, ob->uid);
+						ob->lua_script_evaluator->doOnUserMovedNearToObject(ob->lua_script_evaluator->onUserMovedNearToObject_ref, gui_client->client_avatar_uid, ob->uid, world_state_lock);
 
 					// Execute any event handlers also
 					if(ob->event_handlers)
-						ob->event_handlers->executeOnUserMovedNearToObjectHandlers(/*avatar_uid=*/gui_client->client_avatar_uid, ob->uid);
+						ob->event_handlers->executeOnUserMovedNearToObjectHandlers(/*avatar_uid=*/gui_client->client_avatar_uid, ob->uid, world_state_lock);
 
 					// Send message to server to execute on server as well
 					MessageUtils::initPacket(gui_client->scratch_packet, Protocol::UserMovedNearToObjectMessage);
@@ -83,11 +83,11 @@ void ScriptedObjectProximityChecker::think(const Vec4f& campos)
 				if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserMovedAwayFromObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserMovedAwayFromObject_handlers.nonEmpty()))
 				{
 					if(ob->lua_script_evaluator)
-						ob->lua_script_evaluator->doOnUserMovedAwayFromObject(ob->lua_script_evaluator->onUserMovedAwayFromObject_ref, gui_client->client_avatar_uid, ob->uid);
+						ob->lua_script_evaluator->doOnUserMovedAwayFromObject(ob->lua_script_evaluator->onUserMovedAwayFromObject_ref, gui_client->client_avatar_uid, ob->uid, world_state_lock);
 
 					// Execute any event handlers also
 					if(ob->event_handlers)
-						ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(/*avatar_uid=*/gui_client->client_avatar_uid, ob->uid);
+						ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(/*avatar_uid=*/gui_client->client_avatar_uid, ob->uid, world_state_lock);
 
 					// Send message to server to execute on server as well
 					MessageUtils::initPacket(gui_client->scratch_packet, Protocol::UserMovedAwayFromObjectMessage);
