@@ -772,6 +772,11 @@ void GUIClient::shutdown()
 		gl_ui->removeWidget(it->text_view); 
 	notifications.clear();
 
+	// Remove the script_messages from the UI
+	for(auto it = script_messages.begin(); it != script_messages.end(); ++it)
+		gl_ui->removeWidget(it->text_view); 
+	script_messages.clear();
+
 	misc_info_ui.destroy();
 
 	ob_info_ui.destroy();
