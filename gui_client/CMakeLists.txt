@@ -248,8 +248,6 @@ ${CMAKE_SOURCE_DIR}/gui_client/ChatUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ChatUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/ScriptedObjectProximityChecker.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ScriptedObjectProximityChecker.h
-${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.cpp
-${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.h
 )
 
 
@@ -357,6 +355,8 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.h
 		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.ui
+		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.h
 	)
 endif()
 
