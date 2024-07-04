@@ -199,8 +199,7 @@ static glare::AtomicInt should_quit(0);
 #if !defined(_WIN32)
 static void signalHandler(int signal)
 {
-	assert(signal == SIGTERM);
-
+	assert(signal == SIGTERM || signal == SIGINT);
 	should_quit = 1;
 }
 #endif
@@ -216,15 +215,17 @@ int main(int argc, char *argv[])
 	// Listen for SIGTERM on Linux and Mac.
 	// Upon receiving SIGTERM, save dirty data to database, then try and shut down gracefully.
 #if !defined(_WIN32)
+	conPrint("Setting signal handler for sigterm!!!");
 	// Set a signal handler for SIGTERM
 	struct sigaction act;
 	act.sa_handler = signalHandler;
-	act.sa_sigaction = nullptr;
 	sigemptyset(&act.sa_mask);
 	act.sa_flags = 0;
 	act.sa_restorer = nullptr;
 	if(sigaction(SIGTERM, &act, /*oldact=*/nullptr) != 0)
-		fatalError("Failed to set signal handler: " + PlatformUtils::getLastErrorString());
+		fatalError("Failed to set SIGTERM signal handler: " + PlatformUtils::getLastErrorString());
+	if(sigaction(SIGINT, &act, /*oldact=*/nullptr) != 0)
+		fatalError("Failed to set SIGINT signal handler: " + PlatformUtils::getLastErrorString());
 #endif
 
 	conPrint("Substrata server v" + ::cyberspace_version);
@@ -1070,6 +1071,7 @@ int main(int argc, char *argv[])
 			loop_iter++;
 		} // End of main server loop
 
+		conPrint("Closing...");
 
 		// Save world state to disk before terminating.
 		conPrint("Saving world state to disk before program quits...");
@@ -1086,6 +1088,7 @@ int main(int argc, char *argv[])
 		}
 
 		// Shut down threads in reverse order of creation
+		conPrint("Stopping threads...");
 		server.dyn_tex_updater_thread_manager.killThreadsBlocking();
 
 		server.udp_handler_thread_manager.killThreadsBlocking();
