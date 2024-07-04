@@ -64,6 +64,8 @@ void ListenerThread::doRun()
 		else
 			throw MySocketExcep("Failed to bind and listen.");
 
+		m_sock = sock;
+
 		if(tls_configuration)
 		{
 			tls_context = tls_server();
@@ -73,7 +75,7 @@ void ListenerThread::doRun()
 				throw glare::Exception("tls_configure failed: " + getTLSErrorString(tls_context));
 		}
 
-		while(1)
+		while(!should_quit)
 		{
 			try
 			{
@@ -122,10 +124,15 @@ void ListenerThread::doRun()
 	if(tls_context != NULL)
 		tls_free(tls_context); // Free TLS context.
 
-	
-
-	// Kill the child WorkerThread threads now
-	//thread_manager.killThreadsBlocking();
-
 	conPrint("ListenerThread terminated.");
+}
+
+
+void ListenerThread::kill()
+{
+	should_quit = 1;
+
+	MySocketRef sock = this->m_sock;
+	if(sock)
+		sock->ungracefulShutdown();
 }

@@ -61,9 +61,9 @@ void WebDataFileWatcherThread::doRun()
 		wait_handles.push_back(makeWaitHandleForDir(web_data_store->public_files_dir,	/*watch subtree=*/false));
 		wait_handles.push_back(makeWaitHandleForDir(web_data_store->webclient_dir,		/*watch subtree=*/true));
 		
-		while(1)
+		while(!should_quit)
 		{
-			const DWORD res = WaitForMultipleObjects(/*count=*/(DWORD)wait_handles.size(), wait_handles.data(), /*wait all=*/FALSE, /*wait time=*/INFINITE);
+			const DWORD res = WaitForMultipleObjects(/*count=*/(DWORD)wait_handles.size(), wait_handles.data(), /*wait all=*/FALSE, /*wait time (ms)=*/1000);
 			if(res >= WAIT_OBJECT_0 && res < WAIT_OBJECT_0 + (DWORD)wait_handles.size())
 			{
 				const size_t i = res - WAIT_OBJECT_0;
@@ -74,6 +74,8 @@ void WebDataFileWatcherThread::doRun()
 				if(FindNextChangeNotification(wait_handles[i]) == 0)
 					throw glare::Exception("FindNextChangeNotification failed: " + PlatformUtils::getLastErrorString());
 			}
+			else if(res == WAIT_TIMEOUT)
+			{}
 			else
 				throw glare::Exception("Unhandled WaitForSingleObject result");
 		}
@@ -124,4 +126,10 @@ void WebDataFileWatcherThread::doRun()
 	{
 		conPrint("WebDataFileWatcherThread error: " + e.what());
 	}
+}
+
+
+void WebDataFileWatcherThread::kill()
+{
+	should_quit = 1;
 }

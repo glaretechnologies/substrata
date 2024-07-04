@@ -761,6 +761,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	// Get object UID
 	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
@@ -830,7 +831,6 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "content"));
 		ob->content = LuaUtils::getString(state, /*index=*/3);
 		ob->from_remote_content_dirty = true; // TODO: rename
-		//script_evaluator->world_state->addWorldObjectAsDBDirty(ob);
 		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 		break;
 	case Atom_video_autoplay:
@@ -893,6 +893,9 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		ob->from_remote_other_dirty = true; // TODO: rename
 		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 	}
+
+	script_evaluator->world_state->addWorldObjectAsDBDirty(ob, *script_evaluator->cur_world_state_lock);
+	sub_lua_vm->server->world_state->markAsChanged();
 
 	return 0; // Count of returned values
 #endif
@@ -1012,6 +1015,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	// Get material index from the world material table
 	const size_t mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "idx");
 
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
@@ -1092,8 +1096,10 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	ob->from_remote_other_dirty = true; // TODO: rename
 	script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 
-	return 0; // Count of returned values
+	script_evaluator->world_state->addWorldObjectAsDBDirty(ob, *script_evaluator->cur_world_state_lock);
+	sub_lua_vm->server->world_state->markAsChanged();
 
+	return 0; // Count of returned values
 #endif
 }
 

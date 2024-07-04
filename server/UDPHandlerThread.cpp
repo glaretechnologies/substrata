@@ -109,3 +109,11 @@ void UDPHandlerThread::doRun()
 
 	conPrint("UDPHandlerThread: terminating.");
 }
+
+
+void UDPHandlerThread::kill()
+{
+	Reference<UDPSocket> udp_socket_ = udp_socket;
+	if(udp_socket_.nonNull())
+		udp_socket_->ungracefulShutdown();
+}

@@ -33,6 +33,8 @@ public:
 
 	void doRun() override;
 
+	virtual void kill() override;
+
 private:
 	std::vector<ConnectedClientInfo> connected_clients;
 	Reference<UDPSocket> udp_socket;
