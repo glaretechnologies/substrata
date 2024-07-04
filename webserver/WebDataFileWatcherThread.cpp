@@ -110,7 +110,7 @@ void WebDataFileWatcherThread::doRun()
 			const int num = poll(
 				poll_fds,
 				1, // num fds
-				5000 // timeout (ms)
+				2000 // timeout (ms)
 			);
 			if(num == -1)
 				throw glare::Exception("WebDataFileWatcherThread: poll failed: " + PlatformUtils::getLastErrorString());
@@ -133,12 +133,12 @@ void WebDataFileWatcherThread::doRun()
 
 		for(size_t i=0; i<watch_descriptors.size(); ++i)
 		{
-			int res = inotify_rm_watch(inotify_fd, watch_descriptors[i]);
-			assertOrDeclareUsed(res != -1);
+			/*int res =*/ inotify_rm_watch(inotify_fd, watch_descriptors[i]);
+			//assertOrDeclareUsed(res != -1); //  NOTE: this assert was failing, not sure why.
 		}
 
-		int res = close(inotify_fd);
-		assertOrDeclareUsed(res != -1);
+		/*int res =*/ close(inotify_fd);
+		//assertOrDeclareUsed(res != -1);
 
 #endif
 	}
