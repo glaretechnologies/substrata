@@ -109,6 +109,7 @@ class Server : public LuaScriptOutputHandler
 {
 public:
 	Server();
+	~Server();
 
 	// LuaScriptOutputHandler interface:
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;

@@ -50,6 +50,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/SocketBufferOutStream.h>
 #include <utils/OpenSSL.h>
 #include <tls.h>
+#if !defined(_WIN32)
+#include <signal.h>
+#endif
 
 
 void updateMapTiles(ServerAllWorldsState& world_state)
@@ -190,12 +193,39 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 }
 
 
+static glare::AtomicInt should_quit(0);
+
+
+#if !defined(_WIN32)
+static void signalHandler(int signal)
+{
+	assert(signal == SIGTERM);
+
+	should_quit = 1;
+}
+#endif
+
+
 int main(int argc, char *argv[])
 {
 	Clock::init();
 	Networking::init();
 	PlatformUtils::ignoreUnixSignals();
 	TLSSocket::initTLS();
+
+	// Listen for SIGTERM on Linux and Mac.
+	// Upon receiving SIGTERM, save dirty data to database, then try and shut down gracefully.
+#if !defined(_WIN32)
+	// Set a signal handler for SIGTERM
+	struct sigaction act;
+	act.sa_handler = signalHandler;
+	act.sa_sigaction = nullptr;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = 0;
+	act.sa_restorer = nullptr;
+	if(sigaction(SIGTERM, &act, /*oldact=*/nullptr) != 0)
+		fatalError("Failed to set signal handler: " + PlatformUtils::getLastErrorString());
+#endif
 
 	conPrint("Substrata server v" + ::cyberspace_version);
 
@@ -270,6 +300,11 @@ int main(int argc, char *argv[])
 		}
 
 
+		// Create LUA VM
+		server.lua_vm.set(new SubstrataLuaVM());
+		server.lua_vm->server = &server;
+
+
 		const std::string server_resource_dir = server_state_dir + "/server_resources";
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
 
@@ -342,9 +377,6 @@ int main(int argc, char *argv[])
 		server.world_state->denormaliseData();
 
 
-		// Create LUA VM
-		server.lua_vm.set(new SubstrataLuaVM());
-		server.lua_vm->server = &server;
 
 
 
@@ -519,7 +551,7 @@ int main(int argc, char *argv[])
 
 		// Main server loop
 		uint64 loop_iter = 0;
-		while(1)
+		while(!should_quit)
 		{
 			PlatformUtils::Sleep(100);
 
@@ -1021,9 +1053,9 @@ int main(int argc, char *argv[])
 				try
 				{
 					// Save world state to disk
-					WorldStateLock lock2(server.world_state->mutex);
+					WorldStateLock lock(server.world_state->mutex);
 
-					server.world_state->serialiseToDisk(lock2);
+					server.world_state->serialiseToDisk(lock);
 
 					server.world_state->clearChangedFlag();
 					save_state_timer.reset();
@@ -1037,6 +1069,32 @@ int main(int argc, char *argv[])
 
 			loop_iter++;
 		} // End of main server loop
+
+
+		// Save world state to disk before terminating.
+		conPrint("Saving world state to disk before program quits...");
+		try
+		{
+			// Save world state to disk
+			WorldStateLock lock(server.world_state->mutex);
+
+			server.world_state->serialiseToDisk(lock);
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Warning: saving world state to disk failed: " + e.what());
+		}
+
+		// Shut down threads in reverse order of creation
+		server.dyn_tex_updater_thread_manager.killThreadsBlocking();
+
+		server.udp_handler_thread_manager.killThreadsBlocking();
+
+		server.mesh_lod_gen_thread_manager.killThreadsBlocking();
+
+		thread_manager.killThreadsBlocking();
+
+		web_thread_manager.killThreadsBlocking();
 	}
 	catch(ArgumentParserExcep& e)
 	{
@@ -1057,6 +1115,18 @@ int main(int argc, char *argv[])
 Server::Server()
 {
 	world_state = new ServerAllWorldsState();
+}
+
+
+Server::~Server()
+{
+	message_queue.clear();
+	timer_queue.clear();
+
+	// Destroy WorldObjects before Lua VM as they may have references to Lua VM stuff.
+	world_state = nullptr;
+
+	lua_vm.set(nullptr);
 }
 
 

@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Reference.h>
 #include <Vector.h>
 #include <Mutex.h>
+#include <AtomicInt.h>
 #include <string>
 #include <set>
 #include <map>
@@ -28,7 +29,11 @@ public:
 	WebDataFileWatcherThread(Reference<WebDataStore> web_data_store);
 	virtual ~WebDataFileWatcherThread();
 
-	virtual void doRun();
+	virtual void doRun() override;
+
+	virtual void kill() override;
 
 	Reference<WebDataStore> web_data_store;
+private:
+	glare::AtomicInt should_quit;
 };

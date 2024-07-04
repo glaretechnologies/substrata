@@ -11,11 +11,13 @@ Code By Nicholas Chapman.
 #include <Platform.h>
 #include <MyThread.h>
 #include <ThreadManager.h>
+#include <AtomicInt.h>
 #include <set>
 #include <string>
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
+class MySocket;
 struct tls_config;
 
 
@@ -31,16 +33,17 @@ public:
 
 	virtual ~ListenerThread();
 
-	virtual void doRun();
+	virtual void doRun() override;
+
+	virtual void kill() override;
 
 private:
 	int listenport;
 
-	// Child threads are
-	// * WorkerThread's
-	//ThreadManager thread_manager;
-
 	Server* server;
 
 	struct tls_config* tls_configuration;
+
+	Reference<MySocket> m_sock;
+	glare::AtomicInt should_quit;
 };
