@@ -220,7 +220,6 @@ int main(int argc, char *argv[])
 	act.sa_handler = signalHandler;
 	sigemptyset(&act.sa_mask);
 	act.sa_flags = 0;
-	act.sa_restorer = nullptr;
 	if(sigaction(SIGTERM, &act, /*oldact=*/nullptr) != 0)
 		fatalError("Failed to set SIGTERM signal handler: " + PlatformUtils::getLastErrorString());
 	if(sigaction(SIGINT, &act, /*oldact=*/nullptr) != 0)
