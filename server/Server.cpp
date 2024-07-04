@@ -212,10 +212,9 @@ int main(int argc, char *argv[])
 	PlatformUtils::ignoreUnixSignals();
 	TLSSocket::initTLS();
 
-	// Listen for SIGTERM on Linux and Mac.
-	// Upon receiving SIGTERM, save dirty data to database, then try and shut down gracefully.
+	// Listen for SIGTERM and SIGINT on Linux and Mac.
+	// Upon receiving SIGTERM or SIGINT, save dirty data to database, then try and shut down gracefully.
 #if !defined(_WIN32)
-	conPrint("Setting signal handler for sigterm!!!");
 	// Set a signal handler for SIGTERM
 	struct sigaction act;
 	act.sa_handler = signalHandler;
