@@ -1293,7 +1293,7 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 	checkHoldWorldStateMutex(script_evaluator, world_state);
 #endif
 
-	const UID avatar_uid = UID((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+	[[maybe_unused]] const UID avatar_uid = UID((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
 	// Read key
 	int atom = -1;
