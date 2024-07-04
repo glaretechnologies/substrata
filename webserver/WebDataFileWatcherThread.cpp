@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <unistd.h>
 #include <sys/inotify.h>
 #include <linux/limits.h>
+#include <poll.h>
 #endif
 
 
@@ -96,18 +97,37 @@ void WebDataFileWatcherThread::doRun()
 
 		std::vector<uint8> buf(sizeof(struct inotify_event) + NAME_MAX + 1); // We have to read more than just sizeof(struct inotify_event), as the name field extends past end of structure.
 		// See https://man7.org/linux/man-pages/man7/inotify.7.html
-		while(1)
+		while(!should_quit)
 		{
-			const int length = read(inotify_fd, buf.data(), buf.size()); // Do a blocking read call.
-			if(length == -1)
-				throw glare::Exception("read failed: " + PlatformUtils::getLastErrorString());
+			// Use poll() so we can block with a timeout, and hence check should_quit occasionally.
+			// NOTE: could improve by including an additional file handle or similar to wait on instead of using a timeout.
 
-			if(length >= (int)sizeof(struct inotify_event))
+			struct pollfd poll_fds[1];
+			poll_fds[0].fd = inotify_fd;
+			poll_fds[0].events = POLLIN | POLLERR;
+			poll_fds[0].revents = 0;
+
+			const int num = poll(
+				poll_fds,
+				1, // num fds
+				5000 // timeout (ms)
+			);
+			if(num == -1)
+				throw glare::Exception("WebDataFileWatcherThread: poll failed: " + PlatformUtils::getLastErrorString());
+
+			if(num > 0)
 			{
-				conPrint("public_files_dir or webclient_dir or fragments_dir file(s) changed, reloading files...");
+				const int length = read(inotify_fd, buf.data(), buf.size()); // Do a blocking read call.
+				if(length == -1)
+					throw glare::Exception("read failed: " + PlatformUtils::getLastErrorString());
 
-				// The reload-trigger file has changed in some way.  So reload files
-				web_data_store->loadAndCompressFiles();
+				if(length >= (int)sizeof(struct inotify_event))
+				{
+					conPrint("public_files_dir or webclient_dir or fragments_dir file(s) changed, reloading files...");
+
+					// The reload-trigger file has changed in some way.  So reload files
+					web_data_store->loadAndCompressFiles();
+				}
 			}
 		}
 
