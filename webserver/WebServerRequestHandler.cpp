@@ -298,6 +298,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderAboutScripting(*this->world_state, *this->data_store, request, reply_info);
 		}
+		else if(request.path == "/about_luau_scripting")
+		{
+			MainPageHandlers::renderAboutLuauScripting(*this->world_state, *this->data_store, request, reply_info);
+		}
 		else if(request.path == "/about_substrata")
 		{
 			MainPageHandlers::renderAboutSubstrataPage(*this->world_state, *this->data_store, request, reply_info);
