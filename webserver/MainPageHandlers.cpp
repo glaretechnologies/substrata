@@ -649,6 +649,22 @@ void renderAboutScripting(ServerAllWorldsState& world_state, WebDataStore& data_
 }
 
 
+void renderAboutLuauScripting(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Luau Scripting in Substrata");
+	
+	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("about_luau_scripting.htmlfrag");
+	if(store_file.nonNull())
+	{
+		page += std::string(store_file->uncompressed_data.begin(), store_file->uncompressed_data.end());
+	}
+
+	page += WebServerResponseUtils::standardFooter(request_info, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 void renderAboutSubstrataPage(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Our vision for Substrata");
