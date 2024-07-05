@@ -1088,11 +1088,6 @@ int main(int argc, char *argv[])
 
 		// Shut down threads in reverse order of creation
 		conPrint("Stopping threads...");
-		server.dyn_tex_updater_thread_manager.killThreadsBlocking();
-
-		server.udp_handler_thread_manager.killThreadsBlocking();
-
-		server.mesh_lod_gen_thread_manager.killThreadsBlocking();
 
 		thread_manager.killThreadsBlocking();
 
@@ -1122,6 +1117,14 @@ Server::Server()
 
 Server::~Server()
 {
+	conPrint("Stopping Server threads...");
+
+	// Stop any threads that may refer to other data members first
+	dyn_tex_updater_thread_manager.killThreadsBlocking();
+	udp_handler_thread_manager.killThreadsBlocking();
+	mesh_lod_gen_thread_manager.killThreadsBlocking();
+	worker_thread_manager.killThreadsBlocking();
+
 	message_queue.clear();
 	timer_queue.clear();
 

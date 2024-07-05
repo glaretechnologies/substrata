@@ -361,7 +361,7 @@ void WorkerThread::handleResourceDownloadConnection()
 	try
 	{
 
-		while(1)
+		while(!should_quit)
 		{
 			const uint32 msg_type = socket->readUInt32();
 			if(msg_type == Protocol::GetFiles)
@@ -459,7 +459,7 @@ void WorkerThread::handleScreenshotBotConnection()
 
 	try
 	{
-		while(1)
+		while(!should_quit)
 		{
 			// Poll server state for a screenshot request
 			ScreenshotRef screenshot;
@@ -616,7 +616,7 @@ void WorkerThread::handleEthBotConnection()
 			throw glare::Exception("eth bot password was not correct.");
 
 			
-		while(1)
+		while(!should_quit)
 		{
 			// Poll server state for a request
 			SubEthTransactionRef trans;
@@ -1029,8 +1029,7 @@ void WorkerThread::doRun()
 
 			socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
-			bool keep_looping = true;
-			while(keep_looping) // write to / read from socket loop
+			while(!should_quit) // write to / read from socket loop
 			{
 				// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
 				if(VERBOSE) conPrint("WorkerThread: checking for pending data to send...");
@@ -1088,7 +1087,7 @@ void WorkerThread::doRun()
 							socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the client.
 							socket->waitForGracefulDisconnect(); // Wait for a FIN packet from the client. (indicated by recv() returning 0).  We can then close the socket without going into a wait state.
 							conPrintIfNotFuzzing("WorkerThread: waitForGracefulDisconnect done.");
-							keep_looping = false;
+							should_quit = 1;
 							break;
 						}
 					case Protocol::ClientUDPSocketOpen:
@@ -2715,6 +2714,16 @@ void WorkerThread::doRun()
 	}
 	socket = NULL;
 	ERR_remove_thread_state(/*thread id=*/NULL); // Set thread ID to null to use current thread.
+}
+
+
+void WorkerThread::kill()
+{
+	should_quit = true;
+
+	Reference<SocketInterface> socket_ = socket;
+	if(socket_)
+		socket_->ungracefulShutdown();
 }
 
 
