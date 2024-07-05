@@ -53,4 +53,8 @@ public:
 	std::map<std::string, Reference<WebDataStoreFile>> webclient_dir_files	GUARDED_BY(mutex);
 
 	Mutex mutex;
+
+
+	std::string main_css_hash GUARDED_BY(hash_mutex);
+	Mutex hash_mutex;
 };

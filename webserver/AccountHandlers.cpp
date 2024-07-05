@@ -50,7 +50,7 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 		if(logged_in_user == NULL)
 		{
-			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			page += WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request, "User Account");
 			page += "You must be logged in to view your user account page.";
 			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
 			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
@@ -142,7 +142,7 @@ void renderProveEthAddressOwnerPage(ServerAllWorldsState& world_state, const web
 		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 		if(logged_in_user == NULL)
 		{
-			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			page += WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request, "User Account");
 			page += "You must be logged in to view your user account page.";
 			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
 			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
@@ -204,7 +204,7 @@ void renderProveParcelOwnerByNFT(ServerAllWorldsState& world_state, const web::R
 		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 		if(logged_in_user == NULL)
 		{
-			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			page += WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request, "User Account");
 			page += "You must be logged in to view this page.";
 			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
 			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
@@ -308,7 +308,7 @@ void renderMakeParcelIntoNFTPage(ServerAllWorldsState& world_state, const web::R
 		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 		if(logged_in_user == NULL)
 		{
-			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			page += WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request, "User Account");
 			page += "You must be logged in to view this page.";
 			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
 			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);

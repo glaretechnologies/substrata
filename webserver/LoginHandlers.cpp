@@ -122,9 +122,9 @@ void setUserWebMessageForLoggedInUser(ServerAllWorldsState& world_state, const w
 }
 
 
-void renderLoginPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderLoginPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Login to Substrata");
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request_info, "Login to Substrata");
 
 	const web::UnsafeString msg = request_info.getURLParam("msg");
 
@@ -263,7 +263,7 @@ void handleLogoutPost(const web::RequestInfo& request_info, web::ReplyInfo& repl
 
 void renderSignUpPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Sign Up");
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request_info, "Sign Up");
 
 	const web::UnsafeString msg = request_info.getURLParam("msg");
 
@@ -405,9 +405,9 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 }
 
 
-void renderResetPasswordPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderResetPasswordPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Reset Password");
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request_info, "Reset Password");
 
 	const web::UnsafeString msg = request_info.getURLParam("msg");
 
@@ -527,7 +527,7 @@ void renderResetPasswordFromEmailPage(ServerAllWorldsState& world_state, const w
 {
 	try
 	{
-		std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Reset Password");
+		std::string page_out = WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request_info, "Reset Password");
 
 		const web::UnsafeString msg = request_info.getURLParam("msg");
 
@@ -664,7 +664,7 @@ void renderChangePasswordPage(ServerAllWorldsState& world_state, const web::Requ
 {
 	try
 	{
-		std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Change Password");
+		std::string page_out = WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request_info, "Change Password");
 
 		page_out += "<body>";
 		page_out += "</head><h1>Change Password</h1><body>";

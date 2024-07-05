@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "../server/ServerWorldState.h"
+#include "WebDataStore.h"
 #include "RequestInfo.h"
 #include "Escaping.h"
 #include "LoginHandlers.h"
@@ -32,8 +33,10 @@ namespace WebServerResponseUtils
 const std::string CRLF = "\r\n";
 
 
-const std::string standardHTMLHeader(const web::RequestInfo& request_info, const std::string& page_title, const std::string& extra_header_tags)
+const std::string standardHTMLHeader(WebDataStore& data_store, const web::RequestInfo& request_info, const std::string& page_title, const std::string& extra_header_tags)
 {
+	Lock lock(data_store.hash_mutex);
+
 	// Content-Security-Policy:
 	// This restricts the domains from which content (scripts, images etc.) are allowed to be loaded.
 	// We will allow everything to be loaded from the 'self' origin, and some stuff to be loaded from youtube, vimeo etc., for embedded videos.
@@ -45,7 +48,7 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"		<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">		\n"
 		"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\" />	\n" 
 		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>												\n"
-		"		<link href=\"/files/main.css?v=2\" rel=\"stylesheet\" />														\n"
+		"		<link href=\"/files/main.css?hash=" + data_store.main_css_hash + "\" rel=\"stylesheet\" />														\n"
 		"		<link rel=\"icon\" type=\"image/png\" href=\"/files/favicon.png\">											\n"
 		+ extra_header_tags + 
 		"		</head>																										\n";
@@ -54,7 +57,7 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 
 const std::string standardHeader(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, const std::string& page_title, const std::string& extra_header_tags)
 {
-	std::string page_out = standardHTMLHeader(request_info, page_title, extra_header_tags);
+	std::string page_out = standardHTMLHeader(*world_state.web_data_store, request_info, page_title, extra_header_tags);
 	page_out +=
 		"	<body class=\"standard-body\">\n"
 		"	<div id=\"login\">\n"; // Start login div

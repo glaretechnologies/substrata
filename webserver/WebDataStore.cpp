@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/ConPrint.h>
 #include <utils/FileUtils.h>
 #include <utils/Lock.h>
+#include <utils/IncludeXXHash.h>
 #include <zlib.h>
 #include <zstd.h>
 #include <Timer.h>
@@ -206,6 +207,20 @@ void WebDataStore::loadAndCompressFiles()
 	}
 
 	//conPrint("WebDataStore::loadAndCompressFiles done.");
+
+	// Compute main_css_hash (cache-busting hash)
+	{
+		Lock lock(mutex);
+		auto res = public_files.find("main.css");
+		if(res != public_files.end())
+		{
+			WebDataStoreFile* file = res->second.ptr();
+			const uint64 hash = XXH64(file->uncompressed_data.data(), file->uncompressed_data.size(), /*seed=*/1);
+
+			Lock lock(this->hash_mutex);
+			this->main_css_hash = ::toHexString(hash).substr(0, /*count=*/8);
+		}
+	}
 }
 
 

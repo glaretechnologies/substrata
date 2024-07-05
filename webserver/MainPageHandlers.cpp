@@ -33,7 +33,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	//std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
 
-	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, /*page title=*/"Substrata");
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(data_store, request_info, /*page title=*/"Substrata");
 	page_out +=
 		"	<body class=\"root-body\">\n"
 		"	<div id=\"login\">\n"; // Start login div
