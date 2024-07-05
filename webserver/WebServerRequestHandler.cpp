@@ -426,7 +426,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(request.path == "/login")
 		{
-			LoginHandlers::renderLoginPage(request, reply_info);
+			LoginHandlers::renderLoginPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/signup")
 		{
@@ -434,7 +434,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(request.path == "/reset_password")
 		{
-			LoginHandlers::renderResetPasswordPage(request, reply_info);
+			LoginHandlers::renderResetPasswordPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/reset_password_email")
 		{

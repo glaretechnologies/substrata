@@ -414,6 +414,7 @@ int main(int argc, char *argv[])
 			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
+		server.world_state->web_data_store = web_data_store.ptr();
 
 		std::string default_fragments_dir, default_webclient_dir, default_webserver_public_files_dir;
 #if defined(_WIN32) || defined(OSX)

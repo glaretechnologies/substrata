@@ -36,14 +36,14 @@ namespace LoginHandlers
 	// ServerAllWorldsState should be locked
 	User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info) REQUIRES(world_state.mutex);
 
-	void renderLoginPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+	void renderLoginPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleLogoutPost(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
 	void renderSignUpPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
-	void renderResetPasswordPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+	void renderResetPasswordPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void renderResetPasswordFromEmailPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleSetNewPasswordPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);

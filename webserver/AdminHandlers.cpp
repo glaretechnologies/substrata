@@ -834,7 +834,7 @@ void renderCreateParcelAuction(ServerAllWorldsState& world_state, const web::Req
 	const ParcelID parcel_id(id);
 
 
-	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request, "Sign Up");
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request, "Sign Up");
 
 	page_out += "<body>";
 	page_out += "</head><h1>Create Parcel Auction</h1><body>";
@@ -975,7 +975,7 @@ void renderSetParcelOwnerPage(ServerAllWorldsState& world_state, const web::Requ
 	const ParcelID parcel_id(id);
 
 
-	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request, "Sign Up");
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(*world_state.web_data_store, request, "Sign Up");
 
 	page_out += "<body>";
 	page_out += "</head><h1>Set parcel owner</h1><body>";

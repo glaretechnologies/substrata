@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <map>
 #include <unordered_set>
 class ServerWorldState;
+class WebDataStore;
 
 
 struct OpenSeaParcelListing
@@ -279,6 +280,7 @@ public:
 
 	std::unordered_set<DatabaseKey, DatabaseKeyHash>					db_records_to_delete			GUARDED_BY(mutex);
 
+	WebDataStore* web_data_store; // Since we pass around ServerAllWorldsState for all the web request handlers, just store a pointer to web_data_store so we can access it.
 
 	ServerCredentials server_credentials;
 
