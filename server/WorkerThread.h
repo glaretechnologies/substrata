@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <SocketBufferOutStream.h>
 #include <Vector.h>
 #include <BufferInStream.h>
+#include <AtomicInt.h>
 #include <string>
 class Server;
 
@@ -31,7 +32,9 @@ public:
 	WorkerThread(const Reference<SocketInterface>& socket, Server* server);
 	virtual ~WorkerThread();
 
-	virtual void doRun();
+	virtual void doRun() override;
+
+	virtual void kill() override;
 
 	std::string connected_world_name;
 
@@ -63,4 +66,6 @@ public:
 	bool fuzzing; // Are we currently doing fuzz-testing?
 private:
 	bool write_trace; // Should we write a record of network traffic to disk for fuzz seeding?
+
+	glare::AtomicInt should_quit;
 };
