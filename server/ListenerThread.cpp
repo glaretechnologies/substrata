@@ -124,7 +124,7 @@ void ListenerThread::doRun()
 	if(tls_context != NULL)
 		tls_free(tls_context); // Free TLS context.
 
-	conPrint("ListenerThread terminated.");
+	conPrint("ListenerThread terminating.");
 }
 
 
