@@ -1195,7 +1195,7 @@ void Server::errorOccurred(LuaScript* script, const std::string& msg)
 	{
 		Lock lock(user_script_log->mutex);
 
-		const std::string full_msg = msg +  + "\nScript will be disabled.";
+		const std::string full_msg = msg + "\nScript will be disabled.";
 		user_script_log->messages.push_back(UserScriptLogMessage({TimeStamp::currentTime(), UserScriptLogMessage::MessageType_error, script_evaluator->world_object->uid, full_msg}));
 
 		if(user_script_log->messages.size() > 1000)
