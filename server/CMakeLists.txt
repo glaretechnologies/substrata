@@ -69,8 +69,6 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestInfo.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestInfo.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.h
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Log.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Log.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StressTest.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StressTest.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/TimeStamp.cpp
