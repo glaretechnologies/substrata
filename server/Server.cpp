@@ -531,10 +531,12 @@ int main(int argc, char *argv[])
 						catch(LuaScriptExcepWithLocation& e)
 						{
 							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
+							server.logLuaError("Error: " + e.messageWithLocations(), ob->uid, ob->creator_id);
 						}
 						catch(glare::Exception& e)
 						{
 							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.what());
+							server.logLuaError("Error: " + e.what(), ob->uid, ob->creator_id);
 						}
 					}
 				}
@@ -1137,22 +1139,41 @@ Server::~Server()
 
 void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 {
-	conPrint("LUA: " + std::string(s, len));
+	const std::string message(s, len);
 
+	conPrint("LUA: " + message);
+
+	// Store log message for user in the per-user script message log.
+	
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	logLuaMessage(message, UserScriptLogMessage::MessageType_print, script_evaluator->world_object->uid, script_evaluator->world_object->creator_id);
+}
+
+
+void Server::errorOccurredFromLuaScript(LuaScript* script, const std::string& msg)
+{
+	conPrint("LUA ERROR: " + msg);
 
 	// Store log message for user in the per-user script message log.
 
-	const UserID script_user = script_evaluator->world_object->creator_id;
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 
+	logLuaError("Error: " + msg, script_evaluator->world_object->uid, script_evaluator->world_object->creator_id);
+}
+
+
+void Server::logLuaMessage(const std::string& msg, UserScriptLogMessage::MessageType message_type, UID world_ob_uid, UserID script_creator_user_id)
+{
+	// Get (and create if needed) the per-user script log for script_creator_user_id
 	Reference<UserScriptLog> user_script_log;
 	{
 		Lock lock(world_state->mutex);
-		auto res = world_state->user_script_log.find(script_user);
+		auto res = world_state->user_script_log.find(script_creator_user_id);
 		if(res == world_state->user_script_log.end())
 		{
 			user_script_log = new UserScriptLog();
-			world_state->user_script_log.insert(std::make_pair(script_user, user_script_log));
+			world_state->user_script_log.insert(std::make_pair(script_creator_user_id, user_script_log));
 		}
 		else
 			user_script_log = res->second;
@@ -1161,46 +1182,20 @@ void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 	{
 		Lock lock(user_script_log->mutex);
 
-		user_script_log->messages.push_back(UserScriptLogMessage({TimeStamp::currentTime(), UserScriptLogMessage::MessageType_print, script_evaluator->world_object->uid, std::string(s, len)}));
+		user_script_log->messages.push_back(UserScriptLogMessage({TimeStamp::currentTime(), message_type, world_ob_uid, msg}));
 
-		if(user_script_log->messages.size() > 1000)
+		const size_t MAX_NUM_PER_USER_LUA_MESSAGES = 1000;
+
+		if(user_script_log->messages.size() > MAX_NUM_PER_USER_LUA_MESSAGES)
 			user_script_log->messages.pop_front();
 	}
 }
 
 
-void Server::errorOccurred(LuaScript* script, const std::string& msg)
+void Server::logLuaError(const std::string& msg, UID world_ob_uid, UserID script_creator_user_id)
 {
-	conPrint("LUA ERROR: " + msg);
-
-	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
-
-	// Store log message for user in the per-user script message log.
-
-	const UserID script_user = script_evaluator->world_object->creator_id;
-
-	Reference<UserScriptLog> user_script_log;
-	{
-		Lock lock(world_state->mutex);
-		auto res = world_state->user_script_log.find(script_user);
-		if(res == world_state->user_script_log.end())
-		{
-			user_script_log = new UserScriptLog();
-			world_state->user_script_log.insert(std::make_pair(script_user, user_script_log));
-		}
-		else
-			user_script_log = res->second;
-	}
-
-	{
-		Lock lock(user_script_log->mutex);
-
-		const std::string full_msg = msg + "\nScript will be disabled.";
-		user_script_log->messages.push_back(UserScriptLogMessage({TimeStamp::currentTime(), UserScriptLogMessage::MessageType_error, script_evaluator->world_object->uid, full_msg}));
-
-		if(user_script_log->messages.size() > 1000)
-			user_script_log->messages.pop_front();
-	}
+	const std::string full_msg = msg + "\nScript will be disabled.";
+	logLuaMessage(full_msg, UserScriptLogMessage::MessageType_error, world_ob_uid, script_creator_user_id);
 }
 
 
