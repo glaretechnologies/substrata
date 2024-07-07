@@ -106,7 +106,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 
 	// Create vehicle body
-	JPH::BodyCreationSettings bike_body_settings(bike_body_shape, toJoltVec3(cur_pos), toJoltQuat(cur_rot), JPH::EMotionType::Dynamic, Layers::MOVING);
+	JPH::BodyCreationSettings bike_body_settings(bike_body_shape, toJoltVec3(cur_pos), toJoltQuat(cur_rot), JPH::EMotionType::Dynamic, Layers::VEHICLES);
 	bike_body_settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 	bike_body_settings.mMassPropertiesOverride.mMass = settings_.bike_mass;
 	bike_body_settings.mUserData = (uint64)object->physics_object.ptr();

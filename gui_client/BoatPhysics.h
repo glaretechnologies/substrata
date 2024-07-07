@@ -69,7 +69,7 @@ public:
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
-	//JPH::BodyID getBodyID() const override { return body_id; }
+	JPH::BodyID getBodyID() const override { return body_id; }
 
 	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 

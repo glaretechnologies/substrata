@@ -9586,6 +9586,8 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		hover_car_physics_settings.hovercar_mass = ob->mass;
 		hover_car_physics_settings.script_settings = hover_car_script->settings.downcast<Scripting::HoverCarScriptSettings>();
 
+		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
+
 		return new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, particle_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::BoatScript>())
@@ -9595,6 +9597,8 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		BoatPhysicsSettings physics_settings;
 		physics_settings.boat_mass = ob->mass;
 		physics_settings.script_settings = boat_script->settings.downcast<Scripting::BoatScriptSettings>();
+
+		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
 		return new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
 	}

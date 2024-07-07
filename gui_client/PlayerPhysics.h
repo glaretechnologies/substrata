@@ -45,8 +45,12 @@ public:
 
 	JPH::BodyID getInteractionCharBodyID() { return interaction_char_body_id; }
 
-	Vec3d getBottomPosition(); // Get point at the bottom of the player capsule object.
-	void setPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
+	void setStandingInteractionChar();
+	void setSittingInteractionChar();
+
+	Vec3d getCapsuleBottomPosition(); // Get point at the bottom of the player capsule object.
+	void setEyePosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
+	void setCapsuleBottomPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
 
 	static float getEyeHeight();
 
@@ -115,4 +119,7 @@ private:
 
 	JPH::Ref<JPH::Character> interaction_character;
 	JPH::BodyID interaction_char_body_id;
+
+	JPH::RefConst<JPH::Shape> standing_interaction_shape;
+	JPH::RefConst<JPH::Shape> sitting_interaction_shape;
 };
