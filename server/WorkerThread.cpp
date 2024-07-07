@@ -1625,10 +1625,12 @@ void WorkerThread::doRun()
 												catch(LuaScriptExcepWithLocation& e)
 												{
 													conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
+													server->logLuaError("Error: " + e.messageWithLocations(), ob->uid, ob->creator_id);
 												}
 												catch(glare::Exception& e)
 												{
 													conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.what());
+													server->logLuaError("Error: " + e.what(), ob->uid, ob->creator_id);
 												}
 											}
 										}
