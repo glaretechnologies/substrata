@@ -178,6 +178,7 @@ public:
 	virtual bool showObAABBsEnabled() override;
 	virtual bool showPhysicsObOwnershipEnabled() override;
 	virtual bool showVehiclePhysicsVisEnabled() override;
+	virtual bool showPlayerPhysicsVisEnabled() override;
 
 	virtual void writeTransformMembersToObject(WorldObject& ob) override;
 	virtual void objectLastModifiedUpdated(const WorldObject& ob) override;

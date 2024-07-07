@@ -1672,7 +1672,7 @@ void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 }
 
 
-void GUIClient::errorOccurred(LuaScript* script, const std::string& msg)
+void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string& msg)
 {
 	// If this is our script, print message to console and log
 
@@ -2528,14 +2528,22 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 			ob->lua_script_evaluator = NULL;
 			scripted_ob_proximity_checker.removeObject(ob);
 
-			ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob, world_state_lock);
+			try
+			{
 
-			// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.
-			if(	ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined() || 
-				ob->lua_script_evaluator->isOnUserMovedAwayFromObjectDefined() ||
-				ob->lua_script_evaluator->isOnUserEnteredParcelDefined() || 
-				ob->lua_script_evaluator->isOnUserExitedParcelDefined())
-				scripted_ob_proximity_checker.addObject(ob);
+				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob, world_state_lock);
+
+				// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.
+				if(	ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined() || 
+					ob->lua_script_evaluator->isOnUserMovedAwayFromObjectDefined() ||
+					ob->lua_script_evaluator->isOnUserEnteredParcelDefined() || 
+					ob->lua_script_evaluator->isOnUserExitedParcelDefined())
+					scripted_ob_proximity_checker.addObject(ob);
+			}
+			catch(glare::Exception& e)
+			{
+				throw glare::Exception("Error while creating Lua script: " + e.what());
+			}
 		}
 	}
 
@@ -4716,7 +4724,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// Useful to prevent player falling down to infinity if they fall below the terrain surface before it is loaded.
 	if(terrain_system.nonNull())
 	{
-		const Vec3d player_pos = player_physics.getBottomPosition();
+		const Vec3d player_pos = player_physics.getCapsuleBottomPosition();
 
 		const float terrain_h = terrain_system->evalTerrainHeight((float)player_pos.x, (float)player_pos.y, 1.0);
 
@@ -4729,7 +4737,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			Vec4f new_vel = player_physics.getLinearVel();
 			new_vel[2] = 0; // Zero out vertical velocity.
 
-			player_physics.setPosition(new_player_pos, /*new linear_vel=*/new_vel);
+			player_physics.setEyePosition(new_player_pos, /*new linear_vel=*/new_vel);
 		}
 	}
 
@@ -4926,6 +4934,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
 			const bool use_smoothed_network_transform = cur_seat_index != 0;
 			campos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
+
+			const Vec4f linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
+
+			player_physics.setCapsuleBottomPosition(Vec3d(campos) + Vec3d(0,0,-0.75f), linear_vel); // Hack an approximate sitting position
 		}
 
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
@@ -4941,27 +4953,16 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			misc_info_ui.hideVehicleSpeed();
 
 		// Update debug player-physics visualisation spheres
-		if(false)
+		if(ui_interface->showPlayerPhysicsVisEnabled())
 		{
-			for(size_t i=0; i<player_phys_debug_spheres.size(); ++i)
-			{
-				if(player_phys_debug_spheres[i].nonNull())
-					opengl_engine->removeObject(player_phys_debug_spheres[i]);
-
-				player_phys_debug_spheres[i] = NULL;
-			}
-			player_phys_debug_spheres.resize(0);
-
 			std::vector<js::BoundingSphere> spheres;
 			player_physics.debugGetCollisionSpheres(campos, spheres);
 
-
 			player_phys_debug_spheres.resize(spheres.size());
-			
 			
 			for(size_t i=0; i<spheres.size(); ++i)
 			{
-				if(player_phys_debug_spheres[i].isNull())
+				if(!player_phys_debug_spheres[i])
 				{
 					player_phys_debug_spheres[i] = opengl_engine->allocateObject();
 					player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::identity();
@@ -4985,6 +4986,19 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 				player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::translationMatrix(spheres[i].getCenter()) * Matrix4f::uniformScaleMatrix(spheres[i].getRadius());
 				opengl_engine->updateObjectTransformData(*player_phys_debug_spheres[i]);
+			}
+		}
+		else
+		{
+			// Remove any existing vis spheres
+			if(!player_phys_debug_spheres.empty())
+			{
+				for(size_t i=0; i<player_phys_debug_spheres.size(); ++i)
+				{
+					if(player_phys_debug_spheres[i])
+						opengl_engine->removeObject(player_phys_debug_spheres[i]);
+				}
+				player_phys_debug_spheres.resize(0);
 			}
 		}
 
@@ -5468,8 +5482,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						if(!ob->audio_source_url.empty() || ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video)
 							this->audio_obs.insert(ob);
 
+						const bool ob_just_created_or_initially_sent = (ob->state == WorldObject::State_JustCreated) || (ob->state == WorldObject::State_InitialSend);
 
-						if((ob->state != WorldObject::State_JustCreated) && (ob->state != WorldObject::State_InitialSend)) // Don't reload materials when we just created the object locally.
+						if(!ob_just_created_or_initially_sent) // Don't reload materials when we just created the object locally.
 						{
 							// Update transform for object and object materials in OpenGL engine
 							if(ob->opengl_engine_ob.nonNull() && (ob != selected_ob.getPointer())) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
@@ -5508,6 +5523,21 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 
 							loadAudioForObject(ob); // Check for re-loading audio if audio URL changed.
+						}
+
+						// If we just created an object, and there are pending event handlers for the object, assign to the object, and remove from the pending event handler map.
+						if(ob_just_created_or_initially_sent)
+						{
+							auto res = world_state->pending_event_handlers.find(ob->uid);
+							if(res != world_state->pending_event_handlers.end())
+							{
+								ob->event_handlers = res->second; // Assign handlers to object
+
+								world_state->pending_event_handlers.erase(ob->uid);
+
+								// TEMP Just add to scripted_ob_proximity_checker for all event types for now.
+								scripted_ob_proximity_checker.addObject(ob);
+							}
 						}
 
 
@@ -5998,7 +6028,7 @@ void GUIClient::updateParcelGraphics()
 					if(this->url_parcel_uid == (int)parcel->id.value())
 					{
 						cam_controller.setFirstAndThirdPersonPositions(parcel->getVisitPosition());
-						player_physics.setPosition(parcel->getVisitPosition());
+						player_physics.setEyePosition(parcel->getVisitPosition());
 						this->url_parcel_uid = -1;
 
 						showInfoNotification("Jumped to parcel " + parcel->id.toString());
@@ -9701,7 +9731,7 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 		if(res != this->world_state->parcels.end())
 		{
 			this->cam_controller.setFirstAndThirdPersonPositions(res->second->getVisitPosition());
-			this->player_physics.setPosition(res->second->getVisitPosition());
+			this->player_physics.setEyePosition(res->second->getVisitPosition());
 			showInfoNotification("Jumped to parcel " + toString(parse_res.parcel_uid));
 		}
 		else
@@ -9711,7 +9741,7 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 	{
 		this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
 		this->cam_controller.setFirstAndThirdPersonPositions(Vec3d(parse_res.x, parse_res.y, parse_res.z));
-		this->player_physics.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
+		this->player_physics.setEyePosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 	}
 }
 
@@ -10024,7 +10054,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	}
 	else
 	{
-		this->player_physics.setPosition(spawn_pos);
+		this->player_physics.setEyePosition(spawn_pos);
 	}
 
 	// When the player spawns, gravity will be turned off, so they don't e.g. fall through buildings before they have been loaded.
@@ -12346,7 +12376,9 @@ void GUIClient::keyPressed(KeyEvent& e)
 			Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2 + Vec4f(0,0,1.7f,0);
 			new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
 
-			player_physics.setPosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
+			player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
+
+			player_physics.setStandingInteractionChar();
 
 
 			// Send AvatarExitedVehicle message to server
@@ -12433,6 +12465,8 @@ void GUIClient::keyPressed(KeyEvent& e)
 								
 										if(free_seat_index == 0) // If taking driver's seat:
 											takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
+
+										player_physics.setSittingInteractionChar();
 
 
 										// Send AvatarEnteredVehicle message to server

@@ -51,6 +51,10 @@ public:
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_remote_parcels GUARDED_BY(mutex);
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_local_parcels GUARDED_BY(mutex);
 
+
+	// For each object uid: event handlers added in a script for an object that was not yet created.
+	std::map<UID, Reference<ObjectEventHandlers> > pending_event_handlers; 
+
 	mutable WorldStateMutex mutex;
 
 

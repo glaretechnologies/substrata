@@ -697,6 +697,12 @@ bool MainWindow::showVehiclePhysicsVisEnabled()
 }
 
 
+bool MainWindow::showPlayerPhysicsVisEnabled()
+{
+	return ui->diagnosticsWidget->showPlayerPhysicsVisCheckBox->isChecked();
+}
+
+
 void MainWindow::writeTransformMembersToObject(WorldObject& ob)
 {
 	ui->objectEditor->writeTransformMembersToObject(ob);
@@ -1226,7 +1232,7 @@ void MainWindow::runScreenshotCode()
 		{
 			gui_client.cam_controller.setAngles(screenshot_camangles);
 			gui_client.cam_controller.setFirstAndThirdPersonPositions(screenshot_campos);
-			gui_client.player_physics.setPosition(screenshot_campos);
+			gui_client.player_physics.setEyePosition(screenshot_campos);
 
 			// Enable fly mode so we don't just fall to the ground
 			ui->actionFly_Mode->setChecked(true);
@@ -2508,7 +2514,7 @@ void MainWindow::on_actionGo_to_Parcel_triggered()
 					const Parcel* parcel = res->second.ptr();
 
 					gui_client.cam_controller.setFirstAndThirdPersonPositions(parcel->getVisitPosition());
-					gui_client.player_physics.setPosition(parcel->getVisitPosition());
+					gui_client.player_physics.setEyePosition(parcel->getVisitPosition());
 				}
 				else
 					found = false;
@@ -2546,7 +2552,7 @@ void MainWindow::on_actionGo_to_Position_triggered()
 		);
 			
 		gui_client.cam_controller.setFirstAndThirdPersonPositions(pos);
-		gui_client.player_physics.setPosition(pos);
+		gui_client.player_physics.setEyePosition(pos);
 	}
 }
 

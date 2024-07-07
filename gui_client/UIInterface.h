@@ -46,6 +46,7 @@ public:
 	virtual bool showObAABBsEnabled() = 0;
 	virtual bool showPhysicsObOwnershipEnabled() = 0;
 	virtual bool showVehiclePhysicsVisEnabled() = 0;
+	virtual bool showPlayerPhysicsVisEnabled() = 0;
 
 	virtual void writeTransformMembersToObject(WorldObject& ob) = 0; // Get updated transform members from object editor and store in ob.
 	virtual void objectLastModifiedUpdated(const WorldObject& ob) = 0; // ob.last_modified_time has been updated, update corresponding UI label.

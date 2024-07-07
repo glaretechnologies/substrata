@@ -384,7 +384,7 @@ static int luaAddEventListener(lua_State* state)
 {
 	// Expected args:
 	// Arg 1: event_name : String
-	// Arg 2: ob : Object
+	// Arg 2: ob_uid : UID
 	// Arg 3: handler : Function
 
 	checkNumArgs(state, /*num_args_required*/3);
@@ -395,21 +395,63 @@ static int luaAddEventListener(lua_State* state)
 	const char* event_name = LuaUtils::getStringAndAtom(state, /*index=*/1, atom);
 
 	// Get object UID
-	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/2, "uid"));
+	const UID ob_uid = UID((uint64)LuaUtils::getDouble(state, /*index=*/2));
 
 	// Get a reference to the handler function
 	const int handler_func_ref = lua_ref(state, /*index=*/3);
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	
+#if GUI_CLIENT
+	SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm;
+	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
+#endif
 
 	script_evaluator->num_obs_event_listening++;
 	if(script_evaluator->num_obs_event_listening > MAX_NUM_OB_EVENT_LISTENS)
 		throw glare::Exception("Script added too many event listeners, max is " + toString(MAX_NUM_OB_EVENT_LISTENS) + errorContextString(state));
 
-	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid); // Just call this to throw an excep if no such object exists
+	
+	// For the client, we may be trying to add an event listener for an object that has not been sent from the server and loaded yet.
+	// In this case getWorldObjectForUID will throw an exception.
+	// To handle it we will add the event handler to world_state->pending_event_handlers, so that the event handler can be assigned to the object later
+	// when it is actually loaded.  See pending_event_handlers usage in GUIClient::timerEvent.
+	WorldObject* ob = nullptr;
+	Reference<ObjectEventHandlers> ob_event_handlers;
+
+#if GUI_CLIENT
+	try
+	{
+		ob = getWorldObjectForUID(script_evaluator, ob_uid); // Try and get object, but handle the exception if not found.
+	}
+	catch(glare::Exception&)
+	{}
+
+	if(ob)
+	{
+		// Object exists, so add event handler to it directly.
+		if(ob->event_handlers.isNull())
+			ob->event_handlers = new ObjectEventHandlers();
+		ob_event_handlers = ob->event_handlers;
+	}
+	else
+	{
+		// conPrint("================ luaAddEventListener(): Object " + ob_uid.toString() + " was null (not loaded yet), adding to pending_event_handlers instead.");
+		if(world_state->pending_event_handlers[ob_uid].isNull())
+			world_state->pending_event_handlers[ob_uid] = new ObjectEventHandlers();
+		ob_event_handlers = world_state->pending_event_handlers[ob_uid];
+	}
+#else
+	ob = getWorldObjectForUID(script_evaluator, ob_uid);
 	if(ob->event_handlers.isNull())
 		ob->event_handlers = new ObjectEventHandlers();
+	ob_event_handlers = ob->event_handlers;
+#endif
+
+	// ob may be null at this point
+	runtimeCheck(ob_event_handlers.nonNull()); // ob_event_handlers should be non-null
+
 
 	HandlerFunc handler_func;
 	handler_func.script = WeakReference<LuaScriptEvaluator>(script_evaluator);
@@ -420,30 +462,30 @@ static int luaAddEventListener(lua_State* state)
 	{
 	case Atom_onUserUsedObject:
 		assert(stringEqual(event_name, "onUserUsedObject"));
-		ob->event_handlers->onUserUsedObject_handlers.addHandler(handler_func);
+		ob_event_handlers->onUserUsedObject_handlers.addHandler(handler_func);
 		break;
 	case Atom_onUserTouchedObject:
 		assert(stringEqual(event_name, "onUserTouchedObject"));
-		ob->event_handlers->onUserTouchedObject_handlers.addHandler(handler_func);
+		ob_event_handlers->onUserTouchedObject_handlers.addHandler(handler_func);
 		break;
 	case Atom_onUserMovedNearToObject:
 		assert(stringEqual(event_name, "onUserMovedNearToObject"));
-		ob->event_handlers->onUserMovedNearToObject_handlers.addHandler(handler_func);
+		ob_event_handlers->onUserMovedNearToObject_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	case Atom_onUserMovedAwayFromObject:
 		assert(stringEqual(event_name, "onUserMovedAwayFromObject"));
-		ob->event_handlers->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
+		ob_event_handlers->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	case Atom_onUserEnteredParcel:
 		assert(stringEqual(event_name, "onUserEnteredParcel"));
-		ob->event_handlers->onUserEnteredParcel_handlers.addHandler(handler_func);
+		ob_event_handlers->onUserEnteredParcel_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	case Atom_onUserExitedParcel:
 		assert(stringEqual(event_name, "onUserExitedParcel"));
-		ob->event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
+		ob_event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	default:
@@ -451,11 +493,8 @@ static int luaAddEventListener(lua_State* state)
 	}
 
 #if GUI_CLIENT
-	if(added_spatial_event)
-	{
-		SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	if(added_spatial_event && ob)
 		sub_lua_vm->gui_client->scripted_ob_proximity_checker.addObject(ob);
-	}
 #endif
 
 	return 0;
@@ -1307,7 +1346,7 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 			if(avatar_uid == sub_lua_vm->gui_client->client_avatar_uid)
 			{
 				const Vec3d pos = LuaUtils::getVec3d(state, /*index=*/3);
-				sub_lua_vm->gui_client->player_physics.setPosition(pos);
+				sub_lua_vm->gui_client->player_physics.setEyePosition(pos);
 			}
 #endif
 			break;
