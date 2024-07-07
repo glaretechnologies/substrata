@@ -61,17 +61,16 @@ public:
 };
 
 
-// Jolt stuff:
-// Layer that objects can be in, determines which other objects it can collide with
-// Typically you at least want to have 1 layer for moving bodies and 1 layer for static bodies, but you can have more
-// layers if you want. E.g. you could have a layer for high detail collision (which is not used by the physics simulation
-// but only if you do collision testing).
+// Jolt Physics Layer that objects can be in, determines which other objects it can collide with.
+// We will have separate layers for vehicles and the player interaction character, so we can make the interaction character not collide with vehicles it is in.
 namespace Layers
 {
 	static constexpr uint8 NON_MOVING = 0;
 	static constexpr uint8 MOVING = 1;
 	static constexpr uint8 NON_COLLIDABLE = 2;
-	static constexpr uint8 NUM_LAYERS = 3;
+	static constexpr uint8 INTERACTION_CHARACTER = 3;
+	static constexpr uint8 VEHICLES = 4;
+	static constexpr uint8 NUM_LAYERS = 5;
 };
 
 
@@ -117,6 +116,8 @@ public:
 	void removeObject(const Reference<PhysicsObject>& object);
 
 	void activateObject(const Reference<PhysicsObject>& object);
+
+	void setObjectLayer(const Reference<PhysicsObject>& object, uint8 new_object_layer);
 
 	static PhysicsShape createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob);
 	static PhysicsShape createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob);

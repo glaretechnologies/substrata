@@ -98,6 +98,8 @@ public:
 		mObjectToBroadPhase[Layers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
 		mObjectToBroadPhase[Layers::MOVING] = BroadPhaseLayers::MOVING;
 		mObjectToBroadPhase[Layers::NON_COLLIDABLE] = BroadPhaseLayers::MOVING; // NOTE: this a good thing to do? // TODO: Change to NON_MOVING?
+		mObjectToBroadPhase[Layers::INTERACTION_CHARACTER] = BroadPhaseLayers::MOVING;
+		mObjectToBroadPhase[Layers::VEHICLES] = BroadPhaseLayers::MOVING;
 	}
 
 	virtual uint32 GetNumBroadPhaseLayers() const override
@@ -141,6 +143,10 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 			return true;
 		case Layers::NON_COLLIDABLE: // non-collidable objects don't collide with any layers
 			return false;
+		case Layers::INTERACTION_CHARACTER:
+			return true; // collide with both moving and non-moving objects
+		case Layers::VEHICLES:
+			return true; // collide with both moving and non-moving objects
 		default:
 			assert(false);
 			return false;
@@ -148,6 +154,18 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 	}
 };
 
+
+
+/*
+                         NON_MOVING      MOVING     NON_COLLIDABLE        INTERACTION_CHARACTER       VEHICLES
+NON_MOVING                               y                                y                           y
+MOVING                   y               y                                y                           y
+NON_COLLIDABLE                                                                                         
+INTERACTION_CHARACTER    y               y                                                             
+VEHICLES                 y               y                                                            y
+*/
+
+// TODO: Do these layer checks with bitmasks?  Should be faster.
 
 class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 {
@@ -157,11 +175,15 @@ class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 		switch(inLayer1)
 		{
 		case Layers::NON_MOVING:
-			return inLayer2 == Layers::MOVING; // Non moving only collides with moving
+			return (inLayer2 == Layers::MOVING) || (inLayer2 == Layers::INTERACTION_CHARACTER) || (inLayer2 == Layers::VEHICLES); // Non moving only collides with moving
 		case Layers::MOVING:
 			return inLayer2 != Layers::NON_COLLIDABLE; // Moving collides with everything apart from Layers::NON_COLLIDABLE
 		case Layers::NON_COLLIDABLE:
 			return false;
+		case Layers::INTERACTION_CHARACTER:
+			return (inLayer2 != Layers::NON_COLLIDABLE) && (inLayer2 != Layers::VEHICLES);
+		case Layers::VEHICLES:
+			return (inLayer2 != Layers::NON_COLLIDABLE) && (inLayer2 != Layers::INTERACTION_CHARACTER);
 		default:
 			assert(false);
 			return false;
@@ -1309,6 +1331,13 @@ void PhysicsWorld::activateObject(const Reference<PhysicsObject>& object)
 {
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 	body_interface.ActivateBody(object->jolt_body_id);
+}
+
+
+void PhysicsWorld::setObjectLayer(const Reference<PhysicsObject>& object, uint8 new_object_layer)
+{
+	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+	body_interface.SetObjectLayer(object->jolt_body_id, new_object_layer);
 }
 
 

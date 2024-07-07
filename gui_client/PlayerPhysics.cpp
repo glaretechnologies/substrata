@@ -52,12 +52,14 @@ PlayerPhysics::~PlayerPhysics()
 }
 
 
+static const float cCharacterHeightStanding = CYLINDER_HEIGHT;
+static const float cCharacterHeightSitting = 0.3f;
+static const float cCharacterRadiusStanding = SPHERE_RAD;
+
+
 void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos)
 {
 	physics_system = physics_world.physics_system;
-
-	const float	cCharacterHeightStanding = CYLINDER_HEIGHT;
-	const float	cCharacterRadiusStanding = SPHERE_RAD;
 
 	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
 	const Vec3d use_player_pos = initial_player_pos - Vec3d(0, 0, EYE_HEIGHT);
@@ -85,25 +87,17 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 	// CharacterVirtual does not trigger such contacts.
 	// See https://github.com/jrouwe/JoltPhysics/discussions/239 ('Presence shape for virtual character controllers') and also 
 	// https://github.com/jrouwe/JoltPhysics/discussions/399 ('Pusher character object and step climbing interacting badly')
-	if(true)
-	{
-		JPH::RefConst<JPH::Shape> standing_shape = JPH::RotatedTranslatedShapeSettings(
-			JPH::Vec3(0, 0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding), // position
-			JPH::Quat::sRotation(JPH::Vec3(1, 0, 0), Maths::pi_2<float>()), // rotate capsule from extending in the y-axis to the z-axis.
-			new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightStanding, /*inRadius=*/INTERACTION_SPHERE_RAD)).Create().Get();
+	standing_interaction_shape = JPH::RotatedTranslatedShapeSettings(
+		JPH::Vec3(0, 0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding), // position
+		JPH::Quat::sRotation(JPH::Vec3(1, 0, 0), Maths::pi_2<float>()), // rotate capsule from extending in the y-axis to the z-axis.
+		new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightStanding, /*inRadius=*/INTERACTION_SPHERE_RAD)).Create().Get();
 
-		JPH::Ref<JPH::CharacterSettings> settings = new JPH::CharacterSettings();
-		settings->mLayer = Layers::MOVING;//PUSHER_CHARACTER;
-		settings->mShape = standing_shape;
-		settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
+	sitting_interaction_shape = JPH::RotatedTranslatedShapeSettings(
+		JPH::Vec3(0, 0, 0.5f * cCharacterHeightSitting + cCharacterRadiusStanding), // position
+		JPH::Quat::sRotation(JPH::Vec3(1, 0, 0), Maths::pi_2<float>()), // rotate capsule from extending in the y-axis to the z-axis.
+		new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightSitting, /*inRadius=*/INTERACTION_SPHERE_RAD)).Create().Get();
 
-		interaction_character = new JPH::Character(settings, toJoltVec3(use_player_pos), JPH::Quat::sIdentity(), /*inUserData=*/0, physics_world.physics_system);
-		interaction_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
-
-		interaction_character->AddToPhysicsSystem(JPH::EActivation::Activate);
-
-		interaction_char_body_id = interaction_character->GetBodyID();
-	}
+	setStandingInteractionChar();
 }
 
 
@@ -121,7 +115,53 @@ void PlayerPhysics::shutdown()
 }
 
 
-Vec3d PlayerPhysics::getBottomPosition()
+void PlayerPhysics::setStandingInteractionChar()
+{
+	if(interaction_character)
+	{
+		interaction_character->RemoveFromPhysicsSystem();
+		interaction_character = NULL;
+		interaction_char_body_id = JPH::BodyID();
+	}
+
+	JPH::Ref<JPH::CharacterSettings> settings = new JPH::CharacterSettings();
+	settings->mLayer = Layers::INTERACTION_CHARACTER;
+	settings->mShape = standing_interaction_shape;
+	settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
+
+	interaction_character = new JPH::Character(settings, jolt_character->GetPosition(), JPH::Quat::sIdentity(), /*inUserData=*/0, physics_system);
+	interaction_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
+
+	interaction_character->AddToPhysicsSystem(JPH::EActivation::Activate);
+
+	interaction_char_body_id = interaction_character->GetBodyID();
+}
+
+
+void PlayerPhysics::setSittingInteractionChar()
+{
+	if(interaction_character)
+	{
+		interaction_character->RemoveFromPhysicsSystem();
+		interaction_character = NULL;
+		interaction_char_body_id = JPH::BodyID();
+	}
+
+	JPH::Ref<JPH::CharacterSettings> settings = new JPH::CharacterSettings();
+	settings->mLayer = Layers::INTERACTION_CHARACTER;
+	settings->mShape = sitting_interaction_shape;
+	settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
+
+	interaction_character = new JPH::Character(settings, jolt_character->GetPosition(), JPH::Quat::sIdentity(), /*inUserData=*/0, physics_system);
+	interaction_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
+
+	interaction_character->AddToPhysicsSystem(JPH::EActivation::Activate);
+
+	interaction_char_body_id = interaction_character->GetBodyID();
+}
+
+
+Vec3d PlayerPhysics::getCapsuleBottomPosition()
 {
 	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
 	if(jolt_character)
@@ -131,18 +171,24 @@ Vec3d PlayerPhysics::getBottomPosition()
 }
 
 
-void PlayerPhysics::setPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel) // Move discontinuously.  For teleporting etc.
+void PlayerPhysics::setEyePosition(const Vec3d& new_player_pos, const Vec4f& linear_vel) // Move discontinuously.  For teleporting etc.
+{
+	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
+	setCapsuleBottomPosition(new_player_pos - Vec3d(0, 0, EYE_HEIGHT));
+}
+
+void PlayerPhysics::setCapsuleBottomPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel)
 {
 	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
 	if(jolt_character)
 	{
-		jolt_character->SetPosition(toJoltVec3(new_player_pos - Vec3d(0, 0, EYE_HEIGHT)));
+		jolt_character->SetPosition(toJoltVec3(new_player_pos));
 		jolt_character->SetLinearVelocity(toJoltVec3(linear_vel));
 	}
 
 	if(interaction_character)
 	{
-		interaction_character->SetPosition(toJoltVec3(new_player_pos - Vec3d(0, 0, EYE_HEIGHT)));
+		interaction_character->SetPosition(toJoltVec3(new_player_pos));
 		interaction_character->SetLinearVelocity(toJoltVec3(linear_vel));
 	}
 }
@@ -523,8 +569,10 @@ void PlayerPhysics::debugGetCollisionSpheres(const Vec4f& campos, std::vector<js
 	// Visualise interaction character object
 	if(interaction_character)
 	{
+		const float cylinder_height = (interaction_character->GetShape() == this->standing_interaction_shape) ? cCharacterHeightStanding : cCharacterHeightSitting;
+		
 		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD)).toVec4fPoint(),						INTERACTION_SPHERE_RAD));
-		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + CYLINDER_HEIGHT / 2)).toVec4fPoint(),INTERACTION_SPHERE_RAD));
-		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + CYLINDER_HEIGHT)).toVec4fPoint(),	INTERACTION_SPHERE_RAD));
+		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + cylinder_height / 2)).toVec4fPoint(),INTERACTION_SPHERE_RAD));
+		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + cylinder_height)).toVec4fPoint(),	INTERACTION_SPHERE_RAD));
 	}
 }
