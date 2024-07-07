@@ -15,7 +15,6 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/WeakRefCounted.h>
 #include <utils/UniqueRef.h>
 #include <memory>
-#include <lua.h> // For LUA_NOREF
 class SubstrataLuaVM;
 class WorldObject;
 class ServerWorldState;
@@ -41,22 +40,22 @@ public:
 
 
 	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept;
-	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != LUA_NOREF; }
+	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != /*LUA_NOREF=*/-1; }
 	
 	void doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserUsedObjectDefined() { return onUserUsedObject_ref != LUA_NOREF; }
+	bool isOnUserUsedObjectDefined() { return onUserUsedObject_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserMovedNearToObjectDefined() { return onUserMovedNearToObject_ref != LUA_NOREF; }
+	bool isOnUserMovedNearToObjectDefined() { return onUserMovedNearToObject_ref != /*LUA_NOREF=*/-1; }
 	
 	void doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserMovedAwayFromObjectDefined() { return onUserMovedAwayFromObject_ref != LUA_NOREF; }
+	bool isOnUserMovedAwayFromObjectDefined() { return onUserMovedAwayFromObject_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserEnteredParcelDefined() { return onUserEnteredParcel_ref != LUA_NOREF; }
+	bool isOnUserEnteredParcelDefined() { return onUserEnteredParcel_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserExitedParcelDefined() { return onUserExitedParcel_ref != LUA_NOREF; }
+	bool isOnUserExitedParcelDefined() { return onUserExitedParcel_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
 

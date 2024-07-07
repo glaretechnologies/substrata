@@ -113,7 +113,10 @@ public:
 
 	// LuaScriptOutputHandler interface:
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
-	virtual void errorOccurred(LuaScript* script, const std::string& msg) override;
+	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
+
+	void logLuaMessage(const std::string& msg, UserScriptLogMessage::MessageType message_type, UID world_ob_uid, UserID script_creator_user_id); // Thread-safe
+	void logLuaError(const std::string& msg, UID world_ob_uid, UserID script_creator_user_id); // Thread-safe
 
 	double getCurrentGlobalTime() const;
 
