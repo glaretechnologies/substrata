@@ -64,6 +64,13 @@
     </widget>
    </item>
    <item>
+    <widget class="QCheckBox" name="showPlayerPhysicsVisCheckBox">
+     <property name="text">
+      <string>Show player physics visualisation</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QPushButton" name="reloadTerrainPushButton">
      <property name="text">
       <string>Reload terrain</string>

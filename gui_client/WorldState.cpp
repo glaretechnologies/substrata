@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "WorldState.h"
 
 
+#include "../shared/ObjectEventHandlers.h"
 #include "URLWhitelist.h"
 #include <ConPrint.h>
 #include <StringUtils.h>
