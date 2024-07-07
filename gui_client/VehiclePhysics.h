@@ -61,6 +61,8 @@ public:
 
 	virtual Vec4f getLinearVel(PhysicsWorld& physics_world) const = 0;
 
+	virtual JPH::BodyID getBodyID() const = 0;
+
 	virtual const Scripting::VehicleScriptedSettings& getSettings() const = 0;
 
 	virtual void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) {}

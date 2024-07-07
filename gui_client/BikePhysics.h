@@ -75,6 +75,8 @@ public:
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
+	JPH::BodyID getBodyID() const override { return bike_body_id; }
+
 	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 
 	void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) override;
