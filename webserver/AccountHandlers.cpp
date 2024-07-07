@@ -673,6 +673,8 @@ void renderScriptLog(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Script log");
 		page += "<div class=\"main\">   \n";
 
+		page += "<p>Showing output and error messages for all scripts created by <a href=\"/account\">" + web::Escaping::HTMLEscape(logged_in_user->name) + "</a>.</p>";
+
 		auto res = world_state.user_script_log.find(logged_in_user->id);
 		if(res != world_state.user_script_log.end())
 			log = res->second;
