@@ -31,8 +31,10 @@ public:
 
 	QString getShaderText();
 
-	void mouseDoubleClickedInOutput(QMouseEvent* e);
+	void mouseDoubleClickedInOutput(ShaderEditorOutputTextEdit* sender, QMouseEvent* e);
 
+	void printFromLuaScript(const std::string& msg);
+	void luaErrorOccurred(const std::string& msg);
 signals:;
 	void shaderChanged();
 
@@ -43,11 +45,14 @@ private:
 
 	QTimer* emit_shader_changed_timer;
 	QTimer* syntax_highlight_timer;
+	QTimer* flash_output_timer;
 	ISLSyntaxHighlighter* highlighter;
 
 private slots:;
 	void on_shaderEdit_textChanged();
+	void on_applyChangesPushButton_clicked();
 	void emitShaderChangedTimerFired();
+	void flashExecOutputTimerFired();
 	void buildCodeAndShowResults();
 	void shaderEditCursorPositionChanged();
 

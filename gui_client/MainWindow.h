@@ -113,6 +113,7 @@ private slots:;
 
 	void objectTransformEditedSlot();
 	void objectEditedSlot();
+	void scriptChangedFromEditorSlot();
 	void parcelEditedSlot();
 	void worldSettingsAppliedSlot();
 	void environmentSettingChangedSlot();
@@ -164,6 +165,11 @@ public:
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) override;
 
 	virtual void logMessage(const std::string& msg) override; // Appends to LogWindow log display.
+
+	// Lua scripting:
+	// A lua script created by the logged in user printed something
+	virtual void printFromLuaScript(const std::string& msg, UID object_uid) override;
+	virtual void luaErrorOccurred(const std::string& msg, UID object_uid) override;
 
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() override;

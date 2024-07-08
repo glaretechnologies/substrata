@@ -245,6 +245,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(glWidgetPasteShortcutTriggered()));
 	connect(ui->objectEditor, SIGNAL(objectTransformChanged()), this, SLOT(objectTransformEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
+	connect(ui->objectEditor, SIGNAL(scriptChangedFromEditorSignal()), this, SLOT(scriptChangedFromEditorSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
 	connect(ui->objectEditor, SIGNAL(removeLightmapSignal()), this, SLOT(removeLightmapSignalSlot()));
@@ -613,6 +614,18 @@ void MainWindow::logMessage(const std::string& msg) // Append to LogWindow log d
 	//this->logfile << msg << "\n";
 	if(this->log_window && !running_destructor)
 		this->log_window->appendLine(msg);
+}
+
+
+void MainWindow::printFromLuaScript(const std::string& msg, UID object_uid)
+{
+	ui->objectEditor->printFromLuaScript(msg, object_uid);
+}
+
+
+void MainWindow::luaErrorOccurred(const std::string& msg, UID object_uid)
+{
+	ui->objectEditor->luaErrorOccurred(msg, object_uid);
 }
 
 
@@ -2948,6 +2961,15 @@ void MainWindow::objectEditedSlot()
 		msgBox.setText(QtUtils::toQString(e.what()));
 		msgBox.exec();
 	}
+}
+
+
+void MainWindow::scriptChangedFromEditorSlot()
+{
+	if(gui_client.selected_ob)
+		BitUtils::setBit(gui_client.selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED);
+
+	objectEditedSlot();
 }
 
 

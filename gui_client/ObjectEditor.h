@@ -55,6 +55,9 @@ public:
 
 	bool posAndRot3DControlsEnabled() { return show3DControlsCheckBox->isChecked(); }
 
+	void printFromLuaScript(const std::string& msg, UID object_uid);
+	void luaErrorOccurred(const std::string& msg, UID object_uid);
+
 	QSettings* settings;
 	std::string base_dir_path;
 protected:
@@ -62,6 +65,7 @@ protected:
 signals:;
 	void objectTransformChanged();
 	void objectChanged();
+	void scriptChangedFromEditorSignal();
 	void bakeObjectLightmap();
 	void bakeObjectLightmapHighQual();
 	void removeLightmapSignal();
@@ -93,6 +97,7 @@ private:
 	// we can display it, without needing to hang on to a reference to the original world object.
 	std::vector<WorldMaterialRef> cloned_materials;
 
+	UID editing_ob_uid;
 	int selected_mat_index;
 
 	QTimer* edit_timer;

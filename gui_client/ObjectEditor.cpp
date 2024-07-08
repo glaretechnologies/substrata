@@ -169,6 +169,8 @@ void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 
 void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_, bool ob_in_editing_users_world)
 {
+	this->editing_ob_uid = ob.uid;
+
 	//this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
 
 	if(ob_in_editing_users_world)
@@ -736,7 +738,7 @@ void ObjectEditor::scriptChangedFromEditor()
 		this->scriptTextEdit->setPlainText(shader_editor->getShaderText());
 	}
 
-	emit objectChanged();
+	emit scriptChangedFromEditorSignal(); // objectChanged();
 }
 
 
@@ -767,6 +769,20 @@ void ObjectEditor::materialSelectedInBrowser(const std::string& path)
 		m.showMessage("Error while opening material: " + QtUtils::toQString(e.what()));
 		m.exec();
 	}
+}
+
+
+void ObjectEditor::printFromLuaScript(const std::string& msg, UID object_uid)
+{
+	if((this->editing_ob_uid == object_uid) && shader_editor)
+		shader_editor->printFromLuaScript(msg);
+}
+
+
+void ObjectEditor::luaErrorOccurred(const std::string& msg, UID object_uid)
+{
+	if((this->editing_ob_uid == object_uid) && shader_editor)
+		shader_editor->luaErrorOccurred(msg);
 }
 
 
