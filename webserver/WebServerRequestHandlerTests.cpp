@@ -24,7 +24,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Clock.h>
 #include <WebSocket.h>
 #include <PlatformUtils.h>
-#include <WorkerThread.h>
+#include <WebWorkerThread.h>
 #include <networking/Networking.h>
 
 
