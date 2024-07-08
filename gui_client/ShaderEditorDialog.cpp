@@ -24,6 +24,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "../../utils/StringUtils.h"
 #include "../../utils/Exception.h"
 #include "../../utils/Timer.h"
+#include "../../utils/Parser.h"
 #include "../../dll/IndigoStringUtils.h"
 
 #include <lua/LuaVM.h>
@@ -41,7 +42,8 @@ ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_pat
 {
 	setupUi(this);
 
-	this->outputTextEdit->shader_editor_dialog = this;
+	this->buildOutputTextEdit    ->shader_editor_dialog = this;
+	this->executionOutputTextEdit->shader_editor_dialog = this;
 
 	QSettings settings("Glare Technologies", "Cyberspace");
 	this->restoreGeometry(settings.value("shadereditor/geometry").toByteArray());
@@ -53,6 +55,10 @@ ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_pat
 	syntax_highlight_timer = new QTimer(this);
 	connect(syntax_highlight_timer, SIGNAL(timeout()), this, SLOT(buildCodeAndShowResults()));
 	syntax_highlight_timer->setSingleShot(true);
+
+	flash_output_timer = new QTimer(this);
+	connect(flash_output_timer, SIGNAL(timeout()), this, SLOT(flashExecOutputTimerFired()));
+	flash_output_timer->setSingleShot(true);
 
 	connect(shaderEdit, SIGNAL(cursorPositionChanged()), this, SLOT(shaderEditCursorPositionChanged()));
 
@@ -101,26 +107,69 @@ QString ShaderEditorDialog::getShaderText()
 }
 
 
-void ShaderEditorDialog::mouseDoubleClickedInOutput(QMouseEvent* e)
+void ShaderEditorDialog::mouseDoubleClickedInOutput(ShaderEditorOutputTextEdit* sender, QMouseEvent* e)
 {
-	QTextCursor output_cursor = outputTextEdit->cursorForPosition(e->pos());
-
-	const int output_line_num = output_cursor.blockNumber();
-
-	if(output_line_num >= 0 && output_line_num < (int)error_locations.size())
+	if(sender == buildOutputTextEdit)
 	{
-		const ErrorLocation& loc = error_locations[output_line_num];
+		QTextCursor output_cursor = buildOutputTextEdit->cursorForPosition(e->pos());
 
-		// See https://stackoverflow.com/questions/40081248/qt-how-to-move-textedit-cursor-to-specific-col-and-row
-		QTextCursor cursor = shaderEdit->textCursor();
-	
-		cursor.movePosition(QTextCursor::Start);
-		cursor.movePosition(QTextCursor::Down,  QTextCursor::MoveAnchor, loc.begin.line_num);
-		cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, loc.begin.char_num);
-	
-		shaderEdit->setTextCursor(cursor);
+		const int output_line_num = output_cursor.blockNumber();
 
-		shaderEdit->setFocus();
+		if(output_line_num >= 0 && output_line_num < (int)error_locations.size())
+		{
+			const ErrorLocation& loc = error_locations[output_line_num];
+
+			// See https://stackoverflow.com/questions/40081248/qt-how-to-move-textedit-cursor-to-specific-col-and-row
+			QTextCursor cursor = shaderEdit->textCursor();
+	
+			cursor.movePosition(QTextCursor::Start);
+			cursor.movePosition(QTextCursor::Down,  QTextCursor::MoveAnchor, loc.begin.line_num);
+			cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, loc.begin.char_num);
+	
+			shaderEdit->setTextCursor(cursor);
+
+			shaderEdit->setFocus();
+		}
+	}
+	else if(sender == executionOutputTextEdit)
+	{
+		QTextCursor cursor = executionOutputTextEdit->cursorForPosition(e->pos());
+
+		const std::string line = QtUtils::toStdString(cursor.block().text());
+
+		// Example runtime error messages:
+		// Error while creating Lua script: [string "script"]:10: attempt to call a nil value
+		// Lua, func: [top level code], line: 67
+		// Lua, func: someFunc, line: 67
+
+		
+		std::string location_marker = "[string \"script\"]:";
+		size_t offset = line.find(location_marker);
+		if(offset == std::string::npos)
+		{
+			location_marker = ", line: ";
+			offset = line.find(location_marker);
+		}
+
+
+		if(offset != std::string::npos)
+		{
+			const std::string trimmed_line = line.substr(offset + location_marker.size());
+			Parser parser(trimmed_line);
+			int line_num = 0;
+			if(parser.parseInt(line_num))
+			{
+				// Move cursor to line where error occurred.
+				QTextCursor cursor = shaderEdit->textCursor();
+
+				cursor.movePosition(QTextCursor::Start);
+				cursor.movePosition(QTextCursor::Down,  QTextCursor::MoveAnchor, line_num - 1);
+
+				shaderEdit->setTextCursor(cursor);
+
+				shaderEdit->setFocus();
+			}
+		}
 	}
 }
 
@@ -161,6 +210,36 @@ void ShaderEditorDialog::on_shaderEdit_textChanged()
 }
 
 
+void ShaderEditorDialog::on_applyChangesPushButton_clicked()
+{
+	buildCodeAndShowResults();
+
+	this->executionOutputTextEdit->clear();
+
+	// Only show runtime output if the build succeeded
+	if(!error_locations.empty()) // If there were build errors:
+	{
+		// Flash build output red
+		QPalette p = buildOutputTextEdit->palette(); // Get current palette
+		p.setColor(QPalette::Base, QColor(250, 200, 200)); // Set background colour
+		buildOutputTextEdit->setPalette(p); // Update palette
+	}
+	else // else if no errors:
+	{
+		// Flash runtime output grey
+		QPalette p = executionOutputTextEdit->palette(); // Get current palette
+		p.setColor(QPalette::Base, QColor(220, 220, 220)); // Set background colour
+		executionOutputTextEdit->setPalette(p); // Update palette
+	}
+
+	// Start timer to restore background colour
+	const int FLASH_TIME_MS = 100;
+	flash_output_timer->start(FLASH_TIME_MS);
+
+	emit shaderChanged();
+}
+
+
 void ShaderEditorDialog::emitShaderChangedTimerFired()
 {
 	const std::string shader = QtUtils::toIndString(shaderEdit->document()->toPlainText());
@@ -173,9 +252,27 @@ void ShaderEditorDialog::emitShaderChangedTimerFired()
 }
 
 
+void ShaderEditorDialog::flashExecOutputTimerFired()
+{
+	// Restore output widget background colours to white
+	{
+		QPalette p = buildOutputTextEdit->palette(); // Get current palette
+		p.setColor(QPalette::Base, Qt::white); // Set background colour
+		buildOutputTextEdit->setPalette(p); // Update palette
+	}
+	{
+		QPalette p = executionOutputTextEdit->palette(); // Get current palette
+		p.setColor(QPalette::Base, Qt::white); // Set background colour
+		executionOutputTextEdit->setPalette(p); // Update palette
+	}
+}
+
+
 void ShaderEditorDialog::buildCodeAndShowResults()
 {
 	const QSize status_label_size(60, 4);
+
+	this->error_locations.clear();
 
 	const std::string shader = QtUtils::toIndString(shaderEdit->document()->toPlainText());
 	if(hasPrefix(shader, "<?xml"))
@@ -189,7 +286,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			Scripting::parseXMLScript(NULL, shader, 0.0, path_controller, vehicle_script);
 
 
-			this->outputTextEdit->setPlainText("XML script built successfully.");
+			this->buildOutputTextEdit->setPlainText("XML script built successfully.");
 
 			shaderEdit->blockSignals(true); // Block signals so a text edited signal is not emitted when highlighting text.
 			this->highlighter->clearError();
@@ -202,7 +299,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 		}
 		catch(glare::Exception& e)
 		{
-			this->outputTextEdit->setPlainText(QtUtils::toQString(e.what())); // + Winter::Diagnostics::positionString(error_pos)));
+			this->buildOutputTextEdit->setPlainText(QtUtils::toQString(e.what())); // + Winter::Diagnostics::positionString(error_pos)));
 
 			// Use error pos:
 			shaderEdit->blockSignals(true);
@@ -230,7 +327,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			options.max_num_interrupts = 100000;
 			LuaScript lua_script(&lua_vm, options, /*script src=*/shader);
 
-			this->outputTextEdit->setPlainText("Lua script built successfully.");
+			this->buildOutputTextEdit->setPlainText("Lua script built successfully.");
 
 			shaderEdit->blockSignals(true);
 			this->highlighter->clearError();
@@ -244,7 +341,6 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 		catch(LuaScriptExcepWithLocation& e)
 		{
 			this->highlighter->clearError();
-			this->error_locations.clear();
 
 			std::string combined_msg;
 			for(size_t i=0; i<e.errors.size(); ++i)
@@ -268,7 +364,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 					//assert(false);
 				}
 			}
-			this->outputTextEdit->setPlainText(QtUtils::toQString(combined_msg));
+			this->buildOutputTextEdit->setPlainText(QtUtils::toQString(combined_msg));
 
 			shaderEdit->blockSignals(true); // Block signals so a text edited signal is not emitted when highlighting text.
 			this->highlighter->doRehighlight();
@@ -280,7 +376,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 		}
 		catch(glare::Exception& e)
 		{
-			this->outputTextEdit->setPlainText(QtUtils::toQString(e.what()));
+			this->buildOutputTextEdit->setPlainText(QtUtils::toQString(e.what()));
 
 			QPixmap p(status_label_size);
 			p.fill(Qt::red);
@@ -308,7 +404,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 
 			if(error_msg.empty())
 			{
-				this->outputTextEdit->setPlainText("Script built successfully."); // QtUtils::toQString("Script built successfully."));// in " + build_timer.elapsedString()));
+				this->buildOutputTextEdit->setPlainText("Script built successfully."); // QtUtils::toQString("Script built successfully."));// in " + build_timer.elapsedString()));
 
 				shaderEdit->blockSignals(true);
 				this->highlighter->clearError();
@@ -321,7 +417,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			}
 			else
 			{
-				this->outputTextEdit->setPlainText(QtUtils::toQString(error_msg)); // + Winter::Diagnostics::positionString(error_pos)));
+				this->buildOutputTextEdit->setPlainText(QtUtils::toQString(error_msg)); // + Winter::Diagnostics::positionString(error_pos)));
 
 				// Use error pos:
 				shaderEdit->blockSignals(true);
@@ -337,7 +433,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 		}
 		catch(glare::Exception& e)
 		{
-			this->outputTextEdit->setPlainText(QtUtils::toQString(e.what()));
+			this->buildOutputTextEdit->setPlainText(QtUtils::toQString(e.what()));
 		}
 	}
 }
@@ -350,4 +446,38 @@ void ShaderEditorDialog::shaderEditCursorPositionChanged()
 	const int col_num = shaderEdit->textCursor().positionInBlock() + 1;
 
 	cursorPositionLabel->setText(QtUtils::toQString("Line: " + toString(line_num) + ", Col: " + toString(col_num)));
+}
+
+
+void ShaderEditorDialog::printFromLuaScript(const std::string& msg)
+{
+	// Only show runtime output if the build succeeded
+	if(error_locations.empty())
+	{
+		this->executionOutputTextEdit->moveCursor(QTextCursor::End);
+
+		// Change text colour to black
+		QTextCharFormat format = this->executionOutputTextEdit->currentCharFormat();
+		format.setForeground(QBrush(QColor(0, 0, 0)));
+		this->executionOutputTextEdit->setCurrentCharFormat(format);
+
+		this->executionOutputTextEdit->insertPlainText(QtUtils::toQString(msg + "\n"));
+	}
+}
+
+
+void ShaderEditorDialog::luaErrorOccurred(const std::string& msg)
+{
+	// Only show runtime errors if the build succeeded
+	if(error_locations.empty())
+	{
+		this->executionOutputTextEdit->moveCursor(QTextCursor::End);
+
+		// Change text colour to red
+		QTextCharFormat format = this->executionOutputTextEdit->currentCharFormat();
+		format.setForeground(QBrush(QColor(255, 0, 0)));
+		this->executionOutputTextEdit->setCurrentCharFormat(format);
+
+		this->executionOutputTextEdit->insertPlainText(QtUtils::toQString(msg + "\n"));
+	}
 }

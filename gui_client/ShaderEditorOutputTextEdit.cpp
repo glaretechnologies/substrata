@@ -21,5 +21,5 @@ ShaderEditorOutputTextEdit::ShaderEditorOutputTextEdit(QWidget* parent)
 void ShaderEditorOutputTextEdit::mouseDoubleClickEvent(QMouseEvent* e)
 {
 	if(shader_editor_dialog)
-		shader_editor_dialog->mouseDoubleClickedInOutput(e);
+		shader_editor_dialog->mouseDoubleClickedInOutput(this, e);
 }

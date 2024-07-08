@@ -6,11 +6,12 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
-class WorldObject;
-class Parcel;
+#include "../shared/UID.h"
 #include <graphics/ImageMap.h>
 #include <maths/vec2.h>
 #include <string>
+class WorldObject;
+class Parcel;
 
 
 /*=====================================================================
@@ -33,6 +34,11 @@ public:
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) = 0;
 
 	virtual void logMessage(const std::string& msg) = 0;
+
+	// Lua scripting:
+	// A lua script created by the logged in user printed something
+	virtual void printFromLuaScript(const std::string& msg, UID object_uid) {}
+	virtual void luaErrorOccurred(const std::string& msg, UID object_uid) {}
 
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() = 0;

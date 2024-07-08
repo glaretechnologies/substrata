@@ -1665,9 +1665,14 @@ void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 	if(script_evaluator->world_object->creator_id == this->logged_in_user_id)
 	{
-		const std::string msg = "Lua (ob " + script_evaluator->world_object->uid.toString() + "): " + std::string(s, len);
-		conPrint(msg);
-		logMessage(msg);
+		const std::string msg(s, len);
+
+		const std::string augmented_msg = "Lua (ob " + script_evaluator->world_object->uid.toString() + "): " + std::string(s, len);
+		conPrint(augmented_msg);
+		logMessage(augmented_msg);
+
+		// Pass to UIInterface to show on script editor window if applicable
+		ui_interface->printFromLuaScript(msg, script_evaluator->world_object->uid);
 	}
 }
 
@@ -1682,6 +1687,9 @@ void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string&
 		const std::string full_msg = "Lua error (ob " + script_evaluator->world_object->uid.toString() + "): " + msg + "\nScript will be disabled.";
 		conPrint(full_msg);
 		logMessage(full_msg);
+
+		// Pass to UIInterface to show on script editor window if applicable
+		ui_interface->luaErrorOccurred(msg, script_evaluator->world_object->uid);
 	}
 }
 
@@ -2530,6 +2538,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 
 			try
 			{
+				if((ob->creator_id == this->logged_in_user_id) && (selected_ob == ob))
+					ui_interface->printFromLuaScript("Running script at " + Clock::get12HourClockLocalTimeOfDayString(), ob->uid);
 
 				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob, world_state_lock);
 
@@ -9500,6 +9510,9 @@ void GUIClient::objectEdited()
 				// Don't show a modal message box on script error, display non-modal error notification (and write to log) instead.
 				logMessage("Error while loading script: " + e.what());
 				showErrorNotification("Error while loading script: " + e.what());
+
+				// Pass to UIInterface to show on script editor window if applicable
+				ui_interface->luaErrorOccurred(e.what(), selected_ob->uid);
 			}
 		}
 
