@@ -62,7 +62,7 @@ If you don't have OpenSSL installed, download from our server: <a href="https://
 <p>
 	Open a command shell (cmd.exe or powershell), go to the directory you extracted the openssl files (openssl.exe, openssl.cnf and some dlls), and execute this command: 
 </p>
-<div class="commands"><pre>./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key -config openssl.cnf</pre></div>
+<pre class="code-block">./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key -config openssl.cnf</pre>
 <p>
 	It will ask some questions, you can press enter to skip them, apart from at least one:  Organization name, enter anything you want.
 </p>
@@ -76,7 +76,7 @@ If you don't have OpenSSL installed, download from our server: <a href="https://
 
 <p>You probably already have openssl installed, so execute</p>
 
-<div class="commands"><pre>openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key</pre></div>
+<pre class="code-block">openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key</pre>
 
 <p>and copy the two generated files (MyCertificate.crt and MyKey.key) into your server_state_dir.</p>
 
@@ -116,10 +116,10 @@ Substrata
 
 <p>In cmd.exe or powershell, change into the directory you extracted the server distribution, and run the server, e.g.</p>
 
-<div class="commands"><pre>
+<pre class="code-block">
 cd c:/substrata_server
 ./server.exe
-</pre></div>
+</pre>
 
 
 <p>Read the output carefully, there will probably be some warning messages, but if it doesn't exit by itself, then your server is ready to use!</p>

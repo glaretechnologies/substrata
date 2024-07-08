@@ -1,44 +1,55 @@
 
-<br/>
+<h2>Luau scripting</h2>
+<p>
+The newest and the most powerful form of scripting in Substrata is Luau scripting.  Luau scripts can achieve complex and rich behaviour, reacting to various types of events.  
+You can even create complete games in Luau in Substrata.
+</p>
+
+<a href="/about_luau_scripting">Read more about Luau scripting</a>
 
 <h2>Winter Scripting</h2>
 
-<p>Most scripting in the Substrata metaverse is currently done with the <a href="https://github.com/glaretechnologies/winter">Winter programming language</a>.
+<p>Winter scripting can achieve basic, non-reactive behaviour, such as rotating or periodically moving objects.  Winter scripting uses our <a href="https://github.com/glaretechnologies/winter">Winter programming language</a>.
 </p>
 
-<p>Winter is a high-performance functional programming language, made by us at Glare Technologies.  We use it in our other software <a href="https://www.indigorenderer.com/">Indigo Renderer</a> and 
-<a href="https://www.chaoticafractals.com/">Chaotica</a>.
-</p>
+<p>See the <a href="https://github.com/glaretechnologies/winter/blob/master/docs/language_reference.md">Winter language reference documentation on Github</a>.
 
-
-<h3>Winter Language reference</h3>
-<p>See the <a href="https://github.com/glaretechnologies/winter">Github Winter page</a> for the language reference documentation.
-</p>
 
 <h3>Client-side execution</h3>
-<p>Scripts in Substrata are executed in the Substrata client program (e.g. they are executed 'client-side').  
+<p>Winter scripts in Substrata are executed in the Substrata client program (e.g. they are executed 'client-side').  
 Winter programs are restricted in what they can do, so are safe to execute client-side.  
 (Although we can't rule out all bugs in the Winter execution environment)</p><h3>Scripting an object</h3><p>To make a script for an object, you edit code in the 'Script' text edit box in the object editor in the Substrata client, 
 after selecting an object.   
 You can only edit scripts on objects that you own (e.g. that you created).</p>
 
 <h3>Scriptable functions</h3>
-<p>To script the behaviour of an object, you can define either of two functions:</p><h4>evalRotation</h4><code>def evalRotation(float time, WinterEnv env) vec3</code><p>time is the
+<p>To script the behaviour of an object, you can define either of two functions:
+</p>
+
+<div class="code-func-definition">def evalRotation(float time, WinterEnv env) vec3</div>
+
+<p>time is the
 current global time in the Substrata metaverse.
 </p>
 <p>This function returns a 3-vector, where the direction of the vector defines the axis of rotation, and the length of the vector defines the counter-clockwise rotation around the axis, in radians.
 </p>
 <p>
-For example, the rotating wind turbine blades use the following script:<p><code>def evalRotation(float time, WinterEnv env) vec3 : vec3(-0.6, 0.0, 0.0) * time</code>
+For example, the rotating wind turbine blades use the following script:
 
-<p>This rotates the blades clockwise (due to the minus sign) around the x axis at a constant rate.</p><h4>evalTranslation</h4><code>def evalTranslation(float time, WinterEnv env) vec3</code><p>This function returns a 3-vector, 
+<pre class="code-block">def evalRotation(float time, WinterEnv env) vec3 : vec3(-0.6, 0.0, 0.0) * time</pre>
+
+<p>This rotates the blades clockwise (due to the minus sign) around the x axis at a constant rate.</p>
+
+<div class="code-func-definition">def evalTranslation(float time, WinterEnv env) vec3</div>
+
+<p>This function returns a 3-vector, 
 which defines a spatial translation from the usual position of an object (as placed by a user or entered in the object editor).  
 The translation can be a function of time  to allow object movement.</p><p>For example, this script makes an object move back and forth along the x axis by a total of 1.6 metres:
 </p>
 
-<p>
-<code>def evalTranslation(float time, WinterEnv env) vec3 : vec3(sin(time * 1.5) * 0.8, 0, 0)</code>
-</p>
+<pre class="code-block">
+def evalTranslation(float time, WinterEnv env) vec3 : vec3(sin(time * 1.5) * 0.8, 0, 0)
+</pre>
 
 <br/>
 <hr/>
@@ -51,8 +62,7 @@ The translation can be a function of time  to allow object movement.</p><p>For e
 The following is a script that makes an object continuously follow a square shaped path:
 </p>
 
-<code>
-<pre>
+<pre class="code-block">
 &lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
 &lt;script&gt;
 	&lt;follow_path&gt;
@@ -65,7 +75,6 @@ The following is a script that makes an object continuously follow a square shap
 	&lt;/follow_path&gt;
 &lt;/script&gt;
 </pre>
-</code>
 
 <p>Each waypoint has the position of the waypoint, what type of waypoint it is, and in the case of 'Stop' waypoints, how long the object will stop at the waypoint before continuing.
 </p>
@@ -80,8 +89,7 @@ The following is a script that makes an object continuously follow a square shap
 <h2>Hovercar</h2>
 
 <p>This is an XML script, that allows any object in the world to behave like a hovercar, that can be entered and driven by a user.</p>
-<code>
-<pre>
+<pre class="code-block">
 &lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
 &lt;script&gt;
 	&lt;hover_car&gt; 
@@ -104,7 +112,6 @@ The following is a script that makes an object continuously follow a square shap
 	&lt;/hover_car&gt;
 &lt;/script&gt;		
 </pre>
-</code>
 
 <p>First off we have two rotations that allow transforming from the model to world space.   This is useful in cases like transforming from GLTF coordinates (y-up) to Substrata coordinates (z-up).</p>
 <p><b>model_to_y_forwards_rot_1</b>:  This is an axis-angle rotation, from model coordinates (object space) to world coordinates (y-forwards space). (before overall transformation of hovercar)</p>
@@ -164,8 +171,7 @@ in your personal world.
 
 <p>In the example script below, the URL https://images.metaverse-billboards.com/space1.png is periodically checked for a new image.</p>
 
-<code>
-<pre>
+<pre class="code-block">
 &lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
 &lt;script&gt;
 	&lt;dynamic_texture_update&gt;
@@ -175,7 +181,6 @@ in your personal world.
 	&lt;/dynamic_texture_update&gt;
 &lt;/script&gt;
 </pre>
-</code>
 
 	<p>
 		To make an object with a dynamically updating texture:
@@ -196,13 +201,6 @@ as a resource, and the updated image will be applied to the object.
 <hr/>
 <br/>
 
-<h2>Future Scripting</h2>
-<p>We may allow server-side scripting in the future, using a language like Javascript, and with some way of maintaining state.
-</p>
-<p>
-We plan to allow users to run their own server as well, to control their parcels, which will allow arbitrarily complicated code to affect their Substrata parcels.
-</p>
 
-<br/><br/>
 
 <a href="/">&lt; Home</a>																			
