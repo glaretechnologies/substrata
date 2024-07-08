@@ -74,8 +74,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StressTest.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/TimeStamp.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/TimeStamp.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebsiteExcep.h
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThread.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThread.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThread.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThread.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/UnsafeString.cpp
