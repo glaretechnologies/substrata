@@ -1,0 +1,374 @@
+
+
+<p>
+You can create scripts in Substrata using the <a href="https://luau-lang.org/">Luau programming language</a>, 
+which is Roblox's version of the <a href="https://www.lua.org/">Lua programming language.</a>
+</p>
+
+<h2>Creating an object script</h2>
+
+<p>
+To create a script for your object, you will need to use the native Substrata client (i.e. not the web client).  <!-- This can be downloaded from the <a href="/">main Substrata page</a>.-->
+</p>
+<b>Currently (as of 8th July 2024) you will need the latest test Substrata client for Luau scripting, available on the <a href="https://discord.gg/R6tfYn3">Substrata discord channel</a>.</b>
+<p>
+In the native client, double click on the object you want to script.
+Then click on the 'Edit' button in the script section:
+</p>
+
+<img src="/files/edit_script_button.JPG" width="1000px"/>
+
+<p>
+This will pop up the script editor window (shown here with an existing script):
+</p>
+
+<img src="/files/script_editor_window.JPG" width="1000px" />
+
+<p>
+To create a Luau script, you <b>must start your script</b> with
+</p>
+
+<pre class="code-block">
+--lua
+</pre>
+
+<p>
+This tells Substrata to expect a Luau script, as opposed to a Winter or XML script.
+</p>
+<p>
+To apply changes in your script to the object, just close the script editor window.
+</p>
+
+
+<h2>Script execution environment</h2>
+
+<p>
+Your script will run on both the client and the server. 
+For example, that means that every client that connects to substrata.info will run your script, and your script will also run on the substrata.info server.
+</p>
+<p>
+Calling some functions or assigning some attributes will generally only have any immediate effect on either the client or server, depending on what attribute or function it is.
+</p>
+<p>
+Attribute updates that affect physics behaviour will generally run client-side, because physics in Substrata is computed client side.
+</p>
+<p>
+Other attribute updates will only run on the server, and then the updated object information will be immediately and automatically sent to all connected clients.
+</p>
+<p>
+
+
+
+
+<h2>Debugging your script</h2>
+
+You can print output from your script with the print function, for example
+
+<pre class="code-block">
+print("hello")
+</pre>
+
+<p>
+Debugging output, including print output is available in the log window (Tools > Show Log).
+</p>
+<p>
+If an error occurs while running your script, the error while be shown in the log window (or the server log) as well, and the script will be stopped.
+To restart your script you will need to edit it, thereby reloading the script.
+</p>
+<p>
+Here is an example of a message printed from print():
+</p>
+
+<img src="/files/log_window.JPG" width="1000px" />
+
+<p>
+As well as the actual message, the UID of the script's object is also printed.
+
+</p>
+<p>
+Since scripts run on the server as well, you can view debugging output from the server at <a href="https://substrata.info/script_log">https://substrata.info/script_log</a>.
+</p>
+
+<img src="/files/server_script_log.JPG" width="1000px" />
+
+<p>
+This page will show the last 1000 or so messages and errors, from all scripts created with your user account.  You must be logged in to view this page.
+</p>
+
+
+<h2>Event Listeners</h2>
+
+<p>
+These functions can be defined in your script to listen for certain events.  If you define one of these functions, they will be called when the event triggers for 
+the object whose script it is.
+</p>
+You can also listen for these events on other objects with addEventListener.
+</p>
+
+
+<div class="code-func-definition">onUserTouchedObject(avatar : Avatar, object : Object)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar that touched the object.</span></div>
+<div class="code-arg"><span class="code-arg-code">object : Object</span><span class="code-arg-descrip"> The object that was touched.</span></div>
+
+<div class="code-func-description">
+Called when a user's avatar touches an object.
+If an avatar continues to touch an object, for example the avatar is standing on an object, this event will continue to be fired at a regular period of something like 0.5 s.
+</div>
+
+
+
+<div class="code-func-definition">onUserUsedObject(avatar : Avatar, object : Object)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar of the player that used the object.</span></div>
+<div class="code-arg"><span class="code-arg-code">object : Object</span><span class="code-arg-descrip"> The object that was used.</span></div>
+
+<div class="code-func-description">
+Called when a user uses an object.  Currently users use objects by moving the mouse cursor over an object and pressing the E key.
+</div>
+
+
+<div class="code-func-definition">onUserMovedNearToObject(avatar : Avatar, object : Object)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar that moved near the object.</span></div>
+<div class="code-arg"><span class="code-arg-code">object : Object</span><span class="code-arg-descrip"> The object that the player moved near to.</span></div>
+
+<div class="code-func-description">
+Called when a user avatar moves near (within a certain distance) to an object.  The distance is currently 20 metres.
+</div>
+
+
+
+<div class="code-func-definition">onUserMovedAwayFromObject(avatar : Avatar, object : Object)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar that moved near the object.</span></div>
+<div class="code-arg"><span class="code-arg-code">object : Object</span><span class="code-arg-descrip"> The object that the player moved away from.</span></div>
+
+<div class="code-func-description">
+Called when a user avatar moves away from (further than a certain distance) an object.  The distance is currently 20 metres.
+</div>
+
+
+<div class="code-func-definition">onUserEnteredParcel(avatar : Avatar, object : Object, parcel : Parcel)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar that entered the parcel.</span></div>
+<div class="code-arg"><span class="code-arg-code">object : Object</span><span class="code-arg-descrip"> The object in the parcel.</span></div>
+<div class="code-arg"><span class="code-arg-code">parcel : Parcel</span><span class="code-arg-descrip"> The parcel.</span></div>
+
+<div class="code-func-description">
+Called when a user avatar enters the land parcel that the script object is inside.
+</div>
+
+
+<div class="code-func-definition">onUserExitedParcel(avatar : Avatar, object : Object, parcel : Parcel)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar that exited the parcel.</span></div>
+<div class="code-arg"><span class="code-arg-code">object : Object</span><span class="code-arg-descrip"> The object in the parcel.</span></div>
+<div class="code-arg"><span class="code-arg-code">parcel : Parcel</span><span class="code-arg-descrip"> The parcel.</span></div>
+
+<div class="code-func-description">
+Called when a user avatar exits the land parcel that the script object is inside.
+</div>
+
+
+
+<h2>Global functions</h2>
+
+
+<div class="code-func-definition">getObjectForUID(uid : number) : Object</div>
+
+<div class="code-arg"><span class="code-arg-code">uid : number</span><span class="code-arg-descrip"> The UID (unique identifier) of the object.</span></div>
+
+<div class="code-func-description">
+Returns the object that has the given UID.  Throws exception if no such object exists.
+</div>
+
+
+
+<div class="code-func-definition">showMessageToUser(msg : String, av : Avatar)</div>
+
+<div class="code-arg"><span class="code-arg-code">msg : String</span><span class="code-arg-descrip">The message to send to the avatar's user.</span></div>
+<div class="code-arg"><span class="code-arg-code">av : Avatar</span><span class="code-arg-descrip">The avatar of the user to send the message to.</span></div>
+
+<div class="code-func-description">
+Shows a string message on the screen of the user of the given avatar.  The message will be displayed for a few seconds.
+</div>
+
+
+
+<div class="code-func-definition">createTimer(onTimerEvent : function, interval_time_s : number, repeating : bool) : number</div>
+
+<div class="code-arg"><span class="code-arg-code">onTimerEvent : function</span><span class="code-arg-descrip">The timer event handler to be called when the timer fires.</span></div>
+<div class="code-arg"><span class="code-arg-code">interval_time_s : number</span><span class="code-arg-descrip">The time interval, in seconds, until the timer fires.</span></div>
+<div class="code-arg"><span class="code-arg-code">repeating : bool</span><span class="code-arg-descrip">Should the timer keep firing every interval_time_s seconds, or should it just fire once.</span></div>
+
+<div class="code-func-description">
+<p>
+Creates a timer, when the timer interval is complete, onTimerEvent is called.   onTimerEvent should be a function with the following signature:
+</p>
+<p>
+onTimerEvent(object : Object)
+</p>
+<p>
+Throws an exception if more than 4 timer events are created without being destroyed.
+</p>
+<p>
+Returns a timer handle that can be passed to destroyTimer.
+</p>
+</div>
+
+
+
+<div class="code-func-definition">destroyTimer(timer_handle : number) : number</div>
+
+<div class="code-arg"><span class="code-arg-code">timer_handle : number)</span><span class="code-arg-descrip">A timer handle that was previously returned from createTimer.</span></div>
+
+<div class="code-func-description">
+<p>
+Destroys a timer.  Has no effect if the timer has already completed (for non-repeating timers), or has already been destroyed.
+</p>
+</div>
+
+
+
+<div class="code-func-definition">addEventListener(event_name : string, ob_uid : number, handler : Function) : number</div>
+
+<div class="code-arg"><span class="code-arg-code">event_name : string</span><span class="code-arg-descrip">The name of the event.  Valid event names are 
+"onUserUsedObject", "onUserTouchedObject", "onUserMovedNearToObject", "onUserMovedAwayFromObject", "onUserEnteredParcel", "onUserExitedParcel".</span></div>
+
+<div class="code-arg"><span class="code-arg-code">ob_uid : number</span><span class="code-arg-descrip">UID of the object that the event will be listened on.  For example, for onUserTouchedObject, this is the UID of the object
+that will have to be touched to trigger the touch event.</span></div>
+
+<div class="code-arg"><span class="code-arg-code">handler : Function</span><span class="code-arg-descrip">A function that will be called when the event occurs.  You can use
+your existing event handling functions such as onUserTouchedObject.</span></div>
+
+<div class="code-func-description">
+<p>
+Adds a listener for an event on another object. 
+</p>
+<p>For example, this code listens for the touch event on the object with UID 583:</p>
+<pre class="code-block">
+addEventListener("onUserTouchedObject", 583, onUserTouchedObject)
+</pre>
+
+</div>
+
+
+
+<h2>Classes</h2>
+
+<div class="code-func-definition">Object</div>
+
+<p>
+Attributes:
+</p>
+
+<div class="code-attr"><span class="code-attr-code">model_url : string</span><span class="code-attr-descrip">The Substrata URL of the 3d model for the object</span></div>
+<div class="code-attr"><span class="code-attr-code">pos : Vec3d</span><span class="code-attr-descrip">The position of the object</span></div>
+<div class="code-attr"><span class="code-attr-code">axis : Vec3f</span><span class="code-attr-descrip">The axis of rotation of the object</span></div>
+<div class="code-attr"><span class="code-attr-code">angle : number</span><span class="code-attr-descrip">The counter-clockwise angle of rotation of the object around axis, in radians.</span></div>
+<div class="code-attr"><span class="code-attr-code">scale : Vec3f</span><span class="code-attr-descrip">The scale factor in x, y, and z directions.</span></div>
+<div class="code-attr"><span class="code-attr-code">collidable : boolean</span><span class="code-attr-descrip">Is this object physically collidable with?  
+If false, avatars and physics objects will pass through it without colliding with it.</span></div>
+<div class="code-attr"><span class="code-attr-code">dynamic : boolean</span><span class="code-attr-descrip">Is this object a dynamic physics object?
+<div class="code-attr"><span class="code-attr-code">sensor : boolean</span><span class="code-attr-descrip">Sensor objects still emit touch events, but objects can pass through them.</span></div>
+<div class="code-attr"><span class="code-attr-code">content : string</span><span class="code-attr-descrip">Content field.  For Text and Hypercard object types, 
+this is the text that is displayed.</span></div>
+<div class="code-attr"><span class="code-attr-code">video_autoplay : boolean</span><span class="code-attr-descrip">If true, video is automatically played for Video
+object types.</span></div>
+<div class="code-attr"><span class="code-attr-code">video_loop : boolean</span><span class="code-attr-descrip">If true, video automatically loops back to the beginning
+and starts playing again.  If false, just plays once.</span></div>
+<div class="code-attr"><span class="code-attr-code">video_muted : boolean</span><span class="code-attr-descrip">If true, video is muted when playing.</span></div>
+<div class="code-attr"><span class="code-attr-code">mass : number</span><span class="code-attr-descrip">Object mass in kg for physics engine.  Only relevant
+when dynamic is true.</span></div>
+<div class="code-attr"><span class="code-attr-code">friction : number</span><span class="code-attr-descrip">Object friction. 
+Friction of the physics body (dimensionless number, usually between 0 and 1, 0 = no friction, 1 = friction force equals force that presses the two bodies together).</span></div>
+<div class="code-attr"><span class="code-attr-code">restitution : number</span><span class="code-attr-descrip">Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response).</span></div>
+<div class="code-attr"><span class="code-attr-code">centre_of_mass_offset_os : Vec3f</span><span class="code-attr-descrip">Offset of centre of mass of object, in object coordinates.  Can be used to e.g. give a vehicle a lower centre of mass than by default.</span></div>
+<div class="code-attr"><span class="code-attr-code">audio_source_url : string</span><span class="code-attr-descrip">
+Substrata URL of the audio source for this object.   Can be a mp3 or wav URL</span></div>
+<div class="code-attr"><span class="code-attr-code">audio_volume : number</span><span class="code-attr-descrip">
+Volume factor for audio source.  Default is 1.</span></div>
+
+<p>
+Methods:
+</p>
+
+<div class="code-attr"><span class="code-attr-code">getNumMaterials() : number</span><span class="code-attr-descrip">
+Returns the number of materials of the object.</span></div>
+
+<div class="code-attr"><span class="code-attr-code">getMaterial(mat_index : number) : Material</span><span class="code-attr-descrip">
+Returns the material of the object with the given index.</span></div>
+
+
+
+
+
+<div class="code-func-definition">Material</div>
+
+<p>
+Attributes:
+</p>
+
+<div class="code-attr"><span class="code-attr-code">colour : Vec3f</span><span class="code-attr-descrip">The reflective colour of the object.  Vec3f(1,1,1) is a white object.  Non-linear sRGB.</span></div>
+<div class="code-attr"><span class="code-attr-code">colour_texture_url : string</span><span class="code-attr-descrip">The URL of the colour texture.</span></div>
+<div class="code-attr"><span class="code-attr-code">emission_rgb : Vec3f</span><span class="code-attr-descrip">The colour of the emitted light from the object.  Non-linear sRGB.</span></div>
+<div class="code-attr"><span class="code-attr-code">emission_texture_url : string</span><span class="code-attr-descrip">The URL of the emission texture.</span></div>
+<div class="code-attr"><span class="code-attr-code">normal_map_url : string</span><span class="code-attr-descrip">The URL of the normal map.</span></div>
+<div class="code-attr"><span class="code-attr-code">roughness_val : number</span><span class="code-attr-descrip">The roughness of the material. 0 = perfectly smooth, 1 = very rough.</span></div>
+<div class="code-attr"><span class="code-attr-code">roughness_texture_url : string</span><span class="code-attr-descrip">
+URL of the metallic-roughness texture.  The metallic value is read from the blue channel, the roughness value is read from the green channel.</span></div>
+<div class="code-attr"><span class="code-attr-code">metallic_fraction_val : number</span><span class="code-attr-descrip">The metallic fraction of the material. 0 = not metal.  1 = completely metal.</span></div>
+<div class="code-attr"><span class="code-attr-code">opacity_val : number</span><span class="code-attr-descrip">
+How opaque (non-transparent) the material is.  
+Currently this value just determines if the transparent shader is used - it's used in the case where opacity_val &lt; 1.</span></div>
+<div class="code-attr"><span class="code-attr-code">tex_matrix : Matrix2f</span><span class="code-attr-descrip">The texture coordinate matrix.  Default value is {1, 0, 0, 1}.</span></div>
+<div class="code-attr"><span class="code-attr-code">emission_lum_flux_or_lum : number</span><span class="code-attr-descrip">
+For the spotlight object materials, this is luminous flux.  For generic model materials, luminance.</span></div>
+<div class="code-attr"><span class="code-attr-code">hologram : boolean</span><span class="code-attr-descrip">Is this a hologram material?
+Hologram materials don't block light, but just emit it.</span></div>
+<div class="code-attr"><span class="code-attr-code">double_sided : boolean</span><span class="code-attr-descrip">Should we render back-faces of the triangles with this material?
+Rendering is faster when not rendering back-faces, but if your object triangle mesh is not fully sealed, it may result in visible gaps.</span></div>
+
+
+
+
+
+
+<div class="code-func-definition">Avatar</div>
+
+<p>
+Attributes:
+</p>
+
+<div class="code-attr"><span class="code-attr-code">pos : Vec3d</span><span class="code-attr-descrip">The position of the avatar.  
+This is approximately the position of the eyes of the avatar for a standard avatar height, and will be 1.67 m above the surface the avatar is standing on.</span></div>
+<div class="code-attr"><span class="code-attr-code">name : string</span><span class="code-attr-descrip">The name of the user who is controlling the avatar.</span></div>
+<div class="code-attr"><span class="code-attr-code">linear_velocity : Vec3f</span><span class="code-attr-descrip">The linear velocity of the avatar, in metres per second.</span></div>
+
+
+
+
+
+<h2>Examples</h2>
+
+<p>
+Here is a very simple script that shows a message to a user when they touch an object:
+</p>
+
+<pre class="code-block">
+--lua
+
+function onUserTouchedObject(av : Avatar, ob : Object)
+	showMessageToUser("Hi " .. av.name .. ", you touched the red cube!", av)
+end
+</pre>
+<p>
+Which has this result in-world when you walk into the red cube:
+</p>
+<img src="/files/touched_cube.JPG" width="1000px" />
+
+
+
+<br/><br/>
+<a href="/">&lt; Home</a>
