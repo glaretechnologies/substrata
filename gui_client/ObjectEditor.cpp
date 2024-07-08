@@ -429,7 +429,10 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.changed_flags |= WorldObject::DYNAMIC_CHANGED;
 	ob_out.setDynamic(new_dynamic);
 
-	ob_out.setIsSensor(this->sensorCheckBox->isChecked());
+	const bool new_is_sensor = this->sensorCheckBox->isChecked();
+	if(new_is_sensor != ob_out.isSensor())
+		ob_out.changed_flags |= WorldObject::PHYSICS_VALUE_CHANGED;
+	ob_out.setIsSensor(new_is_sensor);
 
 	const float new_mass		= (float)this->massDoubleSpinBox->value();
 	const float new_friction	= (float)this->frictionDoubleSpinBox->value();

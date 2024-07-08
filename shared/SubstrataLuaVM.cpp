@@ -47,6 +47,7 @@ enum StringAtomEnum
 	Atom_scale,
 	Atom_collidable,
 	Atom_dynamic,
+	Atom_sensor,
 	Atom_content,
 	Atom_video_autoplay,
 	Atom_video_loop,
@@ -104,6 +105,7 @@ static StringAtom string_atoms[] =
 	StringAtom({"scale",					Atom_scale						}),
 	StringAtom({"collidable",				Atom_collidable					}),
 	StringAtom({"dynamic",					Atom_dynamic,					}),
+	StringAtom({"sensor",					Atom_sensor,					}),
 	StringAtom({"content",					Atom_content,					}),
 	StringAtom({"video_autoplay",			Atom_video_autoplay,			}),
 	StringAtom({"video_loop",				Atom_video_loop,				}),
@@ -727,6 +729,10 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "dynamic"));
 		lua_pushboolean(state, ob->isDynamic());
 		break;
+	case Atom_sensor:
+		assert(stringEqual(key_str, "sensor"));
+		lua_pushboolean(state, ob->isSensor());
+		break;
 	case Atom_content:
 		assert(stringEqual(key_str, "content"));
 		LuaUtils::pushString(state, ob->content);
@@ -864,6 +870,10 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_dynamic:
 		ob->setDynamic(LuaUtils::getBool(state, /*index=*/3));
+		other_changed = true;
+		break;
+	case Atom_sensor:
+		ob->setIsSensor(LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	case Atom_content:
