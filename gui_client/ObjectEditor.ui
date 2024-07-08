@@ -778,6 +778,9 @@
          </property>
          <item>
           <widget class="QCheckBox" name="collidableCheckBox">
+           <property name="toolTip">
+            <string>Do other objects and avatars collide with this object?  if unchecked, avatars and physics objects will pass through it without colliding with it</string>
+           </property>
            <property name="text">
             <string>Collidable</string>
            </property>
@@ -785,6 +788,9 @@
          </item>
          <item>
           <widget class="QCheckBox" name="dynamicCheckBox">
+           <property name="toolTip">
+            <string>Is this object a dynamic physics object? Dynamic physics objects can be pushed around, feel the influence of gravity etc.</string>
+           </property>
            <property name="text">
             <string>Dynamic</string>
            </property>
@@ -792,6 +798,9 @@
          </item>
          <item>
           <widget class="QCheckBox" name="sensorCheckBox">
+           <property name="toolTip">
+            <string>Sensor objects still emit touch events, but objects can pass through them.</string>
+           </property>
            <property name="text">
             <string>Sensor</string>
            </property>
