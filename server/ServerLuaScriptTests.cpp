@@ -328,7 +328,7 @@ void ServerLuaScriptTests::test()
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
 				"		print('Avatar ' .. tostring(av.uid) .. ' touched object ' .. tostring(ob.uid))			\n"
 				"end				\n"
-				"addEventListener('onUserTouchedObject', getObjectForUID(124), onUserTouchedObject)			";
+				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			";
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
@@ -350,8 +350,8 @@ void ServerLuaScriptTests::test()
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
 				"		print('Avatar ' .. tostring(av.uid) .. ' touched object ' .. tostring(ob.uid))			\n"
 				"end				\n"
-				"addEventListener('onUserTouchedObject', getObjectForUID(124), onUserTouchedObject)			\n"
-				"addEventListener('onUserTouchedObject', getObjectForUID(124), onUserTouchedObject)			\n";
+				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			\n"
+				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			\n";
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
@@ -374,7 +374,7 @@ void ServerLuaScriptTests::test()
 			const std::string script_src = 
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
 				"end				\n"
-				"addEventListener('notAnEvent', getObjectForUID(124), onUserTouchedObject)			\n";
+				"addEventListener('notAnEvent', 124, onUserTouchedObject)			\n";
 
 			testThrowsExcepContainingString([&]() { new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "Unknown event");
 		}
@@ -384,7 +384,7 @@ void ServerLuaScriptTests::test()
 			const std::string script_src = 
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
 				"end				\n"
-				"for i=1, 10000 do addEventListener('onUserTouchedObject', getObjectForUID(124), onUserTouchedObject)		end	\n";
+				"for i=1, 10000 do addEventListener('onUserTouchedObject', 124, onUserTouchedObject)		end	\n";
 
 			testThrowsExcepContainingString([&]() { new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "too many event listeners");
 		}
@@ -395,7 +395,7 @@ void ServerLuaScriptTests::test()
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
 				"		print('Avatar ' .. tostring(av.uid) .. ' touched object ' .. tostring(ob.uid))			\n"
 				"end				\n"
-				"addEventListener('onUserTouchedObject', getObjectForUID(124), onUserTouchedObject)			";
+				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			";
 
 			output_handler.buf.clear();
 			world_ob2->event_handlers = NULL; // Clean up from prior tests
