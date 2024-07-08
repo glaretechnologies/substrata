@@ -350,7 +350,7 @@ static int luaGetWorldObjectForUID(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 
-	const UID uid((uint64)LuaUtils::getDouble(state, /*index=*/1));
+	const UID uid((uint64)LuaUtils::getDoubleArg(state, /*index=*/1));
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -397,7 +397,7 @@ static int luaAddEventListener(lua_State* state)
 	const char* event_name = LuaUtils::getStringAndAtom(state, /*index=*/1, atom);
 
 	// Get object UID
-	const UID ob_uid = UID((uint64)LuaUtils::getDouble(state, /*index=*/2));
+	const UID ob_uid = UID((uint64)LuaUtils::getDoubleArg(state, /*index=*/2));
 
 	// Get a reference to the handler function
 	const int handler_func_ref = lua_ref(state, /*index=*/3);
@@ -548,7 +548,7 @@ static int createTimer(lua_State* state)
 	// Get a reference to the onTimerEvent function
 	const int onTimerEvent_ref = lua_ref(state, /*index=*/1);
 
-	const double raw_interval_time = LuaUtils::getDouble(state, /*index=*/2);
+	const double raw_interval_time = LuaUtils::getDoubleArg(state, /*index=*/2);
 	const bool repeating = LuaUtils::getBool(state, /*index=*/3);
 
 	// Don't allow the interval time to be too low.
@@ -607,7 +607,7 @@ static int destroyTimer(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 
-	const int timer_id = (int)LuaUtils::getDouble(state, /*index=*/1);
+	const int timer_id = (int)LuaUtils::getDoubleArg(state, /*index=*/1);
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -652,7 +652,7 @@ static int getMaterial(lua_State* state)
 	
 	// Get object UID
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
-	const size_t index = (size_t)LuaUtils::getDouble(state, /*index=*/2);
+	const size_t index = (size_t)LuaUtils::getDoubleArg(state, /*index=*/2);
 
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
