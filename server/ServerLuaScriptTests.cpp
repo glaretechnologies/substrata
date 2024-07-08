@@ -379,6 +379,16 @@ void ServerLuaScriptTests::test()
 			testThrowsExcepContainingString([&]() { new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "Unknown event");
 		}
 
+		// Test invalid addEventListener call - no such object with UID
+		{
+			const std::string script_src = 
+				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
+				"end				\n"
+				"addEventListener('notAnEvent', 124111111, onUserTouchedObject)			\n";
+
+			testThrowsExcepContainingString([&]() { new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "No object");
+		}
+
 		// Test invalid addEventListener calls - trying to add too many event listeners
 		{
 			const std::string script_src = 
