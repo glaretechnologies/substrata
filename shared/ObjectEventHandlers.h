@@ -51,6 +51,8 @@ public:
 	void executeOnUserMovedAwayFromObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);
 	void executeOnUserEnteredParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock);
 	void executeOnUserExitedParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock);
+	void executeOnUserEnteredVehicleHandlers(UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock);
+	void executeOnUserExitedVehicleHandlers(UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock);
 
 	HandlerList onUserUsedObject_handlers;
 	HandlerList onUserTouchedObject_handlers;
@@ -58,4 +60,6 @@ public:
 	HandlerList onUserMovedAwayFromObject_handlers;
 	HandlerList onUserEnteredParcel_handlers;
 	HandlerList onUserExitedParcel_handlers;
+	HandlerList onUserEnteredVehicle_handlers;
+	HandlerList onUserExitedVehicle_handlers;
 };

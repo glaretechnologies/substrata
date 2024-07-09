@@ -174,6 +174,38 @@ void ServerLuaScriptTests::test()
 			testAssert(output_handler.buf == "Avatar 456 exited parcel 789");
 		}
 
+		//-------------------------------- Test onUserEnteredVehicle --------------------------------
+		{
+			const std::string script_src = 
+				"function onUserEnteredVehicle(av : Avatar, vehicle_ob : Object)			\n"
+				"		print('Avatar ' .. tostring(av.uid) .. ' entered vehicle ' .. tostring(vehicle_ob.uid))			\n"
+				"end \n"
+				"addEventListener('onUserEnteredVehicle', 123, onUserEnteredVehicle)   \n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserEnteredVehicle(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(output_handler.buf == "Avatar 456 entered vehicle 123");
+		}
+
+		//-------------------------------- Test onUserExitedVehicle --------------------------------
+		{
+			const std::string script_src = 
+				"function onUserExitedVehicle(av : Avatar, vehicle_ob : Object)			\n"
+				"		print('Avatar ' .. tostring(av.uid) .. ' exited vehicle ' .. tostring(vehicle_ob.uid))			\n"
+				"end \n"
+				"addEventListener('onUserExitedVehicle', 123, onUserExitedVehicle)   \n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserExitedVehicle(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(output_handler.buf == "Avatar 456 exited vehicle 123");
+		}
+
 		//-------------------------------- Test doOnTimerEvent --------------------------------
 
 		// The script creates a timer, then we call it.
@@ -290,6 +322,47 @@ void ServerLuaScriptTests::test()
 			testAssert(triggered_timers[0].lua_script_evaluator.getPtrIfAlive() == nullptr);
 		}
 
+		// Test adding a timer inside a timer event handler 
+		{
+			const std::string script_src = 
+				"function onTimerEvent(ob : Object)								\n"
+				"		print('onTimerEvent')									\n"
+				"		createTimer(onTimerEvent, 0.1, false)					\n" // Create another timer!
+				"end															\n"
+				"createTimer(onTimerEvent, 0.1, false)							\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(lua_script_evaluator->timers[0].id == lua_script_evaluator->next_timer_id - 1);
+
+			lua_script_evaluator->doOnTimerEvent(lua_script_evaluator->timers[0].onTimerEvent_ref, lock);
+
+			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(output_handler.buf == "onTimerEvent");
+		}
+
+		// Test destroying the timer inside the timer event handler for it
+		{
+			const std::string script_src = 
+				"local timer_handle = nil										\n"
+				"function onTimerEvent(ob : Object)								\n"
+				"		print('onTimerEvent')									\n"
+				"		destroyTimer(timer_handle)								\n" // Destroy the timer!
+				"end															\n"
+				"timer_handle = createTimer(onTimerEvent, 0.1, false)			\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(lua_script_evaluator->timers[0].id == lua_script_evaluator->next_timer_id - 1);
+
+			lua_script_evaluator->doOnTimerEvent(lua_script_evaluator->timers[0].onTimerEvent_ref, lock);
+
+			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(output_handler.buf == "onTimerEvent");
+		}
+
 
 		//-------------------------------- Test getObjectForUID --------------------------------
 		{ // Test successful getObjectForUID call
@@ -386,6 +459,86 @@ void ServerLuaScriptTests::test()
 			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
 
 			testEqual(output_handler.buf, std::string("Avatar 456 touched object 123"));
+
+			world_ob->event_handlers = NULL; // Clean up from test
+		}
+
+		// Test addEventListener call with an anonymous function as the listener function
+		{
+			world_ob->event_handlers = NULL;
+
+			const std::string script_src = 
+				"addEventListener('onUserTouchedObject', 123,													\n"
+				"	function(av : Avatar, ob : Object)															\n"
+				"		print('Avatar ' .. tostring(av.uid) .. ' touched object ' .. tostring(ob.uid))			\n"
+				"	end																							\n"
+				")																								\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+
+			// Execute the event handler
+			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
+
+			testEqual(output_handler.buf, std::string("Avatar 456 touched object 123"));
+
+			world_ob->event_handlers = NULL; // Clean up from test
+		}
+
+		// Test addEventListener call in the handler for the event!
+		{
+			world_ob->event_handlers = NULL;
+
+			const std::string script_src = 
+				"function onUserTouchedObject2(av : Avatar, ob : Object)										\n"
+				"end																							\n"
+				"function onUserTouchedObject(av : Avatar, ob : Object)											\n"
+				"		print('Avatar ' .. tostring(av.uid) .. ' touched object ' .. tostring(ob.uid))			\n"
+				"		addEventListener('onUserTouchedObject', 123, onUserTouchedObject2)						\n"  // uhoh
+				"end																							\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+
+			// Execute the event handler
+			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
+
+			testEqual(output_handler.buf, std::string("Avatar 456 touched object 123"));
+
+			world_ob->event_handlers = NULL; // Clean up from test
+		}
+
+		// Test addEventListener call with an anonymous function in the handler for the event!
+		{
+			world_ob->event_handlers = NULL;
+
+			const std::string script_src =
+				"function onUserTouchedObject(av : Avatar, ob : Object)												\n"
+				"	print('in onUserTouchedObject')																	\n"
+				"	addEventListener('onUserTouchedObject', 123,													\n"
+				"		function(av : Avatar, ob : Object)															\n"
+				"			print('Avatar ' .. tostring(av.uid) .. ' touched object ' .. tostring(ob.uid))			\n"
+				"			onUserTouchedObject(av, ob)																\n"
+				"		end																							\n"
+				"	)																								\n"
+				"end																								\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+
+			// Execute the event handler
+			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
+
+			//testEqual(output_handler.buf, std::string("Avatar 456 touched object 123"));
 
 			world_ob->event_handlers = NULL; // Clean up from test
 		}

@@ -355,6 +355,76 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 }
 
 
+void LuaScriptEvaluator::doOnUserEnteredVehicle(int func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
+{
+	// conPrint("LuaScriptEvaluator: doOnUserEnteredVehicle");
+	if(hit_error || (func_ref == LUA_NOREF))
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
+		lua_script->resetExecutionTimeCounter();
+
+		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+
+		pushAvatarTableOntoStack(avatar_uid);
+		pushWorldObjectTableOntoStack(vehicle_ob_uid);
+
+		// Call function
+		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+	}
+	catch(std::exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+}
+
+
+void LuaScriptEvaluator::doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
+{
+	// conPrint("LuaScriptEvaluator: doOnUserExitedVehicle");
+	if(hit_error || (func_ref == LUA_NOREF))
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
+		lua_script->resetExecutionTimeCounter();
+
+		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+
+		pushAvatarTableOntoStack(avatar_uid);
+		pushWorldObjectTableOntoStack(vehicle_ob_uid);
+
+		// Call function
+		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+	}
+	catch(std::exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+}
+
+
 void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error)
