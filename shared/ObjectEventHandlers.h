@@ -17,8 +17,9 @@ struct HandlerFunc
 {
 	WeakReference<LuaScriptEvaluator> script;
 	int handler_func_ref;
+	const void* function_ptr; // Just used for uniquely identifying functions, not dereferenced.
 
-	bool operator == (const HandlerFunc& other) const { return script.ob == other.script.ob && handler_func_ref == other.handler_func_ref; }
+	bool operator == (const HandlerFunc& other) const { return script.ob == other.script.ob && function_ptr == other.function_ptr; }
 };
 
 struct HandlerList

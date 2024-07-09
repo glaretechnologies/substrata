@@ -233,6 +233,9 @@ public:
 
 	inline static size_t maxNumMaterials() { return 2048; } // There's an object in the cryptovoxels world with 1398 materials.
 
+	// Gets event_handlers.  If event_handlers is null, sets to a new ObjectEventHandlers object first. 
+	Reference<ObjectEventHandlers> getOrCreateEventHandlers();
+
 	enum ObjectType
 	{
 		ObjectType_Generic = 0,

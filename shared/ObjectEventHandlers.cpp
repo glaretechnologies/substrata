@@ -6,14 +6,21 @@ Copyright Glare Technologies Limited 2024 -
 #include "ObjectEventHandlers.h"
 
 
+#include <utils/ConPrint.h>
+
+
 void HandlerList::addHandler(const HandlerFunc& handler)
 {
 	// See if it exists already
 	for(size_t i=0; i<handler_funcs.size(); ++i)
 		if(handler_funcs[i] == handler)
+		{
+			// conPrint("event handler already in list");
 			return;
+		}
 
 	// Add
+	// conPrint("Adding event handler");
 	handler_funcs.push_back(handler);
 }
 

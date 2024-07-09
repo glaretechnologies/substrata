@@ -1244,6 +1244,14 @@ void checkTransformOK(const WorldObject* ob)
 }
 
 
+Reference<ObjectEventHandlers> WorldObject::getOrCreateEventHandlers()
+{
+	if(!event_handlers)
+		event_handlers = new ObjectEventHandlers();
+	return event_handlers;
+}
+
+
 void doDestroyOb(WorldObject* ob)
 {
 	if(ob->allocator)

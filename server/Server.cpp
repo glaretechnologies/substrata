@@ -611,10 +611,7 @@ int main(int argc, char *argv[])
 						{
 							WorldObject* ob = res->second.ptr();
 
-							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, used_msg->avatar_uid, ob->uid, world_lock);
-
-							// Execute doOnUserUsedObject event handler in any other scripts that are listening for onUserUsedObject for this object
+							// Execute doOnUserUsedObject event handler in any scripts that are listening for onUserUsedObject for this object
 							if(ob->event_handlers)
 								ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/used_msg->avatar_uid, ob->uid, world_lock);
 						}
@@ -630,10 +627,7 @@ int main(int argc, char *argv[])
 						{
 							WorldObject* ob = res->second.ptr();
 
-							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, touched_msg->avatar_uid, ob->uid, world_lock);
-
-							// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
+							// Execute doOnUserTouchedObject event handler in any scripts that are listening for onUserTouchedObject for this object
 							if(ob->event_handlers)
 								ob->event_handlers->executeOnUserTouchedObjectHandlers(touched_msg->avatar_uid, ob->uid, world_lock);
 						}
@@ -649,10 +643,7 @@ int main(int argc, char *argv[])
 						{
 							WorldObject* ob = res->second.ptr();
 
-							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserMovedNearToObject(ob->lua_script_evaluator->onUserMovedNearToObject_ref, moved_msg->avatar_uid, moved_msg->object_uid, world_lock);
-
-							// Execute onUserMovedNearToObject event handler in any other scripts that are listening for onUserMovedNearToObject for this object
+							// Execute onUserMovedNearToObject event handler in any scripts that are listening for onUserMovedNearToObject for this object
 							if(ob->event_handlers)
 								ob->event_handlers->executeOnUserMovedNearToObjectHandlers(moved_msg->avatar_uid, ob->uid, world_lock);
 						}
@@ -668,10 +659,7 @@ int main(int argc, char *argv[])
 						{
 							WorldObject* ob = res->second.ptr();
 
-							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserMovedAwayFromObject(ob->lua_script_evaluator->onUserMovedAwayFromObject_ref, moved_msg->avatar_uid, moved_msg->object_uid, world_lock);
-
-							// Execute event handler in any other scripts that are listening on this object
+							// Execute event handler in any scripts that are listening on this object
 							if(ob->event_handlers)
 								ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(moved_msg->avatar_uid, moved_msg->object_uid, world_lock);
 						}
@@ -687,10 +675,7 @@ int main(int argc, char *argv[])
 						{
 							WorldObject* ob = res->second.ptr();
 
-							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
-
-							// Execute event handler in any other scripts that are listening on this object
+							// Execute event handler in any scripts that are listening on this object
 							if(ob->event_handlers)
 								ob->event_handlers->executeOnUserEnteredParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
 						}
@@ -706,10 +691,7 @@ int main(int argc, char *argv[])
 						{
 							WorldObject* ob = res->second.ptr();
 
-							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
-
-							// Execute event handler in any other scripts that are listening on this object
+							// Execute event handler in any scripts that are listening on this object
 							if(ob->event_handlers)
 								ob->event_handlers->executeOnUserExitedParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
 						}
