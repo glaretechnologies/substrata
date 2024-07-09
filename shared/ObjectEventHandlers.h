@@ -24,7 +24,7 @@ struct HandlerFunc
 
 struct HandlerList
 {
-	void addHandler(const HandlerFunc& handler);
+	bool addHandler(const HandlerFunc& handler); // Returns if added or not
 	void removeHandler(const HandlerFunc& handler);
 	void removeHandlerAtIndex(size_t i);
 

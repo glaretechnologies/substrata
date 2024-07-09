@@ -386,7 +386,7 @@ static int getCurrentTime(lua_State* state)
 }
 
 
-static const int MAX_NUM_OB_EVENT_LISTENS = 20;
+static const int MAX_NUM_OB_EVENT_LISTENS = 100;
 
 
 static int luaAddEventListener(lua_State* state)
@@ -417,10 +417,6 @@ static int luaAddEventListener(lua_State* state)
 	SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm;
 	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
 #endif
-
-	script_evaluator->num_obs_event_listening++;
-	if(script_evaluator->num_obs_event_listening > MAX_NUM_OB_EVENT_LISTENS)
-		throw glare::Exception("Script added too many event listeners, max is " + toString(MAX_NUM_OB_EVENT_LISTENS) + errorContextString(state));
 
 	
 	// For the client, we may be trying to add an event listener for an object that has not been sent from the server and loaded yet.
@@ -465,46 +461,54 @@ static int luaAddEventListener(lua_State* state)
 	handler_func.function_ptr = handler_func_ptr;
 
 	[[maybe_unused]] bool added_spatial_event = false;
+	bool added = false;
 	switch(event_name_atom)
 	{
 	case Atom_onUserUsedObject:
 		assert(stringEqual(event_name, "onUserUsedObject"));
-		ob_event_handlers->onUserUsedObject_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserUsedObject_handlers.addHandler(handler_func);
 		break;
 	case Atom_onUserTouchedObject:
 		assert(stringEqual(event_name, "onUserTouchedObject"));
-		ob_event_handlers->onUserTouchedObject_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserTouchedObject_handlers.addHandler(handler_func);
 		break;
 	case Atom_onUserMovedNearToObject:
 		assert(stringEqual(event_name, "onUserMovedNearToObject"));
-		ob_event_handlers->onUserMovedNearToObject_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserMovedNearToObject_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	case Atom_onUserMovedAwayFromObject:
 		assert(stringEqual(event_name, "onUserMovedAwayFromObject"));
-		ob_event_handlers->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	case Atom_onUserEnteredParcel:
 		assert(stringEqual(event_name, "onUserEnteredParcel"));
-		ob_event_handlers->onUserEnteredParcel_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserEnteredParcel_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	case Atom_onUserExitedParcel:
 		assert(stringEqual(event_name, "onUserExitedParcel"));
-		ob_event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
 		added_spatial_event = true;
 		break;
 	case Atom_onUserEnteredVehicle:
 		assert(stringEqual(event_name, "onUserEnteredVehicle"));
-		ob_event_handlers->onUserEnteredVehicle_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserEnteredVehicle_handlers.addHandler(handler_func);
 		break;
 	case Atom_onUserExitedVehicle:
 		assert(stringEqual(event_name, "onUserExitedVehicle"));
-		ob_event_handlers->onUserExitedVehicle_handlers.addHandler(handler_func);
+		added = ob_event_handlers->onUserExitedVehicle_handlers.addHandler(handler_func);
 		break;
 	default:
 		throw glare::Exception("Unknown event '" + std::string(event_name) + "'" + errorContextString(state));
+	}
+
+	if(added)
+	{
+		script_evaluator->num_obs_event_listening++;
+		if(script_evaluator->num_obs_event_listening > MAX_NUM_OB_EVENT_LISTENS)
+			throw glare::Exception("Script added too many event listeners, max is " + toString(MAX_NUM_OB_EVENT_LISTENS) + errorContextString(state));
 	}
 
 #if GUI_CLIENT
