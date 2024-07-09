@@ -41,7 +41,7 @@ h1,h2,h3
 	line-height: 1.2;
 }
 h2 {
-	margin-top: 45px;
+    margin-top: 45px;
 }
 table
 {
@@ -175,8 +175,22 @@ td
 	background-color: rgb(230, 230, 230);
 	overflow: auto;
 }
-.code {
-	font-family: "Lucida Console", Courier, monospace;
+.code-block {
+	/* Style from https://stackoverflow.com/a/48694906 */
+	background: #f4f4f4;
+	border: 1px solid #ddd;
+	border-left: 3px solid #f36d33;
+	color: #666;
+	page-break-inside: avoid;
+	font-family: monospace;
+	font-size: 15px;
+	line-height: 1.6;
+	margin-bottom: 1.6em;
+	max-width: 100%;
+	overflow: auto;
+	padding: 1em 1.5em;
+	display: block;
+	word-wrap: break-word;
 }
 
 
@@ -355,3 +369,52 @@ td
 }
 .log-print {
 }
+
+
+.code-func-definition {
+	margin-top: 2em;
+	margin-bottom: 0.5em;
+	font-size: 1.2em;
+	font-weight: 400;
+	background-color: #ecf9f2;
+}
+
+.code-arg {
+	margin-top: 0.3em;
+	margin-bottom: 0.3em;
+}
+
+.code-arg-code {
+	background: #f4f4f4;
+	border: 1px solid #ddd;
+	border-left: 3px solid #caefef;
+	color: #444;
+	font-family: monospace;
+	font-size: 16px;
+	margin-right: 0.5em;
+	padding: 0.1em 0.3em;
+}
+
+.code-func-description {
+
+}
+
+
+.code-attr {
+	margin-top: 0.3em;
+	margin-bottom: 0.3em;
+}
+.code-attr-code {
+	background: #f4f4f4;
+	border: 1px solid #ddd;
+	border-left: 3px solid #caefef;
+	color: #444;
+	font-family: monospace;
+	font-size: 16px;
+	margin-right: 1em;
+	padding: 0.1em 0.3em;
+}
+
+.code-attr-descrip {
+}
+
