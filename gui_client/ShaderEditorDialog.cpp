@@ -85,6 +85,9 @@ void ShaderEditorDialog::initialise(const std::string& shader)
 	shaderEdit->setPlainText(QtUtils::toQString(shader));
 	shaderEdit->blockSignals(false);
 
+	buildOutputTextEdit->clear();
+	executionOutputTextEdit->clear();
+
 	this->blockSignals(false);
 
 	buildCodeAndShowResults();
