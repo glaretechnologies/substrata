@@ -6059,7 +6059,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 
 		try
 		{
-			Lock lock(this->world_state->mutex);
+			WorldStateLock lock(this->world_state->mutex);
 
 			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
 			{
@@ -6246,6 +6246,10 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 											controller->userEnteredVehicle(avatar->vehicle_seat_index);
 										}
 
+										// Execute event handlers in any scripts that are listening for the onUserEnteredVehicle event from this object.
+										if(avatar->entered_vehicle->event_handlers)
+											avatar->entered_vehicle->event_handlers->executeOnUserEnteredVehicleHandlers(avatar->uid, avatar->entered_vehicle->uid, lock);
+
 										avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
 									}
 								}
@@ -6289,7 +6293,15 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 								{
 									conPrint("Avatar exited vehicle from seat " + toString(avatar->vehicle_seat_index));
 									if(controller_res != vehicle_controllers.end())
-										controller_res->second->userExitedVehicle(avatar->vehicle_seat_index);
+									{
+										VehiclePhysics* controller = controller_res->second.ptr();
+										controller->userExitedVehicle(avatar->vehicle_seat_index);
+
+										// Execute event handlers in any scripts that are listening for the onUserExitedVehicle event from this object.
+										WorldObject* vehicle_ob = controller->getControlledObject();
+										if(vehicle_ob->event_handlers)
+											vehicle_ob->event_handlers->executeOnUserExitedVehicleHandlers(avatar->uid, vehicle_ob->uid, lock);
+									}
 									avatar->entered_vehicle = NULL;
 									avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
 								}
@@ -8479,34 +8491,31 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 	{
 		// Add our avatar model. Do this by marking it as dirty.
 		Lock lock(this->world_state->mutex);
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		auto res = this->world_state->avatars.find(this->client_avatar_uid);
+		if(res != this->world_state->avatars.end())
 		{
-			Avatar* avatar = it->second.getPointer();
-			const bool our_avatar = avatar->uid == this->client_avatar_uid;
-			if(our_avatar)
-				avatar->other_dirty = true;
+			Avatar* avatar = res->second.getPointer();
+			avatar->other_dirty = true;
 		}
 	}
 	else
 	{
 		// Remove our avatar model
 		Lock lock(this->world_state->mutex);
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		auto res = this->world_state->avatars.find(this->client_avatar_uid);
+		if(res != this->world_state->avatars.end())
 		{
-			Avatar* avatar = it->second.getPointer();
-			const bool our_avatar = avatar->uid == this->client_avatar_uid;
-			if(our_avatar)
-			{
-				avatar->graphics.destroy(*opengl_engine);
+			Avatar* avatar = res->second.getPointer();
 
-				// Remove nametag OpenGL object
-				if(avatar->nametag_gl_ob.nonNull())
-					opengl_engine->removeObject(avatar->nametag_gl_ob);
-				avatar->nametag_gl_ob = NULL;
-				if(avatar->speaker_gl_ob.nonNull())
-					opengl_engine->removeObject(avatar->speaker_gl_ob);
-				avatar->speaker_gl_ob = NULL;
-			}
+			avatar->graphics.destroy(*opengl_engine);
+
+			// Remove nametag OpenGL object
+			if(avatar->nametag_gl_ob.nonNull())
+				opengl_engine->removeObject(avatar->nametag_gl_ob);
+			avatar->nametag_gl_ob = NULL;
+			if(avatar->speaker_gl_ob.nonNull())
+				opengl_engine->removeObject(avatar->speaker_gl_ob);
+			avatar->speaker_gl_ob = NULL;
 		}
 
 		// Turn off selfie mode if it was enabled.
@@ -12366,6 +12375,15 @@ void GUIClient::keyPressed(KeyEvent& e)
 			// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
 
 			vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
+			
+			// Execute event handlers in any scripts that are listening for the onUserExitedVehicle event from this object.
+			{
+				WorldStateLock lock(world_state->mutex);
+				WorldObject* vehicle_ob = vehicle_controller_inside->getControlledObject();
+				if(vehicle_ob->event_handlers)
+					vehicle_ob->event_handlers->executeOnUserExitedVehicleHandlers(this->client_avatar_uid, vehicle_ob->uid, lock);
+			}
+
 			vehicle_controller_inside = NULL; // Null out vehicle_controller_inside reference.  Note that the controller will still exist and be referenced from vehicle_controllers.
 
 			Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2 + Vec4f(0,0,1.7f,0);
@@ -12463,6 +12481,9 @@ void GUIClient::keyPressed(KeyEvent& e)
 
 										player_physics.setSittingInteractionChar();
 
+										// Execute event handlers in any scripts that are listening for the onUserEnteredVehicle event from this object.
+										if(ob->event_handlers)
+											ob->event_handlers->executeOnUserEnteredVehicleHandlers(this->client_avatar_uid, ob->uid, lock);
 
 										// Send AvatarEnteredVehicle message to server
 										MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);

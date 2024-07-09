@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2024 -
 #if GUI_CLIENT
 #include "../gui_client/PlayerPhysics.h"
 #include "../gui_client/GUIClient.h"
+#include "../gui_client/VehiclePhysics.h"
 #elif SERVER
 #include "../server/Server.h"
 #endif
@@ -81,6 +82,7 @@ enum StringAtomEnum
 	// Avatar
 	Atom_name,
 	Atom_linear_velocity,
+	Atom_vehicle_inside,
 
 	// Events
 	Atom_onUserUsedObject,
@@ -89,6 +91,8 @@ enum StringAtomEnum
 	Atom_onUserMovedAwayFromObject,
 	Atom_onUserEnteredParcel,
 	Atom_onUserExitedParcel,
+	Atom_onUserEnteredVehicle,
+	Atom_onUserExitedVehicle,
 };
 
 static StringAtom string_atoms[] = 
@@ -139,6 +143,7 @@ static StringAtom string_atoms[] =
 	// Avatar
 	StringAtom({"name",						Atom_name,						}),
 	StringAtom({"linear_velocity",			Atom_linear_velocity,			}),
+	StringAtom({"vehicle_inside",			Atom_vehicle_inside,			}),
 
 	// Events:
 	StringAtom({"onUserUsedObject",			Atom_onUserUsedObject,			}),
@@ -147,6 +152,8 @@ static StringAtom string_atoms[] =
 	StringAtom({"onUserMovedAwayFromObject",Atom_onUserMovedAwayFromObject,	}),
 	StringAtom({"onUserEnteredParcel",		Atom_onUserEnteredParcel,		}),
 	StringAtom({"onUserExitedParcel",		Atom_onUserExitedParcel,		}),
+	StringAtom({"onUserEnteredVehicle",		Atom_onUserEnteredVehicle,		}),
+	StringAtom({"onUserExitedVehicle",		Atom_onUserExitedVehicle,		}),
 };
 
 
@@ -393,8 +400,8 @@ static int luaAddEventListener(lua_State* state)
 	if(lua_type(state, /*index=*/3) != LUA_TFUNCTION)
 		throw glare::Exception("createTimer(): arg 1 must be a function" + errorContextString(state));
 
-	int atom = -1;
-	const char* event_name = LuaUtils::getStringAndAtom(state, /*index=*/1, atom);
+	int event_name_atom = -1;
+	const char* event_name = LuaUtils::getStringAndAtom(state, /*index=*/1, event_name_atom);
 
 	// Get object UID
 	const UID ob_uid = UID((uint64)LuaUtils::getDoubleArg(state, /*index=*/2));
@@ -458,7 +465,7 @@ static int luaAddEventListener(lua_State* state)
 	handler_func.function_ptr = handler_func_ptr;
 
 	[[maybe_unused]] bool added_spatial_event = false;
-	switch(atom)
+	switch(event_name_atom)
 	{
 	case Atom_onUserUsedObject:
 		assert(stringEqual(event_name, "onUserUsedObject"));
@@ -487,6 +494,14 @@ static int luaAddEventListener(lua_State* state)
 		assert(stringEqual(event_name, "onUserExitedParcel"));
 		ob_event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
 		added_spatial_event = true;
+		break;
+	case Atom_onUserEnteredVehicle:
+		assert(stringEqual(event_name, "onUserEnteredVehicle"));
+		ob_event_handlers->onUserEnteredVehicle_handlers.addHandler(handler_func);
+		break;
+	case Atom_onUserExitedVehicle:
+		assert(stringEqual(event_name, "onUserExitedVehicle"));
+		ob_event_handlers->onUserExitedVehicle_handlers.addHandler(handler_func);
 		break;
 	default:
 		throw glare::Exception("Unknown event '" + std::string(event_name) + "'" + errorContextString(state));
@@ -1268,7 +1283,7 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 	assert(lua_gettop(state) == 2); // Should be 2 args.
 	checkNumArgs(state, 2);
 
-	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+	const UID avatar_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -1278,19 +1293,18 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
 	checkHoldWorldStateMutex(script_evaluator, world_state);
 
-	auto res = world_state->avatars.find(uid);
+	auto res = world_state->avatars.find(avatar_uid);
 	if(res == world_state->avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
 	Avatar* avatar = res->second.ptr();
 #elif SERVER
 
-
 	if(script_evaluator->cur_world_state_lock == nullptr)
 		throw glare::Exception("Internal error: cur_world_state_lock was null");
 	const ServerWorldState::AvatarMapType& avatars = script_evaluator->world_state->getAvatars(*script_evaluator->cur_world_state_lock);
 
-	auto res = avatars.find(uid);
+	auto res = avatars.find(avatar_uid);
 	if(res == avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
@@ -1319,6 +1333,28 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 		LuaUtils::pushVec3f(state, Vec3f(0.f));
 		return 1;
 #endif
+	case Atom_vehicle_inside: // Returns an Object table of the vehicle object the avatar is inside-of/riding, or nil if none.
+	{
+		assert(stringEqual(key_str, "vehicle_inside"));
+#if GUI_CLIENT
+		const WorldObject* vehicle_inside;
+		if(avatar_uid == sub_lua_vm->gui_client->client_avatar_uid) // If this is our avatar:
+			vehicle_inside = sub_lua_vm->gui_client->vehicle_controller_inside ? sub_lua_vm->gui_client->vehicle_controller_inside->getControlledObject() : nullptr;
+		else
+			vehicle_inside = avatar->entered_vehicle.ptr();
+
+		if(vehicle_inside)
+			script_evaluator->pushWorldObjectTableOntoStack(vehicle_inside->uid);
+		else
+			lua_pushnil(state);
+#else // else server:
+		if(avatar->vehicle_inside_uid.valid())
+			script_evaluator->pushWorldObjectTableOntoStack(avatar->vehicle_inside_uid);
+		else
+			lua_pushnil(state);
+#endif
+		return 1;
+	}
 	default:
 		throw glare::Exception("Avatar class: Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
 	}

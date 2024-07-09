@@ -144,3 +144,35 @@ void ObjectEventHandlers::executeOnUserExitedParcelHandlers(UID avatar_uid, UID 
 			onUserExitedParcel_handlers.removeHandlerAtIndex(z); // This handler is dead, remove the reference to it from our handler list.
 	}
 }
+
+
+void ObjectEventHandlers::executeOnUserEnteredVehicleHandlers(UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock)
+{
+	for(size_t z=0; z<onUserEnteredVehicle_handlers.handler_funcs.size(); )
+	{
+		HandlerFunc& handler_func = onUserEnteredVehicle_handlers.handler_funcs[z];
+		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		{
+			eval->doOnUserEnteredVehicle(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, vehicle_ob_uid, world_state_lock);
+			z++;
+		}
+		else
+			onUserEnteredVehicle_handlers.removeHandlerAtIndex(z); // This handler is dead, remove the reference to it from our handler list.
+	}
+}
+
+
+void ObjectEventHandlers::executeOnUserExitedVehicleHandlers(UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock)
+{
+	for(size_t z=0; z<onUserExitedVehicle_handlers.handler_funcs.size(); )
+	{
+		HandlerFunc& handler_func = onUserExitedVehicle_handlers.handler_funcs[z];
+		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		{
+			eval->doOnUserExitedVehicle(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, vehicle_ob_uid, world_state_lock);
+			z++;
+		}
+		else
+			onUserExitedVehicle_handlers.removeHandlerAtIndex(z); // This handler is dead, remove the reference to it from our handler list.
+	}
+}

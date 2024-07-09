@@ -154,6 +154,10 @@ public:
 	bool underwater;
 	double last_foam_decal_creation_time;
 #endif
+#if SERVER
+	// Some state for Lua scripting
+	UID vehicle_inside_uid;
+#endif
 
 	/*
 		Snapshots for client-side interpolation purposes.

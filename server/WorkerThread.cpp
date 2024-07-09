@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../shared/MessageUtils.h"
 #include "../shared/FileTypes.h"
 #include "../shared/LuaScriptEvaluator.h"
+#include "../shared/ObjectEventHandlers.h"
 #include <vec3.h>
 #include <ConPrint.h>
 #include <Clock.h>
@@ -1336,6 +1337,29 @@ void WorkerThread::doRun()
 							const uint32 seat_index = msg_buffer.readUInt32();
 							const uint32 flags = msg_buffer.readUInt32();
 
+							// Mark avatar as in vehicle and execute any onUserEnteredVehicle event handlers.
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									if(!avatar->vehicle_inside_uid.valid()) // If avatar wasn't in a vehicle before:
+									{
+										avatar->vehicle_inside_uid = vehicle_ob_uid;
+
+										// Execute event handlers in any scripts that are listening for the onUserEnteredVehicle event from this object.
+										auto ob_res = cur_world_state->getObjects(lock).find(vehicle_ob_uid); // Look up vehicle object
+										if(ob_res != cur_world_state->getObjects(lock).end())
+										{
+											WorldObject* vehicle_ob = ob_res->second.ptr();
+											if(vehicle_ob->event_handlers)
+												vehicle_ob->event_handlers->executeOnUserEnteredVehicleHandlers(avatar_uid, vehicle_ob_uid, lock);
+										}
+									}
+								}
+							}
 							
 							// Enqueue AvatarEnteredVehicle messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
@@ -1353,6 +1377,30 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("AvatarExitedVehicle");
 
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							// Mark avatar as not in vehicle and execute any onUserExitedVehicle event handlers.
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									if(avatar->vehicle_inside_uid.valid()) // If avatar was in a vehicle before:
+									{
+										// Execute event handlers in any scripts that are listening for the onUserExitedVehicle event from this object.
+										auto ob_res = cur_world_state->getObjects(lock).find(avatar->vehicle_inside_uid); // Look up vehicle object
+										if(ob_res != cur_world_state->getObjects(lock).end())
+										{
+											WorldObject* vehicle_ob = ob_res->second.ptr();
+											if(vehicle_ob->event_handlers)
+												vehicle_ob->event_handlers->executeOnUserExitedVehicleHandlers(avatar_uid, avatar->vehicle_inside_uid, lock);
+										}
+
+										avatar->vehicle_inside_uid = UID::invalidUID();
+									}
+								}
+							}
 
 							// Enqueue AvatarExitedVehicle messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarExitedVehicle);
