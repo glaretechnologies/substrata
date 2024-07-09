@@ -93,8 +93,8 @@ void ServerLuaScriptTests::test()
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			testAssert(lua_script_evaluator->isOnUserTouchedObjectDefined());
-			lua_script_evaluator->doOnUserTouchedObject(lua_script_evaluator->onUserTouchedObject_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserTouchedObject(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 touched object 123");
 		}
@@ -108,8 +108,8 @@ void ServerLuaScriptTests::test()
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			testAssert(lua_script_evaluator->isOnUserUsedObjectDefined());
-			lua_script_evaluator->doOnUserUsedObject(lua_script_evaluator->onUserUsedObject_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserUsedObject(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 used object 123");
 		}
@@ -123,8 +123,8 @@ void ServerLuaScriptTests::test()
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			testAssert(lua_script_evaluator->isOnUserMovedNearToObjectDefined());
-			lua_script_evaluator->doOnUserMovedNearToObject(lua_script_evaluator->onUserMovedNearToObject_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserMovedNearToObject(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 moved near to object 123");
 		}
@@ -138,8 +138,8 @@ void ServerLuaScriptTests::test()
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			testAssert(lua_script_evaluator->isOnUserMovedAwayFromObjectDefined());
-			lua_script_evaluator->doOnUserMovedAwayFromObject(lua_script_evaluator->onUserMovedAwayFromObject_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserMovedAwayFromObject(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 moved away from object 123");
 		}
@@ -153,8 +153,8 @@ void ServerLuaScriptTests::test()
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			testAssert(lua_script_evaluator->isOnUserEnteredParcelDefined());
-			lua_script_evaluator->doOnUserEnteredParcel(lua_script_evaluator->onUserEnteredParcel_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserEnteredParcel(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 entered parcel 789");
 		}
@@ -168,12 +168,11 @@ void ServerLuaScriptTests::test()
 
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			testAssert(lua_script_evaluator->isOnUserExitedParcelDefined());
-			lua_script_evaluator->doOnUserExitedParcel(lua_script_evaluator->onUserExitedParcel_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 exited parcel 789");
 		}
-
 
 		//-------------------------------- Test doOnTimerEvent --------------------------------
 
@@ -356,18 +355,41 @@ void ServerLuaScriptTests::test()
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
 
-			// NOTE: Adds two different handlers since the lua reference to the function differs each time we call lua_ref.
-			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 2);
+			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
 			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
-			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[1].script.getPtrIfAlive() == lua_script_evaluator.ptr());
 
 			// Execute the event handler
 			world_ob2->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob2->uid, lock);
 
-			testEqual(output_handler.buf, std::string("Avatar 456 touched object 124Avatar 456 touched object 124")); // NOTE: saying touched 124 here (world_ob2)
+			testEqual(output_handler.buf, std::string("Avatar 456 touched object 124")); // NOTE: saying touched 124 here (world_ob2)
 
 			world_ob2->event_handlers = NULL; // Clean up from test
 		}
+
+		// Test explicit addEventListener call for an event we are already implicitly listening to.  Should just end up with one event listener
+		{
+			world_ob->event_handlers = NULL;
+
+			const std::string script_src = 
+				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
+				"		print('Avatar ' .. tostring(av.uid) .. ' touched object ' .. tostring(ob.uid))			\n"
+				"end				\n"
+				"addEventListener('onUserTouchedObject', 123, onUserTouchedObject)			\n"; // Try and add the same listener to the same object
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+
+			// Execute the event handler
+			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
+
+			testEqual(output_handler.buf, std::string("Avatar 456 touched object 123"));
+
+			world_ob->event_handlers = NULL; // Clean up from test
+		}
+
 
 		// Test invalid addEventListener call - invalid event
 		{

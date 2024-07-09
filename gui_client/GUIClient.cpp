@@ -2543,12 +2543,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 
 				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob, world_state_lock);
 
-				// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.
-				if(	ob->lua_script_evaluator->isOnUserMovedNearToObjectDefined() || 
-					ob->lua_script_evaluator->isOnUserMovedAwayFromObjectDefined() ||
-					ob->lua_script_evaluator->isOnUserEnteredParcelDefined() || 
-					ob->lua_script_evaluator->isOnUserExitedParcelDefined())
-					scripted_ob_proximity_checker.addObject(ob);
+				// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.  TEMP: just add in all cases.
+				scripted_ob_proximity_checker.addObject(ob);
 			}
 			catch(glare::Exception& e)
 			{
@@ -4654,20 +4650,17 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								// conPrint("timerEvent: player hit ob UID: " + ob->uid.toString());
 					
 								// Run script
-								if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserTouchedObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserTouchedObject_handlers.nonEmpty()))
+								if(ob->event_handlers && ob->event_handlers->onUserTouchedObject_handlers.nonEmpty())
 								{
 									// Jolt creates contact added events very fast, so limit how often we call onUserTouchedObject.
 									const double time_since_last_touch_event = cur_time - ob->last_touch_event_time;
 
-									if(ob->lua_script_evaluator && (time_since_last_touch_event > 0.5))  //ob->lua_script_evaluator->hasOnUserTouchedObjectCooledDown(cur_time))
+									if(time_since_last_touch_event > 0.5)
 									{
 										ob->last_touch_event_time = cur_time;
 
-										ob->lua_script_evaluator->doOnUserTouchedObject(ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, world_state_lock);
-
-										// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
-										if(ob->event_handlers)
-											ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid, world_state_lock);
+										// Execute doOnUserTouchedObject event handler in any scripts that are listening for onUserTouchedObject for this object
+										ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid, world_state_lock);
 
 										// Send message to server to execute onUserTouchedObject on the server
 										MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
@@ -4708,15 +4701,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		{
 			ContactAddedEvent& ev = player_contact_added_events[i];
 
-			if((ev.ob->lua_script_evaluator && ev.ob->lua_script_evaluator->isOnUserTouchedObjectDefined()) || (ev.ob->event_handlers && ev.ob->event_handlers->onUserTouchedObject_handlers.nonEmpty()))
+			if(ev.ob->event_handlers && ev.ob->event_handlers->onUserTouchedObject_handlers.nonEmpty())
 			{
-				// Execute local script
-				if(ev.ob->lua_script_evaluator)
-					ev.ob->lua_script_evaluator->doOnUserTouchedObject(ev.ob->lua_script_evaluator->onUserTouchedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ev.ob->uid, world_state_lock);
-
-				// Execute doOnUserTouchedObject event handler in any other scripts that are listening for onUserTouchedObject for this object
-				if(ev.ob->event_handlers)
-					ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid, world_state_lock);
+				// Execute doOnUserTouchedObject event handler in any scripts that are listening for onUserTouchedObject for this object
+				ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid, world_state_lock);
 
 				// Send message to server to execute onUserTouchedObject on the server
 				MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
@@ -5209,15 +5197,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						WorldObject* ob = objects_data[i].ptr();
 						if(cur_parcel->pointInParcel(ob->getCentroidWS())) // If object is in parcel we just left:
 						{
-							if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserExitedParcelDefined()) || (ob->event_handlers && ob->event_handlers->onUserExitedParcel_handlers.nonEmpty()))
+							if(ob->event_handlers && ob->event_handlers->onUserExitedParcel_handlers.nonEmpty())
 							{
-								// Execute script locally
-								if(ob->lua_script_evaluator)
-									ob->lua_script_evaluator->doOnUserExitedParcel(ob->lua_script_evaluator->onUserExitedParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, cur_in_parcel_id, lock);
-
-								// Execute onUserExitedParcel event handler in any other scripts that are listening for onUserExitedParcel for this object
-								if(ob->event_handlers.nonNull())
-									ob->event_handlers->executeOnUserExitedParcelHandlers(this->client_avatar_uid, ob->uid, cur_in_parcel_id, lock);
+								// Execute onUserExitedParcel event handler in any scripts that are listening for onUserExitedParcel for this object
+								ob->event_handlers->executeOnUserExitedParcelHandlers(this->client_avatar_uid, ob->uid, cur_in_parcel_id, lock);
 
 								// Send msg to server to execute on server as well.
 								MessageUtils::initPacket(scratch_packet, Protocol::UserExitedParcelMessage);
@@ -5240,15 +5223,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					WorldObject* ob = objects_data[i].ptr();
 					if(parcel->pointInParcel(ob->getCentroidWS())) // If object is in parcel we just entered:
 					{
-						if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserEnteredParcelDefined()) || (ob->event_handlers && ob->event_handlers->onUserEnteredParcel_handlers.nonEmpty()))
+						if(ob->event_handlers && ob->event_handlers->onUserEnteredParcel_handlers.nonEmpty())
 						{
-							// Execute script locally
-							if(ob->lua_script_evaluator)
-								ob->lua_script_evaluator->doOnUserEnteredParcel(ob->lua_script_evaluator->onUserEnteredParcel_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, new_in_parcel_id, lock);
-
-							// Execute onUserEnteredParcel event handler in any other scripts that are listening for onUserEnteredParcel for this object
-							if(ob->event_handlers.nonNull())
-								ob->event_handlers->executeOnUserEnteredParcelHandlers(this->client_avatar_uid, ob->uid, new_in_parcel_id, lock);
+							// Execute onUserEnteredParcel event handler in any scripts that are listening for onUserEnteredParcel for this object
+							ob->event_handlers->executeOnUserEnteredParcelHandlers(this->client_avatar_uid, ob->uid, new_in_parcel_id, lock);
 
 							// Send msg to server to execute on server as well.
 							MessageUtils::initPacket(scratch_packet, Protocol::UserEnteredParcelMessage);
@@ -11096,7 +11074,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						show_mouseover_info_ui = true;
 					}
 
-					if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserUsedObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty()))
+					if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
 					{
 						ob_info_ui.showMessage("Press [E] to use", gl_coords);
 						show_mouseover_info_ui = true;
@@ -12545,16 +12523,12 @@ void GUIClient::keyPressed(KeyEvent& e)
 						}
 					}
 
-					// If the object has a script that has an onUserUsedObject event handler, send a UserUsedObjectMessage to the server
+					// If the object has scripts that have an onUserUsedObject event handler for the object, send a UserUsedObjectMessage to the server
 					// So the script event handler can be run
-					if((ob->lua_script_evaluator && ob->lua_script_evaluator->isOnUserUsedObjectDefined()) || (ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty()))
+					if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
 					{
-						if(ob->lua_script_evaluator)
-							ob->lua_script_evaluator->doOnUserUsedObject(ob->lua_script_evaluator->onUserUsedObject_ref, /*avatar_uid=*/this->client_avatar_uid, ob->uid, lock);
-
-						// Execute on any event handlers also
-						if(ob->event_handlers)
-							ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/this->client_avatar_uid, ob->uid, lock);
+						// Execute any event handlers
+						ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/this->client_avatar_uid, ob->uid, lock);
 
 						// Make message packet and enqueue to send to execute event handler on server as well
 						MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);

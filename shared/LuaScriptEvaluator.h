@@ -40,22 +40,16 @@ public:
 
 
 	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept;
-	bool isOnUserTouchedObjectDefined() { return onUserTouchedObject_ref != /*LUA_NOREF=*/-1; }
 	
 	void doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserUsedObjectDefined() { return onUserUsedObject_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserMovedNearToObjectDefined() { return onUserMovedNearToObject_ref != /*LUA_NOREF=*/-1; }
 	
 	void doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserMovedAwayFromObjectDefined() { return onUserMovedAwayFromObject_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserEnteredParcelDefined() { return onUserEnteredParcel_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
-	bool isOnUserExitedParcelDefined() { return onUserExitedParcel_ref != /*LUA_NOREF=*/-1; }
 
 	void doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
 
@@ -92,11 +86,4 @@ public:
 	int next_timer_id;
 
 	int num_obs_event_listening; // Number of objects that this script has added an event listener to.
-
-	int onUserTouchedObject_ref;
-	int onUserUsedObject_ref;
-	int onUserMovedNearToObject_ref;
-	int onUserMovedAwayFromObject_ref;
-	int onUserEnteredParcel_ref;
-	int onUserExitedParcel_ref;
 };

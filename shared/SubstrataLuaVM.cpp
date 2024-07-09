@@ -399,8 +399,9 @@ static int luaAddEventListener(lua_State* state)
 	// Get object UID
 	const UID ob_uid = UID((uint64)LuaUtils::getDoubleArg(state, /*index=*/2));
 
-	// Get a reference to the handler function
-	const int handler_func_ref = lua_ref(state, /*index=*/3);
+
+	const void* handler_func_ptr = lua_topointer(state, /*index=*/3);
+	const int handler_func_ref = lua_ref(state, /*index=*/3); // Get a reference to the handler function
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -433,9 +434,7 @@ static int luaAddEventListener(lua_State* state)
 	if(ob)
 	{
 		// Object exists, so add event handler to it directly.
-		if(ob->event_handlers.isNull())
-			ob->event_handlers = new ObjectEventHandlers();
-		ob_event_handlers = ob->event_handlers;
+		ob_event_handlers = ob->getOrCreateEventHandlers();
 	}
 	else
 	{
@@ -446,9 +445,7 @@ static int luaAddEventListener(lua_State* state)
 	}
 #else
 	ob = getWorldObjectForUID(script_evaluator, ob_uid);
-	if(ob->event_handlers.isNull())
-		ob->event_handlers = new ObjectEventHandlers();
-	ob_event_handlers = ob->event_handlers;
+	ob_event_handlers = ob->getOrCreateEventHandlers();
 #endif
 
 	// ob may be null at this point
@@ -458,6 +455,7 @@ static int luaAddEventListener(lua_State* state)
 	HandlerFunc handler_func;
 	handler_func.script = WeakReference<LuaScriptEvaluator>(script_evaluator);
 	handler_func.handler_func_ref = handler_func_ref;
+	handler_func.function_ptr = handler_func_ptr;
 
 	[[maybe_unused]] bool added_spatial_event = false;
 	switch(atom)

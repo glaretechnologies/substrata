@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "LuaScriptEvaluator.h"
 
 
+#include "ObjectEventHandlers.h"
 #include "SubstrataLuaVM.h"
 #include "WorldStateLock.h"
 #include "WorldObject.h"
@@ -59,13 +60,6 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
 		timers[i].id = -1;
 
-	onUserTouchedObject_ref       = LUA_NOREF;
-	onUserUsedObject_ref          = LUA_NOREF;
-	onUserMovedNearToObject_ref   = LUA_NOREF;
-	onUserMovedAwayFromObject_ref = LUA_NOREF;
-	onUserEnteredParcel_ref       = LUA_NOREF;
-	onUserExitedParcel_ref        = LUA_NOREF;
-
 	LuaScriptOptions options;
 	options.max_num_interrupts = 10000;
 	options.script_output_handler = script_output_handler_;
@@ -75,12 +69,56 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 	SetCurWorldStateLockClass lock_setter(this, world_state_lock);
 	lua_script->exec();
 
-	onUserTouchedObject_ref       = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserTouchedObject");
-	onUserUsedObject_ref          = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserUsedObject");
-	onUserMovedNearToObject_ref   = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserMovedNearToObject");
-	onUserMovedAwayFromObject_ref = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserMovedAwayFromObject");
-	onUserEnteredParcel_ref       = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserEnteredParcel");
-	onUserExitedParcel_ref        = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserExitedParcel");
+	// Add any event handling functions defined in the script to the object event-handler list.
+	// Event handling functions defined in this way basically do implicit addEventListener() calls.
+	{
+		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserTouchedObject");
+		if(func_info.ref != LUA_NOREF)
+		{
+			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+			world_object->getOrCreateEventHandlers()->onUserTouchedObject_handlers.addHandler(handler_func);
+		}
+	}
+	{
+		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserUsedObject");
+		if(func_info.ref != LUA_NOREF)
+		{
+			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+			world_object->getOrCreateEventHandlers()->onUserUsedObject_handlers.addHandler(handler_func);
+		}
+	}
+	{
+		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserMovedNearToObject");
+		if(func_info.ref != LUA_NOREF)
+		{
+			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+			world_object->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.addHandler(handler_func);
+		}
+	}
+	{
+		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserMovedAwayFromObject");
+		if(func_info.ref != LUA_NOREF)
+		{
+			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+			world_object->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
+		}
+	}
+	{
+		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserEnteredParcel");
+		if(func_info.ref != LUA_NOREF)
+		{
+			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+			world_object->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.addHandler(handler_func);
+		}
+	}
+	{
+		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserExitedParcel");
+		if(func_info.ref != LUA_NOREF)
+		{
+			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+			world_object->getOrCreateEventHandlers()->onUserExitedParcel_handlers.addHandler(handler_func);
+		}
+	}
 }
 
 
@@ -91,7 +129,7 @@ LuaScriptEvaluator::~LuaScriptEvaluator()
 
 void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
-	//conPrint("LuaScriptEvaluator: onUserTouchedObject");
+	//conPrint("LuaScriptEvaluator: doOnUserTouchedObject");
 	if(hit_error || (func_ref == LUA_NOREF))
 		return;
 
