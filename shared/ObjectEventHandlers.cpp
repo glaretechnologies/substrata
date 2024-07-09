@@ -9,19 +9,21 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ConPrint.h>
 
 
-void HandlerList::addHandler(const HandlerFunc& handler)
+ // Returns if added or not
+bool HandlerList::addHandler(const HandlerFunc& handler)
 {
 	// See if it exists already
 	for(size_t i=0; i<handler_funcs.size(); ++i)
 		if(handler_funcs[i] == handler)
 		{
 			// conPrint("event handler already in list");
-			return;
+			return false;
 		}
 
 	// Add
 	// conPrint("Adding event handler");
 	handler_funcs.push_back(handler);
+	return true;
 }
 
 
