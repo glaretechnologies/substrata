@@ -95,6 +95,11 @@ bool SDLUIInterface::showVehiclePhysicsVisEnabled()
 	return false;
 }
 
+bool SDLUIInterface::showPlayerPhysicsVisEnabled()
+{
+	return false;
+}
+
 void SDLUIInterface::writeTransformMembersToObject(WorldObject& ob)
 {
 }
