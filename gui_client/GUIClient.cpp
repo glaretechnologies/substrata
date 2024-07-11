@@ -379,7 +379,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	opengl_engine = opengl_engine_;
 
 	gl_ui = new GLUI();
-	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts);
+	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts, &this->stack_allocator);
 
 	gesture_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
@@ -1604,10 +1604,17 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 
 	std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
 	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine, gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
-		/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, rect_os, atlas_texture, char_positions_font_coords);
+		/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
+
+	// We will make a physics object that has the same dimensions in object space as the text mesh vertices.  This means we can use the same pos, rot and scale
+	// for the physics object as for the opengl object.
+	// We will do this by starting with the unit quad (text_quad_shape) and applying scaling and translating decorators to it (in createScaledAndTranslatedShapeForShape)
+	// The other way we could do it is by creating a non-unit quad mesh Jolt shape, but I think the decorated unit quad will be faster.
 
 	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
-	physics_ob->shape = PhysicsWorld::createScaledShapeForShape(this->text_quad_shape, Vec3f(rect_os.getWidths().x, rect_os.getWidths().y, 1.f));
+	const Vec3f scale(rect_os.getWidths().x, rect_os.getWidths().y, 1.f);
+	const Vec3f translation(rect_os.getMin().x, rect_os.getMin().y, 0);
+	physics_ob->shape = PhysicsWorld::createScaledAndTranslatedShapeForShape(this->text_quad_shape, translation, scale);
 	physics_ob->is_sensor = ob->isSensor();
 	physics_ob->userdata = ob;
 	physics_ob->userdata_type = 0;

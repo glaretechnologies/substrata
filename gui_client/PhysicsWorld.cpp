@@ -44,6 +44,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 #include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/PhysicsMaterialSimple.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
@@ -1165,15 +1166,15 @@ PhysicsShape PhysicsWorld::createCOMOffsetShapeForShape(const PhysicsShape& orig
 }
 
 
-PhysicsShape PhysicsWorld::createScaledShapeForShape(const PhysicsShape& original_shape, const Vec3f& scale)
+PhysicsShape PhysicsWorld::createScaledAndTranslatedShapeForShape(const PhysicsShape& original_shape, const Vec3f& translation, const Vec3f& scale)
 {
-	JPH::Result<JPH::Ref<JPH::Shape>> result = JPH::ScaledShapeSettings(original_shape.jolt_shape, JPH::Vec3(scale.x, scale.y, scale.z)).Create();
+	JPH::Ref<JPH::Shape> scaled_jolt_shape = new JPH::ScaledShape(original_shape.jolt_shape.GetPtr(), JPH::Vec3(scale.x, scale.y, scale.z));
 
-	if(result.HasError())
-		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+	JPH::RotatedTranslatedShape* trans_scaled_shape = new JPH::RotatedTranslatedShape(JPH::Vec3(translation.x, translation.y, translation.z), 
+		/*rotation=*/JPH::QuatArg::sIdentity(), scaled_jolt_shape.GetPtr());
 
 	PhysicsShape scaled_shape;
-	scaled_shape.jolt_shape = result.Get();
+	scaled_shape.jolt_shape = trans_scaled_shape;
 	scaled_shape.size_B = original_shape.size_B;
 	return scaled_shape;
 }
