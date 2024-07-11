@@ -1301,3 +1301,9 @@ std::string ServerAllWorldsState::getAndRemoveUserWebMessage(const UserID& user_
 	else
 		return std::string();
 }
+
+
+FeatureFlagInfo::FeatureFlagInfo()
+:	feature_flags(ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG), // Enable scripts by default
+	db_dirty(false) 
+{}
