@@ -85,12 +85,16 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 	page_out += "<input type=\"submit\" value=\"Force dynamic texture update checker to run\" onclick=\"return confirm('Are you sure you want to force the dynamic texture update checker to run?');\" >";
 	page_out += "</form>";
 
+	page_out += "<br/><br/>";
+
 	{ // Lock scope
 		Lock lock(world_state.mutex);
 
 		const bool script_exec_enabled = BitUtils::isBitSet(world_state.feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG);
 
-		page_out += "<p>Server-side script execution: " + (script_exec_enabled ? std::string("enabled") : std::string("disabled")) + "</p>";
+		page_out += "<p>Server-side script execution: " + (script_exec_enabled ? 
+			std::string("<span class=\"feature-enabled\">enabled</span>") : std::string("<span class=\"feature-disabled\">disabled</span>")) + 
+			"</p>";
 
 		page_out += "<form action=\"/admin_set_feature_flag_post\" method=\"post\">";
 		page_out += "<input type=\"hidden\" name=\"flag_bit_index\" value=\"" + toString(BitUtils::highestSetBitIndex(ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG)) + "\">";

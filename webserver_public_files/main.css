@@ -418,3 +418,9 @@ td
 .code-attr-descrip {
 }
 
+.feature-enabled {
+	color: green;
+}
+.feature-disabled {
+	color: darkred;
+}
