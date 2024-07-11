@@ -5518,6 +5518,13 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 
 							loadAudioForObject(ob); // Check for re-loading audio if audio URL changed.
+
+							// Update audio volume if the audio_source has been created
+							if(ob->audio_source && (ob->audio_source->volume != ob->audio_volume))
+							{
+								ob->audio_source->volume = ob->audio_volume;
+								audio_engine.sourceVolumeUpdated(*ob->audio_source);
+							}
 						}
 
 						// If we just created an object, and there are pending event handlers for the object, assign to the object, and remove from the pending event handler map.
