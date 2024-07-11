@@ -78,7 +78,7 @@ struct MapTileInfo
 
 struct FeatureFlagInfo
 {
-	FeatureFlagInfo() : feature_flags(0), db_dirty(false) {}
+	FeatureFlagInfo();
 
 	uint64 feature_flags;
 
