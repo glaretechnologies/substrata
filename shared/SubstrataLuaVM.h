@@ -20,6 +20,51 @@ class LuaVM;
 SubstrataLuaVM
 --------------
 
+
+Userdata
+--------
+
+__________________
+| SubstrataLuaVM |
+| -------------- |
+|                |<--------------------------------
+| lua_vm         |                                 |
+ --|--------------                                 |
+   |                                               |
+   v                                               |
+_________                   _______________        |                   
+| LuaVM |                   | lua_State   |        |                   
+| ----- |                   | ---------   |        |                    
+|       |                   | cb.userdata |--------          NOTE: cb is callback data
+|       |                   |             |                            
+| state |  ----------->     | ud          |                  NOTE: ud is auxiliary data to frealloc / glareLuaAlloc        
+ ------                     ---|----------
+  ^                            |
+  |----------------------------
+
+
+
+_____________________
+|LuaScriptEvaluator |
+|------------------ |
+|lua_script         |
+ -|-----------------
+  |         ^
+  |         |
+  |          -------
+  |                 |
+  v                 |
+________________    |         _____________
+| LuaScript    |    |         | lua_State |
+| ---------    |    |         | --------- |
+| lua_vm       |    |         |           |
+|              |    |         |           |
+| userdata  ---|----          |           |
+| thread_state | -----------> | userdata  |             NOTE: userdata is accessed via lua_getthreaddata()
+ --------------                -----|-----
+  ^                                 |
+  |----------------------------------
+
 =====================================================================*/
 class SubstrataLuaVM : public RefCounted
 {
