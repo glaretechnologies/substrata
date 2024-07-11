@@ -522,8 +522,6 @@ int main(int argc, char *argv[])
 					WorldObject* ob = i->second.ptr();
 					if(hasPrefix(ob->script, "--lua"))
 					{
-						ob->lua_script_evaluator = NULL;
-
 						try
 						{
 							ob->lua_script_evaluator = new LuaScriptEvaluator(server.lua_vm.ptr(), /*script output handler=*/&server, ob->script, ob, world_state.ptr(), lock);
