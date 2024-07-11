@@ -565,14 +565,15 @@ void ServerLuaScriptTests::test()
 		}
 
 		// Test invalid addEventListener calls - trying to add too many event listeners
-		{
+		// NOTE: test disabled since adding multiple of the same listener doesn't increment listener count now.
+		/*{
 			const std::string script_src = 
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
 				"end				\n"
 				"for i=1, 10000 do addEventListener('onUserTouchedObject', 124, onUserTouchedObject)		end	\n";
 
 			testThrowsExcepContainingString([&]() { new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "too many event listeners");
-		}
+		}*/
 
 		// Test addEventListener called from a script that is then destroyed.
 		{
