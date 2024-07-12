@@ -12758,7 +12758,7 @@ static const size_t MAX_NUM_NOTIFICATIONS = 5;
 static const double NOTIFICATION_DISPLAY_TIME = 5.0;
 
 static const size_t MAX_NUM_SCRIPT_MESSAGES = 1;
-static const double SCRIPT_MESSAGE_DISPLAY_TIME = 2.0;
+static const double SCRIPT_MESSAGE_DISPLAY_TIME = 3.0;
 
 
 void GUIClient::updateNotifications(double cur_time)
