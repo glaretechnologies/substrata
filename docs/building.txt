@@ -272,8 +272,9 @@ Use the path to where you installed the Emscripten SDK. (In my case have install
 Also specifiy path to where you checked out substrata source code dir, e.g.  c:\code\substrata
 You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -DCMAKE_BUILD_TYPE=RelWithDebInfo or -DCMAKE_BUILD_TYPE=Release.
 Start with 'Debug' or 'RelWithDebInfo' build type.
+Also specify the path to your Emscripten build of SDL that you built in the 'Making Emscripten SDL build' section above, e.g. -DSDL_BUILD_DIR=C:/programming/SDL/sdl_2.30.0_build_emscripten
 
-	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON -DCEF_SUPPORT=OFF
+	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON -DCEF_SUPPORT=OFF -DSDL_BUILD_DIR=C:/programming/SDL/sdl_2.30.0_build_emscripten
 
 
 Make data directory to be bundled
