@@ -88,6 +88,7 @@ static const uint32 MAP_TILE_INFO_CHUNK = 110;
 static const uint32 ETH_INFO_CHUNK = 111;
 static const uint32 NEWS_POST_CHUNK = 112;
 static const uint32 FEATURE_FLAG_CHUNK = 113;
+static const uint32 OBJECT_STORAGE_ITEM_CHUNK = 114;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -95,6 +96,7 @@ static const uint32 PARCEL_SALE_UPDATE_VERSION = 1;
 static const uint32 MAP_TILE_INFO_VERSION = 1;
 static const uint32 ETH_INFO_CHUNK_VERSION = 1;
 static const uint32 FEATURE_FLAG_CHUNK_VERSION = 1;
+static const uint32 OBJECT_STORAGE_ITEM_VERSION = 1;
 
 
 void ServerAllWorldsState::readFromDisk(const std::string& path)
@@ -115,6 +117,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_tiles_read = 0;
 	size_t num_world_settings = 0;
 	size_t num_news_posts = 0;
+	size_t num_object_storage_items = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -296,6 +299,32 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					post->database_key = database_key;
 					news_posts[post->id] = post;
 					num_news_posts++;
+				}
+				else if(chunk == OBJECT_STORAGE_ITEM_CHUNK)
+				{
+					// Deserialise ObjectStorageItem
+					const uint32 item_version = stream.readUInt32();
+					if(item_version != OBJECT_STORAGE_ITEM_VERSION)
+						throw glare::Exception("invalid object storage item version: " + toString(item_version));
+
+					ObjectStorageItemRef item = new ObjectStorageItem();
+
+					// Read key
+					item->key.ob_uid = readUIDFromStream(stream);
+					item->key.key_string = stream.readStringLengthFirst(1000);
+
+					// Read size of data
+					const uint32 data_size = stream.readUInt32();
+					if(data_size > (1 << 16))
+						throw glare::Exception("Invalid object storage data size: " + toString(data_size));
+
+					// Read data
+					item->data.resizeNoCopy(data_size);
+					stream.readData(item->data.data(), data_size);
+
+					item->database_key = database_key;
+					object_storage_items[item->key] = item;
+					num_object_storage_items++;
 				}
 				else if(chunk == ETH_INFO_CHUNK)
 				{
@@ -586,7 +615,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
-		toString(num_news_posts) + " news posts in " + timer.elapsedStringNSigFigs(4));
+		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -856,6 +885,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_resources = 0;
 		size_t num_world_settings = 0;
 		size_t num_news_posts = 0;
+		size_t num_object_storage_items = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -1094,7 +1124,34 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 				num_news_posts++;
 			}
 
-			db_dirty_screenshots.clear();
+			db_dirty_news_posts.clear();
+		}
+
+		// Write ObjectStorageItems
+		{
+			for(auto it=db_dirty_object_storage_items.begin(); it != db_dirty_object_storage_items.end(); ++it)
+			{
+				ObjectStorageItem* item = it->ptr();
+				temp_buf.clear();
+				temp_buf.writeUInt32(OBJECT_STORAGE_ITEM_CHUNK);
+				temp_buf.writeUInt32(OBJECT_STORAGE_ITEM_VERSION);
+
+				// Write key
+				writeToStream(item->key.ob_uid, temp_buf);
+				temp_buf.writeStringLengthFirst(item->key.key_string);
+
+				temp_buf.writeUInt32((uint32)item->data.size()); // Write size of data
+				temp_buf.writeData(item->data.data(), item->data.size()); // Write data
+
+				if(!item->database_key.valid())
+					item->database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(item->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
+
+				num_object_storage_items++;
+			}
+
+			db_dirty_object_storage_items.clear();
 		}
 
 		// Write MAP_TILE_INFO_CHUNK
@@ -1188,7 +1245,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 			toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
 			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " +
 			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles, " + toString(num_world_settings) + " world setting(s), " + 
-			toString(num_news_posts) + " news post(s) in " + timer.elapsedStringNSigFigs(4));
+			toString(num_news_posts) + " news post(s), " + toString(num_object_storage_items) + " object storage item(s) in " + timer.elapsedStringNSigFigs(4));
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

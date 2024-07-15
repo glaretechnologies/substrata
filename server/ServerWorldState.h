@@ -115,6 +115,40 @@ struct UserScriptLog : public ThreadSafeRefCounted
 };
 
 
+struct ObjectStorageKey
+{
+	UID ob_uid;
+	std::string key_string;
+
+	inline bool operator < (const ObjectStorageKey& other) const
+	{
+		if(ob_uid < other.ob_uid)
+			return true;
+		else if(ob_uid > other.ob_uid)
+			return false;
+		else
+			return key_string < other.key_string;
+	}
+};
+
+
+struct ObjectStorageItem : public RefCounted
+{
+	ObjectStorageKey key;
+	glare::AllocatorVector<unsigned char, 16> data;
+	DatabaseKey database_key;
+};
+typedef Reference<ObjectStorageItem> ObjectStorageItemRef;
+	
+struct ObjectStorageItemRefHash
+{
+	size_t operator() (const ObjectStorageItemRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};
+
+
 /*=====================================================================
 ServerWorldState
 ----------------
@@ -229,6 +263,7 @@ public:
 
 	std::map<uint64, NewsPostRef> news_posts GUARDED_BY(mutex); // NewsPost id to NewsPost
 
+	std::map<ObjectStorageKey, ObjectStorageItemRef> object_storage_items GUARDED_BY(mutex);
 
 	// For the map:
 	MapTileInfo map_tile_info;
@@ -277,6 +312,7 @@ public:
 	std::unordered_set<UserWebSessionRef, UserWebSessionRefHash>		db_dirty_userwebsessions		GUARDED_BY(mutex);
 	std::unordered_set<ScreenshotRef, ScreenshotRefHash>				db_dirty_screenshots			GUARDED_BY(mutex);
 	std::unordered_set<UserRef, UserRefHash>							db_dirty_users					GUARDED_BY(mutex);
+	std::unordered_set<ObjectStorageItemRef, ObjectStorageItemRefHash>	db_dirty_object_storage_items	GUARDED_BY(mutex);
 
 	std::unordered_set<DatabaseKey, DatabaseKeyHash>					db_records_to_delete			GUARDED_BY(mutex);
 

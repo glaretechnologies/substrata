@@ -301,3 +301,8 @@ In Substrata server config (e.g. "C:\Users\xx\AppData\Roaming\Substrata\server_d
 <webclient_dir>C:\programming\cyberspace\output\test_builds</webclient_dir>
 
 Run the Substrata server (./server.exe), then visit http://localhost/webclient in your web browser.
+
+
+Command line for using Clang in MVSC++
+======================================
+-Wno-unused-parameter -Wno-reorder-ctor -msse4.1 -Wthread-safety -Werror=thread-safety -Wno-deprecated-declarations

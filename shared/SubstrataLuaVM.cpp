@@ -21,10 +21,12 @@ Copyright Glare Technologies Limited 2024 -
 #include <lua/LuaVM.h>
 #include <lua/LuaScript.h>
 #include <lua/LuaUtils.h>
+#include <lua/LuaSerialisation.h>
 #include <utils/StringUtils.h>
 #include <utils/RuntimeCheck.h>
 #include <lualib.h>
 #include <Luau/Common.h>
+#include <BufferViewInStream.h>
 
 
 // String atom tables.  Used for fast selection of table fields without having to do string comparisons.
@@ -167,6 +169,15 @@ static inline void checkHoldWorldStateMutex(LuaScriptEvaluator* script_evaluator
 	{
 		assert(0);
 		throw glare::Exception("Internal error: didn't hold correct world state lock");
+	}
+}
+#else // else if SERVER:
+static inline void checkHoldWorldStateMutex(LuaScriptEvaluator* script_evaluator, ServerAllWorldsState* world_state) ASSERT_CAPABILITY(world_state->mutex)
+{
+	if(!(script_evaluator->cur_world_state_lock))
+	{
+		assert(0);
+		throw glare::Exception("Internal error: didn't hold world state lock");
 	}
 }
 #endif
@@ -545,6 +556,109 @@ static int showMessageToUser(lua_State* state)
 	}
 #endif
 
+	return 0;
+}
+
+
+static int objectStorageGetItem(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: key : String
+
+	checkNumArgs(state, /*num_args_required*/1);
+
+	const std::string key_string = LuaUtils::getString(state, /*index=*/1);
+
+#if SERVER
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
+	checkHoldWorldStateMutex(script_evaluator, world_state);
+		
+	ObjectStorageKey key;
+	key.ob_uid = script_evaluator->world_object->uid;
+	key.key_string = key_string;
+	auto res = world_state->object_storage_items.find(key);
+	if(res == world_state->object_storage_items.end())
+	{
+		lua_pushnil(state);
+	}
+	else
+	{
+		try
+		{
+			HashMap<uint32, int> metatable_uid_to_ref_map(std::numeric_limits<uint32>::max());
+
+			BufferViewInStream stream(ArrayRef<uint8>(res->second->data.data(), res->second->data.size()));
+			LuaSerialisation::deserialise(state, metatable_uid_to_ref_map, stream); // Pushes deserialised Lua value onto Lua stack.
+		}
+		catch(glare::Exception& /*e*/)
+		{
+			throw glare::Exception("Error while deserialising Lua object.");
+		}
+	}
+#endif
+	return 1;
+}
+
+
+static int objectStorageSetItem(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: key : string
+	// Arg 2: value : Any serialisable Lua object
+
+	checkNumArgs(state, /*num_args_required*/2);
+
+	const std::string key_string  = LuaUtils::getString(state, /*index=*/1);
+
+#if SERVER
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
+	checkHoldWorldStateMutex(script_evaluator, world_state);
+
+	try
+	{
+		BufferOutStream buf_stream;
+		LuaSerialisation::SerialisationOptions options;
+		options.max_depth = 16;
+		options.max_serialised_size_B = 1 << 16;
+		LuaSerialisation::serialise(state, /*stack index=*/2, options, buf_stream);
+
+		// Look up ObjectStorage item, create if not present already.
+		ObjectStorageKey key;
+		key.ob_uid = script_evaluator->world_object->uid;
+		key.key_string = key_string;
+		auto res = world_state->object_storage_items.find(key);
+
+		Reference<ObjectStorageItem> val;
+		if(res == world_state->object_storage_items.end())
+		{
+			val = new ObjectStorageItem();
+			val->key = key;
+			world_state->object_storage_items.insert(std::make_pair(key, val));
+		}
+		else
+			val = res->second;
+
+		// Set the item data
+		val->data = buf_stream.buf;
+
+		//sub_lua_vm->server->world_state->db_dirty_object_storage_keys.insert(key);
+		world_state->db_dirty_object_storage_items.insert(val);
+		world_state->markAsChanged();
+	}
+	catch(glare::Exception& e)
+	{
+		throw glare::Exception("Error serialising Lua object: " + e.what());
+	}
+#endif
+	
 	return 0;
 }
 
@@ -1468,6 +1582,13 @@ SubstrataLuaVM::SubstrataLuaVM()
 	
 	lua_pushcfunction(lua_vm->state, luaAddEventListener, /*debugname=*/"addEventListener");
 	lua_setglobal(lua_vm->state, "addEventListener");
+
+	lua_pushcfunction(lua_vm->state, objectStorageGetItem, /*debugname=*/"objectStorageGetItem");
+	lua_setglobal(lua_vm->state, "objectStorageGetItem");
+
+	lua_pushcfunction(lua_vm->state, objectStorageSetItem, /*debugname=*/"objectStorageSetItem");
+	lua_setglobal(lua_vm->state, "objectStorageSetItem");
+
 
 	//--------------------------- Create metatables for our classes ---------------------------
 
