@@ -41,6 +41,14 @@ include_directories("${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public")
 set(tracy_files "${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public/TracyClient.cpp")
 
 
+#============== SDL / Qt ==============
+
+if(USE_SDL)
+	if(NOT EXISTS "${SDL_BUILD_DIR}/include/SDL2/SDL.h")
+		MESSAGE(FATAL_ERROR "Could not find SDL.h from your SDL2 build; looked at '${SDL_BUILD_DIR}/include/SDL2/SDL.h'. Please specify the SDL2 build directory with -DSDL_BUILD_DIR=XXX")
+	endif()
+endif()
+
 if(NOT USE_SDL)
 	# Rules to build moc_xx.cpp files, from xx.h files, using the program 'moc'.
 	addMocFileRule(gui_client MainWindow)
