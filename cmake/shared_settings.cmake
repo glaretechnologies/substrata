@@ -230,8 +230,6 @@ ${UTILS_DIR}/Sort.cpp
 ${UTILS_DIR}/Sort.h
 ${UTILS_DIR}/StandardPrintOutput.cpp
 ${UTILS_DIR}/StandardPrintOutput.h
-${UTILS_DIR}/StreamUtils.cpp
-${UTILS_DIR}/StreamUtils.h
 ${UTILS_DIR}/StringUtils.cpp
 ${UTILS_DIR}/StringUtils.h
 ${UTILS_DIR}/string_view.cpp

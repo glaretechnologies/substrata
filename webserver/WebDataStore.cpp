@@ -217,7 +217,7 @@ void WebDataStore::loadAndCompressFiles()
 			WebDataStoreFile* file = res->second.ptr();
 			const uint64 hash = XXH64(file->uncompressed_data.data(), file->uncompressed_data.size(), /*seed=*/1);
 
-			Lock lock(this->hash_mutex);
+			Lock lock2(this->hash_mutex);
 			this->main_css_hash = ::toHexString(hash).substr(0, /*count=*/8);
 		}
 	}
