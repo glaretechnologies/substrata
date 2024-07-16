@@ -13,7 +13,7 @@ class GUIClient;
 class TextRendererFontFace;
 
 
-class SDLUIInterface : public UIInterface
+class SDLUIInterface final : public UIInterface
 {
 public:
 	virtual void appendChatMessage(const std::string& msg) override;

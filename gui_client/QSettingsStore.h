@@ -17,7 +17,7 @@ QSettingsStore
 --------------
 Implements the SettingsStore interface using QSettings.
 =====================================================================*/
-class QSettingsStore : public SettingsStore
+class QSettingsStore final : public SettingsStore
 {
 public:
 	QSettingsStore(QSettings* settings);

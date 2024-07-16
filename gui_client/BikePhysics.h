@@ -41,7 +41,7 @@ BikePhysics
 -----------
 
 =====================================================================*/
-class BikePhysics : public VehiclePhysics
+class BikePhysics final : public VehiclePhysics
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
