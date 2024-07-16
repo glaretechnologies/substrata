@@ -28,7 +28,7 @@ struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 
 
-class MainWindow : public QMainWindow, public PrintOutput, public UIInterface
+class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
 {
 	Q_OBJECT
 public:

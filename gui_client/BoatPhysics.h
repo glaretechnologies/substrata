@@ -38,7 +38,7 @@ BoatPhysics
 ---------------
 
 =====================================================================*/
-class BoatPhysics : public VehiclePhysics
+class BoatPhysics final : public VehiclePhysics
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE

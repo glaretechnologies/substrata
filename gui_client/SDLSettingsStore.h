@@ -15,7 +15,7 @@ SDLSettingsStore
 ----------------
 
 =====================================================================*/
-class SDLSettingsStore : public SettingsStore
+class SDLSettingsStore final : public SettingsStore
 {
 public:
 	SDLSettingsStore();

@@ -40,7 +40,7 @@ HoverCarPhysics
 ---------------
 
 =====================================================================*/
-class HoverCarPhysics : public VehiclePhysics
+class HoverCarPhysics final : public VehiclePhysics
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
