@@ -4,6 +4,7 @@ git (used to check out source)
 ruby (used by substrata build scripts)
 cmake (used for substrata build)
 Python (used by LLVM build)
+7-Zip (If on Windows - for extracting LLVM source code)
 
 
 Check out source

@@ -255,7 +255,7 @@ end
 # Extract the archive to the current working directory.
 def extractArchive(archive, silent = false)
 	if OS.windows?
-		if haveTar()
+		if haveTar() && !archive.include?(".tar.xz") # Windows tar doesn't support xz however.
 			puts "Extracting #{archive} with tar..."
 			exec_command("tar -x -f \"#{archive}\"")
 		else
