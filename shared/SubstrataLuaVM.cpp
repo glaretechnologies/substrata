@@ -569,6 +569,9 @@ static int objectStorageGetItem(lua_State* state)
 
 	const std::string key_string = LuaUtils::getString(state, /*index=*/1);
 
+#if GUI_CLIENT
+	lua_pushnil(state); // Return nil 
+#endif
 #if SERVER
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -583,16 +586,14 @@ static int objectStorageGetItem(lua_State* state)
 	auto res = world_state->object_storage_items.find(key);
 	if(res == world_state->object_storage_items.end())
 	{
-		lua_pushnil(state);
+		lua_pushnil(state); // Return nil if no item found for key.
 	}
 	else
 	{
 		try
 		{
-			HashMap<uint32, int> metatable_uid_to_ref_map(std::numeric_limits<uint32>::max());
-
 			BufferViewInStream stream(ArrayRef<uint8>(res->second->data.data(), res->second->data.size()));
-			LuaSerialisation::deserialise(state, metatable_uid_to_ref_map, stream); // Pushes deserialised Lua value onto Lua stack.
+			LuaSerialisation::deserialise(state, sub_lua_vm->metatable_uid_to_ref_map, stream); // Pushes deserialised Lua value onto Lua stack.
 		}
 		catch(glare::Exception& /*e*/)
 		{
@@ -613,6 +614,8 @@ static int objectStorageSetItem(lua_State* state)
 	checkNumArgs(state, /*num_args_required*/2);
 
 	const std::string key_string  = LuaUtils::getString(state, /*index=*/1);
+	if(key_string.size() > 256)
+		throw glare::Exception("Key is too long");
 
 #if SERVER
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
@@ -624,6 +627,7 @@ static int objectStorageSetItem(lua_State* state)
 
 	try
 	{
+		// Serialise the Lua value to a buffer.
 		BufferOutStream buf_stream;
 		LuaSerialisation::SerialisationOptions options;
 		options.max_depth = 16;
@@ -649,7 +653,6 @@ static int objectStorageSetItem(lua_State* state)
 		// Set the item data
 		val->data = buf_stream.buf;
 
-		//sub_lua_vm->server->world_state->db_dirty_object_storage_keys.insert(key);
 		world_state->db_dirty_object_storage_items.insert(val);
 		world_state->markAsChanged();
 	}
@@ -1552,13 +1555,25 @@ static int16_t glareLuaUserAtom(const char* str, size_t stringlen)
 }
 
 
+// NOTE: These values can't change without breaking deserialisation of these serialised objects.
+static const uint32 Vec3d_metatable_UID			= 1; // See LuaVM::LuaVM()
+static const uint32 WorldObject_metatable_UID	= 100;
+static const uint32 WorldMaterial_metatable_UID	= 101;
+static const uint32 User_metatable_UID			= 102;
+static const uint32 Avatar_metatable_UID		= 103;
+
+
 SubstrataLuaVM::SubstrataLuaVM()
+:	metatable_uid_to_ref_map(std::numeric_limits<uint32>::max())
 {
 	lua_vm.set(new LuaVM());
 	lua_vm->max_total_mem_allowed = 16 * 1024 * 1024;
 
 	lua_callbacks(lua_vm->state)->userdata = this;
 	lua_callbacks(lua_vm->state)->useratom = glareLuaUserAtom;
+
+
+	metatable_uid_to_ref_map.insert(std::make_pair(Vec3d_metatable_UID, lua_vm->Vec3dMetaTable_ref));
 
 
 	// Set some global functions
@@ -1583,18 +1598,19 @@ SubstrataLuaVM::SubstrataLuaVM()
 	lua_pushcfunction(lua_vm->state, luaAddEventListener, /*debugname=*/"addEventListener");
 	lua_setglobal(lua_vm->state, "addEventListener");
 
-	lua_pushcfunction(lua_vm->state, objectStorageGetItem, /*debugname=*/"objectStorageGetItem");
-	lua_setglobal(lua_vm->state, "objectStorageGetItem");
-
-	lua_pushcfunction(lua_vm->state, objectStorageSetItem, /*debugname=*/"objectStorageSetItem");
-	lua_setglobal(lua_vm->state, "objectStorageSetItem");
+	lua_createtable(lua_vm->state, /*narr=*/0, /*nrec=*/2);
+	lua_vm->setCFunctionAsTableField(objectStorageGetItem, /*debugname=*/"objectStorageGetItem", /*key=*/"getItem");
+	lua_vm->setCFunctionAsTableField(objectStorageSetItem, /*debugname=*/"objectStorageSetItem", /*key=*/"setItem");
+	lua_setglobal(lua_vm->state, "objectstorage"); // Set table as global name table 'objectstorage'
 
 
 	//--------------------------- Create metatables for our classes ---------------------------
 
 	//--------------------------- Create WorldObject Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create WorldObject metatable
-			
+	
+	LuaUtils::setNumberAsTableField(lua_vm->state, "uid", WorldObject_metatable_UID); // Set metatable UID (for serialisation)
+
 	lua_vm->setCFunctionAsTableField(worldObjectClassIndexMetaMethod,    /*debugname=*/"worldObjectClassIndexMetaMethod",    /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(worldObjectClassNewIndexMetaMethod, /*debugname=*/"worldObjectClassNewIndexMetaMethod", /*key=*/"__newindex");
 
@@ -1607,7 +1623,9 @@ SubstrataLuaVM::SubstrataLuaVM()
 
 	//--------------------------- Create WorldMaterial Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create WorldMaterial metatable
-			
+
+	LuaUtils::setNumberAsTableField(lua_vm->state, "uid", WorldMaterial_metatable_UID); // Set metatable UID (for serialisation)
+
 	lua_vm->setCFunctionAsTableField(worldMaterialClassIndexMetaMethod,    /*debugname=*/"worldMaterialClassIndexMetaMethod",    /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(worldMaterialClassNewIndexMetaMethod, /*debugname=*/"worldMaterialClassNewIndexMetaMethod", /*key=*/"__newindex");
 
@@ -1620,7 +1638,9 @@ SubstrataLuaVM::SubstrataLuaVM()
 
 	//--------------------------- Create User Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create User metatable
-			
+
+	LuaUtils::setNumberAsTableField(lua_vm->state, "uid", User_metatable_UID); // Set metatable UID (for serialisation)
+
 	lua_vm->setCFunctionAsTableField(userClassIndexMetaMethod,    /*debugname=*/"userIndexMetaMethod",    /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(userClassNewIndexMetaMethod, /*debugname=*/"userNewIndexMetaMethod", /*key=*/"__newindex");
 
@@ -1633,7 +1653,9 @@ SubstrataLuaVM::SubstrataLuaVM()
 
 	//--------------------------- Create Avatar Metatable ---------------------------
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2); // Create Avatar metatable
-			
+
+	LuaUtils::setNumberAsTableField(lua_vm->state, "uid", Avatar_metatable_UID); // Set metatable UID (for serialisation)
+
 	lua_vm->setCFunctionAsTableField(avatarClassIndexMetaMethod,    /*debugname=*/"avatarIndexMetaMethod",    /*key=*/"__index");
 	lua_vm->setCFunctionAsTableField(avatarClassNewIndexMetaMethod, /*debugname=*/"avatarNewIndexMetaMethod", /*key=*/"__newindex");
 
@@ -1644,6 +1666,12 @@ SubstrataLuaVM::SubstrataLuaVM()
 	//--------------------------- End create Avatar Metatable ---------------------------
 
 	lua_vm->finishInitAndSandbox();
+
+	// Add items to metatable_uid_to_ref_map for deserialisation
+	metatable_uid_to_ref_map.insert(std::make_pair(WorldObject_metatable_UID,   worldObjectClassMetaTable_ref));
+	metatable_uid_to_ref_map.insert(std::make_pair(WorldMaterial_metatable_UID, worldMaterialClassMetaTable_ref)); 
+	metatable_uid_to_ref_map.insert(std::make_pair(User_metatable_UID,          userClassMetaTable_ref)); 
+	metatable_uid_to_ref_map.insert(std::make_pair(Avatar_metatable_UID,        avatarClassMetaTable_ref)); 
 }
 
 
