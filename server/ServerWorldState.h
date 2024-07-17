@@ -117,9 +117,13 @@ struct UserScriptLog : public ThreadSafeRefCounted
 
 struct ObjectStorageKey
 {
+	ObjectStorageKey() {}
+	ObjectStorageKey(const UID& ob_uid_, const std::string& key_string_) : ob_uid(ob_uid_), key_string(key_string_) {}
+
 	UID ob_uid;
 	std::string key_string;
 
+	inline bool operator == (const ObjectStorageKey& other) const { return ob_uid == other.ob_uid && key_string == other.key_string; }
 	inline bool operator < (const ObjectStorageKey& other) const
 	{
 		if(ob_uid < other.ob_uid)
@@ -220,6 +224,9 @@ public:
 	uint64 getNextScreenshotUID();
 	uint64 getNextNewsPostUID();
 
+	ObjectStorageItemRef getOrCreateObjectStorageItem(const ObjectStorageKey& key) REQUIRES(mutex); // Throws exception if too many items for object already created.
+	void clearObjectStorageItems() REQUIRES(mutex); // Just for tests
+
 	void markAsChanged() { changed = 1; }
 	void clearChangedFlag() { changed = 0; }
 	bool hasChanged() const { return changed != 0; }
@@ -264,6 +271,7 @@ public:
 	std::map<uint64, NewsPostRef> news_posts GUARDED_BY(mutex); // NewsPost id to NewsPost
 
 	std::map<ObjectStorageKey, ObjectStorageItemRef> object_storage_items GUARDED_BY(mutex);
+	std::unordered_map<UID, uint64, UIDHasher> object_num_storage_items GUARDED_BY(mutex); // Map from object UID to number of storage items for object.
 
 	// For the map:
 	MapTileInfo map_tile_info;

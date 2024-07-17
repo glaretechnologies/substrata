@@ -567,7 +567,7 @@ static int objectStorageGetItem(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 
-	const std::string key_string = LuaUtils::getString(state, /*index=*/1);
+	const std::string key_string = LuaUtils::getStringArg(state, /*index=*/1);
 
 #if GUI_CLIENT
 	lua_pushnil(state); // Return nil 
@@ -579,7 +579,7 @@ static int objectStorageGetItem(lua_State* state)
 
 	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
 	checkHoldWorldStateMutex(script_evaluator, world_state);
-		
+
 	ObjectStorageKey key;
 	key.ob_uid = script_evaluator->world_object->uid;
 	key.key_string = key_string;
@@ -613,7 +613,7 @@ static int objectStorageSetItem(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/2);
 
-	const std::string key_string  = LuaUtils::getString(state, /*index=*/1);
+	const std::string key_string = LuaUtils::getStringArg(state, /*index=*/1);
 	if(key_string.size() > 256)
 		throw glare::Exception("Key is too long");
 
@@ -640,20 +640,13 @@ static int objectStorageSetItem(lua_State* state)
 		key.key_string = key_string;
 		auto res = world_state->object_storage_items.find(key);
 
-		Reference<ObjectStorageItem> val;
-		if(res == world_state->object_storage_items.end())
-		{
-			val = new ObjectStorageItem();
-			val->key = key;
-			world_state->object_storage_items.insert(std::make_pair(key, val));
-		}
-		else
-			val = res->second;
+		Reference<ObjectStorageItem> item = world_state->getOrCreateObjectStorageItem(key); // May throw
+		assert(item->key == key);
 
 		// Set the item data
-		val->data = buf_stream.buf;
+		item->data = buf_stream.buf;
 
-		world_state->db_dirty_object_storage_items.insert(val);
+		world_state->db_dirty_object_storage_items.insert(item);
 		world_state->markAsChanged();
 	}
 	catch(glare::Exception& e)

@@ -324,6 +324,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					item->database_key = database_key;
 					object_storage_items[item->key] = item;
+					object_num_storage_items[item->key.ob_uid]++;
 					num_object_storage_items++;
 				}
 				else if(chunk == ETH_INFO_CHUNK)
@@ -1335,6 +1336,35 @@ uint64 ServerAllWorldsState::getNextNewsPostUID()
 		highest_id = myMax(highest_id, it->first);
 
 	return highest_id + 1;
+}
+
+
+ObjectStorageItemRef ServerAllWorldsState::getOrCreateObjectStorageItem(const ObjectStorageKey& key)
+{
+	auto res = object_storage_items.find(key);
+	if(res == object_storage_items.end())
+	{
+		const uint64 MAX_NUM_STORAGE_ITEMS_PER_OB = 1000;
+		if(object_num_storage_items[key.ob_uid] >= MAX_NUM_STORAGE_ITEMS_PER_OB)
+			throw glare::Exception("Too many object storage items for object");
+
+		ObjectStorageItemRef new_item = new ObjectStorageItem();
+		new_item->key = key;
+		object_storage_items.insert(std::make_pair(key, new_item));
+
+		object_num_storage_items[key.ob_uid]++;
+
+		return new_item;
+	}
+	else
+		return res->second;
+}
+
+
+void ServerAllWorldsState::clearObjectStorageItems()
+{
+	object_storage_items.clear();
+	object_num_storage_items.clear();
 }
 
 
