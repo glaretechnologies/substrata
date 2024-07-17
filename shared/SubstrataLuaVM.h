@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <maths/Vec4f.h>
 #include <utils/RefCounted.h>
 #include <utils/UniqueRef.h>
+#include <utils/HashMap.h>
 #include <string>
 class PlayerPhysics;
 class GUIClient;
@@ -88,4 +89,6 @@ public:
 	int worldMaterialClassMetaTable_ref;
 	int userClassMetaTable_ref;
 	int avatarClassMetaTable_ref;
+
+	HashMap<uint32, int> metatable_uid_to_ref_map;
 };
