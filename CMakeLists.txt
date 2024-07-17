@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.0)
+cmake_minimum_required (VERSION 3.5)
 
 # set a dummy project name, so we can detect the bitness
 project (dummy)
@@ -17,7 +17,7 @@ if(WIN32)
 	# See https://cmake.org/cmake/help/latest/variable/MSVC_VERSION.html, https://en.wikipedia.org/wiki/Microsoft_Visual_Studio
 	if(MSVC_VERSION GREATER_EQUAL 1920 AND MSVC_VERSION LESS 1930)
 		set(CYBERSPACE_VS_VER 2019)
-	elseif(MSVC_VERSION GREATER_EQUAL 1930 AND MSVC_VERSION LESS 1940)
+	elseif(MSVC_VERSION GREATER_EQUAL 1930 AND MSVC_VERSION LESS_EQUAL 1940)
 		set(CYBERSPACE_VS_VER 2022)
 	else()
 		message(FATAL_ERROR "Unhandled MSVC version")
