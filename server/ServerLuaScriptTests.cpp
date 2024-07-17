@@ -65,11 +65,13 @@ void ServerLuaScriptTests::test()
 
 		WorldObjectRef world_ob = new WorldObject();
 		world_ob->uid = UID(123);
+		world_ob->model_url = "some cool model_url";
 
 		WorldObjectRef world_ob2 = new WorldObject();
 		world_ob2->uid = UID(124);
 
 		AvatarRef avatar = new Avatar();
+		avatar->name = "MrCool";
 		avatar->uid = UID(456);
 
 		ParcelRef parcel = new Parcel();
@@ -610,6 +612,202 @@ void ServerLuaScriptTests::test()
 			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 0); // Handler should have been removed.
 
 			world_ob2->event_handlers = NULL; // Clean up from test
+		}
+
+		//-------------------------------- Test objectstorage.setItem  --------------------------------
+		{
+			const std::string script_src = "objectstorage.setItem(\"a\", 1230.0)";
+
+			server.world_state->object_storage_items.clear();
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(server.world_state->object_storage_items.size() == 1);
+			const ObjectStorageKey key(world_ob->uid, "a");
+			testAssert(server.world_state->object_storage_items.count(key) == 1);
+			testAssert(server.world_state->object_storage_items[key]->key == key);
+			testAssert(server.world_state->object_storage_items[key]->data.size() == 4 + 1 + 8);
+		}
+
+		// Test calling objectstorage.setItem multiple times with same key
+		{
+			const std::string script_src = "for i=1,10 do objectstorage.setItem(\"a\", i) end";
+
+			server.world_state->object_storage_items.clear();
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(server.world_state->object_storage_items.size() == 1);
+			const ObjectStorageKey key(world_ob->uid, "a");
+			testAssert(server.world_state->object_storage_items.count(key) == 1);
+			testAssert(server.world_state->object_storage_items[key]->key == key);
+			testAssert(server.world_state->object_storage_items[key]->data.size() == 4 + 1 + 8);
+		}
+		
+		// Test calling objectstorage.setItem multiple times with a different key each time
+		{
+			testThrowsExcepContainingString([&]() { 
+				const std::string script_src = "for i=1,2000 do objectstorage.setItem(tostring(i), i) end";
+				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Too many object storage items for object");
+		}
+
+		// Test calling objectstorage.setItem multiple times with a different key each time, one event handler at a time.
+		{
+			const std::string script_src = 
+				"local i = 1																	\n"
+				"function onUserExitedParcel(av : Avatar, ob : Object, parcel : Parcel)			\n"
+				"		--print(tostring(i))													\n"
+				"		objectstorage.setItem(tostring(i), i)									\n"
+				"		i += 1																	\n"
+				"end";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
+
+			for(int i=0; i<2000; ++i)
+				lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(lua_script_evaluator->hit_error);
+		}
+
+		// Test calling objectstorage.setItem with a non-string key
+		{
+			testThrowsExcepContainingString([&]() { 
+				const std::string script_src = "objectstorage.setItem({a=1.0}, 1000.0)";
+				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Argument 1 was not a string");
+		}
+
+		// Test with a key that is too long
+		{
+			testThrowsExcepContainingString([&]() { 
+				const std::string script_src = "objectstorage.setItem('" + std::string(1000, 'a') + "', 1000.0)";
+				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Key is too long");
+		}
+		
+		// Test with a value that is too long
+		{
+			testThrowsExcepContainingString([&]() { 
+				const std::string script_src = 
+					"local t = {}    \n"
+					"for i=1,6000 do   \n" // Need to make the table sufficiently large to exceed max_serialised_size_B without triggering max_num_interrupts :)
+					"	t[i] = i		\n"
+					"end				\n"
+					"objectstorage.setItem('a', t)";
+				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Serialised data exceeded max_serialised_size_B");
+		}
+
+		//-------------------------------- Test objectstorage.getItem  --------------------------------
+		{
+			const std::string script_src = 
+				"objectstorage.setItem(\"a\", 16.0)				\n"
+				"local x = objectstorage.getItem(\"a\")			\n"
+				"assert(x == 16.0)								\n";
+
+			server.world_state->clearObjectStorageItems();
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(server.world_state->object_storage_items.size() == 1);
+			const ObjectStorageKey key(world_ob->uid, "a");
+			testAssert(server.world_state->object_storage_items.count(key) == 1);
+			testAssert(server.world_state->object_storage_items[key]->key == key);
+			testAssert(server.world_state->object_storage_items[key]->data.size() == 4 + 1 + 8);
+		}
+
+		// Test serialising and deserialising a plain old table
+		{
+			const std::string script_src = 
+				"objectstorage.setItem(\"a\", { b = 16.0 })		\n"
+				"local x = objectstorage.getItem(\"a\")			\n"
+				"assert(x.b == 16.0)							\n";
+
+			server.world_state->clearObjectStorageItems();
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+		}
+
+		// Test serialisaing and deserialising a Vec3d
+		{
+			const std::string script_src = 
+				"objectstorage.setItem(\"a\", Vec3d(1.0, 2.0, 3.0))				\n"
+				"local v = objectstorage.getItem(\"a\")							\n"
+				"assert(v == Vec3d(1.0, 2.0, 3.0))								\n"
+				"v2 = v + v														\n" // Test metatable is correct and that __add is called.
+				"assert(v2 == Vec3d(2.0, 4.0, 6.0))								\n";
+
+			server.world_state->clearObjectStorageItems();
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(server.world_state->object_storage_items.size() == 1);
+			const ObjectStorageKey key(world_ob->uid, "a");
+			testAssert(server.world_state->object_storage_items.count(key) == 1);
+			testAssert(server.world_state->object_storage_items[key]->key == key);
+		}
+
+		// Test serialising and deserialising an Avatar
+		{
+			const std::string script_src = 
+				"function onUserExitedParcel(av : Avatar, ob : Object, parcel : Parcel)			\n"
+				"	objectstorage.setItem(\"a\", av)					\n"
+				"	local x = objectstorage.getItem(\"a\")				\n"
+				"	assert(x.uid == 456)								\n"
+				"	assert(x.name == 'MrCool')							\n"
+				"end";
+
+			world_ob->event_handlers = NULL;
+			server.world_state->clearObjectStorageItems();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test serialising and deserialising an object
+		{
+			const std::string script_src = 
+				"function onUserExitedParcel(av : Avatar, ob : Object, parcel : Parcel)			\n"
+				"	objectstorage.setItem(\"a\", ob)					\n"
+				"	local x = objectstorage.getItem(\"a\")				\n"
+				"	assert(x.uid == 123)								\n"
+				"	assert(x.model_url == 'some cool model_url')		\n"
+				"end";
+
+			world_ob->event_handlers = NULL;
+			server.world_state->clearObjectStorageItems();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
+			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test calling objectstorage.getItem with a key that is not present returns nil
+		{
+			const std::string script_src = 
+				"local x = objectstorage.getItem(\"a\")			\n"
+				"assert(x == nil)								\n";
+
+			server.world_state->clearObjectStorageItems();
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			testAssert(server.world_state->object_storage_items.size() == 0); // Check didn't add item
+		}
+
+		// Test calling objectstorage.getItem with a non-string key
+		{
+			testThrowsExcepContainingString([&]() { 
+				const std::string script_src = "objectstorage.getItem({a=1.0})";
+				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Argument 1 was not a string");
 		}
 	}
 	catch(LuaScriptExcepWithLocation& e)
