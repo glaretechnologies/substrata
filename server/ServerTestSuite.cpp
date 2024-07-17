@@ -34,6 +34,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/ReferenceTest.h>
 #include <lua/LuaTests.h>
 #include <lua/LuaUtils.h>
+#include <lua/LuaSerialisation.h>
 #include <functional>
 
 
@@ -87,6 +88,7 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { LuaSerialisation::test();											});
 	runTest([&]() { ReferenceTest::run();												});
 	runTest([&]() { ServerLuaScriptTests::test(); });
 	runTest([&]() { LuaUtils::test(); });
