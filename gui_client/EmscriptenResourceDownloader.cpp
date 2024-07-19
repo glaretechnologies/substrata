@@ -164,9 +164,7 @@ void EmscriptenResourceDownloader::think()
 
 					(*this->num_resources_downloading)++;
 
-					const bool use_TLS = hostname != "localhost"; // Don't use TLS on localhost for now, for testing.
-					const std::string protocol = use_TLS ? "https" : "http";
-					const std::string http_URL = protocol + "://" + hostname + "/resource/" + URL;
+					const std::string http_URL = "/resource/" + URL;
 					
 					// conPrint("Calling emscripten_wget_data for URL '" + http_URL + "'...");
 
