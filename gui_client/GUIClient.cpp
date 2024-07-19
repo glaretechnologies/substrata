@@ -10022,9 +10022,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 #if EMSCRIPTEN
 	if(!extracted_anim_data_loaded)
 	{
-		const bool use_TLS = this->server_hostname != "localhost"; // Don't use TLS on localhost for now, for testing.
-		const std::string protocol = use_TLS ? "https" : "http";
-		const std::string http_URL = protocol + "://" + this->server_hostname + "/webclient/data/resources/extracted_avatar_anim.bin";
+		const std::string http_URL = "/webclient/data/resources/extracted_avatar_anim.bin";
 
 		const std::string local_abs_path = "/extracted_avatar_anim.bin";
 
