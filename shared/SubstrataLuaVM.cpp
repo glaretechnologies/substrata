@@ -638,7 +638,6 @@ static int objectStorageSetItem(lua_State* state)
 		ObjectStorageKey key;
 		key.ob_uid = script_evaluator->world_object->uid;
 		key.key_string = key_string;
-		auto res = world_state->object_storage_items.find(key);
 
 		Reference<ObjectStorageItem> item = world_state->getOrCreateObjectStorageItem(key); // May throw
 		assert(item->key == key);
