@@ -120,6 +120,7 @@ ${UTILS_DIR}/ArgumentParser.cpp
 ${UTILS_DIR}/ArgumentParser.h
 ${UTILS_DIR}/Array2D.h
 ${UTILS_DIR}/Array3D.h
+${UTILS_DIR}/ArrayRef.cpp
 ${UTILS_DIR}/ArrayRef.h
 ${UTILS_DIR}/Base64.cpp
 ${UTILS_DIR}/Base64.h

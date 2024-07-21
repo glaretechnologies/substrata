@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../ethereum/Signing.h"
 #include "../ethereum/Infura.h"
 #include <networking/HTTPClient.h>
+#include <networking/URL.h>
 #include <webserver/ResponseUtils.h>
 #include <WebWorkerThreadTests.h>
 #include <WebSocketTests.h>
@@ -88,6 +89,8 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { doArrayRefTests();													});
+	runTest([&]() { URL::test();														});
 	runTest([&]() { LuaSerialisation::test();											});
 	runTest([&]() { ReferenceTest::run();												});
 	runTest([&]() { ServerLuaScriptTests::test(); });
