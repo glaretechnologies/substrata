@@ -171,6 +171,26 @@ Called when a user avatar exits the land parcel that the script object is inside
 </div>
 
 
+<div class="code-func-definition">onUserEnteredVehicle(avatar : Avatar, vehicle_ob : Object)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar that entered the vehicle.</span></div>
+<div class="code-arg"><span class="code-arg-code">vehicle_ob : Object</span><span class="code-arg-descrip"> The vehicle object</span></div>
+
+<div class="code-func-description">
+Called when a user avatar enters (or sits on in the case of a bike) a vehicle.
+</div>
+
+
+<div class="code-func-definition">onUserExitedVehicle(avatar : Avatar, vehicle_ob : Object)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip"> The avatar that exited the vehicle.</span></div>
+<div class="code-arg"><span class="code-arg-code">vehicle_ob : Object</span><span class="code-arg-descrip"> The vehicle object</span></div>
+
+<div class="code-func-description">
+Called when a user avatar exits a vehicle.
+</div>
+
+
 
 <h2>Global functions</h2>
 
@@ -234,7 +254,7 @@ Destroys a timer.  Has no effect if the timer has already completed (for non-rep
 <div class="code-func-definition">addEventListener(event_name : string, ob_uid : number, handler : Function) : number</div>
 
 <div class="code-arg"><span class="code-arg-code">event_name : string</span><span class="code-arg-descrip">The name of the event.  Valid event names are 
-"onUserUsedObject", "onUserTouchedObject", "onUserMovedNearToObject", "onUserMovedAwayFromObject", "onUserEnteredParcel", "onUserExitedParcel".</span></div>
+"onUserUsedObject", "onUserTouchedObject", "onUserMovedNearToObject", "onUserMovedAwayFromObject", "onUserEnteredParcel", "onUserExitedParcel", "onUserEnteredVehicle", "onUserExitedVehicle"</span></div>
 
 <div class="code-arg"><span class="code-arg-code">ob_uid : number</span><span class="code-arg-descrip">UID of the object that the event will be listened on.  For example, for onUserTouchedObject, this is the UID of the object
 that will have to be touched to trigger the touch event.</span></div>
@@ -270,7 +290,7 @@ Attributes:
 <div class="code-attr"><span class="code-attr-code">scale : Vec3f</span><span class="code-attr-descrip">The scale factor in x, y, and z directions.</span></div>
 <div class="code-attr"><span class="code-attr-code">collidable : boolean</span><span class="code-attr-descrip">Is this object physically collidable with?  
 If false, avatars and physics objects will pass through it without colliding with it.</span></div>
-<div class="code-attr"><span class="code-attr-code">dynamic : boolean</span><span class="code-attr-descrip">Is this object a dynamic physics object?
+<div class="code-attr"><span class="code-attr-code">dynamic : boolean</span><span class="code-attr-descrip">Is this object a dynamic physics object?</span></div>
 <div class="code-attr"><span class="code-attr-code">sensor : boolean</span><span class="code-attr-descrip">Sensor objects still emit touch events, but objects can pass through them.</span></div>
 <div class="code-attr"><span class="code-attr-code">content : string</span><span class="code-attr-descrip">Content field.  For Text and Hypercard object types, 
 this is the text that is displayed.</span></div>
@@ -345,7 +365,7 @@ Attributes:
 This is approximately the position of the eyes of the avatar for a standard avatar height, and will be 1.67 m above the surface the avatar is standing on.</span></div>
 <div class="code-attr"><span class="code-attr-code">name : string</span><span class="code-attr-descrip">The name of the user who is controlling the avatar.</span></div>
 <div class="code-attr"><span class="code-attr-code">linear_velocity : Vec3f</span><span class="code-attr-descrip">The linear velocity of the avatar, in metres per second.</span></div>
-
+<div class="code-attr"><span class="code-attr-code">vehicle_inside : Object</span><span class="code-attr-descrip">The vehicle object the avatar is inside-of/riding, or nil if none.</span></div>
 
 
 
