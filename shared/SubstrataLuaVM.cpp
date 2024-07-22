@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../gui_client/VehiclePhysics.h"
 #elif SERVER
 #include "../server/Server.h"
+#include "../server/LuaHTTPRequestManager.h"
 #endif
 #include <lua/LuaVM.h>
 #include <lua/LuaScript.h>
@@ -658,6 +659,69 @@ static int objectStorageSetItem(lua_State* state)
 }
 
 
+static int doHTTPGetRequestAsync(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: URL : string
+	// Arg 2: additional header lines : table
+	// Arg 3: onDone callback
+	// Arg 4: onError callback
+
+	// onDone gets passed:
+	// 
+	// {
+	//   response_code: number
+	//   response_message : string
+	//   mime_type : string
+	//   body_data : buffer
+	// }
+
+	// onError gets passed
+	// {
+	//	  error_code : number
+	//	  error_description : string
+	// }
+
+	checkNumArgs(state, /*num_args_required*/4);
+
+	const std::string URL_string = LuaUtils::getStringArg(state, /*index=*/1);
+	LuaUtils::checkArgIsFunction(state, /*index=*/3);
+	LuaUtils::checkArgIsFunction(state, /*index=*/4);
+
+#if SERVER
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
+	request->lua_script_evaluator = script_evaluator;
+	request->request_type = "GET";
+	request->URL = URL_string;
+
+	LuaUtils::checkValueIsTable(state, /*index=*/2);
+	lua_pushnil(state); // Push first key onto stack
+	while(1)
+	{
+		int notdone = lua_next(state, /*table_index=*/2); // pops a key from the stack, and pushes a key-value pair from the table at the given index
+		if(notdone == 0)
+			break;
+
+		request->additional_headers.push_back(LuaUtils::getString(state, -2));
+		request->additional_headers.back() += ": ";
+		request->additional_headers.back() += LuaUtils::getString(state, -1);
+
+		lua_pop(state, 1); // Remove value, keep key on stack for next lua_next call
+	}
+
+	request->onDone_ref  = lua_ref(state, /*index=*/3);
+	request->onError_ref = lua_ref(state, /*index=*/4);
+
+	sub_lua_vm->server->enqueueLuaHTTPRequest(request);
+#endif
+	return 0;
+}
+
+
 static int createTimer(lua_State* state)
 {
 	// arg 1: onTimerEvent : function
@@ -961,8 +1025,6 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "model_url"));
 
 		ob->model_url = LuaUtils::getString(state, /*index=*/3);
-
-		ob->content = LuaUtils::getString(state, /*index=*/3);
 		ob->from_remote_model_url_dirty = true; // TODO: rename
 
 #if SERVER
@@ -1003,11 +1065,19 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		other_changed = true;
 		break;
 	case Atom_content:
+		{
 		assert(stringEqual(key_str, "content"));
-		ob->content = LuaUtils::getString(state, /*index=*/3);
+
+		size_t new_content_len;
+		const char* new_content = LuaUtils::getStringPointerAndLen(state, /*index=*/3, new_content_len);
+		if(new_content_len > WorldObject::MAX_CONTENT_SIZE)
+			throw glare::Exception("New content length too long. (string had length " + toString(new_content_len) + ", max len is " + toString(WorldObject::MAX_CONTENT_SIZE) + ")" + errorContextString(state));
+		ob->content.assign(new_content, new_content_len);
+
 		ob->from_remote_content_dirty = true; // TODO: rename
 		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 		break;
+		}
 	case Atom_video_autoplay:
 		assert(stringEqual(key_str, "video_autoplay"));
 		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, LuaUtils::getBool(state, /*index=*/3));
@@ -1589,6 +1659,9 @@ SubstrataLuaVM::SubstrataLuaVM()
 	
 	lua_pushcfunction(lua_vm->state, luaAddEventListener, /*debugname=*/"addEventListener");
 	lua_setglobal(lua_vm->state, "addEventListener");
+	
+	lua_pushcfunction(lua_vm->state, doHTTPGetRequestAsync, /*debugname=*/"doHTTPGetRequestAsync");
+	lua_setglobal(lua_vm->state, "doHTTPGetRequestAsync");
 
 	lua_createtable(lua_vm->state, /*narr=*/0, /*nrec=*/2);
 	lua_vm->setCFunctionAsTableField(objectStorageGetItem, /*debugname=*/"objectStorageGetItem", /*key=*/"getItem");

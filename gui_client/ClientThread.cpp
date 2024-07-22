@@ -621,7 +621,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			//conPrint("ObjectContentChanged");
 			const UID object_uid = readUIDFromStream(msg_buffer);
-			const std::string new_content = msg_buffer.readStringLengthFirst(10000);
+			const std::string new_content = msg_buffer.readStringLengthFirst(WorldObject::MAX_CONTENT_SIZE);
 			//conPrint("new_model_url: " + new_model_url);
 
 			// Look up existing object in world state

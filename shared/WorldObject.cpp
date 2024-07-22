@@ -551,7 +551,7 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 	}
 
 	if(v >= 6)
-		ob.content = stream.readStringLengthFirst(10000);
+		ob.content = stream.readStringLengthFirst(WorldObject::MAX_CONTENT_SIZE);
 
 	if(v >= 8)
 		ob.target_url = stream.readStringLengthFirst(10000);
@@ -818,13 +818,13 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 
 	if(ob.content.empty())
 	{
-		ob.content = stream.readStringLengthFirst(10000);
+		ob.content = stream.readStringLengthFirst(WorldObject::MAX_CONTENT_SIZE);
 		if(!ob.content.empty())
 			ob.changed_flags |= WorldObject::CONTENT_CHANGED;
 	}
 	else
 	{
-		const std::string new_content = stream.readStringLengthFirst(10000);
+		const std::string new_content = stream.readStringLengthFirst(WorldObject::MAX_CONTENT_SIZE);
 		if(ob.content != new_content)
 			ob.changed_flags |= WorldObject::CONTENT_CHANGED;
 		ob.content = new_content;

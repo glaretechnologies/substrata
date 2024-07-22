@@ -16,6 +16,8 @@ Copyright Glare Technologies Limited 2016 -
 #include <utils/Timer.h>
 class WorkerThread;
 class SubstrataLuaVM;
+class LuaHTTPRequestManager;
+class LuaHTTPRequest;
 
 
 class ServerConfig
@@ -123,6 +125,8 @@ public:
 	void enqueueMsg(ThreadMessageRef msg);
 	void enqueueMsgForLodGenThread(ThreadMessageRef msg) { mesh_lod_gen_thread_manager.enqueueMessage(msg); }
 
+	void enqueueLuaHTTPRequest(Reference<LuaHTTPRequest> request);
+
 
 	// Called from off main thread
 	void clientUDPPortOpen(WorkerThread* worker_thread, const IPAddress& ip_addr, UID client_avatar_id/*, int client_UDP_port*/);
@@ -158,4 +162,6 @@ public:
 	Timer total_timer;
 	TimerQueue timer_queue;
 	std::vector<TimerQueueTimer> temp_triggered_timers;
+
+	Reference<LuaHTTPRequestManager> lua_http_manager;
 };

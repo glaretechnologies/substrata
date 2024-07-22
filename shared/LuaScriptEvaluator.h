@@ -19,6 +19,7 @@ class SubstrataLuaVM;
 class WorldObject;
 class ServerWorldState;
 class WorldStateLock;
+class LuaHTTPRequestResult;
 
 
 /*=====================================================================
@@ -58,6 +59,9 @@ public:
 	void doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
 
 	void destroyTimer(int timer_index);
+
+	void doOnError(int onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept;
+	void doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept;
 
 //private:
 	void pushUserTableOntoStack(UserID client_user_id);

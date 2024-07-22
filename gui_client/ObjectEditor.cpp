@@ -420,6 +420,8 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	if(ob_out.content != new_content)
 		ob_out.changed_flags |= WorldObject::CONTENT_CHANGED;
 	ob_out.content = new_content;
+	if(ob_out.content.size() > WorldObject::MAX_CONTENT_SIZE)
+		ob_out.content = ob_out.content.substr(0, WorldObject::MAX_CONTENT_SIZE);
 
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 
