@@ -59,5 +59,5 @@ private:
 	Reference<ResourceManager> resource_manager;
 	glare::AtomicInt* num_net_resources_downloading;
 	glare::AtomicInt should_die;
-	HTTPClient* client;
+	Reference<HTTPClient> client;
 };

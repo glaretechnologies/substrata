@@ -98,10 +98,11 @@ struct DynTextureFetchResults
 static std::string fetchFileForURLAndAddAsResource(const std::string& base_URL, ServerAllWorldsState* world_state)
 {
 	HTTPClient http_client;
+	http_client.setAsNotIndependentlyHeapAllocated();
 	http_client.max_data_size			= 32 * 1024 * 1024; // 32 MB
 	http_client.max_socket_buffer_size	= 32 * 1024 * 1024; // 32 MB
 
-	std::string data;
+	std::vector<uint8> data;
 	HTTPClient::ResponseInfo response = http_client.downloadFile(base_URL, data);
 
 	if(response.response_code >= 200 && response.response_code < 300)
