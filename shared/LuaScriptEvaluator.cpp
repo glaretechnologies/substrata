@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "SubstrataLuaVM.h"
 #include "WorldStateLock.h"
 #include "WorldObject.h"
+#include "../server/LuaHTTPRequestManager.h" // For LuaHTTPRequestResult
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
@@ -468,6 +469,108 @@ void LuaScriptEvaluator::destroyTimer(int timer_index)
 	// Free reference to Lua onTimerEvent function, if valid
 	if(timers[timer_index].onTimerEvent_ref != LUA_NOREF)
 		lua_unref(lua_script->thread_state, timers[timer_index].onTimerEvent_ref); 
+}
+
+
+// See doHTTPGetRequestAsync in SubstrataLuaVM.cpp
+void LuaScriptEvaluator::doOnError(int onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept
+{
+	if(hit_error)
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
+		lua_script->resetExecutionTimeCounter();
+
+		lua_getref(lua_script->thread_state, onError_ref);  // Push function to be called onto stack
+
+		// onError gets passed
+		// {
+		//	  error_code : number
+		//	  error_description : string
+		// }
+		lua_newtable(lua_script->thread_state);
+		LuaUtils::setNumberAsTableField(lua_script->thread_state, "error_code", error_code);
+		LuaUtils::setStringAsTableField(lua_script->thread_state, "error_description", error_description);
+
+		// Call function
+		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
+	}
+	catch(std::exception& e)
+	{
+		//conPrint("Error while executing doOnError: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		//conPrint("Error while executing doOnError: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+}
+
+
+// See doHTTPGetRequestAsync in SubstrataLuaVM.cpp
+void LuaScriptEvaluator::doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept
+{
+#if SERVER
+	if(hit_error)
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
+		lua_script->resetExecutionTimeCounter();
+
+		lua_getref(lua_script->thread_state, onDone_ref);  // Push function to be called onto stack
+
+		// onDone gets passed:
+		// 
+		// {
+		//   response_code: number
+		//   response_message : string
+		//   mime_type : string
+		//   body_data : buffer
+		// }
+		lua_newtable(lua_script->thread_state);
+		LuaUtils::setNumberAsTableField(lua_script->thread_state, "response_code", result->response.response_code);
+		LuaUtils::setStringAsTableField(lua_script->thread_state, "response_message", result->response.response_message);
+		LuaUtils::setStringAsTableField(lua_script->thread_state, "mime_type", result->response.mime_type);
+
+		// Create lua buffer, set as body_data table field.
+		void* lua_buf = lua_newbuffer(lua_script->thread_state, /*size=*/result->data.size());
+		if(result->data.size() > 0)
+			std::memcpy(lua_buf, result->data.data(), result->data.size());
+
+		lua_rawsetfield(lua_script->thread_state, /*table index=*/-2, "body_data");
+
+
+		// Call function
+		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
+	}
+	catch(std::exception& e)
+	{
+		//conPrint("Error while executing doOnDone: " + std::string(e.what()));
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		//conPrint("Error while executing doOnDone: " + e.what());
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+#else
+	assert(0);
+#endif
 }
 
 

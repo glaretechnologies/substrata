@@ -80,7 +80,7 @@ struct FeatureFlagInfo
 {
 	FeatureFlagInfo();
 
-	uint64 feature_flags;
+	uint64 feature_flags; // A combination of ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG etc.
 
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.
@@ -281,7 +281,8 @@ public:
 	EthInfo eth_info;
 
 	static const uint64 SERVER_SCRIPT_EXEC_FEATURE_FLAG                   = 1; // Is server-side script execution enabled?
-	FeatureFlagInfo feature_flag_info;
+	static const uint64 LUA_HTTP_REQUESTS_FEATURE_FLAG                    = 2; // Are Lua-initiated HTTP requests enabled?
+	FeatureFlagInfo feature_flag_info GUARDED_BY(mutex);
 
 
 	// Ephemeral state that is not serialised to disk.  Set by CoinbasePollerThread.

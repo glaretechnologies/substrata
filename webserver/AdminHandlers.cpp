@@ -96,10 +96,23 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 			std::string("<span class=\"feature-enabled\">enabled</span>") : std::string("<span class=\"feature-disabled\">disabled</span>")) + 
 			"</p>";
 
+		page_out += "<form action=\"/admin_set_feature_flag_post\" method=\"post\">\n";
+		page_out += "<input type=\"hidden\" name=\"flag_bit_index\" value=\"" + toString(BitUtils::highestSetBitIndex(ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG)) + "\">\n";
+		page_out += "<input type=\"number\" name=\"new_value\" value=\"" + toString(script_exec_enabled ? 1 : 0) + "\">\n";
+		page_out += "<input type=\"submit\" value=\"Set server-side script execution enabled (1 / 0)\">\n";
+		page_out += "</form>";
+
+
+		const bool lua_http_enabled = BitUtils::isBitSet(world_state.feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG);
+
+		page_out += "<p>Lua HTTP requests: " + (lua_http_enabled ? 
+			std::string("<span class=\"feature-enabled\">enabled</span>") : std::string("<span class=\"feature-disabled\">disabled</span>")) + 
+			"</p>";
+
 		page_out += "<form action=\"/admin_set_feature_flag_post\" method=\"post\">";
-		page_out += "<input type=\"hidden\" name=\"flag_bit_index\" value=\"" + toString(BitUtils::highestSetBitIndex(ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG)) + "\">";
-		page_out += "<input type=\"number\" name=\"new_value\" value=\"" + toString(script_exec_enabled ? 1 : 0) + "\">";
-		page_out += "<input type=\"submit\" value=\"Set server-side script execution enabled (1 / 0)\" onclick=\"return confirm('Are you sure you want to change server-side script execution?');\" >";
+		page_out += "<input type=\"hidden\" name=\"flag_bit_index\" value=\"" + toString(BitUtils::highestSetBitIndex(ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG)) + "\">";
+		page_out += "<input type=\"number\" name=\"new_value\" value=\"" + toString(lua_http_enabled ? 1 : 0) + "\">";
+		page_out += "<input type=\"submit\" value=\"Set Lua HTTP requests enabled (1 / 0)\" onclick=\"return confirm('Are you sure you want to change Lua HTTP requests?');\" >";
 		page_out += "</form>";
 	}
 

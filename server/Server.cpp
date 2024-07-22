@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "WorkerThread.h"
 #include "ServerTestSuite.h"
 #include "WorldCreation.h"
+#include "LuaHTTPRequestManager.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/MessageUtils.h"
@@ -507,6 +508,8 @@ int main(int argc, char *argv[])
 
 		server.dyn_tex_updater_thread_manager.addThread(new DynamicTextureUpdaterThread(&server, server.world_state.ptr()));
 
+		server.lua_http_manager = new LuaHTTPRequestManager(&server);
+
 		//----------------------------------------------- Create any Lua scripts for objects -----------------------------------------------
 		if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 		{ // Begin scope for world_state->mutex lock
@@ -558,37 +561,42 @@ int main(int argc, char *argv[])
 			// Do Lua timer callbacks
 			if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 			{
-				WorldStateLock lock(server.world_state->mutex);
-
-				const double cur_time = server.total_timer.elapsed();
-				server.timer_queue.update(cur_time, /*triggered_timers_out=*/server.temp_triggered_timers);
-
-				for(size_t i=0; i<server.temp_triggered_timers.size(); ++i)
 				{
-					TimerQueueTimer& timer = server.temp_triggered_timers[i];
-			
-					LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
-					if(script_evaluator)
-					{
-						// Check timer is still valid (has not been destroyed by destroyTimer), by checking the timer id with the same index is still equal to our timer id.
-						assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
-						if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
-						{
-							script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
+					WorldStateLock lock(server.world_state->mutex);
 
-							if(timer.repeating)
+					const double cur_time = server.total_timer.elapsed();
+					server.timer_queue.update(cur_time, /*triggered_timers_out=*/server.temp_triggered_timers);
+
+					for(size_t i=0; i<server.temp_triggered_timers.size(); ++i)
+					{
+						TimerQueueTimer& timer = server.temp_triggered_timers[i];
+			
+						LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
+						if(script_evaluator)
+						{
+							// Check timer is still valid (has not been destroyed by destroyTimer), by checking the timer id with the same index is still equal to our timer id.
+							assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
+							if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
 							{
-								// Re-insert timer with updated trigger time
-								timer.tigger_time = cur_time + timer.period;
-								server.timer_queue.addTimer(cur_time, timer);
-							}
-							else // Else if timer was a one-shot timer, 'destroy' it.
-							{
-								script_evaluator->destroyTimer(timer.timer_index);
+								script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
+
+								if(timer.repeating)
+								{
+									// Re-insert timer with updated trigger time
+									timer.tigger_time = cur_time + timer.period;
+									server.timer_queue.addTimer(cur_time, timer);
+								}
+								else // Else if timer was a one-shot timer, 'destroy' it.
+								{
+									script_evaluator->destroyTimer(timer.timer_index);
+								}
 							}
 						}
 					}
 				}
+
+				if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+					server.lua_http_manager->think();
 			}
 			
 			// Handle any queued messages from worker threads
@@ -1107,6 +1115,8 @@ Server::~Server()
 	mesh_lod_gen_thread_manager.killThreadsBlocking();
 	worker_thread_manager.killThreadsBlocking();
 
+	lua_http_manager = nullptr;
+
 	message_queue.clear();
 	timer_queue.clear();
 
@@ -1188,6 +1198,13 @@ double Server::getCurrentGlobalTime() const
 void Server::enqueueMsg(ThreadMessageRef msg)
 {
 	message_queue.enqueue(msg);
+}
+
+
+void Server::enqueueLuaHTTPRequest(Reference<LuaHTTPRequest> request)
+{
+	if(lua_http_manager)
+		lua_http_manager->enqueueHTTPRequest(request);
 }
 
 
