@@ -140,6 +140,7 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 	try
 	{
 		HTTPClient client;
+		client.setAsNotIndependentlyHeapAllocated();
 		client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + credentials.infura_project_secret));
 
 		// Compute function selector for the method.
@@ -173,7 +174,7 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 
 		//conPrint(post_content);
 
-		std::string data;
+		std::vector<uint8> data;
 		HTTPClient::ResponseInfo response = client.sendPost("https://" + network + ".infura.io/v3/" + credentials.infura_project_id, post_content, /*content_type=*/"application/json", data);
 		if(!(response.response_code >= 200 && response.response_code < 300))
 			throw glare::Exception("HTTP Response was not a 2xx.  Response code: " + toString(response.response_code) + ", msg: " + response.response_message);
@@ -182,7 +183,7 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 
 		// Parse result
 		JSONParser parser;
-		parser.parseBuffer(data.data(), data.size());
+		parser.parseBuffer((const char*)data.data(), data.size());
 
 		if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
@@ -226,6 +227,7 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 	try
 	{
 		HTTPClient client;
+		client.setAsNotIndependentlyHeapAllocated();
 		client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + credentials.infura_project_secret));
 
 		// Compute function selector for the method.
@@ -258,7 +260,7 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 
 		//conPrint(post_content);
 
-		std::string data;
+		std::vector<uint8> data;
 		HTTPClient::ResponseInfo response = client.sendPost("https://" + network + ".infura.io/v3/" + credentials.infura_project_id, post_content, /*content_type=*/"application/json", data);
 		if(!(response.response_code >= 200 && response.response_code < 300))
 			throw glare::Exception("HTTP Response was not a 2xx.  Response code: " + toString(response.response_code) + ", msg: " + response.response_message);
@@ -267,7 +269,7 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 
 		// Parse result
 		JSONParser parser;
-		parser.parseBuffer(data.data(), data.size());
+		parser.parseBuffer((const char*)data.data(), data.size());
 
 		if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
@@ -309,6 +311,7 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 	try
 	{
 		HTTPClient client;
+		client.setAsNotIndependentlyHeapAllocated();
 		client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + credentials.infura_project_secret));
 
 		const std::string pre_signed_transaction_encoded = toHexWith0xPrefix(pre_signed_transaction); // Convert binary to hex
@@ -321,14 +324,14 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 			"\"id\":1"
 			"}";
 
-		std::string data;
+		std::vector<uint8> data;
 		HTTPClient::ResponseInfo response = client.sendPost("https://" + network + ".infura.io/v3/" + credentials.infura_project_id, post_content, /*content_type=*/"application/json", data);
 		if(!(response.response_code >= 200 && response.response_code < 300))
 			throw glare::Exception("HTTP Response was not a 2xx.  Response code: " + toString(response.response_code) + ", msg: " + response.response_message);
 
 		// Parse result
 		JSONParser parser;
-		parser.parseBuffer(data.data(), data.size());
+		parser.parseBuffer((const char*)data.data(), data.size());
 
 		if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
@@ -366,6 +369,7 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 uint64 Infura::getCurrentGasPrice(const InfuraCredentials& credentials, const std::string& network) // In wei
 {
 	HTTPClient client;
+	client.setAsNotIndependentlyHeapAllocated();
 	client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + credentials.infura_project_secret));
 
 	const std::string post_content = 
@@ -376,14 +380,14 @@ uint64 Infura::getCurrentGasPrice(const InfuraCredentials& credentials, const st
 		"\"id\":1"
 		"}";
 
-	std::string data;
+	std::vector<uint8> data;
 	HTTPClient::ResponseInfo response = client.sendPost("https://" + network + ".infura.io/v3/" + credentials.infura_project_id, post_content, /*content_type=*/"application/json", data);
 	if(!(response.response_code >= 200 && response.response_code < 300))
 		throw glare::Exception("HTTP Response was not a 2xx.  Response code: " + toString(response.response_code) + ", msg: " + response.response_message);
 
 	// Parse result
 	JSONParser parser;
-	parser.parseBuffer(data.data(), data.size());
+	parser.parseBuffer((const char*)data.data(), data.size());
 
 	if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
 		throw glare::Exception("Invalid jsonrpc response.");
@@ -437,6 +441,7 @@ UInt256 Infura::deployContract(const InfuraCredentials& credentials, const std::
 Infura::TransactionReceipt Infura::getTransactionReceipt(const InfuraCredentials& credentials, const std::string& network, const UInt256& transaction_hash)
 {
 	HTTPClient client;
+	client.setAsNotIndependentlyHeapAllocated();
 	client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + credentials.infura_project_secret));
 
 	const std::string post_content = 
@@ -447,14 +452,14 @@ Infura::TransactionReceipt Infura::getTransactionReceipt(const InfuraCredentials
 		"\"id\":1"
 		"}";
 
-	std::string data;
+	std::vector<uint8> data;
 	HTTPClient::ResponseInfo response = client.sendPost("https://" + network + ".infura.io/v3/" + credentials.infura_project_id, post_content, /*content_type=*/"application/json", data);
 	if(!(response.response_code >= 200 && response.response_code < 300))
 		throw glare::Exception("HTTP Response was not a 2xx.  Response code: " + toString(response.response_code) + ", msg: " + response.response_message);
 
 	// Parse result
 	JSONParser parser;
-	parser.parseBuffer(data.data(), data.size());
+	parser.parseBuffer((const char*)data.data(), data.size());
 
 	if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
 		throw glare::Exception("Invalid jsonrpc response.");

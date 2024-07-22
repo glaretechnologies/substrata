@@ -35,9 +35,6 @@ NetDownloadResourcesThread::NetDownloadResourcesThread(ThreadSafeQueue<Reference
 
 NetDownloadResourcesThread::~NetDownloadResourcesThread()
 {
-#if !defined(EMSCRIPTEN)
-	delete client;
-#endif
 }
 
 
@@ -115,7 +112,7 @@ void NetDownloadResourcesThread::doRun()
 
 					try
 					{
-						std::string data;
+						std::vector<uint8> data;
 
 						// Parse URL
 						const URL url_components = URL::parseURL(url);
