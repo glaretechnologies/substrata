@@ -55,6 +55,7 @@ void LuaHTTPWorkerThread::doRun()
 			{
 				conPrint("Exception while doing Lua HTTP Request to '" + request->URL + "': " + e.what());
 
+				result->error_code = LuaHTTPRequestResult::ErrorCode_Other;
 				result->exception_msg = e.what();
 				result->data.clear();
 			}

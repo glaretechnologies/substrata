@@ -11,10 +11,9 @@ Code By Nicholas Chapman.
 #include <OutStream.h>
 #include <InStream.h>
 #include <StringUtils.h>
+#include <Hasher.h>
 #include <limits>
 #include <string>
-#include <functional> // for std::hash
-
 
 
 class UID
@@ -62,7 +61,6 @@ struct UIDHasher
 {
 	size_t operator() (const UID& uid) const
 	{
-		std::hash<uint64> h;
-		return h(uid.value());
+		return hashBytes((const uint8*)&uid, sizeof(UID));
 	}
 };

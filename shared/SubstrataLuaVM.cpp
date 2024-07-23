@@ -694,6 +694,7 @@ static int doHTTPGetRequestAsync(lua_State* state)
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
 	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
+	request->script_user_id = script_evaluator->world_object->creator_id;
 	request->lua_script_evaluator = script_evaluator;
 	request->request_type = "GET";
 	request->URL = URL_string;

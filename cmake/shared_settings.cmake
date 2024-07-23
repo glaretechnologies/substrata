@@ -294,6 +294,7 @@ ${UTILS_DIR}/GenerationalArray.h
 ${UTILS_DIR}/WeakRefCounted.h
 ${UTILS_DIR}/WeakReference.h
 ${UTILS_DIR}/TestExceptionUtils.h
+${UTILS_DIR}/Hasher.h
 )
 
 
