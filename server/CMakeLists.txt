@@ -57,6 +57,8 @@ SET(shared_files
 ../shared/TimerQueue.h
 ../shared/ObjectEventHandlers.cpp
 ../shared/ObjectEventHandlers.h
+../shared/RateLimiter.cpp
+../shared/RateLimiter.h
 )
 
 ########### Webserver ################

@@ -50,7 +50,7 @@ void LuaHTTPRequestManager::think()
 			{
 				// Call the script onError function
 				script_evaluator->doOnError(request->onError_ref, 
-					/*error code=*/1, 
+					/*error code=*/result->error_code,
 					result->exception_msg, // error description
 					world_state_lock
 				);
@@ -74,7 +74,36 @@ void LuaHTTPRequestManager::enqueueHTTPRequest(Reference<LuaHTTPRequest> request
 	}
 
 	if(http_requests_enabled)
-		request_queue.enqueue(request);
+	{
+		// Look up rate limiter for this request
+		RateLimiter* rate_limiter;
+		auto res = rate_limiters.find(request->script_user_id);
+		if(res == rate_limiters.end())
+		{
+			rate_limiter = new RateLimiter(/*period=*/300.0, /*max num in period=*/5);
+			rate_limiters.insert(std::make_pair(request->script_user_id, rate_limiter));
+		}
+		else
+			rate_limiter = res->second.ptr();
+
+		const bool can_enqueue = rate_limiter->checkAddEvent(Clock::getCurTimeRealSec());
+		if(can_enqueue)
+		{
+			request_queue.enqueue(request);
+		}
+		else
+		{
+			Reference<LuaHTTPRequestResult> result = new LuaHTTPRequestResult();
+			result->request = request;
+			result->error_code = LuaHTTPRequestResult::ErrorCode_RateLimited;
+			result->exception_msg = "Rate limited: too many requests in too short a period of time.";
+			result_queue.enqueue(result);
+		}
+	}
+	else
+	{
+		conPrint("Lua HTTP requests feature-flag disabled, not doing request.");
+	}
 }
 
 

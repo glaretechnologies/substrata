@@ -11,6 +11,7 @@ Code By Nicholas Chapman.
 #include <OutStream.h>
 #include <InStream.h>
 #include <StringUtils.h>
+#include <Hasher.h>
 #include <limits>
 #include <string>
 
@@ -65,3 +66,12 @@ inline UserID readUserIDFromStream(InStream& stream)
 	stream.readData(&uid.v, sizeof(uid.v));
 	return uid;
 }
+
+
+struct UserIDHasher
+{
+	size_t operator() (const UserID& uid) const
+	{
+		return hashBytes((const uint8*)&uid, sizeof(UserID));
+	}
+};
