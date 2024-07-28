@@ -723,6 +723,43 @@ static int doHTTPGetRequestAsync(lua_State* state)
 }
 
 
+static int getSecret(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: secret_name : string
+
+	checkNumArgs(state, /*num_args_required*/1);
+
+	const std::string secret_name = LuaUtils::getStringArg(state, /*index=*/1);
+
+#if GUI_CLIENT
+	lua_pushnil(state);
+#endif
+#if SERVER
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
+	checkHoldWorldStateMutex(script_evaluator, world_state);
+
+	UserSecretKey key;
+	key.user_id = script_evaluator->world_object->creator_id;
+	key.secret_name = secret_name;
+	auto res = world_state->user_secrets.find(key);
+	if(res == world_state->user_secrets.end())
+	{
+		lua_pushnil(state); // Return nil if no item found for key.
+	}
+	else
+	{
+		LuaUtils::pushString(state, res->second->value);
+	}
+#endif
+	return 1;
+}
+
+
 static int createTimer(lua_State* state)
 {
 	// arg 1: onTimerEvent : function

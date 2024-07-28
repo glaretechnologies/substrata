@@ -265,6 +265,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::handleClaimParcelOwnerByNFTPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/add_secret_post")
+		{
+			AccountHandlers::handleAddSecretPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/delete_secret_post")
+		{
+			AccountHandlers::handleDeleteSecretPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/edit_news_post_post")
 		{
 			NewsPostHandlers::handleEditNewsPostPost(*this->world_state, request, reply_info);
@@ -483,6 +491,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/script_log")
 		{
 			AccountHandlers::renderScriptLog(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/secrets")
+		{
+			AccountHandlers::renderSecretsPage(*this->world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/p/")) // URL for parcel ERC 721 metadata JSON
 		{

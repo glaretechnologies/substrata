@@ -62,13 +62,9 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 
 
 		// Display any messages for the user
-		if(logged_in_user)
-		{
-			const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
-			if(!msg.empty())
-				page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
-		}
-
+		const std::string msg_for_user = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+		if(!msg_for_user.empty())
+			page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg_for_user) + "</div>  \n";
 
 
 		//-------------------------------- List parcels owned by user --------------------------------
@@ -124,6 +120,8 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 
 		page += "<h2>Developer</h2>\n";
 		page += "<a href=\"/script_log\">Show script log</a>";
+
+		page += "<a href=\"/secrets\">Show secrets (for Lua scripting)</a>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
@@ -712,6 +710,193 @@ void renderScriptLog(ServerAllWorldsState& world_state, const web::RequestInfo& 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderSecretsPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+		if(logged_in_user == NULL)
+		{
+			page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Secrets");
+			page += "You must be logged in to view this page.";
+			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+			return;
+		}
+
+		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Secrets");
+		page += "<div class=\"main\">   \n";
+
+		// Display any messages for the user
+		const std::string msg_for_user = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+		if(!msg_for_user.empty())
+			page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg_for_user) + "</div>  \n";
+
+		page += "<p>Showing secrets that are accessible from Lua scripts.</p>";
+
+		page += "<p>Note: the server administrator can see these values, only store information here that you are happy with the server administrator seeing.</p>";
+
+		int num_secrets_displayed = 0;
+		for(auto it = world_state.user_secrets.begin(); it != world_state.user_secrets.end(); ++it)
+		{
+			const UserSecret* secret = it->second.ptr();
+			if(secret->key.user_id == logged_in_user->id)
+			{
+				page += "<p>" + web::Escaping::HTMLEscape(secret->key.secret_name) + ": " + web::Escaping::HTMLEscape(secret->value) + "</p>";
+				num_secrets_displayed++;
+
+				page +=
+				"	<form action=\"/delete_secret_post\" method=\"post\">									\n"
+				"		<input id=\"secret_name-id\" type=\"hidden\" name=\"secret_name\" value=\"" + web::Escaping::HTMLEscape(secret->key.secret_name) + "\" />			\n"
+				"		<button type=\"submit\" id=\"delete-secret-button\" class=\"button-link\">Delete Secret</button>			\n"
+				"	</form>";
+				"	<br/>";
+			}
+		}
+
+		if(num_secrets_displayed == 0)
+			page += "[No secrets]";
+
+		page +=
+			"	<br/><br/>		\n"
+			"	<form action=\"/add_secret_post\" method=\"post\">									\n"
+			"		<label for=\"secret_name-id\">Secret name:</label><br/>							\n"
+			"		<input id=\"secret_name-id\" type=\"string\" name=\"secret_name\" /><br/>			\n"
+
+			"		<label for=\"secret_value-id\">Secret value:</label><br/>						\n"
+			"		<input id=\"secret_value-id\" type=\"string\" name=\"secret_value\" /><br>			\n"
+
+			"		<button type=\"submit\" id=\"add-secret-button\" class=\"button-link\">Add Secret</button>			\n"
+			"	</form>";
+	}
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void handleAddSecretPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{ // lock scope
+
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const web::UnsafeString secret_name  = request_info.getPostField("secret_name");
+		const web::UnsafeString secret_value = request_info.getPostField("secret_value");
+
+		WorldStateLock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+		if(logged_in_user == NULL)
+		{
+			// page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			// page += "You must be logged in to view your user account page.";
+			web::ResponseUtils::writeRedirectTo(reply_info, "/account");
+			return;
+		}
+
+		UserSecretRef secret = new UserSecret();
+		secret->key.user_id = logged_in_user->id;
+		secret->key.secret_name = secret_name.str();
+		secret->value = secret_value.str();
+
+		if(world_state.user_secrets.count(secret->key) > 0)
+		{
+			world_state.setUserWebMessage(logged_in_user->id, "Secret already exists with that name");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+			return;
+		}
+		
+		world_state.user_secrets.insert(std::make_pair(secret->key, secret));
+		world_state.db_dirty_user_secrets.insert(secret);
+
+		world_state.markAsChanged();
+
+		world_state.setUserWebMessage(logged_in_user->id, "Secret added.");
+	
+	} // End lock scope
+	catch(web::WebsiteExcep&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+		return;
+	}
+	catch(glare::Exception&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+		return;
+	}
+
+	web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+	return;
+}
+
+
+void handleDeleteSecretPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{ // lock scope
+
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const web::UnsafeString secret_name  = request_info.getPostField("secret_name");
+
+		WorldStateLock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+		if(logged_in_user == NULL)
+		{
+			// page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			// page += "You must be logged in to view your user account page.";
+			web::ResponseUtils::writeRedirectTo(reply_info, "/account");
+			return;
+		}
+
+		UserSecretKey key;
+		key.user_id = logged_in_user->id;
+		key.secret_name = secret_name.str();
+
+		auto res = world_state.user_secrets.find(key);
+		if(res == world_state.user_secrets.end())
+			throw glare::Exception("No secret with given secret name exists.");
+		
+
+		UserSecretRef secret = res->second;
+		
+		world_state.db_dirty_user_secrets.erase(secret); // Remove from dirty-set, so it's not updated in DB.
+
+		world_state.db_records_to_delete.insert(secret->database_key);
+
+		world_state.user_secrets.erase(key);
+
+		world_state.markAsChanged();
+
+		world_state.setUserWebMessage(logged_in_user->id, "Secret deleted.");
+	
+	} // End lock scope
+	catch(web::WebsiteExcep&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+		return;
+	}
+	catch(glare::Exception&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+		return;
+	}
+
+	web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+	return;
 }
 
 
