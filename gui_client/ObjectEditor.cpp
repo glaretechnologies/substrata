@@ -214,7 +214,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	}
 	{
 		SignalBlocker b(this->contentTextEdit);
-		this->contentTextEdit->setText(QtUtils::toQString(ob.content));
+		this->contentTextEdit->setPlainText(QtUtils::toQString(ob.content));
 	}
 	{
 		SignalBlocker b(this->targetURLLineEdit);
@@ -404,26 +404,36 @@ void ObjectEditor::setTransformFromObject(const WorldObject& ob)
 }
 
 
+static void checkStringSize(std::string& s, size_t max_size)
+{
+	// TODO: throw exception instead?
+	if(s.size() > max_size)
+		s = s.substr(0, max_size);
+}
+
+
 void ObjectEditor::toObject(WorldObject& ob_out)
 {
 	const std::string new_model_url = QtUtils::toIndString(this->modelFileSelectWidget->filename());
 	if(ob_out.model_url != new_model_url)
 		ob_out.changed_flags |= WorldObject::MODEL_URL_CHANGED;
 	ob_out.model_url = new_model_url;
+	checkStringSize(ob_out.model_url, WorldObject::MAX_URL_SIZE);
 
 	const std::string new_script =  QtUtils::toIndString(this->scriptTextEdit->toPlainText());
 	if(ob_out.script != new_script)
 		ob_out.changed_flags |= WorldObject::SCRIPT_CHANGED;
 	ob_out.script = new_script;
+	checkStringSize(ob_out.script, WorldObject::MAX_SCRIPT_SIZE);
 
 	const std::string new_content = QtUtils::toIndString(this->contentTextEdit->toPlainText());
 	if(ob_out.content != new_content)
 		ob_out.changed_flags |= WorldObject::CONTENT_CHANGED;
 	ob_out.content = new_content;
-	if(ob_out.content.size() > WorldObject::MAX_CONTENT_SIZE)
-		ob_out.content = ob_out.content.substr(0, WorldObject::MAX_CONTENT_SIZE);
+	checkStringSize(ob_out.content, WorldObject::MAX_CONTENT_SIZE);
 
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
+	checkStringSize(ob_out.target_url, WorldObject::MAX_URL_SIZE);
 
 	writeTransformMembersToObject(ob_out); // Set ob_out transform members
 	
@@ -483,6 +493,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		if(ob_out.materials.size() >= 1)
 		{
 			ob_out.materials[0]->emission_texture_url = QtUtils::toIndString(this->videoURLFileSelectWidget->filename());
+			checkStringSize(ob_out.materials[0]->emission_texture_url, WorldObject::MAX_URL_SIZE);
 		}
 	}
 
@@ -503,6 +514,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	if(ob_out.audio_source_url != new_audio_source_url)
 		ob_out.changed_flags |= WorldObject::AUDIO_SOURCE_URL_CHANGED;
 	ob_out.audio_source_url = new_audio_source_url;
+	checkStringSize(ob_out.audio_source_url, WorldObject::MAX_URL_SIZE);
 
 	if(ob_out.object_type == WorldObject::ObjectType_Video)
 		ob_out.audio_volume = videoVolumeDoubleSpinBox->value();

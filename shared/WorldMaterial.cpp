@@ -459,16 +459,16 @@ void readWorldMaterialFromStream(RandomAccessInStream& stream, WorldMaterial& ma
 		checkProperty(buffer_size <= 65536ul, "readWorldMaterialFromStream: buffer_size was too large");
 
 		mat.colour_rgb = readColour3fFromStream(stream);
-		mat.colour_texture_url = stream.readStringLengthFirst(20000);
+		mat.colour_texture_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 		mat.emission_rgb = readColour3fFromStream(stream);
-		mat.emission_texture_url = stream.readStringLengthFirst(20000);
+		mat.emission_texture_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 		readScalarValFromStream(stream, mat.roughness);
 		readScalarValFromStream(stream, mat.metallic_fraction);
 		readScalarValFromStream(stream, mat.opacity);
 		mat.tex_matrix = readMatrix2FromStream<float>(stream);
 		mat.emission_lum_flux_or_lum = stream.readFloat();
 		mat.flags = stream.readUInt32();
-		mat.normal_map_url = stream.readStringLengthFirst(20000);
+		mat.normal_map_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 
 		// Discard any remaining unread data
 		const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
@@ -494,7 +494,7 @@ void readWorldMaterialFromStream(RandomAccessInStream& stream, WorldMaterial& ma
 			}
 			case 201:
 			{
-				mat.colour_texture_url = stream.readStringLengthFirst(10000);
+				mat.colour_texture_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 				break;
 			}
 			default:
@@ -506,7 +506,7 @@ void readWorldMaterialFromStream(RandomAccessInStream& stream, WorldMaterial& ma
 			mat.colour_rgb = readColour3fFromStream(stream);
 			try
 			{
-				mat.colour_texture_url = stream.readStringLengthFirst(20000);
+				mat.colour_texture_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 			}
 			catch(glare::Exception& e)
 			{
@@ -517,7 +517,7 @@ void readWorldMaterialFromStream(RandomAccessInStream& stream, WorldMaterial& ma
 		if(v >= 7)
 		{
 			mat.emission_rgb = readColour3fFromStream(stream);
-			mat.emission_texture_url = stream.readStringLengthFirst(20000);
+			mat.emission_texture_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 		}
 	
 		if(v <= 2)
@@ -567,7 +567,7 @@ void readScalarValFromStreamOld(InStream& stream, ScalarVal& ob)
 	case 101:
 		{
 			ob.val = 1.f;
-			ob.texture_url = stream.readStringLengthFirst(10000);
+			ob.texture_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 			break;
 		}
 	default:
@@ -579,7 +579,7 @@ void readScalarValFromStreamOld(InStream& stream, ScalarVal& ob)
 void readScalarValFromStream(InStream& stream, ScalarVal& ob)
 {
 	ob.val = stream.readFloat();
-	ob.texture_url = stream.readStringLengthFirst(10000);
+	ob.texture_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 }
 
 
