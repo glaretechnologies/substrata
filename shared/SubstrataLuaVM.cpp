@@ -238,7 +238,7 @@ static int createObject(lua_State* state)
 
 	WorldObjectRef ob = new WorldObject();
 	
-	ob->model_url = LuaUtils::getTableStringFieldWithEmptyDefault(state, ob_params_table_index, "model_url");
+	ob->model_url = LuaUtils::getTableStringFieldWithEmptyDefault(state, ob_params_table_index, "model_url"); // TODO: check URL length
 	ob->pos = LuaUtils::getTableVec3dField(state, ob_params_table_index, "pos");
 	ob->axis = LuaUtils::getTableVec3fFieldWithDefault(state, ob_params_table_index, "axis", Vec3f(1,0,0));
 	ob->angle = (float)LuaUtils::getTableNumberFieldWithDefault(state, ob_params_table_index, "angle", 0.0);
@@ -980,6 +980,7 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 }
 
 
+#if SERVER
 static void assignStringWithSizeCheck(lua_State* state, int index, std::string& field, const char* field_name, size_t max_size)
 {
 	size_t new_len;
@@ -989,6 +990,7 @@ static void assignStringWithSizeCheck(lua_State* state, int index, std::string& 
 	
 	field.assign(new_string, new_len);
 }
+#endif
 
 
 // C++ implementation of __newindex for WorldObject class.  Used when a value is assigned to a WorldObject field
