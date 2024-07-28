@@ -3,6 +3,7 @@
 
 #include "PlayerPhysics.h"
 #include "CameraController.h"
+#include "../shared/WorldObject.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
@@ -126,10 +127,19 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 }
 
 
+static void checkStringSize(std::string& s, size_t max_size)
+{
+	// TODO: throw exception instead?
+	if(s.size() > max_size)
+		s = s.substr(0, max_size);
+}
+
+
 void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 {
 	mat_out.colour_rgb = col;
 	mat_out.colour_texture_url = QtUtils::toIndString(this->textureFileSelectWidget->filename());
+	checkStringSize(mat_out.colour_texture_url, WorldObject::MAX_URL_SIZE);
 
 	mat_out.tex_matrix = Matrix2f(
 		(float)this->textureXScaleDoubleSpinBox->value(), 0.f,
@@ -144,11 +154,14 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::HOLOGRAM_FLAG, this->hologramCheckBox->isChecked());
 
 	mat_out.roughness.texture_url = QtUtils::toIndString(this->metallicRoughnessFileSelectWidget->filename());
+	checkStringSize(mat_out.roughness.texture_url, WorldObject::MAX_URL_SIZE);
 
 	mat_out.normal_map_url = QtUtils::toIndString(this->normalMapFileSelectWidget->filename());
+	checkStringSize(mat_out.normal_map_url, WorldObject::MAX_URL_SIZE);
 
 	mat_out.emission_rgb = emission_col;
 	mat_out.emission_texture_url = QtUtils::toIndString(this->emissionTextureFileSelectWidget->filename());
+	checkStringSize(mat_out.emission_texture_url, WorldObject::MAX_URL_SIZE);
 
 	mat_out.emission_lum_flux_or_lum = this->luminanceDoubleSpinBox->value();
 

@@ -518,7 +518,7 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 	if(v >= 7)
 		ob.object_type = (WorldObject::ObjectType)stream.readUInt32(); // TODO: handle invalid values?
 
-	ob.model_url = stream.readStringLengthFirst(10000);
+	ob.model_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 	//if(v >= 2)
 	//	ob.material_url = stream.readStringLengthFirst(10000);
 	if(v >= 2)
@@ -537,28 +537,28 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 
 	if(v >= 13)
 	{
-		ob.lightmap_url = stream.readStringLengthFirst(10000);
+		ob.lightmap_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 		//conPrint("readFromStream: read lightmap_url: " + ob.lightmap_url);
 	}
 
 	if(v >= 4 && v < 10)
 	{
-		stream.readStringLengthFirst(10000); // read and discard script URL
+		stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE); // read and discard script URL
 	}
 	else if(v >= 10)
 	{
-		ob.script = stream.readStringLengthFirst(10000);
+		ob.script = stream.readStringLengthFirst(WorldObject::MAX_SCRIPT_SIZE);
 	}
 
 	if(v >= 6)
 		ob.content = stream.readStringLengthFirst(WorldObject::MAX_CONTENT_SIZE);
 
 	if(v >= 8)
-		ob.target_url = stream.readStringLengthFirst(10000);
+		ob.target_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 	
 	if(v >= 16)
 	{
-		ob.audio_source_url = stream.readStringLengthFirst(10000);
+		ob.audio_source_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 		ob.audio_volume = stream.readFloat();
 	}
 
@@ -794,7 +794,7 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 	// NOTE: The data in here needs to match that in copyNetworkStateFrom()
 
 	ob.object_type = (WorldObject::ObjectType)stream.readUInt32(); // TODO: handle invalid values?
-	ob.model_url = stream.readStringLengthFirst(10000);
+	ob.model_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 	//if(v >= 2)
 	{
 		const size_t num_mats = stream.readUInt32();
@@ -809,9 +809,9 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 		}
 	}
 
-	ob.lightmap_url = stream.readStringLengthFirst(10000);
+	ob.lightmap_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 
-	const std::string new_script = stream.readStringLengthFirst(10000);
+	const std::string new_script = stream.readStringLengthFirst(WorldObject::MAX_SCRIPT_SIZE);
 	if(ob.script != new_script)
 		ob.changed_flags |= WorldObject::SCRIPT_CHANGED;
 	ob.script = new_script;
@@ -830,9 +830,9 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 		ob.content = new_content;
 	}
 
-	ob.target_url = stream.readStringLengthFirst(10000);
+	ob.target_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 
-	const std::string new_audio_source_url = stream.readStringLengthFirst(10000);
+	const std::string new_audio_source_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 	if(ob.audio_source_url != new_audio_source_url)
 		ob.changed_flags |= WorldObject::AUDIO_SOURCE_URL_CHANGED;
 	ob.audio_source_url = new_audio_source_url;

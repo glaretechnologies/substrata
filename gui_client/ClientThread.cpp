@@ -575,7 +575,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			//conPrint("ObjectLightmapURLChanged");
 			const UID object_uid = readUIDFromStream(msg_buffer);
-			const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(10000);
+			const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 			//conPrint("new_lightmap_url: " + new_lightmap_url);
 
 			// Look up existing object in world state
@@ -598,7 +598,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			//conPrint("ObjectModelURLChanged");
 			const UID object_uid = readUIDFromStream(msg_buffer);
-			const std::string new_model_url = msg_buffer.readStringLengthFirst(10000);
+			const std::string new_model_url = msg_buffer.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 			//conPrint("new_model_url: " + new_model_url);
 
 			// Look up existing object in world state

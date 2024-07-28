@@ -267,11 +267,15 @@ public:
 	UID uid;
 	uint32 object_type;
 
+	static const size_t MAX_URL_SIZE                      = 1000;
+	static const size_t MAX_SCRIPT_SIZE                   = 10000;
+	static const size_t MAX_CONTENT_SIZE                  = 10000;
+	
+
 	std::string model_url;
 	std::vector<WorldMaterialRef> materials;
 	std::string lightmap_url;
 	std::string script;
-	static const size_t MAX_CONTENT_SIZE                        = 10000;
 	std::string content; // For ObjectType_Hypercard, ObjectType_Text
 	std::string target_url;
 	Vec3d pos;

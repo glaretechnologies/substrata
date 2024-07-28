@@ -136,6 +136,9 @@ static std::string fetchFileForURLAndAddAsResource(const std::string& base_URL, 
 
 		conPrint("\tDynamicTextureUpdaterThread: current/new URL: " + URL + "");
 
+		if(URL.size() > WorldObject::MAX_URL_SIZE)
+			throw glare::Exception("URL too long.");
+
 		{
 			Lock lock(world_state->mutex);
 

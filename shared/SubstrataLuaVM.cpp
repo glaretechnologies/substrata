@@ -980,6 +980,17 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 }
 
 
+static void assignStringWithSizeCheck(lua_State* state, int index, std::string& field, const char* field_name, size_t max_size)
+{
+	size_t new_len;
+	const char* new_string = LuaUtils::getStringPointerAndLen(state, index, new_len);
+	if(new_len > max_size)
+		throw glare::Exception("New " + std::string(field_name) + " length too long. (string had length " + toString(new_len) + ", max len is " + toString(max_size) + ")" + errorContextString(state));
+	
+	field.assign(new_string, new_len);
+}
+
+
 // C++ implementation of __newindex for WorldObject class.  Used when a value is assigned to a WorldObject field
 static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 {
@@ -1025,7 +1036,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	case Atom_model_url:
 		assert(stringEqual(key_str, "model_url"));
 
-		ob->model_url = LuaUtils::getString(state, /*index=*/3);
+		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->model_url, /*field name=*/"model_url", /*max size=*/WorldObject::MAX_URL_SIZE);
 		ob->from_remote_model_url_dirty = true; // TODO: rename
 
 #if SERVER
@@ -1069,11 +1080,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		{
 		assert(stringEqual(key_str, "content"));
 
-		size_t new_content_len;
-		const char* new_content = LuaUtils::getStringPointerAndLen(state, /*index=*/3, new_content_len);
-		if(new_content_len > WorldObject::MAX_CONTENT_SIZE)
-			throw glare::Exception("New content length too long. (string had length " + toString(new_content_len) + ", max len is " + toString(WorldObject::MAX_CONTENT_SIZE) + ")" + errorContextString(state));
-		ob->content.assign(new_content, new_content_len);
+		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->content, /*field name=*/"content", /*max size=*/WorldObject::MAX_CONTENT_SIZE);
 
 		ob->from_remote_content_dirty = true; // TODO: rename
 		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
@@ -1116,7 +1123,9 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_audio_source_url:
 		assert(stringEqual(key_str, "audio_source_url"));
-		ob->audio_source_url = LuaUtils::getString(state, /*index=*/3);
+
+		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->audio_source_url, /*field name=*/"audio_source_url", /*max size=*/WorldObject::MAX_URL_SIZE);
+
 		other_changed = true;
 		break;
 	case Atom_audio_volume:
@@ -1288,7 +1297,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_colour_texture_url:
 		assert(stringEqual(key_str, "colour_texture_url"));
-		mat->colour_texture_url = LuaUtils::getString(state, /*index=*/3);
+		assignStringWithSizeCheck(state, /*index=*/3, mat->colour_texture_url, "colour_texture_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_emission_rgb:
 		assert(stringEqual(key_str, "emission_rgb"));
@@ -1296,11 +1305,11 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_emission_texture_url:
 		assert(stringEqual(key_str, "emission_texture_url"));
-		mat->emission_texture_url = LuaUtils::getString(state, /*index=*/3);
+		assignStringWithSizeCheck(state, /*index=*/3, mat->emission_texture_url, "emission_texture_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_normal_map_url:
 		assert(stringEqual(key_str, "normal_map_url"));
-		mat->normal_map_url = LuaUtils::getString(state, /*index=*/3);
+		assignStringWithSizeCheck(state, /*index=*/3, mat->normal_map_url, "normal_map_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_roughness_val:
 		assert(stringEqual(key_str, "roughness_val"));
@@ -1308,7 +1317,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_roughness_texture_url:
 		assert(stringEqual(key_str, "roughness_texture_url"));
-		mat->roughness.texture_url = LuaUtils::getString(state, /*index=*/3);
+		assignStringWithSizeCheck(state, /*index=*/3, mat->roughness.texture_url, "roughness_texture_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_metallic_fraction_val:
 		assert(stringEqual(key_str, "metallic_fraction_val"));
