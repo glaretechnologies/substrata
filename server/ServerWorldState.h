@@ -153,6 +153,44 @@ struct ObjectStorageItemRefHash
 };
 
 
+struct UserSecretKey
+{
+	UserSecretKey() {}
+	//UserSecretKey(const UID& ob_uid_, const std::string& key_string_) : ob_uid(ob_uid_), key_string(key_string_) {}
+
+	UserID user_id;
+	std::string secret_name;
+
+	inline bool operator == (const UserSecretKey& other) const { return user_id == other.user_id && secret_name == other.secret_name; }
+	inline bool operator < (const UserSecretKey& other) const
+	{
+		if(user_id < other.user_id)
+			return true;
+		else if(user_id > other.user_id)
+			return false;
+		else
+			return secret_name < other.secret_name;
+	}
+};
+
+
+struct UserSecret : public RefCounted
+{
+	UserSecretKey key;
+	std::string value;
+	DatabaseKey database_key;
+};
+typedef Reference<UserSecret> UserSecretRef;
+	
+struct UserSecretRefHash
+{
+	size_t operator() (const UserSecretRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};
+
+
 /*=====================================================================
 ServerWorldState
 ----------------
@@ -273,6 +311,8 @@ public:
 	std::map<ObjectStorageKey, ObjectStorageItemRef> object_storage_items GUARDED_BY(mutex);
 	std::unordered_map<UID, uint64, UIDHasher> object_num_storage_items GUARDED_BY(mutex); // Map from object UID to number of storage items for object.
 
+	std::map<UserSecretKey, UserSecretRef> user_secrets GUARDED_BY(mutex);
+
 	// For the map:
 	MapTileInfo map_tile_info;
 
@@ -322,6 +362,7 @@ public:
 	std::unordered_set<ScreenshotRef, ScreenshotRefHash>				db_dirty_screenshots			GUARDED_BY(mutex);
 	std::unordered_set<UserRef, UserRefHash>							db_dirty_users					GUARDED_BY(mutex);
 	std::unordered_set<ObjectStorageItemRef, ObjectStorageItemRefHash>	db_dirty_object_storage_items	GUARDED_BY(mutex);
+	std::unordered_set<UserSecretRef, UserSecretRefHash>				db_dirty_user_secrets			GUARDED_BY(mutex);
 
 	std::unordered_set<DatabaseKey, DatabaseKeyHash>					db_records_to_delete			GUARDED_BY(mutex);
 

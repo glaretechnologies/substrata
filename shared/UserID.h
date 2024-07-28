@@ -39,6 +39,7 @@ public:
 	bool operator != (const UserID& other) const { return v != other.v; }
 
 	bool operator < (const UserID& other) const { return v < other.v; }
+	bool operator > (const UserID& other) const { return v > other.v; }
 	bool operator >= (const UserID& other) const { return v >= other.v; }
 
 //private:
