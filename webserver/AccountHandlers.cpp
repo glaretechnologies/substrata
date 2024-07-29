@@ -119,9 +119,9 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 
 
 		page += "<h2>Developer</h2>\n";
-		page += "<a href=\"/script_log\">Show script log</a>";
+		page += "<p><a href=\"/script_log\">Show script log</a></p>";
 
-		page += "<a href=\"/secrets\">Show secrets (for Lua scripting)</a>";
+		page += "<p><a href=\"/secrets\">Show secrets (for Lua scripting)</a></p>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
@@ -739,7 +739,7 @@ void renderSecretsPage(ServerAllWorldsState& world_state, const web::RequestInfo
 		if(!msg_for_user.empty())
 			page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg_for_user) + "</div>  \n";
 
-		page += "<p>Showing secrets that are accessible from Lua scripts.</p>";
+		page += "<p>Showing secrets that are accessible from Lua scripts.  Use for storing API keys etc.</p>";
 
 		page += "<p>Note: the server administrator can see these values, only store information here that you are happy with the server administrator seeing.</p>";
 
@@ -806,13 +806,26 @@ void handleAddSecretPost(ServerAllWorldsState& world_state, const web::RequestIn
 		}
 
 		UserSecretRef secret = new UserSecret();
-		secret->key.user_id = logged_in_user->id;
-		secret->key.secret_name = secret_name.str();
+		secret->key = UserSecretKey(/*user_id=*/logged_in_user->id, /*secret_name=*/secret_name.str());
 		secret->value = secret_value.str();
 
 		if(world_state.user_secrets.count(secret->key) > 0)
 		{
 			world_state.setUserWebMessage(logged_in_user->id, "Secret already exists with that name");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+			return;
+		}
+
+		if(secret_name.str().size() > UserSecret::MAX_SECRET_NAME_SIZE)
+		{
+			world_state.setUserWebMessage(logged_in_user->id, "Secret name too long");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+			return;
+		}
+
+		if(secret_value.str().size() > UserSecret::MAX_VALUE_SIZE)
+		{
+			world_state.setUserWebMessage(logged_in_user->id, "Secret value too long");
 			web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
 			return;
 		}
@@ -862,9 +875,7 @@ void handleDeleteSecretPost(ServerAllWorldsState& world_state, const web::Reques
 			return;
 		}
 
-		UserSecretKey key;
-		key.user_id = logged_in_user->id;
-		key.secret_name = secret_name.str();
+		const UserSecretKey key(/*user_id = */logged_in_user->id, secret_name.str());
 
 		auto res = world_state.user_secrets.find(key);
 		if(res == world_state.user_secrets.end())

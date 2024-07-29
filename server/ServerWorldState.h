@@ -156,7 +156,7 @@ struct ObjectStorageItemRefHash
 struct UserSecretKey
 {
 	UserSecretKey() {}
-	//UserSecretKey(const UID& ob_uid_, const std::string& key_string_) : ob_uid(ob_uid_), key_string(key_string_) {}
+	UserSecretKey(const UserID& user_id_, const std::string& secret_name_) : user_id(user_id_), secret_name(secret_name_) {}
 
 	UserID user_id;
 	std::string secret_name;
@@ -179,6 +179,9 @@ struct UserSecret : public RefCounted
 	UserSecretKey key;
 	std::string value;
 	DatabaseKey database_key;
+
+	static const size_t MAX_SECRET_NAME_SIZE            = 1000;
+	static const size_t MAX_VALUE_SIZE                  = 10000;
 };
 typedef Reference<UserSecret> UserSecretRef;
 	
