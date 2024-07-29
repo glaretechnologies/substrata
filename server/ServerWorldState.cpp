@@ -89,6 +89,7 @@ static const uint32 ETH_INFO_CHUNK = 111;
 static const uint32 NEWS_POST_CHUNK = 112;
 static const uint32 FEATURE_FLAG_CHUNK = 113;
 static const uint32 OBJECT_STORAGE_ITEM_CHUNK = 114;
+static const uint32 USER_SECRET_CHUNK = 115;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -97,6 +98,7 @@ static const uint32 MAP_TILE_INFO_VERSION = 1;
 static const uint32 ETH_INFO_CHUNK_VERSION = 1;
 static const uint32 FEATURE_FLAG_CHUNK_VERSION = 1;
 static const uint32 OBJECT_STORAGE_ITEM_VERSION = 1;
+static const uint32 USER_SECRET_VERSION = 1;
 
 
 void ServerAllWorldsState::readFromDisk(const std::string& path)
@@ -118,6 +120,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_world_settings = 0;
 	size_t num_news_posts = 0;
 	size_t num_object_storage_items = 0;
+	size_t num_user_secrets = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -326,6 +329,25 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					object_storage_items[item->key] = item;
 					object_num_storage_items[item->key.ob_uid]++;
 					num_object_storage_items++;
+				}
+				else if(chunk == USER_SECRET_CHUNK)
+				{
+					// Deserialise UserSecret
+					const uint32 user_secret_version = stream.readUInt32();
+					if(user_secret_version != USER_SECRET_VERSION)
+						throw glare::Exception("invalid user secret version: " + toString(user_secret_version));
+
+					UserSecretRef secret = new UserSecret();
+
+					// Read key
+					secret->key.user_id = readUserIDFromStream(stream);
+					secret->key.secret_name = stream.readStringLengthFirst(UserSecret::MAX_SECRET_NAME_SIZE);
+					
+					secret->value = stream.readStringLengthFirst(UserSecret::MAX_VALUE_SIZE);
+
+					secret->database_key = database_key;
+					user_secrets[secret->key] = secret;
+					num_user_secrets++;
 				}
 				else if(chunk == ETH_INFO_CHUNK)
 				{
@@ -616,7 +638,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
-		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s) in " + timer.elapsedStringNSigFigs(4));
+		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -887,6 +909,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_world_settings = 0;
 		size_t num_news_posts = 0;
 		size_t num_object_storage_items = 0;
+		size_t num_user_secrets = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -1155,6 +1178,32 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 			db_dirty_object_storage_items.clear();
 		}
 
+		// Write UserSecrets
+		{
+			for(auto it=db_dirty_user_secrets.begin(); it != db_dirty_user_secrets.end(); ++it)
+			{
+				UserSecret* secret = it->ptr();
+				temp_buf.clear();
+				temp_buf.writeUInt32(USER_SECRET_CHUNK);
+				temp_buf.writeUInt32(USER_SECRET_VERSION);
+
+				// Write key
+				writeToStream(secret->key.user_id, temp_buf);
+				temp_buf.writeStringLengthFirst(secret->key.secret_name);
+
+				temp_buf.writeStringLengthFirst(secret->value); // Write value
+
+				if(!secret->database_key.valid())
+					secret->database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(secret->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
+
+				num_user_secrets++;
+			}
+
+			db_dirty_user_secrets.clear();
+		}
+
 		// Write MAP_TILE_INFO_CHUNK
 		if(map_tile_info.db_dirty)
 		{
@@ -1242,11 +1291,24 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 
 		database.flush();
 
-		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(num_users) + " user(s), " +
-			toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
-			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " +
-			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles, " + toString(num_world_settings) + " world setting(s), " + 
-			toString(num_news_posts) + " news post(s), " + toString(num_object_storage_items) + " object storage item(s) in " + timer.elapsedStringNSigFigs(4));
+		std::string msg = "Saved ";
+		if(num_obs > 0)                   msg += toString(num_obs) +   " object(s), ";
+		if(num_users > 0)                 msg += toString(num_users) + " user(s), ";
+		if(num_parcels > 0)               msg += toString(num_parcels) + " parcels(s), ";
+		if(num_resources > 0)             msg += toString(num_resources) + " resources(s), ";
+		if(num_orders > 0)                msg += toString(num_orders) + " orders(s), ";
+		if(num_sessions > 0)              msg += toString(num_sessions) + " sessions(s), ";
+		if(num_auctions > 0)              msg += toString(num_auctions) + " auctions(s), ";
+		if(num_screenshots > 0)           msg += toString(num_screenshots) + " screenshots(s), ";
+		if(num_sub_eth_transactions > 0)  msg += toString(num_sub_eth_transactions) + " sub eth transactions(s), ";
+		if(num_tiles_written > 0)         msg += toString(num_tiles_written) + " tiles(s), ";
+		if(num_world_settings > 0)        msg += toString(num_world_settings) + " world setting(s), ";
+		if(num_news_posts > 0)            msg += toString(num_news_posts) + " news post(s), ";
+		if(num_object_storage_items > 0)  msg += toString(num_object_storage_items) + " object storage item(s), ";
+		if(num_user_secrets > 0)          msg += toString(num_user_secrets) + " user secret(s), ";
+		removeSuffixInPlace(msg, ", ");
+		msg += " in " + timer.elapsedStringNSigFigs(4);
+		conPrint(msg);
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

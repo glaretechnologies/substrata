@@ -743,9 +743,7 @@ static int getSecret(lua_State* state)
 	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
 	checkHoldWorldStateMutex(script_evaluator, world_state);
 
-	UserSecretKey key;
-	key.user_id = script_evaluator->world_object->creator_id;
-	key.secret_name = secret_name;
+	const UserSecretKey key(/*user_id = */script_evaluator->world_object->creator_id, secret_name);
 	auto res = world_state->user_secrets.find(key);
 	if(res == world_state->user_secrets.end())
 	{
@@ -1711,6 +1709,9 @@ SubstrataLuaVM::SubstrataLuaVM()
 	
 	lua_pushcfunction(lua_vm->state, doHTTPGetRequestAsync, /*debugname=*/"doHTTPGetRequestAsync");
 	lua_setglobal(lua_vm->state, "doHTTPGetRequestAsync");
+
+	lua_pushcfunction(lua_vm->state, getSecret, /*debugname=*/"getSecret");
+	lua_setglobal(lua_vm->state, "getSecret");
 
 	lua_createtable(lua_vm->state, /*narr=*/0, /*nrec=*/2);
 	lua_vm->setCFunctionAsTableField(objectStorageGetItem, /*debugname=*/"objectStorageGetItem", /*key=*/"getItem");
