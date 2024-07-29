@@ -29,6 +29,8 @@ public:
 
 	std::string request_type; // GET or POST
 	std::string URL;
+	std::string post_content; // For POST
+	std::string content_type; // For POST
 	std::vector<std::string> additional_headers;
 
 	WeakReference<LuaScriptEvaluator> lua_script_evaluator;

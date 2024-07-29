@@ -47,7 +47,16 @@ void LuaHTTPWorkerThread::doRun()
 				http_client->max_data_size = 1 << 24; // 16 MB
 				http_client->max_socket_buffer_size = 1 << 16;
 
-				result->response = http_client->downloadFile(request->URL, /*data_out=*/result->data);
+				if(request->request_type == "GET")
+				{
+					result->response = http_client->downloadFile(request->URL, /*data_out=*/result->data);
+				}
+				else if(request->request_type == "POST")
+				{
+					result->response = http_client->sendPost(request->URL, request->post_content, request->content_type, /*data_out=*/result->data);
+				}
+				else
+					runtimeCheckFailed("invalid request type");
 
 				conPrint("Lua HTTP Request to '" + request->URL + "' done.");
 			}

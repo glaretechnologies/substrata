@@ -723,6 +723,77 @@ static int doHTTPGetRequestAsync(lua_State* state)
 }
 
 
+static int doHTTPPostRequestAsync(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: URL : string
+	// Arg 2: post_content : string
+	// Arg 3: content_type: string
+	// Arg 4: additional header lines : table
+	// Arg 5: onDone callback
+	// Arg 6: onError callback
+
+	// onDone gets passed:
+	// 
+	// {
+	//   response_code: number
+	//   response_message : string
+	//   mime_type : string
+	//   body_data : buffer
+	// }
+
+	// onError gets passed
+	// {
+	//	  error_code : number
+	//	  error_description : string
+	// }
+
+	checkNumArgs(state, /*num_args_required*/6);
+
+	const std::string URL_string = LuaUtils::getStringArg(state, /*index=*/1);
+	const std::string post_content = LuaUtils::getStringArg(state, /*index=*/2);
+	const std::string content_type = LuaUtils::getStringArg(state, /*index=*/3);
+	// Arg 4 is additional header lines, parsed below.
+	LuaUtils::checkArgIsFunction(state, /*index=*/5);
+	LuaUtils::checkArgIsFunction(state, /*index=*/6);
+
+#if SERVER
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
+	request->script_user_id = script_evaluator->world_object->creator_id;
+	request->lua_script_evaluator = script_evaluator;
+	request->request_type = "POST";
+	request->URL = URL_string;
+	request->post_content = post_content;
+	request->content_type = content_type;
+
+	LuaUtils::checkValueIsTable(state, /*index=*/4);
+	lua_pushnil(state); // Push first key onto stack
+	while(1)
+	{
+		int notdone = lua_next(state, /*table_index=*/4); // pops a key from the stack, and pushes a key-value pair from the table at the given index
+		if(notdone == 0)
+			break;
+
+		request->additional_headers.push_back(LuaUtils::getString(state, -2));
+		request->additional_headers.back() += ": ";
+		request->additional_headers.back() += LuaUtils::getString(state, -1);
+
+		lua_pop(state, 1); // Remove value, keep key on stack for next lua_next call
+	}
+
+	request->onDone_ref  = lua_ref(state, /*index=*/5);
+	request->onError_ref = lua_ref(state, /*index=*/6);
+
+	sub_lua_vm->server->enqueueLuaHTTPRequest(request);
+#endif
+	return 0;
+}
+
+
 static int getSecret(lua_State* state)
 {
 	// Expected args:
@@ -1709,6 +1780,10 @@ SubstrataLuaVM::SubstrataLuaVM()
 	
 	lua_pushcfunction(lua_vm->state, doHTTPGetRequestAsync, /*debugname=*/"doHTTPGetRequestAsync");
 	lua_setglobal(lua_vm->state, "doHTTPGetRequestAsync");
+	
+	lua_pushcfunction(lua_vm->state, doHTTPPostRequestAsync, /*debugname=*/"doHTTPPostRequestAsync");
+	lua_setglobal(lua_vm->state, "doHTTPPostRequestAsync");
+
 
 	lua_pushcfunction(lua_vm->state, getSecret, /*debugname=*/"getSecret");
 	lua_setglobal(lua_vm->state, "getSecret");
