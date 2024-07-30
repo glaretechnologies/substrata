@@ -809,6 +809,143 @@ void ServerLuaScriptTests::test()
 			},
 			"Argument 1 was not a string");
 		}
+
+		//-------------------------------- Test parseJSON  --------------------------------
+		{
+			const std::string script_src = 
+				"local x = parseJSON('123.456')						\n"
+				"assert(x == 123.456)								\n";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test converting an array
+		{
+			const std::string script_src = 
+				"local x = parseJSON('[123.456, true, \"abc\", null]')			\n"
+				"print(x)														\n"
+				"print(x[1])													\n"
+				"assert(x[1] == 123.456)										\n"
+				"assert(x[2] == true)											\n"
+				"assert(x[3] == 'abc')											\n"
+				"assert(x[4] == nil)											\n";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test converting an object
+		{
+			const std::string script_src = 
+				"local x = parseJSON('{ \"a\" : 123.456, \"b\" : true, \"c\" : \"abc\", \"d\" : null}')			\n"
+				"print(x)														\n"
+				"print(x[1])													\n"
+				"assert(x['a'] == 123.456)										\n"
+				"assert(x['b'] == true)											\n"
+				"assert(x['c'] == 'abc')										\n"
+				"assert(x['d'] == nil)											\n";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test converting a nested object
+		{
+			const std::string script_src = 
+				"local x = parseJSON('{ \"a\" : { \"b\" : { \"c\" : 100.0 } } }')	\n"
+				"local a = x.a													\n"
+				"local b = a.b													\n"
+				"local c = b.c													\n"
+				"print(x)														\n"
+				"print(x[1])													\n"
+				"assert(c == 100.0)												\n";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test converting an empty object
+		{
+			const std::string script_src = 
+				"local x = parseJSON('{}')										\n"
+				"print(x)														\n"
+				"assert(#x == 0)												\n";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test converting an empty array
+		{
+			const std::string script_src = 
+				"local x = parseJSON('[]')										\n"
+				"print(x)														\n"
+				"assert(#x == 0)												\n";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test converting just null
+		{
+			const std::string script_src = 
+				"local x = parseJSON('null')									\n"
+				"assert(x == nil)												\n";
+
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test converting a deeply nested object
+		{
+			std::string script_src = "local x = parseJSON('";
+			for(int i=0; i<100; ++i)
+				script_src += std::string("{ \"a\" : ");
+			script_src += "{}" + std::string(100, '}') + "')						\n"
+				"												\n";
+			//conPrint(script_src);
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+		// Test converting a deeply nested array
+		{
+			std::string script_src = "local x = parseJSON('" + 
+				std::string(100, '[') + "[]" + std::string(100, ']') + "')						\n";
+			//conPrint(script_src);
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+		}
+
+		// Test some invalid json
+		testThrowsExcepContainingString([&]()
+			{
+				std::string script_src = "local x = parseJSON(' ')    ";
+				new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Error while parsing JSON:"
+		);
+		testThrowsExcepContainingString([&]()
+			{
+				std::string script_src = "local x = parseJSON('[[[')    ";
+				new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Error while parsing JSON:"
+		);
+		testThrowsExcepContainingString([&]()
+			{
+				std::string script_src = "local x = parseJSON('truAAA')    ";
+				new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"Error while parsing JSON:"
+		);
+		testThrowsExcepContainingString([&]()
+			{
+				std::string script_src = "local x = parseJSON(true)    ";
+				new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			},
+			"was not a string"
+		);
 	}
 	catch(LuaScriptExcepWithLocation& e)
 	{

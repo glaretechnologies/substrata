@@ -25,6 +25,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <lua/LuaSerialisation.h>
 #include <utils/StringUtils.h>
 #include <utils/RuntimeCheck.h>
+#include <utils/JSONParser.h>
 #include <lualib.h>
 #include <Luau/Common.h>
 #include <BufferViewInStream.h>
@@ -825,6 +826,95 @@ static int getSecret(lua_State* state)
 		LuaUtils::pushString(state, res->second->value);
 	}
 #endif
+	return 1;
+}
+
+
+// Pushes the converted JSON node onto the top of the Lua stack
+static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JSONNode& node)
+{
+	if(!lua_checkstack(state, /*size=*/1)) // Make sure there is space for the value on the Lua stack
+		throw glare::Exception("Failed to alloc lua stack space");
+
+	switch (node.type)
+	{
+	case JSONNode::Type_Number:
+	{
+		lua_pushnumber(state, node.getDoubleValue());
+		break;	
+	}
+	case JSONNode::Type_String:
+	{
+		const std::string& string_val = node.getStringValue();
+		lua_pushlstring(state, string_val.c_str(), string_val.size());
+		break;	
+	}
+	case JSONNode::Type_Boolean:
+	{
+		lua_pushboolean(state, node.getBoolValue());
+		break;
+	}
+	case JSONNode::Type_Array:
+	{
+		lua_createtable(state, /*num array elems hint=*/(int)node.child_indices.size(), /*num other elems hint=*/0);
+		for(size_t i=0; i<node.child_indices.size(); ++i)
+		{
+			runtimeCheck(node.child_indices[i] < (uint32)parser.nodes.size());
+			pushJSONLuaNode(state, parser, parser.nodes[node.child_indices[i]]);
+
+			lua_rawseti(state, /*table index=*/-2, 1 + i);
+		}
+
+		break;
+	}
+	case JSONNode::Type_Object:
+	{
+		lua_createtable(state, /*num array elems hint=*/0, /*num other elems hint=*/(int)node.name_val_pairs.size());
+		for(size_t i=0; i<node.name_val_pairs.size(); ++i)
+		{
+			runtimeCheck(node.name_val_pairs[i].value_node_index < (uint32)parser.nodes.size());
+			pushJSONLuaNode(state, parser, parser.nodes[node.name_val_pairs[i].value_node_index]);
+
+			lua_setfield(state, /*table index=*/-2, node.name_val_pairs[i].name.c_str());
+		}
+
+		break;
+	}
+	case JSONNode::Type_Null:
+	{
+		lua_pushnil(state);
+		break;
+	}
+	default:
+		runtimeCheckFailed("Invalid JSON type");
+	}
+}
+
+
+static int parseJSON(lua_State* state)
+{
+	// arg 1: json : string
+
+	// Returns lua object
+
+	checkNumArgs(state, /*num_args_required*/1);
+
+	const std::string json_string = LuaUtils::getStringArg(state, /*index=*/1);
+
+	try
+	{
+		JSONParser parser;
+		parser.parseBuffer(json_string.c_str(), json_string.size());
+
+		runtimeCheck(!parser.nodes.empty());
+
+		pushJSONLuaNode(state, parser, parser.nodes[0]);
+	}
+	catch(glare::Exception& e)
+	{
+		throw glare::Exception("Error while parsing JSON: " + e.what());
+	}
+
 	return 1;
 }
 
@@ -1787,6 +1877,9 @@ SubstrataLuaVM::SubstrataLuaVM()
 
 	lua_pushcfunction(lua_vm->state, getSecret, /*debugname=*/"getSecret");
 	lua_setglobal(lua_vm->state, "getSecret");
+
+	lua_pushcfunction(lua_vm->state, parseJSON, /*debugname=*/"parseJSON");
+	lua_setglobal(lua_vm->state, "parseJSON");
 
 	lua_createtable(lua_vm->state, /*narr=*/0, /*nrec=*/2);
 	lua_vm->setCFunctionAsTableField(objectStorageGetItem, /*debugname=*/"objectStorageGetItem", /*key=*/"getItem");
