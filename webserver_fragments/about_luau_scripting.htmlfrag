@@ -8,9 +8,11 @@ which is Roblox's version of the <a href="https://www.lua.org/">Lua programming 
 <h2>Creating an object script</h2>
 
 <p>
-To create a script for your object, you will need to use the native Substrata client (i.e. not the web client).  <!-- This can be downloaded from the <a href="/">main Substrata page</a>.-->
+To create a script for your object, you will need to use the native Substrata client (i.e. not the web client).  This can be downloaded from the <a href="/">main Substrata page</a>.
 </p>
-<b>Currently (as of 8th July 2024) you will need the latest test Substrata client for Luau scripting, available on the <a href="https://discord.gg/R6tfYn3">Substrata discord channel</a>.</b>
+<p>
+	To get all the scripting functionality, you may need the latest test Substrata client, available on the <a href="https://discord.gg/R6tfYn3">Substrata discord channel</a>.
+</p>
 <p>
 In the native client, double click on the object you want to script.
 Then click on the 'Edit' button in the script section:
@@ -271,6 +273,196 @@ Adds a listener for an event on another object.
 addEventListener("onUserTouchedObject", 583, onUserTouchedObject)
 </pre>
 
+</div>
+
+
+
+<div class="code-func-definition">doHTTPGetRequestAsync(URL : string, additional_header_lines : table, onDone : function, onError : function)</div>
+
+<div class="code-arg"><span class="code-arg-code">URL : string</span><span class="code-arg-descrip">The URL to request.  Should be a http or https URL.</span></div>
+
+<div class="code-arg"><span class="code-arg-code">additional_header_lines : table</span>
+<span class="code-arg-descrip">A table with any additional header lines to send in the HTTP request.</span></div>
+
+<div class="code-arg"><span class="code-arg-code">onDone : function</span><span class="code-arg-descrip">
+A function that will be called when the HTTP request has completed.  onDone takes a single argument which is a table like so:
+
+<pre class="code-block">
+{
+  response_code: number
+  response_message : string
+  mime_type : string
+  body_data : buffer
+}
+</pre>
+
+<p>response_code is the HTTP response code, e.g. 200 or 404.</p>
+<p>response_message is the corresponding string message such as "OK" or "File not found".</p>
+<p>mime_type is the content type of the response, and will be something like "text/html".</p>
+<p>body_data is the main body of the response.</p>
+</span></div>
+
+<div class="code-arg"><span class="code-arg-code">onError : function</span><span class="code-arg-descrip">
+A function that will be called if an error is encountered while doing the HTTP request, 
+for example a connection cannot be made to the server.
+onError takes a single argument which is a table like so:
+
+<pre class="code-block">
+{
+  error_code : number
+  error_description : string
+}
+</pre>
+
+Current error codes are
+
+<pre class="code-block">
+ErrorCode_OK = 0,
+ErrorCode_Other = 1,
+ErrorCode_RateLimited = 2
+</pre>
+
+
+</span></div>
+
+<div class="code-func-description">
+<p>
+Sends an HTTP request to a server.
+</p>
+<P>Requests are rate-limited: a maximum of 5 requests per 300 seconds are allowed per user.  Exceeding this rate will result in
+onError being called with error_code = 2 (ErrorCode_RateLimited).
+</P>
+<p>For example:</p>
+<pre class="code-block">
+
+function onDone(result)
+	print("response_code: " .. tostring(result.response_code))
+	print("response_message: " .. result.response_message)
+	print("mime_type: " .. result.mime_type)
+	print("body_data: " .. result.body_data)
+end
+
+function onError(result)
+	print("error_code: " .. tostring(result.error_code))
+	print("error_description: " .. result.error_description)
+end
+
+doHTTPGetRequestAsync(
+	"https://coolwebsite.com/someapi?id=dfdfsdf", -- URL
+	{ Authorization = "Basic afsdefsdfd" } -- additional_header_lines
+	onDone, onError
+)
+</pre>
+
+</div>
+
+
+
+
+
+
+
+<div class="code-func-definition">doHTTPPostRequestAsync(URL : string, post_content : string, content_type : string, additional_header_lines : table, onDone : function, onError : function)</div>
+
+<div class="code-arg"><span class="code-arg-code">URL : string</span><span class="code-arg-descrip">The URL to request.  Should be a http or https URL.</span></div>
+<div class="code-arg"><span class="code-arg-code">post_content : string</span><span class="code-arg-descrip">The main body content of the post request.</span></div>
+<div class="code-arg"><span class="code-arg-code">content_type : string</span><span class="code-arg-descrip">The conent type of the post body, e.g. .</span></div>
+
+<div class="code-arg"><span class="code-arg-code">additional_header_lines : table</span>
+<span class="code-arg-descrip">A table with any additional header lines to send in the HTTP request.</span></div>
+
+<div class="code-arg"><span class="code-arg-code">onDone : function</span><span class="code-arg-descrip">
+A function that will be called when the HTTP request has completed.  onDone takes a single argument which is a table like so:
+
+<pre class="code-block">
+{
+  response_code: number
+  response_message : string
+  mime_type : string
+  body_data : buffer
+}
+</pre>
+
+<p>response_code is the HTTP response code, e.g. 200 or 404.</p>
+<p>response_message is the corresponding string message such as "OK" or "File not found".</p>
+<p>mime_type is the content type of the response, and will be something like "text/html".</p>
+<p>body_data is the main body of the response.</p>
+</span></div>
+
+<div class="code-arg"><span class="code-arg-code">onError : function</span><span class="code-arg-descrip">
+A function that will be called if an error is encountered while doing the HTTP request, 
+for example a connection cannot be made to the server.
+onError takes a single argument which is a table like so:
+
+<pre class="code-block">
+{
+  error_code : number
+  error_description : string
+}
+</pre>
+
+Current error codes are
+
+<pre class="code-block">
+ErrorCode_OK = 0,
+ErrorCode_Other = 1,
+ErrorCode_RateLimited = 2
+</pre>
+
+
+</span></div>
+
+<div class="code-func-description">
+<p>
+Sends an HTTP post request to a server.
+</p>
+<P>Requests are rate-limited: a maximum of 5 requests per 300 seconds are allowed per user.  Exceeding this rate will result in
+onError being called with error_code = 2 (ErrorCode_RateLimited).
+</P>
+<p>For example:</p>
+<pre class="code-block">
+
+function onDone(result)
+	print("response_code: " .. tostring(result.response_code))
+	print("response_message: " .. result.response_message)
+	print("mime_type: " .. result.mime_type)
+	print("body_data: " .. result.body_data)
+end
+
+function onError(result)
+	print("error_code: " .. tostring(result.error_code))
+	print("error_description: " .. result.error_description)
+end
+
+doHTTPPostRequestAsync(
+	"https://coolwebsite.com/someapi?id=dfdfsdf", -- URL
+	"{ id : \"123\" }", -- post content
+	"application/json", -- content type
+	{ Authorization = "Basic afsdefsdfd" } -- additional_header_lines
+	onDone, onError
+)
+</pre>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+<div class="code-func-definition">getSecret(secret_name : string) : string</div>
+
+<div class="code-arg"><span class="code-arg-code">secret_name : string</span><span class="code-arg-descrip">
+The name of the secret to get.</span></div>
+
+<div class="code-func-description">
+<p>
+Get a secret string that has been set via the Account Secrets page (
+</p>
 </div>
 
 
