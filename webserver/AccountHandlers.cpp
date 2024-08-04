@@ -741,7 +741,7 @@ void renderSecretsPage(ServerAllWorldsState& world_state, const web::RequestInfo
 
 		page += "<p>Showing secrets that are accessible from Lua scripts.  Use for storing API keys etc.</p>";
 
-		page += "<p>Note: the server administrator can see these values, only store information here that you are happy with the server administrator seeing.</p>";
+		page += "<p>Note: the server administrator can see these values - only store information here that you are happy with the server administrator seeing.</p>";
 
 		int num_secrets_displayed = 0;
 		for(auto it = world_state.user_secrets.begin(); it != world_state.user_secrets.end(); ++it)
