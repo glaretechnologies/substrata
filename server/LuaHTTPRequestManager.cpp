@@ -80,7 +80,7 @@ void LuaHTTPRequestManager::enqueueHTTPRequest(Reference<LuaHTTPRequest> request
 		auto res = rate_limiters.find(request->script_user_id);
 		if(res == rate_limiters.end())
 		{
-			rate_limiter = new RateLimiter(/*period=*/300.0, /*max num in period=*/5);
+			rate_limiter = new RateLimiter(/*period=*/300.0, /*max num in period=*/10);
 			rate_limiters.insert(std::make_pair(request->script_user_id, rate_limiter));
 		}
 		else
@@ -96,7 +96,7 @@ void LuaHTTPRequestManager::enqueueHTTPRequest(Reference<LuaHTTPRequest> request
 			Reference<LuaHTTPRequestResult> result = new LuaHTTPRequestResult();
 			result->request = request;
 			result->error_code = LuaHTTPRequestResult::ErrorCode_RateLimited;
-			result->exception_msg = "Rate limited: too many requests in too short a period of time.";
+			result->exception_msg = "Rate limited: too many HTTP requests in too short a period of time.";
 			result_queue.enqueue(result);
 		}
 	}
