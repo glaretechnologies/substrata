@@ -52,10 +52,12 @@ static void checkYouTubeVideoID(const std::string& s)
 // Throws glare::Exception on failure.
 static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int width, int height, WorldObject* ob, ResourceManager& resource_manager, const std::string& server_hostname)
 {
-	const URL parsed_URL = URL::parseURL(video_url);
+	const bool is_http_URL = hasPrefix(video_url, "http://") || hasPrefix(video_url, "https://");
 
-	if(parsed_URL.scheme == "http" || parsed_URL.scheme == "https")
+	if(is_http_URL)
 	{
+		const URL parsed_URL = URL::parseURL(video_url);
+
 		if(parsed_URL.host == "www.youtube.com" || parsed_URL.host == "youtu.be")
 		{
 			std::string video_id;
@@ -196,10 +198,7 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 
 static void getVidTextureDimensions(const std::string& video_URL, WorldObject* ob, int& width_out, int& height_out)
 {
-	const URL parsed_URL = URL::parseURL(video_URL);
-
-	const bool is_http_URL = parsed_URL.scheme == "http" || parsed_URL.scheme == "https";
-
+	const bool is_http_URL = hasPrefix(video_URL, "http://") || hasPrefix(video_URL, "https://");
 	if(!is_http_URL)
 	{
 		width_out = 1024;

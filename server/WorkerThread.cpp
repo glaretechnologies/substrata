@@ -77,16 +77,9 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 	if(!ResourceManager::isValidURL(resource_URL))
 		throw glare::Exception("Invalid URL: '" + resource_URL + "'");
 
-	try
-	{
-		const URL parsed_url = URL::parseURL(resource_URL);
-
-		// If this is a web URL, then we don't need to get it from the client.
-		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
-			return;
-	}
-	catch(glare::Exception&)
-	{}
+	// If this is a web URL, then we don't need to get it from the client.
+	if(hasPrefix(resource_URL, "http://") || hasPrefix(resource_URL, "https://"))
+		return;
 
 	// See if we have this file on the server already
 	{
