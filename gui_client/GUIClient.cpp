@@ -860,9 +860,7 @@ void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& ce
 	{
 		this->URL_to_downloading_info[url] = resource_info;
 
-		const URL parsed_url = URL::parseURL(url);
-
-		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
+		if(hasPrefix(url, "http://") || hasPrefix(url, "https://"))
 		{
 			this->net_resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
 			num_net_resources_downloading++;
@@ -7638,7 +7636,8 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 				{
 					if(!selected_ob->materials.empty() && selected_ob->materials[0].nonNull())
 						msg += "mat0 min lod level: " + toString(selected_ob->materials[0]->minLODLevel()) + "\n";
-					msg += "mat0 tex: " + toString(mat0.albedo_texture->xRes()) + "x" + toString(mat0.albedo_texture->yRes()) + " (" + getNiceByteSize(mat0.albedo_texture->getByteSize()) + ")\n";
+					msg += "mat0 tex: " + toString(mat0.albedo_texture->xRes()) + "x" + toString(mat0.albedo_texture->yRes()) + " (" + getNiceByteSize(mat0.albedo_texture->getByteSize()) + "), " + 
+						getStringForGLInternalFormat(mat0.albedo_texture->getInternalFormat()) + " \n";
 				}
 				msg += "mat0 colourTexHasAlpha(): " + toString(selected_ob->materials[0]->colourTexHasAlpha()) + "\n";
 
