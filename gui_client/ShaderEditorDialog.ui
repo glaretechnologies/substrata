@@ -189,6 +189,13 @@
      </widget>
     </item>
     <item>
+     <widget class="QLabel" name="openServerScriptLogLabel">
+      <property name="text">
+       <string>&lt;a href=&quot;https://substrata.info/script_log&quot;&gt;Show server script log&lt;/a&gt;</string>
+      </property>
+     </widget>
+    </item>
+    <item>
      <widget class="QLabel" name="label_2">
       <property name="text">
        <string>&lt;a href=&quot;https://substrata.info/about_scripting&quot;&gt;Scripting documentation&lt;/a&gt;</string>
