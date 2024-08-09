@@ -86,6 +86,36 @@ void ServerLuaScriptTests::test()
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
 		}
 
+		//-------------------------------- Test this_object --------------------------------
+		{
+			const std::string script_src = "print('this_object.uid: ' .. tostring(this_object.uid))  assert(this_object.uid == 123.0)\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(output_handler.buf == "this_object.uid: 123");
+		}
+
+		//-------------------------------- Test IS_SERVER --------------------------------
+		{
+			const std::string script_src = "print('IS_SERVER: ' .. tostring(IS_SERVER))  assert(IS_SERVER == true)\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(output_handler.buf == "IS_SERVER: true");
+		}
+
+		//-------------------------------- Test IS_CLIENT --------------------------------
+		{
+			const std::string script_src = "print('IS_CLIENT: ' .. tostring(IS_CLIENT))  assert(IS_CLIENT == false)\n";
+
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(output_handler.buf == "IS_CLIENT: false");
+		}
+
 		//-------------------------------- Test doOnUserTouchedObject --------------------------------
 		{
 			const std::string script_src = 

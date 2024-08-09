@@ -67,6 +67,29 @@ LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScr
 	options.userdata = this;
 	lua_script.set(new LuaScript(substrata_lua_vm->lua_vm.ptr(), options, script_src));
 
+
+	// Set 'this_object' global variable
+	pushWorldObjectTableOntoStack(world_object->uid);
+	lua_setglobal(lua_script->thread_state, "this_object");
+
+	// Set 'IS_SERVER' global variable.
+#if SERVER
+	lua_pushboolean(lua_script->thread_state, 1);
+#else
+	lua_pushboolean(lua_script->thread_state, 0);
+#endif
+	lua_setglobal(lua_script->thread_state, "IS_SERVER");
+
+// Set 'IS_CLIENT' global variable.
+#if SERVER
+	lua_pushboolean(lua_script->thread_state, 0);
+#else
+	lua_pushboolean(lua_script->thread_state, 1);
+#endif
+	lua_setglobal(lua_script->thread_state, "IS_CLIENT");
+
+
+
 	SetCurWorldStateLockClass lock_setter(this, world_state_lock);
 	lua_script->exec();
 
