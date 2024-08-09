@@ -37,6 +37,7 @@ public:
 	void luaErrorOccurred(const std::string& msg);
 signals:;
 	void shaderChanged();
+	void openServerScriptLogSignal();
 
 private:
 	virtual void keyPressEvent(QKeyEvent* event);
@@ -55,6 +56,7 @@ private slots:;
 	void flashExecOutputTimerFired();
 	void buildCodeAndShowResults();
 	void shaderEditCursorPositionChanged();
+	void on_openServerScriptLogLabel_linkActivated(const QString& link);
 
 private:
 	std::string base_dir_path;

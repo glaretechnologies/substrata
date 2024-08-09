@@ -698,6 +698,8 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 		shader_editor->setWindowTitle("Script Editor");
 
 		QObject::connect(shader_editor, SIGNAL(shaderChanged()), SLOT(scriptChangedFromEditor()));
+
+		QObject::connect(shader_editor, SIGNAL(openServerScriptLogSignal()), this, SIGNAL(openServerScriptLogSignal()));
 	}
 
 	shader_editor->initialise(QtUtils::toIndString(this->scriptTextEdit->toPlainText()));

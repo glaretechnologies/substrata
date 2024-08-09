@@ -452,6 +452,13 @@ void ShaderEditorDialog::shaderEditCursorPositionChanged()
 }
 
 
+void ShaderEditorDialog::on_openServerScriptLogLabel_linkActivated(const QString& link)
+{
+	// Emit a signal instead of opening the link directly, so that MainWindow can get the hostname we are connected to and use that in the URL.
+	emit openServerScriptLogSignal();
+}
+
+
 void ShaderEditorDialog::printFromLuaScript(const std::string& msg)
 {
 	// Only show runtime output if the build succeeded

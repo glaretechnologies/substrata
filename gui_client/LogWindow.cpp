@@ -46,6 +46,7 @@ void LogWindow::on_openServerScriptLogLabel_linkActivated(const QString& link)
 	emit openServerScriptLogSignal();
 }
 
+
 void LogWindow::saveWindowState()
 {
 	// Save main window geometry and state

@@ -70,6 +70,7 @@ signals:;
 	void bakeObjectLightmapHighQual();
 	void removeLightmapSignal();
 	void posAndRot3DControlsToggled();
+	void openServerScriptLogSignal();
 	
 private slots:
 	void on_visitURLLabel_linkActivated(const QString& link);
