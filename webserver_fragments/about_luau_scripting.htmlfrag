@@ -461,10 +461,27 @@ The name of the secret to get.</span></div>
 
 <div class="code-func-description">
 <p>
-Get a secret string that has been set via the Account Secrets page (
+Get a secret string that has been set via the Account Secrets page (<a href="/secrets">/secrets</a>).
+This is useful for retrieving things like API keys that you want to use in a script, but don't want other users to see.
 </p>
 </div>
 
+
+
+<h2>Global variables</h2>
+
+
+<div class="code-attr"><span class="code-attr-code">this_object : Object</span>
+<span class="code-attr-descrip">The object on which the script currently being executed is defined.</span>
+</div>
+
+<div class="code-attr"><span class="code-attr-code">IS_CLIENT : boolean</span>
+<span class="code-attr-descrip">True if the script is running on the Substrata client, false if running on the server.</span>
+</div>
+
+<div class="code-attr"><span class="code-attr-code">IS_SERVER : boolean</span>
+<span class="code-attr-descrip">True if the script is running on the Substrata server, false if running on the client.</span>
+</div>
 
 
 <h2>Classes</h2>
