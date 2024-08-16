@@ -1,0 +1,12 @@
+<pages>
+	<page>
+		<url_path>/about_luau_scripting</url_path>
+		<fragment_path>about_luau_scripting.htmlfrag</fragment_path>
+		<page_title>Luau Scripting in Substrata</page_title>
+	</page>
+	<page>
+		<url_path>/example_luau_scripts</url_path>
+		<fragment_path>example_luau_scripts.htmlfrag</fragment_path>
+		<page_title>Example Luau scripts</page_title>
+	</page>
+</pages>

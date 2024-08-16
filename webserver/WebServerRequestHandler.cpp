@@ -306,10 +306,6 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderAboutScripting(*this->world_state, *this->data_store, request, reply_info);
 		}
-		else if(request.path == "/about_luau_scripting")
-		{
-			MainPageHandlers::renderAboutLuauScripting(*this->world_state, *this->data_store, request, reply_info);
-		}
 		else if(request.path == "/about_substrata")
 		{
 			MainPageHandlers::renderAboutSubstrataPage(*this->world_state, *this->data_store, request, reply_info);
@@ -669,8 +665,26 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else
 		{
-			std::string page = "Unknown page";
-			web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, page);
+			// Look up in generic pages
+			Reference<GenericPage> generic_page;
+			{
+				Lock lock(data_store->mutex);
+				const auto lookup_res = data_store->generic_pages.find(request.path);
+				if(lookup_res != data_store->generic_pages.end())
+					generic_page = lookup_res->second;
+			}
+
+			if(generic_page.nonNull())
+			{
+				MainPageHandlers::renderGenericPage(*world_state, *data_store, *generic_page, request, reply_info);
+			}
+			else
+			{
+				// If there is no generic page found, return a 404 reponse.
+
+				std::string page = "Unknown page";
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, page);
+			}
 		}
 	}
 }

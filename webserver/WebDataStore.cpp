@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include <ResponseUtils.h>
+#include <utils/XMLParseUtils.h>
+#include <utils/IndigoXMLDoc.h>
 #include <utils/MemMappedFile.h>
 #include <utils/Exception.h>
 #include <utils/StringUtils.h>
@@ -130,6 +132,9 @@ void WebDataStore::loadAndCompressFiles()
 {
 	conPrint("WebDataStore::loadAndCompressFiles");
 
+
+	parseGenericPageConfig();
+
 	//-------------- Load (HTML) fragment files --------------
 	const std::vector<std::string> fragment_filenames = FileUtils::getFilesInDir(this->fragments_dir);
 
@@ -232,4 +237,31 @@ Reference<WebDataStoreFile> WebDataStore::getFragmentFile(const std::string& pat
 		return lookup_res->second;
 	else
 		return Reference<WebDataStoreFile>();
+}
+
+
+void WebDataStore::parseGenericPageConfig()
+{
+	try
+	{
+		Lock lock(mutex);
+		generic_pages.clear();
+
+		IndigoXMLDoc doc(this->fragments_dir + "/generic_page_config.xml");
+		pugi::xml_node root_elem = doc.getRootElement();
+
+		for(pugi::xml_node n = root_elem.child("page"); n; n = n.next_sibling("page"))
+		{
+			Reference<GenericPage> page = new GenericPage();
+			page->page_title    = XMLParseUtils::parseString(n, "page_title");
+			page->fragment_path = XMLParseUtils::parseString(n, "fragment_path");
+			page->url_path      = XMLParseUtils::parseString(n, "url_path");
+
+			generic_pages[page->url_path] = page;
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WebDataStore::parseGenericPageConfig(): " + e.what());
+	}
 }
