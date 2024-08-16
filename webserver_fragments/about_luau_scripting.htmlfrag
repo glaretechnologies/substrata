@@ -362,7 +362,7 @@ doHTTPGetRequestAsync(
 
 
 
-<div class="code-func-definition">doHTTPPostRequestAsync(URL : string, post_content : string, content_type : string, additional_header_lines : table, onDone : function, onError : function)</div>
+<div class="code-func-definition" id="doHTTPPostRequestAsync">doHTTPPostRequestAsync(URL : string, post_content : string, content_type : string, additional_header_lines : table, onDone : function, onError : function)</div>
 
 <div class="code-arg"><span class="code-arg-code">URL : string</span><span class="code-arg-descrip">The URL to request.  Should be a http or https URL.</span></div>
 <div class="code-arg"><span class="code-arg-code">post_content : string</span><span class="code-arg-descrip">The main body content of the post request.</span></div>
@@ -454,7 +454,7 @@ doHTTPPostRequestAsync(
 
 
 
-<div class="code-func-definition">getSecret(secret_name : string) : string</div>
+<div class="code-func-definition" id="getSecret">getSecret(secret_name : string) : string</div>
 
 <div class="code-arg"><span class="code-arg-code">secret_name : string</span><span class="code-arg-descrip">
 The name of the secret to get.</span></div>
@@ -465,6 +465,74 @@ Get a secret string that has been set via the Account Secrets page (<a href="/se
 This is useful for retrieving things like API keys that you want to use in a script, but don't want other users to see.
 </p>
 </div>
+
+
+<pre class="code-block">
+my_api_key = getSecret("MY_API_KEY")
+</pre>
+
+
+
+<div class="code-func-definition" id="parseJSON">parseJSON(json : string) : string</div>
+
+<div class="code-arg"><span class="code-arg-code">json : string</span><span class="code-arg-descrip">
+A JSON string to parse.</span></div>
+
+<div class="code-func-description">
+<p>
+Parse a JSON string and convert it to the equivalent Lua object.
+</p>
+<p>JSON objects and arrays are converted to Lua tables.  JSON null is converted to Lua nil.
+</p>
+</div>
+
+<pre class="code-block">
+parseJSON('[123.456, true, \"abc\", null]') 
+-- returns the Lua array table {123.456, true, "abc", nil}
+</pre>
+
+<div class="code-func-definition" id="objectstorage_setItem">objectstorage.setItem(key : string, value : Any serialisable Lua value) : string</div>
+
+<div class="code-arg"><span class="code-arg-code">key : string</span><span class="code-arg-descrip">
+The storage item key.  Storage items are uniquely identified by the combination of the script object UID, and the key string.</span></div>
+
+<div class="code-arg"><span class="code-arg-code">value : Any serialisable Lua value</span><span class="code-arg-descrip">
+The value to store.  Can be a single Lua value like a number, or a Lua table.</span></div>
+
+
+<div class="code-func-description">
+<p>
+Store a value in object storage.  These values are persistently stored, and remain stored even over server restarts or script reloads and changes, unlike variables in Lua scripts.
+</p>
+<p>
+Overwrites any existing values with the given key and script object.
+</p>
+
+<p>For example, here is how you could store a visitor counter in object storage:</p>
+<pre class="code-block">
+objectstorage.setItem("num_visits", new_num_visits)
+</pre>
+
+</div>
+
+
+<div class="code-func-definition" id="objectstorage_getItem">objectstorage.getItem(key : string) : string</div>
+
+<div class="code-arg"><span class="code-arg-code">key : string</span><span class="code-arg-descrip">
+The storage item key.  Storage items are uniquely identified by the combination of the script object UID, and the key string.</span></div>
+
+
+<div class="code-func-description">
+<p>
+Retrieves a value from object storage.  Returns nil if there is no such item stored.
+</p>
+
+<pre class="code-block">
+num_visits = objectstorage.getItem("num_visits")
+</pre>
+
+</div>
+
 
 
 
