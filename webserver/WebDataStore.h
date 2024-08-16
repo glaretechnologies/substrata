@@ -25,6 +25,15 @@ public:
 };
 
 
+class GenericPage : public ThreadSafeRefCounted
+{
+public:
+	std::string page_title; // e.g. "Luau Scripting in Substrata"
+	std::string fragment_path; // e.g. "about_luau_scripting.htmlfrag"
+	std::string url_path; // e.g. "/about_luau_scripting"
+};
+
+
 /*=====================================================================
 WebDataStore
 ------------
@@ -40,6 +49,8 @@ public:
 	Reference<WebDataStoreFile> getFragmentFile(const std::string& path); // Returns NULL if not found
 
 
+	void parseGenericPageConfig();
+
 	//std::string letsencrypt_webroot;
 	std::string fragments_dir; // For HTML fragments
 	std::string public_files_dir;
@@ -51,6 +62,8 @@ public:
 	std::map<std::string, Reference<WebDataStoreFile>> public_files			GUARDED_BY(mutex);
 
 	std::map<std::string, Reference<WebDataStoreFile>> webclient_dir_files	GUARDED_BY(mutex);
+
+	std::map<std::string, Reference<GenericPage>> generic_pages				GUARDED_BY(mutex); // Map from URL path to page
 
 	Mutex mutex;
 

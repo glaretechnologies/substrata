@@ -649,11 +649,11 @@ void renderAboutScripting(ServerAllWorldsState& world_state, WebDataStore& data_
 }
 
 
-void renderAboutLuauScripting(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderGenericPage(ServerAllWorldsState& world_state, WebDataStore& data_store, const GenericPage& generic_page, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Luau Scripting in Substrata");
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/generic_page.page_title);
 	
-	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("about_luau_scripting.htmlfrag");
+	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile(generic_page.fragment_path);
 	if(store_file.nonNull())
 	{
 		page += std::string(store_file->uncompressed_data.begin(), store_file->uncompressed_data.end());
