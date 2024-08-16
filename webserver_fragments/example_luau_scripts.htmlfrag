@@ -1,0 +1,349 @@
+
+
+
+<h2>Show a message when user touches an object</h2>
+
+<p>
+Here is a very simple script that shows a message to a user when they touch an object:
+</p>
+
+<pre class="code-block">
+--lua
+
+function onUserTouchedObject(av : Avatar, ob : Object)
+	showMessageToUser("Hi " .. av.name .. ", you touched the red cube!", av)
+end
+</pre>
+<p>
+Which has this result in-world when you walk into the red cube:
+</p>
+<img src="/files/touched_cube.JPG" width="1000px" />
+
+
+
+<h2>Jump pad</h2>
+<p>When a user touches an object, it shoots the user into the air</p>
+<pre class="code-block">
+--lua
+function onUserTouchedObject(avatar : Avatar, ob : WorldObject)
+	local v = avatar.linear_velocity
+	local new_v = Vec3f(v.x, v.y, 10.0)
+	avatar.linear_velocity = new_v
+</pre>
+
+
+
+<h2>Change text when user enters parcel</h2>
+<p>This script should be applied to a text object.  It changes the text to read 'User entered parcel' when the user enters the parcels the object is in, and to 'User exited parcel' when they leave the parcel.
+It also changes the text colour.</p>
+<pre class="code-block">
+--lua 
+ 
+function onUserEnteredParcel(user : User, ob : WorldObject, parcel : Parcel)
+	ob.content = "User entered parcel"
+	mat = ob:getMaterial(0)
+	mat.colour = Vec3f(0,1,0)
+end
+
+function onUserExitedParcel(user : User, ob : WorldObject, parcel : Parcel)
+	ob.content = "User exited parcel"
+	mat = ob:getMaterial(0)
+	mat.colour = Vec3f(1,0.1,0)
+end
+
+</pre>
+
+<h2>Change object colour when user enters/exits parcel</h2>
+
+<pre class="code-block">
+--lua 
+  
+function onUserEnteredParcel(user : User, ob : WorldObject, parcel : Parcel)
+	mat = ob:getMaterial(0)
+	mat.colour = Vec3f(1,0,0)
+end
+
+function onUserExitedParcel(user : User, ob : WorldObject, parcel : Parcel)
+	mat = ob:getMaterial(0)
+	mat.colour = Vec3f(0,1,0)
+end
+</pre>
+
+
+<h2>Object that moves towards nearby users</h2>
+
+
+<pre class="code-block">
+--lua
+
+local near_user = nil
+function onTimerEvent(ob : WorldObject)
+
+	if(near_user) then
+		local dx = near_user.pos.x - ob.pos.x
+		local dy = near_user.pos.y - ob.pos.y
+		local dz = (near_user.pos.z - 1.68) - ob.pos.z
+		d = math.sqrt(dx*dx + dy*dy + dz*dz)
+		if(d &gt; 1.0) then
+			dx /= d
+			dy /= d	
+			dz /= d
+			step_dist = 0.4
+			local newx = ob.pos.x + dx * step_dist
+			local newy = ob.pos.y + dy * step_dist
+			local newz = ob.pos.z + dz * step_dist
+			ob.pos = {x=newx, y=newy, z=newz}
+		end
+	end
+end
+
+createTimer(onTimerEvent, 0.1, true)
+
+
+function onUserMovedNearToObject(user : User, ob : WorldObject)
+	print("onUserMovedNearToObject!!!")
+	near_user = user
+end
+
+function onUserMovedAwayFromObject(user : User, ob : WorldObject)
+	print("onUserMovedAwayFromObject!!!")
+	near_user = nil
+end
+</pre>
+
+
+<h2>Showing information by updating text using an external HTTP API</h2>
+<p>
+This script shows how to fetch information from somewhere else on the web, using the <a href="/about_luau_scripting#doHTTPPostRequestAsync">doHTTPPostRequestAsync</a> function.  We will use it to get the current Ethereum gas price from Infura, and update a text object in substrata
+to show the current gas price.
+</p>
+<p>
+This example uses <a href="/about_luau_scripting#parseJSON">parseJSON</a> to convert JSON returned from the HTTP request to a Lua object, and <a href="/about_luau_scripting#getSecret">getSecret</a> to get infura_project_id, which is a private API key.
+</p>
+
+<pre class="code-block">
+--lua
+
+function onDone(res)
+	print("response_code: " .. tostring(res.response_code))
+	print("response_message: " .. res.response_message)
+	print("mime_type: " .. res.mime_type)
+	print("body_data: " .. string.sub(buffer.tostring(res.body_data), 1, 100))
+
+	local data = parseJSON(buffer.tostring(res.body_data))
+	local price_num = tonumber(data.result)
+	this_object.content = "Ethereum gas price: " .. string.format("%.2f", price_num * 1.0e-9) ..
+		" Gwei"
+end
+
+function onError(res)
+	print("error_code: " .. tostring(res.error_code))
+	print("error_description: " .. res.error_description)
+end
+
+infura_project_id = getSecret('infura_project_id')
+print("infura_project_id " .. tostring(infura_project_id))
+
+function onTimerEvent()
+	print("Fetching current gas price...")
+	-- See https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_gasprice
+
+	doHTTPPostRequestAsync("https://mainnet.infura.io/v3/" .. infura_project_id,
+		'{"jsonrpc":"2.0","method":"eth_gasPrice","params": [],"id":1}', -- post content
+		"application/json", -- content type
+ 		{}, -- additional header lines
+		onDone, onError)
+end
+
+if(IS_SERVER) then
+	createTimer(onTimerEvent, 60.0, true) -- Call onTimerEvent every 60 seconds, repeatedly.
+else
+	print("running on client, not doing anything.")
+end
+</pre>
+
+
+
+<h2>Race script</h2>
+<p>This is a complete race script for bicycle races, with a leaderboard.</p>
+<p>To set it up, apply the script to an object. You will also need to create some waypoint sensor objects, then get their UIDs and edit the script to use the waypoint ids on the 'waypoint_uids' line.</p>
+<p>scoreboard_text_ob_uid should be the UID of a text object which will show the high score list</p>
+
+<p>This script uses <a href="/about_luau_scripting#objectstorage_setItem">objectstorage.setItem</a> and <a href="/about_luau_scripting#objectstorage_getItem">objectstorage.getItem</a> to store the high-score data persistently.</p>
+
+<pre class="code-block">
+--lua
+ 
+local race_info = {} -- A map from avatar UID to per-user race info.
+
+local waypoint_uids = {587, 583, 584, 585, 587} -- UIDs of waypoint sensor objects.  The first object is the start line sensor, the last object is the finish line sensor.
+local reset_ob_uid = 588 -- Touching this object will reset the race state.
+local scoreboard_text_ob_uid = 589
+
+local MAX_NUM_BEST_TIMES = 5
+local best_times = nil -- An array of the top MAX_NUM_BEST_TIMES best times.  Each entry is a table { av_uid : UID, av_name : string, time : number }
+
+best_times = objectstorage.getItem("best_times")
+--print("Result of loading best_times from object storage: " .. tostring(best_times))
+if best_times ~= nil then
+	print("loaded " .. tostring(#best_times) .. " best times from object storage!")
+else
+	print("No best times found in object storage, starting with empty best times.")
+	best_times = {}
+end
+
+
+print("best_times: ")
+print(best_times)
+print(tostring(best_times))
+
+print("race_info: ")
+print(race_info)
+print(tostring(race_info))
+
+function updateScoreboardText()
+	local s = "---Best times---\n"
+	for i = 1, #best_times do
+		s = s .. tostring(i) .. ":  " .. best_times[i].av_name .. ":  " .. string.format("%.3f", best_times[i].time) .. " s\n"
+	end
+	getObjectForUID(scoreboard_text_ob_uid).content = s
+end
+
+function checkAddTimeToBestTimes(av : Avater, time_s : number)
+	for i = 1 , #best_times do
+		if(time_s &lt; best_times[i].time) then -- If the new time was faster than time i:
+			
+			-- Move time i and other times to the right one place to the right
+			-- Do this by starting at the rightmost index we want to move the time to, copy from the index to the left, and then iterate left.
+			for z = math.min(#best_times + 1, MAX_NUM_BEST_TIMES), i+1, -1 do
+				best_times[z] = best_times[z-1]
+			end
+
+			-- Set time i
+			best_times[i] = { av_uid = av.uid, av_name = av.name, time = time_s }	
+
+			-- Save updated best times to object storage
+			objectstorage.setItem("best_times", best_times)
+	
+			updateScoreboardText()
+			return
+		end
+	end
+	-- If we got here the new time was not better than any of the existing times.
+	-- If not all slots were occupied on scoreboard:
+	if(#best_times &lt; MAX_NUM_BEST_TIMES) then
+		best_times[#best_times + 1] = { av_uid = av.uid, av_name = av.name, time = time_s } -- Add new time
+
+		-- Save updated best times to object storage
+		objectstorage.setItem("best_times", best_times)
+
+		updateScoreboardText()
+	end
+end
+
+function onUserTouchedObject(av : Avater, ob : Object)
+	print("User touched object " .. tostring(ob.uid))
+
+	-- Get or create per-user race information (user_race_info)
+	local user_race_info = race_info[av.uid]
+	if(not user_race_info) then
+		print("Making new user_race_info...")
+		user_race_info = {next_waypoint_index=1, valid=true}
+		race_info[av.uid] = user_race_info
+	end
+
+	print("user_race_info.next_waypoint_index: " .. tostring(user_race_info.next_waypoint_index) .. ", valid: " .. tostring(user_race_info.valid))
+
+	if(ob.uid == reset_ob_uid) then
+		if((user_race_info.next_waypoint_index == 1) or not user_race_info.valid) then -- If user has not started race, or their race was invalid (went through wrong gates)
+			-- Prepare to start/restart the race
+			showMessageToUser("prepare to start race, move through start gate to start!", av)
+			user_race_info.next_waypoint_index = 1
+			user_race_info.valid = true
+		end
+
+		return
+	end
+	if(not user_race_info.valid) then
+		showMessageToUser("Touch the restart object to restart the race.", av)
+		return
+	end
+	
+	if((user_race_info.next_waypoint_index &gt;= 2) and (ob.uid == waypoint_uids[user_race_info.next_waypoint_index-1])) then
+		-- User went through the same waypoint again
+		showMessageToUser("You need to go through the next waypoint!", av)
+	elseif(ob.uid == waypoint_uids[user_race_info.next_waypoint_index]) then -- If user went through correct waypoint:
+
+		if(user_race_info.next_waypoint_index == 1) then -- If user went through the start gate:
+			local vehicle = av.vehicle_inside
+			if(not vehicle) then
+				showMessageToUser("You must be in a vehicle!", av)
+				user_race_info.valid = false
+				return
+			end
+
+			if((vehicle.mass &lt; 199.99) or (vehicle.mass &gt; 200.01)) then
+				showMessageToUser("You must be in a standard bike!", av)
+				user_race_info.valid = false
+				return
+			end
+	
+			showMessageToUser("Race Started!", av)
+
+			user_race_info.vehicle = vehicle
+
+			-- Add event listener for the user exiting the vehicle, so we can disqualify them if they are racing.
+			addEventListener("onUserExitedVehicle", vehicle.uid, onUserExitedVehicle)
+
+			user_race_info.start_time = getCurrentTime()
+			user_race_info.next_waypoint_index = user_race_info.next_waypoint_index + 1
+		elseif(user_race_info.next_waypoint_index == #waypoint_uids) then -- If user went through the last gate (finish line):
+			-- race completed!
+
+			local user_time = getCurrentTime() - user_race_info.start_time
+			showMessageToUser("Finish!  your time: " .. string.format("%.3f", user_time) .. " s", av)
+			
+			checkAddTimeToBestTimes(av, user_time)
+			--if(user_time &lt; best_time) then
+			--	print("You set the best time..")
+			--	best_time = user_time
+			--	getObjectForUID(scoreboard_text_ob_uid).content = "Best time: " .. string.format("%.3f", user_time) .. " s by " .. av.name
+			--end
+
+			--user_race_info.next_waypoint_index = 1 -- restart
+		
+			-- Now that the race is completed, just mark it as invalid, so we won't get messages when exiting vehicle etc.
+			user_race_info.valid = false
+		else
+			showMessageToUser("waypoint " .. tostring(user_race_info.next_waypoint_index - 1) .. "/" .. tostring(#waypoint_uids - 2) .. " done", av)
+			user_race_info.next_waypoint_index = user_race_info.next_waypoint_index + 1
+		end
+			
+	else -- else if user went through an incorrect gate (wrong order):
+
+		showMessageToUser("You went through the wrong waypoint!", av)
+		user_race_info.valid = false
+	end
+end
+
+function onUserExitedVehicle(av : Avatar, vehicle : Object)
+	print("onUserExitedVehicle")
+	local user_race_info = race_info[av.uid]
+	if(user_race_info and user_race_info.valid) then
+		showMessageToUser("You exited your vehicle during the race and were disqualified!", av)
+		user_race_info.valid = false
+	end
+end
+
+
+-- Add event listeners for the onUserTouchedObject event on our waypoint sensor objects
+for key, uid in waypoint_uids do
+	addEventListener("onUserTouchedObject", uid, onUserTouchedObject)
+end
+addEventListener("onUserTouchedObject", reset_ob_uid, onUserTouchedObject)
+</pre>
+
+
+
+<br/><br/>
+<a href="/">&lt; Home</a>
