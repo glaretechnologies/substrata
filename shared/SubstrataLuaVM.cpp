@@ -862,7 +862,7 @@ static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JS
 			runtimeCheck(node.child_indices[i] < (uint32)parser.nodes.size());
 			pushJSONLuaNode(state, parser, parser.nodes[node.child_indices[i]]);
 
-			lua_rawseti(state, /*table index=*/-2, 1 + i);
+			lua_rawseti(state, /*table index=*/-2, 1 + (int)i);
 		}
 
 		break;
