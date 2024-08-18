@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1107</width>
-    <height>827</height>
+    <width>1111</width>
+    <height>836</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -198,7 +198,7 @@
     <item>
      <widget class="QLabel" name="label_2">
       <property name="text">
-       <string>&lt;a href=&quot;https://substrata.info/about_scripting&quot;&gt;Scripting documentation&lt;/a&gt;</string>
+       <string>&lt;a href=&quot;https://substrata.info/about_scripting&quot;&gt;Scripting documentation&lt;/a&gt;  &amp;nbsp; &amp;nbsp; &amp;nbsp;    &lt;a href=&quot;https://substrata.info/example_luau_scripts&quot;&gt;Example Luau scripts&lt;/a&gt;</string>
       </property>
       <property name="textFormat">
        <enum>Qt::RichText</enum>
