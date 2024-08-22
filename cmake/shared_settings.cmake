@@ -82,6 +82,8 @@ ${GRAPHICS_DIR}/TextureProcessingTests.h
 ${GRAPHICS_DIR}/TextureData.h
 ${GRAPHICS_DIR}/SRGBUtils.cpp
 ${GRAPHICS_DIR}/SRGBUtils.h
+${GRAPHICS_DIR}/ShelfPack.cpp
+${GRAPHICS_DIR}/ShelfPack.h
 # TextRenderer isn't used by server, include directly in gui_client cmake.
 )
 
