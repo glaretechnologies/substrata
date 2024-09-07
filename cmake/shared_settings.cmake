@@ -61,6 +61,8 @@ ${GRAPHICS_DIR}/jpegdecoder.cpp
 ${GRAPHICS_DIR}/jpegdecoder.h
 ${GRAPHICS_DIR}/KTXDecoder.cpp
 ${GRAPHICS_DIR}/KTXDecoder.h
+${GRAPHICS_DIR}/BasisDecoder.cpp
+${GRAPHICS_DIR}/BasisDecoder.h
 ${GRAPHICS_DIR}/Map2D.cpp
 ${GRAPHICS_DIR}/Map2D.h
 ${GRAPHICS_DIR}/MeshSimplification.cpp
@@ -79,6 +81,7 @@ ${GRAPHICS_DIR}/TextureProcessing.cpp
 ${GRAPHICS_DIR}/TextureProcessing.h
 ${GRAPHICS_DIR}/TextureProcessingTests.cpp
 ${GRAPHICS_DIR}/TextureProcessingTests.h
+${GRAPHICS_DIR}/TextureData.cpp
 ${GRAPHICS_DIR}/TextureData.h
 ${GRAPHICS_DIR}/SRGBUtils.cpp
 ${GRAPHICS_DIR}/SRGBUtils.h
@@ -470,7 +473,7 @@ include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/dll/include)
 
 
 
-set(basisu_dir ../basis_universal)
+set(basisu_dir ${GLARE_CORE_TRUNK_DIR_ENV}/basis_universal)
 set(basisu_files
 ${basisu_dir}/encoder/basisu_backend.cpp
 ${basisu_dir}/encoder/basisu_backend.h
