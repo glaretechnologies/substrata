@@ -27,6 +27,9 @@ namespace LODGeneration
 
 BatchedMeshRef loadModel(const std::string& model_path);
 
+BatchedMeshRef computeLODModel(BatchedMeshRef batched_mesh, int lod_level);
+
+// Generate and save to disk
 void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::string& LOD_model_path);
 
 void generateLODModel(const std::string& model_path, int lod_level, const std::string& LOD_model_path);

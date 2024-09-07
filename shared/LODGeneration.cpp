@@ -95,14 +95,14 @@ BatchedMeshRef loadModel(const std::string& model_path)
 }
 
 
-void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::string& LOD_model_path)
+BatchedMeshRef computeLODModel(BatchedMeshRef batched_mesh, int lod_level)
 {
 	BatchedMeshRef simplified_mesh;
 	if(lod_level == 1)
 	{
 		simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/10.f, /*target_error=*/0.02f, /*sloppy=*/false);
 		
-		// If we acheived less than a 4x reduction in the number of vertices (and this is a med/large mesh), try again with sloppy simplification
+		// If we achieved less than a 4x reduction in the number of vertices (and this is a med/large mesh), try again with sloppy simplification
 		if((batched_mesh->numVerts() > 1024) && // if this is a med/large mesh
 			((float)simplified_mesh->numVerts() > (batched_mesh->numVerts() / 4.f)))
 		{
@@ -114,7 +114,13 @@ void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::str
 		assert(lod_level == 2);
 		simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/100.f, /*target_error=*/0.08f, /*sloppy=*/true);
 	}
+	return simplified_mesh;
+}
 
+
+void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::string& LOD_model_path)
+{
+	BatchedMeshRef simplified_mesh = computeLODModel(batched_mesh, lod_level);
 	simplified_mesh->writeToFile(LOD_model_path);
 }
 
