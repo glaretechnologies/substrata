@@ -150,7 +150,7 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	mat_out.metallic_fraction	= ScalarVal(this->metallicFractionDoubleSpinBox->value());
 	mat_out.opacity				= ScalarVal(this->opacityDoubleSpinBox->value());
 
-	mat_out.flags = 0;
+	// NOTE: don't zero flags, so that COLOUR_TEX_HAS_ALPHA_FLAG etc. are maintained.
 	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::HOLOGRAM_FLAG, this->hologramCheckBox->isChecked());
 
 	mat_out.roughness.texture_url = QtUtils::toIndString(this->metallicRoughnessFileSelectWidget->filename());
