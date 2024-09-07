@@ -79,6 +79,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../networking/URL.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/SRGBUtils.h"
+#include "../graphics/BasisDecoder.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../opengl/OpenGLShader.h"
@@ -230,6 +231,7 @@ void GUIClient::staticInit()
 	TLSSocket::initTLS();
 #endif
 	PlatformUtils::ignoreUnixSignals();
+	BasisDecoder::init();
 }
 
 

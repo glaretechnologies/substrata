@@ -164,7 +164,7 @@ endif()
 # add_definitions(-DBASISD_SUPPORT_UASTC=0)
 # add_definitions(-DBASISD_SUPPORT_ASTC=0)
 
-add_definitions(-DBASIS_NO_IMAGE_READERS=1)
+add_definitions(-DBASIS_NO_IMAGE_READERS=1) # Disable PNG and JPG reading code in basis encoder.
 
 
 
@@ -257,7 +257,7 @@ ${meshoptimizer}
 ${webclient_files}
 ${substrata_private_webserver}
 ${substrata_private_server}
-#${basisu_files}
+${basisu_files}
 ${luau_vm}
 ${luau_compiler}
 ${lua}
