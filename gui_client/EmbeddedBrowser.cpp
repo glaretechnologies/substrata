@@ -95,7 +95,7 @@ public:
 						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while uploading to texture buffer.
 
 						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
-						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, width * rect.height * 4), /*bind_needed=*/true);
+						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, /*z=*/0, rect.width, rect.height, /*region depth=*/1, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, width * rect.height * 4), /*bind_needed=*/true);
 					}
 				}
 				else
