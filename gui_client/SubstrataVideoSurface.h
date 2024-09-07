@@ -94,7 +94,7 @@ public:
 				format.frameWidth(), format.frameHeight(),
 				NULL, // opengl engine
 				ArrayRef<uint8>(NULL, 0), // tex data
-				OpenGLTexture::Format_SRGB_Uint8,
+				OpenGLTextureFormat::Format_SRGB_Uint8,
 				GL_RGB, // GL internal format (num channels)
 				GL_BGRA, // GL pixel format.  Video frames are BGRA.
 				OpenGLTexture::Filtering_Bilinear,

@@ -39,12 +39,12 @@ static void convertTextureToCompressedKTX2File(KTXDecoder::Format ktx_format, co
 			
 		Reference<TextureData> tex_data = TextureProcessing::buildTextureData(im.ptr(), &allocator, NULL, /*allow compression=*/true, /*build mipmaps=*/true);
 
-		std::vector<std::vector<uint8> > level_image_data(tex_data->num_mip_levels);
+		std::vector<std::vector<uint8> > level_image_data(tex_data->level_offsets.size());
 		for(size_t k=0; k<level_image_data.size(); ++k)
 		{
 			const size_t level_W = myMax((size_t)1, im->getMapWidth()  / ((size_t)1 << k));
 			const size_t level_H = myMax((size_t)1, im->getMapHeight() / ((size_t)1 << k));
-			const size_t level_compressed_size = DXTCompression::getCompressedSizeBytes(level_W, level_H, tex_data->bytes_pp);
+			const size_t level_compressed_size = DXTCompression::getCompressedSizeBytes(level_W, level_H, tex_data->numChannels());
 
 			level_image_data[k].resize(level_compressed_size);
 

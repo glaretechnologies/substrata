@@ -78,7 +78,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 
 	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_minimap", /*default_value=*/true);
 	
-	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
+	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTextureFormat::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
 	// Create minimap image
 	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", Vec2f(1 - margin - minimap_width, gl_ui->getViewportMinMaxY() - margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
