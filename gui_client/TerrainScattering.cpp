@@ -483,7 +483,7 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 	{
 		section.mask_map_gl_tex = new OpenGLTexture(detail_mask_map_width_px, detail_mask_map_width_px, /*opengl_engine=*/opengl_engine,
 			ArrayRef<uint8>(NULL, 0),
-			OpenGLTexture::Format_RGB_Linear_Uint8, // Format_Greyscale_Uint8 doesn't seem to work. (Framebuffer not complete)
+			OpenGLTextureFormat::Format_RGB_Linear_Uint8, // Format_Greyscale_Uint8 doesn't seem to work. (Framebuffer not complete)
 			OpenGLTexture::Filtering_Bilinear
 		);
 	}

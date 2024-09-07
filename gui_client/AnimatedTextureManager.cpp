@@ -175,7 +175,7 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 			const int height = myClamp((int)(1024 * use_height_over_width), 16, 2048);
 
 			std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
-			OpenGLTextureRef new_tex /*mat.albedo_texture*/ = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
+			OpenGLTextureRef new_tex /*mat.albedo_texture*/ = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTextureFormat::Format_SRGBA_Uint8,
 				GL_SRGB8_ALPHA8, // GL internal format
 				GL_BGRA, // GL format.
 				OpenGLTexture::Filtering_Bilinear);

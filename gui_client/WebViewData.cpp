@@ -128,7 +128,7 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
 						std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
-						ob->opengl_engine_ob->materials[0].emission_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
+						ob->opengl_engine_ob->materials[0].emission_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTextureFormat::Format_SRGBA_Uint8,
 							GL_SRGB8_ALPHA8, // GL internal format
 							GL_BGRA, // GL format.
 							OpenGLTexture::Filtering_Bilinear);
