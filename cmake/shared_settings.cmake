@@ -172,6 +172,8 @@ ${UTILS_DIR}/FileOutStream.cpp
 ${UTILS_DIR}/FileOutStream.h
 ${UTILS_DIR}/FileUtils.cpp
 ${UTILS_DIR}/FileUtils.h
+${UTILS_DIR}/GlareString.cpp
+${UTILS_DIR}/GlareString.h
 ${UTILS_DIR}/IncludeWindows.h
 ${UTILS_DIR}/AtomicInt.cpp
 ${UTILS_DIR}/AtomicInt.h
@@ -318,23 +320,25 @@ endif()
 # Since we using Jolt for now, don't need a lot of this physics stuff.
 set(PHYSICS_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/physics")
 set(physics
-#${PHYSICS_DIR}/BVH.cpp
-#${PHYSICS_DIR}/BVH.h
-#${PHYSICS_DIR}/BVHBuilder.cpp
-#${PHYSICS_DIR}/BVHBuilder.h
+${PHYSICS_DIR}/BVH.cpp
+${PHYSICS_DIR}/BVH.h
+${PHYSICS_DIR}/BVHBuilder.cpp
+${PHYSICS_DIR}/BVHBuilder.h
+${PHYSICS_DIR}/BVHBuilderTestUtils.cpp
+${PHYSICS_DIR}/BVHBuilderTestUtils.h
 #${PHYSICS_DIR}/BVHBuilderTests.cpp
 #${PHYSICS_DIR}/BVHBuilderTests.h
 ${PHYSICS_DIR}/jscol_aabbox.cpp
 ${PHYSICS_DIR}/jscol_aabbox.h
 #${PHYSICS_DIR}/jscol_boundingsphere.h
-#${PHYSICS_DIR}/jscol_Tree.cpp
-#${PHYSICS_DIR}/jscol_Tree.h
-#${PHYSICS_DIR}/jscol_triangle.cpp
-#${PHYSICS_DIR}/jscol_triangle.h
-#${PHYSICS_DIR}/MollerTrumboreTri.cpp
-#${PHYSICS_DIR}/MollerTrumboreTri.h
-#${PHYSICS_DIR}/BinningBVHBuilder.cpp
-#${PHYSICS_DIR}/BinningBVHBuilder.h
+${PHYSICS_DIR}/jscol_Tree.cpp
+${PHYSICS_DIR}/jscol_Tree.h
+${PHYSICS_DIR}/jscol_triangle.cpp
+${PHYSICS_DIR}/jscol_triangle.h
+${PHYSICS_DIR}/MollerTrumboreTri.cpp
+${PHYSICS_DIR}/MollerTrumboreTri.h
+${PHYSICS_DIR}/BinningBVHBuilder.cpp
+${PHYSICS_DIR}/BinningBVHBuilder.h
 #${PHYSICS_DIR}/NonBinningBVHBuilder.cpp
 #${PHYSICS_DIR}/NonBinningBVHBuilder.h
 #${PHYSICS_DIR}/SBVHBuilder.cpp
