@@ -23,7 +23,12 @@ class VoxelMeshBuilding
 {
 public:
 	// If mats_transparent is lacking entries for a particular material index, the material is assumed to be opaque.
-	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, bool generate_shading_normals, const js::Vector<bool, 16>& mats_transparent,
+	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, const js::Vector<bool, 16>& mats_transparent,
+		glare::Allocator* mem_allocator);
+
+
+	// Build a mesh with shading normals and UVs.  This is used in ChunkGenThread.
+	static Reference<Indigo::Mesh> makeIndigoMeshWithShadingNormalsForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, const js::Vector<bool, 16>& mats_transparent,
 		glare::Allocator* mem_allocator);
 
 	static void test();
