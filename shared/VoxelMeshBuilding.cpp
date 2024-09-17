@@ -26,7 +26,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <limits>
 
 
-#if 0
 class VoxelHashFunc
 {
 public:
@@ -35,7 +34,6 @@ public:
 		return hashBytes((const uint8*)&v.x, sizeof(int)*3); // TODO: use better hash func.
 	}
 };
-#endif
 
 
 struct VoxelBounds
@@ -711,11 +709,25 @@ struct VoxelVertInfoHashFunc
 };
 
 
-#if 0
 // Does greedy meshing
 // Computes vertex normals, thereby avoiding reusing vertices with the same positions but different normals.
-static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js::Vector<Voxel, 16>& voxels, const size_t num_mats, const HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc>& voxel_hash)
+Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshWithShadingNormalsForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, const js::Vector<bool, 16>& mats_transparent,
+		glare::Allocator* mem_allocator)
 {
+	const glare::AllocatorVector<Voxel, 16>& voxels = voxel_group.voxels;
+	HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/Vec3<int>(1000000));
+
+	int max_mat_index = 0;
+	for(size_t i=0; i<voxels.size(); ++i)
+	{
+		const Vec3i p(voxels[i].pos.x / subsample_factor, voxels[i].pos.y / subsample_factor, voxels[i].pos.z / subsample_factor);
+		voxel_hash[p] = voxels[i].mat_index;
+		max_mat_index = myMax(max_mat_index, voxels[i].mat_index);
+	}
+
+	const int num_mats = max_mat_index + 1;
+
+
 	Reference<Indigo::Mesh> mesh = new Indigo::Mesh();
 
 	VoxelVertInfo vertpos_empty_key;
@@ -725,9 +737,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 
 	mesh->vert_positions.reserve(voxels.size());
 	mesh->vert_normals.reserve(voxels.size());
+	mesh->uv_pairs.reserve(voxels.size());
 	mesh->triangles.reserve(voxels.size());
 
-	mesh->setMaxNumTexcoordSets(0);
+	mesh->setMaxNumTexcoordSets(1);
 
 	VoxelBounds b;
 	b.min = Vec3<int>( 1000000000);
@@ -735,9 +748,11 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 	std::vector<VoxelBounds> mat_vox_bounds(num_mats, b);
 	for(size_t i=0; i<voxels.size(); ++i) // For each mat
 	{
+		const Vec3i p(voxels[i].pos.x / subsample_factor, voxels[i].pos.y / subsample_factor, voxels[i].pos.z / subsample_factor);
+
 		const int mat_index = voxels[i].mat_index;
-		mat_vox_bounds[mat_index].min = mat_vox_bounds[mat_index].min.min(voxels[i].pos);
-		mat_vox_bounds[mat_index].max = mat_vox_bounds[mat_index].max.max(voxels[i].pos);
+		mat_vox_bounds[mat_index].min = mat_vox_bounds[mat_index].min.min(p);
+		mat_vox_bounds[mat_index].max = mat_vox_bounds[mat_index].max.max(p);
 	}
 
 	for(size_t mat_i=0; mat_i<num_mats; ++mat_i) // For each mat
@@ -894,6 +909,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_down);
+								mesh->uv_pairs.push_back(
+									(dim == 0)  ? Indigo::Vec2f(-(float)start_x, (float)start_y) : 
+									((dim == 1) ? Indigo::Vec2f( (float)start_y, (float)start_x) : 
+									              Indigo::Vec2f(-(float)start_x, (float)start_y)));
 							}
 						}
 						{
@@ -908,6 +927,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_down);
+								mesh->uv_pairs.push_back(
+									(dim == 0) ? Indigo::Vec2f(-(float)start_x, (float)end_y) : 
+									(dim == 1) ? Indigo::Vec2f( (float)end_y, (float)start_x) : 
+									             Indigo::Vec2f(-(float)start_x, (float)end_y));
 							}
 						}
 						{
@@ -922,6 +945,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_down);
+								mesh->uv_pairs.push_back(
+									(dim == 0) ? Indigo::Vec2f(-(float)end_x, (float)end_y) :
+									(dim == 1) ? Indigo::Vec2f( (float)end_y, (float)end_x) : 
+									             Indigo::Vec2f(-(float)end_x, (float)end_y));
 							}
 						}
 						{
@@ -936,6 +963,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_down);
+								mesh->uv_pairs.push_back(
+									(dim == 0) ? Indigo::Vec2f(-(float)end_x, (float)start_y) :
+									(dim == 1) ? Indigo::Vec2f( (float)start_y, (float)end_x) : 
+									             Indigo::Vec2f(-(float)end_x, (float)start_y));
 							}
 						}
 
@@ -947,17 +978,17 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 						mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
 						mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
 						mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
-						mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-						mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-						mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 0].uv_indices[0]     = v_i[0];
+						mesh->triangles[tri_start + 0].uv_indices[1]     = v_i[1];
+						mesh->triangles[tri_start + 0].uv_indices[2]     = v_i[2];
 						mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
 						
 						mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
 						mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
 						mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
-						mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-						mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-						mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 1].uv_indices[0]     = v_i[0];
+						mesh->triangles[tri_start + 1].uv_indices[1]     = v_i[2];
+						mesh->triangles[tri_start + 1].uv_indices[2]     = v_i[3];
 						mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
 					}
 				}
@@ -1058,6 +1089,9 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_up);
+								mesh->uv_pairs.push_back((dim == 1) ? 
+									Indigo::Vec2f(-(float)start_y, (float)start_x) : 
+									Indigo::Vec2f((float)start_x, (float)start_y));
 							}
 						}
 						{ // bot right
@@ -1071,6 +1105,9 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_up);
+								mesh->uv_pairs.push_back((dim == 1) ? 
+									Indigo::Vec2f(-(float)start_y, (float)end_x) : 
+									Indigo::Vec2f((float)end_x, (float)start_y));
 							}
 						}
 						{ // top right
@@ -1084,6 +1121,9 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_up);
+								mesh->uv_pairs.push_back((dim == 1) ? 
+									Indigo::Vec2f(-(float)end_y, (float)end_x) : 
+									Indigo::Vec2f((float)end_x, (float)end_y));
 							}
 						}
 						{ // top left
@@ -1097,6 +1137,9 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 							{
 								mesh->vert_positions.push_back(v);
 								mesh->vert_normals.push_back(normal_up);
+								mesh->uv_pairs.push_back((dim == 1) ? 
+									Indigo::Vec2f(-(float)end_y, (float)start_x) : 
+									Indigo::Vec2f((float)start_x, (float)end_y));
 							}
 						}
 							
@@ -1106,17 +1149,17 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 						mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
 						mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
 						mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
-						mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-						mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-						mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 0].uv_indices[0]     = v_i[0];
+						mesh->triangles[tri_start + 0].uv_indices[1]     = v_i[1];
+						mesh->triangles[tri_start + 0].uv_indices[2]     = v_i[2];
 						mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
 
 						mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
 						mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
 						mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
-						mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-						mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-						mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 1].uv_indices[0]     = v_i[0];
+						mesh->triangles[tri_start + 1].uv_indices[1]     = v_i[2];
+						mesh->triangles[tri_start + 1].uv_indices[2]     = v_i[3];
 						mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
 					}
 				}
@@ -1128,10 +1171,9 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 	assert(isFinite(mesh->aabb_os.bound[0].x));
 	return mesh;
 }
-#endif
 
 
-Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, bool generate_shading_normals, const js::Vector<bool, 16>& mats_transparent,
+Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, const js::Vector<bool, 16>& mats_transparent,
 	glare::Allocator* mem_allocator)
 {
 	assert(voxel_group.voxels.size() > 0);
@@ -1188,7 +1230,7 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
@@ -1196,7 +1238,7 @@ void VoxelMeshBuilding::test()
 		testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(1,1,1));
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, mat_transparent, /*allocator=*/NULL);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 		testAssert(data->aabb_os.bound[0] == Indigo::Vec3f(0,0,0));
@@ -1210,7 +1252,7 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
@@ -1237,7 +1279,7 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 6 * 6 * 2);
@@ -1245,7 +1287,7 @@ void VoxelMeshBuilding::test()
 		testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(51,1,2));
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, mat_transparent, /*allocator=*/NULL);
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 6 * 6 * 2);
 		testAssert(data->aabb_os.bound[0] == Indigo::Vec3f(0,0,0));
@@ -1262,13 +1304,13 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, mat_transparent, /*allocator=*/NULL);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1281,13 +1323,13 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, mat_transparent, /*allocator=*/NULL);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1300,13 +1342,13 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, mat_transparent, /*allocator=*/NULL);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1319,13 +1361,13 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent(2, false);
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 2 * 5 * 2); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, mat_transparent, /*allocator=*/NULL);
 		testAssert(data->num_materials_referenced <= 2);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1339,7 +1381,7 @@ void VoxelMeshBuilding::test()
 		js::Vector<bool, 16> mat_transparent(2, false);
 		mat_transparent[1] = true;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 11 * 2); // Each voxel should have 5 faces, plus the face in the middle, * 2 triangles/face.
@@ -1352,7 +1394,7 @@ void VoxelMeshBuilding::test()
 		testAssert(num_tris_with_mat_0 == 6 * 2);
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, mat_transparent, /*allocator=*/NULL);
 		testAssert(data->num_materials_referenced <= 2);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1371,7 +1413,7 @@ void VoxelMeshBuilding::test()
 
 		js::Vector<bool, 16> mat_transparent(1, false);
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->vert_positions.size() == 8 * 8); // 8 voxels * 8 vertices (corners) / voxel
@@ -1411,7 +1453,7 @@ void VoxelMeshBuilding::test()
 				{
 					Timer timer;
 
-					Reference<Indigo::Mesh> indigo_mesh = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+					Reference<Indigo::Mesh> indigo_mesh = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
 					conPrint("Resulting num tris: " + toString(indigo_mesh->triangles.size()));
@@ -1425,7 +1467,7 @@ void VoxelMeshBuilding::test()
 				{
 					Timer timer;
 
-					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, mat_transparent, /*allocator=*/NULL);
 
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=2 took " + timer.elapsedString());
 					conPrint("Resulting num tris: " + toString(data->triangles.size()));
@@ -1445,7 +1487,7 @@ void VoxelMeshBuilding::test()
 
 				Timer timer;
 
-				Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent, /*allocator=*/NULL);
+				Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, mat_transparent, /*allocator=*/NULL);
 
 				conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 				conPrint("Resulting num tris: " + toString(data->triangles.size()));
