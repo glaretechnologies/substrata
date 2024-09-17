@@ -66,9 +66,9 @@ else()
 endif()
 
 add_definitions(-DNO_EMBREE)
-add_definitions(-DGEOMETRY_NO_TREE_BUILD_SUPPORT) # Don't build BVH stuff, using Jolt for now.
 add_definitions(-DMAP2D_FILTERING_SUPPORT=1)
 add_definitions(-DUSING_LIBRESSL)
+add_definitions(-DRAYMESH_TRACING_SUPPORT=1)
 
 add_definitions(-DCMS_NO_REGISTER_KEYWORD) # Tell Little CMS not to use the register keyword, gives warnings and/or errors.
 add_definitions(-DNO_LCMS_SUPPORT=1) # Disable Little CMS support, to reduce overall code size, and since we only need it for loading CMYK jpegs which are rare.
