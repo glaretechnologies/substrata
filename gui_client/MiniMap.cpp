@@ -131,6 +131,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	scene->shadow_mapping = false;
 	scene->draw_water = false;
 	scene->render_to_main_render_framebuffer = false;
+	scene->collect_stats = false;
 	scene->use_z_up = false;
 	scene->env_ob = NULL;
 
