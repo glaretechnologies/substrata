@@ -1500,7 +1500,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Timer timer;
 	StandardPrintOutput print_output;
 
-	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, /*generate_shading_normals=*/false, mats_transparent, mem_allocator);
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, mats_transparent, mem_allocator);
 	// We will compute geometric normals in the opengl shader, so don't need to compute them here.
 
 	if(need_lightmap_uvs)
