@@ -261,6 +261,7 @@ ${basisu_files}
 ${luau_vm}
 ${luau_compiler}
 ${lua}
+${natvis_files}
 )
 
 
