@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <graphics/EXRDecoder.h>
 #include <graphics/GifDecoder.h>
 #include <graphics/KTXDecoder.h>
+#include <graphics/BasisDecoder.h>
 #include <graphics/Map2D.h>
 #include <utils/StringUtils.h>
 #include <maths/mathstypes.h>
@@ -50,6 +51,10 @@ Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, 
 	{
 		return KTXDecoder::decodeKTX2(path, mem_allocator);
 	}
+	else if(hasExtension(path, "basis"))
+	{
+		return BasisDecoder::decode(path, mem_allocator);
+	}
 	else
 	{
 		throw glare::Exception("Unhandled image format ('" + getExtension(path) + "')");
@@ -66,7 +71,8 @@ bool ImageDecoding::isSupportedImageExtension(string_view extension)
 		StringUtils::equalCaseInsensitive(extension, "exr") ||
 		StringUtils::equalCaseInsensitive(extension, "gif") ||
 		StringUtils::equalCaseInsensitive(extension, "ktx") ||
-		StringUtils::equalCaseInsensitive(extension, "ktx2");
+		StringUtils::equalCaseInsensitive(extension, "ktx2") ||
+		StringUtils::equalCaseInsensitive(extension, "basis");
 }
 
 
@@ -120,6 +126,11 @@ bool ImageDecoding::areMagicBytesValid(const void* data, size_t data_len, string
 	else if(StringUtils::equalCaseInsensitive(extension, "ktx2"))
 	{
 		const uint8 magic_bytes[] = { 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A }; // https://registry.khronos.org/KTX/specs/2.0/ktxspec.v2.html
+		return firstNBytesMatch(data, data_len, magic_bytes, staticArrayNumElems(magic_bytes));
+	}
+	else if(StringUtils::equalCaseInsensitive(extension, "basis"))
+	{
+		const uint8 magic_bytes[] = { 0x73, 0x42, 0x13, 0x00 }; // Basis files in testfiles have these bytes in common.
 		return firstNBytesMatch(data, data_len, magic_bytes, staticArrayNumElems(magic_bytes));
 	}
 	else
