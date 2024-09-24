@@ -1082,9 +1082,8 @@ void ChunkGenThread::doRun()
 					{
 						LODChunk* chunk = chunk_it->second.ptr();
 
-						//TEMP HACK:
-						if(it->first == "")// && chunk->coords == Vec3i(0, 0, 0)) // if main world
-							chunk->needs_rebuild = true;
+						//if(it->first == "")// && chunk->coords == Vec3i(0, 0, 0)) // if main world
+						//	chunk->needs_rebuild = true;
 
 						if(chunk->needs_rebuild)
 							dirty_chunks.push_back({chunk, world_state});
