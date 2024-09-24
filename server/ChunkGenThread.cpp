@@ -11,16 +11,11 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/VoxelMeshBuilding.h"
 #include "../shared/ImageDecoding.h"
 #include <graphics/MeshSimplification.h>
-#include <graphics/formatdecoderobj.h>
-#include <graphics/FormatDecoderSTL.h>
-#include <graphics/FormatDecoderGLTF.h>
 #include <graphics/GifDecoder.h>
-#include <graphics/jpegdecoder.h>
-#include <graphics/PNGDecoder.h>
 #include <graphics/ImageMapSequence.h>
 #include <graphics/Map2D.h>
 #include <graphics/ImageMap.h>
-#include <graphics/ShelfPack.h>
+#include <graphics/SRGBUtils.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <dll/IndigoStringUtils.h>
@@ -29,7 +24,6 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/Lock.h>
 #include <utils/StringUtils.h>
 #include <utils/PlatformUtils.h>
-#include <utils/KillThreadMessage.h>
 #include <utils/Timer.h>
 #include <utils/TaskManager.h>
 #include <utils/IncludeHalf.h>
@@ -40,10 +34,12 @@ Copyright Glare Technologies Limited 2024 -
 #if !GUI_CLIENT
 #include <encoder/basisu_comp.h>
 #endif
+#include <zstd.h>
+#include <FileChecksum.h>
 
 
-ChunkGenThread::ChunkGenThread(ServerAllWorldsState* world_state_)
-:	world_state(world_state_)
+ChunkGenThread::ChunkGenThread(ServerAllWorldsState* all_worlds_state_)
+:	all_worlds_state(all_worlds_state_)
 {
 }
 
@@ -61,7 +57,7 @@ struct MatInfo
 	float emission_lum_flux_or_lum;
 	float roughness;
 	float metallic;
-	Colour3f colour_rgb;
+	Colour3f colour_rgb; // non-linear
 	float opacity;
 };
 
@@ -74,34 +70,48 @@ struct ObInfo
 	uint32 object_type;
 	std::vector<MatInfo> mat_info;
 	float ob_to_world_scale;
-
-	int output_mat_info_start_index;
 };
-
-struct TexMapInfo
-{
-	TexMapInfo() {} //: largest_use_tex_w(0), largest_use_tex_h(0) {}
-
-	std::string tex_path;
-	int array_image_index;
-
-	//size_t tex_w, tex_h;
-	//float largest_use_tex_w, largest_use_tex_h;
-};
-
 
 struct OutputMatInfo
 {
 	// From WorldMaterial:
-	Matrix2f tex_matrix_col_major;
-	float emission_lum_flux_or_lum;
-	float roughness;
-	float metallic;
-	Colour3f colour_rgb;
+	Matrix2f tex_matrix_col_major; // 0 - 3
+	float emission_lum_flux_or_lum; // 4
+	float roughness; // 5
+	float metallic; // 6
+	Colour3f linear_colour_rgb; // 7, 8, 9
 
-	float flags;
-	float array_image_index;
+	float flags; // 10
+	float array_image_index; // 11
 };
+
+
+struct ChunkBuildResults
+{
+	js::Vector<OutputMatInfo> output_mat_infos;
+	std::string combined_mesh_path;
+	uint64 combined_mesh_hash;
+	std::string combined_texture_path;
+	uint64 combined_texture_hash;
+};
+
+
+// NOTE: code dupliacated from ModelLoading.cpp
+static inline Colour3f sanitiseAlbedoColour(const Colour3f& col)
+{
+	const Colour3f clamped = col.clamp(0.f, 1.f);
+	if(clamped.isFinite()) // Check for NaN components
+		return clamped;
+	else
+		return Colour3f(0.2f);
+}
+
+
+static inline Colour3f sanitiseAndConvertToLinearAlbedoColour(const Colour3f& col)
+{
+	return toLinearSRGB(sanitiseAlbedoColour(col));
+}
+
 
 
 // NOTE: code duplicated from PhysicsWorld.cpp.  Factor out?
@@ -119,7 +129,7 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 	}
 	else
 	{
-		assert(joints_component_type == BatchedMesh::ComponentType_UInt16);
+		runtimeCheck(joints_component_type == BatchedMesh::ComponentType_UInt16);
 
 		uint16 joints[4];
 		std::memcpy(joints, &src_vertex_data[i * vert_size_B + joint_offset_B], sizeof(uint16) * 4);
@@ -145,7 +155,7 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 	}
 	else
 	{
-		assert(weights_component_type == BatchedMesh::ComponentType_Float);
+		runtimeCheck(weights_component_type == BatchedMesh::ComponentType_Float);
 
 		std::memcpy(use_weights, &src_vertex_data[i * vert_size_B + weights_offset_B], sizeof(float) * 4);
 	}
@@ -236,89 +246,19 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, Matrix4f& voxel_sc
 }
 
 
-static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
+static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_paths, glare::TaskManager& task_manager, int chunk_x, int chunk_y, std::map<std::string, int>& array_image_indices_out,
+	std::string& combined_texture_path_out, uint64& combined_texture_hash_out)
 {
-	const bool DO_TEXTURES = false;
-
-	//-------------------------- Build tex_map_infos ------------------------------
-	std::map<std::string, TexMapInfo> tex_map_infos; // Map from tex_path to TexMapInfo
-
-	if(DO_TEXTURES)
-	for(size_t i=0; i<ob_infos.size(); ++i)
-	{
-		const ObInfo& ob_info = ob_infos[i];
-		for(size_t m=0; m<ob_info.mat_info.size(); ++m)
-		{
-			const MatInfo& mat_info = ob_info.mat_info[m];
-
-			const std::string tex_path = mat_info.tex_path;
-			if(!tex_path.empty() && FileUtils::fileExists(tex_path))
-			{
-				try
-				{
-					// See if this tex has been processed already
-					if(tex_map_infos.count(tex_path) == 0)
-					{
-					//	Reference<Map2D> map;
-					//	if(hasExtension(tex_path, "gif"))
-					//		map = GIFDecoder::decodeImageSequence(tex_path);
-					//	else
-					//		map = ImageDecoding::decodeImage(".", tex_path); // Load texture from disk and decode it.
-					//
-					//	conPrint("Loading '" + tex_path  + "'...");
-					//
-					//	const ImageMapUInt8* imagemap;
-					//	if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
-					//	{
-					//		imagemap = map.downcastToPtr<ImageMapUInt8>();
-					//	}
-					//	else if(dynamic_cast<const ImageMapSequenceUInt8*>(map.ptr()))
-					//	{
-					//		const ImageMapSequenceUInt8* imagemapseq = map.downcastToPtr<ImageMapSequenceUInt8>();
-					//		if(imagemapseq->images.empty())
-					//			throw glare::Exception("imagemapseq was empty");
-					//		imagemap = imagemapseq->images[0].ptr();
-					//	}
-					//	else
-					//		throw glare::Exception("Unhandled texture type.");
-					//
-					//	// TODO: convert to ImageMapUInt8 for uint16 case etc.
-					//
-						tex_map_infos[tex_path] = TexMapInfo();
-						tex_map_infos[tex_path].tex_path = tex_path;
-					//	tex_map_infos[tex_path].tex_w = imagemap->getWidth();
-					//	tex_map_infos[tex_path].tex_h = imagemap->getHeight();
-					}
-
-				//	const float ob_size = ob_info.aabb_ws.longestLength();
-				//
-				//	const float use_tex_w = myMin(128.f, ob_size * 20.f);
-				//	const float use_tex_h = use_tex_w / (float)tex_map_infos[tex_path].tex_w * tex_map_infos[tex_path].tex_h;
-				//
-				//	tex_map_infos[tex_path].largest_use_tex_w = myMax(tex_map_infos[tex_path].largest_use_tex_w, use_tex_w);
-				//	tex_map_infos[tex_path].largest_use_tex_h = myMax(tex_map_infos[tex_path].largest_use_tex_h, use_tex_h);
-				}
-				catch(glare::Exception& e)
-				{
-					conPrint("ChunkGenThread error while processing texture for ob: " + e.what());
-				}
-			}
-		}
-	}
-
-
-	if(!tex_map_infos.empty())
+	if(!used_tex_paths.empty())
 	{
 		basisu::basisu_encoder_init(); // Can be called multiple times harmlessly.
 		basisu::basis_compressor_params params;
 
-		for(auto it = tex_map_infos.begin(); it != tex_map_infos.end(); ++it)
+		for(auto it = used_tex_paths.begin(); it != used_tex_paths.end(); ++it)
 		{
-			TexMapInfo& tex_info = it->second;
-
 			try
 			{
-				const std::string tex_path = tex_info.tex_path;
+				const std::string tex_path = *it;
 
 				conPrint("Loading '" + tex_path + "'...");
 				Reference<Map2D> map;
@@ -366,75 +306,75 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 
 				basisu::image img(resized_map_uint8->getData(), (uint32)new_W, (uint32)new_W, (uint32)3);
 
-				tex_info.array_image_index = params.m_source_images.size();
+				//tex_info.array_image_index = params.m_source_images.size();
+				array_image_indices_out[tex_path] = params.m_source_images.size();
 
 				params.m_source_images.push_back(img);
 			}
-			catch(glare::Exception& /*e*/)
+			catch(glare::Exception& e)
 			{
-
+				conPrint("Error while loading image: " + e.what());
 			}
 		}
 
 
-		Timer timer;
+		if(!params.m_source_images.empty())
+		{
+			Timer timer;
 
-		params.m_tex_type = basist::cBASISTexType2DArray;
+			params.m_tex_type = basist::cBASISTexType2DArray;
 		
-		params.m_perceptual = true;
+			params.m_perceptual = true;
 	
-		params.m_write_output_basis_files = true;
-		params.m_out_filename = "d:/tempfiles/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
-		params.m_create_ktx2_file = false;
+			params.m_write_output_basis_files = true;
+			params.m_out_filename = "d:/tempfiles/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
+			params.m_create_ktx2_file = false;
 
-		params.m_mip_gen = true; // Generate mipmaps for each source image
-		params.m_mip_srgb = true; // Convert image to linear before filtering, then back to sRGB
+			params.m_mip_gen = true; // Generate mipmaps for each source image
+			params.m_mip_srgb = true; // Convert image to linear before filtering, then back to sRGB
 
-		params.m_quality_level = 255;
+			params.m_quality_level = 255;
 
-		// Need to be set if m_quality_level is not explicitly set.
-		//params.m_max_endpoint_clusters = 16128;
-		//params.m_max_selector_clusters = 16128;
+			// Need to be set if m_quality_level is not explicitly set.
+			//params.m_max_endpoint_clusters = 16128;
+			//params.m_max_selector_clusters = 16128;
 
-		basisu::job_pool jpool(PlatformUtils::getNumLogicalProcessors());
-		params.m_pJob_pool = &jpool;
+			basisu::job_pool jpool(PlatformUtils::getNumLogicalProcessors());
+			params.m_pJob_pool = &jpool;
 
-		basisu::basis_compressor basisCompressor;
-		basisu::enable_debug_printf(false);
+			basisu::basis_compressor basisCompressor;
+			basisu::enable_debug_printf(false);
 
-		const bool res = basisCompressor.init(params);
-		if(!res)
-			throw glare::Exception("Failed to create basisCompressor");
+			const bool res = basisCompressor.init(params);
+			if(!res)
+				throw glare::Exception("Failed to create basisCompressor");
 
-		basisu::basis_compressor::error_code result = basisCompressor.process();
+			basisu::basis_compressor::error_code result = basisCompressor.process();
 
-		if(result != basisu::basis_compressor::cECSuccess)
-			throw glare::Exception("basisCompressor.process() failed.");
+			if(result != basisu::basis_compressor::cECSuccess)
+				throw glare::Exception("basisCompressor.process() failed.");
 
-		conPrint("Basisu compression and writing of KTX file took " + timer.elapsedStringNSigFigs(3));
+			conPrint("Basisu compression and writing of file took " + timer.elapsedStringNSigFigs(3));
+
+			// Compute hash over it
+			const uint64 hash = FileChecksum::fileChecksum(params.m_out_filename);
+
+			combined_texture_path_out = params.m_out_filename;
+			combined_texture_hash_out = hash;
+		}
+		else
+			conPrint("Not writing texture array, no textures to process.");
 	}
 	else
 		conPrint("Not writing texture array, no textures to process.");
+}
 
 
-	//TEMP HACK from openglengine.cpp
-	// MaterialData flag values
-	#define HAVE_SHADING_NORMALS_FLAG			1
-	#define HAVE_TEXTURE_FLAG					2
-	#define HAVE_METALLIC_ROUGHNESS_TEX_FLAG	4
-	#define HAVE_EMISSION_TEX_FLAG				8
-	#define IS_HOLOGRAM_FLAG					16 // e.g. no light scattering, just emission
-	#define IMPOSTER_TEX_HAS_MULTIPLE_ANGLES	32
-	#define HAVE_NORMAL_MAP_FLAG				64
+static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
+{
+	ChunkBuildResults results;
 
-	//-------------------------- Build output_mat_info ------------------------------
-	// Also set ob_info.output_mat_info_start_index.
-
-	std::vector<OutputMatInfo> output_mat_infos;
-
-	
 	//-------------------------- Create combined mesh -----------------------------
-
 	BatchedMeshRef combined_mesh = new BatchedMesh();
 	size_t offset = 0;
 	combined_mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_Position, BatchedMesh::ComponentType_Float, /*offset_B=*/offset));
@@ -464,6 +404,8 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 	size_t num_obs_combined = 0;
 	size_t num_batches_combined = 0;
 
+	std::vector<MatInfo> combined_mat_infos;
+
 	for(size_t ob_i=0; ob_i<ob_infos.size(); ++ob_i)
 	{
 		ObInfo& ob_info = ob_infos[ob_i];
@@ -492,32 +434,10 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 					ob_info.mat_info.resize(num_mats_referenced, dummy);
 				}
 
-				//-------------------------- Build output_mat_info ------------------------------
-				// Also set ob_info.output_mat_info_start_index.
-				ob_info.output_mat_info_start_index = (int)output_mat_infos.size();
+				const int object_combined_mat_infos_offset = (int)combined_mat_infos.size();
 
 				for(size_t m=0; m<ob_info.mat_info.size(); ++m)
-				{
-					const MatInfo& mat_info = ob_info.mat_info[m];
-
-					OutputMatInfo output_mat_info;
-					output_mat_info.tex_matrix_col_major = mat_info.tex_matrix.transpose();
-					output_mat_info.emission_lum_flux_or_lum = mat_info.emission_lum_flux_or_lum;
-					output_mat_info.roughness = mat_info.roughness;
-					output_mat_info.metallic = mat_info.metallic;
-					output_mat_info.colour_rgb = mat_info.colour_rgb;
-					output_mat_info.flags = 0;
-
-					const std::string tex_path = mat_info.tex_path;
-					if(!tex_path.empty() && (tex_map_infos.count(tex_path) > 0))
-					{
-						output_mat_info.flags += (float)HAVE_TEXTURE_FLAG;
-
-						output_mat_info.array_image_index = (float)tex_map_infos[tex_path].array_image_index;
-					}
-
-					output_mat_infos.push_back(output_mat_info);
-				}
+					combined_mat_infos.push_back(ob_info.mat_info[m]);
 
 
 				const size_t num_verts = mesh->numVerts();
@@ -599,8 +519,8 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 				}
 
 				// Allocate room for new verts
-				const size_t write_i = combined_mesh->vertex_data.size();
-				combined_mesh->vertex_data.resize(write_i + mesh->numVerts() * combined_mesh_vert_size);
+				const size_t write_i_B = combined_mesh->vertex_data.size();
+				combined_mesh->vertex_data.resize(write_i_B + mesh->numVerts() * combined_mesh_vert_size);
 
 				const BatchedMesh::VertAttribute& pos = mesh->getAttribute(BatchedMesh::VertAttribute_Position);
 				if(pos.component_type != BatchedMesh::ComponentType_Float)
@@ -609,29 +529,26 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 				
 
 				//------------------------------------------ Copy vert indices ------------------------------------------
-				const uint32 vert_offset = (uint32)(write_i / combined_mesh_vert_size);
+				const uint32 vert_offset = (uint32)(write_i_B / combined_mesh_vert_size);
 
 				const size_t num_indices = mesh->numIndices();
 
+				// We need to know what material is assigned to each vertex, for the 'original material index' vertex attribute.
+				// We will compute this by splatting the material assignment for each vert.  Note that multiple batches with different materials may share the same vertex.
 				std::vector<uint32> vert_combined_mat_index(num_verts);
 
-				std::vector<uint32> new_combined_indices(num_indices);
+				std::vector<uint32> new_combined_indices;
+				new_combined_indices.reserve(num_indices);
 
 				for(size_t b=0; b<mesh->batches.size(); ++b)
 				{
 					const BatchedMesh::IndicesBatch& batch = mesh->batches[b];
 
-					//if(batch.material_index >= ob_info.mat_info.size())
-					//{
-					//	batch.material_index = 0;
-					//	//throw glare::Exception("invalid mat index");
-					//}
-
 					const bool mat_opaque = ob_info.mat_info[batch.material_index].opacity == 1.f;
 
 					js::Vector<uint32, 16>& dest_combined_indices = mat_opaque ? combined_opaque_indices : combined_trans_indices;
 
-					const uint32 combined_mat_index = batch.material_index + ob_info.output_mat_info_start_index;
+					const uint32 combined_mat_index = object_combined_mat_infos_offset + batch.material_index;
 
 					if(mesh->index_type == BatchedMesh::ComponentType_UInt8)
 					{
@@ -673,56 +590,14 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 						throw glare::Exception("unhandled index_type");
 				}
 
-				//const size_t indices_write_i = combined_indices.size();
-				//combined_indices.resize(indices_write_i + num_indices);
-
-				//if(mesh->index_type == BatchedMesh::ComponentType_UInt8)
-				//{
-				//	for(size_t i=0; i<num_indices; ++i)
-				//		/*combined_indices[indices_write_i + i]*/ = vert_offset + ((const uint8*)mesh->index_data.data())[i];
-				//}
-				//else if(mesh->index_type == BatchedMesh::ComponentType_UInt16)
-				//{
-				//	for(size_t i=0; i<num_indices; ++i)
-				//		combined_indices[indices_write_i + i] = vert_offset + ((const uint16*)mesh->index_data.data())[i];
-				//}
-				//else if(mesh->index_type == BatchedMesh::ComponentType_UInt32)
-				//{
-				//	for(size_t i=0; i<num_indices; ++i)
-				//		combined_indices[indices_write_i + i] = vert_offset + ((const uint32*)mesh->index_data.data())[i];
-				//}
-				//else
-				//	throw glare::Exception("unhandled index_type");
-
-
 				//------------------------------------------ Set material index vertex attribute values ------------------------------------------
-
-				// Work out the material assigned to each vertex.
-				//std::vector<uint32> vert_mat_index(num_verts);
-
-				// Iterate over batches of vertex indices, 'splat' the batch material to the corresponding vertices in vert_mat_index.
-				//for(size_t b=0; b<mesh->batches.size(); ++b)
-				//{
-				//	const BatchedMesh::IndicesBatch& batch = mesh->batches[b];
-				//	const uint32 mat_index = batch.material_index + ob_info.output_mat_info_start_index;
-
-				//	for(uint32 q=batch.indices_start; q<batch.indices_start + batch.num_indices; ++q)
-				//	{
-				//		uint32 vert_index = combined_indices[indices_write_i + q] - vert_offset; // Index of the vertex in mesh
-
-				//		vert_mat_index[vert_index] = mat_index;
-				//	}
-				//}
-
 				// Copy into combined mesh data
+				for(size_t i = 0; i < num_verts; ++i)
 				{
-					for(size_t i = 0; i < num_verts; ++i)
-					{
-						const uint32 combined_mat_index = vert_combined_mat_index[i];
-						std::memcpy(&combined_mesh->vertex_data[write_i + combined_mesh_vert_size * i + combined_mesh_mat_index_offset_B], &combined_mat_index, sizeof(uint32));
-					}
+					const uint32 combined_mat_index = vert_combined_mat_index[i];
+					std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_mat_index_offset_B], &combined_mat_index, sizeof(uint32));
 				}
-
+				
 				//------------------------------------------ Copy vertex positions ------------------------------------------
 				const uint8* const src_vertex_data = mesh->vertex_data.data();
 				for(size_t i = 0; i < num_verts; ++i)
@@ -736,16 +611,15 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 					if(use_skin_transforms)
 						v_os = transformSkinnedVertex(v_os, joint_offset_B, weights_offset_B, joints_component_type, weights_component_type, joint_matrices, src_vertex_data, vert_stride_B, i);
 
+					// Compute world-space vertex position
 					const Vec4f new_v_vec4f = ob_to_world * v_os;
 
 					aabb_os.enlargeToHoldPoint(new_v_vec4f);
 
-					const Vec3f new_v = Vec3f(new_v_vec4f);
-
-					std::memcpy(&combined_mesh->vertex_data[write_i + combined_mesh_vert_size * i], &new_v, sizeof(Vec3f));
+					std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i], new_v_vec4f.x, sizeof(Vec3f));
 				}
 
-				//------------------------------------------ Copy vertex normals ------------------------------------------
+				//------------------------------------------ Copy or compute vertex normals ------------------------------------------
 				const BatchedMesh::VertAttribute* normal_attr = mesh->findAttribute(BatchedMesh::VertAttribute_Normal);
 				if(normal_attr)
 				{
@@ -758,7 +632,7 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 							uint32 packed_normal;
 							std::memcpy(&packed_normal, &mesh->vertex_data[vert_stride_B * i + normal_attr->offset_B], sizeof(uint32));
 
-							Vec4f n = batchedMeshUnpackNormal(packed_normal); // TODO: do this with integer manipulation instead of floats? Will avoid possible rounding error.
+							Vec4f n = batchedMeshUnpackNormal(packed_normal);
 
 							if(use_skin_transforms)
 								// TEMP: just use to-world matrix instead of inverse transpose.
@@ -768,7 +642,7 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 
 							const uint32 new_packed_normal = batchedMeshPackNormal(new_n);
 
-							std::memcpy(&combined_mesh->vertex_data[write_i + combined_mesh_vert_size * i + combined_mesh_normal_offset_B], &new_packed_normal, sizeof(uint32));
+							std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_normal_offset_B], &new_packed_normal, sizeof(uint32));
 						}
 					}
 					else
@@ -776,70 +650,11 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 				}
 				else
 				{
-					// TODO: Compute geometric normals
-					for(size_t i = 0; i < num_verts; ++i)
+					//------------------------------------------ Compute shading normals as geometric normals, if no shading normal attribute is present in source mesh ------------------------------------------
+					const size_t new_combined_indices_size = new_combined_indices.size();
+					runtimeCheck(new_combined_indices_size % 3 == 0);
+					for(size_t i=0; i<new_combined_indices_size; i+=3)
 					{
-						const Vec4f new_n = Vec4f(1, 0, 0, 0); // TEMP HACK
-
-						const uint32 new_packed_normal = batchedMeshPackNormal(new_n);
-
-						std::memcpy(&combined_mesh->vertex_data[write_i + combined_mesh_vert_size * i + combined_mesh_normal_offset_B], &new_packed_normal, sizeof(uint32));
-					}
-				}
-
-				//------------------------------------------ Copy vertex UV0s ------------------------------------------
-				const BatchedMesh::VertAttribute* uv0_attr = mesh->findAttribute(BatchedMesh::VertAttribute_UV_0);
-				if(uv0_attr)
-				{
-					Matrix3f uv_matrix = Matrix3f::identity();
-
-					if(uv0_attr->component_type == BatchedMesh::ComponentType_Float)
-					{
-						for(size_t i = 0; i < num_verts; ++i)
-						{
-							runtimeCheck(vert_stride_B * i + uv0_attr->offset_B + sizeof(Vec2f) <= mesh->vertex_data.size());
-
-							Vec2f uv;
-							std::memcpy(&uv, &mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], sizeof(Vec2f));
-
-							std::memcpy(&combined_mesh->vertex_data[write_i + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &uv, sizeof(Vec2f));
-						}
-					}
-					else if(uv0_attr->component_type == BatchedMesh::ComponentType_Half)
-					{
-						for(size_t i = 0; i < num_verts; ++i)
-						{
-							runtimeCheck(vert_stride_B * i + uv0_attr->offset_B + sizeof(half) * 2 <= mesh->vertex_data.size());
-
-							half uv[2];
-							std::memcpy(&uv, &mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], sizeof(half) * 2);
-
-							const Vec2f new_uv(uv[0], uv[1]);
-							std::memcpy(&combined_mesh->vertex_data[write_i + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));
-						}
-					}
-					else
-						throw glare::Exception("unhandled uv0 component type");
-				}
-				else // else UV0 was not present in source mesh, so just write out (0,0), uvs.
-				{
-					for(size_t i = 0; i < num_verts; ++i)
-					{
-						const Vec2f new_uv(0.f, 0.f);
-						std::memcpy(&combined_mesh->vertex_data[write_i + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));
-					}
-				}
-
-
-				//------------------------------------------ Compute geometric normals, if no shading normal attribute is present in source mesh ------------------------------------------
-				if(!normal_attr)
-				{
-					assert(num_indices % 3 == 0);
-					for(size_t i=0; i<num_indices; i+=3) // For each tri in source mesh:
-					{
-						/*const uint32 v0 = combined_indices[indices_write_i + i + 0];
-						const uint32 v1 = combined_indices[indices_write_i + i + 1];
-						const uint32 v2 = combined_indices[indices_write_i + i + 2];*/
 						const uint32 v0 = new_combined_indices[i + 0];
 						const uint32 v1 = new_combined_indices[i + 1];
 						const uint32 v2 = new_combined_indices[i + 2];
@@ -848,7 +663,7 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 						runtimeCheck(combined_mesh_vert_size * v0 + sizeof(Vec3f) <= combined_mesh->vertex_data.size());
 						runtimeCheck(combined_mesh_vert_size * v1 + sizeof(Vec3f) <= combined_mesh->vertex_data.size());
 						runtimeCheck(combined_mesh_vert_size * v2 + sizeof(Vec3f) <= combined_mesh->vertex_data.size());
-										
+
 						Vec3f v0pos, v1pos, v2pos;
 						std::memcpy(&v0pos, &combined_mesh->vertex_data[combined_mesh_vert_size * v0], sizeof(Vec3f));
 						std::memcpy(&v1pos, &combined_mesh->vertex_data[combined_mesh_vert_size * v1], sizeof(Vec3f));
@@ -869,6 +684,47 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 					}
 				}
 
+				//------------------------------------------ Copy vertex UV0s ------------------------------------------
+				const BatchedMesh::VertAttribute* uv0_attr = mesh->findAttribute(BatchedMesh::VertAttribute_UV_0);
+				if(uv0_attr)
+				{
+					if(uv0_attr->component_type == BatchedMesh::ComponentType_Float)
+					{
+						for(size_t i = 0; i < num_verts; ++i)
+						{
+							runtimeCheck(vert_stride_B * i + uv0_attr->offset_B + sizeof(Vec2f) <= mesh->vertex_data.size());
+
+							std::memcpy(
+								/*dest=*/&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], 
+								/*src=*/&mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], 
+								/*size=*/sizeof(Vec2f));
+						}
+					}
+					else if(uv0_attr->component_type == BatchedMesh::ComponentType_Half)
+					{
+						for(size_t i = 0; i < num_verts; ++i)
+						{
+							runtimeCheck(vert_stride_B * i + uv0_attr->offset_B + sizeof(half) * 2 <= mesh->vertex_data.size());
+
+							half uv[2];
+							std::memcpy(&uv, &mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], sizeof(half) * 2);
+
+							const Vec2f new_uv(uv[0], uv[1]);
+							std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));
+						}
+					}
+					else
+						throw glare::Exception("unhandled uv0 component type");
+				}
+				else // else UV0 was not present in source mesh, so just write out (0,0) uvs.
+				{
+					for(size_t i = 0; i < num_verts; ++i)
+					{
+						const Vec2f new_uv(0.f, 0.f);
+						std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));
+					}
+				}
+
 				num_obs_combined++;
 				num_batches_combined += mesh->batches.size();
 
@@ -884,15 +740,11 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 	} // End for each ob
 
 	
-	js::Vector<uint32, 16> combined_indices = combined_opaque_indices;
-	combined_indices.resize(combined_indices.size() + combined_trans_indices.size());
-	for(size_t i=0; i<combined_trans_indices.size(); ++i)
-		combined_indices[combined_opaque_indices.size() + i] = combined_trans_indices[i];
+	js::Vector<uint32> combined_indices = combined_opaque_indices;
+	combined_indices.append(combined_trans_indices);
 
 	if(!combined_indices.empty())
 	{
-		
-
 		combined_mesh->setIndexDataFromIndices(combined_indices, combined_mesh->numVerts());
 
 		if(!combined_opaque_indices.empty())
@@ -921,6 +773,96 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 		combined_mesh = MeshSimplification::removeInvisibleTriangles(combined_mesh, task_manager);
 
 
+
+		//-------------------------------------- Remove unused materials --------------------------------------
+		std::vector<MatInfo> new_mat_infos;
+		{
+			conPrint("Raw combined mesh num materials: " + toString(combined_mat_infos.size()));
+
+			const size_t num_verts = combined_mesh->numVerts();
+
+			std::vector<int> new_mat_i(combined_mat_infos.size(), std::numeric_limits<uint32>::max()); // Map from old material index to new material index.
+			for(size_t v = 0; v<num_verts; ++v)
+			{
+				uint32 mat_i;
+				std::memcpy(&mat_i, combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, sizeof(uint32)); // Get vertex material index from combined_mesh
+				uint32 new_mat_i_val = new_mat_i[mat_i];
+				if(new_mat_i_val == std::numeric_limits<uint32>::max())
+				{
+					new_mat_i_val = (uint32)new_mat_infos.size();
+					new_mat_infos.push_back(combined_mat_infos[mat_i]);
+					new_mat_i[mat_i] = new_mat_i_val;
+				}
+				
+				std::memcpy(combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, &new_mat_i_val, sizeof(uint32)); // Copy new value back to combined_mesh
+			}
+
+			conPrint("Used combined mesh num materials: " + toString(new_mat_infos.size()));
+		}
+
+		//-------------------------------------- Build list of used textures --------------------------------------
+		// Build list of used textures, maintaining order.
+		std::vector<std::string> used_tex_paths;
+		std::set<std::string> textures_added;
+		for(size_t m=0; m<new_mat_infos.size(); ++m)
+		{
+			const MatInfo& mat_info = new_mat_infos[m];
+
+			const std::string tex_path = mat_info.tex_path;
+			if(!tex_path.empty())
+			{
+				if(textures_added.count(tex_path) == 0)
+				{
+					textures_added.insert(tex_path);
+					used_tex_paths.push_back(tex_path);
+				}
+			}
+		}
+
+		//-------------------------------------- Build texture array, save basis file to disk --------------------------------------
+		std::map<std::string, int> array_image_indices; // Index of texture in texture array.
+		// There will be no entry in the map for the path if the texture could not be loaded.
+
+		buildAndSaveArrayTexture(used_tex_paths, task_manager, chunk_x, chunk_y, 
+			array_image_indices, // array_image_indices_out
+			results.combined_texture_path, // combined_texture_path_out
+			results.combined_texture_hash // combined_texture_hash_out
+		);
+
+		// TEMP HACK from openglengine.cpp
+		// MaterialData flag values
+		#define HAVE_SHADING_NORMALS_FLAG			1
+		#define HAVE_TEXTURE_FLAG					2
+
+		//-------------------------------------- Build output_mat_infos --------------------------------------
+		js::Vector<OutputMatInfo> output_mat_infos;
+		for(size_t m=0; m<new_mat_infos.size(); ++m)
+		{
+			const MatInfo& mat_info = new_mat_infos[m];
+
+			OutputMatInfo output_mat_info;
+			output_mat_info.tex_matrix_col_major = mat_info.tex_matrix.transpose();
+			output_mat_info.emission_lum_flux_or_lum = mat_info.emission_lum_flux_or_lum;
+			output_mat_info.roughness = mat_info.roughness;
+			output_mat_info.metallic = mat_info.metallic;
+			output_mat_info.linear_colour_rgb = sanitiseAndConvertToLinearAlbedoColour(mat_info.colour_rgb);
+			output_mat_info.flags = 0;
+
+			const std::string tex_path = mat_info.tex_path;
+			if(!tex_path.empty() && (array_image_indices.count(tex_path) > 0))
+			{
+				output_mat_info.flags += (float)HAVE_TEXTURE_FLAG;
+
+				output_mat_info.array_image_index = (float)array_image_indices[tex_path];
+			}
+
+			output_mat_infos.push_back(output_mat_info);
+		}
+
+
+
+
+
 		// Write combined mesh to disk
 		conPrint("Writing combined mesh to disk...");
 		const std::string path = "d:/tempfiles/chunk_256_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
@@ -930,20 +872,31 @@ static void buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int 
 		printVar(num_batches_combined);
 		conPrint("Wrote chunk mesh to '" + path + "'.");
 
+		// Compute hash over it
+		const uint64 hash = FileChecksum::fileChecksum(path);
+
+
 
 		// Write output_mat_infos
+		if(true)
 		{
+			conPrint("Writing mat info to disk...");
 			FileOutStream file("d:/tempfiles/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
 
 			for(size_t i=0; i<output_mat_infos.size(); ++i)
 				file.writeData(&output_mat_infos[i], sizeof(OutputMatInfo));
 		}
 
+		results.output_mat_infos = output_mat_infos;
+		results.combined_mesh_path = path;
+		results.combined_mesh_hash = hash;
 	}
+
+	return results;
 }
 
 
-void buildChunk(ServerAllWorldsState* world_state, Reference<ServerWorldState> world, const js::AABBox chunk_aabb, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
+static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference<ServerWorldState> world, const js::AABBox chunk_aabb, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
 {
 	conPrint("================================= Building chunk " + toString(chunk_x) + ", " + toString(chunk_y) + " =================================");
 	std::vector<ObInfo> ob_infos;
@@ -998,7 +951,6 @@ void buildChunk(ServerAllWorldsState* world_state, Reference<ServerWorldState> w
 
 						ob_info.mat_info.resize(ob->materials.size());
 						
-
 						for(size_t i=0; i<ob->materials.size(); ++i)
 						{
 							WorldMaterial* mat = ob->materials[i].ptr();
@@ -1028,9 +980,46 @@ void buildChunk(ServerAllWorldsState* world_state, Reference<ServerWorldState> w
 	} // End lock scope.
 
 
-	buildChunkForObInfo(ob_infos, chunk_x, chunk_y, task_manager);
+	ChunkBuildResults results = buildChunkForObInfo(ob_infos, chunk_x, chunk_y, task_manager);
+	conPrint("================================= chunk " + toString(chunk_x) + ", " + toString(chunk_y) + " built. =================================");
+	return results;
 }
 
+
+static const float chunk_w = 128;
+
+static void addNewChunksIfNeeded(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock)
+{
+	conPrint("ChunkGenThread::addNewChunksIfNeeded(), world_name: '" + world_name + "'");
+	int num_new_chunks_added = 0;
+	Timer timer;
+
+	ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
+	for(auto it = objects.begin(); it != objects.end(); ++it)
+	{
+		const WorldObject* ob = it->second.ptr();
+		const Vec4f centroid = ob->getCentroidWS();
+		const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
+		const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
+		const Vec3i chunk_coords(chunk_x, chunk_y, 0);
+		if(world_state->getLODChunks(lock).count(chunk_coords) == 0)
+		{
+			// Need new chunk
+			conPrint("Adding new LODChunk with coords " + chunk_coords.toString());
+
+			LODChunkRef chunk = new LODChunk();
+			chunk->coords = chunk_coords;
+			chunk->needs_rebuild = true;
+
+			// Add to world state, mark as db-dirty so gets saved to disk.
+			world_state->getLODChunks(lock).insert(std::make_pair(chunk_coords, chunk));
+			world_state->addLODChunkAsDBDirty(chunk, lock);
+			all_worlds_state->markAsChanged();
+		}
+	}
+
+	conPrint("ChunkGenThread::addNewChunksIfNeeded() done.  Added " + toString(num_new_chunks_added) + " new chunks.  Elapsed: " + timer.elapsedStringMSWIthNSigFigs(4));
+}
 
 
 void ChunkGenThread::doRun()
@@ -1041,17 +1030,23 @@ void ChunkGenThread::doRun()
 
 	Timer timer;
 
+
+	struct ChunkToBuild
+	{
+		LODChunkRef chunk;
+		Reference<ServerWorldState> world_state;
+	};
+
 	try
 	{
-		while(1)
+#if 0
 		{
-			Reference<ServerWorldState> root_world_state = world_state->getRootWorldState();
-
-			const float chunk_w = 128;
-			for(int x=-4; x<4; ++x)
-			for(int y=-4; y<4; ++y)
-			//int x = 0;
-			//int y = 0;
+			Reference<ServerWorldState> root_world_state = all_worlds_state->getRootWorldState();
+			
+			//for(int x=-4; x<4; ++x)
+			//for(int y=-4; y<4; ++y)
+			int x = 0;
+			int y = 0;
 			{
 				// Compute chunk AABB
 				const js::AABBox chunk_aabb(
@@ -1059,18 +1054,124 @@ void ChunkGenThread::doRun()
 					Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w, 1000.f, 1.f) // max
 				);
 
-				buildChunk(world_state, root_world_state, chunk_aabb, x, y, task_manager);
+				buildChunk(all_worlds_state, root_world_state, chunk_aabb, x, y, task_manager);
 			}
-
 
 			conPrint("ChunkGenThread: Done. (Elapsed: " + timer.elapsedStringNSigFigs(4));
 
-
-			//if(made_change)
-			//	world_state->markAsChanged();
-
-			// PlatformUtils::Sleep(30*1000 * 100);
 			return; // Just run once for now.
+		}
+#endif
+
+
+		while(1)
+		{
+			
+			std::vector<ChunkToBuild> dirty_chunks;
+
+			{
+				WorldStateLock lock(all_worlds_state->mutex);
+				for(auto it = all_worlds_state->world_states.begin(); it != all_worlds_state->world_states.end(); ++it)
+				{
+					ServerWorldState* world_state = it->second.ptr();
+
+					addNewChunksIfNeeded(all_worlds_state, it->first, world_state, lock);
+
+
+					for(auto chunk_it = world_state->getLODChunks(lock).begin(); chunk_it != world_state->getLODChunks(lock).end(); ++chunk_it)
+					{
+						LODChunk* chunk = chunk_it->second.ptr();
+
+						//TEMP HACK:
+						if(it->first == "")// && chunk->coords == Vec3i(0, 0, 0)) // if main world
+							chunk->needs_rebuild = true;
+
+						if(chunk->needs_rebuild)
+							dirty_chunks.push_back({chunk, world_state});
+					}
+				}
+			}
+
+
+			for(size_t i=0; i<dirty_chunks.size(); ++i)
+			{
+				LODChunkRef chunk = dirty_chunks[i].chunk;
+				const int x = chunk->coords.x;
+				const int y = chunk->coords.y;
+
+				// Compute chunk AABB
+				const js::AABBox chunk_aabb(
+					Vec4f(x       * chunk_w, y       * chunk_w, -10000.f, 1.f), // min
+					Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w,  10000.f, 1.f) // max
+				);
+
+				const ChunkBuildResults results = buildChunk(all_worlds_state, dirty_chunks[i].world_state, chunk_aabb, x, y, task_manager);
+
+
+				//------------ Build compressed mat_info ------------
+				js::Vector<uint8> compressed_data(ZSTD_compressBound(results.output_mat_infos.dataSizeBytes()));
+
+				const size_t compressed_size = ZSTD_compress(/*dest=*/compressed_data.data(), /*dest capacity=*/compressed_data.size(), /*src=*/results.output_mat_infos.data(), /*src size=*/results.output_mat_infos.dataSizeBytes(),
+					ZSTD_CLEVEL_DEFAULT // compression level  TODO: use higher level? test a few.
+				);
+				if(ZSTD_isError(compressed_size))
+					throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
+				compressed_data.resize(compressed_size);
+				//---------------------------------------------------
+
+				// Copy combined mesh and texture array files into resource system.
+				std::string mesh_URL;
+				if(!results.combined_mesh_path.empty())
+				{
+					mesh_URL = ResourceManager::URLForPathAndHash(results.combined_mesh_path, results.combined_mesh_hash);
+					if(!all_worlds_state->resource_manager->isFileForURLPresent(mesh_URL))
+					{
+						all_worlds_state->resource_manager->copyLocalFileToResourceDir(results.combined_mesh_path, mesh_URL);
+						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(mesh_URL));
+					}
+				}
+
+				std::string tex_URL;
+				if(!results.combined_texture_path.empty())
+				{
+					tex_URL = ResourceManager::URLForPathAndHash(results.combined_texture_path, results.combined_texture_hash);
+					if(!all_worlds_state->resource_manager->isFileForURLPresent(tex_URL))
+					{
+						all_worlds_state->resource_manager->copyLocalFileToResourceDir(results.combined_texture_path, tex_URL);
+						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(mesh_URL));
+					}
+				}
+
+				// Update the chunk object if it has changed.  Mark chunk as db-dirty so it gets saved to disk.
+				{
+					WorldStateLock lock(all_worlds_state->mutex);
+					
+					const bool chunk_changed = 
+						(chunk->mesh_url != mesh_URL) || 
+						(chunk->combined_array_texture_url != tex_URL) ||
+						(chunk->compressed_mat_info != compressed_data);
+
+					if(chunk_changed)
+					{
+						chunk->mesh_url = mesh_URL;
+						chunk->combined_array_texture_url = tex_URL;
+						chunk->compressed_mat_info = compressed_data;
+
+						chunk->needs_rebuild = false;
+						chunk->db_dirty = true;
+
+						dirty_chunks[i].world_state->addLODChunkAsDBDirty(chunk, lock);
+
+						all_worlds_state->markAsChanged();
+					}
+				}
+				
+
+				// Send out a chunk-updated message to clients
+			}
+
+
+			PlatformUtils::Sleep(30*1000);
 		}
 	}
 	catch(glare::Exception& e)

@@ -13,18 +13,18 @@ class ServerAllWorldsState;
 /*=====================================================================
 ChunkGenThread
 --------------
-Computes world chunks - combines object meshes into one mesh, combines
+Computes world LOD chunks - combines object meshes into one mesh, combines
 textures into an array texture.  Simplifies meshes.
 =====================================================================*/
 class ChunkGenThread : public MessageableThread
 {
 public:
-	ChunkGenThread(ServerAllWorldsState* world_state);
+	ChunkGenThread(ServerAllWorldsState* all_worlds_state);
 
 	virtual ~ChunkGenThread();
 
 	virtual void doRun();
 
 private:
-	ServerAllWorldsState* world_state;
+	ServerAllWorldsState* all_worlds_state;
 };
