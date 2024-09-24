@@ -109,6 +109,12 @@ const uint32 QueryMapTiles			= 3800; // Client wants to query map tile image URL
 const uint32 MapTilesResult			= 3801; // Server is sending back a list of tile image URLs to the client.
 
 
+const uint32 QueryLODChunksMessage		= 3900;
+const uint32 LODChunkInitialSend		= 3901;
+const uint32 LODChunkUpdatedMessage		= 3902;
+
+
+
 //TEMP HACK move elsewhere
 const uint32 GetFile				= 4000;
 const uint32 GetFiles				= 4001; // Client wants to download multiple resources from the server.

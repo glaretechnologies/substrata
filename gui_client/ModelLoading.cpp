@@ -947,7 +947,8 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(const std::string& model_path, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_dynamic_physics_ob, 
+Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(const std::string& model_path, VertexBufferAllocator* vert_buf_allocator, 
+	bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, 
 	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
 	// Load mesh from disk:
@@ -1017,7 +1018,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 
 	gl_meshdata->num_materials_referenced = batched_mesh->numMaterialsReferenced();
 
-	physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob);
+	if(build_physics_ob)
+		physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob);
 
 	return gl_meshdata;
 }

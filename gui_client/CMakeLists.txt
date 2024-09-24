@@ -499,6 +499,8 @@ SET(shared_files
 ../shared/TimerQueue.h
 ../shared/ObjectEventHandlers.cpp
 ../shared/ObjectEventHandlers.h
+../shared/LODChunk.cpp
+../shared/LODChunk.h
 )
 
 SET(client_indigo_files

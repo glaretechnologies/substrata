@@ -24,7 +24,7 @@ addIncludeDirectory(${zlibdir})
 # Include openexr.cmake to set include paths to OpenEXR and Imath dirs. 
 include(${GLARE_CORE_TRUNK_DIR_ENV}/OpenEXR/openexr.cmake)
 
-addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}")
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/utils")
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/networking")
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/maths")

@@ -19,7 +19,8 @@ Copyright Glare Technologies Limited 2021 -
 
 
 LoadModelTask::LoadModelTask()
-:	build_dynamic_physics_ob(false)
+:	build_physics_ob(true),
+	build_dynamic_physics_ob(false)
 {}
 
 
@@ -91,6 +92,7 @@ void LoadModelTask::run(size_t thread_index)
 			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(lod_model_path,
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.
+				build_physics_ob,
 				build_dynamic_physics_ob,
 				opengl_engine->mem_allocator.ptr(),
 				/*physics shape out=*/physics_shape);

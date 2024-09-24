@@ -942,7 +942,10 @@ void WorkerThread::doRun()
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsInitialSendMessage);
 
-				cur_world_state->world_settings.writeToStream(scratch_packet);
+				{
+					Lock lock(world_state->mutex);
+					cur_world_state->world_settings.writeToStream(scratch_packet);
+				}
 
 				MessageUtils::updatePacketLengthField(scratch_packet);
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -2191,6 +2194,27 @@ void WorkerThread::doRun()
 								if(!error_msg.empty())
 									writeErrorMessageToClient(socket, error_msg);
 							}
+							break;
+						}
+					case Protocol::QueryLODChunksMessage:
+						{
+							conPrintIfNotFuzzing("QueryLODChunksMessage");
+
+							// Send all current LOD chunk data to client
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							{
+								WorldStateLock lock(world_state->mutex);
+								for(auto it = cur_world_state->getLODChunks(lock).begin(); it != cur_world_state->getLODChunks(lock).end(); ++it)
+								{
+									MessageUtils::initPacket(scratch_packet, Protocol::LODChunkInitialSend);
+									it->second->writeToStream(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
+
+									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with LODChunkInitialSend message to packet.
+								}
+							}
+							socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
+							socket->flush();
 							break;
 						}
 					case Protocol::ChatMessageID:

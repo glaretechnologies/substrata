@@ -19,6 +19,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Database.h>
 #include <BufferOutStream.h>
 #include <BufferViewInStream.h>
+#include "../shared/LODChunk.h"
 
 
 ServerAllWorldsState::ServerAllWorldsState()
@@ -90,6 +91,7 @@ static const uint32 NEWS_POST_CHUNK = 112;
 static const uint32 FEATURE_FLAG_CHUNK = 113;
 static const uint32 OBJECT_STORAGE_ITEM_CHUNK = 114;
 static const uint32 USER_SECRET_CHUNK = 115;
+static const uint32 LOD_CHUNK_CHUNK = 116;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -121,6 +123,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_news_posts = 0;
 	size_t num_object_storage_items = 0;
 	size_t num_user_secrets = 0;
+	size_t num_lod_chunks = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -154,7 +157,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				else if(chunk == WORLD_OBJECT_CHUNK)
 				{
 					// Read world name
-					/*const*/ std::string world_name = stream.readStringLengthFirst(10000);
+					const std::string world_name = stream.readStringLengthFirst(10000);
 
 					// Create ServerWorldState for world name if needed
 					if(world_states.count(world_name) == 0) 
@@ -413,6 +416,23 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					num_tiles_read = num_tiles;
 				}
+				else if(chunk == LOD_CHUNK_CHUNK)
+				{
+					// Read world name
+					const std::string world_name = stream.readStringLengthFirst(10000);
+
+					// Create ServerWorldState for world name if needed
+					if(world_states.count(world_name) == 0) 
+						world_states[world_name] = new ServerWorldState();
+
+					Reference<LODChunk> lod_chunk = new LODChunk();
+
+					readLODChunkFromStream(stream, *lod_chunk);
+					
+					lod_chunk->database_key = database_key;
+					world_states[world_name]->getLODChunks(lock)[lod_chunk->coords] = lod_chunk;
+					num_lod_chunks++;
+				}
 				else if(chunk == EOS_CHUNK)
 				{
 					break;
@@ -638,7 +658,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
-		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s) in " + timer.elapsedStringNSigFigs(4));
+		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " + 
+		toString(num_lod_chunks) + " lod chunk(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -910,6 +931,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_news_posts = 0;
 		size_t num_object_storage_items = 0;
 		size_t num_user_secrets = 0;
+		size_t num_lod_chunks = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -971,6 +993,28 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 
 				world_state->getDBDirtyParcels(lock).clear();
 			}
+
+			// Write LODChunks
+			{
+				for(auto it = world_state->getDBDirtyLODChunks(lock).begin(); it != world_state->getDBDirtyLODChunks(lock).end(); ++it)
+				{
+					LODChunk* chunk = it->ptr();
+					temp_buf.clear();
+					temp_buf.writeUInt32(LOD_CHUNK_CHUNK);
+					temp_buf.writeStringLengthFirst(world_name); // Write world name
+					chunk->writeToStream(temp_buf);
+
+					if(!chunk->database_key.valid())
+						chunk->database_key = database.allocUnusedKey(); // Get a new key
+
+					database.updateRecord(chunk->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
+
+					num_lod_chunks++;
+				}
+
+				world_state->getDBDirtyLODChunks(lock).clear();
+			}
+
 
 			// Save the world settings if dirty
 			if(world_state->world_settings.db_dirty)
@@ -1306,6 +1350,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		if(num_news_posts > 0)            msg += toString(num_news_posts) + " news post(s), ";
 		if(num_object_storage_items > 0)  msg += toString(num_object_storage_items) + " object storage item(s), ";
 		if(num_user_secrets > 0)          msg += toString(num_user_secrets) + " user secret(s), ";
+		if(num_lod_chunks > 0)            msg += toString(num_lod_chunks) + " LOD chunk(s), ";
 		removeSuffixInPlace(msg, ", ");
 		msg += " in " + timer.elapsedStringNSigFigs(4);
 		conPrint(msg);

@@ -81,10 +81,11 @@ class SubstrataLuaVM;
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : build_dynamic_physics_ob(false) {}
+	DownloadingResourceInfo() : build_physics_ob(true), build_dynamic_physics_ob(false) {}
 
 	TextureParams texture_params; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
 
+	bool build_physics_ob; // For downloading meshes.  Will be set to false for LODChunks.
 	bool build_dynamic_physics_ob; // For downloading meshes.  Once the mesh is downloaded we need to know if we want to build the dynamic or static physics shape for it.
 
 	Vec3d pos; // Position of object using the resource
@@ -202,6 +203,7 @@ public:
 	void showScriptMessage(const std::string& message);
 	void updateNotifications(double cur_time);
 	void updateParcelGraphics();
+	void updateLODChunkGraphics();
 	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
 	void setThirdPersonCameraPosition(double dt);
 	void handleMessages(double global_time, double cur_time);
@@ -314,6 +316,9 @@ public:
 	void createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix, WorldObject* ob, bool use_materialise_effect, PhysicsObjectRef& physics_ob_out, GLObjectRef& opengl_ob_out);
 	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
 	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
+
+	void handleLODChunkTextureLoaded(const std::string& tex_URL, OpenGLTextureRef opengl_tex);
+	void handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data);
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -448,6 +453,8 @@ public:
 	float grabbed_angle;
 	float original_grabbed_angle;
 	float grabbed_arc_angle_offset;
+
+	OpenGLTextureRef default_array_tex;
 
 	Reference<OpenGLProgram> parcel_shader_prog;
 

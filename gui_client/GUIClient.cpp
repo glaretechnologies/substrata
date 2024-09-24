@@ -103,6 +103,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <unistd.h>
 #include <malloc.h>
 #endif
+#include <zstd.h>
 
 
 static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
@@ -380,6 +381,13 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 {
 	opengl_engine = opengl_engine_;
 
+	// Add a default array texture.  Will be used for the chunk array texture before the proper one is loaded.
+	std::vector<uint8> tex_data(4*4*3, 200);
+	default_array_tex = new OpenGLTexture(4, 4, opengl_engine.ptr(),
+		tex_data, OpenGLTextureFormat::Format_SRGB_Uint8, OpenGLTexture::Filtering_Nearest,
+		OpenGLTexture::Wrapping_Repeat, false, -1, /* num array images=*/1);
+
+
 	gl_ui = new GLUI();
 	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts, &this->stack_allocator);
 
@@ -631,7 +639,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 			PhysicsShape physics_shape;
 			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path,
-				opengl_engine->vert_buf_allocator.ptr(), false, /*build_dynamic_physics_ob=*/false, opengl_engine->mem_allocator.ptr(), physics_shape);
+				opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, opengl_engine->mem_allocator.ptr(), physics_shape);
 
 			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 
 				test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *resource_manager, ob_to_world_matrix);
@@ -778,6 +786,8 @@ void GUIClient::shutdown()
 	for(auto it = script_messages.begin(); it != script_messages.end(); ++it)
 		gl_ui->removeWidget(it->text_view); 
 	script_messages.clear();
+
+	default_array_tex = nullptr;
 
 	misc_info_ui.destroy();
 
@@ -3366,6 +3376,8 @@ void GUIClient::checkForLODChanges()
 
 			WorldObject* const ob = objects_data[i].value.ptr();
 
+			const Vec4f centroid = ob->getCentroidWS();
+
 			const float cam_to_ob_d2 = ob->getCentroidWS().getDist2(cam_pos);
 			//const float cam_to_ob_d2 = ob->getAABBWS().getClosestPointInAABB(cam_pos).getDist2(cam_pos);
 #if EMSCRIPTEN
@@ -3374,10 +3386,16 @@ void GUIClient::checkForLODChanges()
 
 			const float proj_len = ob->getBiasedAABBLength() * recip_dist;
 
-			const bool in_proximity = (proj_len > proj_len_viewable_threshold_) && (cam_to_ob_d2 < load_distance2_);
+			bool in_proximity = (proj_len > proj_len_viewable_threshold_) && (cam_to_ob_d2 < load_distance2_);
 #else
-			const bool in_proximity = cam_to_ob_d2 < load_distance2_;
+			bool in_proximity = cam_to_ob_d2 < load_distance2_;
 #endif
+			const float chunk_w = 128.f; // TEMP
+			const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
+			const float dist_to_chunk = cam_pos.getDist(Vec4f((chunk_coords.x + 0.5f) * chunk_w, (chunk_coords.y + 0.5f) * chunk_w, 0, 1));
+			if(dist_to_chunk > 100.f)
+				in_proximity = false;
+
 
 			if(!in_proximity) // If object is out of load distance:
 			{
@@ -3638,6 +3656,9 @@ void GUIClient::processLoading()
 						}
 					}
 
+					// Assign to any LOD chunks using this model
+					handleLODChunkMeshLoaded(cur_loading_lod_model_url, mesh_data);
+
 					cur_loading_mesh_data = NULL;
 					cur_loading_lod_model_url.clear();
 					cur_loading_physics_shape = PhysicsShape();
@@ -3806,6 +3827,8 @@ void GUIClient::processLoading()
 
 					if(cur_loading_terrain_map.nonNull() && terrain_system.nonNull())
 						terrain_system->handleTextureLoaded(tex_loading_progress.path, cur_loading_terrain_map);
+
+					handleLODChunkTextureLoaded(tex_loading_progress.path, tex_loading_progress.opengl_tex);
 
 					tex_loading_progress.tex_data = NULL;
 					tex_loading_progress.opengl_tex = NULL;
@@ -5662,6 +5685,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 
 		updateParcelGraphics();
+
+		updateLODChunkGraphics();
 		
 
 		// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
@@ -6049,6 +6074,215 @@ void GUIClient::updateParcelGraphics()
 		print("Error while updating parcel graphics: " + e.what());
 	}
 }
+
+
+void GUIClient::updateLODChunkGraphics()
+{
+	// Update LOD chunk graphics that have been marked as from-server-dirty based on incoming network messages from server.
+	try
+	{
+		ZoneScopedN("LODChunk graphics"); // Tracy profiler
+
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->dirty_from_remote_lod_chunks.begin(); it != this->world_state->dirty_from_remote_lod_chunks.end(); ++it)
+		{
+			LODChunk* chunk = it->getPointer();
+
+			const float chunk_w = 128.0f;
+			
+			const Vec4f centroid_ws((chunk->coords.x + 0.5f) * chunk_w, (chunk->coords.y + 0.5f) * chunk_w, 0.f, 1.f);
+
+			if(!chunk->mesh_url.empty())
+			{
+				DownloadingResourceInfo info;
+				info.pos = Vec3d(centroid_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(chunk_w, /*importance_factor=*/1.f);
+				info.build_physics_ob = false;
+				startDownloadingResource(chunk->mesh_url, centroid_ws, chunk_w, info);
+			}
+
+			if(!chunk->combined_array_texture_url.empty())
+			{
+				DownloadingResourceInfo info;
+				info.pos = Vec3d(centroid_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(chunk_w, /*importance_factor=*/1.f);
+				startDownloadingResource(chunk->combined_array_texture_url, centroid_ws, chunk_w, info);
+			}
+
+			//----------------------------- Start loading model and texture, if the resource is already present on disk -----------------------------
+			if(!chunk->mesh_url.empty())
+			{
+				ResourceRef resource = this->resource_manager->getExistingResourceForURL(chunk->mesh_url);
+				if(resource && (resource->getState() == Resource::State_Present))
+				{
+					const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
+
+					Reference<LoadModelTask> load_model_task = new LoadModelTask();
+					
+					load_model_task->resource = resource;
+					load_model_task->lod_model_url = chunk->mesh_url;
+					load_model_task->opengl_engine = this->opengl_engine;
+					load_model_task->unit_cube_shape = this->unit_cube_shape;
+					load_model_task->result_msg_queue = &this->msg_queue;
+					load_model_task->resource_manager = resource_manager;
+					load_model_task->build_physics_ob = false;
+					load_model_task->build_dynamic_physics_ob = false;
+
+					load_item_queue.enqueueItem(chunk->mesh_url, centroid_ws, chunk_w, 
+						load_model_task, 
+						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+				}
+			}
+
+
+			if(!chunk->combined_array_texture_url.empty())
+			{
+				ResourceRef resource = this->resource_manager->getOrCreateResourceForURL(chunk->combined_array_texture_url);
+				
+				const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
+				chunk->combined_array_texture_path = path;
+
+				if(resource->getState() == Resource::State_Present)
+				{
+					TextureParams tex_params;
+					load_item_queue.enqueueItem(chunk->combined_array_texture_url, centroid_ws, chunk_w, 
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false), 
+						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+				}
+			}
+		}
+
+		this->world_state->dirty_from_remote_lod_chunks.clear();
+	}
+	catch(glare::Exception& e)
+	{
+		print("Error while updating LODChunk graphics: " + e.what());
+	}
+}
+
+
+// TODO; do we need this at all?  should be auto-assigned in glengine
+void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLTextureRef opengl_tex)
+{
+	//return; // TEMP
+
+	//if(tex_path.find("chunk") != std::string::npos)
+	//	int a =0;
+	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
+	{
+		LODChunk* chunk = it->second.ptr();
+		if(tex_path == chunk->combined_array_texture_path)
+		{
+			if(chunk->graphics_ob)
+			{
+				conPrint("handleLODChunkTextureLoaded(): Loading combined_array_texture " + tex_path);
+
+				if(opengl_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
+					conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + tex_path + ")");
+
+				//chunk->graphics_ob->materials[0].albedo_texture = opengl_tex;
+				chunk->graphics_ob->materials[0].combined_array_texture = opengl_tex;
+
+				//chunk->graphics_ob->materials[0].combined_array_texture->setDebugName(tex_path);
+
+				opengl_engine->materialTextureChanged(*chunk->graphics_ob, chunk->graphics_ob->materials[0]);
+			}
+		}
+	}
+}
+
+
+void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data)
+{
+//	return; // TEMP
+
+	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
+	{
+		LODChunk* chunk = it->second.ptr();
+		if(mesh_URL == chunk->mesh_url)
+		{
+			mesh_data->meshDataBecameUsed();
+
+			if(!chunk->graphics_ob)
+			{
+				chunk->graphics_ob = new GLObject();
+				chunk->graphics_ob->mesh_data = mesh_data->gl_meshdata;
+				chunk->graphics_ob->ob_to_world_matrix = Matrix4f::identity();
+		
+				chunk->graphics_ob->materials.resize(mesh_data->gl_meshdata->num_materials_referenced);
+				chunk->graphics_ob->materials[0].combined = true;
+
+				chunk->graphics_ob->materials[0].combined_array_texture = this->default_array_tex;
+				if(!chunk->combined_array_texture_path.empty())
+				{
+					OpenGLTextureRef combined_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(chunk->combined_array_texture_path));
+					//TEMP
+					if(combined_tex)
+					{
+						if(combined_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
+							conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + chunk->combined_array_texture_path + ")");
+
+						chunk->graphics_ob->materials[0].combined_array_texture = combined_tex;
+					}
+				}
+
+
+				
+				//--------------------------- Get decompressed mat info ---------------------------
+				const size_t decompressed_size = ZSTD_getFrameContentSize(chunk->compressed_mat_info.data(), chunk->compressed_mat_info.size());
+				if(ZSTD_isError(decompressed_size))
+					throw glare::Exception(std::string("ZSTD_getFrameContentSize failed: ") + ZSTD_getErrorName(decompressed_size));
+
+				// TODO: sanity check size
+
+				js::Vector<uint8> decompressed(decompressed_size);
+
+				const size_t res = ZSTD_decompress(/*dest=*/decompressed.begin(), /*dest capacity=*/decompressed.size(), /*src=*/chunk->compressed_mat_info.data(), /*compressed size=*/chunk->compressed_mat_info.size());
+				if(ZSTD_isError(res))
+					throw glare::Exception(std::string("Decompression of index buffer failed: ") + ZSTD_getErrorName(res));
+				//-------------------------------------------------------------------------------
+
+				const size_t num_floats = decompressed.size() / sizeof(float);
+				checkProperty(num_floats > 0, "invalid mat_info num floats");
+				checkProperty((num_floats % 12) == 0, "invalid mat_info num floats");
+				//printVar(num_floats);
+				//printVar(num_floats / 12);
+
+				ImageMapFloatRef map = new ImageMapFloat(128, /*height=*/Maths::roundedUpDivide<size_t>(num_floats, 128), /*N=*/1, /*allocator=*/NULL);
+
+				std::memcpy(map->getData(), decompressed.data(), decompressed.dataSizeBytes());
+				//for(int i=0; i<num_floats; ++i)
+				//{
+				//	const int px = i % 128;
+				//	const int py = i / 128;
+				//	const float val = ((float*)decompressed.data())[i];
+				//	//printVar(val);
+				//	map->getPixel(px, py)[0] = val;
+				//}
+
+				TextureParams mat_info_tex_params;
+				mat_info_tex_params.allow_compression = false;
+				mat_info_tex_params.use_sRGB = false;
+				mat_info_tex_params.filtering = OpenGLTexture::Filtering::Filtering_Nearest;
+				mat_info_tex_params.use_mipmaps = false;
+
+				const std::string use_mat_info_path = "mat_info_" + chunk->coords.toString();
+				chunk->graphics_ob->materials[0].backface_albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(use_mat_info_path), *map, mat_info_tex_params);
+				chunk->graphics_ob->materials[0].backface_albedo_texture->setDebugName(use_mat_info_path);
+
+				if(chunk->graphics_ob->materials.size() >= 2)
+				{
+					chunk->graphics_ob->materials[1].combined = true;
+					chunk->graphics_ob->materials[1].transparent = true;
+				}
+
+				opengl_engine->addObject(chunk->graphics_ob);
+			}
+		}
+	}
+}
+
 
 
 void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero)
@@ -7373,6 +7607,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					TextureParams texture_params;
 					Vec3d pos(0, 0, 0);
 					float size_factor = 1;
+					bool build_physics_ob = false;
 					bool build_dynamic_physics_ob = false;
 					// Look up in our map of downloading resources
 					auto res = URL_to_downloading_info.find(URL);
@@ -7382,6 +7617,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						texture_params = info.texture_params;
 						pos = info.pos;
 						size_factor = info.size_factor;
+						build_physics_ob = info.build_physics_ob;
 						build_dynamic_physics_ob = info.build_dynamic_physics_ob;
 					}
 					else
@@ -7440,6 +7676,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							load_model_task->unit_cube_shape = this->unit_cube_shape;
 							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
+							load_model_task->build_physics_ob = build_physics_ob;
 							load_model_task->build_dynamic_physics_ob = build_dynamic_physics_ob;
 
 							load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
@@ -9915,6 +10152,16 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 			hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
 			minimap.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 		}
+
+		for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
+		{
+			LODChunk* chunk = it->second.ptr();
+			if(chunk->graphics_ob)
+			{
+				opengl_engine->removeObject(chunk->graphics_ob);
+				chunk->graphics_ob = NULL;
+			}
+		}
 	}
 
 	if(biome_manager && opengl_engine.nonNull() && physics_world.nonNull())
@@ -10104,6 +10351,15 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 		scratch_packet.writeFloat((float)initial_aabb.max_[0]);
 		scratch_packet.writeFloat((float)initial_aabb.max_[1]);
 		scratch_packet.writeFloat((float)initial_aabb.max_[2]);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+
+	// Send QueryLODChunksMessage
+	{
+		// Make QueryLODChunksMessage packet and enqueue to send
+		MessageUtils::initPacket(scratch_packet, Protocol::QueryLODChunksMessage);
+		writeToStream<double>(this->cam_controller.getPosition(), scratch_packet); // Send camera position
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
