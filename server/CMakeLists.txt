@@ -59,6 +59,8 @@ SET(shared_files
 ../shared/ObjectEventHandlers.h
 ../shared/RateLimiter.cpp
 ../shared/RateLimiter.h
+../shared/LODChunk.cpp
+../shared/LODChunk.h
 )
 
 ########### Webserver ################

@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/Parcel.h"
 #include "../shared/WorldSettings.h"
 #include "../shared/WorldStateLock.h"
+#include "../shared/LODChunk.h"
 #include "NewsPost.h"
 #include "User.h"
 #include "Order.h"
@@ -208,31 +209,37 @@ class ServerWorldState : public ThreadSafeRefCounted
 public:
 	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }
 	void addWorldObjectAsDBDirty(const WorldObjectRef ob, WorldStateLock& /*world_state_lock*/) { db_dirty_world_objects.insert(ob); }
+	void addLODChunkAsDBDirty   (const LODChunkRef ob,    WorldStateLock& /*world_state_lock*/) { db_dirty_lod_chunks.insert(ob); }
 
 	WorldSettings world_settings;
 
 	typedef std::map<UID, Reference<Avatar>> AvatarMapType;
 	typedef std::map<UID, WorldObjectRef> ObjectMapType;
 	typedef std::map<ParcelID, ParcelRef> ParcelMapType;
+	typedef std::map<Vec3i, LODChunkRef> LODChunkMapType;
 	typedef std::unordered_set<WorldObjectRef, WorldObjectRefHash> DirtyFromRemoteObjectSetType;
 
-	AvatarMapType& getAvatars(WorldStateLock& /*world_state_lock*/) { return avatars; }
-	ObjectMapType& getObjects(WorldStateLock& /*world_state_lock*/) { return objects; }
-	ParcelMapType& getParcels(WorldStateLock& /*world_state_lock*/) { return parcels; }
+	AvatarMapType&     getAvatars(WorldStateLock& /*world_state_lock*/) { return avatars; }
+	ObjectMapType&     getObjects(WorldStateLock& /*world_state_lock*/) { return objects; }
+	ParcelMapType&     getParcels(WorldStateLock& /*world_state_lock*/) { return parcels; }
+	LODChunkMapType& getLODChunks(WorldStateLock& /*world_state_lock*/) { return lod_chunks; }
 	
 	ParcelMapType parcels; // TODO: make private.  Lots of compile errors to fix when doing so.
 
 	DirtyFromRemoteObjectSetType&                           getDirtyFromRemoteObjects(WorldStateLock& /*world_state_lock*/) { return dirty_from_remote_objects; }
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash>& getDBDirtyWorldObjects(WorldStateLock& /*world_state_lock*/) { return db_dirty_world_objects; }
 	std::unordered_set<ParcelRef, ParcelRefHash>&           getDBDirtyParcels(WorldStateLock& /*world_state_lock*/) { return db_dirty_parcels; }
+	std::unordered_set<LODChunkRef, LODChunkRefHash>&       getDBDirtyLODChunks(WorldStateLock& /*world_state_lock*/) { return db_dirty_lod_chunks; }
 
 private:
 	ObjectMapType objects;
 	DirtyFromRemoteObjectSetType dirty_from_remote_objects; // TODO: could just use vector for this, and avoid duplicates by checking object dirty flag.
 	AvatarMapType avatars;
-	
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> db_dirty_world_objects;
-	std::unordered_set<ParcelRef, ParcelRefHash> db_dirty_parcels;
+	LODChunkMapType lod_chunks;
+
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash>	db_dirty_world_objects;
+	std::unordered_set<ParcelRef, ParcelRefHash>			db_dirty_parcels;
+	std::unordered_set<LODChunkRef, LODChunkRefHash>		db_dirty_lod_chunks;
 };
 
 

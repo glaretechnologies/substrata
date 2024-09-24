@@ -988,6 +988,29 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			out_msg_queue->enqueue(msg);
 			break;
 		}
+	case Protocol::LODChunkInitialSend:
+		{
+			LODChunkRef chunk = new LODChunk();
+			readLODChunkFromStream(msg_buffer, *chunk);
+
+			{
+				Lock lock(world_state->mutex);
+				auto res = world_state->lod_chunks.find(chunk->coords); // Look up existing chunk in world state
+				if(res != world_state->lod_chunks.end()) // If chunk with given coords is present:
+				{
+					LODChunk* existing_chunk = res->second.getPointer();
+					existing_chunk->copyNetworkStateFrom(*chunk);
+					world_state->dirty_from_remote_lod_chunks.insert(existing_chunk);
+				}
+				else // Else if chunk with given coords is not present:
+				{
+					world_state->lod_chunks.insert(std::make_pair(chunk->coords, chunk)); // Add it to world state
+
+					world_state->dirty_from_remote_lod_chunks.insert(chunk);
+				}
+			}
+			break;
+		}
 	default:
 		{
 			conPrint("Unknown message id: " + ::toString(msg_type));

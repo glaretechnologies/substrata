@@ -60,6 +60,7 @@ public:
 
 	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
 	ResourceRef resource;
+	bool build_physics_ob;
 	bool build_dynamic_physics_ob; // If true, build a convex hull shape instead of a mesh physics shape.
 	
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.

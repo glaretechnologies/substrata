@@ -456,7 +456,7 @@ void MeshLODGenThread::doRun()
 	glare::TaskManager task_manager("MeshLODGenThread task manager");
 
 	// When this thread starts, we will do a full scan over all objects.
-	// After that we will wait for CheckGenResourcesForObject messages, which instruct this thread to just scan a single object.
+	// After that we will wait for CheckGenResourcesForObject messages, which instructs this thread to just scan a single object.
 	bool do_initial_full_scan = true;
 
 	try

@@ -224,6 +224,7 @@ ${UTILS_DIR}/PoolMap.h
 ${UTILS_DIR}/GlareProcess.cpp
 ${UTILS_DIR}/GlareProcess.h
 ${UTILS_DIR}/RandomAccessInStream.h
+${UTILS_DIR}/RandomAccessOutStream.h
 ${UTILS_DIR}/RefCounted.h
 ${UTILS_DIR}/Reference.h
 ${UTILS_DIR}/ReferenceTest.cpp
@@ -277,6 +278,7 @@ ${UTILS_DIR}/ManagerWithCache.cpp
 ${UTILS_DIR}/ManagerWithCache.h
 ${UTILS_DIR}/Database.cpp
 ${UTILS_DIR}/Database.h
+${UTILS_DIR}/DatabaseKey.h
 ${UTILS_DIR}/DatabaseTests.cpp
 ${UTILS_DIR}/DatabaseTests.h
 ${UTILS_DIR}/BufferViewInStream.cpp

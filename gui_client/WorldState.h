@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/Parcel.h"
 #include "../shared/GroundPatch.h"
 #include "../shared/WorldStateLock.h"
+#include "../shared/LODChunk.h"
 #include <ThreadSafeRefCounted.h>
 #include <FastIterMap.h>
 #include <Mutex.h>
@@ -50,6 +51,9 @@ public:
 	std::map<ParcelID, ParcelRef> parcels GUARDED_BY(mutex);
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_remote_parcels GUARDED_BY(mutex);
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_local_parcels GUARDED_BY(mutex);
+
+	std::map<Vec3i, LODChunkRef> lod_chunks GUARDED_BY(mutex);
+	std::unordered_set<LODChunkRef, LODChunkRefHash> dirty_from_remote_lod_chunks GUARDED_BY(mutex);
 
 
 	// For each object uid: event handlers added in a script for an object that was not yet created.
