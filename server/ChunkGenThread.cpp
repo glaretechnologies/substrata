@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <graphics/Map2D.h>
 #include <graphics/ImageMap.h>
 #include <graphics/SRGBUtils.h>
+#include <graphics/FormatDecoderGLTF.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <dll/IndigoStringUtils.h>
@@ -327,7 +328,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			params.m_perceptual = true;
 	
 			params.m_write_output_basis_files = true;
-			params.m_out_filename = "d:/tempfiles/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
+			params.m_out_filename = "d:/tempfiles/main_world/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
 			params.m_create_ktx2_file = false;
 
 			params.m_mip_gen = true; // Generate mipmaps for each source image
@@ -388,7 +389,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 	//offset += BatchedMesh::vertAttributeSize(combined_mesh->vert_attributes.back());
 
 	const size_t combined_mesh_uv0_offset_B = offset;
-	combined_mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_UV_0, BatchedMesh::ComponentType_Float, /*offset_B=*/offset));
+	combined_mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_UV_0, BatchedMesh::ComponentType_Half, /*offset_B=*/offset));
 	offset += BatchedMesh::vertAttributeSize(combined_mesh->vert_attributes.back());
 
 	const size_t combined_mesh_mat_index_offset_B = offset;
@@ -674,9 +675,9 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 						const uint32 new_packed_normal = batchedMeshPackNormal(new_n.toVec4fVector());
 
 						// Write the new geometric normal for the vertices v0, v1, v2
-						runtimeCheck(combined_mesh_vert_size * v0 + combined_mesh_normal_offset_B + sizeof(Vec3f) <= combined_mesh->vertex_data.size());
-						runtimeCheck(combined_mesh_vert_size * v1 + combined_mesh_normal_offset_B + sizeof(Vec3f) <= combined_mesh->vertex_data.size());
-						runtimeCheck(combined_mesh_vert_size * v2 + combined_mesh_normal_offset_B + sizeof(Vec3f) <= combined_mesh->vertex_data.size());
+						runtimeCheck(combined_mesh_vert_size * v0 + combined_mesh_normal_offset_B + sizeof(uint32) <= combined_mesh->vertex_data.size());
+						runtimeCheck(combined_mesh_vert_size * v1 + combined_mesh_normal_offset_B + sizeof(uint32) <= combined_mesh->vertex_data.size());
+						runtimeCheck(combined_mesh_vert_size * v2 + combined_mesh_normal_offset_B + sizeof(uint32) <= combined_mesh->vertex_data.size());
 										
 						std::memcpy(&combined_mesh->vertex_data[combined_mesh_vert_size * v0 + combined_mesh_normal_offset_B], &new_packed_normal, sizeof(uint32));
 						std::memcpy(&combined_mesh->vertex_data[combined_mesh_vert_size * v1 + combined_mesh_normal_offset_B], &new_packed_normal, sizeof(uint32));
@@ -694,10 +695,19 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 						{
 							runtimeCheck(vert_stride_B * i + uv0_attr->offset_B + sizeof(Vec2f) <= mesh->vertex_data.size());
 
+							Vec2f uv;
+							std::memcpy(&uv, &mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], sizeof(Vec2f));
+
+							const half new_uv[2] = {half(uv.x), half(uv.y)};
 							std::memcpy(
 								/*dest=*/&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], 
-								/*src=*/&mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], 
-								/*size=*/sizeof(Vec2f));
+								/*src=*/&new_uv, 
+								/*size=*/sizeof(half) * 2);
+
+							//std::memcpy(
+							//	/*dest=*/&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], 
+							//	/*src=*/&mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], 
+							//	/*size=*/sizeof(Vec2f));
 						}
 					}
 					else if(uv0_attr->component_type == BatchedMesh::ComponentType_Half)
@@ -706,11 +716,15 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 						{
 							runtimeCheck(vert_stride_B * i + uv0_attr->offset_B + sizeof(half) * 2 <= mesh->vertex_data.size());
 
-							half uv[2];
+							std::memcpy(
+								&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], 
+								&mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], sizeof(half) * 2);
+
+							/*half uv[2];
 							std::memcpy(&uv, &mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], sizeof(half) * 2);
 
 							const Vec2f new_uv(uv[0], uv[1]);
-							std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));
+							std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));*/
 						}
 					}
 					else
@@ -718,10 +732,13 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 				}
 				else // else UV0 was not present in source mesh, so just write out (0,0) uvs.
 				{
+					const half new_uv[2] = {half(0.f), half(0.f)};
+
 					for(size_t i = 0; i < num_verts; ++i)
 					{
-						const Vec2f new_uv(0.f, 0.f);
-						std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));
+						//std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(Vec2f));
+						
+						std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], &new_uv, sizeof(half) * 2);
 					}
 				}
 
@@ -781,7 +798,9 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 			const size_t num_verts = combined_mesh->numVerts();
 
-			std::vector<int> new_mat_i(combined_mat_infos.size(), std::numeric_limits<uint32>::max()); // Map from old material index to new material index.
+			runtimeCheck(combined_mesh->getAttribute(BatchedMesh::VertAttribute_MatIndex).component_type == BatchedMesh::ComponentType_UInt32);
+
+			std::vector<uint32> new_mat_i(combined_mat_infos.size(), std::numeric_limits<uint32>::max()); // Map from old material index to new material index.
 			for(size_t v = 0; v<num_verts; ++v)
 			{
 				uint32 mat_i;
@@ -865,8 +884,15 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 		// Write combined mesh to disk
 		conPrint("Writing combined mesh to disk...");
-		const std::string path = "d:/tempfiles/chunk_256_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
-		combined_mesh->writeToFile(path);
+		const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
+		BatchedMesh::WriteOptions options;
+		options.compression_level = 19;
+		options.use_meshopt = true;
+		options.pos_mantissa_bits = 14;
+		options.uv_mantissa_bits = 8;
+		combined_mesh->writeToFile(path, options);
+
+		// FormatDecoderGLTF::writeBatchedMeshToGLBFile(*combined_mesh, "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".glb", GLTFWriteOptions());
 
 		printVar(num_obs_combined);
 		printVar(num_batches_combined);
@@ -881,7 +907,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 		if(true)
 		{
 			conPrint("Writing mat info to disk...");
-			FileOutStream file("d:/tempfiles/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
+			FileOutStream file("d:/tempfiles/main_world/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
 
 			for(size_t i=0; i<output_mat_infos.size(); ++i)
 				file.writeData(&output_mat_infos[i], sizeof(OutputMatInfo));
@@ -1041,20 +1067,24 @@ void ChunkGenThread::doRun()
 	{
 #if 0
 		{
+			WorldStateLock lock(all_worlds_state->mutex);
 			Reference<ServerWorldState> root_world_state = all_worlds_state->getRootWorldState();
 			
-			//for(int x=-4; x<4; ++x)
-			//for(int y=-4; y<4; ++y)
-			int x = 0;
-			int y = 0;
+			for(int x=-10; x<10; ++x)
+			for(int y=-10; y<10; ++y)
+			//int x = 0;
+			//int y = 0;
 			{
-				// Compute chunk AABB
-				const js::AABBox chunk_aabb(
-					Vec4f(x * chunk_w, y * chunk_w, -1000.f, 1.f), // min
-					Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w, 1000.f, 1.f) // max
-				);
+				if(all_worlds_state->getRootWorldState()->getLODChunks(lock).count(Vec3i(x, y, 0)) != 0)
+				{
+					// Compute chunk AABB
+					const js::AABBox chunk_aabb(
+						Vec4f(x * chunk_w, y * chunk_w, -1000.f, 1.f), // min
+						Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w, 1000.f, 1.f) // max
+					);
 
-				buildChunk(all_worlds_state, root_world_state, chunk_aabb, x, y, task_manager);
+					buildChunk(all_worlds_state, root_world_state, chunk_aabb, x, y, task_manager);
+				}
 			}
 
 			conPrint("ChunkGenThread: Done. (Elapsed: " + timer.elapsedStringNSigFigs(4));
@@ -1063,6 +1093,15 @@ void ChunkGenThread::doRun()
 		}
 #endif
 
+		//TEMP HACK: invalidate all chunks in main world
+		/*{
+			WorldStateLock lock(all_worlds_state->mutex);
+			for(auto chunk_it = all_worlds_state->getRootWorldState()->getLODChunks(lock).begin(); chunk_it != all_worlds_state->getRootWorldState()->getLODChunks(lock).end(); ++chunk_it)
+			{
+				LODChunk* chunk = chunk_it->second.ptr();
+				chunk->needs_rebuild = true;
+			}
+		}*/
 
 		while(1)
 		{
@@ -1077,13 +1116,9 @@ void ChunkGenThread::doRun()
 
 					addNewChunksIfNeeded(all_worlds_state, it->first, world_state, lock);
 
-
 					for(auto chunk_it = world_state->getLODChunks(lock).begin(); chunk_it != world_state->getLODChunks(lock).end(); ++chunk_it)
 					{
 						LODChunk* chunk = chunk_it->second.ptr();
-
-						//if(it->first == "")// && chunk->coords == Vec3i(0, 0, 0)) // if main world
-						//	chunk->needs_rebuild = true;
 
 						if(chunk->needs_rebuild)
 							dirty_chunks.push_back({chunk, world_state});
