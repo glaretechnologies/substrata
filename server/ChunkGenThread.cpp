@@ -285,7 +285,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 					throw glare::Exception("Unhandled texture type.");
 
 
-				const int new_W = 128;
+				const int new_W = 64;
 
 				// Resize image down
 				Reference<Map2D> resized_map = imagemap->resizeMidQuality(new_W, new_W, &task_manager);
@@ -784,138 +784,148 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 		combined_mesh->aabb_os = aabb_os;
 
-
-
-
 		combined_mesh = MeshSimplification::removeInvisibleTriangles(combined_mesh, task_manager);
 
-
-
-		//-------------------------------------- Remove unused materials --------------------------------------
-		std::vector<MatInfo> new_mat_infos;
+		if(combined_mesh->numVerts() > 0)
 		{
-			conPrint("Raw combined mesh num materials: " + toString(combined_mat_infos.size()));
-
-			const size_t num_verts = combined_mesh->numVerts();
-
-			runtimeCheck(combined_mesh->getAttribute(BatchedMesh::VertAttribute_MatIndex).component_type == BatchedMesh::ComponentType_UInt32);
-
-			std::vector<uint32> new_mat_i(combined_mat_infos.size(), std::numeric_limits<uint32>::max()); // Map from old material index to new material index.
-			for(size_t v = 0; v<num_verts; ++v)
+			//-------------------------------------- Remove unused materials --------------------------------------
+			std::vector<MatInfo> new_mat_infos;
 			{
-				uint32 mat_i;
-				std::memcpy(&mat_i, combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, sizeof(uint32)); // Get vertex material index from combined_mesh
-				uint32 new_mat_i_val = new_mat_i[mat_i];
-				if(new_mat_i_val == std::numeric_limits<uint32>::max())
+				conPrint("Raw combined mesh num materials: " + toString(combined_mat_infos.size()));
+
+				const size_t num_verts = combined_mesh->numVerts();
+
+				runtimeCheck(combined_mesh->getAttribute(BatchedMesh::VertAttribute_MatIndex).component_type == BatchedMesh::ComponentType_UInt32);
+
+				std::vector<uint32> new_mat_i(combined_mat_infos.size(), std::numeric_limits<uint32>::max()); // Map from old material index to new material index.
+				for(size_t v = 0; v<num_verts; ++v)
 				{
-					new_mat_i_val = (uint32)new_mat_infos.size();
-					new_mat_infos.push_back(combined_mat_infos[mat_i]);
-					new_mat_i[mat_i] = new_mat_i_val;
-				}
+					uint32 mat_i;
+					std::memcpy(&mat_i, combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, sizeof(uint32)); // Get vertex material index from combined_mesh
+					uint32 new_mat_i_val = new_mat_i[mat_i];
+					if(new_mat_i_val == std::numeric_limits<uint32>::max())
+					{
+						new_mat_i_val = (uint32)new_mat_infos.size();
+						new_mat_infos.push_back(combined_mat_infos[mat_i]);
+						new_mat_i[mat_i] = new_mat_i_val;
+					}
 				
-				std::memcpy(combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, &new_mat_i_val, sizeof(uint32)); // Copy new value back to combined_mesh
+					std::memcpy(combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, &new_mat_i_val, sizeof(uint32)); // Copy new value back to combined_mesh
+				}
+
+				conPrint("Used combined mesh num materials: " + toString(new_mat_infos.size()));
 			}
 
-			conPrint("Used combined mesh num materials: " + toString(new_mat_infos.size()));
-		}
-
-		//-------------------------------------- Build list of used textures --------------------------------------
-		// Build list of used textures, maintaining order.
-		std::vector<std::string> used_tex_paths;
-		std::set<std::string> textures_added;
-		for(size_t m=0; m<new_mat_infos.size(); ++m)
-		{
-			const MatInfo& mat_info = new_mat_infos[m];
-
-			const std::string tex_path = mat_info.tex_path;
-			if(!tex_path.empty())
+			//-------------------------------------- Build list of used textures --------------------------------------
+			// Build list of used textures, maintaining order.
+			std::vector<std::string> used_tex_paths;
+			std::set<std::string> textures_added;
+			for(size_t m=0; m<new_mat_infos.size(); ++m)
 			{
-				if(textures_added.count(tex_path) == 0)
+				const MatInfo& mat_info = new_mat_infos[m];
+
+				const std::string tex_path = mat_info.tex_path;
+				if(!tex_path.empty())
 				{
-					textures_added.insert(tex_path);
-					used_tex_paths.push_back(tex_path);
+					if(textures_added.count(tex_path) == 0)
+					{
+						textures_added.insert(tex_path);
+						used_tex_paths.push_back(tex_path);
+					}
 				}
 			}
-		}
 
-		//-------------------------------------- Build texture array, save basis file to disk --------------------------------------
-		std::map<std::string, int> array_image_indices; // Index of texture in texture array.
-		// There will be no entry in the map for the path if the texture could not be loaded.
+			//-------------------------------------- Build texture array, save basis file to disk --------------------------------------
+			std::map<std::string, int> array_image_indices; // Index of texture in texture array.
+			// There will be no entry in the map for the path if the texture could not be loaded.
 
-		buildAndSaveArrayTexture(used_tex_paths, task_manager, chunk_x, chunk_y, 
-			array_image_indices, // array_image_indices_out
-			results.combined_texture_path, // combined_texture_path_out
-			results.combined_texture_hash // combined_texture_hash_out
-		);
+			buildAndSaveArrayTexture(used_tex_paths, task_manager, chunk_x, chunk_y, 
+				array_image_indices, // array_image_indices_out
+				results.combined_texture_path, // combined_texture_path_out
+				results.combined_texture_hash // combined_texture_hash_out
+			);
 
-		// TEMP HACK from openglengine.cpp
-		// MaterialData flag values
-		#define HAVE_SHADING_NORMALS_FLAG			1
-		#define HAVE_TEXTURE_FLAG					2
+			// TEMP HACK from openglengine.cpp
+			// MaterialData flag values
+			#define HAVE_SHADING_NORMALS_FLAG			1
+			#define HAVE_TEXTURE_FLAG					2
 
-		//-------------------------------------- Build output_mat_infos --------------------------------------
-		js::Vector<OutputMatInfo> output_mat_infos;
-		for(size_t m=0; m<new_mat_infos.size(); ++m)
-		{
-			const MatInfo& mat_info = new_mat_infos[m];
-
-			OutputMatInfo output_mat_info;
-			output_mat_info.tex_matrix_col_major = mat_info.tex_matrix.transpose();
-			output_mat_info.emission_lum_flux_or_lum = mat_info.emission_lum_flux_or_lum;
-			output_mat_info.roughness = mat_info.roughness;
-			output_mat_info.metallic = mat_info.metallic;
-			output_mat_info.linear_colour_rgb = sanitiseAndConvertToLinearAlbedoColour(mat_info.colour_rgb);
-			output_mat_info.flags = 0;
-
-			const std::string tex_path = mat_info.tex_path;
-			if(!tex_path.empty() && (array_image_indices.count(tex_path) > 0))
+			//-------------------------------------- Build output_mat_infos --------------------------------------
+			js::Vector<OutputMatInfo> output_mat_infos;
+			for(size_t m=0; m<new_mat_infos.size(); ++m)
 			{
-				output_mat_info.flags += (float)HAVE_TEXTURE_FLAG;
+				const MatInfo& mat_info = new_mat_infos[m];
 
-				output_mat_info.array_image_index = (float)array_image_indices[tex_path];
+				OutputMatInfo output_mat_info;
+				output_mat_info.tex_matrix_col_major = mat_info.tex_matrix.transpose();
+				output_mat_info.emission_lum_flux_or_lum = mat_info.emission_lum_flux_or_lum;
+				output_mat_info.roughness = mat_info.roughness;
+				output_mat_info.metallic = mat_info.metallic;
+				output_mat_info.linear_colour_rgb = sanitiseAndConvertToLinearAlbedoColour(mat_info.colour_rgb);
+				output_mat_info.flags = 0;
+
+				const std::string tex_path = mat_info.tex_path;
+				if(!tex_path.empty() && (array_image_indices.count(tex_path) > 0))
+				{
+					output_mat_info.flags += (float)HAVE_TEXTURE_FLAG;
+
+					output_mat_info.array_image_index = (float)array_image_indices[tex_path];
+				}
+
+				output_mat_infos.push_back(output_mat_info);
 			}
 
-			output_mat_infos.push_back(output_mat_info);
+			runtimeCheck(combined_mesh->numIndices() > 0);
+			runtimeCheck(combined_mesh->numVerts() > 0);
+
+			// Write combined mesh to disk
+			conPrint("Writing combined mesh to disk...");
+			const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
+			BatchedMesh::WriteOptions options;
+			options.compression_level = 19;
+			options.use_meshopt = true;
+			options.pos_mantissa_bits = 14;
+			options.uv_mantissa_bits = 8;
+			combined_mesh->writeToFile(path, options);
+
+			// FormatDecoderGLTF::writeBatchedMeshToGLBFile(*combined_mesh, "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".glb", GLTFWriteOptions());
+
+			printVar(num_obs_combined);
+			printVar(num_batches_combined);
+			conPrint("Wrote chunk mesh to '" + path + "'.");
+
+			// Compute hash over it
+			const uint64 hash = FileChecksum::fileChecksum(path);
+
+
+
+			// Write output_mat_infos
+			if(true)
+			{
+				conPrint("Writing mat info to disk...");
+				FileOutStream file("d:/tempfiles/main_world/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
+
+				for(size_t i=0; i<output_mat_infos.size(); ++i)
+					file.writeData(&output_mat_infos[i], sizeof(OutputMatInfo));
+
+
+				//------------ Build compressed mat_info ------------
+				js::Vector<uint8> compressed_data(ZSTD_compressBound(output_mat_infos.dataSizeBytes()));
+
+				const size_t compressed_size = ZSTD_compress(/*dest=*/compressed_data.data(), /*dest capacity=*/compressed_data.size(), /*src=*/output_mat_infos.data(), /*src size=*/output_mat_infos.dataSizeBytes(),
+					19 // compression level  TODO: use higher level? test a few.
+				);
+				if(ZSTD_isError(compressed_size))
+					throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
+				compressed_data.resize(compressed_size);
+				FileUtils::writeEntireFile("d:/tempfiles/main_world/compressed_mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin", (const char*)compressed_data.data(), compressed_data.size());
+				//---------------------------------------------------
+			}
+
+			results.output_mat_infos = output_mat_infos;
+			results.combined_mesh_path = path;
+			results.combined_mesh_hash = hash;
 		}
-
-
-
-
-
-		// Write combined mesh to disk
-		conPrint("Writing combined mesh to disk...");
-		const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
-		BatchedMesh::WriteOptions options;
-		options.compression_level = 19;
-		options.use_meshopt = true;
-		options.pos_mantissa_bits = 14;
-		options.uv_mantissa_bits = 8;
-		combined_mesh->writeToFile(path, options);
-
-		// FormatDecoderGLTF::writeBatchedMeshToGLBFile(*combined_mesh, "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".glb", GLTFWriteOptions());
-
-		printVar(num_obs_combined);
-		printVar(num_batches_combined);
-		conPrint("Wrote chunk mesh to '" + path + "'.");
-
-		// Compute hash over it
-		const uint64 hash = FileChecksum::fileChecksum(path);
-
-
-
-		// Write output_mat_infos
-		if(true)
-		{
-			conPrint("Writing mat info to disk...");
-			FileOutStream file("d:/tempfiles/main_world/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
-
-			for(size_t i=0; i<output_mat_infos.size(); ++i)
-				file.writeData(&output_mat_infos[i], sizeof(OutputMatInfo));
-		}
-
-		results.output_mat_infos = output_mat_infos;
-		results.combined_mesh_path = path;
-		results.combined_mesh_hash = hash;
 	}
 
 	return results;
@@ -1016,8 +1026,8 @@ static const float chunk_w = 128;
 
 static void addNewChunksIfNeeded(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock)
 {
-	conPrint("ChunkGenThread::addNewChunksIfNeeded(), world_name: '" + world_name + "'");
-	int num_new_chunks_added = 0;
+	//conPrint("ChunkGenThread::addNewChunksIfNeeded(), world_name: '" + world_name + "'");
+	//int num_new_chunks_added = 0;
 	Timer timer;
 
 	ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
@@ -1044,7 +1054,7 @@ static void addNewChunksIfNeeded(ServerAllWorldsState* all_worlds_state, const s
 		}
 	}
 
-	conPrint("ChunkGenThread::addNewChunksIfNeeded() done.  Added " + toString(num_new_chunks_added) + " new chunks.  Elapsed: " + timer.elapsedStringMSWIthNSigFigs(4));
+	//conPrint("ChunkGenThread::addNewChunksIfNeeded() done.  Added " + toString(num_new_chunks_added) + " new chunks.  Elapsed: " + timer.elapsedStringMSWIthNSigFigs(4));
 }
 
 
@@ -1094,14 +1104,15 @@ void ChunkGenThread::doRun()
 #endif
 
 		//TEMP HACK: invalidate all chunks in main world
-		/*{
+		if(false)
+		{
 			WorldStateLock lock(all_worlds_state->mutex);
 			for(auto chunk_it = all_worlds_state->getRootWorldState()->getLODChunks(lock).begin(); chunk_it != all_worlds_state->getRootWorldState()->getLODChunks(lock).end(); ++chunk_it)
 			{
 				LODChunk* chunk = chunk_it->second.ptr();
 				chunk->needs_rebuild = true;
 			}
-		}*/
+		}
 
 		while(1)
 		{
@@ -1121,7 +1132,10 @@ void ChunkGenThread::doRun()
 						LODChunk* chunk = chunk_it->second.ptr();
 
 						if(chunk->needs_rebuild)
+						{
 							dirty_chunks.push_back({chunk, world_state});
+							chunk->needs_rebuild = false;
+						}
 					}
 				}
 			}
@@ -1135,8 +1149,8 @@ void ChunkGenThread::doRun()
 
 				// Compute chunk AABB
 				const js::AABBox chunk_aabb(
-					Vec4f(x       * chunk_w, y       * chunk_w, -10000.f, 1.f), // min
-					Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w,  10000.f, 1.f) // max
+					Vec4f(x       * chunk_w, y       * chunk_w, -100.f, 1.f), // min
+					Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w,  500.f, 1.f) // max
 				);
 
 				const ChunkBuildResults results = buildChunk(all_worlds_state, dirty_chunks[i].world_state, chunk_aabb, x, y, task_manager);
@@ -1146,7 +1160,7 @@ void ChunkGenThread::doRun()
 				js::Vector<uint8> compressed_data(ZSTD_compressBound(results.output_mat_infos.dataSizeBytes()));
 
 				const size_t compressed_size = ZSTD_compress(/*dest=*/compressed_data.data(), /*dest capacity=*/compressed_data.size(), /*src=*/results.output_mat_infos.data(), /*src size=*/results.output_mat_infos.dataSizeBytes(),
-					ZSTD_CLEVEL_DEFAULT // compression level  TODO: use higher level? test a few.
+					19 // compression level  TODO: use higher level? test a few.
 				);
 				if(ZSTD_isError(compressed_size))
 					throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
@@ -1172,7 +1186,7 @@ void ChunkGenThread::doRun()
 					if(!all_worlds_state->resource_manager->isFileForURLPresent(tex_URL))
 					{
 						all_worlds_state->resource_manager->copyLocalFileToResourceDir(results.combined_texture_path, tex_URL);
-						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(mesh_URL));
+						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(tex_URL));
 					}
 				}
 
@@ -1191,7 +1205,6 @@ void ChunkGenThread::doRun()
 						chunk->combined_array_texture_url = tex_URL;
 						chunk->compressed_mat_info = compressed_data;
 
-						chunk->needs_rebuild = false;
 						chunk->db_dirty = true;
 
 						dirty_chunks[i].world_state->addLODChunkAsDBDirty(chunk, lock);
