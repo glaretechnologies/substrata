@@ -165,6 +165,26 @@ EM_JS(char*, getUserAgentString, (), {
 	return stringToNewUTF8(window.navigator.userAgent);
 });
 
+// From https://groups.google.com/g/angleproject/c/0ZuTYrgaXYw/m/UNdsgYLLCgAJ
+EM_JS(char*, getTranslatedShaderSource, (int32_t nm), {
+	var ext = GLctx.getExtension('WEBGL_debug_shaders');
+	if (ext) {
+		if (GL.shaders[nm]) {
+			var jsString = ext.getTranslatedShaderSource(GL.shaders[nm]);
+			var lengthBytes = lengthBytesUTF8(jsString) + 1;
+			var stringOnWasmHeap = _malloc(lengthBytes);
+			stringToUTF8(jsString, stringOnWasmHeap, lengthBytes);
+			return stringOnWasmHeap;
+		}
+		else {
+			return 0;
+		}
+	}
+	else {
+		return 0;
+	}
+});
+
 #endif
 
 int main(int argc, char** argv)
@@ -725,6 +745,25 @@ static void doOneMainLoopIter()
 		{
 			if(e.key.keysym.sym == SDLK_F1 || e.key.keysym.sym == SDLK_F2)
 				show_imgui_info_window = !show_imgui_info_window;
+
+			if(e.key.keysym.sym == SDLK_F3)
+			{
+				// Dump out the translated shader source (e.g. ANGLE's HLSL output)
+#if EMSCRIPTEN
+				for(int i=0; i<100; ++i)
+				{
+					char* translated_code = getTranslatedShaderSource(i);
+					if(translated_code)
+					{
+						conPrint("shader " + toString(i) + " translated_code:");
+						conPrint(std::string(translated_code));
+						free(translated_code);
+					}
+					else
+						conPrint("translated_code was NULL");
+				}
+#endif
+			}
 
 			if(!imgui_captures_keyboard_ev)
 			{
