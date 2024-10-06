@@ -79,4 +79,7 @@ FileUtils.cp_r(substrata_dir + "/resources/foam_windowed.ktx2",        cyb_outpu
 FileUtils.cp_r(glare_core + "/opengl/gl_data", cyberspace_output + "/data",             :verbose=>true)
 FileUtils.cp_r(glare_core + "/opengl/gl_data", cyberspace_output + "/test_builds/data", :verbose=>true)
 
+# Change/touch a file to trigger a relink.
+FileUtils.touch(glare_core + '/graphics/TextureData.cpp')
+
 puts "Done."
