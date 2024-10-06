@@ -622,7 +622,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			if(request.path == "/webclient")
 			{
 				path = "webclient.html";
-				cache = false; // /webclient needs to be uncached, as it may change, especially with new cache-busting URLs for updated files like gui_client.wasm.
+				cache = false; // /webclient html needs to be uncached, as it may change, especially with new cache-busting URLs for updated files like gui_client.wasm.
 			}
 			else if(request.path == "/gui_client.data") // gui_client.js fetches gui_client.data from this URL path.
 				path = "gui_client.data";
