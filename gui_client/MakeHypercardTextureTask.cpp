@@ -58,7 +58,7 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 		}
 #endif
 
-		const bool allow_compression = opengl_engine->textureCompressionSupportedAndEnabled();
+		const bool allow_compression = opengl_engine->DXTTextureCompressionSupportedAndEnabled();
 		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), opengl_engine->getMainTaskManager(), allow_compression, /*build mipmaps=*/true);
 
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
