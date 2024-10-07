@@ -24,7 +24,13 @@ class ImageDecoding
 {
 public:
 
-	static Reference<Map2D> decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator = NULL);
+	struct ImageDecodingOptions
+	{
+		ImageDecodingOptions() : ETC_support(false) {}
+		bool ETC_support;
+	};
+
+	static Reference<Map2D> decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator = NULL, const ImageDecodingOptions& options = ImageDecodingOptions());
 
 	static bool isSupportedImageExtension(string_view extension);
 

@@ -20,7 +20,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <fstream>
 
 
-Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator) // throws ImFormatExcep on failure
+Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator, const ImageDecodingOptions& options) // throws ImFormatExcep on failure
 {
 	if(hasExtension(path, "jpg") || hasExtension(path, "jpeg"))
 	{
@@ -53,7 +53,9 @@ Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, 
 	}
 	else if(hasExtension(path, "basis"))
 	{
-		return BasisDecoder::decode(path, mem_allocator);
+		BasisDecoder::BasisDecoderOptions basis_options;
+		basis_options.ETC_support = options.ETC_support;
+		return BasisDecoder::decode(path, mem_allocator, basis_options);
 	}
 	else
 	{

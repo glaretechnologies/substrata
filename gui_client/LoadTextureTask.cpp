@@ -22,9 +22,6 @@ Copyright Glare Technologies Limited 2019 -
 #include <IncludeHalf.h>
 
 
-#define GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT					0x8E8F
-
-
 LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource_,
 	const TextureParams& tex_params_, bool is_terrain_map_)
 :	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource(resource_), tex_params(tex_params_), is_terrain_map(is_terrain_map_)
@@ -44,7 +41,12 @@ void LoadTextureTask::run(size_t thread_index)
 		if(hasExtension(key, "gif"))
 			map = GIFDecoder::decodeImageSequence(key, opengl_engine->mem_allocator.ptr());
 		else
-			map = ImageDecoding::decodeImage(".", key, opengl_engine->mem_allocator.ptr());
+		{
+			ImageDecoding::ImageDecodingOptions options;
+			options.ETC_support = opengl_engine->texture_compression_ETC_support;
+
+			map = ImageDecoding::decodeImage(".", key, opengl_engine->mem_allocator.ptr(), options);
+		}
 
 #if USE_TEXTURE_VIEWS // NOTE: USE_TEXTURE_VIEWS is defined in opengl/TextureAllocator.h
 		// Resize for texture view
@@ -76,8 +78,20 @@ void LoadTextureTask::run(size_t thread_index)
 				throw glare::Exception("Invalid texture for WebGL, is compressed and width or height is not a multiple of 4");
 #endif
 
-		const bool do_compression = opengl_engine->textureCompressionSupportedAndEnabled() && tex_params.allow_compression && OpenGLTexture::areTextureDimensionsValidForCompression(*map);
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), opengl_engine->getMainTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps);
+		Reference<TextureData> texture_data;
+		if(const CompressedImage* compressed_img = dynamic_cast<const CompressedImage*>(map.ptr()))
+		{
+			texture_data = compressed_img->texture_data; // If the image map just holds already compressed data, use it.
+		}
+		else
+		{
+			const bool do_compression = opengl_engine->DXTTextureCompressionSupportedAndEnabled() && tex_params.allow_compression && OpenGLTexture::areTextureDimensionsValidForCompression(*map);
+
+			texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), opengl_engine->getMainTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps);
+		}
+
+
+
 
 		if(hasExtension(key, "gif") && texture_data->totalCPUMemUsage() > 100000000)
 		{
