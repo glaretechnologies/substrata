@@ -209,7 +209,8 @@ SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
 SOURCE_GROUP(ethereum FILES ${ethereum_files})
-SOURCE_GROUP(basis_universal FILES ${basisu_files})
+SOURCE_GROUP(basis_universal/encoder FILES ${basisu_encoder_files})
+SOURCE_GROUP(basis_universal/transcoder FILES ${basisu_transcoder_files})
 
 
 # From secp256k1-master\configure.ac:
@@ -259,7 +260,8 @@ ${meshoptimizer}
 ${webclient_files}
 ${substrata_private_webserver}
 ${substrata_private_server}
-${basisu_files}
+${basisu_encoder_files}
+${basisu_transcoder_files}
 ${luau_vm}
 ${luau_compiler}
 ${lua}

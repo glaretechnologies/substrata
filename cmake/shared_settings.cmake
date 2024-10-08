@@ -480,7 +480,8 @@ include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/dll/include)
 
 
 set(basisu_dir ${GLARE_CORE_TRUNK_DIR_ENV}/basis_universal)
-set(basisu_files
+
+set(basisu_encoder_files
 ${basisu_dir}/encoder/basisu_backend.cpp
 ${basisu_dir}/encoder/basisu_backend.h
 ${basisu_dir}/encoder/basisu_basis_file.cpp
@@ -512,8 +513,12 @@ ${basisu_dir}/encoder/basisu_ssim.cpp
 ${basisu_dir}/encoder/basisu_ssim.h
 ${basisu_dir}/encoder/basisu_uastc_enc.cpp
 ${basisu_dir}/encoder/basisu_uastc_enc.h
+)
 
+set(basisu_transcoder_files
 ${basisu_dir}/transcoder/basisu_transcoder.cpp
+${basisu_dir}/transcoder/basisu_transcoder.h
+${basisu_dir}/transcoder/basisu.h
 )
 
 

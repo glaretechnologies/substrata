@@ -953,12 +953,16 @@ else()
 	add_definitions(-DBASISU_SUPPORT_SSE=1)
 endif()
 # Disable some basis universal stuff we don't use
-# add_definitions(-DBASISD_SUPPORT_UASTC=0) # This would be nice but it doesn't compile with it defined.
-# add_definitions(-DBASISD_SUPPORT_BC7_MODE5=0)
-# add_definitions(-DBASISD_SUPPORT_PVRTC1=0)
-# add_definitions(-DBASISD_SUPPORT_ETC2_EAC_A8=0)
-# add_definitions(-DBASISD_SUPPORT_UASTC=0)
-# add_definitions(-DBASISD_SUPPORT_ASTC=0)
+add_definitions(-DBASISD_SUPPORT_UASTC=0)
+add_definitions(-DBASISD_SUPPORT_BC7=0)
+add_definitions(-DBASISD_SUPPORT_BC7_MODE5=0)
+add_definitions(-DBASISD_SUPPORT_PVRTC1=0)
+add_definitions(-DBASISD_SUPPORT_PVRTC2=0)
+add_definitions(-DBASISD_SUPPORT_ASTC=0)
+add_definitions(-DBASISD_SUPPORT_ATC=0)
+add_definitions(-DBASISD_SUPPORT_ETC2_EAC_RG11=0)
+add_definitions(-DBASISD_SUPPORT_FXT1=0)
+
 
 add_definitions(-DBASIS_NO_IMAGE_READERS=1) # Disable PNG and JPG reading code in basis encoder.
 
@@ -988,8 +992,7 @@ SOURCE_GROUP(tracy FILES ${tracy_files})
 SOURCE_GROUP(freetype FILES ${freetype})
 SOURCE_GROUP(imgui FILES ${imgui})
 SOURCE_GROUP(ui FILES ${ui})
-SOURCE_GROUP(basis_universal FILES ${basisu_files})
-
+SOURCE_GROUP(basis_universal/transcoder FILES ${basisu_transcoder_files})
 
 
 
@@ -1067,7 +1070,7 @@ ${ui}
 ${luau_vm}
 ${luau_compiler}
 ${lua}
-${basisu_files}
+${basisu_transcoder_files}
 )
 
 add_definitions(-DGUI_CLIENT=1)
