@@ -646,6 +646,8 @@ public:
 	std::string logged_in_user_name;
 	uint32 logged_in_user_flags;
 
+	bool server_using_lod_chunks; // Should be equal to !world_state->lod_chunks.empty(), cached in a boolean.
+
 	bool shown_object_modification_error_msg;
 
 	Reference<GLObject> ob_placement_beam;
