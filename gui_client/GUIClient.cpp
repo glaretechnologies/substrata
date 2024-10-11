@@ -163,7 +163,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	server_protocol_version(0),
 	settings(NULL),
 	ui_interface(NULL),
-	extracted_anim_data_loaded(false)
+	extracted_anim_data_loaded(false),
+	server_using_lod_chunks(false)
 {
 	resources_dir_path = base_dir_path + "/data/resources";
 
@@ -3369,6 +3370,8 @@ void GUIClient::checkForLODChanges()
 	if(world_state.isNull())
 		return;
 		
+	const bool use_server_using_lod_chunks = this->server_using_lod_chunks;
+
 	//Timer timer;
 	{
 		WorldStateLock lock(this->world_state->mutex);
@@ -3413,7 +3416,7 @@ void GUIClient::checkForLODChanges()
 
 			// If this object is in a chunk region, and we are displaying the chunk, then don't show the object.
 			const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
-			if(shouldDisplayLODChunk(chunk_coords, cam_pos) && !ob->exclude_from_lod_chunk_mesh)
+			if(use_server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, cam_pos) && !ob->exclude_from_lod_chunk_mesh)
 				in_proximity = false;
 
 			assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
@@ -5512,7 +5515,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
 						const Vec3i chunk_coords(Maths::floorToInt(ob->getCentroidWS()[0] / chunk_w), Maths::floorToInt(ob->getCentroidWS()[1] / chunk_w), 0);
-						if(shouldDisplayLODChunk(chunk_coords, campos) && !ob->exclude_from_lod_chunk_mesh)
+						if(this->server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, campos) && !ob->exclude_from_lod_chunk_mesh)
 							ob->in_proximity = false;
 						assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
@@ -6206,6 +6209,8 @@ void GUIClient::updateLODChunkGraphics()
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 				}
 			}
+
+			this->server_using_lod_chunks = true;
 		}
 
 		this->world_state->dirty_from_remote_lod_chunks.clear();
@@ -10126,6 +10131,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	this->logged_in_user_id = UserID::invalidUserID();
 	this->logged_in_user_name = "";
 	this->logged_in_user_flags = 0;
+
+	this->server_using_lod_chunks = false;
 
 	ui_interface->setTextAsNotLoggedIn();
 
