@@ -2148,8 +2148,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 		{
 			// Load a placeholder object (cube) if we don't have an existing model (e.g. another LOD level) being displayed.
 			// We also need a valid AABB.
-			if(!ob->getAABBOS().isEmpty() && ob->opengl_engine_ob.isNull())
-				addPlaceholderObjectsForOb(*ob);
+		//TEMP DISABLED FOR CHUNK LOD	if(!ob->getAABBOS().isEmpty() && ob->opengl_engine_ob.isNull())
+		//		addPlaceholderObjectsForOb(*ob);
 		}
 
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
@@ -3342,6 +3342,26 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 float proj_len_viewable_threshold = 0.02f;
 
 
+static const float chunk_w = 128.f;
+
+static inline float xyDist2(const Vec4f& a, const Vec4f& b)
+{
+	Vec4f a_to_b = b - a;
+	return _mm_cvtss_f32(_mm_dp_ps(a_to_b.v, a_to_b.v, 0x3F));
+}
+
+static inline bool shouldDisplayLODChunk(const Vec3i& chunk_coords, const Vec4f& campos)
+{
+	const Vec4f chunk_centre = Vec4f((chunk_coords.x + 0.5f) * chunk_w, (chunk_coords.y + 0.5f) * chunk_w, 0, 1);
+	
+	const float CHUNK_DIST_THRESHOLD = 150.f;
+	
+	const float dist_to_chunk2 = xyDist2(campos, chunk_centre);
+
+	return dist_to_chunk2 > Maths::square(CHUNK_DIST_THRESHOLD);
+}
+
+
 void GUIClient::checkForLODChanges()
 {
 	ZoneScoped; // Tracy profiler
@@ -3390,12 +3410,13 @@ void GUIClient::checkForLODChanges()
 #else
 			bool in_proximity = cam_to_ob_d2 < load_distance2_;
 #endif
-			const float chunk_w = 128.f; // TEMP
+
+			// If this object is in a chunk region, and we are displaying the chunk, then don't show the object.
 			const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
-			const float dist_to_chunk = cam_pos.getDist(Vec4f((chunk_coords.x + 0.5f) * chunk_w, (chunk_coords.y + 0.5f) * chunk_w, 0, 1));
-			if(dist_to_chunk > 100.f)
+			if(shouldDisplayLODChunk(chunk_coords, cam_pos) && !ob->exclude_from_lod_chunk_mesh)
 				in_proximity = false;
 
+			assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
 			if(!in_proximity) // If object is out of load distance:
 			{
@@ -5490,6 +5511,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							enableMaterialisationEffectOnOb(*ob); // Enable materialisation effect before we call loadModelForObject() below.
 
 						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
+						const Vec3i chunk_coords(Maths::floorToInt(ob->getCentroidWS()[0] / chunk_w), Maths::floorToInt(ob->getCentroidWS()[1] / chunk_w), 0);
+						if(shouldDisplayLODChunk(chunk_coords, campos) && !ob->exclude_from_lod_chunk_mesh)
+							ob->in_proximity = false;
+						assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
 						if(ob->getCentroidWS().getDist2(campos) < this->load_distance2)
 						{
@@ -6078,6 +6103,38 @@ void GUIClient::updateParcelGraphics()
 
 void GUIClient::updateLODChunkGraphics()
 {
+	const Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
+
+	// Set chunk visibility based on distance from camera
+	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
+	{
+		LODChunk* chunk = it->second.ptr();
+		if(chunk->graphics_ob)
+		{
+			const bool should_show = shouldDisplayLODChunk(chunk->coords, campos);
+			if(!should_show)
+			{
+				// Hide
+				if(chunk->graphics_ob_in_engine)
+				{
+					opengl_engine->removeObject(chunk->graphics_ob);
+					chunk->graphics_ob_in_engine = false;
+				}
+			}
+			else
+			{
+				// show
+				if(!chunk->graphics_ob_in_engine)
+				{
+					opengl_engine->addObject(chunk->graphics_ob);
+					chunk->graphics_ob_in_engine = true;
+				}
+			}
+		}
+	}
+
+
+
 	// Update LOD chunk graphics that have been marked as from-server-dirty based on incoming network messages from server.
 	try
 	{
@@ -6089,8 +6146,6 @@ void GUIClient::updateLODChunkGraphics()
 		{
 			LODChunk* chunk = it->getPointer();
 
-			const float chunk_w = 128.0f;
-			
 			const Vec4f centroid_ws((chunk->coords.x + 0.5f) * chunk_w, (chunk->coords.y + 0.5f) * chunk_w, 0.f, 1.f);
 
 			if(!chunk->mesh_url.empty())
@@ -6165,10 +6220,6 @@ void GUIClient::updateLODChunkGraphics()
 // TODO; do we need this at all?  should be auto-assigned in glengine
 void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLTextureRef opengl_tex)
 {
-	//return; // TEMP
-
-	//if(tex_path.find("chunk") != std::string::npos)
-	//	int a =0;
 	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 	{
 		LODChunk* chunk = it->second.ptr();
@@ -6176,7 +6227,7 @@ void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLT
 		{
 			if(chunk->graphics_ob)
 			{
-				conPrint("handleLODChunkTextureLoaded(): Loading combined_array_texture " + tex_path);
+				// conPrint("handleLODChunkTextureLoaded(): Loading combined_array_texture " + tex_path);
 
 				if(opengl_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
 					conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + tex_path + ")");
@@ -6186,7 +6237,8 @@ void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLT
 
 				//chunk->graphics_ob->materials[0].combined_array_texture->setDebugName(tex_path);
 
-				opengl_engine->materialTextureChanged(*chunk->graphics_ob, chunk->graphics_ob->materials[0]);
+				if(chunk->graphics_ob_in_engine)
+					opengl_engine->materialTextureChanged(*chunk->graphics_ob, chunk->graphics_ob->materials[0]);
 			}
 		}
 	}
@@ -6195,8 +6247,6 @@ void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLT
 
 void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data)
 {
-//	return; // TEMP
-
 	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 	{
 		LODChunk* chunk = it->second.ptr();
@@ -6230,8 +6280,8 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 
 				
 				//--------------------------- Get decompressed mat info ---------------------------
-				const size_t decompressed_size = ZSTD_getFrameContentSize(chunk->compressed_mat_info.data(), chunk->compressed_mat_info.size());
-				if(ZSTD_isError(decompressed_size))
+				const uint64 decompressed_size = ZSTD_getFrameContentSize(chunk->compressed_mat_info.data(), chunk->compressed_mat_info.size());
+				if(decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN || decompressed_size == ZSTD_CONTENTSIZE_ERROR)
 					throw glare::Exception(std::string("ZSTD_getFrameContentSize failed: ") + ZSTD_getErrorName(decompressed_size));
 
 				// TODO: sanity check size
@@ -6277,7 +6327,13 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 					chunk->graphics_ob->materials[1].transparent = true;
 				}
 
-				opengl_engine->addObject(chunk->graphics_ob);
+				const Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
+				const bool should_show = shouldDisplayLODChunk(chunk->coords, campos);
+				if(should_show)
+				{
+					opengl_engine->addObject(chunk->graphics_ob);
+					chunk->graphics_ob_in_engine = true;
+				}
 			}
 		}
 	}
@@ -7809,7 +7865,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	if(opengl_engine.nonNull() && opengl_engine->mem_allocator.nonNull())
 	{
 		msg += "---------------Mem Allocator-----------------\n";
-		msg += opengl_engine->mem_allocator->getDiagnostics();
+		msg += std::string(opengl_engine->mem_allocator->getDiagnostics().c_str());
 		msg += "---------------------------------------------\n";
 	}
 
@@ -10355,14 +10411,6 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 
-	// Send QueryLODChunksMessage
-	{
-		// Make QueryLODChunksMessage packet and enqueue to send
-		MessageUtils::initPacket(scratch_packet, Protocol::QueryLODChunksMessage);
-		writeToStream<double>(this->cam_controller.getPosition(), scratch_packet); // Send camera position
-
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
-	}
 
 	updateGroundPlane();
 
