@@ -31,7 +31,7 @@ std::string sharedAdminHeader(ServerAllWorldsState& world_state, const web::Requ
 
 	page_out += "<p><a href=\"/admin\">Main admin page</a> | <a href=\"/admin_users\">Users</a> | <a href=\"/admin_parcels\">Parcels</a> | ";
 	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a> | <a href=\"/admin_map\">Map</a> | ";
-	page_out += "<a href=\"/admin_news_posts\">News Posts</a></p>";
+	page_out += "<a href=\"/admin_news_posts\">News Posts</a> | <a href=\"/admin_lod_chunks\">LOD Chunks</a>  </p>";
 
 	return page_out;
 }
@@ -825,6 +825,55 @@ void renderAdminNewsPostsPage(ServerAllWorldsState& world_state, const web::Requ
 
 			page_out += "</p>\n";
 			page_out += "<br/>  \n";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminLODChunksPage(ServerAllWorldsState& all_worlds_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(all_worlds_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(all_worlds_state, request);
+
+	{ // Lock scope
+		WorldStateLock lock(all_worlds_state.mutex);
+
+		page_out += "<h2>LOD Chunks</h2>\n";
+
+		//-----------------------
+		page_out += "<hr/>";
+		page_out += "<form action=\"/admin_rebuild_world_lod_chunks\" method=\"post\">";
+		page_out += "world name: <input type=\"text\" name=\"world_name\"><br>";
+		page_out += "<input type=\"submit\" value=\"Rebuild world LOD chunks\">";
+		page_out += "</form>";
+		page_out += "<hr/>";
+		//-----------------------
+
+		for(auto it = all_worlds_state.world_states.begin(); it != all_worlds_state.world_states.end(); ++it)
+		{
+			ServerWorldState* world_state = it->second.ptr();
+
+			ServerWorldState::LODChunkMapType& lod_chunks = world_state->getLODChunks(lock);
+
+			if(!lod_chunks.empty())
+			{
+				page_out += "<h3>World: '" + web::Escaping::HTMLEscape(it->first) + "'</h3>";
+
+				for(auto lod_it = lod_chunks.begin(); lod_it != lod_chunks.end(); ++lod_it)
+				{
+					const LODChunk* chunk = lod_it->second.ptr();
+
+					page_out += "<div>Coords: " + chunk->coords.toString() + ", <br/> mesh_url: " + web::Escaping::HTMLEscape(chunk->mesh_url) + ", <br/> combined_array_texture_url: " + web::Escaping::HTMLEscape(chunk->combined_array_texture_url) + 
+						"<br/> compressed_mat_info: " + toString(chunk->compressed_mat_info.size()) + " B, <br/> needs_rebuild: " + boolToString(chunk->needs_rebuild) + "</div><br/>";
+				}
+			}
 		}
 	} // End Lock scope
 
@@ -2066,6 +2115,53 @@ void handleNewNewsPostPost(ServerAllWorldsState& world_state, const web::Request
 	{
 		if(!request.fuzzing)
 			conPrint("handleNewNewsPostPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRebuildWorldLODChunks(ServerAllWorldsState& all_worlds_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(all_worlds_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const web::UnsafeString world_name = request.getPostField("world_name");
+
+		{ // Lock scope
+
+			WorldStateLock lock(all_worlds_state.mutex);
+
+			auto res = all_worlds_state.world_states.find(world_name.str());
+
+			if(res != all_worlds_state.world_states.end())
+			{
+				ServerWorldState* world_state = res->second.ptr();
+				ServerWorldState::LODChunkMapType& lod_chunks = world_state->getLODChunks(lock);
+				for(auto lod_it = lod_chunks.begin(); lod_it != lod_chunks.end(); ++lod_it)
+				{
+					LODChunk* chunk = lod_it->second.ptr();
+					if(!chunk->needs_rebuild)
+					{
+						chunk->needs_rebuild = true;
+
+						world_state->addLODChunkAsDBDirty(chunk, lock);
+						all_worlds_state.markAsChanged();
+					}
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_lod_chunks");
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleRebuildWorldLODChunks error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

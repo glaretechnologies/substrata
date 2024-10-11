@@ -45,11 +45,12 @@ public:
 	std::string mesh_url;
 	std::string combined_array_texture_url;
 	js::Vector<uint8> compressed_mat_info;
-	bool needs_rebuild; // Does the chunk mesh or texture need rebuilding due to an object changed in the chunk?
+	bool needs_rebuild; // Does the chunk mesh or texture need rebuilding due to an object change in the chunk?
 
 
 #if GUI_CLIENT
 	Reference<GLObject> graphics_ob;
+	bool graphics_ob_in_engine;
 	std::string combined_array_texture_path;
 #endif
 

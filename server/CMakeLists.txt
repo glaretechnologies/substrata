@@ -166,6 +166,10 @@ endif()
 # add_definitions(-DBASISD_SUPPORT_UASTC=0)
 # add_definitions(-DBASISD_SUPPORT_ASTC=0)
 
+if(FUZZING)
+	add_definitions(-DBASISU_NO_HEADER_OR_DATA_CRC16_CHECKS=1) # For fuzzing
+endif()
+
 add_definitions(-DBASIS_NO_IMAGE_READERS=1) # Disable PNG and JPG reading code in basis encoder.
 
 

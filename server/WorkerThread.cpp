@@ -786,6 +786,25 @@ static float maxAudioVolumeForObject(const WorldObject& ob, const UserID& user_i
 }
 
 
+static const float chunk_w = 128;
+
+
+static void markLODChunkAsNeedsRebuildForChangedObject(ServerWorldState* world_state, const WorldObject* ob, WorldStateLock& lock)
+{
+	const Vec4f centroid = ob->getCentroidWS();
+	const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
+	const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
+	const Vec3i chunk_coords(chunk_x, chunk_y, 0);
+
+	auto res = world_state->getLODChunks(lock).find(chunk_coords);
+	if(res != world_state->getLODChunks(lock).end())
+	{
+		conPrint("Marking LODChunk " + chunk_coords.toString() + " as needs_rebuild=true");
+		res->second->needs_rebuild = true;
+	}
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -1012,6 +1031,27 @@ void WorkerThread::doRun()
 				socket->writeData(packet.buf.data(), packet.buf.size());
 				socket->flush();
 			}
+
+			// Send all current LOD chunk data to client, if they are using a sufficiently new protocol version.
+			if(client_protocol_version >= 40)
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				{
+					WorldStateLock lock(world_state->mutex);
+					for(auto it = cur_world_state->getLODChunks(lock).begin(); it != cur_world_state->getLODChunks(lock).end(); ++it)
+					{
+						MessageUtils::initPacket(scratch_packet, Protocol::LODChunkInitialSend);
+						it->second->writeToStream(scratch_packet);
+						MessageUtils::updatePacketLengthField(scratch_packet);
+
+						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with LODChunkInitialSend message to packet.
+					}
+				}
+				conPrint("Sending total of " + toString(packet.getWriteIndex()) + " B in LODChunkInitialSend messages");
+				socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
+				socket->flush();
+			}
+
 
 			// Send a message saying we have sent all initial state
 			/*{
@@ -1451,6 +1491,8 @@ void WorkerThread::doRun()
 											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
+											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
+
 											world_state->markAsChanged();
 										}
 
@@ -1649,6 +1691,8 @@ void WorkerThread::doRun()
 											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
+											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
+
 											world_state->markAsChanged();
 
 											// Process resources
@@ -1738,6 +1782,8 @@ void WorkerThread::doRun()
 										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
 										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
+										markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
+
 										world_state->markAsChanged();
 									}
 								}
@@ -1766,6 +1812,8 @@ void WorkerThread::doRun()
 										ob->from_remote_flags_dirty = true;
 										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
 										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
+
+										markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
 
 										world_state->markAsChanged();
 									}
@@ -1858,6 +1906,8 @@ void WorkerThread::doRun()
 									cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);
 									cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
 
+									markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), new_ob.ptr(), lock);
+
 									world_state->markAsChanged();
 								}
 							}
@@ -1899,6 +1949,8 @@ void WorkerThread::doRun()
 											ob->from_remote_other_dirty = true;
 											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
+
+											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
 
 											world_state->markAsChanged();
 										}
@@ -2200,21 +2252,23 @@ void WorkerThread::doRun()
 						{
 							conPrintIfNotFuzzing("QueryLODChunksMessage");
 
-							// Send all current LOD chunk data to client
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							{
-								WorldStateLock lock(world_state->mutex);
-								for(auto it = cur_world_state->getLODChunks(lock).begin(); it != cur_world_state->getLODChunks(lock).end(); ++it)
-								{
-									MessageUtils::initPacket(scratch_packet, Protocol::LODChunkInitialSend);
-									it->second->writeToStream(scratch_packet);
-									MessageUtils::updatePacketLengthField(scratch_packet);
+							// TEMP: do nothing for now, we have already sent LODChunkInitialSend messages upon initial connection.
 
-									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with LODChunkInitialSend message to packet.
-								}
-							}
-							socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
-							socket->flush();
+							// Send all current LOD chunk data to client
+							//SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							//{
+							//	WorldStateLock lock(world_state->mutex);
+							//	for(auto it = cur_world_state->getLODChunks(lock).begin(); it != cur_world_state->getLODChunks(lock).end(); ++it)
+							//	{
+							//		MessageUtils::initPacket(scratch_packet, Protocol::LODChunkInitialSend);
+							//		it->second->writeToStream(scratch_packet);
+							//		MessageUtils::updatePacketLengthField(scratch_packet);
+							//
+							//		packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with LODChunkInitialSend message to packet.
+							//	}
+							//}
+							//socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
+							//socket->flush();
 							break;
 						}
 					case Protocol::ChatMessageID:
