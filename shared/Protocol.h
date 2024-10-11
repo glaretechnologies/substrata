@@ -33,13 +33,14 @@ CyberspaceProtocolVersion
 	Added scale to ObjectTransformUpdate message.
 38: Use length-prefixed serialisation for WorldMaterial, sending server version to client.
 39: Added QueryMapTiles, MapTilesResult
+40: Added QueryLODChunksMessage, LODChunkInitialSend, LODChunkUpdatedMessage
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 39;
+const uint32 CyberspaceProtocolVersion = 40;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;

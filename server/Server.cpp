@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "UDPHandlerThread.h"
 #include "MeshLODGenThread.h"
 #include "DynamicTextureUpdaterThread.h"
-//#include "ChunkGenThread.h"
+#include "ChunkGenThread.h"
 #include "WorkerThread.h"
 #include "ServerTestSuite.h"
 #include "WorldCreation.h"
@@ -37,6 +37,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <maths/Matrix4f.h>
 #include <maths/Quat.h>
 #include <maths/Rect2.h>
+#include <graphics/BasisDecoder.h>
 #include <utils/ThreadManager.h>
 #include <utils/PlatformUtils.h>
 #include <utils/Clock.h>
@@ -212,6 +213,7 @@ int main(int argc, char *argv[])
 	Networking::init();
 	PlatformUtils::ignoreUnixSignals();
 	TLSSocket::initTLS();
+	BasisDecoder::init();
 
 	// Listen for SIGTERM and SIGINT on Linux and Mac.
 	// Upon receiving SIGTERM or SIGINT, save dirty data to database, then try and shut down gracefully.
@@ -502,7 +504,7 @@ int main(int argc, char *argv[])
 
 		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
 
-		//thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
+		thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 
 		server.udp_handler_thread_manager.addThread(new UDPHandlerThread(&server));
 

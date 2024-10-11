@@ -73,6 +73,7 @@ WorldObject::WorldObject() noexcept
 	is_selected = false;
 	in_proximity = false;
 	in_script_proximity = false;
+	exclude_from_lod_chunk_mesh = false;
 	lightmap_baking = false;
 	current_lod_level = 0;
 	loading_or_loaded_model_lod_level = -10;
@@ -786,6 +787,10 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 
 	physics_owner_id = other.physics_owner_id;
 	last_physics_ownership_change_global_time = other.last_physics_ownership_change_global_time;
+
+
+
+	exclude_from_lod_chunk_mesh = BitUtils::isBitSet(flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
 }
 
 
@@ -910,6 +915,8 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;
+
+	ob.exclude_from_lod_chunk_mesh = BitUtils::isBitSet(ob.flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
 }
 
 

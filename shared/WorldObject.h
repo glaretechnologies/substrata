@@ -261,6 +261,7 @@ public:
 	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
 	bool in_proximity; // Is the object currently in load proximity to camera?
 	bool in_script_proximity; // Is the object currently in script proximity to camera?  For onUserMovedNearToObject and onUserMovedAwayFromObject events.
+	bool exclude_from_lod_chunk_mesh; // Equal to BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH), but placed in first object cache line.
 private:
 	js::AABBox aabb_os; // Object-space AABB
 public:
@@ -292,6 +293,7 @@ public:
 	static const uint32 VIDEO_LOOP                              = 64; // For video objects, should the video loop?
 	static const uint32 VIDEO_MUTED                             = 128; // For video objects, should the video be initially muted?
 	static const uint32 IS_SENSOR_FLAG                          = 256; // Is this a physics sensor?
+	static const uint32 EXCLUDE_FROM_LOD_CHUNK_MESH             = 512; // Should this object be excluded from LOD Chunk meshes? (for e.g. moving objects)
 	uint32 flags;
 
 	TimeStamp created_time;

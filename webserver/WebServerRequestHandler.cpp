@@ -237,6 +237,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleNewNewsPostPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_rebuild_world_lod_chunks")
+		{
+			AdminHandlers::handleRebuildWorldLODChunks(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
@@ -407,6 +411,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/admin_news_posts")
 		{
 			AdminHandlers::renderAdminNewsPostsPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_lod_chunks")
+		{
+			AdminHandlers::renderAdminLODChunksPage(*this->world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/admin_sub_eth_transaction/"))
 		{

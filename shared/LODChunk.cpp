@@ -23,6 +23,10 @@ LODChunk::LODChunk()
 {
 	needs_rebuild = true;
 	db_dirty = false;
+
+#if GUI_CLIENT
+	graphics_ob_in_engine = false;
+#endif
 }
 
 
