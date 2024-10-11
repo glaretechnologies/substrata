@@ -39,6 +39,9 @@ Copyright Glare Technologies Limited 2024 -
 #include <FileChecksum.h>
 
 
+static const float chunk_w = 128;
+
+
 ChunkGenThread::ChunkGenThread(ServerAllWorldsState* all_worlds_state_)
 :	all_worlds_state(all_worlds_state_)
 {
@@ -407,6 +410,8 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 	std::vector<MatInfo> combined_mat_infos;
 
+	// const Vec4f chunk_coords_origin = Vec4f((chunk_x + 0.5f) * chunk_w, (chunk_y + 0.5f) * chunk_w, 0, 1);
+
 	for(size_t ob_i=0; ob_i<ob_infos.size(); ++ob_i)
 	{
 		ObInfo& ob_info = ob_infos[ob_i];
@@ -613,11 +618,13 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 						v_os = transformSkinnedVertex(v_os, joint_offset_B, weights_offset_B, joints_component_type, weights_component_type, joint_matrices, src_vertex_data, vert_stride_B, i);
 
 					// Compute world-space vertex position
-					const Vec4f new_v_vec4f = ob_to_world * v_os;
+					const Vec4f v_ws = ob_to_world * v_os;
 
-					aabb_os.enlargeToHoldPoint(new_v_vec4f);
+					const Vec4f v_chunksp = v_ws;// - chunk_coords_origin; // Compute chunk-space position
 
-					std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i], new_v_vec4f.x, sizeof(Vec3f));
+					aabb_os.enlargeToHoldPoint(v_chunksp);
+
+					std::memcpy(&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i], v_chunksp.x, sizeof(Vec3f));
 				}
 
 				//------------------------------------------ Copy or compute vertex normals ------------------------------------------
@@ -1022,9 +1029,24 @@ static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference
 }
 
 
-static const float chunk_w = 128;
+inline static bool shouldExcludeObjectFromLODChunkMesh(const WorldObject* ob)
+{
+	// Objects with scripts are likely to be moving, so don't bake into chunk.
+	if(!ob->script.empty())
+		return true;
 
-static void addNewChunksIfNeeded(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock)
+	// Objects that have the park biome are used for computing grass and tree scattering coverage.  This won't work if they are baked into the chunk.
+	// So keep separate.
+	if(!ob->content.empty() && hasPrefix(ob->content, "biome: park"))
+		return true;
+
+	return false;
+}
+
+
+// Iterates over WorldObjects, and creates a LODChunks containing the object if one does not already exist.
+// Also sets or unsets INCLUDE_IN_LOD_CHUNK_MESH flag for all objects in world.
+static void addNewChunksForWorldIfNeeded(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock)
 {
 	//conPrint("ChunkGenThread::addNewChunksIfNeeded(), world_name: '" + world_name + "'");
 	//int num_new_chunks_added = 0;
@@ -1033,24 +1055,41 @@ static void addNewChunksIfNeeded(ServerAllWorldsState* all_worlds_state, const s
 	ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
 	for(auto it = objects.begin(); it != objects.end(); ++it)
 	{
-		const WorldObject* ob = it->second.ptr();
-		const Vec4f centroid = ob->getCentroidWS();
-		const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
-		const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
-		const Vec3i chunk_coords(chunk_x, chunk_y, 0);
-		if(world_state->getLODChunks(lock).count(chunk_coords) == 0)
+		WorldObject* ob = it->second.ptr();
+
+		// Update EXCLUDE_FROM_LOD_CHUNK_MESH flag if needed.
+		const bool should_exclude = shouldExcludeObjectFromLODChunkMesh(ob);
+		const bool excluded = BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
+		if(excluded != should_exclude)
 		{
-			// Need new chunk
-			conPrint("Adding new LODChunk with coords " + chunk_coords.toString());
+			conPrint("Updating EXCLUDE_FROM_LOD_CHUNK_MESH flag for ob to " + toString(should_exclude));
+			BitUtils::setOrZeroBit(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH, should_exclude);
 
-			LODChunkRef chunk = new LODChunk();
-			chunk->coords = chunk_coords;
-			chunk->needs_rebuild = true;
-
-			// Add to world state, mark as db-dirty so gets saved to disk.
-			world_state->getLODChunks(lock).insert(std::make_pair(chunk_coords, chunk));
-			world_state->addLODChunkAsDBDirty(chunk, lock);
+			// Mark as db-dirty so gets saved to disk.
+			world_state->addWorldObjectAsDBDirty(ob, lock);
 			all_worlds_state->markAsChanged();
+		}
+
+		if(!excluded)
+		{
+			const Vec4f centroid = ob->getCentroidWS();
+			const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
+			const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
+			const Vec3i chunk_coords(chunk_x, chunk_y, 0);
+			if(world_state->getLODChunks(lock).count(chunk_coords) == 0)
+			{
+				// Need new chunk
+				conPrint("Adding new LODChunk with coords " + chunk_coords.toString());
+
+				LODChunkRef chunk = new LODChunk();
+				chunk->coords = chunk_coords;
+				chunk->needs_rebuild = true;
+
+				// Add to world state, mark as db-dirty so gets saved to disk.
+				world_state->getLODChunks(lock).insert(std::make_pair(chunk_coords, chunk));
+				world_state->addLODChunkAsDBDirty(chunk, lock);
+				all_worlds_state->markAsChanged();
+			}
 		}
 	}
 
@@ -1078,12 +1117,13 @@ void ChunkGenThread::doRun()
 #if 0
 		{
 			WorldStateLock lock(all_worlds_state->mutex);
-			Reference<ServerWorldState> root_world_state = all_worlds_state->getRootWorldState();
+			//Reference<ServerWorldState> world_state = all_worlds_state->getRootWorldState();
+			Reference<ServerWorldState> world_state = all_worlds_state->world_states["cryptovoxels"];
 			
-			for(int x=-10; x<10; ++x)
-			for(int y=-10; y<10; ++y)
-			//int x = 0;
-			//int y = 0;
+			//for(int x=-10; x<10; ++x)
+			//for(int y=-10; y<10; ++y)
+			int x = -1;
+			int y = 4;
 			{
 				if(all_worlds_state->getRootWorldState()->getLODChunks(lock).count(Vec3i(x, y, 0)) != 0)
 				{
@@ -1093,7 +1133,7 @@ void ChunkGenThread::doRun()
 						Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w, 1000.f, 1.f) // max
 					);
 
-					buildChunk(all_worlds_state, root_world_state, chunk_aabb, x, y, task_manager);
+					buildChunk(all_worlds_state, world_state, chunk_aabb, x, y, task_manager);
 				}
 			}
 
@@ -1125,17 +1165,14 @@ void ChunkGenThread::doRun()
 				{
 					ServerWorldState* world_state = it->second.ptr();
 
-					addNewChunksIfNeeded(all_worlds_state, it->first, world_state, lock);
+					addNewChunksForWorldIfNeeded(all_worlds_state, it->first, world_state, lock);
 
 					for(auto chunk_it = world_state->getLODChunks(lock).begin(); chunk_it != world_state->getLODChunks(lock).end(); ++chunk_it)
 					{
 						LODChunk* chunk = chunk_it->second.ptr();
 
 						if(chunk->needs_rebuild)
-						{
 							dirty_chunks.push_back({chunk, world_state});
-							chunk->needs_rebuild = false;
-						}
 					}
 				}
 			}
@@ -1194,29 +1231,21 @@ void ChunkGenThread::doRun()
 				{
 					WorldStateLock lock(all_worlds_state->mutex);
 					
-					const bool chunk_changed = 
-						(chunk->mesh_url != mesh_URL) || 
-						(chunk->combined_array_texture_url != tex_URL) ||
-						(chunk->compressed_mat_info != compressed_data);
+					chunk->mesh_url = mesh_URL;
+					chunk->combined_array_texture_url = tex_URL;
+					chunk->compressed_mat_info = compressed_data;
+					chunk->needs_rebuild = false;
 
-					if(chunk_changed)
-					{
-						chunk->mesh_url = mesh_URL;
-						chunk->combined_array_texture_url = tex_URL;
-						chunk->compressed_mat_info = compressed_data;
+					chunk->db_dirty = true;
 
-						chunk->db_dirty = true;
+					dirty_chunks[i].world_state->addLODChunkAsDBDirty(chunk, lock);
 
-						dirty_chunks[i].world_state->addLODChunkAsDBDirty(chunk, lock);
-
-						all_worlds_state->markAsChanged();
-					}
+					all_worlds_state->markAsChanged();
 				}
 				
 
-				// Send out a chunk-updated message to clients
+				// TODO: Send out a chunk-updated message to clients
 			}
-
 
 			PlatformUtils::Sleep(30*1000);
 		}
