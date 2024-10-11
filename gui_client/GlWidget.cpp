@@ -252,6 +252,7 @@ void GlWidget::initializeGL()
 	opengl_engine = new OpenGLEngine(engine_settings);
 
 	std::string data_dir = base_dir_path + "/data";
+#if BUILD_TESTS
 	try
 	{
 		// For development, allow loading opengl engine data, particularly shaders, straight from the repo dir.
@@ -260,6 +261,7 @@ void GlWidget::initializeGL()
 	}
 	catch(glare::Exception&)
 	{}
+#endif
 		
 	opengl_engine->initialise(
 		data_dir, // data dir (should contain 'shaders' and 'gl_data')
