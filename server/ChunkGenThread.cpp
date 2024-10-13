@@ -950,7 +950,7 @@ static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference
 		for(auto it = objects.begin(); it != objects.end(); ++it)
 		{
 			WorldObjectRef ob = it->second;
-			if(chunk_aabb.contains(ob->getCentroidWS())) // ob->pos.toVec4fPoint()))
+			if(chunk_aabb.contains(ob->getCentroidWS()) && !BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH))
 			{
 				bool have_mesh = false;
 				if(ob->object_type == WorldObject::ObjectType_Generic)
