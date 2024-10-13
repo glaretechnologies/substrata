@@ -203,7 +203,7 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 			// Note that CEF only allows us to invalidate the whole buffer - see https://magpcss.org/ceforum/viewtopic.php?f=6&t=15079
 			// If we could invalidate part of it, then we can maintain the actual discarded dirty rectangles (or a bounding rectangle around them)
 			// and use that to just invalidate the dirty part.
-			if(browser.nonNull())
+			if(browser && ob->opengl_engine_ob)
 			{
 				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 				if(ob_visible && !previous_is_visible) // If webview just became visible:
