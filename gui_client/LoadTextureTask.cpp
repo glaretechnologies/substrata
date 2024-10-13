@@ -112,9 +112,9 @@ void LoadTextureTask::run(size_t thread_index)
 
 		result_msg_queue->enqueue(msg);
 	}
-	catch(ImFormatExcep& )
+	catch(ImFormatExcep& e)
 	{
-		//conPrint("Warning: failed to decode texture '" + path + "': " + e.what());
+		result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': " + e.what()));
 	}
 	catch(glare::Exception& e)
 	{
