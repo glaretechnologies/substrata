@@ -1059,8 +1059,8 @@ static void addNewChunksForWorldIfNeeded(ServerAllWorldsState* all_worlds_state,
 
 		// Update EXCLUDE_FROM_LOD_CHUNK_MESH flag if needed.
 		const bool should_exclude = shouldExcludeObjectFromLODChunkMesh(ob);
-		const bool excluded = BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
-		if(excluded != should_exclude)
+		const bool cur_excluded = BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
+		if(cur_excluded != should_exclude)
 		{
 			conPrint("Updating EXCLUDE_FROM_LOD_CHUNK_MESH flag for ob to " + toString(should_exclude));
 			BitUtils::setOrZeroBit(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH, should_exclude);
@@ -1070,7 +1070,7 @@ static void addNewChunksForWorldIfNeeded(ServerAllWorldsState* all_worlds_state,
 			all_worlds_state->markAsChanged();
 		}
 
-		if(!excluded)
+		if(!should_exclude)
 		{
 			const Vec4f centroid = ob->getCentroidWS();
 			const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
