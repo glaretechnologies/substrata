@@ -177,6 +177,7 @@ static void getRegSubKeyAndValueName(const std::string& setting_key, std::string
 }
 
 
+#ifdef WIN32
 static bool doesRegValueExist(const std::string& setting_key)
 {
 	std::string subkey, value_name;
@@ -202,10 +203,13 @@ static uint32 getRegDWordVal(const std::string& setting_key)
 	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 	return PlatformUtils::getDWordRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name);
 }
+#endif
+
 
 
 bool SDLSettingsStore::getBoolValue(const std::string& key, bool default_value)
 {
+#ifdef WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -218,19 +222,25 @@ bool SDLSettingsStore::getBoolValue(const std::string& key, bool default_value)
 		conPrint("Warning: failed to get bool setting: " + e.what());
 		return default_value;
 	}
+#else
+	return default_value;
+#endif
 }
 
 
 void SDLSettingsStore::setBoolValue(const std::string& setting_key, bool value)
 {
+#ifdef WIN32
 	std::string subkey, value_name;
 	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 	PlatformUtils::setStringRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name, /*new valuedata=*/value ? "true" : "false");
+#endif
 }
 
 
 int SDLSettingsStore::getIntValue(const std::string& key, int default_value)
 {
+#ifdef WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -243,6 +253,9 @@ int SDLSettingsStore::getIntValue(const std::string& key, int default_value)
 		conPrint("Warning: failed to get int setting: " + e.what());
 		return default_value;
 	}
+#else
+	return default_value;
+#endif
 }
 
 
@@ -254,6 +267,7 @@ void SDLSettingsStore::setIntValue(const std::string& key, int value)
 
 double SDLSettingsStore::getDoubleValue(const std::string& key, double default_value)
 {
+#ifdef WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -266,21 +280,27 @@ double SDLSettingsStore::getDoubleValue(const std::string& key, double default_v
 		conPrint("Warning: failed to get double setting: " + e.what());
 		return default_value;
 	}
+#else
+	return default_value;
+#endif
 }
 
 
 void SDLSettingsStore::setDoubleValue(const std::string& setting_key, double value)
 {
+#ifdef WIN32
 	std::string subkey, value_name;
 	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 
 	const std::string value_string = ::doubleToString(value);
 	PlatformUtils::setStringRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name, /*new valuedata=*/value_string);
+#endif
 }
 
 
 std::string SDLSettingsStore::getStringValue(const std::string& key, const std::string& default_value)
 {
+#ifdef WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -293,14 +313,19 @@ std::string SDLSettingsStore::getStringValue(const std::string& key, const std::
 		conPrint("Warning: failed to get string setting: " + e.what());
 		return default_value;
 	}
+#else
+	return default_value;
+#endif
 }
 
 
 void SDLSettingsStore::setStringValue(const std::string& setting_key, const std::string& value)
 {
+#ifdef WIN32
 	std::string subkey, value_name;
 	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 	PlatformUtils::setStringRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name, /*new valuedata=*/value);
+#endif
 }
 
 
