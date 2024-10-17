@@ -1281,6 +1281,14 @@ elseif(APPLE)
 		)
 	endif()
 	
+	if(USE_SDL)
+		target_link_libraries(${CURRENT_TARGET} PRIVATE
+			${SDL_BUILD_DIR}/libSDL2.a
+			${SDL_BUILD_DIR}/libSDL2main.a
+			iconv
+		)
+	endif()
+	
 	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		Jolt # Jolt physics
 		Opus
@@ -1289,12 +1297,16 @@ elseif(APPLE)
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
  
-    # Qt 5:
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox")
- 
-    #Qt 6:
-     #set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtOpenGLWidgets -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework QtCore5Compat")
-     
+	if(USE_SDL)
+		set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework Cocoa -framework IOKit -framework GameController -framework CoreHaptics -framework CoreVideo -framework ForceFeedback -framework Carbon -framework Metal")
+	else()
+		# Qt 5:
+		set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox")
+	 
+		#Qt 6:
+		 #set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtOpenGLWidgets -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework QtCore5Compat")
+	endif()
+	
      #add_dependencies(${CURRENT_TARGET} "gui_client Helper.app")
      
 else() # linux
