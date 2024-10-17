@@ -268,6 +268,10 @@ int main(int argc, char** argv)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		setGLAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#elif defined(__APPLE__)
+		setGLAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4); // We need to request a specific version for a core profile.
+		setGLAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+		setGLAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 #else
 		setGLAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4); // We need to request a specific version for a core profile.
 		setGLAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
@@ -393,10 +397,11 @@ int main(int argc, char** argv)
 
 		opengl_engine = new OpenGLEngine(settings);
 
-#if defined(EMSCRIPTEN)
-		const std::string data_dir = "/data";
-#else
-		const std::string data_dir = PlatformUtils::getEnvironmentVariable("GLARE_CORE_TRUNK_DIR") + "/opengl";
+		
+		std::string data_dir = "/data";
+#if !defined(EMSCRIPTEN)
+		if(PlatformUtils::isEnvironmentVariableDefined("GLARE_CORE_TRUNK_DIR"))
+			data_dir = PlatformUtils::getEnvironmentVariable("GLARE_CORE_TRUNK_DIR") + "/opengl";
 #endif
 		
 		opengl_engine->initialise(data_dir, /*texture_server=*/NULL, &print_output, main_task_manager, high_priority_task_manager, mem_allocator);
