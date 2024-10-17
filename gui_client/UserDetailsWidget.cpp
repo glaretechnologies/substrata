@@ -10,6 +10,7 @@ UserDetailsWidget.cpp
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QPushButton>
 #include <QtCore/QSettings>
+#include <QtCore/QVariant>
 #include "../utils/ConPrint.h"
 
 
