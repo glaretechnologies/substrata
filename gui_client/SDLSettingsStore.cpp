@@ -177,7 +177,7 @@ static void getRegSubKeyAndValueName(const std::string& setting_key, std::string
 }
 
 
-#ifdef WIN32
+#ifdef _WIN32
 static bool doesRegValueExist(const std::string& setting_key)
 {
 	std::string subkey, value_name;
@@ -209,7 +209,7 @@ static uint32 getRegDWordVal(const std::string& setting_key)
 
 bool SDLSettingsStore::getBoolValue(const std::string& key, bool default_value)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -230,7 +230,7 @@ bool SDLSettingsStore::getBoolValue(const std::string& key, bool default_value)
 
 void SDLSettingsStore::setBoolValue(const std::string& setting_key, bool value)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	std::string subkey, value_name;
 	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 	PlatformUtils::setStringRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name, /*new valuedata=*/value ? "true" : "false");
@@ -240,7 +240,7 @@ void SDLSettingsStore::setBoolValue(const std::string& setting_key, bool value)
 
 int SDLSettingsStore::getIntValue(const std::string& key, int default_value)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -267,7 +267,7 @@ void SDLSettingsStore::setIntValue(const std::string& key, int value)
 
 double SDLSettingsStore::getDoubleValue(const std::string& key, double default_value)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -288,7 +288,7 @@ double SDLSettingsStore::getDoubleValue(const std::string& key, double default_v
 
 void SDLSettingsStore::setDoubleValue(const std::string& setting_key, double value)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	std::string subkey, value_name;
 	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 
@@ -300,7 +300,7 @@ void SDLSettingsStore::setDoubleValue(const std::string& setting_key, double val
 
 std::string SDLSettingsStore::getStringValue(const std::string& key, const std::string& default_value)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	try
 	{
 		if(doesRegValueExist(key))
@@ -321,7 +321,7 @@ std::string SDLSettingsStore::getStringValue(const std::string& key, const std::
 
 void SDLSettingsStore::setStringValue(const std::string& setting_key, const std::string& value)
 {
-#ifdef WIN32
+#ifdef _WIN32
 	std::string subkey, value_name;
 	getRegSubKeyAndValueName(setting_key, subkey, value_name);
 	PlatformUtils::setStringRegKey(PlatformUtils::RegHKey_CurrentUser, subkey, value_name, /*new valuedata=*/value);
