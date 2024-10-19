@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "ServerTestSuite.h"
 #include "WorldCreation.h"
 #include "LuaHTTPRequestManager.h"
+#include "WorldMaintenance.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/MessageUtils.h"
@@ -1039,6 +1040,10 @@ int main(int argc, char *argv[])
 				}*/
 			}
 #endif
+			if((loop_iter % 1024) == 64) // Approx every 100 s.
+			{
+				WorldMaintenance::removeOldVehicles(server.world_state);
+			}
 
 			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 10.0))
 			{
