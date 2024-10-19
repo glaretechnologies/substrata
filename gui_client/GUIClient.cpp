@@ -9069,6 +9069,8 @@ void GUIClient::summonBike()
 		{
 			results.materials[i]->convertLocalPathsToURLS(*this->resource_manager);
 			xml += results.materials[i]->serialiseToXML(/*tab_depth=*/1);
+
+			conPrint("Colour3f" + results.materials[i]->colour_rgb.toString() + ","); // Print out colours
 		}
 		xml += "</materials>";
 		FileUtils::writeEntireFileTextMode("bike_mats.xml", xml);
@@ -9194,6 +9196,8 @@ void GUIClient::summonHovercar()
 		{
 			results.materials[i]->convertLocalPathsToURLS(*this->resource_manager);
 			xml += results.materials[i]->serialiseToXML(/*tab_depth=*/1);
+
+			conPrint("Colour3f" + results.materials[i]->colour_rgb.toString() + ","); // Print out colours
 		}
 		xml += "</materials>";
 		FileUtils::writeEntireFileTextMode("hovercar_mats.xml", xml);
