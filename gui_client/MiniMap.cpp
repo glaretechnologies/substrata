@@ -594,8 +594,6 @@ void MiniMap::renderTilesToTexture()
 {
 	const Vec3d campos = gui_client->cam_controller.getFirstPersonPosition();
 
-	Vec3d botleft_pos = campos - Vec3d(map_width_ws/2, map_width_ws/2, 0);
-
 	opengl_engine->setIdentityCameraTransform(); // Since we are just rendering overlays, camera transformation doesn't really matter
 
 	this->scene->overlay_world_to_camera_space_matrix = Matrix4f::scaleMatrix(2.f/map_width_ws, 2.f/map_width_ws, 1) * Matrix4f::translationMatrix((float)-campos.x, (float)-campos.y, 0);

@@ -119,7 +119,7 @@ void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngin
 						// Else in_anim_time was not in current frame or next frame periods.
 						// Do binary search for current frame.
 						const auto res = std::lower_bound(texdata->frame_end_times.begin(), texdata->frame_end_times.end(), in_anim_time); // Get the position of the first frame_end_time >= in_anim_time.
-						int index = res - texdata->frame_end_times.begin();
+						int index = (int)(res - texdata->frame_end_times.begin());
 						assert(index >= 0);
 						if(index >= num_frames)
 							index = 0;

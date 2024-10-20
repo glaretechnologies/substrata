@@ -592,7 +592,7 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::StackAllocator&
 	if(large_chunk_centre_x != last_centre_x || large_chunk_centre_y != last_centre_y || any_large_tree_chunk_invalidated)
 	{
 		Timer timer;
-		int num_chunks_updated = 0;
+		[[maybe_unused]] int num_chunks_updated = 0;
 
 		const int x0     = large_chunk_centre_x - LARGE_TREE_CHUNK_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around new camera position
 		const int y0     = large_chunk_centre_y - LARGE_TREE_CHUNK_GRID_RES/2;
