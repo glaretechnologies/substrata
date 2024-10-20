@@ -7844,6 +7844,12 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		msg += "-------------------------------\n";
 	}
 
+	size_t num_lod_chunks;
+	{
+		WorldStateLock lock(this->world_state->mutex);
+		num_lod_chunks = this->world_state->lod_chunks.size();
+	}
+
 	msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 	msg += "main loop CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 	msg += "main loop updateGL time: " + doubleToStringNSigFigs(last_updateGL_time * 1000, 3) + " ms\n";
@@ -7853,6 +7859,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "last_eval_script_time: " + doubleToStringNSigFigs(last_eval_script_time * 1000, 3) + "ms\n";
 	msg += "num obs with scripts: " + toString(obs_with_scripts.size()) + "\n";
 	msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
+	msg += "num LOD chunks: " + toString(num_lod_chunks) + "\n";
 	msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
 	msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
 	msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
