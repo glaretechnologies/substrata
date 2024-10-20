@@ -159,6 +159,7 @@ void SDLSettingsStore::setStringValue(const std::string& key, const std::string&
 
 #else
 
+#ifdef _WIN32
 
 static void getRegSubKeyAndValueName(const std::string& setting_key, std::string& subkey_out, std::string& value_name_out)
 {
@@ -177,7 +178,6 @@ static void getRegSubKeyAndValueName(const std::string& setting_key, std::string
 }
 
 
-#ifdef _WIN32
 static bool doesRegValueExist(const std::string& setting_key)
 {
 	std::string subkey, value_name;
