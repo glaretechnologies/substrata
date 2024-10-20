@@ -33,7 +33,7 @@ AnimatedTexData::~AnimatedTexData()
 }
 
 
-static const std::string makeDataURL(const std::string& html)
+[[maybe_unused]] static std::string makeDataURL(const std::string& html)
 {
 	std::string html_base64;
 	Base64::encode(html.data(), html.size(), html_base64);
