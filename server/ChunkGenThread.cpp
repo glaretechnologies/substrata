@@ -331,7 +331,8 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			params.m_perceptual = true;
 	
 			params.m_write_output_basis_files = true;
-			params.m_out_filename = "d:/tempfiles/main_world/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
+			params.m_out_filename = PlatformUtils::getTempDirPath() + "/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
+			//params.m_out_filename = "d:/tempfiles/main_world/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
 			params.m_create_ktx2_file = false;
 
 			params.m_mip_gen = true; // Generate mipmaps for each source image
@@ -887,7 +888,8 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 			// Write combined mesh to disk
 			conPrint("Writing combined mesh to disk...");
-			const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
+			const std::string path = PlatformUtils::getTempDirPath() + "/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
+			//const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
 			BatchedMesh::WriteOptions options;
 			options.compression_level = 19;
 			options.use_meshopt = true;
@@ -906,8 +908,8 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 
 
-			// Write output_mat_infos
-			if(true)
+			// Write output_mat_infos for testing
+			if(false)
 			{
 				conPrint("Writing mat info to disk...");
 				FileOutStream file("d:/tempfiles/main_world/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
