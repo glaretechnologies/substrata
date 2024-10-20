@@ -332,6 +332,7 @@ public:
 
 	static const uint64 SERVER_SCRIPT_EXEC_FEATURE_FLAG                   = 1; // Is server-side script execution enabled?
 	static const uint64 LUA_HTTP_REQUESTS_FEATURE_FLAG                    = 2; // Are Lua-initiated HTTP requests enabled?
+	static const uint64 DO_WORLD_MAINTENANCE_FEATURE_FLAG                 = 4; // Should world maintenance tasks run? (e.g. WorldMaintenance::removeOldVehicles())
 	FeatureFlagInfo feature_flag_info GUARDED_BY(mutex);
 
 
