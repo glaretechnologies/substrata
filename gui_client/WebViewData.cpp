@@ -47,7 +47,7 @@ static const int button_top_y = (int)((1080.0 / 1920) * text_tex_W) - 120;
 static const int button_H = 60;
 
 
-static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, GLUI* glui, const std::string& text)
+[[maybe_unused]] static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, GLUI* glui, const std::string& text)
 {
 	TextRendererFontFace* font = glui->getFont(/*font size px=*/16, /*emoji=*/false);
 

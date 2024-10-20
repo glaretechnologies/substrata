@@ -56,7 +56,7 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 	const Vec4i upper_end   = ob_grid.bucketIndicesForPoint(last_cam_pos + Vec4f(upper_dist, upper_dist, upper_dist, 0));
 
 
-	int num_iters = 0;
+	[[maybe_unused]] int num_iters = 0;
 	for(int z = upper_begin[2]; z <= upper_end[2]; ++z)
 	for(int y = upper_begin[1]; y <= upper_end[1]; ++y)
 	for(int x = upper_begin[0]; x <= upper_end[0]; ++x)
