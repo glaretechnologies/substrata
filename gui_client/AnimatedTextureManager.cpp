@@ -254,7 +254,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 		const float max_dist = 200.f; // textures <= max_dist are updated
 		const float min_recip_dist = 1 / max_dist; // textures >= min_recip_dist are updated
 
-		const float max_mp4_dist = AnimatedTexData::maxVidPlayDist(); // textures <= max_dist are updated
+		const float max_mp4_dist = (float)AnimatedTexData::maxVidPlayDist(); // textures <= max_dist are updated
 		const float min_mp4_recip_dist = 1 / max_mp4_dist; // textures >= min_recip_dist are updated
 
 		const float ob_w = ob->getAABBWSLongestLength();
