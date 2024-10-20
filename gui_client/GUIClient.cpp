@@ -6108,6 +6108,8 @@ void GUIClient::updateLODChunkGraphics()
 {
 	const Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
+	Lock lock(this->world_state->mutex);
+	
 	// Set chunk visibility based on distance from camera
 	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 	{
@@ -6142,8 +6144,6 @@ void GUIClient::updateLODChunkGraphics()
 	try
 	{
 		ZoneScopedN("LODChunk graphics"); // Tracy profiler
-
-		Lock lock(this->world_state->mutex);
 
 		for(auto it = this->world_state->dirty_from_remote_lod_chunks.begin(); it != this->world_state->dirty_from_remote_lod_chunks.end(); ++it)
 		{
@@ -6225,6 +6225,8 @@ void GUIClient::updateLODChunkGraphics()
 // TODO; do we need this at all?  should be auto-assigned in glengine
 void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLTextureRef opengl_tex)
 {
+	WorldStateLock lock(this->world_state->mutex);
+	
 	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 	{
 		LODChunk* chunk = it->second.ptr();
@@ -6252,6 +6254,8 @@ void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLT
 
 void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data)
 {
+	WorldStateLock lock(this->world_state->mutex);
+	
 	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 	{
 		LODChunk* chunk = it->second.ptr();
