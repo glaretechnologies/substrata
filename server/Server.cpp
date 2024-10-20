@@ -1041,9 +1041,8 @@ int main(int argc, char *argv[])
 			}
 #endif
 			if((loop_iter % 1024) == 64) // Approx every 100 s.
-			{
-				WorldMaintenance::removeOldVehicles(server.world_state);
-			}
+				if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG))
+					WorldMaintenance::removeOldVehicles(server.world_state);
 
 			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 10.0))
 			{

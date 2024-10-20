@@ -1500,7 +1500,8 @@ std::string ServerAllWorldsState::getAndRemoveUserWebMessage(const UserID& user_
 FeatureFlagInfo::FeatureFlagInfo()
 :	feature_flags(
 		ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG | // Enable scripts by default
-		ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG
+		ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG | 
+		ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG
 	),
 	db_dirty(false) 
 {}
