@@ -28,6 +28,7 @@ puts "glare_core: #{glare_core}"
 puts "substrata_dir: #{substrata_dir}"
 puts "-----------------------------------------"
 
+FileUtils.rm_r("data", :verbose=>true)
 FileUtils.mkdir_p("data", :verbose => true) if !File.exists?("data") # Make data dir if it doesn't exist already.
 
 FileUtils.cp_r(substrata_dir + "/resources", "data", :verbose=>true)
