@@ -6239,10 +6239,7 @@ void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLT
 				if(opengl_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
 					conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + tex_path + ")");
 
-				//chunk->graphics_ob->materials[0].albedo_texture = opengl_tex;
 				chunk->graphics_ob->materials[0].combined_array_texture = opengl_tex;
-
-				//chunk->graphics_ob->materials[0].combined_array_texture->setDebugName(tex_path);
 
 				if(chunk->graphics_ob_in_engine)
 					opengl_engine->materialTextureChanged(*chunk->graphics_ob, chunk->graphics_ob->materials[0]);
@@ -6261,88 +6258,86 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 		LODChunk* chunk = it->second.ptr();
 		if(mesh_URL == chunk->mesh_url)
 		{
-			mesh_data->meshDataBecameUsed();
-
-			if(!chunk->graphics_ob)
+			try
 			{
-				chunk->graphics_ob = new GLObject();
-				chunk->graphics_ob->mesh_data = mesh_data->gl_meshdata;
-				chunk->graphics_ob->ob_to_world_matrix = Matrix4f::identity();
-		
-				chunk->graphics_ob->materials.resize(mesh_data->gl_meshdata->num_materials_referenced);
-				chunk->graphics_ob->materials[0].combined = true;
+				mesh_data->meshDataBecameUsed();
 
-				chunk->graphics_ob->materials[0].combined_array_texture = this->default_array_tex;
-				if(!chunk->combined_array_texture_path.empty())
+				if(!chunk->graphics_ob)
 				{
-					OpenGLTextureRef combined_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(chunk->combined_array_texture_path));
-					//TEMP
-					if(combined_tex)
-					{
-						if(combined_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
-							conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + chunk->combined_array_texture_path + ")");
+					chunk->graphics_ob = new GLObject();
+					chunk->graphics_ob->mesh_data = mesh_data->gl_meshdata;
+					chunk->graphics_ob->ob_to_world_matrix = Matrix4f::identity();
+		
+					chunk->graphics_ob->materials.resize(mesh_data->gl_meshdata->num_materials_referenced);
+					chunk->graphics_ob->materials[0].combined = true;
 
-						chunk->graphics_ob->materials[0].combined_array_texture = combined_tex;
+					chunk->graphics_ob->materials[0].combined_array_texture = this->default_array_tex;
+					if(!chunk->combined_array_texture_path.empty())
+					{
+						OpenGLTextureRef combined_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(chunk->combined_array_texture_path));
+						if(combined_tex)
+						{
+							if(combined_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
+								conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + chunk->combined_array_texture_path + ")");
+
+							chunk->graphics_ob->materials[0].combined_array_texture = combined_tex;
+						}
 					}
-				}
 
 
 				
-				//--------------------------- Get decompressed mat info ---------------------------
-				const uint64 decompressed_size = ZSTD_getFrameContentSize(chunk->compressed_mat_info.data(), chunk->compressed_mat_info.size());
-				if(decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN || decompressed_size == ZSTD_CONTENTSIZE_ERROR)
-					throw glare::Exception(std::string("ZSTD_getFrameContentSize failed: ") + ZSTD_getErrorName(decompressed_size));
+					//--------------------------- Get decompressed mat info ---------------------------
+					const uint64 decompressed_size = ZSTD_getFrameContentSize(chunk->compressed_mat_info.data(), chunk->compressed_mat_info.size());
+					if(decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN || decompressed_size == ZSTD_CONTENTSIZE_ERROR)
+						throw glare::Exception(std::string("ZSTD_getFrameContentSize failed: ") + ZSTD_getErrorName(decompressed_size));
 
-				// TODO: sanity check size
+					// sanity check size
+					if(decompressed_size > 1000000)
+						throw glare::Exception("Invalid decompressed mat info size.");
 
-				js::Vector<uint8> decompressed(decompressed_size);
+					js::Vector<uint8> decompressed(decompressed_size);
 
-				const size_t res = ZSTD_decompress(/*dest=*/decompressed.begin(), /*dest capacity=*/decompressed.size(), /*src=*/chunk->compressed_mat_info.data(), /*compressed size=*/chunk->compressed_mat_info.size());
-				if(ZSTD_isError(res))
-					throw glare::Exception(std::string("Decompression of index buffer failed: ") + ZSTD_getErrorName(res));
-				//-------------------------------------------------------------------------------
+					const size_t res = ZSTD_decompress(/*dest=*/decompressed.begin(), /*dest capacity=*/decompressed.size(), /*src=*/chunk->compressed_mat_info.data(), /*compressed size=*/chunk->compressed_mat_info.size());
+					if(ZSTD_isError(res))
+						throw glare::Exception(std::string("Decompression of index buffer failed: ") + ZSTD_getErrorName(res));
+					//-------------------------------------------------------------------------------
 
-				const size_t num_floats = decompressed.size() / sizeof(float);
-				checkProperty(num_floats > 0, "invalid mat_info num floats");
-				checkProperty((num_floats % 12) == 0, "invalid mat_info num floats");
-				//printVar(num_floats);
-				//printVar(num_floats / 12);
+					const size_t num_floats = decompressed.size() / sizeof(float);
+					checkProperty(num_floats > 0, "invalid mat_info num floats");
+					checkProperty((num_floats % 12) == 0, "invalid mat_info num floats");
 
-				ImageMapFloatRef map = new ImageMapFloat(128, /*height=*/Maths::roundedUpDivide<size_t>(num_floats, 128), /*N=*/1, /*allocator=*/NULL);
+					ImageMapFloatRef map = new ImageMapFloat(128, /*height=*/Maths::roundedUpDivide<size_t>(num_floats, 128), /*N=*/1, /*allocator=*/NULL);
 
-				std::memcpy(map->getData(), decompressed.data(), decompressed.dataSizeBytes());
-				//for(int i=0; i<num_floats; ++i)
-				//{
-				//	const int px = i % 128;
-				//	const int py = i / 128;
-				//	const float val = ((float*)decompressed.data())[i];
-				//	//printVar(val);
-				//	map->getPixel(px, py)[0] = val;
-				//}
+					std::memcpy(map->getData(), decompressed.data(), decompressed.dataSizeBytes());
 
-				TextureParams mat_info_tex_params;
-				mat_info_tex_params.allow_compression = false;
-				mat_info_tex_params.use_sRGB = false;
-				mat_info_tex_params.filtering = OpenGLTexture::Filtering::Filtering_Nearest;
-				mat_info_tex_params.use_mipmaps = false;
+					TextureParams mat_info_tex_params;
+					mat_info_tex_params.allow_compression = false;
+					mat_info_tex_params.use_sRGB = false;
+					mat_info_tex_params.filtering = OpenGLTexture::Filtering::Filtering_Nearest;
+					mat_info_tex_params.use_mipmaps = false;
 
-				const std::string use_mat_info_path = "mat_info_" + chunk->coords.toString();
-				chunk->graphics_ob->materials[0].backface_albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(use_mat_info_path), *map, mat_info_tex_params);
-				chunk->graphics_ob->materials[0].backface_albedo_texture->setDebugName(use_mat_info_path);
+					const std::string use_mat_info_path = "mat_info_" + chunk->coords.toString();
+					chunk->graphics_ob->materials[0].backface_albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(use_mat_info_path), *map, mat_info_tex_params);
+					chunk->graphics_ob->materials[0].backface_albedo_texture->setDebugName(use_mat_info_path);
 
-				if(chunk->graphics_ob->materials.size() >= 2)
-				{
-					chunk->graphics_ob->materials[1].combined = true;
-					chunk->graphics_ob->materials[1].transparent = true;
+					if(chunk->graphics_ob->materials.size() >= 2)
+					{
+						chunk->graphics_ob->materials[1].combined = true;
+						chunk->graphics_ob->materials[1].transparent = true;
+					}
+
+					const Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
+					const bool should_show = shouldDisplayLODChunk(chunk->coords, campos);
+					if(should_show)
+					{
+						opengl_engine->addObject(chunk->graphics_ob);
+						chunk->graphics_ob_in_engine = true;
+					}
 				}
-
-				const Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
-				const bool should_show = shouldDisplayLODChunk(chunk->coords, campos);
-				if(should_show)
-				{
-					opengl_engine->addObject(chunk->graphics_ob);
-					chunk->graphics_ob_in_engine = true;
-				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Error while loading LOD chunk graphics: " + e.what());
 			}
 		}
 	}
