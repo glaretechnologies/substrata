@@ -76,7 +76,7 @@ public:
 
 		if(opengl_engine && ob)
 		{
-			//conPrint("OnPaint()");
+			//conPrint("EmbeddedBrowserRenderHandler: OnPaint()");
 
 			// whole page was updated
 			if(type == PET_VIEW)
@@ -88,7 +88,7 @@ public:
 					{
 						const CefRect& rect = dirty_rects[i];
 
-						//conPrint("Updating dirty rect " + toString(rect.x) + ", " + toString(rect.y) + ", w: " + toString(rect.width) + ", h: " + toString(rect.height));
+						//conPrint("Updating dirty rect for ob " + ob->uid.toString()  + ": (" + toString(rect.x) + ", " + toString(rect.y) + "), w: " + toString(rect.width) + ", h: " + toString(rect.height));
 
 						// Copy dirty rect data into a packed buffer
 
