@@ -49,6 +49,8 @@ public:
 	State getState() const { return state; }
 	void setState(State s) { state = s; }
 
+	bool isPresent() const { return state == State_Present; }
+
 	void writeToStream(OutStream& stream);
 	
 	
