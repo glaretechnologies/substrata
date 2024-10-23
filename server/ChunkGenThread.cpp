@@ -219,7 +219,7 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, Matrix4f& voxel_sc
 	// Simplify mesh
 	if(mesh)
 	{
-		conPrint("Simplifying mesh..");
+		// conPrint("Simplifying mesh..");
 
 		const size_t original_num_verts = mesh->numVerts();
 
@@ -229,8 +229,8 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, Matrix4f& voxel_sc
 		const float per_ob_error_threshold_os = mesh->aabb_os.longestLength() * relative_err;
 
 		const float error_threshold_os = myMax(global_error_threshold_os, per_ob_error_threshold_os);
-		printVar(error_threshold_ws);
-		printVar(error_threshold_os);
+		//printVar(error_threshold_ws);
+		//printVar(error_threshold_os);
 
 		mesh = MeshSimplification::removeSmallComponents(mesh, error_threshold_os);
 		if(mesh->numIndices() == 0)
@@ -329,6 +329,8 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			params.m_tex_type = basist::cBASISTexType2DArray;
 		
 			params.m_perceptual = true;
+
+			params.m_status_output = false;
 	
 			params.m_write_output_basis_files = true;
 			params.m_out_filename = PlatformUtils::getTempDirPath() + "/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
@@ -359,7 +361,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			if(result != basisu::basis_compressor::cECSuccess)
 				throw glare::Exception("basisCompressor.process() failed.");
 
-			conPrint("Basisu compression and writing of file took " + timer.elapsedStringNSigFigs(3));
+			conPrint("Basisu compression and writing of file to '" + params.m_out_filename + "' took " + timer.elapsedStringNSigFigs(3));
 
 			// Compute hash over it
 			const uint64 hash = FileChecksum::fileChecksum(params.m_out_filename);
