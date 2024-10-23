@@ -273,7 +273,7 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 			if(!mat->colour_texture_url.empty())
 			{
 				ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(mat->colour_texture_url);
-				if(base_resource.nonNull())
+				if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 				{
 					const std::string tex_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 
@@ -335,7 +335,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
 	{
-		WorldMaterial* mat = ob->materials[z].ptr();
+		const WorldMaterial* mat = ob->materials[z].ptr();
 
 		const int start_lod_level = mat->minLODLevel() + 1;
 		for(int lvl = start_lod_level; lvl <= 2; ++lvl)
@@ -352,7 +352,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 				if(!texture_URL.empty() && !hasExtension(texture_URL, "mp4")) // Don't generate LOD for mp4.
 				{
 					ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(texture_URL);
-					if(base_resource.nonNull())
+					if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 					{
 						const std::string tex_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 
@@ -397,7 +397,7 @@ static void checkForKTXTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
 	{
-		WorldMaterial* mat = ob->materials[z].ptr();
+		const WorldMaterial* mat = ob->materials[z].ptr();
 
 		for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
 		{
@@ -413,7 +413,7 @@ static void checkForKTXTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 				if(!texture_URL.empty() && !hasExtension(texture_URL, "mp4") && !hasExtension(texture_URL, "gif")) // Don't generate KTX textures for mp4s or gifs
 				{
 					ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(texture_URL);
-					if(base_resource.nonNull())
+					if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 					{
 						const std::string lod_URL = mat->getLODTextureURLForLevel(texture_URL, lvl, /*has_alpha=*/false);  // Lod URL without ktx extension (jpg or PNG)
 						if(!hasExtension(lod_URL, "ktx2"))
