@@ -1251,7 +1251,10 @@ void ChunkGenThread::doRun()
 				// TODO: Send out a chunk-updated message to clients
 			}
 
-			PlatformUtils::Sleep(30*1000);
+			bool keep_running = true;
+			waitForPeriod(30.0, keep_running);
+			if(!keep_running)
+				break;
 		}
 	}
 	catch(glare::Exception& e)
