@@ -265,12 +265,9 @@ int main(int argc, char *argv[])
 #if defined(_WIN32)
 		const std::string substrata_appdata_dir = PlatformUtils::getOrCreateAppDataDirectory("Substrata");
 		const std::string server_state_dir = substrata_appdata_dir + "/server_data";
-#elif defined(OSX)
-		const std::string username = PlatformUtils::getLoggedInUserName();
-		const std::string server_state_dir = "/Users/" + username + "/cyberspace_server_state";
 #else
-		const std::string username = PlatformUtils::getLoggedInUserName();
-		const std::string server_state_dir = "/home/" + username + "/cyberspace_server_state";
+		const std::string home_dir = PlatformUtils::getEnvironmentVariable("HOME");
+		const std::string server_state_dir = home_dir + "/cyberspace_server_state";
 #endif
 		conPrint("server_state_dir: " + server_state_dir);
 		FileUtils::createDirIfDoesNotExist(server_state_dir);
