@@ -116,6 +116,8 @@ WorldObject::WorldObject() noexcept
 
 	transmission_time_offset = 0;
 
+	chunk_batch0_start = chunk_batch0_end = chunk_batch1_start = chunk_batch1_end = 0;
+
 }
 
 
@@ -416,7 +418,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 20;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 21;
 /*
 Version history:
 9: introduced voxels
@@ -431,6 +433,7 @@ Version history:
 18: Storing aabb_os instead of aabb_ws.
 19: Added last_modified_time
 20: Added centre_of_mass_offset_os
+21: Added chunk_batch0_start etc.
 */
 
 
@@ -504,6 +507,12 @@ void WorldObject::writeToStream(RandomAccessOutStream& stream) const
 	stream.writeFloat(friction);
 	stream.writeFloat(restitution);
 	::writeToStream(centre_of_mass_offset_os, stream); // New in v20
+
+	// New in v21:
+	stream.writeUInt32(chunk_batch0_start);
+	stream.writeUInt32(chunk_batch0_end);
+	stream.writeUInt32(chunk_batch1_start);
+	stream.writeUInt32(chunk_batch1_end);
 }
 
 
@@ -681,6 +690,15 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 	if(v >= 20)
 		ob.centre_of_mass_offset_os = readVec3FromStream<float>(stream);
 
+	if(v >= 21)
+	{
+		// New in v21:
+		ob.chunk_batch0_start = stream.readUInt32();
+		ob.chunk_batch0_end = stream.readUInt32();
+		ob.chunk_batch1_start = stream.readUInt32();
+		ob.chunk_batch1_end = stream.readUInt32();
+	}
+
 	// Set ephemeral state
 	ob.state = WorldObject::State_Alive;
 }
@@ -742,6 +760,12 @@ void WorldObject::writeToNetworkStream(RandomAccessOutStream& stream) const // W
 
 	// New in v20:
 	::writeToStream(centre_of_mass_offset_os, stream);
+
+	// New in v21:
+	stream.writeUInt32(chunk_batch0_start);
+	stream.writeUInt32(chunk_batch0_end);
+	stream.writeUInt32(chunk_batch1_start);
+	stream.writeUInt32(chunk_batch1_end);
 }
 
 
@@ -784,6 +808,11 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	friction = other.friction;
 	restitution = other.restitution;
 	centre_of_mass_offset_os = other.centre_of_mass_offset_os;
+
+	chunk_batch0_start = other.chunk_batch0_start;
+	chunk_batch0_end = other.chunk_batch0_end;
+	chunk_batch1_start = other.chunk_batch1_start;
+	chunk_batch1_end = other.chunk_batch1_end;
 
 	physics_owner_id = other.physics_owner_id;
 	last_physics_ownership_change_global_time = other.last_physics_ownership_change_global_time;
@@ -912,6 +941,14 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 
 	if(!stream.endOfStream())
 		ob.centre_of_mass_offset_os = readVec3FromStream<float>(stream);
+
+	if(!stream.endOfStream())
+	{
+		ob.chunk_batch0_start = stream.readUInt32();
+		ob.chunk_batch0_end = stream.readUInt32();
+		ob.chunk_batch1_start = stream.readUInt32();
+		ob.chunk_batch1_end = stream.readUInt32();
+	}
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;

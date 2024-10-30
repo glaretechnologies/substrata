@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>387</width>
+    <height>334</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -67,6 +67,13 @@
     <widget class="QCheckBox" name="showPlayerPhysicsVisCheckBox">
      <property name="text">
       <string>Show player physics visualisation</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="showLodChunkVisCheckBox">
+     <property name="text">
+      <string>Show LOD chunk visualisation</string>
      </property>
     </widget>
    </item>

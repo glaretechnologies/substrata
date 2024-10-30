@@ -52,6 +52,8 @@ public:
 	Reference<GLObject> graphics_ob;
 	bool graphics_ob_in_engine;
 	std::string combined_array_texture_path;
+
+	Reference<GLObject> diagnostics_gl_ob; // For diagnostics visualisation
 #endif
 
 

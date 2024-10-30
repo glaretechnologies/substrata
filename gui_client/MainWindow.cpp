@@ -716,6 +716,11 @@ bool MainWindow::showPlayerPhysicsVisEnabled()
 	return ui->diagnosticsWidget->showPlayerPhysicsVisCheckBox->isChecked();
 }
 
+bool MainWindow::showLodChunksVisEnabled()
+{
+	return ui->diagnosticsWidget->showLodChunkVisCheckBox->isChecked();
+}
+
 
 void MainWindow::writeTransformMembersToObject(WorldObject& ob)
 {
@@ -2894,6 +2899,8 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 void MainWindow::diagnosticsWidgetChanged()
 {
 	opengl_engine->setDrawWireFrames(ui->diagnosticsWidget->showWireframesCheckBox->isChecked());
+
+	gui_client.diagnosticsSettingsChanged();
 }
 
 

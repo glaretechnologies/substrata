@@ -123,6 +123,8 @@ ${UTILS_DIR}/ArenaAllocator.cpp
 ${UTILS_DIR}/ArenaAllocator.h
 ${UTILS_DIR}/ArgumentParser.cpp
 ${UTILS_DIR}/ArgumentParser.h
+${UTILS_DIR}/Array.cpp
+${UTILS_DIR}/Array.h
 ${UTILS_DIR}/Array2D.h
 ${UTILS_DIR}/Array3D.h
 ${UTILS_DIR}/ArrayRef.cpp
