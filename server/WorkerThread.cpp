@@ -259,7 +259,8 @@ void WorkerThread::handleResourceUploadConnection()
 			while(offset < file_len)
 			{
 				const uint64 chunk_size = myMin(file_len - offset, MAX_CHUNK_SIZE);
-				assert(offset + chunk_size <= file_len);
+				runtimeCheck(offset + chunk_size <= file_len);
+				runtimeCheck(chunk_size <= temp_buf.size());
 				socket->readData(temp_buf.data(), chunk_size);
 
 				if(!fuzzing) // Don't write to disk while fuzzing.
