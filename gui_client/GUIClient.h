@@ -152,6 +152,7 @@ public:
 	void startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	
 	std::string getDiagnosticsString(bool do_graphics_diagnostics, bool do_physics_diagnostics, bool do_terrain_diagnostics, double last_timerEvent_CPU_work_elapsed, double last_updateGL_time);
+	void diagnosticsSettingsChanged();
 	void updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_state);
 
 	struct EdgeMarker

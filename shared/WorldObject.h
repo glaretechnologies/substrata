@@ -309,8 +309,17 @@ public:
 	float restitution; // "Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response)"
 	Vec3f centre_of_mass_offset_os;
 
+
+	// sub-range of the indices from the LOD chunk geometry that correspond to this object.
+	// batch 0 is opaque triangles, batch 1 is transparent triangles.
+	uint32 chunk_batch0_start; // start index
+	uint32 chunk_batch0_end; // end index
+	uint32 chunk_batch1_start;
+	uint32 chunk_batch1_end;
+
+
 	uint32 physics_owner_id;
-	double last_physics_ownership_change_global_time; // Last change or renwewal time.
+	double last_physics_ownership_change_global_time; // Last change or renewal time.
 
 #if GUI_CLIENT
 	Reference<glare::AudioSource> audio_source;

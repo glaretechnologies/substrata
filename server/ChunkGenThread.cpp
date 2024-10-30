@@ -74,6 +74,7 @@ struct ObInfo
 	uint32 object_type;
 	std::vector<MatInfo> mat_info;
 	float ob_to_world_scale;
+	UID ob_uid;
 };
 
 struct OutputMatInfo
@@ -90,8 +91,21 @@ struct OutputMatInfo
 };
 
 
+// Sub-range of the indices from the LOD chunk geometry that correspond to the given object.
+struct ObjectBatchRanges
+{
+	ObjectBatchRanges() : ob_uid(UID::invalidUID()), batch0_start(0), batch0_end(0), batch1_start(0), batch1_end(0) {}
+	UID ob_uid;
+	uint32 batch0_start;
+	uint32 batch0_end;
+	uint32 batch1_start;
+	uint32 batch1_end;
+};
+
+
 struct ChunkBuildResults
 {
+	js::Vector<ObjectBatchRanges> ob_batch_ranges;
 	js::Vector<OutputMatInfo> output_mat_infos;
 	std::string combined_mesh_path;
 	uint64 combined_mesh_hash;
@@ -380,6 +394,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
 {
 	ChunkBuildResults results;
+	results.ob_batch_ranges.resize(ob_infos.size());
 
 	//-------------------------- Create combined mesh -----------------------------
 	BatchedMeshRef combined_mesh = new BatchedMesh();
@@ -540,6 +555,12 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 				//------------------------------------------ Copy vert indices ------------------------------------------
 				const uint32 vert_offset = (uint32)(write_i_B / combined_mesh_vert_size);
 
+
+				results.ob_batch_ranges[ob_i].ob_uid = ob_info.ob_uid;
+				results.ob_batch_ranges[ob_i].batch0_start = (uint32)combined_opaque_indices.size();
+				results.ob_batch_ranges[ob_i].batch1_start = (uint32)combined_trans_indices.size();
+
+
 				const size_t num_indices = mesh->numIndices();
 
 				// We need to know what material is assigned to each vertex, for the 'original material index' vertex attribute.
@@ -598,6 +619,11 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 					else
 						throw glare::Exception("unhandled index_type");
 				}
+
+
+				results.ob_batch_ranges[ob_i].batch0_end = (uint32)combined_opaque_indices.size();
+				results.ob_batch_ranges[ob_i].batch1_end = (uint32)combined_trans_indices.size();
+
 
 				//------------------------------------------ Set material index vertex attribute values ------------------------------------------
 				// Copy into combined mesh data
@@ -770,6 +796,12 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 	js::Vector<uint32> combined_indices = combined_opaque_indices;
 	combined_indices.append(combined_trans_indices);
 
+	for(size_t z=0; z<results.ob_batch_ranges.size(); ++z)
+	{
+		results.ob_batch_ranges[z].batch1_start += (uint32)combined_opaque_indices.size();
+		results.ob_batch_ranges[z].batch1_end   += (uint32)combined_opaque_indices.size();
+	}
+
 	if(!combined_indices.empty())
 	{
 		combined_mesh->setIndexDataFromIndices(combined_indices, combined_mesh->numVerts());
@@ -794,7 +826,37 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 		combined_mesh->aabb_os = aabb_os;
 
-		combined_mesh = MeshSimplification::removeInvisibleTriangles(combined_mesh, task_manager);
+		std::vector<uint32> index_map;
+		combined_mesh = MeshSimplification::removeInvisibleTriangles(combined_mesh, index_map, task_manager);
+
+		// Some triangles (i.e. their 3 associated indices) have been removed.
+		// We need to update the corresponding object index ranges.
+		for(size_t z=0; z<results.ob_batch_ranges.size(); ++z)
+		{
+			ObjectBatchRanges& ob_ranges = results.ob_batch_ranges[z];
+
+			runtimeCheck(ob_ranges.batch0_start < index_map.size());
+			runtimeCheck(ob_ranges.batch0_end   < index_map.size());
+
+			ob_ranges.batch0_start = index_map[ob_ranges.batch0_start];
+			ob_ranges.batch0_end   = index_map[ob_ranges.batch0_end];
+
+			assert(ob_ranges.batch0_start <= ob_ranges.batch0_end);
+			assert((ob_ranges.batch0_start < combined_mesh->numIndices()) || (ob_ranges.batch0_start == ob_ranges.batch0_end));
+			assert(ob_ranges.batch0_end <= combined_mesh->numIndices());
+
+
+			runtimeCheck(ob_ranges.batch1_start < index_map.size());
+			runtimeCheck(ob_ranges.batch1_end   < index_map.size());
+
+			ob_ranges.batch1_start = index_map[ob_ranges.batch1_start];
+			ob_ranges.batch1_end   = index_map[ob_ranges.batch1_end];
+
+			assert(ob_ranges.batch1_start <= ob_ranges.batch1_end);
+			assert((ob_ranges.batch1_start < combined_mesh->numIndices()) || (ob_ranges.batch1_start == ob_ranges.batch1_end));
+			assert(ob_ranges.batch1_end <= combined_mesh->numIndices());
+		}
+
 
 		if(combined_mesh->numVerts() > 0)
 		{
@@ -986,6 +1048,8 @@ static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference
 					{
 						ObInfo ob_info;
 
+						ob_info.ob_uid = ob->uid;
+
 						if(!ob->model_url.empty())
 							ob_info.model_path = world_state->resource_manager->pathForURL(ob->model_url);
 						
@@ -1121,13 +1185,13 @@ void ChunkGenThread::doRun()
 #if 0
 		{
 			WorldStateLock lock(all_worlds_state->mutex);
-			//Reference<ServerWorldState> world_state = all_worlds_state->getRootWorldState();
-			Reference<ServerWorldState> world_state = all_worlds_state->world_states["cryptovoxels"];
+			Reference<ServerWorldState> world_state = all_worlds_state->getRootWorldState();
+			//Reference<ServerWorldState> world_state = all_worlds_state->world_states["cryptovoxels"];
 			
 			//for(int x=-10; x<10; ++x)
 			//for(int y=-10; y<10; ++y)
-			int x = -1;
-			int y = 4;
+			int x = 0;
+			int y = 0;
 			{
 				if(all_worlds_state->getRootWorldState()->getLODChunks(lock).count(Vec3i(x, y, 0)) != 0)
 				{
@@ -1234,7 +1298,7 @@ void ChunkGenThread::doRun()
 				// Update the chunk object if it has changed.  Mark chunk as db-dirty so it gets saved to disk.
 				{
 					WorldStateLock lock(all_worlds_state->mutex);
-					
+
 					chunk->mesh_url = mesh_URL;
 					chunk->combined_array_texture_url = tex_URL;
 					chunk->compressed_mat_info = compressed_data;
@@ -1243,6 +1307,27 @@ void ChunkGenThread::doRun()
 					chunk->db_dirty = true;
 
 					dirty_chunks[i].world_state->addLODChunkAsDBDirty(chunk, lock);
+
+
+					// Set object vertex indices range
+					for(size_t z=0; z<results.ob_batch_ranges.size(); ++z)
+					{
+						const ObjectBatchRanges& ob_batch_ranges = results.ob_batch_ranges[z];
+
+						auto res = dirty_chunks[i].world_state->getObjects(lock).find(ob_batch_ranges.ob_uid);
+						if(res != dirty_chunks[i].world_state->getObjects(lock).end())
+						{
+							WorldObject* ob = res->second.ptr();
+							ob->chunk_batch0_start = ob_batch_ranges.batch0_start;
+							ob->chunk_batch0_end   = ob_batch_ranges.batch0_end;
+							ob->chunk_batch1_start = ob_batch_ranges.batch1_start;
+							ob->chunk_batch1_end   = ob_batch_ranges.batch1_end;
+
+							// TODO: send out object updated message to clients.
+
+							dirty_chunks[i].world_state->addWorldObjectAsDBDirty(ob, lock);
+						}
+					}
 
 					all_worlds_state->markAsChanged();
 				}

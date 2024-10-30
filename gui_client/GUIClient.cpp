@@ -122,6 +122,9 @@ static const Colour3f axis_arrows_default_cols[]   = { Colour3f(0.6f,0.2f,0.2f),
 static const Colour3f axis_arrows_mouseover_cols[] = { Colour3f(1,0.45f,0.3f),   Colour3f(0.3f,1,0.3f),    Colour3f(0.3f,0.45f,1) };
 
 
+static const float chunk_w = 128.f;
+
+
 GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args)
 :	base_dir_path(base_dir_path_),
 	appdata_path(appdata_path_),
@@ -2147,6 +2150,77 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 		if(load_placeholder)
 		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				// We will use part of the chunk geometry as the placeholder graphics for this object, while it is loading.
+				// Use the sub-range of the indices from the LOD chunk geometry that correspond to this object.
+				if((ob->chunk_batch0_end > ob->chunk_batch0_start) || (ob->chunk_batch1_end > ob->chunk_batch1_start)) // If object has a chunk sub-range set:
+				{
+					// Get the chunk this object is in, if any
+					const Vec4f centroid = ob->getCentroidWS();
+					const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
+
+					auto res = world_state->lod_chunks.find(chunk_coords);
+					if(res != world_state->lod_chunks.end())
+					{
+						const LODChunk* chunk = res->second.ptr();
+						if(chunk->graphics_ob)
+						{
+							const uint32 index_type_size_B = chunk->graphics_ob->mesh_data->getIndexTypeSize();
+
+							runtimeCheck(chunk->graphics_ob->mesh_data->batches.size() >= 1);
+							const size_t chunk_batch_0_start_index = chunk->graphics_ob->mesh_data->batches[0].prim_start_offset_B / index_type_size_B;
+							const size_t chunk_batch_0_end_index   = chunk_batch_0_start_index + chunk->graphics_ob->mesh_data->batches[0].num_indices;
+
+							const size_t chunk_batch_1_start_index = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk->graphics_ob->mesh_data->batches[1].prim_start_offset_B / index_type_size_B) : 0;
+							const size_t chunk_batch_1_end_index   = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk_batch_1_start_index + chunk->graphics_ob->mesh_data->batches[1].num_indices) : 0;
+
+							// If the object sub-chunk vertex indices ranges are valid:
+							if( (ob->chunk_batch0_start >= chunk_batch_0_start_index) && (ob->chunk_batch0_start <= ob->chunk_batch0_end) && (ob->chunk_batch0_end <= chunk_batch_0_end_index) &&
+								(ob->chunk_batch1_start >= chunk_batch_1_start_index) && (ob->chunk_batch1_start <= ob->chunk_batch1_end) && (ob->chunk_batch1_end <= chunk_batch_1_end_index))
+							{
+								ob->opengl_engine_ob = new GLObject();
+								ob->opengl_engine_ob->mesh_data = chunk->graphics_ob->mesh_data; // Share the chunk's mesh data
+								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::identity();
+						
+								ob->opengl_engine_ob->materials = chunk->graphics_ob->materials;
+
+								int new_num_batches = 0;
+								if(ob->chunk_batch0_end > ob->chunk_batch0_start) // If batch 0 range is non-empty:
+									new_num_batches++;
+								if(ob->chunk_batch1_end > ob->chunk_batch1_start) // If batch 1 range is non-empty:
+									new_num_batches++;
+								assert(new_num_batches > 0);
+
+								ob->opengl_engine_ob->use_batches.resizeNoCopy(new_num_batches);
+
+								if(ob->chunk_batch0_end > ob->chunk_batch0_start) // If batch 0 range is non-empty:
+								{
+									ob->opengl_engine_ob->use_batches[0].material_index = 0;
+									ob->opengl_engine_ob->use_batches[0].prim_start_offset_B = ob->chunk_batch0_start * index_type_size_B;
+									ob->opengl_engine_ob->use_batches[0].num_indices         = ob->chunk_batch0_end - ob->chunk_batch0_start;
+								}
+
+								if(ob->chunk_batch1_end > ob->chunk_batch1_start) // If batch 1 range is non-empty:
+								{
+									ob->opengl_engine_ob->use_batches.back().material_index = 1;
+									ob->opengl_engine_ob->use_batches.back().prim_start_offset_B = ob->chunk_batch1_start * index_type_size_B;
+									ob->opengl_engine_ob->use_batches.back().num_indices         = ob->chunk_batch1_end - ob->chunk_batch1_start;
+								}
+
+								opengl_engine->addObject(ob->opengl_engine_ob);
+
+								ob->using_placeholder_model = true;
+							}
+							else
+							{
+								conPrint("ERROR: invalid chunk sub-range");
+							}
+						}
+					}
+				}
+			}
+
 			// Load a placeholder object (cube) if we don't have an existing model (e.g. another LOD level) being displayed.
 			// We also need a valid AABB.
 		//TEMP DISABLED FOR CHUNK LOD	if(!ob->getAABBOS().isEmpty() && ob->opengl_engine_ob.isNull())
@@ -3343,7 +3417,7 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 float proj_len_viewable_threshold = 0.02f;
 
 
-static const float chunk_w = 128.f;
+
 
 static inline float xyDist2(const Vec4f& a, const Vec4f& b)
 {
@@ -5442,6 +5516,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 #endif
 	
+	const Vec4f first_or_third_person_campos = this->cam_controller.getPosition().toVec4fPoint();
 
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 	if(world_state.nonNull())
@@ -5452,6 +5527,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		try
 		{
 			WorldStateLock lock(this->world_state->mutex);
+
+			// Make sure server_using_lod_chunks is set before we start calling shouldDisplayLODChunk() below
+			if(!this->world_state->lod_chunks.empty())
+				this->server_using_lod_chunks = true;
 
 			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
 			{
@@ -5515,7 +5594,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
 						const Vec3i chunk_coords(Maths::floorToInt(ob->getCentroidWS()[0] / chunk_w), Maths::floorToInt(ob->getCentroidWS()[1] / chunk_w), 0);
-						if(this->server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, campos) && !ob->exclude_from_lod_chunk_mesh)
+						if(this->server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, first_or_third_person_campos) && !ob->exclude_from_lod_chunk_mesh)
 							ob->in_proximity = false;
 						assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
@@ -6106,7 +6185,7 @@ void GUIClient::updateParcelGraphics()
 
 void GUIClient::updateLODChunkGraphics()
 {
-	const Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
+	const Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
 
 	Lock lock(this->world_state->mutex);
 	
@@ -6123,6 +6202,10 @@ void GUIClient::updateLODChunkGraphics()
 				if(chunk->graphics_ob_in_engine)
 				{
 					opengl_engine->removeObject(chunk->graphics_ob);
+
+					if(chunk->diagnostics_gl_ob)
+						opengl_engine->removeObject(chunk->diagnostics_gl_ob);
+
 					chunk->graphics_ob_in_engine = false;
 				}
 			}
@@ -6132,6 +6215,10 @@ void GUIClient::updateLODChunkGraphics()
 				if(!chunk->graphics_ob_in_engine)
 				{
 					opengl_engine->addObject(chunk->graphics_ob);
+
+					if(chunk->diagnostics_gl_ob)
+						opengl_engine->addObject(chunk->diagnostics_gl_ob);
+
 					chunk->graphics_ob_in_engine = true;
 				}
 			}
@@ -6329,7 +6416,7 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 						chunk->graphics_ob->materials[1].transparent = true;
 					}
 
-					const Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
+					const Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
 					const bool should_show = shouldDisplayLODChunk(chunk->coords, campos);
 					if(should_show)
 					{
@@ -7964,6 +8051,38 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	}
 
 	return msg;
+}
+
+
+void GUIClient::diagnosticsSettingsChanged()
+{
+	const bool show_chunk_vis_aabb = ui_interface->diagnosticsVisible() && ui_interface->showLodChunksVisEnabled();
+
+	WorldStateLock lock(this->world_state->mutex);
+	
+	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
+	{
+		LODChunk* chunk = it->second.ptr();
+		
+		if(show_chunk_vis_aabb)
+		{
+			if(!chunk->mesh_url.empty()) // Don't visualise empty chunks
+			{
+				const Vec4f chunk_min = Vec4f(chunk->coords.x * chunk_w, chunk->coords.y * chunk_w, -20, 1);
+				const Vec4f chunk_max = Vec4f((chunk->coords.x + 1) * chunk_w, (chunk->coords.y + 1) * chunk_w, 30, 1);
+
+				chunk->diagnostics_gl_ob = opengl_engine->makeCuboidEdgeAABBObject(chunk_min, chunk_max, Colour4f(0.3f, 0.8f, 0.3f, 1.f));
+
+				if(chunk->graphics_ob_in_engine)
+					opengl_engine->addObject(chunk->diagnostics_gl_ob);
+			}
+		}
+		else
+		{
+			if(chunk->diagnostics_gl_ob && chunk->graphics_ob_in_engine)
+				opengl_engine->removeObject(chunk->diagnostics_gl_ob);
+		}
+	}
 }
 
 

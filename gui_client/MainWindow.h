@@ -185,6 +185,7 @@ public:
 	virtual bool showPhysicsObOwnershipEnabled() override;
 	virtual bool showVehiclePhysicsVisEnabled() override;
 	virtual bool showPlayerPhysicsVisEnabled() override;
+	virtual bool showLodChunksVisEnabled() override;
 
 	virtual void writeTransformMembersToObject(WorldObject& ob) override;
 	virtual void objectLastModifiedUpdated(const WorldObject& ob) override;
