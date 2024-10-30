@@ -510,7 +510,7 @@ void MeshLODGenThread::doRun()
 							WorldObject* ob = it->second.ptr();
 							try
 							{
-								if(true)
+								if(false)
 									checkObjectSpaceAABB(world_state, world, ob);
 
 								if(false)
