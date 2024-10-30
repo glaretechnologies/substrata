@@ -100,6 +100,11 @@ bool SDLUIInterface::showPlayerPhysicsVisEnabled()
 	return false;
 }
 
+bool SDLUIInterface::showLodChunksVisEnabled()
+{
+	return false;
+}
+
 void SDLUIInterface::writeTransformMembersToObject(WorldObject& ob)
 {
 }
