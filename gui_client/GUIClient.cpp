@@ -2496,6 +2496,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 					load_model_task->unit_cube_shape = this->unit_cube_shape;
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
+					load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
 
 					load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
 				}
@@ -12176,6 +12177,8 @@ void GUIClient::viewportResized(int w, int h)
 
 GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 {
+	ZoneScopedN("makeNameTagGLObject"); // Tracy profiler
+
 	TextRendererFontFace* font = gl_ui->getFont(/*font_size_px=*/36, /*emoji=*/false);
 
 	const TextRendererFontFace::SizeInfo size_info = font->getTextSize(nametag);
