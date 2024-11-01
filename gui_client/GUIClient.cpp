@@ -2154,7 +2154,9 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 			{
 				// We will use part of the chunk geometry as the placeholder graphics for this object, while it is loading.
 				// Use the sub-range of the indices from the LOD chunk geometry that correspond to this object.
-				if((ob->chunk_batch0_end > ob->chunk_batch0_start) || (ob->chunk_batch1_end > ob->chunk_batch1_start)) // If object has a chunk sub-range set:
+				const bool ob_batch0_nonempty = ob->chunk_batch0_end > ob->chunk_batch0_start;
+				const bool ob_batch1_nonempty = ob->chunk_batch1_end > ob->chunk_batch1_start;
+				if(ob_batch0_nonempty || ob_batch1_nonempty) // If object has a chunk sub-range set:
 				{
 					// Get the chunk this object is in, if any
 					const Vec4f centroid = ob->getCentroidWS();
@@ -2175,9 +2177,11 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							const size_t chunk_batch_1_start_index = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk->graphics_ob->mesh_data->batches[1].prim_start_offset_B / index_type_size_B) : 0;
 							const size_t chunk_batch_1_end_index   = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk_batch_1_start_index + chunk->graphics_ob->mesh_data->batches[1].num_indices) : 0;
 
-							// If the object sub-chunk vertex indices ranges are valid:
-							if( (ob->chunk_batch0_start >= chunk_batch_0_start_index) && (ob->chunk_batch0_start <= ob->chunk_batch0_end) && (ob->chunk_batch0_end <= chunk_batch_0_end_index) &&
-								(ob->chunk_batch1_start >= chunk_batch_1_start_index) && (ob->chunk_batch1_start <= ob->chunk_batch1_end) && (ob->chunk_batch1_end <= chunk_batch_1_end_index))
+							// If the object sub-chunk vertex indices ranges are valid (e.g. in bounds of original chunk mesh): (Note that an empty range is considered valid)
+							const bool batch0_valid = !ob_batch0_nonempty || ((ob->chunk_batch0_start >= chunk_batch_0_start_index) && (ob->chunk_batch0_end <= chunk_batch_0_end_index));
+							const bool batch1_valid = !ob_batch1_nonempty || ((ob->chunk_batch1_start >= chunk_batch_1_start_index) && (ob->chunk_batch1_end <= chunk_batch_1_end_index));
+
+							if(batch0_valid && batch1_valid)
 							{
 								ob->opengl_engine_ob = new GLObject();
 								ob->opengl_engine_ob->mesh_data = chunk->graphics_ob->mesh_data; // Share the chunk's mesh data
@@ -2194,14 +2198,14 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 								ob->opengl_engine_ob->use_batches.resizeNoCopy(new_num_batches);
 
-								if(ob->chunk_batch0_end > ob->chunk_batch0_start) // If batch 0 range is non-empty:
+								if(ob_batch0_nonempty) // If batch 0 range is non-empty:
 								{
 									ob->opengl_engine_ob->use_batches[0].material_index = 0;
 									ob->opengl_engine_ob->use_batches[0].prim_start_offset_B = ob->chunk_batch0_start * index_type_size_B;
 									ob->opengl_engine_ob->use_batches[0].num_indices         = ob->chunk_batch0_end - ob->chunk_batch0_start;
 								}
 
-								if(ob->chunk_batch1_end > ob->chunk_batch1_start) // If batch 1 range is non-empty:
+								if(ob_batch1_nonempty) // If batch 1 range is non-empty:
 								{
 									ob->opengl_engine_ob->use_batches.back().material_index = 1;
 									ob->opengl_engine_ob->use_batches.back().prim_start_offset_B = ob->chunk_batch1_start * index_type_size_B;
@@ -3445,11 +3449,17 @@ void GUIClient::checkForLODChanges()
 	if(world_state.isNull())
 		return;
 		
-	const bool use_server_using_lod_chunks = this->server_using_lod_chunks;
+	
 
 	//Timer timer;
 	{
 		WorldStateLock lock(this->world_state->mutex);
+
+		// Make sure server_using_lod_chunks is up-to-date.
+		if(!this->world_state->lod_chunks.empty())
+			this->server_using_lod_chunks = true;
+		const bool use_server_using_lod_chunks = this->server_using_lod_chunks;
+
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
 #if EMSCRIPTEN
@@ -5599,7 +5609,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							ob->in_proximity = false;
 						assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
-						if(ob->getCentroidWS().getDist2(campos) < this->load_distance2)
+						if(ob->in_proximity)
 						{
 							loadModelForObject(ob, lock);
 							loadAudioForObject(ob);
@@ -8004,6 +8014,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	{
 		msg += std::string("\nSelected object: \n");
 
+		msg += "UID: " + selected_ob->uid.toString() + "\n";
 		msg += "pos: " + selected_ob->pos.toStringMaxNDecimalPlaces(3) + "\n";
 		msg += "centroid: " + selected_ob->getCentroidWS().toStringMaxNDecimalPlaces(3) + "\n";
 		msg += "aabb os: " + selected_ob->getAABBOS().toStringMaxNDecimalPlaces(3) + "\n";
