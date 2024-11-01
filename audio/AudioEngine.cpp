@@ -25,6 +25,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/MemMappedFile.h>
 #include <utils/FileInStream.h>
 #include <utils/RuntimeCheck.h>
+#include <tracy/Tracy.hpp>
 
 
 namespace glare
@@ -864,6 +865,8 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 
 	if(!pos.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
 		return;
+
+	ZoneScopedN("playOneShotSound"); // Tracy profiler
 
 	try
 	{

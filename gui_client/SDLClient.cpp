@@ -41,6 +41,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <unistd.h>
 #include "emscripten_browser_clipboard.h"
 #endif
+#include <tracy/TracyOpenGL.hpp>
 
 
 // If we are building on Windows, and we are not in Release mode (e.g. BUILD_TESTS is enabled), then make sure the console window is shown.
@@ -1039,6 +1040,7 @@ static void doOneMainLoopIter()
 	
 	// Display
 	SDL_GL_SwapWindow(win);
+	FrameMark; // Tracy profiler
 
 	last_updateGL_time = drawing_timer.elapsed();
 

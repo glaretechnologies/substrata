@@ -63,6 +63,13 @@ SET(shared_files
 ../shared/LODChunk.h
 )
 
+
+#============== Tracy profiler ==============
+
+include_directories("${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public")
+set(tracy_files "${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public/TracyClient.cpp")
+
+
 ########### Webserver ################
 SET(webserver_core_files
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.cpp
@@ -215,6 +222,7 @@ SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
 SOURCE_GROUP(ethereum FILES ${ethereum_files})
 SOURCE_GROUP(basis_universal/encoder FILES ${basisu_encoder_files})
 SOURCE_GROUP(basis_universal/transcoder FILES ${basisu_transcoder_files})
+SOURCE_GROUP(tracy FILES ${tracy_files})
 
 
 # From secp256k1-master\configure.ac:
@@ -270,6 +278,7 @@ ${luau_vm}
 ${luau_compiler}
 ${lua}
 ${natvis_files}
+${tracy_files}
 )
 
 

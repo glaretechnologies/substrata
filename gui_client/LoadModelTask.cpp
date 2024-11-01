@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <FileUtils.h>
+#include <tracy/Tracy.hpp>
 
 
 LoadModelTask::LoadModelTask()
@@ -30,6 +31,9 @@ LoadModelTask::~LoadModelTask()
 
 void LoadModelTask::run(size_t thread_index)
 {
+	ZoneScopedN("LoadModelTask"); // Tracy profiler
+	
+
 	try
 	{
 		Reference<OpenGLMeshRenderData> gl_meshdata;
@@ -38,6 +42,8 @@ void LoadModelTask::run(size_t thread_index)
 
 		if(voxel_ob.nonNull())
 		{
+			ZoneText("Voxel", 5);
+
 			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
 
 			if(voxel_ob->getCompressedVoxels().size() == 0)
@@ -83,6 +89,8 @@ void LoadModelTask::run(size_t thread_index)
 		}
 		else // Else not voxel ob, just loading a model:
 		{
+			ZoneText(lod_model_url.c_str(), lod_model_url.size());
+
 			assert(!lod_model_url.empty());
 
 			// We want to load and build the mesh at lod_model_url.

@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #endif
 #include <ConPrint.h>
 #include <PlatformUtils.h>
+#include <tracy/Tracy.hpp>
 
 
 LoadScriptTask::LoadScriptTask()
@@ -25,6 +26,7 @@ LoadScriptTask::~LoadScriptTask()
 void LoadScriptTask::run(size_t thread_index)
 {
 	// conPrint("LoadScriptTask: Loading script...");
+	ZoneScopedN("LoadScriptTask"); // Tracy profiler
 
 	try
 	{
