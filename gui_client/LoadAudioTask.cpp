@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/StringUtils.h>
 #include <utils/PlatformUtils.h>
 #include <utils/ThreadSafeQueue.h>
+#include <tracy/Tracy.hpp>
 
 
 LoadAudioTask::LoadAudioTask()
@@ -26,6 +27,8 @@ LoadAudioTask::~LoadAudioTask()
 void LoadAudioTask::run(size_t thread_index)
 {
 	// conPrint("LoadAudioTask: Loading '" + audio_source_path + "'...");
+	ZoneScopedN("LoadAudioTask"); // Tracy profiler
+	ZoneText(audio_source_path.c_str(), audio_source_path.size());
 
 	try
 	{

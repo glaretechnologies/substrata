@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <IncludeHalf.h>
+#include <tracy/Tracy.hpp>
 
 
 LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource_,
@@ -30,6 +31,9 @@ LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, 
 
 void LoadTextureTask::run(size_t thread_index)
 {
+	ZoneScopedN("LoadTextureTask"); // Tracy profiler
+	ZoneText(this->path.c_str(), this->path.size());
+
 	try
 	{
 		// conPrint("LoadTextureTask: processing texture '" + path + "'");

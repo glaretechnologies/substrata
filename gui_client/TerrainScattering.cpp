@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "opengl/MeshPrimitiveBuilding.h"
 #include "meshoptimizer/src/meshoptimizer.h"
 #include "../dll/include/IndigoMesh.h"
+#include <tracy/Tracy.hpp>
 
 
 #if !defined(OSX) && !defined(EMSCRIPTEN)
@@ -477,6 +478,7 @@ void TerrainScattering::invalidateVegetationMap(const js::AABBox& aabb_ws)
 void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y)
 {
 	// conPrint("TerrainScattering::rebuildDetailMaskMapSection: section_x: " + toString(section_x) + ", section_y: " + toString(section_y));
+	ZoneScopedN("TerrainScattering::rebuildDetailMaskMapSection"); // Tracy profiler
 
 	DetailMaskMapSection& section = detail_mask_map_sections[section_x + section_y*DETAIL_MASK_MAP_SECTION_RES];
 	if(section.mask_map_gl_tex.isNull())
