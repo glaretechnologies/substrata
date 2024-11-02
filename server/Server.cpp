@@ -196,6 +196,13 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 }
 
 
+static bool isFeatureFlagSet(Reference<ServerAllWorldsState>& worlds_state, uint64 flag)
+{
+	WorldStateLock lock(worlds_state->mutex);
+	return BitUtils::isBitSet(worlds_state->feature_flag_info.feature_flags, flag);
+}
+
+
 static glare::AtomicInt should_quit(0);
 
 
@@ -511,7 +518,7 @@ int main(int argc, char *argv[])
 		server.lua_http_manager = new LuaHTTPRequestManager(&server);
 
 		//----------------------------------------------- Create any Lua scripts for objects -----------------------------------------------
-		if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
+		if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 		{ // Begin scope for world_state->mutex lock
 			conPrint("Creating Lua scripts for objects...");
 
@@ -559,7 +566,7 @@ int main(int argc, char *argv[])
 			PlatformUtils::Sleep(100);
 
 			// Do Lua timer callbacks
-			if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
+			if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 			{
 				{
 					WorldStateLock lock(server.world_state->mutex);
@@ -595,7 +602,7 @@ int main(int argc, char *argv[])
 					}
 				}
 
-				if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+				if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
 					server.lua_http_manager->think();
 			}
 			
@@ -1038,7 +1045,7 @@ int main(int argc, char *argv[])
 			}
 #endif
 			if((loop_iter % 1024) == 64) // Approx every 100 s.
-				if(BitUtils::isBitSet(server.world_state->feature_flag_info.feature_flags, ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG))
+				if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG))
 					WorldMaintenance::removeOldVehicles(server.world_state);
 
 			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 10.0))

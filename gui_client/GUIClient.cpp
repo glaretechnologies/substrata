@@ -2162,6 +2162,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					const Vec4f centroid = ob->getCentroidWS();
 					const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
 
+					WorldStateLock lock(world_state->mutex);
 					auto res = world_state->lod_chunks.find(chunk_coords);
 					if(res != world_state->lod_chunks.end())
 					{

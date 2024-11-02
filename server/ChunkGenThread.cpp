@@ -1280,6 +1280,8 @@ void ChunkGenThread::doRun()
 					if(!all_worlds_state->resource_manager->isFileForURLPresent(mesh_URL))
 					{
 						all_worlds_state->resource_manager->copyLocalFileToResourceDir(results.combined_mesh_path, mesh_URL);
+
+						WorldStateLock lock(all_worlds_state->mutex);
 						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(mesh_URL));
 					}
 				}
@@ -1291,6 +1293,8 @@ void ChunkGenThread::doRun()
 					if(!all_worlds_state->resource_manager->isFileForURLPresent(tex_URL))
 					{
 						all_worlds_state->resource_manager->copyLocalFileToResourceDir(results.combined_texture_path, tex_URL);
+
+						WorldStateLock lock(all_worlds_state->mutex);
 						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(tex_URL));
 					}
 				}
