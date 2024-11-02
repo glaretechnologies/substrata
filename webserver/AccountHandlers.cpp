@@ -756,7 +756,7 @@ void renderSecretsPage(ServerAllWorldsState& world_state, const web::RequestInfo
 				"	<form action=\"/delete_secret_post\" method=\"post\">									\n"
 				"		<input id=\"secret_name-id\" type=\"hidden\" name=\"secret_name\" value=\"" + web::Escaping::HTMLEscape(secret->key.secret_name) + "\" />			\n"
 				"		<button type=\"submit\" id=\"delete-secret-button\" class=\"button-link\">Delete Secret</button>			\n"
-				"	</form>";
+				"	</form>																					\n"
 				"	<br/>";
 			}
 		}
