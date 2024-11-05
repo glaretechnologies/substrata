@@ -774,28 +774,6 @@ void PhysicsWorld::moveKinematicObject(PhysicsObject& object, const Vec4f& trans
 }
 
 
-// Just store the original material index, so we can recover it in traceRay().
-class SubstrataPhysicsMaterial : public JPH::PhysicsMaterial
-{
-public:
-	//JPH_DECLARE_SERIALIZABLE_VIRTUAL(SubstrataPhysicsMaterial)   // NOTE: need this?
-
-	SubstrataPhysicsMaterial(uint32 index_) : index(index_) {}
-
-	virtual const char *					GetDebugName() const override		{ return "SubstrataPhysicsMaterial"; }
-
-	// See: PhysicsMaterial::SaveBinaryState
-	//virtual void							SaveBinaryState(StreamOut &inStream) const override;
-
-protected:
-	// See: PhysicsMaterial::RestoreBinaryState
-	//virtual void							RestoreBinaryState(StreamIn &inStream) override;
-
-public:
-	uint32 index;
-};
-
-
 static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
 {
 	JPH::Shape::VisitedShapes visited_shapes(/*empty key=*/nullptr); // Jolt uses this to make sure it doesn't double-count sub-shapes.
@@ -857,26 +835,22 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 		{
 			const Indigo::Triangle& tri = tris[i];
 	
-			const uint use_mat_index = tri.tri_mat_index < 32 ? tri.tri_mat_index : 0; // Jolt has a maximum of 32 materials per mesh
-			tri_list[i] = JPH::IndexedTriangle(tri.vertex_indices[0], tri.vertex_indices[1], tri.vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
+			// We store the original material index in the per-triangle user data.
+			// We don't use triangle material index as it's limited to 32 and requires creating PhysicsMaterial objects. 
+			tri_list[i] = JPH::IndexedTriangle(tri.vertex_indices[0], tri.vertex_indices[1], tri.vertex_indices[2], /*inMaterialIndex=*/0, /*inUserData=*/tri.tri_mat_index);
 		}
 
 		for(size_t i = 0; i < quads.size(); ++i)
 		{
 			const Indigo::Quad& quad = quads[i];
 
-			const uint use_mat_index = quad.mat_index < 32 ? quad.mat_index : 0;
-			tri_list[tris.size() + i * 2 + 0] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[1], quad.vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
-			tri_list[tris.size() + i * 2 + 1] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[2], quad.vertex_indices[3], /*inMaterialIndex=*/use_mat_index);
+			tri_list[tris.size() + i * 2 + 0] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[1], quad.vertex_indices[2], /*inMaterialIndex=*/0, /*inUserData=*/quad.mat_index);
+			tri_list[tris.size() + i * 2 + 1] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[2], quad.vertex_indices[3], /*inMaterialIndex=*/0, /*inUserData=*/quad.mat_index);
 		}
 	
-		// Create materials
-		const uint32 use_num_mats = myMin(32u, mesh.num_materials_referenced); // Jolt has a maximum of 32 materials per mesh
-		JPH::PhysicsMaterialList materials(use_num_mats);
-		for(uint32 i = 0; i < use_num_mats; ++i)
-			materials[i] = new SubstrataPhysicsMaterial(i);
-	
-		JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
+		JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list);
+		mesh_body_settings->mPerTriangleUserData = true; // We store the original material index in the per-triangle user data.
+
 		JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
 		if(result.HasError())
 			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
@@ -1114,21 +1088,17 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 					throw glare::Exception("Invalid index type.");
 				}
 
-
-				const uint use_mat_index = mat_index < 32 ? mat_index : 0;
-				tri_list[dest_tri_i] = JPH::IndexedTriangle(vertex_indices[0], vertex_indices[1], vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
+				// We store the original material index in the per-triangle user data.
+				// We don't use triangle material index as it's limited to 32 and requires creating PhysicsMaterial objects. 
+				tri_list[dest_tri_i] = JPH::IndexedTriangle(vertex_indices[0], vertex_indices[1], vertex_indices[2], /*inMaterialIndex=*/0, /*inUserData=*/mat_index);
 
 				dest_tri_i++;
 			}
 		}
 
-		// Create materials
-		const uint32 use_num_mats = myMin(32u, (uint32)mesh.numMaterialsReferenced());
-		JPH::PhysicsMaterialList materials(use_num_mats);
-		for(uint32 i = 0; i < use_num_mats; ++i)
-			materials[i] = new SubstrataPhysicsMaterial(i);
+		JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list);
+		mesh_body_settings->mPerTriangleUserData = true; // We store the original material index in the per-triangle user data.
 
-		JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
 		JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
 		if(result.HasError())
 			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
@@ -1640,6 +1610,22 @@ const Vec4f PhysicsWorld::getPosInJolt(const Reference<PhysicsObject>& object)
 }
 
 
+// Return the inner MeshShape if shape is a decorated MeshShape, otherwise return NULL.
+static const JPH::MeshShape* getInnerMeshShape(const JPH::Shape* shape)
+{
+	if(shape->GetType() == JPH::EShapeType::Decorated)
+	{
+		return getInnerMeshShape(static_cast<const JPH::DecoratedShape*>(shape)->GetInnerShape());
+	}
+	else if(shape->GetType() == JPH::EShapeType::Mesh)
+	{
+		return static_cast<const JPH::MeshShape*>(shape);
+	}
+	else
+		return nullptr;
+}
+
+
 void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
@@ -1665,9 +1651,11 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 			results_out.hit_t = hit_result.mFraction * max_t;
 			results_out.hit_normal_ws = toVec4fVec(body->GetWorldSpaceSurfaceNormal(hit_result.mSubShapeID2, ray.GetPointOnRay(hit_result.mFraction)));
 
-			const JPH::PhysicsMaterial* mat = body->GetShape()->GetMaterial(hit_result.mSubShapeID2);
-			const SubstrataPhysicsMaterial* submat = dynamic_cast<const SubstrataPhysicsMaterial*>(mat);
-			results_out.hit_mat_index = submat ? submat->index : 0;
+			results_out.hit_mat_index = 0;
+			if(const JPH::MeshShape* mesh_shape = getInnerMeshShape(body->GetShape()))
+			{
+				results_out.hit_mat_index = mesh_shape->GetTriangleUserData(hit_result.mSubShapeID2);
+			}
 
 			// conPrint("Hit object, hitdist_ws: " + toString(results_out.hitdist_ws) + ", hit_tri_index: " + toString(results_out.hit_tri_index));
 		}
