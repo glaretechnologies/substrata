@@ -539,7 +539,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	//	this->last_desired_up_vec = no_roll_vehicle_up_ws * cos(smoothed_desired_roll_angle) + no_roll_vehicle_right_ws * sin(smoothed_desired_roll_angle);
 
 		assert(dynamic_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController()));
-		this->last_desired_up_vec = toVec4fVec(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean);
+		//this->last_desired_up_vec = toVec4fVec(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean);
 
 
 		//---------- Roll constraint -----------------
@@ -910,10 +910,10 @@ std::string BikePhysics::getUIInfoMsg()
 	const float speed_km_per_h = getLinearVel(*m_physics_world).length() * (3600.0f / 1000.f);
 
 	assert(dynamic_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController()));
-	this->last_desired_up_vec = toVec4fVec(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean);
+	//this->last_desired_up_vec = toVec4fVec(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean);
 
 
-	const float target_lean_angle_deg = JPH::RadiansToDegrees(std::acos(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean.Normalized().GetZ()));
+	const float target_lean_angle_deg = 0;//JPH::RadiansToDegrees(std::acos(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean.Normalized().GetZ()));
 
 	const float actual_lean_angle_deg = JPH::RadiansToDegrees(std::acos(normalise(getBodyTransform(*m_physics_world) * Vec4f(0,1,0,0))[2]));
 
