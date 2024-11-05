@@ -1609,6 +1609,8 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 
 void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix, WorldObject* ob, bool use_materialise_effect, PhysicsObjectRef& physics_ob_out, GLObjectRef& opengl_ob_out)
 {
+	ZoneScoped; // Tracy profiler
+
 	Rect2f rect_os;
 	OpenGLTextureRef atlas_texture;
 

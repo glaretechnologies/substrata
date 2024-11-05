@@ -41,6 +41,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <unistd.h>
 #include "emscripten_browser_clipboard.h"
 #endif
+#include <tracy/Tracy.hpp>
 #include <tracy/TracyOpenGL.hpp>
 
 
