@@ -68,9 +68,9 @@ namespace Layers
 	static constexpr uint8 NON_MOVING = 0;
 	static constexpr uint8 MOVING = 1;
 	static constexpr uint8 NON_COLLIDABLE = 2;
-	static constexpr uint8 INTERACTION_CHARACTER = 3;
-	static constexpr uint8 VEHICLES = 4;
-	static constexpr uint8 NUM_LAYERS = 5;
+	//static constexpr uint8 INTERACTION_CHARACTER = 3;
+	static constexpr uint8 VEHICLES = 3;
+	static constexpr uint8 NUM_LAYERS = 4;
 };
 
 

@@ -61,7 +61,7 @@ public:
 
 	virtual Vec4f getLinearVel(PhysicsWorld& physics_world) const = 0;
 
-	virtual JPH::BodyID getBodyID() const = 0;
+	virtual JPH::BodyID getBodyID() const = 0; // ID of vehicle physics object.
 
 	virtual const Scripting::VehicleScriptedSettings& getSettings() const = 0;
 
