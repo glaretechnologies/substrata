@@ -12,12 +12,29 @@ if $glare_core_libs_dir.nil?
 	exit(1)
 end
 
-tag_dir = $glare_core_libs_dir + "/luau/0.627"
 
-puts "Checking for already cloned source at '" + tag_dir + "'..."
+#------------------- Luau ----------------------
+begin
+	tag_dir = $glare_core_libs_dir + "/luau/0.627"
 
-if File.exist?(tag_dir)
-	puts "Already cloned there, nothing to do."
-else
-	print_and_exec_command("git clone --depth 1 --branch 0.627 https://github.com/luau-lang/luau.git \"#{tag_dir}\"")
+	puts "Checking for already cloned source at '" + tag_dir + "'..."
+
+	if File.exist?(tag_dir)
+		puts "Already cloned there, nothing to do."
+	else
+		print_and_exec_command("git clone --depth 1 --branch 0.627 https://github.com/luau-lang/luau.git \"#{tag_dir}\"")
+	end
+end
+
+#------------------- Jolt ----------------------
+begin
+	tag_dir = $glare_core_libs_dir + "/jolt/5.2.0-opt"
+
+	puts "Checking for already cloned source at '" + tag_dir + "'..."
+
+	if File.exist?(tag_dir)
+		puts "Already cloned there, nothing to do."
+	else
+		print_and_exec_command("git clone --depth 1 --branch 5.2.0-opt https://github.com/Ono-Sendai/JoltPhysics \"#{tag_dir}\"")
+	end
 end
