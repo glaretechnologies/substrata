@@ -692,9 +692,6 @@ public:
 		WorldObjectRef ob;
 	};
 
-	std::vector<ContactAddedEvent> player_contact_added_events;
-	Mutex player_contact_added_events_mutex;
-
 	ScriptedObjectProximityChecker scripted_ob_proximity_checker;
 
 	ParcelID cur_in_parcel_id;

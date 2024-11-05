@@ -43,10 +43,10 @@ public:
 	void init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos);
 	void shutdown();
 
-	JPH::BodyID getInteractionCharBodyID() { return interaction_char_body_id; }
+	JPH::BodyID getInteractionCharBodyID() { return /*interaction_char_body_id*/JPH::BodyID(); }
 
-	void setStandingInteractionChar();
-	void setSittingInteractionChar();
+	void setStandingShape(PhysicsWorld& physics_world);
+	void setSittingShape(PhysicsWorld& physics_world);
 
 	Vec3d getCapsuleBottomPosition(); // Get point at the bottom of the player capsule object.
 	void setEyePosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
@@ -62,6 +62,11 @@ public:
 
 	// NOTE: cur_time should be from Clock::getTimeSinceInit().
 	UpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, double cur_time, Vec4f& campos_out);
+
+	// Just run a basis CharacterVirtual Update(), so that collisions with sensors are detected.
+	// This means we can still trigger contacts with sensor objects while in a vehicle.
+	// Collisions with vehicle_body_id will be ignored
+	void updateForInVehicle(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, JPH::BodyID vehicle_body_id);
 
 	bool isMoveDesiredVelNonZero();
 	void zeroMoveDesiredVel();
@@ -117,9 +122,12 @@ private:
 
 	JPH::Ref<JPH::CharacterVirtual> jolt_character;
 
-	JPH::Ref<JPH::Character> interaction_character;
-	JPH::BodyID interaction_char_body_id;
+	//JPH::Ref<JPH::Character> interaction_character;
+	//JPH::BodyID interaction_char_body_id;
 
-	JPH::RefConst<JPH::Shape> standing_interaction_shape;
-	JPH::RefConst<JPH::Shape> sitting_interaction_shape;
+	//JPH::RefConst<JPH::Shape> standing_interaction_shape;
+	//JPH::RefConst<JPH::Shape> sitting_interaction_shape;
+
+	JPH::RefConst<JPH::Shape> standing_shape;
+	JPH::RefConst<JPH::Shape> sitting_shape;
 };

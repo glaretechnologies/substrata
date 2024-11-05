@@ -4749,73 +4749,76 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				{
 					if(this->cur_seat_index == 0) // If we are driving it:
 						vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
+
+					// Process player physics
+					player_physics.updateForInVehicle(*this->physics_world, physics_input, (float)substep_dt, /*vehicle body id=*/vehicle_controller_inside->getBodyID());
 				}
 				else
 				{
 					// Process player physics
 					UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
 					physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
-
-					// Process contact events for objects that the player touched.
-					// Take physics ownership of any such object if needed.
-					{
-						Lock world_state_lock(this->world_state->mutex);
-						for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
-						{
-							PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
-							if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
-							{
-								WorldObject* ob = (WorldObject*)physics_ob->userdata;
-
-								// conPrint("Player contacted object " + ob->uid.toString());
-						
-								if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
-								{
-									// conPrint("==Taking ownership of physics object from avatar physics contact...==");
-									takePhysicsOwnershipOfObject(*ob, global_time);
-								}
-							}
-						}
-					}
-
-					// Execute script events on any player contacted events.
-					// These are events generated in PlayerPhysics::update() by contact between the virtual character controller and Jolt bodies.
-					{
-						WorldStateLock world_state_lock(this->world_state->mutex);
-						for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
-						{
-							PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
-							if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
-							{
-								WorldObject* ob = (WorldObject*)physics_ob->userdata;
-					
-								// conPrint("timerEvent: player hit ob UID: " + ob->uid.toString());
-					
-								// Run script
-								if(ob->event_handlers && ob->event_handlers->onUserTouchedObject_handlers.nonEmpty())
-								{
-									// Jolt creates contact added events very fast, so limit how often we call onUserTouchedObject.
-									const double time_since_last_touch_event = cur_time - ob->last_touch_event_time;
-
-									if(time_since_last_touch_event > 0.5)
-									{
-										ob->last_touch_event_time = cur_time;
-
-										// Execute doOnUserTouchedObject event handler in any scripts that are listening for onUserTouchedObject for this object
-										ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid, world_state_lock);
-
-										// Send message to server to execute onUserTouchedObject on the server
-										MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
-										writeToStream(ob->uid, scratch_packet);
-										enqueueMessageToSend(*client_thread, scratch_packet);
-									}
-								}
-							}
-						}
-					}
-
-					player_physics.contacted_events.resize(0);
 				}
+
+				// Process contact events for objects that the player touched.
+				// Take physics ownership of any such object if needed.
+				{
+					Lock world_state_lock(this->world_state->mutex);
+					for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+					{
+						PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+						if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+						{
+							WorldObject* ob = (WorldObject*)physics_ob->userdata;
+
+							// conPrint("Player contacted object " + ob->uid.toString());
+						
+							if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+							{
+								// conPrint("==Taking ownership of physics object from avatar physics contact...==");
+								takePhysicsOwnershipOfObject(*ob, global_time);
+							}
+						}
+					}
+				}
+
+				// Execute script events on any player contacted events.
+				// These are events generated in PlayerPhysics::update() by contact between the virtual character controller and Jolt bodies.
+				{
+					WorldStateLock world_state_lock(this->world_state->mutex);
+					for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+					{
+						PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+						if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
+						{
+							WorldObject* ob = (WorldObject*)physics_ob->userdata;
+					
+							// conPrint("timerEvent: player hit ob UID: " + ob->uid.toString());
+					
+							// Run script
+							if(ob->event_handlers && ob->event_handlers->onUserTouchedObject_handlers.nonEmpty())
+							{
+								// Jolt creates contact added events very fast, so limit how often we call onUserTouchedObject.
+								const double time_since_last_touch_event = cur_time - ob->last_touch_event_time;
+
+								if(time_since_last_touch_event > 0.5)
+								{
+									ob->last_touch_event_time = cur_time;
+
+									// Execute doOnUserTouchedObject event handler in any scripts that are listening for onUserTouchedObject for this object
+									ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ob->uid, world_state_lock);
+
+									// Send message to server to execute onUserTouchedObject on the server
+									MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
+									writeToStream(ob->uid, scratch_packet);
+									enqueueMessageToSend(*client_thread, scratch_packet);
+								}
+							}
+						}
+					}
+				}
+
+				player_physics.contacted_events.resize(0);
 
 
 				// Process vehicle controllers for any vehicles we are not driving:
@@ -4833,30 +4836,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		}
 	}
 
-	// Process any player_contact_added_events generated while running physics world update()
-	// These are events generated by contact between the interaction character body and sensor Jolt bodies.
-	{
-		WorldStateLock world_state_lock(this->world_state->mutex);
-		Lock lock(player_contact_added_events_mutex);
-
-		for(size_t i=0; i<player_contact_added_events.size(); ++i)
-		{
-			ContactAddedEvent& ev = player_contact_added_events[i];
-
-			if(ev.ob->event_handlers && ev.ob->event_handlers->onUserTouchedObject_handlers.nonEmpty())
-			{
-				// Execute doOnUserTouchedObject event handler in any scripts that are listening for onUserTouchedObject for this object
-				ev.ob->event_handlers->executeOnUserTouchedObjectHandlers(this->client_avatar_uid, ev.ob->uid, world_state_lock);
-
-				// Send message to server to execute onUserTouchedObject on the server
-				MessageUtils::initPacket(scratch_packet, Protocol::UserTouchedObjectMessage);
-				writeToStream(ev.ob->uid, scratch_packet);
-				enqueueMessageToSend(*client_thread, scratch_packet);
-			}
-		}
-
-		player_contact_added_events.clear();
-	}
 
 	player_physics.zeroMoveDesiredVel();
 
@@ -8142,40 +8121,30 @@ void GUIClient::physicsObjectEnteredWater(PhysicsObject& physics_ob)
 // NOTE: called from threads other than the main thread, needs to be threadsafe
 void GUIClient::contactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2, const JPH::ContactManifold& contact_manifold)
 {
-	// Detect contact of the player interaction body with sensor bodies
-	const JPH::Body* player_contacted_ob = NULL; // The body that the player interaction character contacted.
-	if(player_physics.getInteractionCharBodyID() == inBody1.GetID())
-		player_contacted_ob = &inBody2;
-	else if(player_physics.getInteractionCharBodyID() == inBody2.GetID())
-		player_contacted_ob = &inBody1;
-
-	if(player_contacted_ob)
+	const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
+	for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
 	{
-		//conPrint("GUIClient::contactAdded: Player interaction object contact added.  player_contacted_ob->IsSensor(): " + boolToString(player_contacted_ob->IsSensor()));
-		if(player_contacted_ob->IsSensor())
+		Particle particle;
+		particle.pos = toVec4fPos(contact_manifold.mBaseOffset + contact_manifold.mRelativeContactPointsOn1[i]);
+		particle.area = 0.0001f;
+		particle.vel = av_vel + Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 2, 0) * 1.f;
+		particle.colour = Colour3f(0.6f, 0.4f, 0.3f);
+		particle.width = 0.1f;
+
+		// Add to particles_creation_buf to create in main thread later
 		{
-			// conPrint("GUIClient::contactAdded: Player interaction object contacted sensor.");
-
-			const uint64 user_data = player_contacted_ob->GetUserData();
-			if(user_data != 0)
-			{
-				PhysicsObject* physics_ob = (PhysicsObject*)user_data;
-				if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
-				{
-					WorldObject* ob = (WorldObject*)physics_ob->userdata;
-					// conPrint("GUIClient::contactAdded: Hit ob UID: " + ob->uid.toString());
-
-					// We can't call Lua scripts from this thread safely, make an event to process later.
-					{
-						Lock lock(player_contact_added_events_mutex);
-						player_contact_added_events.push_back(ContactAddedEvent({ob}));
-					}
-				}
-			}
+			Lock lock(particles_creation_buf_mutex);
+			this->particles_creation_buf.push_back(particle);
 		}
 	}
+}
 
-	if(!player_contacted_ob) // For now, don't create dust particles when the player contacts something.
+
+// NOTE: called from threads other than the main thread, needs to be threadsafe
+void GUIClient::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
+{
+	const JPH::Vec3 relative_vel = inBody1.GetLinearVelocity() - inBody2.GetLinearVelocity();
+	if(relative_vel.LengthSq() > Maths::square(3.0f))
 	{
 		const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
 		for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
@@ -8191,40 +8160,6 @@ void GUIClient::contactAdded(const JPH::Body& inBody1, const JPH::Body& inBody2,
 			{
 				Lock lock(particles_creation_buf_mutex);
 				this->particles_creation_buf.push_back(particle);
-			}
-		}
-	}
-}
-
-
-// NOTE: called from threads other than the main thread, needs to be threadsafe
-void GUIClient::contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold& contact_manifold)
-{
-	if(	(player_physics.getInteractionCharBodyID() == inBody1.GetID()) ||
-		(player_physics.getInteractionCharBodyID() == inBody2.GetID()))
-	{
-		//conPrint("Player interaction object contact persisted");
-	}
-	else
-	{
-		const JPH::Vec3 relative_vel = inBody1.GetLinearVelocity() - inBody2.GetLinearVelocity();
-		if(relative_vel.LengthSq() > Maths::square(3.0f))
-		{
-			const Vec4f av_vel = toVec4fVec(inBody1.GetLinearVelocity() + inBody2.GetLinearVelocity()) * 0.5f;
-			for(JPH::uint i=0; i<contact_manifold.mRelativeContactPointsOn1.size(); ++i)
-			{
-				Particle particle;
-				particle.pos = toVec4fPos(contact_manifold.mBaseOffset + contact_manifold.mRelativeContactPointsOn1[i]);
-				particle.area = 0.0001f;
-				particle.vel = av_vel + Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(), rng.unitRandom() * 2, 0) * 1.f;
-				particle.colour = Colour3f(0.6f, 0.4f, 0.3f);
-				particle.width = 0.1f;
-
-				// Add to particles_creation_buf to create in main thread later
-				{
-					Lock lock(particles_creation_buf_mutex);
-					this->particles_creation_buf.push_back(particle);
-				}
 			}
 		}
 	}
@@ -12864,7 +12799,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 
 			player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
 
-			player_physics.setStandingInteractionChar();
+			player_physics.setStandingShape(*physics_world);
 
 
 			// Send AvatarExitedVehicle message to server
@@ -12952,7 +12887,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 										if(free_seat_index == 0) // If taking driver's seat:
 											takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
 
-										player_physics.setSittingInteractionChar();
+										player_physics.setSittingShape(*physics_world);
 
 										// Execute event handlers in any scripts that are listening for the onUserEnteredVehicle event from this object.
 										if(ob->event_handlers)

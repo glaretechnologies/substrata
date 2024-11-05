@@ -99,7 +99,7 @@ public:
 		mObjectToBroadPhase[Layers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
 		mObjectToBroadPhase[Layers::MOVING] = BroadPhaseLayers::MOVING;
 		mObjectToBroadPhase[Layers::NON_COLLIDABLE] = BroadPhaseLayers::MOVING; // NOTE: this a good thing to do? // TODO: Change to NON_MOVING?
-		mObjectToBroadPhase[Layers::INTERACTION_CHARACTER] = BroadPhaseLayers::MOVING;
+		//mObjectToBroadPhase[Layers::INTERACTION_CHARACTER] = BroadPhaseLayers::MOVING;
 		mObjectToBroadPhase[Layers::VEHICLES] = BroadPhaseLayers::MOVING;
 	}
 
@@ -144,8 +144,8 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 			return true;
 		case Layers::NON_COLLIDABLE: // non-collidable objects don't collide with any layers
 			return false;
-		case Layers::INTERACTION_CHARACTER:
-			return true; // collide with both moving and non-moving objects
+		//case Layers::INTERACTION_CHARACTER:
+		//	return true; // collide with both moving and non-moving objects
 		case Layers::VEHICLES:
 			return true; // collide with both moving and non-moving objects
 		default:
@@ -176,15 +176,15 @@ class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 		switch(inLayer1)
 		{
 		case Layers::NON_MOVING:
-			return (inLayer2 == Layers::MOVING) || (inLayer2 == Layers::INTERACTION_CHARACTER) || (inLayer2 == Layers::VEHICLES); // Non moving only collides with moving
+			return (inLayer2 == Layers::MOVING) /*|| (inLayer2 == Layers::INTERACTION_CHARACTER)*/ || (inLayer2 == Layers::VEHICLES); // Non moving only collides with moving
 		case Layers::MOVING:
 			return inLayer2 != Layers::NON_COLLIDABLE; // Moving collides with everything apart from Layers::NON_COLLIDABLE
 		case Layers::NON_COLLIDABLE:
 			return false;
-		case Layers::INTERACTION_CHARACTER:
-			return (inLayer2 != Layers::NON_COLLIDABLE) && (inLayer2 != Layers::VEHICLES);
+		//case Layers::INTERACTION_CHARACTER:
+		//	return (inLayer2 != Layers::NON_COLLIDABLE) && (inLayer2 != Layers::VEHICLES);
 		case Layers::VEHICLES:
-			return (inLayer2 != Layers::NON_COLLIDABLE) && (inLayer2 != Layers::INTERACTION_CHARACTER);
+			return (inLayer2 != Layers::NON_COLLIDABLE)/* && (inLayer2 != Layers::INTERACTION_CHARACTER)*/;
 		default:
 			assert(false);
 			return false;
@@ -1205,6 +1205,8 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		return;
 	}
 
+	// TODO: use Shape::MakeScaleValid() here instead?
+	// "Added Shape::MakeScaleValid function. This function will take a scale vector and check it against the scaling rules for the shape. If it is not valid, it will return a scale that is close to the provided scale which is valid."
 	if(std::fabs(object->scale.x) < 1.0e-7f || std::fabs(object->scale.y) < 1.0e-7f || std::fabs(object->scale.z) < 1.0e-7f)
 	{
 		//assert(0);
