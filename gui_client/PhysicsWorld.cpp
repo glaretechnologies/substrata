@@ -27,7 +27,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #if USE_JOLT
 #ifndef NDEBUG
-#define JPH_PROFILE_ENABLED 1
+//#define JPH_PROFILE_ENABLED 1
 #endif
 #include <Jolt/Jolt.h>
 #include <Jolt/RegisterTypes.h>
@@ -192,9 +192,11 @@ class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 	}
 };
 
+uint64 num_jolt_allocs_done = 0;
 
 static void* joltAllocate(size_t size)
 {
+	num_jolt_allocs_done++;
 #if TRACE_ALLOCATIONS
 	void* ptr = MemAlloc::alignedMalloc(size, 8); // works
 	//void* ptr = MemAlloc::traceMalloc(size); // crashes
@@ -216,6 +218,43 @@ static void joltFree(void* inBlock)
 #else
 	free(inBlock);
 #endif
+}
+
+static void* joltReallocate(void *inBlock, [[maybe_unused]] size_t inOldSize, size_t inNewSize)
+{
+	num_jolt_allocs_done++;
+
+	
+	// Alloc new mem
+#if TRACE_ALLOCATIONS
+	void* ptr = MemAlloc::alignedMalloc(inNewSize, 8); // works
+#else
+	void* ptr = malloc(inNewSize);
+#endif
+	if(!ptr)
+		throw std::bad_alloc();
+	TracyAllocS(ptr, inNewSize, /*call stack capture depth=*/10);
+
+	// Copy old memory across.
+	const size_t common_amount = myMin(inOldSize, inNewSize);
+	std::memcpy(ptr, inBlock, common_amount);
+
+	// Free old mem
+	if(inBlock)
+	{
+		TracyFreeS(inBlock, /*call stack capture depth=*/10);
+#if TRACE_ALLOCATIONS
+		MemAlloc::alignedFree(inBlock);
+#else
+		free(inBlock);
+#endif
+	}
+
+
+	return ptr;
+
+	//JPH_ASSERT(inNewSize > 0);
+	//return realloc(inBlock, inNewSize);
 }
 
 static void* joltAlignedAlloc(size_t size, size_t alignment)
@@ -242,6 +281,7 @@ void PhysicsWorld::init()
 #else
 	JPH::Allocate = joltAllocate;
 	JPH::Free = joltFree;
+	JPH::Reallocate = joltReallocate;
 	JPH::AlignedAllocate = joltAlignedAlloc;
 	JPH::AlignedFree = joltAlignedFree;
 #endif // end if !EMSCRIPTEN
@@ -758,7 +798,7 @@ public:
 
 static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
 {
-	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
+	JPH::Shape::VisitedShapes visited_shapes(/*empty key=*/nullptr); // Jolt uses this to make sure it doesn't double-count sub-shapes.
 
 	JPH::Shape::Stats shape_stats = jolt_shape->GetStatsRecursive(visited_shapes);
 
@@ -768,6 +808,8 @@ static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
 
 PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob)
 {
+	ZoneScoped; // Tracy profiler
+
 	const Indigo::Vector<Indigo::Vec3f>& verts = mesh.vert_positions;
 	const Indigo::Vector<Indigo::Triangle>& tris = mesh.triangles;
 	const Indigo::Vector<Indigo::Quad>& quads = mesh.quads;
@@ -906,6 +948,8 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 
 PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob)
 {
+	ZoneScoped; // Tracy profiler
+
 	const size_t vert_size_B = mesh.vertexSize();
 	const size_t num_verts = mesh.numVerts();
 	const size_t num_tris = mesh.numIndices() / 3;
@@ -1191,12 +1235,12 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 	if(!object->jolt_body_id.IsInvalid())
 		return; // Jolt body is already built, we don't need to do anything more.
 
-	if(fabs(object->pos[0]) > 1.0e9 || fabs(object->pos[1]) > 1.0e9 || fabs(object->pos[2]) > 1.0e9)
+	if(std::fabs(object->pos[0]) > 1.0e9f || std::fabs(object->pos[1]) > 1.0e9f || std::fabs(object->pos[2]) > 1.0e9f)
 	{
 		return;
 	}
 
-	if(object->scale.x == 0 || object->scale.y == 0 || object->scale.z == 0)
+	if(std::fabs(object->scale.x) < 1.0e-7f || std::fabs(object->scale.y) < 1.0e-7f || std::fabs(object->scale.z) < 1.0e-7f)
 	{
 		//assert(0);
 		return;
@@ -1347,11 +1391,8 @@ void PhysicsWorld::think(double dt)
 	// If you take larger steps than 1 / 60th of a second you need to do multiple collision steps in order to keep the simulation stable. Do 1 collision step per 1 / 60th of a second (round up).
 	const int cCollisionSteps = 1;
 
-	// If you want more accurate step results you can do multiple sub steps within a collision step. Usually you would set this to 1.
-	const int cIntegrationSubSteps = 1;
-
 	// We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
-	physics_system->Update((float)dt, cCollisionSteps, cIntegrationSubSteps, temp_allocator, job_system);
+	physics_system->Update((float)dt, cCollisionSteps, temp_allocator, job_system);
 
 
 	// Apply buoyancy to all activated dynamic objects if enabled
@@ -1379,7 +1420,8 @@ void PhysicsWorld::think(double dt)
 					// buoyancy = fluid_density * total_volume / mass
 					const float buoyancy = fluid_density * body->GetShape()->GetVolume() / physics_ob->mass;
 
-					float total_volume, submerged_volume;
+					float total_volume = 1.0f; // TEMP HACK TODO FIX
+					float submerged_volume = 0.f; // TEMP HACK TODO FIX
 					const bool impulse_applied = body->ApplyBuoyancyImpulse(
 						JPH::RVec3Arg(0,0, this->water_z), // inSurfacePosition
 						JPH::RVec3Arg(0,0,1), // inSurfaceNormal
@@ -1388,9 +1430,9 @@ void PhysicsWorld::think(double dt)
 						0.2f, // inAngularDrag
 						JPH::Vec3Arg(0,0,0), // inFluidVelocity
 						JPH::Vec3Arg(0,0,-9.81f), // inGravity
-						(float)dt, // inDeltaTime
-						total_volume,
-						submerged_volume
+						(float)dt // inDeltaTime
+						//total_volume,
+						//submerged_volume
 					);
 
 					// conPrint("submerged_volume: " + ::doubleToStringNSigFigs(submerged_volume, 4) + ", total_volume: " + ::doubleToStringNSigFigs(total_volume, 4));
@@ -1514,12 +1556,12 @@ void PhysicsWorld::clear()
 
 PhysicsWorld::MemUsageStats PhysicsWorld::getMemUsageStats() const
 {
-	HashSet<const JPH::Shape*> meshes(/*empty_key=*/NULL, /*expected_num_items=*/objects_set.size());
+	HashSet<const JPH::Shape*> meshes(/*empty_key=*/nullptr, /*expected_num_items=*/objects_set.size());
 	MemUsageStats stats;
 	stats.num_meshes = 0;
 	stats.mem = 0;
 
-	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
+	JPH::Shape::VisitedShapes visited_shapes(/*empty key=*/nullptr); // Jolt uses this to make sure it doesn't double-count sub-shapes.
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
@@ -1679,9 +1721,10 @@ void PhysicsWorld::test()
 
 		
 		//BatchedMesh::readFromFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", mesh);
-		GLTFLoadedData data;
+		//GLTFLoadedData data;
 		//BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", data);
-		BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/2CylinderEngine.glb", data);
+		//BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/2CylinderEngine.glb", data);
+		BatchedMeshRef mesh = BatchedMesh::readFromFile("C:\\Users\\nick\\AppData\\Roaming\\Cyberspace\\resources\\mausoleum_glb_2010952405149410706_lod1.bmesh", nullptr);
 
 
 		glare::TaskManager task_manager(0);
@@ -1710,12 +1753,14 @@ void PhysicsWorld::test()
 
 
 		double min_time = 1.0e10;
-		for(int i=0; i<1; ++i)
+		for(int i=0; i<1000; ++i)
 		{
 			Timer timer;
+			const uint64 initial_num_jolt_allocs = ::num_jolt_allocs_done;
 			auto res = createJoltShapeForBatchedMesh(*mesh, /*is dynamic=*/false);
+			const uint64 num_allocs = ::num_jolt_allocs_done - initial_num_jolt_allocs;
 			min_time = myMin(min_time, timer.elapsed());
-			conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
+			conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", num_allocs: " + toString(num_allocs) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time * 1.0e3, 4) + " ms");
 		}
 	}
 	catch(glare::Exception& e)
