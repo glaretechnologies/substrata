@@ -27,7 +27,10 @@ SOURCE_GROUP(gui_client_graphics FILES ${gui_client_graphics})
 
 #============== Jolt physics ==============
 
-set(PHYSICS_REPO_ROOT "${GLARE_CORE_LIBS_ENV}/jolt/5.2.0-opt")
+add_definitions(-DUSE_WASM_SIMD=1)
+
+set(PHYSICS_REPO_ROOT "${GLARE_CORE_LIBS_ENV}/jolt/5.2.0-opt2")
+#set(PHYSICS_REPO_ROOT "${GLARE_CORE_LIBS_ENV}/JoltPhysics")
 include(${PHYSICS_REPO_ROOT}/Jolt/Jolt.cmake)
 
 include_directories(${PHYSICS_REPO_ROOT})
