@@ -35,6 +35,7 @@ Code By Nicholas Chapman.
 #include "../opengl/GLMeshBuilding.h"
 #include "../opengl/IncludeOpenGL.h"
 #include "../indigo/UVUnwrapper.h"
+#include <tracy/Tracy.hpp>
 #include <limits>
 
 
@@ -1499,6 +1500,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob, 
 	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
+	ZoneScoped; // Tracy profiler
+
 	// Timer timer;
 	StandardPrintOutput print_output;
 
