@@ -1387,8 +1387,7 @@ void PhysicsWorld::think(double dt)
 					// buoyancy = fluid_density * total_volume / mass
 					const float buoyancy = fluid_density * body->GetShape()->GetVolume() / physics_ob->mass;
 
-					float total_volume = 1.0f; // TEMP HACK TODO FIX
-					float submerged_volume = 0.f; // TEMP HACK TODO FIX
+					float total_volume, submerged_volume;
 					const bool impulse_applied = body->ApplyBuoyancyImpulse(
 						JPH::RVec3Arg(0,0, this->water_z), // inSurfacePosition
 						JPH::RVec3Arg(0,0,1), // inSurfaceNormal
@@ -1397,9 +1396,9 @@ void PhysicsWorld::think(double dt)
 						0.2f, // inAngularDrag
 						JPH::Vec3Arg(0,0,0), // inFluidVelocity
 						JPH::Vec3Arg(0,0,-9.81f), // inGravity
-						(float)dt // inDeltaTime
-						//total_volume,
-						//submerged_volume
+						(float)dt, // inDeltaTime
+						total_volume,
+						submerged_volume
 					);
 
 					// conPrint("submerged_volume: " + ::doubleToStringNSigFigs(submerged_volume, 4) + ", total_volume: " + ::doubleToStringNSigFigs(total_volume, 4));
