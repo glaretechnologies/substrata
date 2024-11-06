@@ -29,6 +29,10 @@ SOURCE_GROUP(gui_client_graphics FILES ${gui_client_graphics})
 
 add_definitions(-DUSE_WASM_SIMD=1)
 
+if(NOT EXISTS "${GLARE_CORE_LIBS_ENV}/jolt/5.2.0-opt2")
+	message(FATAL_ERROR "Jolt files not found, please run scripts/get_libs.rb to download them.")
+endif()
+
 set(PHYSICS_REPO_ROOT "${GLARE_CORE_LIBS_ENV}/jolt/5.2.0-opt2")
 #set(PHYSICS_REPO_ROOT "${GLARE_CORE_LIBS_ENV}/JoltPhysics")
 include(${PHYSICS_REPO_ROOT}/Jolt/Jolt.cmake)
