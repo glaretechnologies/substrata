@@ -21,7 +21,7 @@ ListObjectsNearbyDialog::ListObjectsNearbyDialog(QSettings* settings_, WorldStat
 {
 	setupUi(this);
 
-	objectTableWidget->setColumnCount(6);
+	objectTableWidget->setColumnCount(7);
 
 	QStringList column_labels;
 	column_labels.push_back("UID");
@@ -30,6 +30,7 @@ ListObjectsNearbyDialog::ListObjectsNearbyDialog(QSettings* settings_, WorldStat
 	column_labels.push_back("Creation time ago (hrs)");
 	column_labels.push_back("model URL");
 	column_labels.push_back("audio source URL");
+	column_labels.push_back("script");
 	objectTableWidget->setHorizontalHeaderLabels(column_labels);
 
 	objectTableWidget->verticalHeader()->setVisible(false); // Hide row numbers
@@ -40,6 +41,7 @@ ListObjectsNearbyDialog::ListObjectsNearbyDialog(QSettings* settings_, WorldStat
 	objectTableWidget->setColumnWidth(3, 160);
 	objectTableWidget->setColumnWidth(4, 400);
 	objectTableWidget->setColumnWidth(5, 400);
+	objectTableWidget->setColumnWidth(6, 400);
 
 
 	connect(this->objectTableWidget,			SIGNAL(itemSelectionChanged()),			this, SLOT(itemSelectionChanged()));
@@ -114,7 +116,8 @@ void ListObjectsNearbyDialog::updateResultsTable()
 					(search_term_is_integer && search_term_integer == (int)ob->uid.value()) || // If search term matches UID
 					StringUtils::containsStringCaseInvariant(ob->creator_name, search_term) ||
 					StringUtils::containsStringCaseInvariant(ob->model_url, search_term) ||
-					StringUtils::containsStringCaseInvariant(ob->audio_source_url, search_term))
+					StringUtils::containsStringCaseInvariant(ob->audio_source_url, search_term) ||
+					StringUtils::containsStringCaseInvariant(ob->script, search_term))
 				{
 					num_rows++;
 				}
@@ -135,7 +138,8 @@ void ListObjectsNearbyDialog::updateResultsTable()
 					(search_term_is_integer && search_term_integer == (int)ob->uid.value()) || // If search term matches UID
 					StringUtils::containsStringCaseInvariant(ob->creator_name, search_term) ||
 					StringUtils::containsStringCaseInvariant(ob->model_url, search_term) ||
-					StringUtils::containsStringCaseInvariant(ob->audio_source_url, search_term))
+					StringUtils::containsStringCaseInvariant(ob->audio_source_url, search_term) ||
+					StringUtils::containsStringCaseInvariant(ob->script, search_term))
 				{
 
 					QTableWidgetItem* uid_item = new QTableWidgetItem(QtUtils::toQString(ob->uid.toString()));
@@ -168,6 +172,9 @@ void ListObjectsNearbyDialog::updateResultsTable()
 
 					QTableWidgetItem* audio_source_URL_item = new QTableWidgetItem(QtUtils::toQString(ob->audio_source_url));
 					objectTableWidget->setItem(row, 5, audio_source_URL_item);
+
+					QTableWidgetItem* script_item = new QTableWidgetItem(QtUtils::toQString(ob->script.substr(0, 100)));
+					objectTableWidget->setItem(row, 6, script_item);
 
 					row++;
 				}
