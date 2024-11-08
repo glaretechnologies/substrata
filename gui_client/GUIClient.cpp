@@ -9377,6 +9377,108 @@ void GUIClient::summonHovercar()
 }
 
 
+void GUIClient::summonBoat()
+{
+	if(!this->logged_in_user_id.valid())
+		throw glare::Exception("You must be logged in to summon a boat.");
+
+	const js::AABBox aabb_os(Vec4f(-0.281f, -0.165f, -1.25f, 1), Vec4f(0.281f, 0.25f, 1.25f, 1)); // Got from diagnostics widget after setting transform to identity.
+
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
+		Vec3d(0,0,-1.67) + // Move down by eye height to ground
+		Vec3d(0, 0, 1.0493f); // Move up off ground.  TEMP HARDCODED
+
+	// Get desired rotation from script.
+	const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>()) * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // NOTE: from boat script (model_to_y_forwards_rot_1 etc.)
+
+	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x);
+
+	Vec4f axis;
+	float angle;
+	(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
+
+	// Search for existing summoned boat, if we find it, move it to in front of user.
+	{
+		Lock lock(world_state->mutex);
+
+		WorldObject* existing_ob_to_summon = NULL;
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			WorldObject* ob = it.getValue().ptr();
+			if(ob->creator_id == logged_in_user_id && // If we created this object
+				//BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) && // And this object was summoned
+				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::BoatScript>()) // And it has a boat script
+			{
+				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
+					existing_ob_to_summon = ob;
+			}
+		}
+
+		if(existing_ob_to_summon)
+		{
+			conPrint("Found summoned object, moving to in front of user.");
+
+			runtimeCheck(existing_ob_to_summon->vehicle_script.nonNull());
+
+			doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, aabb_os, /*summoning_object=*/true);
+
+			enableMaterialisationEffectOnOb(*existing_ob_to_summon);
+
+			return;
+		}
+	}
+
+	conPrint("Creating new boat object...");
+
+
+
+
+	// Load materials:
+	IndigoXMLDoc doc(this->resources_dir_path + "/boat_mats.xml");
+
+	pugi::xml_node root = doc.getRootElement();
+
+	std::vector<WorldMaterialRef> materials;
+	for(pugi::xml_node n = root.child("material"); n; n = n.next_sibling("material"))
+	{
+		materials.push_back(WorldMaterial::loadFromXMLElem("boat_mats.xml", /*convert_rel_paths_to_abs_disk_paths=*/false, n));
+	}
+
+
+
+	WorldObjectRef new_world_object = new WorldObject();
+
+	new_world_object->model_url = "poweryacht3_2_glb_17116251394697619807.bmesh";
+	new_world_object->max_model_lod_level = 2;
+
+	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG;
+
+	new_world_object->uid = UID(0); // A new UID will be assigned by server
+	new_world_object->materials = materials;
+	new_world_object->pos = pos;
+	new_world_object->axis = Vec3f(axis);
+	new_world_object->angle = angle;
+	new_world_object->scale = Vec3f(5.5f, 4.2f, 4.7f);
+	new_world_object->setAABBOS(aabb_os);
+	new_world_object->centre_of_mass_offset_os = Vec3f(0, -0.1f, 0);
+
+	new_world_object->script = FileUtils::readEntireFileTextMode(this->resources_dir_path + "/summoned_boat_script.xml");
+
+	new_world_object->mass = 5000;
+
+	setMaterialFlagsForObject(new_world_object.ptr());
+
+	// Send CreateObject message to server
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+}
+
+
 // Object transform has been edited, e.g. by the object editor.
 void GUIClient::objectTransformEdited()
 {
@@ -12980,14 +13082,29 @@ void GUIClient::keyPressed(KeyEvent& e)
 	{
 		if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl))
 		{
-			conPrint("CTRL+B detected, summoning bike...");
-			try
+			if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Shift))
 			{
-				summonBike();
+				conPrint("CTRL+SHIFT+B detected, summoning boat...");
+				try
+				{
+					summonBoat();
+				}
+				catch(glare::Exception& e)
+				{
+					showErrorNotification(e.what());
+				}
 			}
-			catch(glare::Exception& e)
+			else
 			{
-				showErrorNotification(e.what());
+				conPrint("CTRL+B detected, summoning bike...");
+				try
+				{
+					summonBike();
+				}
+				catch(glare::Exception& e)
+				{
+					showErrorNotification(e.what());
+				}
 			}
 		}
 	}

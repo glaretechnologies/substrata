@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1422</width>
-    <height>966</height>
+    <width>1426</width>
+    <height>975</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,7 +34,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1422</width>
+     <width>1426</width>
      <height>21</height>
     </rect>
    </property>
@@ -129,6 +129,7 @@
     </property>
     <addaction name="actionSummon_Bike"/>
     <addaction name="actionSummon_Hovercar"/>
+    <addaction name="actionSummon_Boat"/>
    </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuMovement"/>
@@ -257,7 +258,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>230</height>
+          <height>233</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -354,7 +355,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>230</height>
+          <height>233</height>
          </rect>
         </property>
        </widget>
@@ -576,7 +577,7 @@
   </action>
   <action name="actionFind_Object">
    <property name="text">
-    <string>Find Object</string>
+    <string>Find Object by ID</string>
    </property>
   </action>
   <action name="actionBake_Lightmaps_fast_for_all_objects_in_parcel">
@@ -682,6 +683,14 @@
   <action name="actionAdd_Text">
    <property name="text">
     <string>Add Text</string>
+   </property>
+  </action>
+  <action name="actionSummon_Boat">
+   <property name="text">
+    <string>Summon Boat</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+B</string>
    </property>
   </action>
  </widget>

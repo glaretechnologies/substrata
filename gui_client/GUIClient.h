@@ -168,6 +168,7 @@ public:
 	void applyUndoOrRedoObject(const WorldObjectRef& restored_ob);
 	void summonBike();
 	void summonHovercar();
+	void summonBoat();
 	void objectTransformEdited();
 	void objectEdited();
 	void posAndRot3DControlsToggled(bool enabled);
