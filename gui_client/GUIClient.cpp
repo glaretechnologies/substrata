@@ -13342,6 +13342,13 @@ void GUIClient::updateNotifications(double cur_time)
 }
 
 
+void GUIClient::setNotificationsVisible(bool visible)
+{
+	for(auto it = notifications.begin(); it != notifications.end(); ++it)
+		it->text_view->setVisible(visible);
+}
+
+
 void GUIClient::showErrorNotification(const std::string& message)
 {
 	GLUITextView::CreateArgs args;

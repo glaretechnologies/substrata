@@ -246,7 +246,7 @@ void MiniMap::setVisible(bool visible)
 	this->expand_button->setVisible(visible && !expanded);
 	this->collapse_button->setVisible(visible && expanded);
 
-	setMapAndMarkersVisible(visible);
+	setMapAndMarkersVisible(visible && expanded);
 }
 
 
