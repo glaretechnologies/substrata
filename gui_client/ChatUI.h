@@ -33,6 +33,8 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
+	void setVisible(bool visible);
+
 	void appendMessage(const std::string& avatar_name, const Colour3f& avatar_colour, const std::string& msg);
 
 	void viewportResized(int w, int h);
