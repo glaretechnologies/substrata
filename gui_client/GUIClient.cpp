@@ -6839,7 +6839,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 
 						if(pos.z + 0.1 > this->connected_world_settings.terrain_spec.water_z) // If avatar intersects the surface (approximately)
 						{
-							if(avatar->graphics.getLastVel().length() > 5) // If avatar is roughly going above walking speed: walking speed is ~2.9 m/s, running ~14 m/s
+							if(vehicle_controller_inside.isNull() && // If avatar is not inside a vehicle:
+								(avatar->graphics.getLastVel().length() > 5)) // If avatar is roughly going above walking speed: walking speed is ~2.9 m/s, running ~14 m/s
 							{
 								if(avatar->last_foam_decal_creation_time + 0.02 < cur_time)
 								{
