@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<materials>
+	<material>
+		<name><![CDATA[]]></name>  <!--Image_0_13766170327069389063_jpg_13766170327069389063.jpg -->
+		<colour_rgb>0.4 0.88 1</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>0.8</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[body]]></name>
+		<colour_rgb>0.98 0.98 0.98</colour_rgb>
+		<colour_texture_url><![CDATA[Image_1_1_8863066029431458469_jpg_8863066029431458469.jpg]]></colour_texture_url>
+		<roughness>
+			<val>0.3</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+</materials>
