@@ -286,7 +286,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 		//OpenGLTextureRef default_col_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_col_tex__"), *default_detail_col_map);
 
 		//Timer timer;
-		OpenGLTextureRef default_col_tex = opengl_engine->getTexture(base_dir_path + "/data/resources/obstacle.png");
+		OpenGLTextureRef default_col_tex = opengl_engine->getTexture(base_dir_path + "/data/resources/grey_grid.png");
 		//conPrint("Loading grid texture took " + timer.elapsedStringNPlaces(4));
 
 		for(int i=0; i<4; ++i)
