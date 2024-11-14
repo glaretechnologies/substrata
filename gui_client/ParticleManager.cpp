@@ -14,19 +14,22 @@ ParticleManager::ParticleManager(const std::string& base_dir_path_, AsyncTexture
 :	base_dir_path(base_dir_path_), opengl_engine(opengl_engine_), physics_world(physics_world_), terrain_decal_manager(terrain_decal_manager_),
 	async_tex_loader(async_tex_loader_)
 {
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_top.ktx2",    this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_bottom.ktx2", this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_left.ktx2",   this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_right.ktx2",  this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_rear.ktx2",   this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_front.ktx2",  this));
+	TextureParams params;
+	params.wrapping = OpenGLTexture::Wrapping::Wrapping_Clamp;
 
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_top.ktx2",    this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_bottom.ktx2", this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_left.ktx2",   this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_right.ktx2",  this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_rear.ktx2",   this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_front.ktx2",  this));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_top.ktx2",    this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_bottom.ktx2", this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_left.ktx2",   this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_right.ktx2",  this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_rear.ktx2",   this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/smoke_sprite_front.ktx2",  this, params));
+
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_top.ktx2",    this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_bottom.ktx2", this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_left.ktx2",   this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_right.ktx2",  this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_rear.ktx2",   this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_front.ktx2",  this, params));
 }
 
 
