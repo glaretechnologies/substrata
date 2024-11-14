@@ -70,6 +70,30 @@ static bool areMatsDefaultHovercarMats(WorldObject* object)
 }
 
 
+static const Colour3f boat_default_cols[] = {
+	Colour3f(0.4, 0.88, 1),
+	Colour3f(0.98f, 0.98f, 0.98f)
+};
+
+
+static bool areMatsDefaultBoatMats(WorldObject* object)
+{
+	static_assert(staticArrayNumElems(boat_default_cols) == 2);
+
+	if(object->materials.size() != 2)
+		return false;
+
+	for(size_t i=0; i<2; ++i)
+		if(object->materials[i]->colour_rgb != boat_default_cols[i])
+			return false;
+
+	if(object->materials[1]->colour_texture_url != "Image_1_1_8863066029431458469_jpg_8863066029431458469.jpg")
+		return false;
+
+	return true;
+}
+
+
 // Delete all vehicles that haven't been used for a while, and that use the default mesh and materials.
 void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_worlds_state)
 {
@@ -79,6 +103,7 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 
 	int num_bikes_deleted = 0;
 	int num_hovercars_deleted = 0;
+	int num_boats_deleted = 0;
 
 	for(auto it = all_worlds_state->world_states.begin(); it != all_worlds_state->world_states.end(); ++it)
 	{
@@ -107,6 +132,13 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 					delete_ob = true;
 				}
 
+				if((object->model_url == "poweryacht3_2_glb_17116251394697619807.bmesh") && areMatsDefaultBoatMats(object)) // From GUIClient::summonBoat()
+				{
+					conPrint("WorldMaintenance::removeOldVehicles(): Removing boat with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
+					num_boats_deleted++;
+					delete_ob = true;
+				}
+
 				if(delete_ob)
 				{
 					// Mark object as dead
@@ -120,6 +152,6 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 		}
 	}
 
-	if((num_bikes_deleted > 0) || (num_hovercars_deleted > 0))
-		conPrint("WorldMaintenance::removeOldVehicles(): removed " + toString(num_bikes_deleted) + " bike(s) and " + toString(num_hovercars_deleted) + " hovercar(s).");
+	if((num_bikes_deleted > 0) || (num_hovercars_deleted > 0) || (num_boats_deleted > 0))
+		conPrint("WorldMaintenance::removeOldVehicles(): removed " + toString(num_bikes_deleted) + " bike(s), " + toString(num_hovercars_deleted) + " hovercar(s) and " + toString(num_boats_deleted) + " boat(s).");
 }
