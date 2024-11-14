@@ -10,8 +10,10 @@ TerrainDecalManager::TerrainDecalManager(const std::string& base_dir_path, Async
 :	opengl_engine(opengl_engine_),
 	async_tex_loader(async_tex_loader_)
 {
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/foam_windowed.ktx2", this));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_front.ktx2", this));
+	TextureParams params;
+	params.wrapping = OpenGLTexture::Wrapping_Clamp;
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/foam_windowed.ktx2", this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_front.ktx2", this, params));
 }
 
 
