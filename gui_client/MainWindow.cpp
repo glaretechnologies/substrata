@@ -46,6 +46,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
+#include <QtGamepad/QGamepadManager>
+#include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
 #ifdef _MSC_VER
 #pragma warning(pop) // Re-enable warnings
@@ -125,7 +127,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	settings_store(NULL)
 {
-	//QGamepadManager::instance();
+	QGamepadManager::instance(); // Creating the instance here before any windows are created is required for querying gamepads to work.
 
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -3624,6 +3626,41 @@ void MainWindow::webViewDataLinkHovered(const std::string& url)
 	{
 		ui->glWidget->setCursorIfNotHidden(Qt::PointingHandCursor);
 	}
+}
+
+bool MainWindow::gamepadAttached()
+{
+	return ui->glWidget->gamepad != nullptr;
+}
+
+float MainWindow::gamepadButtonL2()
+{
+	return ui->glWidget->gamepad ? ui->glWidget->gamepad->buttonL2() : 0.0f;
+}
+
+float MainWindow::gamepadButtonR2()
+{
+	return ui->glWidget->gamepad ? ui->glWidget->gamepad->buttonR2() : 0.0f;
+}
+
+float MainWindow::gamepadAxisLeftX()
+{
+	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisLeftX() : 0.0f;
+}
+
+float MainWindow::gamepadAxisLeftY()
+{
+	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisLeftY() : 0.0f;
+}
+
+float MainWindow::gamepadAxisRightX()
+{
+	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisRightX() : 0.0f;
+}
+
+float MainWindow::gamepadAxisRightY()
+{
+	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisRightY() : 0.0f;
 }
 
 

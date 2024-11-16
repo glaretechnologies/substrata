@@ -35,8 +35,8 @@ def copyQtRedistWindows(vs_version, target_dir, copy_debug = false)
 	plugins_path = "#{qt_dir}/plugins"
 	
 	# Qt dlls.
-	dll_files = ["Qt5Core", "Qt5Gui",
-		"Qt5OpenGL", "Qt5Widgets", "Qt5Multimedia", "Qt5Network", "Qt5Gamepad"]
+	dll_files = ["Qt5Core", "Qt5Gui", "Qt5OpenGL", "Qt5Widgets", "Qt5Gamepad"]
+
 		
 	dll_files.each do |dll_file|
 		FileUtils.cp("#{lib_path}/#{dll_file}.dll", target_dir, :verbose => true) if !copy_debug
@@ -52,7 +52,7 @@ def copyQtRedistWindows(vs_version, target_dir, copy_debug = false)
 	image_formats = ["qjpeg"]
 		
 	image_formats.each do |format|
-		FileUtils.cp("#{imageformats_dir}/#{format}.dll", imageformats_target_dir, :verbose => true) if !copy_debug
+		FileUtils.cp("#{imageformats_dir}/#{format}.dll",  imageformats_target_dir, :verbose => true) if !copy_debug
 		FileUtils.cp("#{imageformats_dir}/#{format}d.dll", imageformats_target_dir, :verbose => true) if copy_debug
 	end
 	
@@ -67,7 +67,7 @@ def copyQtRedistWindows(vs_version, target_dir, copy_debug = false)
 	
 	FileUtils.mkdir_p(platforms_dir_target_dir, :verbose => true)
 	
-	FileUtils.cp("#{platforms_dir}/qwindows.dll", platforms_dir_target_dir, :verbose => true) if !copy_debug
+	FileUtils.cp("#{platforms_dir}/qwindows.dll",  platforms_dir_target_dir, :verbose => true) if !copy_debug
 	FileUtils.cp("#{platforms_dir}/qwindowsd.dll", platforms_dir_target_dir, :verbose => true) if copy_debug
 	
 	# Styles
@@ -76,8 +76,17 @@ def copyQtRedistWindows(vs_version, target_dir, copy_debug = false)
 	
 	FileUtils.mkdir_p(styles_dir_target_dir, :verbose => true)
 	
-	FileUtils.cp("#{styles_dir}/qwindowsvistastyle.dll", styles_dir_target_dir, :verbose => true) if !copy_debug
+	FileUtils.cp("#{styles_dir}/qwindowsvistastyle.dll",  styles_dir_target_dir, :verbose => true) if !copy_debug
 	FileUtils.cp("#{styles_dir}/qwindowsvistastyled.dll", styles_dir_target_dir, :verbose => true) if copy_debug
+	
+	# Gamepads
+	gamepads_dir = "#{plugins_path}/gamepads"
+	gamepads_dir_target_dir = "#{target_dir}/gamepads"
+	
+	FileUtils.mkdir_p(gamepads_dir_target_dir, :verbose => true)
+	
+	FileUtils.cp("#{gamepads_dir}/xinputgamepad.dll",  gamepads_dir_target_dir, :verbose => true) if !copy_debug
+	FileUtils.cp("#{gamepads_dir}/xinputgamepadd.dll", gamepads_dir_target_dir, :verbose => true) if copy_debug
 
 	# copyVCRedist(vs_version, platforms_dir_target_dir, false)
 end
