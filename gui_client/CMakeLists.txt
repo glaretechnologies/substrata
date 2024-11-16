@@ -1227,11 +1227,13 @@ elseif(WIN32)
 			optimized Qt5Core
 			optimized Qt5OpenGL
 			optimized Qt5Widgets
+			optimized Qt5Gamepad
 			debug qtmaind
 			debug Qt5Guid
 			debug Qt5Cored
 			debug Qt5OpenGLd
 			debug Qt5Widgetsd
+			debug Qt5Gamepadd
 		)
 	endif()
 	
@@ -1308,7 +1310,7 @@ elseif(APPLE)
 		set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework Cocoa -framework IOKit -framework GameController -framework CoreHaptics -framework CoreVideo -framework ForceFeedback -framework Carbon -framework Metal")
 	else()
 		# Qt 5:
-		set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox")
+		set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtMultimedia -framework OpenGL -framework QtGamepad -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox")
 	 
 		#Qt 6:
 		 #set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtOpenGLWidgets -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework QtCore5Compat")
