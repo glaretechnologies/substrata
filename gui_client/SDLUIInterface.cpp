@@ -316,3 +316,38 @@ Vec2i SDLUIInterface::getGlWidgetPosInGlobalSpace()
 void SDLUIInterface::webViewDataLinkHovered(const std::string& text)
 {
 }
+
+bool SDLUIInterface::gamepadAttached()
+{
+	return false; // TODO: implement SDL gamepad support.
+}
+
+float SDLUIInterface::gamepadButtonL2()
+{
+	return 0.0f;
+}
+
+float SDLUIInterface::gamepadButtonR2()
+{
+	return 0.0f;
+}
+
+float SDLUIInterface::gamepadAxisLeftX()
+{
+	return 0.0f;
+}
+
+float SDLUIInterface::gamepadAxisLeftY()
+{
+	return 0.0f;
+}
+
+float SDLUIInterface::gamepadAxisRightX()
+{
+	return 0.0f;
+}
+
+float SDLUIInterface::gamepadAxisRightY()
+{
+	return 0.0f;
+}
