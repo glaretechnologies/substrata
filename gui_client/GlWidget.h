@@ -17,7 +17,6 @@ Copyright Glare Technologies Limited 2023 -
 #else
 #include <QtOpenGL/QGLWidget>
 #endif
-//#include <QtGamepad/QGamepad>
 #include <QtCore/QTimer>
 
 
@@ -28,6 +27,7 @@ class PlayerPhysics;
 class TextureServer;
 class EnvEmitter;
 class QSettings;
+class QGamepad;
 
 
 class GlWidget : public
@@ -95,7 +95,7 @@ signals:;
 	void focusOutSignal();
 	
 private slots:
-	//void gamepadInputSlot();
+	void gamepadInputSlot();
 	void initGamepadsSlot();
 
 private:
@@ -112,10 +112,9 @@ private:
 	bool cam_rot_on_mouse_move_enabled;
 	bool cam_move_on_key_input_enabled;
 
-	//QGamepad* gamepad;
-
 	std::string initialisation_error_msg;
 public:
+	QGamepad* gamepad;
 	float viewport_aspect_ratio;
 	Reference<OpenGLEngine> opengl_engine;
 	float near_draw_dist;

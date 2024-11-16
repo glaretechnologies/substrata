@@ -250,6 +250,15 @@ public:
 	virtual Vec2i getGlWidgetPosInGlobalSpace() override; // Get top left of the GLWidget in global screen coordinates.
 
 	virtual void webViewDataLinkHovered(const std::string& text) override;
+
+	// Gamepad
+	virtual bool gamepadAttached();
+	virtual float gamepadButtonL2();
+	virtual float gamepadButtonR2();
+	virtual float gamepadAxisLeftX();
+	virtual float gamepadAxisLeftY();
+	virtual float gamepadAxisRightX();
+	virtual float gamepadAxisRightY();
 	//------------------------------------------------- End UIInterface -----------------------------------------------------------
 
 public:

@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <QtGui/QMouseEvent>
 #include <QtCore/QSettings>
 #include <QtWidgets/QShortcut>
+#include <QtGamepad/QGamepad>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -96,7 +97,7 @@ GlWidget::GlWidget(QWidget *parent)
 	cam_move_on_key_input_enabled(true),
 	near_draw_dist(0.22f), // As large as possible as we can get without clipping becoming apparent.
 	max_draw_dist(1000.f),
-	//gamepad(NULL),
+	gamepad(NULL),
 	print_output(NULL),
 	settings(NULL),
 	take_map_screenshot(false),
@@ -154,24 +155,23 @@ GlWidget::GlWidget(QWidget *parent)
 void GlWidget::initGamepadsSlot()
 {
 	// See if we have any attached gamepads
-	//QGamepadManager* manager = QGamepadManager::instance();
+	QGamepadManager* manager = QGamepadManager::instance();
 
-	//const QList<int> list = manager->connectedGamepads();
+	const QList<int> list = manager->connectedGamepads();
 
-	//if(!list.isEmpty())
-	//{
-	//	gamepad = new QGamepad(list.at(0));
+	if(!list.isEmpty())
+	{
+		gamepad = new QGamepad(list.at(0));
 
-	//	//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
-	//	//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
-	//}
+		//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
+		//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
+	}
 }
 
 
-//void GlWidget::gamepadInputSlot()
-//{
-//
-//}
+void GlWidget::gamepadInputSlot()
+{
+}
 
 
 GlWidget::~GlWidget()

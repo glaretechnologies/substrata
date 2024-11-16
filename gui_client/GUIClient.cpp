@@ -4307,32 +4307,30 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		input_out.B_down	=	B_down;
 	}
 
-#if 0
-	if(gamepad)
+	if(ui_interface->gamepadAttached())
 	{
 		const float gamepad_move_speed_factor = 10;
 		const float gamepad_rotate_speed = 400;
 
 		// Move vertically up or down in flymode.
-		if(gamepad->buttonR2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * pow(gamepad->buttonR2(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
+		if(ui_interface->gamepadButtonR2() != 0)
+		{	player_physics.processMoveUp(gamepad_move_speed_factor * pow(ui_interface->gamepadButtonR2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
 
-		if(gamepad->buttonL2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * -pow(gamepad->buttonL2(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
+		if(ui_interface->gamepadButtonL2() != 0)
+		{	player_physics.processMoveUp(gamepad_move_speed_factor * -pow(ui_interface->gamepadButtonL2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
 
-		if(gamepad->axisLeftX() != 0)
-		{	player_physics.processStrafeRight(gamepad_move_speed_factor * pow(gamepad->axisLeftX(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
+		if(ui_interface->gamepadAxisLeftX() != 0)
+		{	player_physics.processStrafeRight(gamepad_move_speed_factor * pow(ui_interface->gamepadAxisLeftX(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
 
-		if(gamepad->axisLeftY() != 0)
-		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(gamepad->axisLeftY(), 3.f), SHIFT_down, *this->cam_controller); move_key_pressed = true; }
+		if(ui_interface->gamepadAxisLeftY() != 0)
+		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(ui_interface->gamepadAxisLeftY(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
 
-		if(gamepad->axisRightX() != 0)
-		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(gamepad->axisRightX(), 3.0f))); }
+		if(ui_interface->gamepadAxisRightX() != 0)
+		{ this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(ui_interface->gamepadAxisRightX(), 3.0f))); }
 
-		if(gamepad->axisRightY() != 0)
-		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(gamepad->axisRightY(), 3.f), 0)); }
+		if(ui_interface->gamepadAxisRightY() != 0)
+		{ this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(ui_interface->gamepadAxisRightY(), 3.f), 0)); }
 	}
-#endif
 
 	if(move_key_pressed)
 	{
