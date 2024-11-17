@@ -4326,10 +4326,10 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(ui_interface->gamepadAxisLeftY(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
 
 		if(ui_interface->gamepadAxisRightX() != 0)
-		{ this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(ui_interface->gamepadAxisRightX(), 3.0f))); }
+			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(0, dt * gamepad_rotate_speed * pow(ui_interface->gamepadAxisRightX(), 3.0f)));
 
 		if(ui_interface->gamepadAxisRightY() != 0)
-		{ this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(ui_interface->gamepadAxisRightY(), 3.f), 0)); }
+			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(dt *  gamepad_rotate_speed * -pow(ui_interface->gamepadAxisRightY(), 3.f), 0));
 	}
 
 	if(move_key_pressed)

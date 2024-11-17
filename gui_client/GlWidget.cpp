@@ -25,6 +25,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/StringUtils.h"
 #include "../utils/PlatformUtils.h"
 #include "../utils/TaskManager.h"
+#include "../qt/QtUtils.h"
 #include <QtGui/QMouseEvent>
 #include <QtCore/QSettings>
 #include <QtWidgets/QShortcut>
@@ -159,9 +160,14 @@ void GlWidget::initGamepadsSlot()
 
 	const QList<int> list = manager->connectedGamepads();
 
+	if(print_output) print_output->print("Found " + toString(list.size()) + " connected gamepad(s).");
+
 	if(!list.isEmpty())
 	{
 		gamepad = new QGamepad(list.at(0));
+		
+		const std::string name = QtUtils::toStdString(gamepad->name());
+		if(print_output) print_output->print("Using gamepad '" + name + "'...");
 
 		//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
 		//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));

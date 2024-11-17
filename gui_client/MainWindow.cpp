@@ -40,6 +40,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/MessageUtils.h"
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
+#include <QtCore/QLoggingCategory>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QClipboard>
 #include <QtGui/QDesktopServices>
@@ -105,6 +106,8 @@ Copyright Glare Technologies Limited 2024 -
 
 
 static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f09a13"); // orange
+
+static std::vector<std::string> qt_debug_msgs;
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget* parent)
@@ -1041,6 +1044,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	CEF::doMessageLoopWork();
 	in_CEF_message_loop = false;
 
+	// Append any accumulated Qt debug messages to the log window.
+	if(!qt_debug_msgs.empty())
+	{
+		for(size_t i=0; i<qt_debug_msgs.size(); ++i)
+			logMessage(qt_debug_msgs[i]);
+		qt_debug_msgs.clear();
+	}
 
 	ui->glWidget->makeCurrent(); // Need to make this gl widget context current, before we execute OpenGL calls in processLoading.
 
@@ -3635,32 +3645,32 @@ bool MainWindow::gamepadAttached()
 
 float MainWindow::gamepadButtonL2()
 {
-	return ui->glWidget->gamepad ? ui->glWidget->gamepad->buttonL2() : 0.0f;
+	return ui->glWidget->gamepad ? (float)ui->glWidget->gamepad->buttonL2() : 0.0f;
 }
 
 float MainWindow::gamepadButtonR2()
 {
-	return ui->glWidget->gamepad ? ui->glWidget->gamepad->buttonR2() : 0.0f;
+	return ui->glWidget->gamepad ? (float)ui->glWidget->gamepad->buttonR2() : 0.0f;
 }
 
 float MainWindow::gamepadAxisLeftX()
 {
-	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisLeftX() : 0.0f;
+	return ui->glWidget->gamepad ? (float)ui->glWidget->gamepad->axisLeftX() : 0.0f;
 }
 
 float MainWindow::gamepadAxisLeftY()
 {
-	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisLeftY() : 0.0f;
+	return ui->glWidget->gamepad ? (float)ui->glWidget->gamepad->axisLeftY() : 0.0f;
 }
 
 float MainWindow::gamepadAxisRightX()
 {
-	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisRightX() : 0.0f;
+	return ui->glWidget->gamepad ? (float)ui->glWidget->gamepad->axisRightX() : 0.0f;
 }
 
 float MainWindow::gamepadAxisRightY()
 {
-	return ui->glWidget->gamepad ? ui->glWidget->gamepad->axisRightY() : 0.0f;
+	return ui->glWidget->gamepad ? (float)ui->glWidget->gamepad->axisRightY() : 0.0f;
 }
 
 
@@ -3789,6 +3799,30 @@ static bool shouldEnableBugSplat()
 #ifndef FUZZING
 
 
+static void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg)
+{
+	std::string msgstr = QtUtils::toStdString(msg);
+	std::string typestr;
+	switch(type)
+	{
+	case QtDebugMsg:    typestr = "Debug";    break;
+	case QtInfoMsg:     typestr = "Info";     break;
+	case QtWarningMsg:  typestr = "Warning";  break;
+	case QtCriticalMsg: typestr = "Critical"; break;
+	case QtFatalMsg:    typestr = "Fatal";    break;
+	default: break;
+	}
+	std::string context_str;
+	if(context.file)
+		context_str = " (" + std::string(context.file) + ":" + toString(context.line) + ", " + (context.function ? std::string(context.function) : "") + ")";
+	else
+		context_str = " (no location info)";
+
+	const std::string formatted_msg = "Qt: " + typestr + ": " + msgstr + context_str;
+	qt_debug_msgs.push_back(formatted_msg);
+}
+
+
 int main(int argc, char *argv[])
 {
 #ifdef BUGSPLAT_SUPPORT
@@ -3811,6 +3845,9 @@ int main(int argc, char *argv[])
 	}
 #endif
 
+	qInstallMessageHandler(qtMessageHandler); // Install our message handler.
+
+	QLoggingCategory::setFilterRules("qt.gamepad=true"); // Enable logging of information from the Qt gamepad subsystem for now.
 
 	QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
 
