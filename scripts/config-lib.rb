@@ -8,9 +8,9 @@
 $vs_version = 2022 # Visual Studio version used to build libraries and Substrata.  Used in build.rb and library build scripts.
 
 
-# 5.15.10 is the latest released open source version in the pre-6.0 series as of June 2023.
+# 5.15.16 is the latest released open source version in the pre-6.0 series as of November 2024.
 # NOTE: should match the qt_version in substrata-private config-lib.rb.
-$qt_version = "5.15.10" if OS.windows?
+$qt_version = "5.15.16" if OS.windows?
 $qt_version = "5.15.10" if OS.mac? 
 $qt_version = "5.15.10" if OS.linux?
 
