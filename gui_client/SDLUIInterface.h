@@ -118,6 +118,8 @@ public:
 	SDL_GLContext gl_context;
 	std::string logged_in_username;
 	GUIClient* gui_client;
+	//SDL_Joystick* joystick;
+	SDL_GameController* game_controller;
 
 	//Reference<TextRendererFontFace> font;
 };

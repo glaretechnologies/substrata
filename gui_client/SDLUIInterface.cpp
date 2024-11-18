@@ -319,35 +319,94 @@ void SDLUIInterface::webViewDataLinkHovered(const std::string& text)
 
 bool SDLUIInterface::gamepadAttached()
 {
-	return false; // TODO: implement SDL gamepad support.
+	//return joystick != nullptr;
+	return game_controller != nullptr;
 }
+
+
+static float removeDeadZone(float x)
+{
+	if(std::fabs(x) < (8000.f / 32768.f))
+		return 0.f;
+	else
+		return x;
+}
+
+#if 0
 
 float SDLUIInterface::gamepadButtonL2()
 {
-	return 0.0f;
+	const Sint16 val = SDL_JoystickGetAxis(joystick, /*axis=*/4);
+	return (float)val / SDL_JOYSTICK_AXIS_MAX;
 }
 
 float SDLUIInterface::gamepadButtonR2()
 {
-	return 0.0f;
+	const Sint16 val = SDL_JoystickGetAxis(joystick, /*axis=*/5);
+	return (float)val / SDL_JOYSTICK_AXIS_MAX;
 }
 
 float SDLUIInterface::gamepadAxisLeftX()
 {
-	return 0.0f;
+	const Sint16 val = SDL_JoystickGetAxis(joystick, /*axis=*/0);
+	return removeDeadZone(val / 32768.f); // ((float)val - SDL_JOYSTICK_AXIS_MIN) / (SDL_JOYSTICK_AXIS_MAX - SDL_JOYSTICK_AXIS_MIN);
 }
 
 float SDLUIInterface::gamepadAxisLeftY()
 {
-	return 0.0f;
+	const Sint16 val = SDL_JoystickGetAxis(joystick, /*axis=*/1);
+	return removeDeadZone(val / 32768.f); // ((float)val - SDL_JOYSTICK_AXIS_MIN) / (SDL_JOYSTICK_AXIS_MAX - SDL_JOYSTICK_AXIS_MIN);
 }
 
 float SDLUIInterface::gamepadAxisRightX()
 {
-	return 0.0f;
+	const Sint16 val = SDL_JoystickGetAxis(joystick, /*axis=*/2);
+	return removeDeadZone(val / 32768.f); // ((float)val - SDL_JOYSTICK_AXIS_MIN) / (SDL_JOYSTICK_AXIS_MAX - SDL_JOYSTICK_AXIS_MIN);
 }
 
 float SDLUIInterface::gamepadAxisRightY()
 {
-	return 0.0f;
+	const Sint16 val = SDL_JoystickGetAxis(joystick, /*axis=*/3);
+	return removeDeadZone(val / 32768.f); // ((float)val - SDL_JOYSTICK_AXIS_MIN) / (SDL_JOYSTICK_AXIS_MAX - SDL_JOYSTICK_AXIS_MIN);
 }
+
+#else
+
+float SDLUIInterface::gamepadButtonL2()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+	return (float)val / SDL_JOYSTICK_AXIS_MAX;
+}
+
+float SDLUIInterface::gamepadButtonR2()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+	return (float)val / SDL_JOYSTICK_AXIS_MAX;
+}
+
+// NOTE: seems to be an issue in SDL that the left axis maps to the left keypad instead of left stick on a Logitech F310 gamepad.
+float SDLUIInterface::gamepadAxisLeftX()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_LEFTX);
+	return removeDeadZone(val / 32768.f);
+}
+
+float SDLUIInterface::gamepadAxisLeftY()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_LEFTY);
+	return removeDeadZone(val / 32768.f);
+}
+
+float SDLUIInterface::gamepadAxisRightX()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_RIGHTX);
+	return removeDeadZone(val / 32768.f);
+}
+
+float SDLUIInterface::gamepadAxisRightY()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_RIGHTY);
+	return removeDeadZone(val / 32768.f);
+}
+
+#endif
