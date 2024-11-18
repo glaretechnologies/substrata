@@ -196,6 +196,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(log_window, SIGNAL(openServerScriptLogSignal()), this, SLOT(openServerScriptLogSlot()));
 
 
+	logMessage("Qt version: " + std::string(qVersion()));
+
 	// Since we use a perspective projection matrix with infinite far distance, use a large max drawing distance.
 	ui->glWidget->max_draw_dist = 100000;
 
