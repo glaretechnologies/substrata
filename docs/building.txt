@@ -209,13 +209,13 @@ make libcef_dll_wrapper -j 12
 Building SDL
 ============
 Building SDL is optional for the native build (can be used instead of Qt), but is required for the web build.
-Download SDL source, e.g https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.0.zip
+Download SDL source, e.g https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.9.zip
 Unzip in ~programming/SDL, e.g.
-C:\programming\SDL\SDL-release-2.30.0
+C:\programming\SDL\SDL-release-2.30.9
 cd C:\programming\SDL\
-mkdir sdl_2.30.0_build
-cd sdl_2.30.0_build
-cmake ../SDL-release-2.30.0
+mkdir sdl_2.30.9_build
+cd sdl_2.30.9_build
+cmake ../SDL-release-2.30.9
 
 On Windows:
 cmake --build . --config Debug
@@ -243,9 +243,9 @@ Making Emscripten SDL build
 Assuming you have followed the instructions in 'Building SDL' section above already:
 
 	cd C:\programming\SDL
-	mkdir sdl_2.30.0_build_emscripten
-	cd sdl_2.30.0_build_emscripten
-	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -DSDL_PTHREADS=ON -G "Ninja" ..\SDL-release-2.30.0
+	mkdir sdl_2.30.9_build_emscripten
+	cd sdl_2.30.9_build_emscripten
+	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe -DSDL_PTHREADS=ON -G "Ninja" ..\SDL-release-2.30.9
 	cmake --build .
 
 
@@ -274,9 +274,9 @@ Use the path to where you installed the Emscripten SDK. (In my case have install
 Also specifiy path to where you checked out substrata source code dir, e.g.  c:\code\substrata
 You will also need to choose a build type, such as -DCMAKE_BUILD_TYPE=Debug or -DCMAKE_BUILD_TYPE=RelWithDebInfo or -DCMAKE_BUILD_TYPE=Release.
 Start with 'Debug' or 'RelWithDebInfo' build type.
-Also specify the path to your Emscripten build of SDL that you built in the 'Making Emscripten SDL build' section above, e.g. -DSDL_BUILD_DIR=C:/programming/SDL/sdl_2.30.0_build_emscripten
+Also specify the path to your Emscripten build of SDL that you built in the 'Making Emscripten SDL build' section above, e.g. -DSDL_BUILD_DIR=C:/programming/SDL/sdl_2.30.9_build_emscripten
 
-	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON -DCEF_SUPPORT=OFF -DSDL_BUILD_DIR=C:/programming/SDL/sdl_2.30.0_build_emscripten
+	cmake -DCMAKE_TOOLCHAIN_FILE=C:\programming\emsdk\upstream\emscripten\cmake\Modules\Platform\Emscripten.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=C:/programming/emsdk/node/16.20.0_64bit/bin/node.exe c:\code\substrata -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DUSE_SDL=ON -DCEF_SUPPORT=OFF -DSDL_BUILD_DIR=C:/programming/SDL/sdl_2.30.9_build_emscripten
 
 
 Make data directory to be bundled
