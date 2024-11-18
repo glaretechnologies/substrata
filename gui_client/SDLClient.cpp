@@ -261,7 +261,7 @@ int main(int argc, char** argv)
 		SDLSettingsStore* settings_store = new SDLSettingsStore();
 	
 		//=========================== Init SDL and OpenGL ================================
-		if(SDL_Init(SDL_INIT_VIDEO) != 0)
+		if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0)
 			throw glare::Exception("SDL_Init Error: " + std::string(SDL_GetError()));
 
 
@@ -322,6 +322,21 @@ int main(int argc, char** argv)
 		// SDL_GL_SetSwapInterval(0); // Disable Vsync
 
 		//SDL_SetHint("SDL_HINT_MOUSE_RELATIVE_WARP_MOTION", "true");
+
+
+		SDL_GameController* game_controller = nullptr;
+		if(SDL_NumJoysticks() < 1)
+		{
+			conPrint("No joysticks / gamepads connected!\n");
+		}
+		else
+		{
+			// Load joystick
+			game_controller = SDL_GameControllerOpen(/*device index=*/0);
+			if(game_controller == nullptr)
+				conPrint("Warning: Unable to open game controller! SDL Error: " + std::string(SDL_GetError()));
+		}
+
 
 #if !defined(EMSCRIPTEN)
 		gl3wInit();
@@ -435,6 +450,7 @@ int main(int argc, char** argv)
 		sdl_ui_interface->window = win;
 		sdl_ui_interface->gl_context = gl_context;
 		sdl_ui_interface->gui_client = gui_client;
+		sdl_ui_interface->game_controller = game_controller;
 
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager);
 
