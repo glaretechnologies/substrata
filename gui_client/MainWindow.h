@@ -26,6 +26,7 @@ class LogWindow;
 class QMimeData;
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
+struct _SDL_GameController;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -332,4 +333,6 @@ public:
 	glare::TaskManager* high_priority_task_manager;
 
 	Reference<glare::Allocator> main_mem_allocator;
+
+	struct _SDL_GameController* game_controller;
 };

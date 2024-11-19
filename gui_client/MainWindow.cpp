@@ -84,6 +84,7 @@ Copyright Glare Technologies Limited 2024 -
 #if BUGSPLAT_SUPPORT
 #include <BugSplat.h>
 #endif
+#include <SDL.h>
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -128,7 +129,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	done_screenshot_setup(false),
 	running_destructor(false),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
-	settings_store(NULL)
+	settings_store(NULL),
+	game_controller(NULL)
 {
 	QGamepadManager::instance(); // Creating the instance here before any windows are created is required for querying gamepads to work.
 
@@ -391,6 +393,25 @@ void MainWindow::initialise()
 		screenshot_command_socket = listener->acceptConnection(); // Blocks
 		screenshot_command_socket->setUseNetworkByteOrder(false);
 		conPrint("Got screenshot command connection.");
+	}
+
+
+
+	//================================= SDL gamepad support =================================
+	if(SDL_Init(SDL_INIT_GAMECONTROLLER) < 0)
+		logMessage("Failed to init SDL: " + std::string(SDL_GetError()));
+
+	// Check for joysticks
+	if(SDL_NumJoysticks() < 1)
+	{
+		conPrint("No joysticks / gamepads connected according to SDL!\n");
+	}
+	else
+	{
+		// Load joystick
+		game_controller = SDL_GameControllerOpen(/*device index=*/0);
+		if(!game_controller)
+			conPrint("Warning: Unable to open game controller! SDL Error: " + std::string(SDL_GetError()));
 	}
 }
 
@@ -1045,6 +1066,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	in_CEF_message_loop = true;
 	CEF::doMessageLoopWork();
 	in_CEF_message_loop = false;
+
+
+	SDL_GameControllerUpdate();
 
 	// Append any accumulated Qt debug messages to the log window.
 	if(!qt_debug_msgs.empty())
@@ -3640,6 +3664,61 @@ void MainWindow::webViewDataLinkHovered(const std::string& url)
 	}
 }
 
+
+#if 1 // Use SDL for gamepad input:
+
+// game_controller
+bool MainWindow::gamepadAttached()
+{
+	return game_controller != nullptr;
+}
+static float removeDeadZone(float x)
+{
+	if(std::fabs(x) < (8000.f / 32768.f))
+		return 0.f;
+	else
+		return x;
+}
+
+float MainWindow::gamepadButtonL2()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+	return (float)val / SDL_JOYSTICK_AXIS_MAX;
+}
+
+float MainWindow::gamepadButtonR2()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+	return (float)val / SDL_JOYSTICK_AXIS_MAX;
+}
+
+// NOTE: seems to be an issue in SDL that the left axis maps to the left keypad instead of left stick on a Logitech F310 gamepad.
+float MainWindow::gamepadAxisLeftX()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_LEFTX);
+	return removeDeadZone(val / 32768.f);
+}
+
+float MainWindow::gamepadAxisLeftY()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_LEFTY);
+	return removeDeadZone(val / 32768.f);
+}
+
+float MainWindow::gamepadAxisRightX()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_RIGHTX);
+	return removeDeadZone(val / 32768.f);
+}
+
+float MainWindow::gamepadAxisRightY()
+{
+	const Sint16 val = SDL_GameControllerGetAxis(game_controller, /*axis=*/SDL_CONTROLLER_AXIS_RIGHTY);
+	return removeDeadZone(val / 32768.f);
+}
+
+#else
+
 bool MainWindow::gamepadAttached()
 {
 	return ui->glWidget->gamepad != nullptr;
@@ -3674,6 +3753,8 @@ float MainWindow::gamepadAxisRightY()
 {
 	return ui->glWidget->gamepad ? (float)ui->glWidget->gamepad->axisRightY() : 0.0f;
 }
+#endif
+
 
 
 // The mouse was double-clicked on a web-view object

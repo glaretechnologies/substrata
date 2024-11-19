@@ -155,6 +155,7 @@ GlWidget::GlWidget(QWidget *parent)
 
 void GlWidget::initGamepadsSlot()
 {
+#if 0 // If use Qt for gamepad input:  NOTE: Currently using SDL instead.
 	// See if we have any attached gamepads
 	QGamepadManager* manager = QGamepadManager::instance();
 
@@ -172,6 +173,7 @@ void GlWidget::initGamepadsSlot()
 		//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
 		//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
 	}
+#endif
 }
 
 

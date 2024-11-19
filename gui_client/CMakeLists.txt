@@ -1084,7 +1084,7 @@ add_definitions(-DGUI_CLIENT=1)
 
 include(../cmake/shared_target_settings.cmake)
 
-if(USE_SDL)
+#if(USE_SDL)
 	include_directories(${SDL_BUILD_DIR}/include/SDL2)
 	
 	if(WIN32)
@@ -1094,7 +1094,8 @@ if(USE_SDL)
 	endif()
 	
 	add_definitions(-DUSE_SDL=1)
-else()
+#else()
+if(NOT USE_SDL)
 	# Else use Qt:
 	add_definitions(-DUSE_QT=1)
 endif()
@@ -1197,14 +1198,15 @@ elseif(WIN32)
 		Opus
 	)
 	
-	if(USE_SDL)
+	#if(USE_SDL)
 		target_link_libraries(${CURRENT_TARGET}
 			debug "${SDL_BUILD_DIR}/Debug/SDL2d.lib" 
 			debug "${SDL_BUILD_DIR}/Debug/SDL2maind.lib" 
 			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2.lib" 
 			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2main.lib" 
 		)
-	else() # Else use Qt:
+	#else() # Else use Qt:
+	if(NOT USE_SDL)
 		target_link_libraries(${CURRENT_TARGET}
 		
 				# Qt 6:
