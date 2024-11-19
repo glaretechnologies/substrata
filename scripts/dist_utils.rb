@@ -92,6 +92,20 @@ def copyQtRedistWindows(vs_version, target_dir, copy_debug = false)
 end
 
 
+def copySDLRedistWindows(vs_version, target_dir, copy_debug)
+	if (!OS.windows?)
+		return
+	end
+	
+	# Get SDL path.
+	glare_core_libs_dir = getAndCheckEnvVar('GLARE_CORE_LIBS')
+	sdl_dir = "#{glare_core_libs_dir}/SDL/sdl_2.30.9_build"
+
+	FileUtils.cp("#{sdl_dir}/Debug/SDL2d.dll",  target_dir, :verbose => true) if  copy_debug
+	FileUtils.cp("#{sdl_dir}/Release/SDL2.dll", target_dir, :verbose => true) if !copy_debug
+end
+
+
 def copyCEFRedistWindows(target_dir)
 	if (!OS.windows?)
 		return

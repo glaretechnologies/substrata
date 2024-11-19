@@ -47,6 +47,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
 		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, true)
+		copySDLRedistWindows(vs_version, output_dir, true)
 	end
 
 	begin
@@ -56,6 +57,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
 		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, false)
+		copySDLRedistWindows(vs_version, output_dir, false)
 	end
 
 	begin
@@ -65,6 +67,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
 		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, false)
+		copySDLRedistWindows(vs_version, output_dir, false)
 	end
 end
 
