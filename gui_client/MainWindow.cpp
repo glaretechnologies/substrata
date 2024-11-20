@@ -408,7 +408,7 @@ void MainWindow::initialise()
 	logMessage("SDL_NumJoysticks: " + toString(SDL_NumJoysticks()));
 	if(SDL_NumJoysticks() < 1)
 	{
-		conPrint("No joysticks / gamepads connected according to SDL!\n");
+		logMessage("No joysticks / gamepads connected according to SDL!\n");
 	}
 	else
 	{
@@ -416,7 +416,7 @@ void MainWindow::initialise()
 		// Load joystick
 		game_controller = SDL_GameControllerOpen(/*device index=*/0);
 		if(!game_controller)
-			conPrint("Warning: Unable to open game controller! SDL Error: " + std::string(SDL_GetError()));
+			logMessage("Warning: Unable to open game controller! SDL Error: " + std::string(SDL_GetError()));
 		else
 			logMessage("Successfully opened game controller with SDL.");
 	}
@@ -2962,33 +2962,34 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 }
 
 
-//void MainWindow::on_actionSave_Object_To_Disk_triggered()
-//{
-//	if(gui_client.selected_ob)
-//	{
-//		QString last_save_object_dir = "";
-//
-//		QFileDialog::Options options;
-//		QString selected_filter;
-//		const QString selected_filename = QFileDialog::getSaveFileName(this,
-//			tr("Select file..."),
-//			last_save_object_dir,
-//			tr("XML file (*.xml)"), // tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
-//			&selected_filter,
-//			options
-//		);
-//
-//		if(!selected_filename.isEmpty())
-//		{
-//			const std::string xml = gui_client.selected_ob->serialiseToXML(/*tab depth=*/0);
-//			conPrint(xml);
-//
-//			FileUtils::writeEntireFileTextMode(QtUtils::toStdString(selected_filename), xml);
-//
-//			gui_client.showInfoNotification("Saved object to '" + QtUtils::toStdString(selected_filename) + "'.");
-//		}
-//	}
-//}
+#if 0
+void MainWindow::on_actionSave_Object_To_Disk_triggered()
+{
+	if(gui_client.selected_ob)
+	{
+		QString last_save_object_dir = "";
+
+		QFileDialog::Options options;
+		QString selected_filter;
+		const QString selected_filename = QFileDialog::getSaveFileName(this,
+			tr("Select file..."),
+			last_save_object_dir,
+			tr("XML file (*.xml)"), // tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
+			&selected_filter,
+			options
+		);
+
+		if(!selected_filename.isEmpty())
+		{
+			const std::string xml = gui_client.selected_ob->serialiseToXML(/*tab depth=*/0);
+
+			FileUtils::writeEntireFileTextMode(QtUtils::toStdString(selected_filename), xml);
+
+			gui_client.showInfoNotification("Saved object to '" + QtUtils::toStdString(selected_filename) + "'.");
+		}
+	}
+}
+#endif
 
 
 void MainWindow::diagnosticsWidgetChanged()
