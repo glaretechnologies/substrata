@@ -2962,8 +2962,8 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 }
 
 
-void MainWindow::on_actionSave_Object_To_Disk_triggered()
-{
+//void MainWindow::on_actionSave_Object_To_Disk_triggered()
+//{
 //	if(gui_client.selected_ob)
 //	{
 //		QString last_save_object_dir = "";
@@ -2988,7 +2988,7 @@ void MainWindow::on_actionSave_Object_To_Disk_triggered()
 //			gui_client.showInfoNotification("Saved object to '" + QtUtils::toStdString(selected_filename) + "'.");
 //		}
 //	}
-}
+//}
 
 
 void MainWindow::diagnosticsWidgetChanged()
