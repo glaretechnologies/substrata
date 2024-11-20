@@ -398,20 +398,27 @@ void MainWindow::initialise()
 
 
 	//================================= SDL gamepad support =================================
+	logMessage("Initialising SDL...");
 	if(SDL_Init(SDL_INIT_GAMECONTROLLER) < 0)
 		logMessage("Failed to init SDL: " + std::string(SDL_GetError()));
+	else
+		logMessage("SDL successfully initialised.");
 
 	// Check for joysticks
+	logMessage("SDL_NumJoysticks: " + toString(SDL_NumJoysticks()));
 	if(SDL_NumJoysticks() < 1)
 	{
 		conPrint("No joysticks / gamepads connected according to SDL!\n");
 	}
 	else
 	{
+		logMessage("Opening controller '" + (SDL_GameControllerNameForIndex(0) ? std::string(SDL_GameControllerNameForIndex(0)) : std::string("[unknown]")) + "'...");
 		// Load joystick
 		game_controller = SDL_GameControllerOpen(/*device index=*/0);
 		if(!game_controller)
 			conPrint("Warning: Unable to open game controller! SDL Error: " + std::string(SDL_GetError()));
+		else
+			logMessage("Successfully opened game controller with SDL.");
 	}
 }
 
@@ -2952,6 +2959,35 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 	{	
 		gui_client.audio_engine.setMasterVolume(1.f);
 	}
+}
+
+
+void MainWindow::on_actionSave_Object_To_Disk_triggered()
+{
+//	if(gui_client.selected_ob)
+//	{
+//		QString last_save_object_dir = "";
+//
+//		QFileDialog::Options options;
+//		QString selected_filter;
+//		const QString selected_filename = QFileDialog::getSaveFileName(this,
+//			tr("Select file..."),
+//			last_save_object_dir,
+//			tr("XML file (*.xml)"), // tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
+//			&selected_filter,
+//			options
+//		);
+//
+//		if(!selected_filename.isEmpty())
+//		{
+//			const std::string xml = gui_client.selected_ob->serialiseToXML(/*tab depth=*/0);
+//			conPrint(xml);
+//
+//			FileUtils::writeEntireFileTextMode(QtUtils::toStdString(selected_filename), xml);
+//
+//			gui_client.showInfoNotification("Saved object to '" + QtUtils::toStdString(selected_filename) + "'.");
+//		}
+//	}
 }
 
 
