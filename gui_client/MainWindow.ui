@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1426</width>
-    <height>975</height>
+    <width>1430</width>
+    <height>984</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,7 +34,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1426</width>
+     <width>1430</width>
      <height>21</height>
     </rect>
    </property>
@@ -75,6 +75,8 @@
     <addaction name="actionList_Objects_Nearby"/>
     <addaction name="separator"/>
     <addaction name="menuLightmaps"/>
+    <addaction name="actionSave_Object_To_Disk"/>
+    <addaction name="actionSave_Parcel_Objects_To_Disk"/>
    </widget>
    <widget class="QMenu" name="menuMovement">
     <property name="title">
@@ -258,7 +260,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>233</height>
+          <height>236</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -355,7 +357,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>233</height>
+          <height>237</height>
          </rect>
         </property>
        </widget>
@@ -691,6 +693,16 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+B</string>
+   </property>
+  </action>
+  <action name="actionSave_Object_To_Disk">
+   <property name="text">
+    <string>Save Object To Disk</string>
+   </property>
+  </action>
+  <action name="actionSave_Parcel_Objects_To_Disk">
+   <property name="text">
+    <string>Save Parcel Objects To Disk</string>
    </property>
   </action>
  </widget>

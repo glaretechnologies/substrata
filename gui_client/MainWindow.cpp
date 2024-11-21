@@ -2962,7 +2962,6 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 }
 
 
-#if 0
 void MainWindow::on_actionSave_Object_To_Disk_triggered()
 {
 	if(gui_client.selected_ob)
@@ -2989,7 +2988,6 @@ void MainWindow::on_actionSave_Object_To_Disk_triggered()
 		}
 	}
 }
-#endif
 
 
 void MainWindow::diagnosticsWidgetChanged()
