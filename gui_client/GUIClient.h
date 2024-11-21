@@ -176,12 +176,14 @@ public:
 	void mouseReleased(MouseEvent& e);
 	void mouseDoubleClicked(MouseEvent& e);
 	void doObjectSelectionTraceForMouseEvent(MouseEvent& e);
-	void updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& gl_coords, MouseEvent* mouse_event);
+	void updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& gl_coords, MouseEvent* mouse_event, bool cursor_is_mouse_cursor);
 	void mouseMoved(MouseEvent& mouse_event);
 	void onMouseWheelEvent(MouseWheelEvent& e);
+	void gamepadButtonXChanged(bool pressed);
 	void viewportResized(int w, int h);
 	void updateGroundPlane();
 	void sendLightmapNeededFlagsSlot();
+	void useActionTriggered(bool use_mouse_cursor); // if use_mouse_cursor is false, use crosshair as cursor instead.
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
@@ -697,4 +699,6 @@ public:
 	ScriptedObjectProximityChecker scripted_ob_proximity_checker;
 
 	ParcelID cur_in_parcel_id;
+
+	bool last_cursor_movement_was_from_mouse; // as opposed to from gamepad moving crosshair.
 };

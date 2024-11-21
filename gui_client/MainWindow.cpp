@@ -129,8 +129,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	done_screenshot_setup(false),
 	running_destructor(false),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
-	settings_store(NULL),
-	game_controller(NULL)
+	settings_store(NULL)
+	//game_controller(NULL)
 {
 	QGamepadManager::instance(); // Creating the instance here before any windows are created is required for querying gamepads to work.
 
@@ -248,6 +248,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(keyReleased(QKeyEvent*)), this, SLOT(glWidgetkeyReleased(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(focusOutSignal()), this, SLOT(glWidgetFocusOut()));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
+	connect(ui->glWidget, SIGNAL(gamepadButtonXChangedSignal(bool)), this, SLOT(gamepadButtonXChanged(bool)));
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->glWidget, SIGNAL(cutShortcutActivated()), this, SLOT(glWidgetCutShortcutTriggered()));
 	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(glWidgetCopyShortcutTriggered()));
@@ -398,6 +399,7 @@ void MainWindow::initialise()
 
 
 	//================================= SDL gamepad support =================================
+#if 0
 	logMessage("Initialising SDL...");
 	if(SDL_Init(SDL_INIT_GAMECONTROLLER) < 0)
 		logMessage("Failed to init SDL: " + std::string(SDL_GetError()));
@@ -420,6 +422,7 @@ void MainWindow::initialise()
 		else
 			logMessage("Successfully opened game controller with SDL.");
 	}
+#endif
 }
 
 
@@ -3638,6 +3641,12 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 }
 
 
+void MainWindow::gamepadButtonXChanged(bool pressed)
+{
+	gui_client.gamepadButtonXChanged(pressed);
+}
+
+
 void MainWindow::glWidgetViewportResized(int w, int h)
 {
 	gui_client.viewportResized(w, h);
@@ -3700,7 +3709,7 @@ void MainWindow::webViewDataLinkHovered(const std::string& url)
 }
 
 
-#if 1 // Use SDL for gamepad input:
+#if 0 // Use SDL for gamepad input:
 
 // game_controller
 bool MainWindow::gamepadAttached()

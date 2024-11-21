@@ -155,7 +155,7 @@ GlWidget::GlWidget(QWidget *parent)
 
 void GlWidget::initGamepadsSlot()
 {
-#if 0 // If use Qt for gamepad input:  NOTE: Currently using SDL instead.
+#if 1 // If use Qt for gamepad input:
 	// See if we have any attached gamepads
 	QGamepadManager* manager = QGamepadManager::instance();
 
@@ -172,13 +172,25 @@ void GlWidget::initGamepadsSlot()
 
 		//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
 		//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
+
+		connect(gamepad, SIGNAL(buttonXChanged(bool)), this, SLOT(buttonXChangedSlot(bool)));
+		connect(gamepad, SIGNAL(buttonXChanged(bool)), this, SIGNAL(gamepadButtonXChangedSignal(bool)));
 	}
 #endif
 }
 
 
+void GlWidget::buttonXChangedSlot(bool pressed)
+{
+	// printVar(pressed);
+
+}
+
+
 void GlWidget::gamepadInputSlot()
 {
+	// TODO: have to handle interactions with click and drag to rotate camera code.
+	// hideCursor();
 }
 
 
