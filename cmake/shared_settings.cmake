@@ -306,6 +306,8 @@ ${UTILS_DIR}/WeakRefCounted.h
 ${UTILS_DIR}/WeakReference.h
 ${UTILS_DIR}/TestExceptionUtils.h
 ${UTILS_DIR}/Hasher.h
+${UTILS_DIR}/XMLWriteUtils.cpp
+${UTILS_DIR}/XMLWriteUtils.h
 )
 
 
