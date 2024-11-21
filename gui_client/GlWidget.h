@@ -93,10 +93,12 @@ signals:;
 	void copyShortcutActivated();
 	void pasteShortcutActivated();
 	void focusOutSignal();
-	
+	void gamepadButtonXChangedSignal(bool pressed);
+
 private slots:
 	void gamepadInputSlot();
 	void initGamepadsSlot();
+	void buttonXChangedSlot(bool pressed);
 
 private:
 	

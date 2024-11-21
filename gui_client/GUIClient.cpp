@@ -167,7 +167,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	settings(NULL),
 	ui_interface(NULL),
 	extracted_anim_data_loaded(false),
-	server_using_lod_chunks(false)
+	server_using_lod_chunks(false),
+	last_cursor_movement_was_from_mouse(true)
 {
 	resources_dir_path = base_dir_path + "/data/resources";
 
@@ -4183,32 +4184,6 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 {
 	bool move_key_pressed = false;
 
-#if 0
-	// Handle gamepad input
-	double gamepad_strafe_leftright = 0;
-	double gamepad_strafe_forwardsback = 0;
-	double gamepad_turn_leftright = 0;
-	double gamepad_turn_updown = 0;
-
-	if(gamepad)
-	{
-		gamepad_strafe_leftright = gamepad->axisLeftX();
-		gamepad_strafe_forwardsback = gamepad->axisLeftY();
-
-		gamepad_turn_leftright = gamepad->axisRightX();
-		gamepad_turn_updown = gamepad->axisRightY();
-
-		//if(gamepad->axisLeftY() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisLeftY())); }
-
-		//if(gamepad->axisRightX() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -gamepad->axisRightX())); }
-
-		//if(gamepad->axisRightY() != 0)
-		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisRightY())); }
-	}
-#endif
-
 	input_out.SHIFT_down =	false;
 	input_out.CTRL_down =	false;
 	input_out.W_down =		false;
@@ -4309,27 +4284,42 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 
 	if(ui_interface->gamepadAttached())
 	{
-		const float gamepad_move_speed_factor = 10;
+		// Since we don't have the shift key available, move a bit faster in flymode
+		const float gamepad_move_speed_factor = player_physics.flyModeEnabled() ? 4 : 1;
 		const float gamepad_rotate_speed = 400;
 
 		// Move vertically up or down in flymode.
 		if(ui_interface->gamepadButtonR2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * pow(ui_interface->gamepadButtonR2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
+		{	player_physics.processMoveUp(gamepad_move_speed_factor * pow(ui_interface->gamepadButtonR2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
 
 		if(ui_interface->gamepadButtonL2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * -pow(ui_interface->gamepadButtonL2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
+		{	player_physics.processMoveUp(gamepad_move_speed_factor * -pow(ui_interface->gamepadButtonL2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
 
 		if(ui_interface->gamepadAxisLeftX() != 0)
-		{	player_physics.processStrafeRight(gamepad_move_speed_factor * pow(ui_interface->gamepadAxisLeftX(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
+		{	player_physics.processStrafeRight(gamepad_move_speed_factor * pow(ui_interface->gamepadAxisLeftX(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
 
 		if(ui_interface->gamepadAxisLeftY() != 0)
-		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(ui_interface->gamepadAxisLeftY(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; }
+		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(ui_interface->gamepadAxisLeftY(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
 
-		if(ui_interface->gamepadAxisRightX() != 0)
-			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(0, dt * gamepad_rotate_speed * pow(ui_interface->gamepadAxisRightX(), 3.0f)));
+		const float axis_right_x = ui_interface->gamepadAxisRightX();
+		if(axis_right_x != 0)
+		{
+			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(0, dt * gamepad_rotate_speed * pow(axis_right_x, 3.0f)));
+			
+			if(std::fabs(axis_right_x) > 0.5f) // If definitely a player-initiated command (as opposed to stick drift)
+				last_cursor_movement_was_from_mouse = false; // then last cursor movement is from gamepad
+		}
 
-		if(ui_interface->gamepadAxisRightY() != 0)
-			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(dt *  gamepad_rotate_speed * -pow(ui_interface->gamepadAxisRightY(), 3.f), 0));
+		const float axis_right_y = ui_interface->gamepadAxisRightY();
+		if(axis_right_y != 0)
+		{
+			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(dt *  gamepad_rotate_speed * -pow(axis_right_y, 3.f), 0));
+		
+			if(std::fabs(axis_right_y) > 0.5f) // If definitely a player-initiated command (as opposed to stick drift)
+				last_cursor_movement_was_from_mouse = false; // then last cursor movement is from gamepad
+		}
+
+		hud_ui.setCrosshairDotVisible(!last_cursor_movement_was_from_mouse);
 	}
 
 	if(move_key_pressed)
@@ -4571,7 +4561,24 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	if(!ui_interface->isCursorHidden())
 	{
 		//const QPoint widget_pos = ui->glWidget->mapFromGlobal(QCursor::pos());
-		updateInfoUIForMousePosition(mouse_cursor_state.cursor_pos, mouse_cursor_state.gl_coords, /*mouse_event=*/NULL);
+		const bool use_mouse_cursor_as_cursor = last_cursor_movement_was_from_mouse;
+		Vec2i cursor_pos;
+		Vec2f cursor_gl_coords;
+		if(use_mouse_cursor_as_cursor)
+		{
+			cursor_pos = mouse_cursor_state.cursor_pos;
+			cursor_gl_coords = mouse_cursor_state.gl_coords;
+		}
+		else // Else use crosshair as cursor:
+		{
+			const int gl_w = (float)opengl_engine->getMainViewPortWidth();
+			const int gl_h = (float)opengl_engine->getMainViewPortHeight();
+
+			cursor_pos = Vec2i((int)(gl_w / 2), (int)(gl_h / 2));
+			cursor_gl_coords = Vec2f(0.f);
+		}
+
+		updateInfoUIForMousePosition(cursor_pos, cursor_gl_coords, /*mouse_event=*/NULL, /*cursor_is_mouse_cursor=*/use_mouse_cursor_as_cursor);
 	}
 
 	// Update AABB visualisation, if we are showing one.
@@ -11525,9 +11532,10 @@ inline static bool clipLineToPlaneBackHalfSpace(const Planef& plane, Vec4f& a, V
 }
 
 
-// pos is in glWidget local coordinates.
+// cursor_pos is in glWidget local coordinates.
 // mouse_event is non-null if this is called from a mouse-move event
-void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& gl_coords, MouseEvent* mouse_event)
+// If cursor_is_mouse_cursor is false, the cursor is the crosshair.
+void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& cursor_gl_coords, MouseEvent* mouse_event, bool cursor_is_mouse_cursor)
 {
 	// New for object mouseover hyperlink showing, and webview mouse-move events:
 	if(this->physics_world.nonNull())
@@ -11570,7 +11578,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 
 						if(!selected_editable_ob)
 						{
-							ob_info_ui.showHyperLink(ob->target_url, gl_coords);
+							ob_info_ui.showHyperLink(ob->target_url, cursor_gl_coords);
 							show_mouseover_info_ui = true;
 						}
 					}
@@ -11584,15 +11592,15 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
 
 						if(upright || !ob->vehicle_script->isRightable())
-							ob_info_ui.showMessage("Press [E] to enter vehicle", gl_coords);
+							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to enter vehicle" : "Press [X] on gamepad to enter vehicle", cursor_gl_coords);
 						else
-							ob_info_ui.showMessage("Press [E] to right vehicle", gl_coords);
+							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to right vehicle" : "Press [X] on gamepad to right vehicle", cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
 					if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
 					{
-						ob_info_ui.showMessage("Press [E] to use", gl_coords);
+						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to use" : "Press [X] on gamepad to use", cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
@@ -11635,6 +11643,9 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 
 void GUIClient::mouseMoved(MouseEvent& mouse_event)
 {
+	last_cursor_movement_was_from_mouse = true;
+	hud_ui.setCrosshairDotVisible(false);
+
 	if(gl_ui.nonNull())
 	{
 		const bool accepted = gl_ui->handleMouseMoved(mouse_event);
@@ -11649,7 +11660,7 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 	}
 
 	if(!ui_interface->isCursorHidden())
-		updateInfoUIForMousePosition(mouse_event.cursor_pos, mouse_event.gl_coords, &mouse_event);
+		updateInfoUIForMousePosition(mouse_event.cursor_pos, mouse_event.gl_coords, &mouse_event, /*cursor_is_mouse_cursor=*/true);
 
 
 	if(selected_ob.nonNull() && grabbed_axis >= 0 && grabbed_axis < NUM_AXIS_ARROWS)
@@ -12212,6 +12223,13 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 }
 
 
+void GUIClient::gamepadButtonXChanged(bool pressed)
+{
+	if(pressed)
+		useActionTriggered(/*use_mouse_cursor=*/false);
+}
+
+
 void GUIClient::viewportResized(int w, int h)
 {
 	if(gl_ui.nonNull())
@@ -12707,6 +12725,206 @@ static bool keyIsDeleteKey(int keycode)
 }
 
 
+// E.g. 'E' key was pressed, or gamepad X button was pressed.
+// if use_mouse_cursor is false, use crosshair as cursor instead.
+void GUIClient::useActionTriggered(bool use_mouse_cursor)
+{
+	// If we are controlling a vehicle, exit it
+	if(vehicle_controller_inside.nonNull())
+	{
+		const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
+		const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
+
+		const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0);
+		// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
+
+		vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
+			
+		// Execute event handlers in any scripts that are listening for the onUserExitedVehicle event from this object.
+		{
+			WorldStateLock lock(world_state->mutex);
+			WorldObject* vehicle_ob = vehicle_controller_inside->getControlledObject();
+			if(vehicle_ob->event_handlers)
+				vehicle_ob->event_handlers->executeOnUserExitedVehicleHandlers(this->client_avatar_uid, vehicle_ob->uid, lock);
+		}
+
+		vehicle_controller_inside = NULL; // Null out vehicle_controller_inside reference.  Note that the controller will still exist and be referenced from vehicle_controllers.
+
+		Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2 + Vec4f(0,0,1.7f,0);
+		new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
+
+		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
+
+		player_physics.setStandingShape(*physics_world);
+
+
+		// Send AvatarExitedVehicle message to server
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarExitedVehicle);
+		writeToStream(this->client_avatar_uid, scratch_packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+		return;
+	}
+	else
+	{
+		WorldStateLock lock(world_state->mutex);
+
+		const Vec2i widget_pos = use_mouse_cursor ? ui_interface->getMouseCursorWidgetPos() : Vec2i(opengl_engine->getMainViewPortWidth() / 2, opengl_engine->getMainViewPortHeight() / 2);
+
+		// conPrint("glWidgetKeyPressed: widget_pos: " + toString(widget_pos.x()) + ", " + toString(widget_pos.y()));
+
+		// Trace ray through scene
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(widget_pos.x, widget_pos.y);
+
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+
+		if(results.hit_object)
+		{
+			if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
+			{
+				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+				if(ob->vehicle_script.nonNull() && ob->physics_object.nonNull())
+				{
+					if(ob->isDynamic()) // Make sure object is dynamic, which is needed for vehicles
+					{
+						if(vehicle_controller_inside.isNull()) // If we are not in a vehicle already:
+						{
+							// Try to enter the vehicle.
+							const Vec4f up_z_up(0,0,1,0);
+							const Vec4f bike_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
+							const Vec4f bike_up_ws = normalise(obToWorldMatrix(*ob) * bike_up_os);
+							const bool upright = dot(bike_up_ws, up_z_up) > 0.5f;
+
+							// See if there are any spare seats
+							int free_seat_index = -1;
+							for(size_t z=0; z<ob->vehicle_script->settings->seat_settings.size(); ++z)
+							{
+								if(!doesVehicleHaveAvatarInSeat(*ob, (uint32)z))
+								{
+									free_seat_index = (int)z;
+									break;
+								}
+							}
+
+							Reference<VehiclePhysics> controller_for_ob;
+							if((ob->vehicle_script->isRightable() && !upright) || (free_seat_index >= 0)) // If we want to have a vehicle controller (for righting vehicle or entering it)
+							{
+								// If there is not a controller already existing that is controlling the hit object, create the vehicle controller based on the script:
+								const auto controller_res = vehicle_controllers.find(ob);
+								if(controller_res == vehicle_controllers.end()) // If there is not a vehicle controller for this object yet:
+								{
+									controller_for_ob = createVehicleControllerForScript(ob);
+									vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
+								}
+								else // Else if there is already a vehicle controller for this object:
+								{
+									controller_for_ob = controller_res->second;
+								}
+							}
+
+
+							if(!ob->vehicle_script->isRightable() || upright)
+							{
+								if(free_seat_index == -1) // If we did not find an empty seat:
+									showInfoNotification("Vehicle is full, cannot enter");
+								else
+								{
+									// Enter vehicle
+									runtimeCheck(controller_for_ob.nonNull()); // Should have been created above if was null, as free_seat_index >= 0
+										
+									this->cur_seat_index = (uint32)free_seat_index;
+										
+									this->vehicle_controller_inside = controller_for_ob;
+									this->vehicle_controller_inside->userEnteredVehicle(/*seat index=*/free_seat_index);
+								
+									if(free_seat_index == 0) // If taking driver's seat:
+										takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
+
+									player_physics.setSittingShape(*physics_world);
+
+									// Execute event handlers in any scripts that are listening for the onUserEnteredVehicle event from this object.
+									if(ob->event_handlers)
+										ob->event_handlers->executeOnUserEnteredVehicleHandlers(this->client_avatar_uid, ob->uid, lock);
+
+									// Send AvatarEnteredVehicle message to server
+									MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
+									writeToStream(this->client_avatar_uid, scratch_packet);
+									writeToStream(ob->uid, scratch_packet); // Write vehicle object UID
+									scratch_packet.writeUInt32((uint32)free_seat_index); // Seat index.
+									scratch_packet.writeUInt32(0); // Write flags.  Don't set renewal bit.
+									enqueueMessageToSend(*this->client_thread, scratch_packet);
+								}
+							}
+							else // Else if vehicle is not upright:
+							{
+								runtimeCheck(controller_for_ob.nonNull()); // Should have been created above if was null, as upright == false.
+								controller_for_ob->startRightingVehicle();
+							}
+
+							return;
+						}
+					}
+					else // else if !ob->isDyanmic():
+					{
+						showErrorNotification("Object dynamic checkbox must be checked to drive");
+					}
+				}
+
+				if(!ob->target_url.empty()) // And the object has a target URL:
+				{
+					// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
+					const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
+
+					if(!selected_editable_ob)
+					{
+						const std::string url = ob->target_url;
+						if(StringUtils::containsString(url, "://"))
+						{
+							// URL already has protocol prefix
+							const std::string protocol = url.substr(0, url.find("://", 0));
+							if(protocol == "http" || protocol == "https")
+							{
+								ui_interface->openURL(url);
+							}
+							else if(protocol == "sub")
+							{
+								visitSubURL(url);
+							}
+							else
+							{
+								// Don't open this URL, might be something potentially unsafe like a file on disk
+								ui_interface->showPlainTextMessageBox("", "This URL is potentially unsafe and will not be opened.");
+							}
+						}
+						else
+						{
+							ui_interface->openURL("http://" + url);
+						}
+
+						return;
+					}
+				}
+
+				// If the object has scripts that have an onUserUsedObject event handler for the object, send a UserUsedObjectMessage to the server
+				// So the script event handler can be run
+				if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
+				{
+					// Execute any event handlers
+					ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/this->client_avatar_uid, ob->uid, lock);
+
+					// Make message packet and enqueue to send to execute event handler on server as well
+					MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);
+					writeToStream(ob->uid, scratch_packet);
+					enqueueMessageToSend(*client_thread, scratch_packet);
+				}
+			}
+		}
+	}
+}
+
 void GUIClient::keyPressed(KeyEvent& e)
 {
 	gl_ui->handleKeyPressedEvent(e);
@@ -12874,200 +13092,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 	}
 	else if(e.key == Key::Key_E)
 	{
-		// If we are controlling a vehicle, exit it
-		if(vehicle_controller_inside.nonNull())
-		{
-			const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
-			const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
-
-			const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0);
-			// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
-
-			vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
-			
-			// Execute event handlers in any scripts that are listening for the onUserExitedVehicle event from this object.
-			{
-				WorldStateLock lock(world_state->mutex);
-				WorldObject* vehicle_ob = vehicle_controller_inside->getControlledObject();
-				if(vehicle_ob->event_handlers)
-					vehicle_ob->event_handlers->executeOnUserExitedVehicleHandlers(this->client_avatar_uid, vehicle_ob->uid, lock);
-			}
-
-			vehicle_controller_inside = NULL; // Null out vehicle_controller_inside reference.  Note that the controller will still exist and be referenced from vehicle_controllers.
-
-			Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2 + Vec4f(0,0,1.7f,0);
-			new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
-
-			player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
-
-			player_physics.setStandingShape(*physics_world);
-
-
-			// Send AvatarExitedVehicle message to server
-			MessageUtils::initPacket(scratch_packet, Protocol::AvatarExitedVehicle);
-			writeToStream(this->client_avatar_uid, scratch_packet);
-			enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-			return;
-		}
-		else
-		{
-			WorldStateLock lock(world_state->mutex);
-
-			const Vec2i widget_pos = ui_interface->getMouseCursorWidgetPos();
-
-			// conPrint("glWidgetKeyPressed: widget_pos: " + toString(widget_pos.x()) + ", " + toString(widget_pos.y()));
-
-			// Trace ray through scene
-			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-			const Vec4f dir = getDirForPixelTrace(widget_pos.x, widget_pos.y);
-
-			RayTraceResult results;
-			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
-
-			if(results.hit_object)
-			{
-				if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
-				{
-					WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
-
-					if(ob->vehicle_script.nonNull() && ob->physics_object.nonNull())
-					{
-						if(ob->isDynamic()) // Make sure object is dynamic, which is needed for vehicles
-						{
-							if(vehicle_controller_inside.isNull()) // If we are not in a vehicle already:
-							{
-								// Try to enter the vehicle.
-								const Vec4f up_z_up(0,0,1,0);
-								const Vec4f bike_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
-								const Vec4f bike_up_ws = normalise(obToWorldMatrix(*ob) * bike_up_os);
-								const bool upright = dot(bike_up_ws, up_z_up) > 0.5f;
-
-								// See if there are any spare seats
-								int free_seat_index = -1;
-								for(size_t z=0; z<ob->vehicle_script->settings->seat_settings.size(); ++z)
-								{
-									if(!doesVehicleHaveAvatarInSeat(*ob, (uint32)z))
-									{
-										free_seat_index = (int)z;
-										break;
-									}
-								}
-
-								Reference<VehiclePhysics> controller_for_ob;
-								if((ob->vehicle_script->isRightable() && !upright) || (free_seat_index >= 0)) // If we want to have a vehicle controller (for righting vehicle or entering it)
-								{
-									// If there is not a controller already existing that is controlling the hit object, create the vehicle controller based on the script:
-									const auto controller_res = vehicle_controllers.find(ob);
-									if(controller_res == vehicle_controllers.end()) // If there is not a vehicle controller for this object yet:
-									{
-										controller_for_ob = createVehicleControllerForScript(ob);
-										vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
-									}
-									else // Else if there is already a vehicle controller for this object:
-									{
-										controller_for_ob = controller_res->second;
-									}
-								}
-
-
-								if(!ob->vehicle_script->isRightable() || upright)
-								{
-									if(free_seat_index == -1) // If we did not find an empty seat:
-										showInfoNotification("Vehicle is full, cannot enter");
-									else
-									{
-										// Enter vehicle
-										runtimeCheck(controller_for_ob.nonNull()); // Should have been created above if was null, as free_seat_index >= 0
-										
-										this->cur_seat_index = (uint32)free_seat_index;
-										
-										this->vehicle_controller_inside = controller_for_ob;
-										this->vehicle_controller_inside->userEnteredVehicle(/*seat index=*/free_seat_index);
-								
-										if(free_seat_index == 0) // If taking driver's seat:
-											takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
-
-										player_physics.setSittingShape(*physics_world);
-
-										// Execute event handlers in any scripts that are listening for the onUserEnteredVehicle event from this object.
-										if(ob->event_handlers)
-											ob->event_handlers->executeOnUserEnteredVehicleHandlers(this->client_avatar_uid, ob->uid, lock);
-
-										// Send AvatarEnteredVehicle message to server
-										MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
-										writeToStream(this->client_avatar_uid, scratch_packet);
-										writeToStream(ob->uid, scratch_packet); // Write vehicle object UID
-										scratch_packet.writeUInt32((uint32)free_seat_index); // Seat index.
-										scratch_packet.writeUInt32(0); // Write flags.  Don't set renewal bit.
-										enqueueMessageToSend(*this->client_thread, scratch_packet);
-									}
-								}
-								else // Else if vehicle is not upright:
-								{
-									runtimeCheck(controller_for_ob.nonNull()); // Should have been created above if was null, as upright == false.
-									controller_for_ob->startRightingVehicle();
-								}
-
-								return;
-							}
-						}
-						else // else if !ob->isDyanmic():
-						{
-							showErrorNotification("Object dynamic checkbox must be checked to drive");
-						}
-					}
-
-					if(!ob->target_url.empty()) // And the object has a target URL:
-					{
-						// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
-						const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
-
-						if(!selected_editable_ob)
-						{
-							const std::string url = ob->target_url;
-							if(StringUtils::containsString(url, "://"))
-							{
-								// URL already has protocol prefix
-								const std::string protocol = url.substr(0, url.find("://", 0));
-								if(protocol == "http" || protocol == "https")
-								{
-									ui_interface->openURL(url);
-								}
-								else if(protocol == "sub")
-								{
-									visitSubURL(url);
-								}
-								else
-								{
-									// Don't open this URL, might be something potentially unsafe like a file on disk
-									ui_interface->showPlainTextMessageBox("", "This URL is potentially unsafe and will not be opened.");
-								}
-							}
-							else
-							{
-								ui_interface->openURL("http://" + url);
-							}
-
-							return;
-						}
-					}
-
-					// If the object has scripts that have an onUserUsedObject event handler for the object, send a UserUsedObjectMessage to the server
-					// So the script event handler can be run
-					if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
-					{
-						// Execute any event handlers
-						ob->event_handlers->executeOnUserUsedObjectHandlers(/*avatar_uid=*/this->client_avatar_uid, ob->uid, lock);
-
-						// Make message packet and enqueue to send to execute event handler on server as well
-						MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);
-						writeToStream(ob->uid, scratch_packet);
-						enqueueMessageToSend(*client_thread, scratch_packet);
-					}
-				}
-			}
-		}
+		useActionTriggered(/*use_mouse_cursor=*/true);
 	}
 	else if(e.key == Key::Key_F)
 	{

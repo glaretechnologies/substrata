@@ -27,11 +27,24 @@ void HeadUpDisplayUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient*
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
+
+	// Create 'crosshair' marker dot
+	const float im_width = gl_ui->getUIWidthForDevIndepPixelWidth(8);
+	const Vec2f dot_corner_pos = -Vec2f(im_width/2);
+	crosshair_dot = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/"");
+	crosshair_dot->setColour(toLinearSRGB(Colour3f(0.9f)));
+	crosshair_dot->setAlpha(0.8f);
+	crosshair_dot->setVisible(false);
+
+	gl_ui->addWidget(crosshair_dot);
 }
 
 
 void HeadUpDisplayUI::destroy()
 {
+	gl_ui->removeWidget(crosshair_dot);
+	crosshair_dot = NULL;
+
 	gl_ui = NULL;
 	opengl_engine = NULL;
 }
@@ -53,6 +66,12 @@ void HeadUpDisplayUI::viewportResized(int w, int h)
 
 void HeadUpDisplayUI::updateWidgetPositions()
 {
+	if(crosshair_dot)
+	{
+		const float im_width = gl_ui->getUIWidthForDevIndepPixelWidth(8);
+		const Vec2f dot_corner_pos = -Vec2f(im_width/2);
+		crosshair_dot->setPosAndDims(dot_corner_pos, Vec2f(im_width));
+	}
 }
 
 
@@ -203,6 +222,13 @@ void HeadUpDisplayUI::removeMarkerForAvatar(Avatar* avatar)
 		gl_ui->removeWidget(avatar->hud_marker_arrow);
 		avatar->hud_marker_arrow = NULL;
 	}
+}
+
+
+void HeadUpDisplayUI::setCrosshairDotVisible(bool visible)
+{
+	if(crosshair_dot)
+		crosshair_dot->setVisible(visible);
 }
 
 

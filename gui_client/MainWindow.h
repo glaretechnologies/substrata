@@ -108,6 +108,7 @@ private slots:;
 	void glWidgetkeyReleased(QKeyEvent* e);
 	void glWidgetFocusOut();
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
+	void gamepadButtonXChanged(bool pressed);
 	void glWidgetViewportResized(int w, int h);
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 	void glWidgetCutShortcutTriggered();
@@ -335,5 +336,5 @@ public:
 
 	Reference<glare::Allocator> main_mem_allocator;
 
-	struct _SDL_GameController* game_controller;
+	//struct _SDL_GameController* game_controller;
 };

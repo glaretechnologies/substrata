@@ -38,6 +38,8 @@ public:
 	void updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos);
 	void removeMarkerForAvatar(Avatar* avatar);
 
+	void setCrosshairDotVisible(bool visible);
+
 	virtual void eventOccurred(GLUICallbackEvent& event);
 private:
 	void updateWidgetPositions();
@@ -45,4 +47,6 @@ private:
 	GUIClient* gui_client;
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
+
+	GLUIImageRef crosshair_dot;
 };
