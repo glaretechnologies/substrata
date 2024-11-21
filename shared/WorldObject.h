@@ -52,6 +52,7 @@ struct PhysicsShapeData;
 class GLUITextView;
 class UInt8ComponentValueTraits;
 template <class V, class ComponentValueTraits> class ImageMap;
+namespace pugi { class xml_node; }
 
 
 class Voxel
@@ -214,6 +215,9 @@ public:
 
 	void copyNetworkStateFrom(const WorldObject& other);
 
+	std::string serialiseToXML(int tab_depth) const;
+	static Reference<WorldObject> loadFromXMLElem(const std::string& object_file_path, bool convert_rel_paths_to_abs_disk_paths, pugi::xml_node elem); // object_file_path is used for converting relative paths to absolute.
+
 	void setAABBOS(const js::AABBox& aabb_os); // Sets object-space AABB, also calls transformChanged().
 	void zeroAABBOS();
 	inline const js::AABBox& getAABBOS() const { return aabb_os; }
@@ -246,6 +250,7 @@ public:
 		ObjectType_Video = 5, // A Youtube or Twitch video, or mp4 video, with video-specific UI.
 		ObjectType_Text = 6 // Text displayed on a quad
 	};
+	static const uint64 NUM_OBJECT_TYPES = 7;
 
 	static std::string objectTypeString(ObjectType t);
 

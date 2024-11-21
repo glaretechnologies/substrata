@@ -7,17 +7,18 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "ResourceManager.h"
-#include <Exception.h>
-#include <StringUtils.h>
-#include <FileUtils.h>
-#include <FileChecksum.h>
-#include <IndigoXMLDoc.h>
-#include <XMLParseUtils.h>
-#include <Parser.h>
-#include <BufferInStream.h>
-#include <BufferOutStream.h>
-#include <BufferViewInStream.h>
-#include <RuntimeCheck.h>
+#include <utils/Exception.h>
+#include <utils/StringUtils.h>
+#include <utils/FileUtils.h>
+#include <utils/FileChecksum.h>
+#include <utils/IndigoXMLDoc.h>
+#include <utils/XMLParseUtils.h>
+#include <utils/XMLWriteUtils.h>
+#include <utils/Parser.h>
+#include <utils/BufferInStream.h>
+#include <utils/BufferOutStream.h>
+#include <utils/BufferViewInStream.h>
+#include <utils/RuntimeCheck.h>
 
 
 WorldMaterial::WorldMaterial()
@@ -186,71 +187,6 @@ void WorldMaterial::convertLocalPathsToURLS(ResourceManager& resource_manager)
 }
 
 
-static Colour3f parseColour3fWithDefault(pugi::xml_node elem, const char* elemname, const Colour3f& default_val)
-{
-	pugi::xml_node childnode = elem.child(elemname);
-	if(!childnode)
-		return default_val;
-
-	const char* const child_text = childnode.child_value();
-
-	Parser parser(child_text, std::strlen(child_text));
-
-	parser.parseWhiteSpace();
-
-	Colour3f v;
-	if(!parser.parseFloat(v.r))
-		throw glare::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-	parser.parseWhiteSpace();
-	if(!parser.parseFloat(v.g))
-		throw glare::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-	parser.parseWhiteSpace();
-	if(!parser.parseFloat(v.b))
-		throw glare::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-	parser.parseWhiteSpace();
-
-	// We should be at the end of the string now
-	if(parser.notEOF())
-		throw glare::Exception("Parse error while parsing Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-
-	return v;
-}
-
-
-static Matrix2f parseMatrix2f(pugi::xml_node elem, const char* elemname)
-{
-	pugi::xml_node childnode = elem.child(elemname);
-	if(!childnode)
-		throw glare::Exception(std::string("could not find element '") + elemname + "'." + XMLParseUtils::elemContext(elem));
-
-	const char* const child_text = childnode.child_value();
-
-	Parser parser(child_text, std::strlen(child_text));
-
-	parser.parseWhiteSpace();
-
-	Matrix2f m;
-	if(!parser.parseFloat(m.e[0]))
-		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-	parser.parseWhiteSpace();
-	if(!parser.parseFloat(m.e[1]))
-		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-	parser.parseWhiteSpace();
-	if(!parser.parseFloat(m.e[2]))
-		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-	parser.parseWhiteSpace();
-	if(!parser.parseFloat(m.e[3]))
-		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-	parser.parseWhiteSpace();
-
-	// We should be at the end of the string now
-	if(parser.notEOF())
-		throw glare::Exception("Parse error while parsing Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
-
-	return m;
-}
-
-
 static ScalarVal parseScalarVal(pugi::xml_node elem, const char* elemname, const ScalarVal& default_scalar_val)
 {
 	pugi::xml_node n = elem.child(elemname);
@@ -278,12 +214,12 @@ Reference<WorldMaterial> WorldMaterial::loadFromXMLElem(const std::string& mat_f
 	WorldMaterialRef mat = new WorldMaterial();
 	mat->name = XMLParseUtils::parseString(material_elem, "name");
 
-	mat->colour_rgb = parseColour3fWithDefault(material_elem, "colour_rgb", Colour3f(0.85f));
+	mat->colour_rgb = XMLParseUtils::parseColour3fWithDefault(material_elem, "colour_rgb", Colour3f(0.85f));
 	mat->colour_texture_url = XMLParseUtils::parseStringWithDefault(material_elem, "colour_texture_url", "");
 	if(convert_rel_paths_to_abs_disk_paths)
 		convertRelPathToAbsolute(mat_file_path, mat->colour_texture_url); // Assuming colour_texture_url is a local relative path, make local absolute path from it.
 
-	mat->emission_rgb = parseColour3fWithDefault(material_elem, "emission_rgb", Colour3f(0.f));
+	mat->emission_rgb = XMLParseUtils::parseColour3fWithDefault(material_elem, "emission_rgb", Colour3f(0.f));
 	mat->emission_texture_url = XMLParseUtils::parseStringWithDefault(material_elem, "emission_texture_url", "");
 	if(convert_rel_paths_to_abs_disk_paths)
 		convertRelPathToAbsolute(mat_file_path, mat->emission_texture_url);
@@ -305,7 +241,7 @@ Reference<WorldMaterial> WorldMaterial::loadFromXMLElem(const std::string& mat_f
 		convertRelPathToAbsolute(mat_file_path, mat->opacity.texture_url);
 
 	if(material_elem.child("tex_matrix"))
-		mat->tex_matrix = parseMatrix2f(material_elem, "tex_matrix");
+		mat->tex_matrix = XMLParseUtils::parseMatrix2f(material_elem, "tex_matrix");
 	return mat;
 }
 
@@ -320,24 +256,13 @@ Reference<WorldMaterial> WorldMaterial::loadFromXMLOnDisk(const std::string& mat
 }
 
 
-
-static void writeColour3fToXML(std::string& xml, const std::string& elem_name, const Colour3f& col, int tab_depth)
-{
-	xml += std::string(tab_depth, '\t') + "<" + elem_name + ">" + toString(col.r) + " " + toString(col.g) + " " + toString(col.b) + "</" + elem_name + ">\n";
-}
-
-static void writeStringElemToXML(std::string& xml, const std::string& elem_name, const std::string& string_val, int tab_depth)
-{
-	xml += std::string(tab_depth, '\t') + "<" + elem_name + "><![CDATA[" + string_val + "]]></" + elem_name + ">\n";
-}
-
 static void writeScalarValToXML(std::string& xml, const std::string& elem_name, const ScalarVal& scalar_val, int tab_depth)
 {
 	xml += std::string(tab_depth, '\t') + "<" + elem_name + ">\n";
 	
-	xml += std::string(tab_depth + 1, '\t') + "<val>" + toString(scalar_val.val) + "</val>\n";
+	XMLWriteUtils::writeFloatToXML(xml, "val", scalar_val.val, tab_depth + 1);
 	if(!scalar_val.texture_url.empty())
-		writeStringElemToXML(xml, "texture_url", scalar_val.texture_url, tab_depth + 1);
+		XMLWriteUtils::writeStringElemToXML(xml, "texture_url", scalar_val.texture_url, tab_depth + 1);
 
 	xml += std::string(tab_depth, '\t') + "</" + elem_name + ">\n";
 }
@@ -348,15 +273,15 @@ std::string WorldMaterial::serialiseToXML(int tab_depth) const
 	std::string s;
 	s += std::string(tab_depth, '\t') + "<material>\n";
 
-	writeStringElemToXML(s, "name", name, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "name", name, tab_depth + 1);
 
-	writeColour3fToXML(s, "colour_rgb", colour_rgb, tab_depth + 1);
-	writeStringElemToXML(s, "colour_texture_url", colour_texture_url, tab_depth + 1);
+	XMLWriteUtils::writeColour3fToXML(s, "colour_rgb", colour_rgb, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "colour_texture_url", colour_texture_url, tab_depth + 1);
 
-	writeColour3fToXML(s, "emission_rgb", emission_rgb, tab_depth + 1);
-	writeStringElemToXML(s, "emission_texture_url", emission_texture_url, tab_depth + 1);
+	XMLWriteUtils::writeColour3fToXML(s, "emission_rgb", emission_rgb, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "emission_texture_url", emission_texture_url, tab_depth + 1);
 	
-	writeStringElemToXML(s, "normal_map_url", normal_map_url, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "normal_map_url", normal_map_url, tab_depth + 1);
 
 	writeScalarValToXML(s, "roughness", roughness, tab_depth + 1);
 	writeScalarValToXML(s, "metallic_fraction", metallic_fraction, tab_depth + 1);
@@ -364,8 +289,8 @@ std::string WorldMaterial::serialiseToXML(int tab_depth) const
 
 	s += std::string(tab_depth + 1, '\t') + "<tex_matrix>" + toString(tex_matrix.e[0]) + " " + toString(tex_matrix.e[1]) + " " + toString(tex_matrix.e[2]) + " " + toString(tex_matrix.e[3]) + "</tex_matrix>\n";
 
-	s += std::string(tab_depth + 1, '\t') + "<emission_lum_flux_or_lum>" + toString(emission_lum_flux_or_lum) + "</emission_lum_flux_or_lum>\n";
-	s += std::string(tab_depth + 1, '\t') + "<flags>" + toString(flags) + "</flags>\n";
+	XMLWriteUtils::writeFloatToXML(s, "emission_lum_flux_or_lum", emission_lum_flux_or_lum, tab_depth + 1);
+	XMLWriteUtils::writeUInt64ToXML(s, "flags", flags, tab_depth + 1);
 
 	s += std::string(tab_depth, '\t') + "</material>\n";
 

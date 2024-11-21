@@ -6,34 +6,37 @@ Copyright Glare Technologies Limited 2016 -
 #include "WorldObject.h"
 
 
-#include <Exception.h>
-#include <StringUtils.h>
-#include <FileUtils.h>
-#include <ConPrint.h>
-#include <FileChecksum.h>
-#include <Sort.h>
-#include <BufferInStream.h>
-#include <PoolAllocator.h>
-#include <RandomAccessOutStream.h>
 #if GUI_CLIENT
-#include "opengl/OpenGLEngine.h"
-#include "opengl/OpenGLMeshRenderData.h"
 #include "../audio/AudioEngine.h"
-//#include <SceneNodeModel.h>
 #include "../gui_client/WinterShaderEvaluator.h"
 #include "../gui_client/WebViewData.h"
 #include "../gui_client/BrowserVidPlayer.h"
 #include "../gui_client/AnimatedTextureManager.h"
 #include "../gui_client/MeshManager.h"
-#include <graphics/ImageMap.h>
 #include "../gui_client/PhysicsObject.h"
 #include "../gui_client/Scripting.h"
+#include <graphics/ImageMap.h>
 #include <opengl/ui/GLUITextView.h>
+#include <opengl/OpenGLEngine.h>
+#include <opengl/OpenGLMeshRenderData.h>
 #endif // GUI_CLIENT
 #include "../shared/ResourceManager.h"
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/ObjectEventHandlers.h"
+#include <utils/Exception.h>
+#include <utils/StringUtils.h>
+#include <utils/FileUtils.h>
+#include <utils/ConPrint.h>
+#include <utils/FileChecksum.h>
+#include <utils/Sort.h>
+#include <utils/BufferInStream.h>
+#include <utils/PoolAllocator.h>
+#include <utils/Base64.h>
+#include <utils/RandomAccessOutStream.h>
+#include <utils/XMLWriteUtils.h>
+#include <utils/XMLParseUtils.h>
 #include <zstd.h>
+#include <pugixml.hpp>
 
 
 InstanceInfo::~InstanceInfo()
@@ -823,6 +826,147 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 }
 
 
+std::string WorldObject::serialiseToXML(int tab_depth) const
+{
+	std::string s;
+	s.reserve(2048);
+
+	s += std::string(tab_depth, '\t') + "<object>\n";
+
+	XMLWriteUtils::writeUInt64ToXML(s, "uid", uid.value(), tab_depth + 1);
+	XMLWriteUtils::writeUInt32ToXML(s, "object_type", (uint32)object_type, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "model_url", model_url, tab_depth + 1);
+
+	// Write materials
+	s += std::string(tab_depth + 1, '\t') + "<materials>\n";
+	for(size_t i=0; i<materials.size(); ++i)
+		s += materials[i]->serialiseToXML(tab_depth + 2);
+	s += std::string(tab_depth + 1, '\t') + "</materials>\n";
+
+	XMLWriteUtils::writeStringElemToXML(s, "lightmap_url", lightmap_url, tab_depth + 1);
+
+	XMLWriteUtils::writeStringElemToXML(s, "script", script, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "content", content, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "target_url", target_url, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "audio_source_url", audio_source_url, tab_depth + 1);
+
+	XMLWriteUtils::writeFloatToXML(s, "audio_volume", audio_volume, tab_depth + 1);
+
+	XMLWriteUtils::writeVec3ToXML(s, "pos", pos, tab_depth + 1);
+	XMLWriteUtils::writeVec3ToXML(s, "axis", axis, tab_depth + 1);
+	XMLWriteUtils::writeFloatToXML(s, "angle", angle, tab_depth + 1);
+	XMLWriteUtils::writeVec3ToXML(s, "scale", scale, tab_depth + 1);
+
+	XMLWriteUtils::writeUInt64ToXML(s, "created_time", created_time.time, tab_depth + 1);
+	XMLWriteUtils::writeUInt64ToXML(s, "last_modified_time", last_modified_time.time, tab_depth + 1);
+	XMLWriteUtils::writeUInt32ToXML(s, "creator_id", creator_id.value(), tab_depth + 1);
+
+	XMLWriteUtils::writeUInt32ToXML(s, "flags", flags, tab_depth + 1);
+
+	XMLWriteUtils::writeVec3ToXML(s, "aabb_os_min", Vec3f(aabb_os.min_), tab_depth + 1);
+	XMLWriteUtils::writeVec3ToXML(s, "aabb_os_max", Vec3f(aabb_os.max_), tab_depth + 1);
+
+	XMLWriteUtils::writeInt32ToXML(s, "max_model_lod_level", max_model_lod_level, tab_depth + 1);
+
+	if(object_type == WorldObject::ObjectType_VoxelGroup)
+	{
+		std::string encoded;
+		Base64::encode(compressed_voxels.data(), compressed_voxels.size(), encoded);
+
+		XMLWriteUtils::writeStringElemToXML(s, "compressed_voxels_base64", encoded, tab_depth + 1);
+	}
+
+	XMLWriteUtils::writeFloatToXML(s, "mass", mass, tab_depth + 1);
+	XMLWriteUtils::writeFloatToXML(s, "friction", friction, tab_depth + 1);
+	XMLWriteUtils::writeFloatToXML(s, "restitution", restitution, tab_depth + 1);
+
+	XMLWriteUtils::writeVec3ToXML(s, "centre_of_mass_offset_os", centre_of_mass_offset_os, tab_depth + 1);
+
+	XMLWriteUtils::writeUInt32ToXML(s, "chunk_batch0_start", chunk_batch0_start, tab_depth + 1);
+	XMLWriteUtils::writeUInt32ToXML(s, "chunk_batch0_end", chunk_batch0_end, tab_depth + 1);
+	XMLWriteUtils::writeUInt32ToXML(s, "chunk_batch1_start", chunk_batch1_start, tab_depth + 1);
+	XMLWriteUtils::writeUInt32ToXML(s, "chunk_batch1_end", chunk_batch1_end, tab_depth + 1);
+
+	s += std::string(tab_depth, '\t') + "</object>\n";
+	return s;
+}
+
+
+Reference<WorldObject> WorldObject::loadFromXMLElem(const std::string& object_file_path, bool convert_rel_paths_to_abs_disk_paths, pugi::xml_node elem)
+{
+	Reference<WorldObject> ob = new WorldObject();
+	ob->uid = UID(XMLParseUtils::parseUInt64WithDefault(elem, "uid", UID::invalidUID().value()));
+	
+	const uint64 ob_type = XMLParseUtils::parseUInt64WithDefault(elem, "ob_type", (uint64)WorldObject::ObjectType_Generic);
+	if(ob_type > NUM_OBJECT_TYPES)
+		throw glare::Exception("Invalid object type: " + toString(ob_type));
+	ob->object_type = (WorldObject::ObjectType)ob_type;
+	
+	ob->model_url = XMLParseUtils::parseStringWithDefault(elem, "model_url", "");
+
+	if(pugi::xml_node materials_node = elem.child("materials"))
+	{
+		for(pugi::xml_node mat_node = materials_node.child("material"); mat_node; mat_node = mat_node.next_sibling("material"))
+		{
+			ob->materials.push_back(WorldMaterial::loadFromXMLElem(object_file_path, convert_rel_paths_to_abs_disk_paths, mat_node));
+		}
+	}
+
+	ob->lightmap_url = XMLParseUtils::parseStringWithDefault(elem, "lightmap_url", "");
+
+	ob->script           = XMLParseUtils::parseStringWithDefault(elem, "script", "");
+	ob->content          = XMLParseUtils::parseStringWithDefault(elem, "content", "");
+	ob->target_url       = XMLParseUtils::parseStringWithDefault(elem, "target_url", "");
+	ob->audio_source_url = XMLParseUtils::parseStringWithDefault(elem, "audio_source_url", "");
+
+	ob->audio_volume = XMLParseUtils::parseFloatWithDefault(elem, "audio_volume", 1.f);
+
+	ob->pos   = XMLParseUtils::parseVec3d(elem, "pos");
+	ob->axis  = XMLParseUtils::parseVec3fWithDefault(elem, "axis", Vec3f(0,0,1));
+	ob->angle = XMLParseUtils::parseFloatWithDefault(elem, "angle", 0.0);
+	ob->scale = XMLParseUtils::parseVec3fWithDefault(elem, "scale", Vec3f(1,1,1));
+
+	ob->created_time       = TimeStamp(XMLParseUtils::parseUInt64WithDefault(elem, "created_time", 0));
+	ob->last_modified_time = TimeStamp(XMLParseUtils::parseUInt64WithDefault(elem, "last_modified_time", 0));
+
+	ob->creator_id = UserID((uint32)XMLParseUtils::parseUInt64WithDefault(elem, "creator_id", UserID::invalidUserID().value()));
+
+	ob->flags = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "flags", 0);
+
+	ob->aabb_os.min_ = XMLParseUtils::parseVec3fWithDefault(elem, "aabb_os_min", Vec3f(0,0,0)).toVec4fPoint();
+	ob->aabb_os.max_ = XMLParseUtils::parseVec3fWithDefault(elem, "aabb_os_max", Vec3f(0,0,0)).toVec4fPoint();
+
+	ob->max_model_lod_level = XMLParseUtils::parseIntWithDefault(elem, "max_model_lod_level", 0);
+
+	if(pugi::xml_node compressed_voxels_base64_node = elem.child("compressed_voxels_base64"))
+	{
+		const string_view compressed_voxels_base64_str(compressed_voxels_base64_node.child_value(), std::strlen(compressed_voxels_base64_node.child_value()));
+
+		std::vector<unsigned char> decoded_data;
+		Base64::decode(compressed_voxels_base64_str, decoded_data);
+
+		if(decoded_data.size() > 0)
+		{
+			ob->compressed_voxels.resize(decoded_data.size());
+			std::memcpy(ob->compressed_voxels.data(), decoded_data.data(), decoded_data.size());
+		}
+	}
+
+	ob->mass =        XMLParseUtils::parseFloatWithDefault(elem, "mass", 50.0);
+	ob->friction =    XMLParseUtils::parseFloatWithDefault(elem, "friction", 0.5);
+	ob->restitution = XMLParseUtils::parseFloatWithDefault(elem, "restitution", 0.2);
+
+	ob->centre_of_mass_offset_os = XMLParseUtils::parseVec3fWithDefault(elem, "centre_of_mass_offset_os", Vec3f(0,0,0));
+
+	ob->chunk_batch0_start = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "chunk_batch0_start", 0);
+	ob->chunk_batch0_end   = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "chunk_batch0_end", 0);
+	ob->chunk_batch1_start = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "chunk_batch1_start", 0);
+	ob->chunk_batch1_end   = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "chunk_batch1_end", 0);
+
+	return ob;
+}
+
+
 void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, WorldObject& ob) // UID will have been read already
 {
 	// NOTE: The data in here needs to match that in copyNetworkStateFrom()
@@ -1313,6 +1457,7 @@ void doDestroyOb(WorldObject* ob)
 #if BUILD_TESTS
 
 
+#include <utils/IndigoXMLDoc.h>
 #include <utils/BufferOutStream.h>
 #include <utils/BufferViewInStream.h>
 #include <utils/TestUtils.h>
@@ -1365,6 +1510,20 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #endif
 
 
+static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
+{
+	ob1.getCompressedVoxels() == ob2.getCompressedVoxels();
+
+	testAssert(ob1.materials.size() == ob2.materials.size());
+	for(size_t i=0; i<ob1.materials.size(); ++i)
+	{
+		WorldMaterial& mat1 = *ob1.materials[i];
+		WorldMaterial& mat2 = *ob2.materials[i];
+		testAssert(mat1.normal_map_url == mat2.normal_map_url);
+	}
+}
+
+
 void WorldObject::test()
 {
 	conPrint("WorldObject::test()");
@@ -1389,7 +1548,13 @@ void WorldObject::test()
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
 			readWorldObjectFromStream(instream, ob2);
-			testAssert(ob2.materials.size() == ob.materials.size());
+			testObjectsEqual(ob, ob2);
+
+			// Test writing to and reading from XML.
+			const std::string xml = ob.serialiseToXML(/*tab depth=*/0);
+			IndigoXMLDoc doc(xml.c_str(), xml.size());
+			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
+			testObjectsEqual(ob, *ob3);
 		}
 
 		// Test with some large materials
@@ -1399,9 +1564,9 @@ void WorldObject::test()
 			ob.axis = Vec3f(0,0,1);
 			ob.angle = 0;
 			ob.materials.push_back(new WorldMaterial());
-			ob.materials.back()->normal_map_url = std::string(8192, 'A');
+			ob.materials.back()->normal_map_url = std::string(WorldObject::MAX_URL_SIZE, 'A');
 			ob.materials.push_back(new WorldMaterial());
-			ob.materials.back()->normal_map_url = std::string(8192, 'B');
+			ob.materials.back()->normal_map_url = std::string(WorldObject::MAX_URL_SIZE, 'B');
 			ob.materials.push_back(new WorldMaterial());
 
 			ob.script = "abc";
@@ -1413,9 +1578,13 @@ void WorldObject::test()
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
 			readWorldObjectFromStream(instream, ob2);
-			testAssert(ob.materials.size() == ob2.materials.size());
-			testAssert(ob.materials[0]->normal_map_url == ob2.materials[0]->normal_map_url);
-			testAssert(ob.materials[1]->normal_map_url == ob2.materials[1]->normal_map_url);
+			testObjectsEqual(ob, ob2);
+
+			// Test writing to and reading from XML.
+			const std::string xml = ob.serialiseToXML(/*tab depth=*/0);
+			IndigoXMLDoc doc(xml.c_str(), xml.size());
+			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
+			testObjectsEqual(ob, *ob3);
 		}
 
 		// Test that an object with lots of materials serialises without using too much mem
@@ -1437,7 +1606,40 @@ void WorldObject::test()
 			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
 			WorldObject ob2;
 			readWorldObjectFromStream(instream, ob2);
-			testAssert(ob2.materials.size() == ob.materials.size());
+			testObjectsEqual(ob, ob2);
+
+			// Test writing to and reading from XML.
+			const std::string xml = ob.serialiseToXML(/*tab depth=*/0);
+			IndigoXMLDoc doc(xml.c_str(), xml.size());
+			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
+			testObjectsEqual(ob, *ob3);
+		}
+
+
+		// Test with a voxel object with some compressed voxel data.
+		{
+			WorldObject ob;
+			ob.pos = Vec3d(0.0);
+			ob.axis = Vec3f(0,0,1);
+			ob.angle = 0;
+			ob.materials.push_back(new WorldMaterial());
+			ob.object_type = WorldObject::ObjectType_VoxelGroup;
+			ob.compressed_voxels.resize(100);
+			for(size_t i=0; i<100; ++i)
+				ob.compressed_voxels[i] = (uint8)i;
+
+			BufferOutStream buf;
+			ob.writeToStream(buf);
+			BufferInStream instream(buf.buf);
+			WorldObject ob2;
+			readWorldObjectFromStream(instream, ob2);
+			testObjectsEqual(ob, ob2);
+
+			// Test writing to and reading from XML.
+			const std::string xml = ob.serialiseToXML(/*tab depth=*/0);
+			IndigoXMLDoc doc(xml.c_str(), xml.size());
+			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
+			testObjectsEqual(ob, *ob3);
 		}
 	}
 	catch(glare::Exception& e)
