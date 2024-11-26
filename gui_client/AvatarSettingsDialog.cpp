@@ -151,7 +151,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 			avatarPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob); // Remove previous object from engine.
 
 		ModelLoading::MakeGLObjectResults results;
-		ModelLoading::makeGLObjectForModelFile(*avatarPreviewGLWidget->opengl_engine, *avatarPreviewGLWidget->opengl_engine->vert_buf_allocator, use_local_path,
+		ModelLoading::makeGLObjectForModelFile(*avatarPreviewGLWidget->opengl_engine, *avatarPreviewGLWidget->opengl_engine->vert_buf_allocator, use_local_path, /*do_opengl_stuff=*/true,
 			results
 		);
 

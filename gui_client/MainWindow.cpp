@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
+#include "CreateObjectsDialog.h"
 #include "ClientThread.h"
 #include "GoToPositionDialog.h"
 #include "LogWindow.h"
@@ -33,6 +34,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "URLWhitelist.h"
 #include "URLParser.h"
 #include "CEF.h"
+#include "ThreadMessages.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -67,6 +69,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/FileChecksum.h"
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
+#include "../utils/IndigoXMLDoc.h"
 #include "../utils/TaskManager.h"
 #include "../networking/MySocket.h"
 #include "../graphics/ImageMap.h"
@@ -249,6 +252,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(focusOutSignal()), this, SLOT(glWidgetFocusOut()));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->glWidget, SIGNAL(gamepadButtonXChangedSignal(bool)), this, SLOT(gamepadButtonXChanged(bool)));
+	connect(ui->glWidget, SIGNAL(gamepadButtonAChangedSignal(bool)), this, SLOT(gamepadButtonAChanged(bool)));
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->glWidget, SIGNAL(cutShortcutActivated()), this, SLOT(glWidgetCutShortcutTriggered()));
 	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(glWidgetCopyShortcutTriggered()));
@@ -2969,25 +2973,174 @@ void MainWindow::on_actionSave_Object_To_Disk_triggered()
 {
 	if(gui_client.selected_ob)
 	{
-		QString last_save_object_dir = "";
+		QString last_save_object_dir = settings->value("mainwindow/lastSaveObjectDir").toString();
 
 		QFileDialog::Options options;
 		QString selected_filter;
 		const QString selected_filename = QFileDialog::getSaveFileName(this,
 			tr("Select file..."),
 			last_save_object_dir,
-			tr("XML file (*.xml)"), // tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
+			tr("XML file (*.xml)"),
 			&selected_filter,
 			options
 		);
 
 		if(!selected_filename.isEmpty())
 		{
-			const std::string xml = gui_client.selected_ob->serialiseToXML(/*tab depth=*/0);
+			settings->setValue("mainwindow/lastSaveObjectDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
+
+			try
+			{
+				const std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + gui_client.selected_ob->serialiseToXML(/*tab depth=*/0);
+
+				FileUtils::writeEntireFileTextMode(QtUtils::toStdString(selected_filename), xml);
+
+				gui_client.showInfoNotification("Saved object to '" + QtUtils::toStdString(selected_filename) + "'.");
+			}
+			catch(glare::Exception& e)
+			{
+				QtUtils::showErrorMessageDialog("Error saving object to disk: " + e.what(), this);
+			}
+		}
+	}
+}
+
+
+void MainWindow::on_actionSave_Parcel_Objects_To_Disk_triggered()
+{
+	QString last_save_object_dir = settings->value("mainwindow/lastSaveObjectDir").toString();
+
+	QFileDialog::Options options;
+	QString selected_filter;
+	const QString selected_filename = QFileDialog::getSaveFileName(this,
+		tr("Select file..."),
+		last_save_object_dir,
+		tr("XML file (*.xml)"),
+		&selected_filter,
+		options
+	);
+
+	if(!selected_filename.isEmpty())
+	{
+		settings->setValue("mainwindow/lastSaveObjectDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
+
+		try
+		{
+			size_t num_obs_serialised;
+			const std::string xml = gui_client.serialiseAllObjectsInParcelToXML(num_obs_serialised);
 
 			FileUtils::writeEntireFileTextMode(QtUtils::toStdString(selected_filename), xml);
 
-			gui_client.showInfoNotification("Saved object to '" + QtUtils::toStdString(selected_filename) + "'.");
+			gui_client.showInfoNotification("Saved " + toString(num_obs_serialised) + " objects to '" + QtUtils::toIndString(selected_filename) + "'.");
+		}
+		catch(glare::Exception& e)
+		{
+			QtUtils::showErrorMessageDialog("Error saving objects to disk: " + e.what(), this);
+		}
+	}
+}
+
+
+class LoadObjectsFromXMLTask : public glare::Task, public PrintOutput
+{
+public:
+	virtual void run(size_t /*thread_index*/) override
+	{
+		try
+		{
+			IndigoXMLDoc doc(xml_path);
+
+			if(std::string(doc.getRootElement().name()) == "object")
+			{
+				WorldObjectRef ob = WorldObject::loadFromXMLElem(/*object file path=*/xml_path, /*convert rel paths to abs disk paths=*/false, doc.getRootElement());
+
+				print("Creating object...");
+
+				gui_client->createObjectLoadedFromXML(ob, *this);
+			}
+			else if(std::string(doc.getRootElement().name()) == "objects")
+			{
+				for(pugi::xml_node ob_node = doc.getRootElement().child("object"); ob_node && !stop_running; ob_node = ob_node.next_sibling("object"))
+				{
+					WorldObjectRef ob = WorldObject::loadFromXMLElem(/*object file path=*/xml_path, /*convert rel paths to abs disk paths=*/false, ob_node);
+
+					print("Creating object...");
+
+					gui_client->createObjectLoadedFromXML(ob, *this);
+				}
+			}
+
+			print("Done.");
+		}
+		catch(glare::Exception& e)
+		{
+			print("Error loading object(s) from disk: " + e.what());
+		}
+	}
+
+
+	virtual void cancelTask() override
+	{
+		stop_running = 1;
+	}
+
+	void print(const std::string& s) override // Print a message and a newline character.
+	{
+		out_message_queue->enqueue(s);
+
+		gui_client->msg_queue.enqueue(new LogMessage(s));
+	}
+
+	void printStr(const std::string& s) override // Print a message without a newline character.
+	{}
+
+	std::string xml_path;
+
+	ThreadSafeQueue<std::string>* out_message_queue;
+	GUIClient* gui_client;
+
+	glare::AtomicInt stop_running;
+};
+
+
+void MainWindow::on_actionLoad_Objects_From_Disk_triggered()
+{
+	QString last_save_object_dir = settings->value("mainwindow/lastSaveObjectDir").toString();
+
+	QFileDialog::Options options;
+	QString selected_filter;
+	const QString selected_filename = QFileDialog::getOpenFileName(this,
+		tr("Select file..."),
+		last_save_object_dir,
+		tr("XML file (*.xml)"),
+		&selected_filter,
+		options
+	);
+	 
+	if(!selected_filename.isEmpty())
+	{
+		settings->setValue("mainwindow/lastSaveObjectDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
+
+		// Do the work in another thread so we don't lock up the main thread.
+		// The work will be done in a LoadObjectsFromXMLTask.
+		ThreadSafeQueue<std::string> message_queue; // Messages will be emitted from LoadObjectsFromXMLTask, placed into this queue, and then read by the CreateObjectsDialog.
+		
+		{
+			CreateObjectsDialog dialog(settings);
+			dialog.msg_queue = &message_queue;
+
+			Reference<LoadObjectsFromXMLTask> task = new LoadObjectsFromXMLTask();
+			task->xml_path = QtUtils::toIndString(selected_filename);
+			task->out_message_queue = &message_queue;
+			task->gui_client = &gui_client;
+
+			glare::TaskManager task_manager(1);
+			task_manager.addTask(task);
+
+			dialog.exec();
+
+			task = NULL;
+			task_manager.cancelAndWaitForTasksToComplete(); // Interrupt the LoadObjectsFromXMLTask if it hasn't completed already.
 		}
 	}
 }
@@ -3644,6 +3797,12 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 void MainWindow::gamepadButtonXChanged(bool pressed)
 {
 	gui_client.gamepadButtonXChanged(pressed);
+}
+
+
+void MainWindow::gamepadButtonAChanged(bool pressed)
+{
+	gui_client.gamepadButtonAChanged(pressed);
 }
 
 

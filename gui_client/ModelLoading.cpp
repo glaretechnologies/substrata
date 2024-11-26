@@ -461,6 +461,7 @@ void ModelLoading::makeGLObjectForModelFile(
 	OpenGLEngine& gl_engine,
 	VertexBufferAllocator& vert_buf_allocator,
 	const std::string& model_path, 
+	bool do_opengl_stuff,
 	MakeGLObjectResults& results_out
 )
 {
@@ -506,28 +507,34 @@ void ModelLoading::makeGLObjectForModelFile(
 				vox_contents.used_materials[i].col_from_palette[2]);
 		}
 
-		// Scale down voxels so model isn't too large.
-		const float use_scale = getScaleForVoxModel(model.aabb);
-
-		// Make opengl object
-		GLObjectRef ob = gl_engine.allocateObject();
-		ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
-
-
+		
 		js::Vector<bool, 16> mat_transparent(results_out.materials.size());
 		for(size_t i=0; i<results_out.materials.size(); ++i)
 			mat_transparent[i] = results_out.materials[i]->opacity.val < 1.f;
 
+		// Scale down voxels so model isn't too large.
+		const float use_scale = getScaleForVoxModel(model.aabb);
+		const Matrix4f ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
-		PhysicsShape physics_shape;
 		const int subsample_factor = 1;
-		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob->ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/true, 
+		PhysicsShape physics_shape;
+		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/do_opengl_stuff, 
 			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, gl_engine.mem_allocator.ptr(), physics_shape);
 
-		ob->materials.resize(results_out.materials.size());
-		for(size_t i=0; i<results_out.materials.size(); ++i)
+		GLObjectRef ob;
+		if(do_opengl_stuff)
 		{
-			setGLMaterialFromWorldMaterialWithLocalPaths(*results_out.materials[i], ob->materials[i]);
+			// Make opengl object
+			ob = gl_engine.allocateObject();
+			ob->ob_to_world_matrix = ob_to_world_matrix;
+
+			ob->mesh_data = mesh_data;
+
+			ob->materials.resize(results_out.materials.size());
+			for(size_t i=0; i<results_out.materials.size(); ++i)
+			{
+				setGLMaterialFromWorldMaterialWithLocalPaths(*results_out.materials[i], ob->materials[i]);
+			}
 		}
 
 		results_out.scale.set(use_scale, use_scale, use_scale);
@@ -563,13 +570,18 @@ void ModelLoading::makeGLObjectForModelFile(
 		// Move object so that it lies on the z=0 (ground) plane
 		const Matrix4f use_matrix = Matrix4f::identity(); // Matrix4f::translationMatrix(0, 0, -min_z)* ob_to_world_matrix;
 
-		GLObjectRef ob = gl_engine.allocateObject();
-		ob->ob_to_world_matrix = use_matrix;
-		ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip opengl calls=*/false);
+		GLObjectRef ob;
+		if(do_opengl_stuff)
+		{
+			ob = gl_engine.allocateObject();
+			ob->ob_to_world_matrix = use_matrix;
+			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip opengl calls=*/false);
 
-		ob->materials.resize(mesh->num_materials_referenced);
+			ob->materials.resize(mesh->num_materials_referenced);
+		}
+
 		results_out.materials/*loaded_materials_out*/.resize(mesh->num_materials_referenced);
-		for(uint32 i=0; i<ob->materials.size(); ++i)
+		for(uint32 i=0; i<mesh->num_materials_referenced; ++i)
 		{
 			results_out.materials[i] = new WorldMaterial();
 
@@ -584,15 +596,19 @@ void ModelLoading::makeGLObjectForModelFile(
 					// We will add the ambient and diffuse colours together to get the final colour, otherwise the result can be too dark.
 					const Colour3f use_col = sanitiseAlbedoColour(mats.materials[z].Ka + mats.materials[z].Kd); // Clamps to [0, 1]
 					const float roughness = roughnessForExponent(mats.materials[z].Ns_exponent);
+					const float alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
 
-					ob->materials[i].albedo_linear_rgb = use_col;
-					ob->materials[i].tex_path = tex_path;
-					ob->materials[i].roughness = roughness;
-					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
+					if(do_opengl_stuff)
+					{
+						ob->materials[i].albedo_linear_rgb = use_col;
+						ob->materials[i].tex_path = tex_path;
+						ob->materials[i].roughness = roughness;
+						ob->materials[i].alpha = alpha;
+					}
 
 					results_out.materials[i]->colour_rgb = toNonLinearSRGB(use_col);
 					results_out.materials[i]->colour_texture_url = tex_path;
-					results_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
+					results_out.materials[i]->opacity = ScalarVal(alpha);
 					results_out.materials[i]->roughness = ScalarVal(roughness);
 
 					found_mat = true;
@@ -601,16 +617,20 @@ void ModelLoading::makeGLObjectForModelFile(
 			if(!found_mat)
 			{
 				// Assign dummy mat
-				ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.7f, 0.7f, 0.7f));
-				//ob->materials[i].albedo_tex_path = "resources/obstacle.png";
-				ob->materials[i].roughness = 0.5f;
+				if(do_opengl_stuff)
+				{
+					ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.7f, 0.7f, 0.7f));
+					//ob->materials[i].albedo_tex_path = "resources/obstacle.png";
+					ob->materials[i].roughness = 0.5f;
+				}
 
 				//loaded_materials_out[i]->colour_texture_url = "resources/obstacle.png";
 				results_out.materials[i]->opacity = ScalarVal(1.f);
 				results_out.materials[i]->roughness = ScalarVal(0.5f);
 			}
 
-			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+			if(do_opengl_stuff)
+				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
 		results_out.batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 		results_out.gl_ob = ob;
@@ -637,18 +657,23 @@ void ModelLoading::makeGLObjectForModelFile(
 		results_out.axis = Vec3f(1,0,0);
 		results_out.angle = Maths::pi_2<float>();
 
-		GLObjectRef gl_ob = gl_engine.allocateObject();
-		gl_ob->ob_to_world_matrix = Matrix4f::rotationMatrix(normalise(results_out.axis.toVec4fVector()), results_out.angle) * Matrix4f::scaleMatrix(scale, scale, scale);
+		GLObjectRef gl_ob;
+		if(do_opengl_stuff)
+		{
+			gl_ob = gl_engine.allocateObject();
+			gl_ob->ob_to_world_matrix = Matrix4f::rotationMatrix(normalise(results_out.axis.toVec4fVector()), results_out.angle) * Matrix4f::scaleMatrix(scale, scale, scale);
 
-		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
-		gl_ob->mesh_data->animation_data = batched_mesh->animation_data;// gltf_data.anim_data;
+			gl_ob->mesh_data->animation_data = batched_mesh->animation_data;// gltf_data.anim_data;
+		}
 
 		const size_t bmesh_num_mats_referenced = batched_mesh->numMaterialsReferenced();
 		if(gltf_data.materials.materials.size() < bmesh_num_mats_referenced)
 			throw glare::Exception("mats.materials had incorrect size.");
 
-		gl_ob->materials.resize(bmesh_num_mats_referenced);
+		if(do_opengl_stuff)
+			gl_ob->materials.resize(bmesh_num_mats_referenced);
 		results_out.materials.resize(bmesh_num_mats_referenced);
 		for(uint32 i=0; i<bmesh_num_mats_referenced; ++i)
 		{
@@ -669,18 +694,20 @@ void ModelLoading::makeGLObjectForModelFile(
 			const float L_v = 2.0e5f; // luminance.  Chosen to have a bit of a glow in daylight.
 			const float L_e = L_v / (683.002f * 106.856e-9f); // spectral radiance.  See previous comments for equation.
 			const bool use_emission = gltf_mat.emissive_factor.nonZero();
-
-			gl_ob->materials[i].albedo_linear_rgb               = sanitiseAlbedoColour(gltf_mat.colour_factor); // Note that gltf_mat.colour_factor is already linear.
-			gl_ob->materials[i].tex_path                        = tex_path;
-			gl_ob->materials[i].metallic_roughness_tex_path     = metallic_roughness_tex_path;
-			gl_ob->materials[i].emission_tex_path               = emission_tex_path;
-			gl_ob->materials[i].normal_map_path                 = normal_map_path;
-			gl_ob->materials[i].emission_linear_rgb             = sanitiseEmissionColour(gltf_mat.emissive_factor); // Note that gltf_mat.emissive_factor is already linear.
-			gl_ob->materials[i].emission_scale                  = use_emission ? (L_e * 1.0e-9f) : 0.f; // 1.0e-9f factor to avoid floating point issues.
-			gl_ob->materials[i].roughness                       = gltf_mat.roughness;
-			gl_ob->materials[i].alpha                           = gltf_mat.alpha;
-			gl_ob->materials[i].transparent                     = gltf_mat.alpha < 1.0f;
-			gl_ob->materials[i].metallic_frac                   = gltf_mat.metallic;
+			if(do_opengl_stuff)
+			{
+				gl_ob->materials[i].albedo_linear_rgb               = sanitiseAlbedoColour(gltf_mat.colour_factor); // Note that gltf_mat.colour_factor is already linear.
+				gl_ob->materials[i].tex_path                        = tex_path;
+				gl_ob->materials[i].metallic_roughness_tex_path     = metallic_roughness_tex_path;
+				gl_ob->materials[i].emission_tex_path               = emission_tex_path;
+				gl_ob->materials[i].normal_map_path                 = normal_map_path;
+				gl_ob->materials[i].emission_linear_rgb             = sanitiseEmissionColour(gltf_mat.emissive_factor); // Note that gltf_mat.emissive_factor is already linear.
+				gl_ob->materials[i].emission_scale                  = use_emission ? (L_e * 1.0e-9f) : 0.f; // 1.0e-9f factor to avoid floating point issues.
+				gl_ob->materials[i].roughness                       = gltf_mat.roughness;
+				gl_ob->materials[i].alpha                           = gltf_mat.alpha;
+				gl_ob->materials[i].transparent                     = gltf_mat.alpha < 1.0f;
+				gl_ob->materials[i].metallic_frac                   = gltf_mat.metallic;
+			}
 
 			results_out.materials[i]->colour_rgb                = toNonLinearSRGB(gltf_mat.colour_factor);
 			results_out.materials[i]->colour_texture_url        = tex_path;
@@ -689,7 +716,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			results_out.materials[i]->normal_map_url            = normal_map_path;
 			results_out.materials[i]->emission_rgb              = toNonLinearSRGB(gltf_mat.emissive_factor);
 			results_out.materials[i]->emission_lum_flux_or_lum  = use_emission ? L_v : 0.f;
-			results_out.materials[i]->opacity                   = ScalarVal(gl_ob->materials[i].alpha);
+			results_out.materials[i]->opacity                   = ScalarVal(gltf_mat.alpha);
 			results_out.materials[i]->roughness.val             = gltf_mat.roughness;
 			results_out.materials[i]->opacity.val               = gltf_mat.alpha;
 			results_out.materials[i]->metallic_fraction.val     = gltf_mat.metallic;
@@ -720,17 +747,24 @@ void ModelLoading::makeGLObjectForModelFile(
 			// Move object so that it lies on the z=0 (ground) plane
 			const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z);// *ob_to_world_matrix;
 
-			GLObjectRef ob = gl_engine.allocateObject();
-			ob->ob_to_world_matrix = use_matrix;
-			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, false);
+			GLObjectRef ob;
+			if(do_opengl_stuff)
+			{
+				ob = gl_engine.allocateObject();
+				ob->ob_to_world_matrix = use_matrix;
+				ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, false);
 
-			ob->materials.resize(mesh->num_materials_referenced);
+				ob->materials.resize(mesh->num_materials_referenced);
+			}
 			results_out.materials.resize(mesh->num_materials_referenced);
-			for(uint32 i=0; i<ob->materials.size(); ++i)
+			for(uint32 i=0; i<mesh->num_materials_referenced; ++i)
 			{
 				// Assign dummy mat
-				ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+				if(do_opengl_stuff)
+				{
+					ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+					ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+				}
 
 				results_out.materials[i] = new WorldMaterial();
 			}
@@ -755,19 +789,26 @@ void ModelLoading::makeGLObjectForModelFile(
 			// Automatically scale object down until it is < x m across
 			scaleMesh(*mesh);
 			
-			GLObjectRef ob = gl_engine.allocateObject();
-			ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip_opengl_calls=*/false);
+			GLObjectRef ob;
+			if(do_opengl_stuff)
+			{
+				ob = gl_engine.allocateObject();
+				ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
+				ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip_opengl_calls=*/false);
 
-			ob->materials.resize(mesh->num_materials_referenced);
+				ob->materials.resize(mesh->num_materials_referenced);
+			}
 			results_out.materials.resize(mesh->num_materials_referenced);
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
-				ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				ob->materials[i].tex_path = "data/resources/obstacle.png";
-				ob->materials[i].roughness = 0.5f;
-				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+				if(do_opengl_stuff)
+				{
+					ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+					ob->materials[i].tex_path = "data/resources/obstacle.png";
+					ob->materials[i].roughness = 0.5f;
+					ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+				}
 
 				results_out.materials[i] = new WorldMaterial();
 				//results_out.materials[i]->colour_texture_url = "resources/obstacle.png";
@@ -792,22 +833,29 @@ void ModelLoading::makeGLObjectForModelFile(
 		// Automatically scale object down until it is < x m across
 		//scaleMesh(*bmesh);
 
-		GLObjectRef gl_ob = gl_engine.allocateObject();
-		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+		GLObjectRef gl_ob;
+		if(do_opengl_stuff)
+		{
+			gl_ob = gl_engine.allocateObject();
+			gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
+			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
-		gl_ob->mesh_data->animation_data = bmesh->animation_data;
-
+			gl_ob->mesh_data->animation_data = bmesh->animation_data;
+		}
 		const size_t num_mats = bmesh->numMaterialsReferenced();
-		gl_ob->materials.resize(num_mats);
+		if(do_opengl_stuff)
+			gl_ob->materials.resize(num_mats);
 		results_out.materials.resize(num_mats);
-		for(uint32 i=0; i<gl_ob->materials.size(); ++i)
+		for(uint32 i=0; i<num_mats; ++i)
 		{
 			// Assign dummy mat
-			gl_ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-			gl_ob->materials[i].tex_path = "data/resources/obstacle.png";
-			gl_ob->materials[i].roughness = 0.5f;
-			gl_ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+			if(do_opengl_stuff)
+			{
+				gl_ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+				gl_ob->materials[i].tex_path = "data/resources/obstacle.png";
+				gl_ob->materials[i].roughness = 0.5f;
+				gl_ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+			}
 
 			results_out.materials[i] = new WorldMaterial();
 			//results_out.materials[i]->colour_texture_url = "resources/obstacle.png";

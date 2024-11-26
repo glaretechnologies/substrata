@@ -681,6 +681,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			//"D:\\models\\readyplayerme_avatar_animation_18.glb", 
 			"D:\\models\\BMWCONCEPTBIKE\\bike no armature.glb",
 			//"N:\\glare-core\\trunk\\testfiles\\gltf\\BoxAnimated.glb", 
+			/*do_opengl_stuff=*/true,
 			results);
 
 		results.gl_ob->ob_to_world_matrix = Matrix4f::rotationMatrix(Vec4f(1,0,0,0), Maths::pi_2<float>()) * Matrix4f::uniformScaleMatrix(1);
@@ -847,7 +848,7 @@ void GUIClient::shutdown()
 }
 
 
-void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, DownloadingResourceInfo& resource_info)
+void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, const DownloadingResourceInfo& resource_info)
 {
 	//conPrint("-------------------GUIClient::startDownloadingResource()-------------------\nURL: " + url);
 	//if(shouldStreamResourceViaHTTP(url))
@@ -4285,21 +4286,36 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 	if(ui_interface->gamepadAttached())
 	{
 		// Since we don't have the shift key available, move a bit faster in flymode
-		const float gamepad_move_speed_factor = player_physics.flyModeEnabled() ? 4 : 1;
+		const float gamepad_move_speed_factor = player_physics.flyModeEnabled() ? 4.f : 2.f;
 		const float gamepad_rotate_speed = 400;
 
 		// Move vertically up or down in flymode.
-		if(ui_interface->gamepadButtonR2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * pow(ui_interface->gamepadButtonR2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
+		if(ui_interface->gamepadButtonL2() != 0) // Left trigger
+		{	
+			player_physics.processMoveUp(gamepad_move_speed_factor * -pow(ui_interface->gamepadButtonL2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
+		}
+		input_out.left_trigger = ui_interface->gamepadButtonL2();
 
-		if(ui_interface->gamepadButtonL2() != 0)
-		{	player_physics.processMoveUp(gamepad_move_speed_factor * -pow(ui_interface->gamepadButtonL2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
+		if(ui_interface->gamepadButtonR2() != 0) // Right trigger
+		{	
+			player_physics.processMoveUp(gamepad_move_speed_factor * pow(ui_interface->gamepadButtonR2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
+		}
+		input_out.right_trigger = ui_interface->gamepadButtonR2();
 
-		if(ui_interface->gamepadAxisLeftX() != 0)
-		{	player_physics.processStrafeRight(gamepad_move_speed_factor * pow(ui_interface->gamepadAxisLeftX(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
+		const float axis_left_x = ui_interface->gamepadAxisLeftX();
+		const float axis_left_y = ui_interface->gamepadAxisLeftY();
+		if(axis_left_x != 0)
+		{	
+			player_physics.processStrafeRight(gamepad_move_speed_factor * pow(axis_left_x, 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
+		}
+		if(axis_left_y != 0)
+		{	
+			player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(axis_left_y, 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
+		}
 
-		if(ui_interface->gamepadAxisLeftY() != 0)
-		{	player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(ui_interface->gamepadAxisLeftY(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false; }
+		input_out.axis_left_x = axis_left_x;
+		input_out.axis_left_y = axis_left_y;
+
 
 		const float axis_right_x = ui_interface->gamepadAxisRightX();
 		if(axis_right_x != 0)
@@ -4571,8 +4587,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		}
 		else // Else use crosshair as cursor:
 		{
-			const int gl_w = (float)opengl_engine->getMainViewPortWidth();
-			const int gl_h = (float)opengl_engine->getMainViewPortHeight();
+			const float gl_w = (float)opengl_engine->getMainViewPortWidth();
+			const float gl_h = (float)opengl_engine->getMainViewPortHeight();
 
 			cursor_pos = Vec2i((int)(gl_w / 2), (int)(gl_h / 2));
 			cursor_gl_coords = Vec2f(0.f);
@@ -8768,6 +8784,153 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 }
 
 
+// NOTE: Will probably be called from not the main thread!!!
+void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, PrintOutput& use_print_output)
+{
+	if(!this->world_state)
+		return;
+
+	if(connection_state != ServerConnectionState_Connected)
+	{
+		use_print_output.print("Can't create object while not connected to server.");
+		return;
+	}
+
+	if(new_world_object->object_type == WorldObject::ObjectType_Generic)
+	{
+		BatchedMeshRef batched_mesh;
+	
+		if(FileUtils::fileExists(new_world_object->model_url)) // If model_url is a local file path:
+		{
+			const std::string original_mesh_path = new_world_object->model_url;
+
+			// If the user wants to load a mesh that is not a bmesh file already, convert it to bmesh.
+			std::string bmesh_disk_path;
+			if(!hasExtension(original_mesh_path, "bmesh")) 
+			{
+				// Save as bmesh in temp location
+				bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+
+				// Use makeGLObjectForModelFile() which will load materials too, unpack GLBs etc.  We don't actually need the gl object.
+				ModelLoading::MakeGLObjectResults results;
+				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, original_mesh_path, /*do_opengl_stuff=*/false, results);
+
+				batched_mesh = results.batched_mesh;
+				new_world_object->materials = results.materials;
+				use_print_output.print("Using materials from '" + original_mesh_path + "' instead of from XML.");
+
+				BatchedMesh::WriteOptions write_options;
+				write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+				
+				batched_mesh->writeToFile(bmesh_disk_path, write_options); // TODO: show 'processing...' dialog while it compresses and saves?
+			}
+			else
+			{
+				batched_mesh = BatchedMesh::readFromFile(original_mesh_path, /*mem allocator=*/NULL);
+				bmesh_disk_path = original_mesh_path;
+			}
+
+			// Compute hash over model
+			const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+			const std::string original_filename = FileUtils::getFilename(original_mesh_path); // Use the original filename, not 'temp.bmesh'.
+			const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(::eatExtension(original_filename), "bmesh", model_hash); // Make a URL like "house_5624080605163579508.bmesh"
+
+			// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+			if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+				this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+			new_world_object->model_url = mesh_URL;
+		}
+		else // else if model URL is an actual Substrata URL:
+		{
+			// We need to download it if it's not present already.
+			if(!resource_manager->isFileForURLPresent(new_world_object->model_url))
+			{
+				startDownloadingResource(new_world_object->model_url, this->cam_controller.getPosition().toVec4fPoint(), 1.f, DownloadingResourceInfo());
+				
+				// Wait until downloaded...
+				Timer timer;
+				while(!resource_manager->isFileForURLPresent(new_world_object->model_url))
+				{
+					if(timer.elapsed() > 30)
+						throw glare::Exception("Failed to download model Resource from URL '" + new_world_object->model_url + "' in 30 s, abandoning object creation");
+					PlatformUtils::Sleep(5);
+				}
+			}
+			else
+			{
+				// Resource is present locally.
+				// Load mesh from disk.  TODO: cache loaded meshes for this method
+				batched_mesh = BatchedMesh::readFromFile(resource_manager->pathForURL(new_world_object->model_url), /*mem allocator=*/NULL); // NOTE: assuming URLs are bmeshes.
+			}
+		}
+
+		new_world_object->setAABBOS(batched_mesh->aabb_os);
+		new_world_object->max_model_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+	}
+
+	// Search for an existing object with the same model url and transform
+	{
+		WorldStateLock lock(this->world_state->mutex);
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			const WorldObject* ob = it.getValue().ptr();
+			if(ob->model_url == new_world_object->model_url &&
+				ob->pos == new_world_object->pos)
+			{
+				std::string msg = "An object with this model_url ('" + new_world_object->model_url + "') and position " + new_world_object->pos.toStringMaxNDecimalPlaces(2) + " is already present in world, not adding.";
+				use_print_output.print(msg);
+				return;
+			}
+		}
+	}
+
+
+
+	setMaterialFlagsForObject(new_world_object.ptr());
+
+
+	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+	WorldObject::GetDependencyOptions options;
+	std::set<DependencyURL> paths;
+	new_world_object->getDependencyURLSetBaseLevel(options, paths);
+	for(auto it = paths.begin(); it != paths.end(); ++it)
+	{
+		const std::string path_or_URL = it->URL;
+		if(FileUtils::fileExists(path_or_URL)) // If the URL is a local path:
+		{
+			const std::string path = path_or_URL;
+			const uint64 hash = FileChecksum::fileChecksum(path);
+			const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
+			this->resource_manager->copyLocalFileToResourceDir(path, resource_URL);
+		}
+	}
+
+	// Convert texture paths on the object to URLs
+	new_world_object->convertLocalPathsToURLS(*this->resource_manager);
+
+	//if(!task_manager)
+	//	task_manager = new glare::TaskManager("GUIClient general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
+	glare::TaskManager temp_task_manager("GUIClient temp task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8));
+
+	// Generate LOD textures for materials, if not already present on disk.
+	// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
+	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, temp_task_manager);
+
+	// Send CreateObject message to server
+	{
+		use_print_output.print("Sending Create Object message to server..");
+		SocketBufferOutStream temp_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		MessageUtils::initPacket(temp_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(temp_packet);
+
+		enqueueMessageToSend(*this->client_thread, temp_packet);
+	}
+}
+
+
 bool GUIClient::selectedObjectIsVoxelOb() const
 {
 	return this->selected_ob.nonNull() && this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup;
@@ -9091,6 +9254,46 @@ void GUIClient::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 }
 
 
+std::string GUIClient::serialiseAllObjectsInParcelToXML(size_t& num_obs_serialised_out)
+{
+	std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	xml += "<objects>\n";
+	
+	num_obs_serialised_out = 0;
+
+	Lock lock(world_state->mutex);
+
+	// Get current parcel
+	const Parcel* cur_parcel = NULL;
+	for(auto& it : world_state->parcels)
+	{
+		const Parcel* parcel = it.second.ptr();
+		if(parcel->pointInParcel(cam_controller.getFirstPersonPosition()))
+		{
+			cur_parcel = parcel;
+			break;
+		}
+	}
+
+	if(cur_parcel)
+	{
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			const WorldObject* ob = it.getValue().ptr();
+			if(cur_parcel->pointInParcel(ob->pos))
+			{
+				xml += ob->serialiseToXML(/*tab_depth=*/1);
+				xml += "\n";
+				num_obs_serialised_out++;
+			}
+		}
+	}
+	
+	xml += "</objects>\n";
+	return xml;
+}
+
+
 void GUIClient::enableMaterialisationEffectOnOb(WorldObject& ob)
 {
 	// conPrint("GUIClient::enableMaterialisationEffectOnOb()");
@@ -9146,6 +9349,7 @@ void GUIClient::summonBike()
 		ModelLoading::MakeGLObjectResults results;
 		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, 
 			"D:\\models\\BMWCONCEPTBIKE\\optimized-dressed_fix7_offset4.glb", // This is exported from Blender from source_resources/bike-optimized-dressed_fix7_offset.blend
+			/*do_opengl_stuff=*/true,
 			results);
 
 		std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<materials>\n";
@@ -9273,6 +9477,7 @@ void GUIClient::summonHovercar()
 		ModelLoading::MakeGLObjectResults results;
 		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, 
 			"D:\\models\\peugot_closed.glb",
+			/*do_opengl_stuff=*/true,
 			results);
 
 		std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<materials>\n";
@@ -9695,6 +9900,7 @@ void GUIClient::objectEdited()
 
 				ModelLoading::MakeGLObjectResults results;
 				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, mesh_path,
+					/*do_opengl_stuff=*/true,
 					results
 				);
 			
@@ -11592,15 +11798,15 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
 
 						if(upright || !ob->vehicle_script->isRightable())
-							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to enter vehicle" : "Press [X] on gamepad to enter vehicle", cursor_gl_coords);
+							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to enter vehicle" : "Press [A] on gamepad to enter vehicle", cursor_gl_coords);
 						else
-							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to right vehicle" : "Press [X] on gamepad to right vehicle", cursor_gl_coords);
+							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to right vehicle" : "Press [A] on gamepad to right vehicle", cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
 					if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
 					{
-						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to use" : "Press [X] on gamepad to use", cursor_gl_coords);
+						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to use" : "Press [A] on gamepad to use", cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
@@ -12225,6 +12431,13 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 
 void GUIClient::gamepadButtonXChanged(bool pressed)
 {
+	//if(pressed)
+	//	useActionTriggered(/*use_mouse_cursor=*/false);
+}
+
+
+void GUIClient::gamepadButtonAChanged(bool pressed)
+{
 	if(pressed)
 		useActionTriggered(/*use_mouse_cursor=*/false);
 }
@@ -12623,7 +12836,7 @@ void GUIClient::createModelObject(const std::string& local_model_path)
 	}
 
 	ModelLoading::MakeGLObjectResults results;
-	ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, local_model_path,
+	ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, local_model_path, /*do_opengl_stuff=*/false,
 		results
 	);
 
