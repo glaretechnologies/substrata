@@ -175,6 +175,7 @@ void GlWidget::initGamepadsSlot()
 
 		connect(gamepad, SIGNAL(buttonXChanged(bool)), this, SLOT(buttonXChangedSlot(bool)));
 		connect(gamepad, SIGNAL(buttonXChanged(bool)), this, SIGNAL(gamepadButtonXChangedSignal(bool)));
+		connect(gamepad, SIGNAL(buttonAChanged(bool)), this, SIGNAL(gamepadButtonAChangedSignal(bool)));
 	}
 #endif
 }

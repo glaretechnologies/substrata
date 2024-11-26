@@ -90,6 +90,7 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client DiagnosticsWidget)
 	addMocFileRule(gui_client TerrainSpecSectionWidget)
 	addMocFileRule(gui_client WorldSettingsWidget)
+	addMocFileRule(gui_client CreateObjectsDialog)
 
 	addMocFileRule(qt FileSelectWidget)
 	addMocFileRule(qt RealControl)
@@ -123,6 +124,7 @@ if(NOT USE_SDL)
 	addUIFileRule(gui_client DiagnosticsWidget)
 	addUIFileRule(gui_client TerrainSpecSectionWidget)
 	addUIFileRule(gui_client WorldSettingsWidget)
+	addUIFileRule(gui_client CreateObjectsDialog)
 
 	addUIFileRule(qt FileSelectWidget)
 	addUIFileRule(qt RealControl)
@@ -372,6 +374,9 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.ui
 		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.h
+		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.ui
 	)
 endif()
 
@@ -408,6 +413,7 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/moc_DiagnosticsWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_TerrainSpecSectionWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_WorldSettingsWidget.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_CreateObjectsDialog.cpp
 
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
@@ -435,6 +441,7 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/ui_DiagnosticsWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_TerrainSpecSectionWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_WorldSettingsWidget.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_CreateObjectsDialog.h
 	)
 
 

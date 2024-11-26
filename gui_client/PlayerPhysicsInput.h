@@ -25,6 +25,7 @@ public:
 	void clear()
 	{
 		SHIFT_down = CTRL_down = A_down = W_down = S_down = D_down = space_down = B_down = C_down = left_down = right_down = up_down = down_down = false;
+		left_trigger = right_trigger = axis_left_x = axis_left_y = 0;
 	}
 
 	uint32 toBitFlags() const
@@ -64,4 +65,5 @@ public:
 
 
 	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down, B_down;
+	float left_trigger, right_trigger, axis_left_x, axis_left_y;
 };

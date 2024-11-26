@@ -94,6 +94,8 @@ private slots:;
 	void on_actionSummon_Boat_triggered();
 	void on_actionMute_Audio_toggled(bool checked);
 	void on_actionSave_Object_To_Disk_triggered();
+	void on_actionSave_Parcel_Objects_To_Disk_triggered();
+	void on_actionLoad_Objects_From_Disk_triggered();
 
 	void diagnosticsWidgetChanged();
 	void diagnosticsReloadTerrain();
@@ -109,6 +111,7 @@ private slots:;
 	void glWidgetFocusOut();
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 	void gamepadButtonXChanged(bool pressed);
+	void gamepadButtonAChanged(bool pressed);
 	void glWidgetViewportResized(int w, int h);
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 	void glWidgetCutShortcutTriggered();

@@ -94,6 +94,7 @@ signals:;
 	void pasteShortcutActivated();
 	void focusOutSignal();
 	void gamepadButtonXChangedSignal(bool pressed);
+	void gamepadButtonAChangedSignal(bool pressed);
 
 private slots:
 	void gamepadInputSlot();
