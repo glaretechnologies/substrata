@@ -77,13 +77,18 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 	{
 		float forward = 0.0f, right = 0.0f, up = 0.f, brake = 0.0f, hand_brake = 0.0f;
 		// Determine acceleration and brake
+		forward = -physics_input.axis_left_y;
 		if (physics_input.W_down || physics_input.up_down)
 			forward = 1.0f;
 		else if(physics_input.S_down || physics_input.down_down)
 			forward = -1.0f;
 
+		//forward = myMax(forward, myMax(physics_input.left_trigger, physics_input.right_trigger));
+		
+
 
 		// Hand brake will cancel gas pedal
+		up = physics_input.right_trigger - physics_input.left_trigger;
 		if(physics_input.space_down)
 		{
 			hand_brake = 1.0f;
@@ -94,6 +99,7 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 			up = -1.f;
 
 		// Steering
+		right = physics_input.axis_left_x;
 		if(physics_input.A_down)
 			right = -1.0f;
 		else if(physics_input.D_down)
@@ -329,27 +335,57 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 		const float max_trace_dist = 12.f;
 		physics_world.traceRay(trace_origin, trace_dir, max_trace_dist, /*ignore body id=*/JPH::BodyID(), trace_results);
 
-		if(trace_results.hit_object)
-		{
-			const Vec4f hitpos = trace_origin + trace_dir * trace_results.hit_t;
+		float water_hit_dist = (physics_world.getWaterZ() - trace_origin[2]) / trace_dir[2];
+		printVar(water_hit_dist);
 
-			for(int z=0; z<1; ++z)
+		// If trace hit water surface, and water hit distance is less than other object hit distance, or no other hit:
+		if((water_hit_dist >= 0) && (water_hit_dist < max_trace_dist) && (!trace_results.hit_object || (trace_results.hit_t > water_hit_dist)))
+		{
+			const Vec4f hitpos = trace_origin + trace_dir * water_hit_dist;
+			const float vel = Maths::lerp(20.f, 6.f, water_hit_dist / max_trace_dist);
+
+			for(int z=0; z<4; ++z)
 			{
-				const float vel = Maths::lerp(20.f, 6.f, trace_results.hit_t / max_trace_dist);
 				Particle particle;
 				particle.pos = hitpos;
-				particle.area = 0.00001f;
-				const float xy_spread = 0.f;
+				particle.area = 0.000001f;
+				const float xy_spread = 1.f;
 				particle.vel = (side_vec + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 0.2f, 0)) * vel;
-				particle.colour = Colour3f(0.6f, 0.4f, 0.3f); // Reddish col
+				particle.colour = Colour3f(0.6f);
 				particle.cur_opacity = 0.5f;
 				particle.dopacity_dt = -0.06f;
 				particle.particle_type = Particle::ParticleType_Smoke;
 				particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
 				particle.width = 2;
 				particle.dwidth_dt = 1;
-				particle.die_when_hit_surface = false;
+				particle.die_when_hit_surface = true;
 				particle_manager->addParticle(particle);
+			}
+		}
+		else
+		{
+			if(trace_results.hit_object)
+			{
+				const Vec4f hitpos = trace_origin + trace_dir * trace_results.hit_t;
+
+				for(int z=0; z<1; ++z)
+				{
+					const float vel = Maths::lerp(20.f, 6.f, trace_results.hit_t / max_trace_dist);
+					Particle particle;
+					particle.pos = hitpos;
+					particle.area = 0.00001f;
+					const float xy_spread = 0.f;
+					particle.vel = (side_vec + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 0.2f, 0)) * vel;
+					particle.colour = Colour3f(0.6f, 0.4f, 0.3f); // Reddish col
+					particle.cur_opacity = 0.5f;
+					particle.dopacity_dt = -0.06f;
+					particle.particle_type = Particle::ParticleType_Smoke;
+					particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+					particle.width = 2;
+					particle.dwidth_dt = 1;
+					particle.die_when_hit_surface = false;
+					particle_manager->addParticle(particle);
+				}
 			}
 		}
 		// --------------------------------------------------------------------------------------------------

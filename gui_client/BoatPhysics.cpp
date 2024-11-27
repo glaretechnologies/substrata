@@ -90,7 +90,10 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 	if(physics_input.SHIFT_down) // boost!
 		forward *= 2.f;
 
+	forward = myMax(forward, myMax(physics_input.left_trigger, physics_input.right_trigger) * 2.f);
+
 	// Steering
+	right = physics_input.axis_left_x;
 	if(physics_input.A_down)
 		right = -1.0f;
 	else if(physics_input.D_down)
