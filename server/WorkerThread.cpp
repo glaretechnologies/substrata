@@ -742,6 +742,16 @@ static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject&
 }
 
 
+// Is the client connected to their personal world?
+// Precondition: user_name is valid
+static bool connectedToUsersPersonalWorld(const std::string& user_name, const std::string& connected_world_name)
+{
+	assert(!user_name.empty());
+
+	return !connected_world_name.empty() && (user_name == connected_world_name);
+}
+
+
 // NOTE: world state mutex should be locked before calling this method.
 static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, bool allow_light_mapper_bot_full_perms,
 	WorldStateLock& lock)
@@ -751,7 +761,7 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& u
 		return (user_id == ob.creator_id) || // If the user created/owns the object
 			isGodUser(user_id) || // or if the user is the god user (id 0)
 			(allow_light_mapper_bot_full_perms && (user_name == "lightmapperbot")) || // lightmapper bot has full write permissions for now.
-			(!connected_world_name.empty() && (user_name == connected_world_name)) || // or if this is the user's personal world
+			connectedToUsersPersonalWorld(user_name, connected_world_name) || // or if this is the user's personal world
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 	}
 	else
@@ -762,7 +772,22 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& u
 static bool userConnectedToTheirPersonalWorldOrGodUser(const UserID& user_id, const std::string& user_name, const std::string& connected_world_name)
 {
 	return isGodUser(user_id) || // if the user is the god user (id 0)
-		(!connected_world_name.empty() && (user_name == connected_world_name)); // or if this is the user's personal world
+		connectedToUsersPersonalWorld(user_name, connected_world_name); // or if this is the user's personal world
+}
+
+
+// Does the user have permission to create the given object with its current transformation?
+// NOTE: world state mutex should be locked before calling this method.
+static bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, WorldStateLock& lock)
+{
+	if(user_id.valid())
+	{
+		return isGodUser(user_id) || // if the user is the god user
+			connectedToUsersPersonalWorld(user_name, connected_world_name) || // or if this is the user's personal world
+			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock); // Or this object is in a parcel we have write permissions for.
+	}
+	else
+		return false;
 }
 
 
@@ -1885,31 +1910,45 @@ void WorkerThread::doRun()
 							}
 							else
 							{
-								new_ob->creator_id = client_user_id;
-								new_ob->created_time = TimeStamp::currentTime();
-								new_ob->last_modified_time = new_ob->created_time;
-								new_ob->creator_name = client_user_name;
-
-								std::set<DependencyURL> URLs;
-								WorldObject::GetDependencyOptions options;
-								new_ob->getDependencyURLSetBaseLevel(options, URLs);
-								for(auto it = URLs.begin(); it != URLs.end(); ++it)
-									sendGetFileMessageIfNeeded(it->URL);
-
-								// Insert object into world state
+								// Check permissions
+								bool have_permissions = false;
 								{
 									::WorldStateLock lock(world_state->mutex);
+									have_permissions = userHasObjectCreationPermissions(*new_ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, lock);
+								}
 
-									new_ob->uid = world_state->getNextObjectUID();
-									new_ob->state = WorldObject::State_JustCreated;
-									new_ob->from_remote_other_dirty = true;
-									cur_world_state->addWorldObjectAsDBDirty(new_ob, lock);
-									cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);
-									cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
+								if(have_permissions)
+								{
+									new_ob->creator_id = client_user_id;
+									new_ob->created_time = TimeStamp::currentTime();
+									new_ob->last_modified_time = new_ob->created_time;
+									new_ob->creator_name = client_user_name;
 
-									markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), new_ob.ptr(), lock);
+									std::set<DependencyURL> URLs;
+									WorldObject::GetDependencyOptions options;
+									new_ob->getDependencyURLSetBaseLevel(options, URLs);
+									for(auto it = URLs.begin(); it != URLs.end(); ++it)
+										sendGetFileMessageIfNeeded(it->URL);
 
-									world_state->markAsChanged();
+									// Insert object into world state
+									{
+										::WorldStateLock lock(world_state->mutex);
+
+										new_ob->uid = world_state->getNextObjectUID();
+										new_ob->state = WorldObject::State_JustCreated;
+										new_ob->from_remote_other_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(new_ob, lock);
+										cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);
+										cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
+
+										markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), new_ob.ptr(), lock);
+
+										world_state->markAsChanged();
+									}
+								}
+								else // else if user doesn't have permissions to create objects:
+								{
+									writeErrorMessageToClient(socket, "You do not have the permissions to create the object with this position.");
 								}
 							}
 
