@@ -96,6 +96,7 @@ private slots:;
 	void on_actionSave_Object_To_Disk_triggered();
 	void on_actionSave_Parcel_Objects_To_Disk_triggered();
 	void on_actionLoad_Objects_From_Disk_triggered();
+	void on_actionDelete_All_Parcel_Objects_triggered();
 
 	void diagnosticsWidgetChanged();
 	void diagnosticsReloadTerrain();

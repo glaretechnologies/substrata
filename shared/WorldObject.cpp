@@ -420,6 +420,18 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	}
 }
 
+WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_type_string)
+{
+	if(ob_type_string == "generic") return ObjectType_Generic;
+	if(ob_type_string == "hypercard") return ObjectType_Hypercard;
+	if(ob_type_string == "voxel group") return ObjectType_VoxelGroup;
+	if(ob_type_string == "spotlight") return ObjectType_Spotlight;
+	if(ob_type_string == "web view") return ObjectType_WebView;
+	if(ob_type_string == "video") return ObjectType_Video;
+	if(ob_type_string == "text") return ObjectType_Text;
+	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
+}
+
 
 static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 21;
 /*
@@ -834,7 +846,7 @@ std::string WorldObject::serialiseToXML(int tab_depth) const
 	s += std::string(tab_depth, '\t') + "<object>\n";
 
 	XMLWriteUtils::writeUInt64ToXML(s, "uid", uid.value(), tab_depth + 1);
-	XMLWriteUtils::writeUInt32ToXML(s, "object_type", (uint32)object_type, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "object_type", objectTypeString(object_type), tab_depth + 1);
 	XMLWriteUtils::writeStringElemToXML(s, "model_url", model_url, tab_depth + 1);
 
 	// Write materials
@@ -897,10 +909,8 @@ Reference<WorldObject> WorldObject::loadFromXMLElem(const std::string& object_fi
 	Reference<WorldObject> ob = new WorldObject();
 	ob->uid = UID(XMLParseUtils::parseUInt64WithDefault(elem, "uid", UID::invalidUID().value()));
 	
-	const uint64 ob_type = XMLParseUtils::parseUInt64WithDefault(elem, "ob_type", (uint64)WorldObject::ObjectType_Generic);
-	if(ob_type > NUM_OBJECT_TYPES)
-		throw glare::Exception("Invalid object type: " + toString(ob_type));
-	ob->object_type = (WorldObject::ObjectType)ob_type;
+	const std::string ob_type_str = XMLParseUtils::parseStringWithDefault(elem, "object_type", "generic");
+	ob->object_type = objectTypeForString(ob_type_str);
 	
 	ob->model_url = XMLParseUtils::parseStringWithDefault(elem, "model_url", "");
 

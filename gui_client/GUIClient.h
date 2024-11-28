@@ -224,6 +224,7 @@ public:
 	void removeObScriptingInfo(WorldObject* ob);
 	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
 	std::string serialiseAllObjectsInParcelToXML(size_t& num_obs_serialised_out);
+	void deleteAllParcelObjects(size_t& num_obs_deleted_out);
 	void setMaterialFlagsForObject(WorldObject* ob);
 public:
 	bool objectModificationAllowed(const WorldObject& ob);

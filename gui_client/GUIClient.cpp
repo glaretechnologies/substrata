@@ -8784,6 +8784,15 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 }
 
 
+static inline bool transformsEqual(const WorldObject& a, const WorldObject& b)
+{
+	return a.pos == b.pos &&
+		a.scale == b.scale &&
+		a.axis == b.axis && 
+		a.angle == b.angle;
+}
+
+
 // NOTE: Will probably be called from not the main thread!!!
 void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, PrintOutput& use_print_output)
 {
@@ -8847,6 +8856,7 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 			// We need to download it if it's not present already.
 			if(!resource_manager->isFileForURLPresent(new_world_object->model_url))
 			{
+				use_print_output.print("Downloading model '" + new_world_object->model_url + "'...");
 				startDownloadingResource(new_world_object->model_url, this->cam_controller.getPosition().toVec4fPoint(), 1.f, DownloadingResourceInfo());
 				
 				// Wait until downloaded...
@@ -8854,34 +8864,58 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 				while(!resource_manager->isFileForURLPresent(new_world_object->model_url))
 				{
 					if(timer.elapsed() > 30)
-						throw glare::Exception("Failed to download model Resource from URL '" + new_world_object->model_url + "' in 30 s, abandoning object creation");
+						throw glare::Exception("Failed to download model resource from URL '" + new_world_object->model_url + "' in 30 s, abandoning object creation. (ob UID: " + new_world_object->uid.toString() + ")");
+					if(resource_manager->isInDownloadFailedURLs(new_world_object->model_url))
+						throw glare::Exception("Failed to download model resource from URL '" + new_world_object->model_url + "', abandoning object creation. (ob UID: " + new_world_object->uid.toString() + ")");
+
 					PlatformUtils::Sleep(5);
 				}
 			}
-			else
-			{
-				// Resource is present locally.
-				// Load mesh from disk.  TODO: cache loaded meshes for this method
-				batched_mesh = BatchedMesh::readFromFile(resource_manager->pathForURL(new_world_object->model_url), /*mem allocator=*/NULL); // NOTE: assuming URLs are bmeshes.
-			}
+
+
+			// Resource is present locally.
+			// Load mesh from disk.  TODO: cache loaded meshes for this method
+			batched_mesh = BatchedMesh::readFromFile(resource_manager->pathForURL(new_world_object->model_url), /*mem allocator=*/NULL); // NOTE: assuming URLs are bmeshes.
 		}
 
 		new_world_object->setAABBOS(batched_mesh->aabb_os);
 		new_world_object->max_model_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 	}
 
-	// Search for an existing object with the same model url and transform
+	// Search for an existing object with the same model url or voxel group and transform.
+	// If found, don't create a new object, as we assume the user doesn't want duplicate objects with the same transform.
 	{
 		WorldStateLock lock(this->world_state->mutex);
 		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
 		{
 			const WorldObject* ob = it.getValue().ptr();
-			if(ob->model_url == new_world_object->model_url &&
-				ob->pos == new_world_object->pos)
+			if(ob->object_type == new_world_object->object_type)
 			{
-				std::string msg = "An object with this model_url ('" + new_world_object->model_url + "') and position " + new_world_object->pos.toStringMaxNDecimalPlaces(2) + " is already present in world, not adding.";
-				use_print_output.print(msg);
-				return;
+				if(ob->object_type == WorldObject::ObjectType_Generic)
+				{
+					if(transformsEqual(*ob, *new_world_object) && (ob->model_url == new_world_object->model_url))
+					{
+						use_print_output.print("An object with this model_url ('" + new_world_object->model_url + "') and position " + new_world_object->pos.toStringMaxNDecimalPlaces(2) + " is already present in world, not adding.");
+						return;
+					}
+				}
+				else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+				{
+					if(transformsEqual(*ob, *new_world_object) && (ob->getCompressedVoxels() == new_world_object->getCompressedVoxels()))
+					{
+						use_print_output.print("An object with this voxel group and position " + new_world_object->pos.toStringMaxNDecimalPlaces(2) + " is already present in world, not adding.");
+						return;
+					}
+				}
+				else
+				{
+					// For other object types (spotlights etc.) just check position for now.
+					if(transformsEqual(*ob, *new_world_object))
+					{
+						use_print_output.print("An object with this position " + new_world_object->pos.toStringMaxNDecimalPlaces(2) + " is already present in world, not adding.");
+						return;
+					}
+				}
 			}
 		}
 	}
@@ -9288,9 +9322,51 @@ std::string GUIClient::serialiseAllObjectsInParcelToXML(size_t& num_obs_serialis
 			}
 		}
 	}
+	else
+		throw glare::Exception("You are not in a parcel, cannot save objects");
 	
 	xml += "</objects>\n";
 	return xml;
+}
+
+
+void GUIClient::deleteAllParcelObjects(size_t& num_obs_deleted_out)
+{
+	num_obs_deleted_out = 0;
+
+	Lock lock(world_state->mutex);
+
+	// Get current parcel
+	const Parcel* cur_parcel = NULL;
+	for(auto& it : world_state->parcels)
+	{
+		const Parcel* parcel = it.second.ptr();
+		if(parcel->pointInParcel(cam_controller.getFirstPersonPosition()))
+		{
+			cur_parcel = parcel;
+			break;
+		}
+	}
+
+	if(cur_parcel)
+	{
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			const WorldObject* ob = it.getValue().ptr();
+			if(cur_parcel->pointInParcel(ob->pos))
+			{
+				// Send DestroyObject packet for this object
+				MessageUtils::initPacket(scratch_packet, Protocol::DestroyObject);
+				writeToStream(ob->uid, scratch_packet);
+
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+				num_obs_deleted_out++;
+			}
+		}
+	}
+	else
+		throw glare::Exception("You are not in a parcel, cannot delete objects");
 }
 
 

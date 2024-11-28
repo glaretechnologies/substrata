@@ -3066,7 +3066,15 @@ public:
 
 					print("Creating object...");
 
-					gui_client->createObjectLoadedFromXML(ob, *this);
+					try
+					{
+						gui_client->createObjectLoadedFromXML(ob, *this);
+					}
+					catch(glare::Exception& e)
+					{
+						// Catch exception and continue with next object.
+						print("Error loading object from disk: " + e.what());
+					}
 				}
 			}
 
@@ -3075,6 +3083,7 @@ public:
 		catch(glare::Exception& e)
 		{
 			print("Error loading object(s) from disk: " + e.what());
+			print("Done.");
 		}
 	}
 
@@ -3143,6 +3152,15 @@ void MainWindow::on_actionLoad_Objects_From_Disk_triggered()
 			task_manager.cancelAndWaitForTasksToComplete(); // Interrupt the LoadObjectsFromXMLTask if it hasn't completed already.
 		}
 	}
+}
+
+
+void MainWindow::on_actionDelete_All_Parcel_Objects_triggered()
+{
+	size_t num_obs_deleted;
+	gui_client.deleteAllParcelObjects(num_obs_deleted);
+
+	gui_client.showInfoNotification("Deleted " + toString(num_obs_deleted) + " objects.");
 }
 
 
