@@ -253,6 +253,7 @@ public:
 	static const uint64 NUM_OBJECT_TYPES = 7;
 
 	static std::string objectTypeString(ObjectType t);
+	static ObjectType objectTypeForString(const std::string& ob_type_string);
 
 	static void test();
 
@@ -271,7 +272,7 @@ private:
 	js::AABBox aabb_os; // Object-space AABB
 public:
 	UID uid;
-	uint32 object_type;
+	ObjectType object_type;
 
 	static const size_t MAX_URL_SIZE                      = 1000;
 	static const size_t MAX_SCRIPT_SIZE                   = 10000;

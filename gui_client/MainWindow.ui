@@ -35,7 +35,7 @@
      <x>0</x>
      <y>0</y>
      <width>1426</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuWindow">
@@ -260,8 +260,8 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>76</width>
-          <height>223</height>
+          <width>69</width>
+          <height>233</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -357,8 +357,8 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>76</width>
-          <height>224</height>
+          <width>69</width>
+          <height>234</height>
          </rect>
         </property>
        </widget>
@@ -709,6 +709,11 @@
   <action name="actionLoad_Objects_From_Disk">
    <property name="text">
     <string>Load Object(s) From Disk</string>
+   </property>
+  </action>
+  <action name="actionDelete_All_Parcel_Objects">
+   <property name="text">
+    <string>Delete All Parcel Objects</string>
    </property>
   </action>
  </widget>

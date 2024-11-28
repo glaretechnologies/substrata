@@ -132,7 +132,7 @@ ResourceRef ResourceManager::getOrCreateResourceForURL(const std::string& URL) /
 		ResourceRef resource = new Resource(
 			URL, 
 			raw_local_path,
-			FileUtils::fileExists(abs_path) ? Resource::State_Present : Resource::State_NotPresent,
+			(!raw_local_path.empty() && FileUtils::fileExists(abs_path)) ? Resource::State_Present : Resource::State_NotPresent,
 			UserID::invalidUserID()
 		);
 		resource_for_url[URL] = resource;
