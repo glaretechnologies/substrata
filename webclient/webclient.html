@@ -35,6 +35,9 @@
 		<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
 
 	<script type='text/javascript'>
+
+		isNode = false; // To fix runtime error with new Emscripten
+
 		var statusElement = document.getElementById('status');
 		
 		var Module = {
