@@ -982,8 +982,10 @@ add_definitions(-DBASIS_NO_IMAGE_READERS=1) # Disable PNG and JPG reading code i
 
 
 
-
-
+#======================== Indigo ===========================
+if(INDIGO_SUPPORT)
+	add_definitions(-DINDIGO_SUPPORT=1)
+endif()
 
 
 SET(rc_stuff "../icons/substrata.rc")
@@ -1110,7 +1112,7 @@ endif()
 
 if(EMSCRIPTEN)
 	target_link_libraries(${CURRENT_TARGET}
-		${GLARE_CORE_LIBS_ENV}/SDL/sdl_build_emscripten/libSDL2.a
+		${SDL_BUILD_DIR}/libSDL2.a
 		Jolt # Jolt physics
 		Opus
 	)
@@ -1183,8 +1185,8 @@ elseif(WIN32)
 
 	
 		
-		#debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
-		#optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
+		debug 		C:/programming/indigo/output/vs2022/indigo_x64/Debug/indigo_sdk_lib.lib
+		optimized 	C:/programming/indigo/output/vs2022/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
 
 
 		# Media foundation video reading:
