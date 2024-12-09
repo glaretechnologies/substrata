@@ -37,7 +37,9 @@ Copyright Glare Technologies Limited 2016 -
 #include <utils/XMLParseUtils.h>
 #include <zstd.h>
 #include <pugixml.hpp>
-
+#if INDIGO_SUPPORT
+#include <dll/include/SceneNodeModel.h>
+#endif
 
 InstanceInfo::~InstanceInfo()
 {
@@ -49,9 +51,11 @@ InstanceInfo::~InstanceInfo()
 
 WorldObject::WorldObject() noexcept
 {
+#if !defined(__clang__) // Clang complains with "warning: offset of on non-standard-layout type 'WorldObject' [-Winvalid-offsetof]".
 	static_assert(offsetof(WorldObject, centroid_ws) == 0);
 	static_assert(offsetof(WorldObject, aabb_ws_longest_len) == 16);
 	static_assert(offsetof(WorldObject, aabb_os) == 32);
+#endif
 
 	creator_id = UserID::invalidUserID();
 	flags = COLLIDABLE_FLAG;

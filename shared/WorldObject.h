@@ -404,7 +404,9 @@ public:
 
 	Reference<ImageMap<uint8, UInt8ComponentValueTraits> > hypercard_map;
 
-	//Reference<Indigo::SceneNodeModel> indigo_model_node;
+#if INDIGO_SUPPORT
+	Reference<Indigo::SceneNodeModel> indigo_model_node;
+#endif
 
 	bool is_selected;
 
