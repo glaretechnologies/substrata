@@ -238,9 +238,18 @@ Install Emscripten SDK, see instructions at https://emscripten.org/docs/getting_
 You can just follow the 'Installation instructions using the emsdk (recommended)' instructions.
 
 
+Install Ninja
+-------------
+Ninja is a build tool that we need for Emscripten builds.
+Download from https://github.com/ninja-build/ninja/releases
+Unzip, add the directory to your PATH environment variable.
+Make sure you can execute the ninja executable from the command line.
+
+
 Making Emscripten SDL build
 ---------------------------
 Assuming you have followed the instructions in 'Building SDL' section above already:
+(Note that the node version may have changed, you may need to change '16.20.0_64bit' to something else)
 
 	cd C:\programming\SDL
 	mkdir sdl_2.30.9_build_emscripten
