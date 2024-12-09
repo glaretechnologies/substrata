@@ -8,13 +8,13 @@
 
 <p>Download the server distribution for your operating system:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.4.1.7z">SubstrataServer_v1.4.1.7z</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.5.7.7z">SubstrataServer_v1.5.7.7z</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServerMacOS_v1.4.1_x64.tar.gz">SubstrataServerMacOS_v1.4.1_x64.tar.gz</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServerMacOS_v1.5.4_x64.tar.gz">SubstrataServerMacOS_v1.5.4_x64.tar.gz</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.4.1.tar.gz">SubstrataServer_v1.4.1.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.5.7.tar.gz">SubstrataServer_v1.5.7.tar.gz</a>
 </p>
 
 <p>Extract the contents into a convenient directory, e.g. c:/substrata_server</p>
@@ -87,7 +87,8 @@ If you don't have OpenSSL installed, download from our server: <a href="https://
 	and extract the contents into your server_state_dir.</p>
 
 
-
+<p>For the webclient server files, download this zip file: <a href="https://downloads.indigorenderer.com/dist/cyberspace/substrata_webclient_1.5.7.zip">substrata_webclient_1.5.7.zip</a>,
+	and extract the contents into a dir called 'webclient' in your server_state_dir</p>
 
 <p>Your server_state_dir (i.e. C:\Users\YOURNAME\AppData\Roaming\Substrata), should now looks something like:</p>
 
@@ -102,14 +103,26 @@ Substrata
                |            |
                |            ---------- xbot_glb_3242545562312850498.bmesh  
                |
-               |
                -----------webserver_public_files
+               |           |
+               |           ---------- logo_main_page.png, logo_small.png, main.css
+               |
+               -----------webclient
                            |
-                            ---------- logo_main_page.png, logo_small.png, main.css
+                           |---------- data
+                           |            |
+                           |            ---- gl_data, resources
+                           |
+                           ----------- gui_client.data, gui_client.js, gui_client.wasm, webclient.html
               
                           
 </pre>
-<p>If so, you are ready to properly run the server!</p>
+<p>Now open up substrata_server_config.xml with a text editor.  You will need to set <i>webclient_dir</i>: The location where the webclient files are found.
+Set it to the dir called 'webclient' in your server_state_dir as used above, e.g. </p>
+
+<pre class="code-block">
+&lt;webclient_dir&gt;C:\Users\YOURNAME\AppData\Roaming\Substrata\webclient&lt;/webclient_dir&gt;
+</pre>
 
 
 <h2>Run the server</h2>
@@ -126,7 +139,7 @@ cd c:/substrata_server
 
 <h2>Visiting in your Substrata client</h2>
 
-<p>Run Substrata, then enter sub://localhost in the URL bar:</p>
+<p>Run Substrata, then enter sub://localhost (sub://127.0.0.1 on Mac) in the URL bar:</p>
 
 <img src="/files/substrata_localhost.PNG" alt="Substrata connecting to localhost" class="article-image" />
 
@@ -169,7 +182,5 @@ Here is a slightly out of date, but still very helpful tutorial, walking you thr
 <h2>TODO</h2>
 
 <p>To document:</p>
-
-<p>* How to set up the webclient files for your server, so users can access your Substrata world via a web browser.</p>
 
 <p>* How to use a TLS certificate from a public certificate authority like Let's Encrypt, instead of a self-signed certificate.</p>
