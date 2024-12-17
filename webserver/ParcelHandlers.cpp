@@ -210,6 +210,8 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			if(num == 0)
 				page += "This parcel is not up for auction on this site.";
 
+			/* // Don't show past auctions for now.
+			
 			page += "<h2>Past auctions</h2>         \n";
 			num = 0;
 			for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
@@ -234,6 +236,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			if(num == 0)
 				page += "There are no past auctions for this parcel.";
+			*/
 
 
 
