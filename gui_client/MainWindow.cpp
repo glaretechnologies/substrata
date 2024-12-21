@@ -35,6 +35,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "URLParser.h"
 #include "CEF.h"
 #include "ThreadMessages.h"
+#include "MeshBuilding.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -154,7 +155,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui->menuWindow->addAction(ui->worldSettingsDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->chatDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->helpInfoDockWidget->toggleViewAction());
-	//ui->menuWindow->addAction(ui->indigoViewDockWidget->toggleViewAction());
+#if INDIGO_SUPPORT
+	ui->menuWindow->addAction(ui->indigoViewDockWidget->toggleViewAction());
+#endif
 	ui->menuWindow->addAction(ui->diagnosticsDockWidget->toggleViewAction());
 
 	settings = new QSettings("Glare Technologies", "Cyberspace");
@@ -615,21 +618,21 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 {
-	/*conPrint("--------------------------------------- MainWindow::onIndigoViewDockWidgetVisibilityChanged (visible: " + boolToString(visible) + ") --------------");
+	conPrint("--------------------------------------- MainWindow::onIndigoViewDockWidgetVisibilityChanged (visible: " + boolToString(visible) + ") --------------");
 	if(visible)
 	{
 		this->ui->indigoView->initialise(this->base_dir_path);
 
-		if(this->world_state.nonNull())
+		if(gui_client.world_state)
 		{
-			Lock lock(this->world_state->mutex);
-			this->ui->indigoView->addExistingObjects(*this->world_state, *this->resource_manager);
+			Lock lock(gui_client.world_state->mutex);
+			this->ui->indigoView->addExistingObjects(*gui_client.world_state, *gui_client.resource_manager);
 		}
 	}
 	else
 	{
 		this->ui->indigoView->shutdown();
-	}*/
+	}
 }
 
 
@@ -1114,6 +1117,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	mouse_cursor_state.alt_key_down = alt_key_down;
 	mouse_cursor_state.ctrl_key_down = ctrl_key_down;
 	gui_client.timerEvent(mouse_cursor_state);
+
+#if INDIGO_SUPPORT
+	if(this->ui->indigoView)
+		this->ui->indigoView->timerThink();
+#endif
 
 	updateDiagnostics();
 	
@@ -2013,6 +2021,79 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 }
 
 
+void MainWindow::on_actionAdd_Decal_triggered()
+{
+	// Offset down by 0.25 to allow for centering with voxel width of 0.5.
+	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + gui_client.cam_controller.getForwardsVec() * 2.0f - Vec3d(0.25, 0.25, 0.25);
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = gui_client.haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+		return;
+	}
+
+
+	const Quatf facing_rot = Quatf::fromAxisAndAngle(Vec3f(0, 0, 1), Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>())); // Round to nearest 45 degree angle.
+	const Quatf x_y_plane_to_vert_rot = Quatf::fromAxisAndAngle(Vec3f(1, 0, 0), Maths::pi_2<float>());
+
+	Vec4f axis;
+	float angle;
+	(facing_rot * x_y_plane_to_vert_rot).toAxisAndAngle(axis, angle);
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_Generic;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(axis);
+	new_world_object->angle = angle;
+	new_world_object->scale = Vec3f(1.f, 1.f, 1.f);
+	new_world_object->max_model_lod_level = 0;
+
+
+	std::string unit_cube_mesh_URL = "unit_cube_bmesh_7263660735544605926.bmesh";
+	if(!gui_client.resource_manager->isFileForURLPresent(unit_cube_mesh_URL))
+	{
+		Reference<Indigo::Mesh> indigo_mesh = MeshBuilding::makeUnitCubeIndigoMesh();
+		BatchedMeshRef mesh = BatchedMesh::buildFromIndigoMesh(*indigo_mesh);
+		const std::string bmesh_disk_path = PlatformUtils::getTempDirPath() + "/unit_cube.bmesh";
+		mesh->writeToFile(bmesh_disk_path);
+		unit_cube_mesh_URL = gui_client.resource_manager->copyLocalFileToResourceDirIfNotPresent(bmesh_disk_path);
+		assert(unit_cube_mesh_URL == "unit_cube_bmesh_7263660735544605926.bmesh");
+	}
+
+	new_world_object->model_url = unit_cube_mesh_URL;
+
+	new_world_object->materials.resize(1);
+	new_world_object->materials[0] = new WorldMaterial();
+	new_world_object->materials[0]->flags = WorldMaterial::DECAL_FLAG;
+
+	const js::AABBox aabb_os = gui_client.image_cube_shape.getAABBOS();
+	new_world_object->setAABBOS(aabb_os);
+
+
+	// Send CreateObject message to server
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+	}
+
+
+
+	showInfoNotification("Decal Object created.");
+
+	// Deselect any currently selected object
+	gui_client.deselectObject();
+}
+
+
 void MainWindow::on_actionAdd_Voxels_triggered()
 {
 	// Offset down by 0.25 to allow for centering with voxel width of 0.5.
@@ -2835,6 +2916,7 @@ void MainWindow::on_actionOptions_triggered()
 		gui_client.load_distance2 = dist*dist;
 
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
+		gui_client.opengl_engine->setSSAOEnabled(settings->value(MainOptionsDialog::SSAOKey(), /*default val=*/false).toBool());
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
 	}

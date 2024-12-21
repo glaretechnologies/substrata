@@ -127,7 +127,7 @@ void ParticleManager::addParticle(const Particle& particle_)
 	}
 
 	ob->materials[0].materialise_start_time = opengl_engine->getCurrentTime(); // For participating media and decals: materialise_start_time = spawn time
-	ob->materials[0].materialise_upper_z = particle_.dopacity_dt; // For participating media and decals: materialise_upper_z = dopacity/dt
+	ob->materials[0].dopacity_dt = particle_.dopacity_dt;
 
 	ob->ob_to_world_matrix = Matrix4f::translationMatrix(particle_.pos) * Matrix4f::uniformScaleMatrix(particle_.width);
 	ob->ob_to_world_matrix.e[1] = particle_.theta; // Since object-space vert positions are just (0,0,0) for particle geometry, we can store info in the model matrix.

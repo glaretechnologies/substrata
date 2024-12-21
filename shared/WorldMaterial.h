@@ -85,6 +85,7 @@ public:
 	static const uint32 HOLOGRAM_FLAG               = 4; // E.g. just emission, no light scattering.
 	static const uint32 USE_VERT_COLOURS_FOR_WIND   = 8;
 	static const uint32 DOUBLE_SIDED_FLAG           = 16;
+	static const uint32 DECAL_FLAG                  = 32;
 
 	uint32 flags;
 
@@ -92,6 +93,8 @@ public:
 	inline bool colourTexHasAlpha() const { return BitUtils::isBitSet(flags, COLOUR_TEX_HAS_ALPHA_FLAG); }
 
 	inline int minLODLevel() const { return BitUtils::isBitSet(flags, MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0; }
+
+	inline bool isDecal() const { return BitUtils::isBitSet(flags, DECAL_FLAG); }
 
 
 	Reference<WorldMaterial> clone() const

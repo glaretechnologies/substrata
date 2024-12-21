@@ -88,7 +88,6 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 
 	// Add decal
 	GLObjectRef ob = new GLObject();
-	ob->decal = true;
 	ob->mesh_data = opengl_engine->getCubeMeshData();
 	ob->materials.resize(1);
 	ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
@@ -103,7 +102,7 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 	ob->ob_to_world_matrix = foamTransform(decal);
 
 	ob->materials[0].materialise_start_time = opengl_engine->getCurrentTime(); // For participating media and decals: materialise_start_time = spawn time
-	ob->materials[0].materialise_upper_z = decal.dopacity_dt; // For participating media and decals: materialise_upper_z = dopacity/dt
+	ob->materials[0].dopacity_dt = decal.dopacity_dt;
 
 	opengl_engine->addObject(ob);
 

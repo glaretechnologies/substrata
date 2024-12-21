@@ -953,8 +953,15 @@ static void doOneMainLoopIter()
 		mouse_cursor_state.ctrl_key_down = (mod_state & KMOD_CTRL) != 0;
 		mouse_cursor_state.alt_key_down  = (mod_state & KMOD_ALT)  != 0;
 	}
-
-	gui_client->timerEvent(mouse_cursor_state);
+	
+	try
+	{
+		gui_client->timerEvent(mouse_cursor_state);
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("ERROR: Excep while calling gui_client->timerEvent(): " + e.what());
+	}
 
 	if(stats_timer->elapsed() > 1.0)
 	{

@@ -325,11 +325,11 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	if(use_scale[2] == 0) use_scale[2] = 1.0e-6f;
 
 	const Vec4f unit_axis = normalise(ob->axis.toVec4fVector());
-	const Matrix4f rot = Matrix4f::rotationMatrix(unit_axis, ob->angle);
+	const Matrix4f R = Matrix4f::rotationMatrix(unit_axis, ob->angle);
 	Matrix4f ob_to_world;
-	ob_to_world.setColumn(0, rot.getColumn(0) * use_scale[0]);
-	ob_to_world.setColumn(1, rot.getColumn(1) * use_scale[1]);
-	ob_to_world.setColumn(2, rot.getColumn(2) * use_scale[2]);
+	ob_to_world.setColumn(0, R.getColumn(0) * use_scale[0]);
+	ob_to_world.setColumn(1, R.getColumn(1) * use_scale[1]);
+	ob_to_world.setColumn(2, R.getColumn(2) * use_scale[2]);
 	ob_to_world.setColumn(3, translation);
 
 	/* Compute upper-left inverse transpose matrix.
@@ -338,25 +338,36 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	= (S^1 R^1)^T
 	= R^1^T S^1^T
 	= R S^1
+
+	Compute upper-left adjugate transpose matrix.
+	upper left adjugate transpose:
+	= adj(RS)^T = det(RS) ((RS)^-1)^T
+	= det(RS) (S^1 R^1)^T
+	= det(RS) R^1^T S^1^T
+	= det(RS) R S^1
 	*/
 
-	const Vec4f recip_scale = maskWToZero(div(Vec4f(1.f), use_scale));
+	const float det = use_scale[0] * use_scale[1] * use_scale[2];
+
+	assert(Maths::approxEq<float>(det, (R * Matrix4f::scaleMatrix(use_scale[0], use_scale[1], use_scale[2])).upperLeftDeterminant()));
+
+	const Vec4f det_over_scale = maskWToZero(div(Vec4f(det), use_scale)); // det(RS) S^-1
 
 	// Right-multiplying with a scale matrix is equivalent to multiplying column 0 with scale_x, column 1 with scale_y etc.
-	Matrix4f ob_to_world_inv_transpose;
-	ob_to_world_inv_transpose.setColumn(0, rot.getColumn(0) * recip_scale[0]);
-	ob_to_world_inv_transpose.setColumn(1, rot.getColumn(1) * recip_scale[1]);
-	ob_to_world_inv_transpose.setColumn(2, rot.getColumn(2) * recip_scale[2]);
-	ob_to_world_inv_transpose.setColumn(3, Vec4f(0, 0, 0, 1));
+	Matrix4f ob_to_world_normal_matrix;
+	ob_to_world_normal_matrix.setColumn(0, R.getColumn(0) * copyToAll<0>(det_over_scale));
+	ob_to_world_normal_matrix.setColumn(1, R.getColumn(1) * copyToAll<1>(det_over_scale));
+	ob_to_world_normal_matrix.setColumn(2, R.getColumn(2) * copyToAll<2>(det_over_scale));
+	ob_to_world_normal_matrix.setColumn(3, Vec4f(0, 0, 0, 1));
 
 	// Update transform in 3d engine.
 	GLObject* gl_ob = ob->opengl_engine_ob.ptr();
 	if(gl_ob)
 	{
 		gl_ob->ob_to_world_matrix = ob_to_world;
-		gl_ob->ob_to_world_inv_transpose_matrix = ob_to_world_inv_transpose;
+		gl_ob->ob_to_world_normal_matrix = ob_to_world_normal_matrix;
 		gl_ob->aabb_ws = gl_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
-		opengl_engine->objectTransformDataChanged(*gl_ob);
+		opengl_engine->objectTransformDataChanged(*gl_ob, det);
 
 		// Update object world space AABB (used for computing LOD level).
 		// For objects with animated rotation, we want to compute an AABB without rotation, otherwise we can get a world-space AABB

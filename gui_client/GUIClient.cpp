@@ -86,6 +86,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../opengl/MeshPrimitiveBuilding.h"
 #include <indigo/TextureServer.h>
 #include <opengl/OpenGLMeshRenderData.h>
+#include <opengl/SSAODebugging.h>
 #include <Escaping.h>
 #if !defined(EMSCRIPTEN)
 #include <VirtualMachine.h>
@@ -3109,6 +3110,12 @@ void GUIClient::updateSelectedObjectPlacementBeam()
 			}
 		}
 	}
+
+	if(selected_ob && selected_ob->edit_aabb)
+	{
+		selected_ob->edit_aabb->ob_to_world_matrix = obToWorldMatrix(*selected_ob) * Matrix4f::translationMatrix(-0.03f, -0.03f, -0.03f);
+		opengl_engine->updateObjectTransformData(*selected_ob->edit_aabb);
+	}
 }
 
 
@@ -4348,6 +4355,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 
 void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
+	if(world_state)
 	{
 		WorldStateLock lock(this->world_state->mutex);
 		scripted_ob_proximity_checker.think(cam_controller.getPosition().toVec4fPoint(), lock);
@@ -4719,7 +4727,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		this->last_eval_script_time = timer.elapsed();
 	}
 
-	opengl_engine->setCurrentTime((float)cur_time);
+	if(opengl_engine)
+		opengl_engine->setCurrentTime((float)cur_time);
 
 	if(this->world_state.nonNull())
 	{
@@ -4735,7 +4744,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	PlayerPhysicsInput physics_input;
 
-	const bool world_render_has_keyboard_focus = gl_ui->getKeyboardFocusWidget().isNull();
+	const bool world_render_has_keyboard_focus = gl_ui ? gl_ui->getKeyboardFocusWidget().isNull() : false;
 
 	{
 		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
@@ -7030,8 +7039,12 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 		// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 		// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 		RayTraceResult trace_results;
-		physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
-			/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), trace_results);
+		if(physics_world)
+			physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
+				/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), trace_results);
+		else
+			trace_results.hit_object = NULL;
+
 		
 		if(trace_results.hit_object)
 		{
@@ -12244,6 +12257,15 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 }
 
 
+static bool isObjectDecal(const WorldObjectRef& ob)
+{
+	for(size_t i=0; i<ob->materials.size(); ++i)
+		if(ob->materials[i]->isDecal())
+			return true;
+	return false;
+}
+
+
 void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 {
 	assert(ob.nonNull());
@@ -12313,6 +12335,21 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 		updateSelectedObjectPlacementBeam();
 	}
 
+	if(isObjectDecal(ob))
+	{
+		const float edge_w = 0.03f;
+		ob->edit_aabb = opengl_engine->makeCuboidEdgeAABBObject(
+			ob->getAABBOS().min_, 
+			ob->getAABBOS().max_ + Vec4f(2*edge_w, 2*edge_w, 2*edge_w, 0),  // Extend cube slightly so decal isn't applied to edges.
+			Colour4f(0.6f, 0.8f, 0.7f, 1.f), 
+			/*edge_width_scale=*/edge_w
+		);
+
+		ob->edit_aabb->ob_to_world_matrix = obToWorldMatrix(*ob) * Matrix4f::translationMatrix(-edge_w, -edge_w, -edge_w);
+		opengl_engine->addObject(ob->edit_aabb);
+	}
+
+
 	// Show object editor, hide parcel editor.
 	ui_interface->setObjectEditorFromOb(*selected_ob, selected_mat_index, /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser()); // Update the editor widget with values from the selected object
 	ui_interface->setObjectEditorEnabled(true);
@@ -12368,6 +12405,13 @@ void GUIClient::deselectObject()
 		{
 			opengl_engine->removeObject(ob_denied_move_markers.back());
 			ob_denied_move_markers.pop_back();
+		}
+
+		// Remove edit box
+		if(selected_ob->edit_aabb)
+		{
+			opengl_engine->removeObject(selected_ob->edit_aabb);
+			selected_ob->edit_aabb = NULL;
 		}
 
 		// Remove visualisation objects
@@ -13214,6 +13258,75 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 	}
 }
 
+
+class MySSAODebuggingDepthQuerier : public SSAODebugging::DepthQuerier
+{
+public:
+	virtual float depthForPosSS(const Vec2f& pos_ss) // returns positive depth
+	{
+		const float sensor_width = ::sensorWidth();
+		const float sensor_height = sensor_width / gui_client->opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
+		const float lens_sensor_dist = ::lensSensorDist();
+
+		const Vec4f forwards = gui_client->cam_controller.getForwardsVec().toVec4fVector();
+		const Vec4f right = gui_client->cam_controller.getRightVec().toVec4fVector();
+		const Vec4f up = gui_client->cam_controller.getUpVec().toVec4fVector();
+
+		//Vec4f trace_dir = gui_client->cam_controller.getForwardsVec().toVec4fVector();
+		const float s_x = sensor_width  * (pos_ss.x - 0.5f); // (float)(pixel_pos_x - gl_w/2) / gl_w;  // dist right on sensor from centre of sensor
+		const float s_y = sensor_height * (pos_ss.y - 0.5f); // (float)(pixel_pos_y - gl_h/2) / gl_h; // dist down on sensor from centre of sensor
+
+		const float r_x = s_x / lens_sensor_dist;
+		const float r_y = s_y / lens_sensor_dist;
+
+		const Vec4f trace_dir = normalise(forwards + right * r_x + up * r_y);
+
+		RayTraceResult results;
+		gui_client->physics_world->traceRay(gui_client->cam_controller.getPosition().toVec4fPoint(), trace_dir, 10000.f, JPH::BodyID(), results);
+
+		// Temp: add marker in opengl scene
+		GLObjectRef ob = gui_client->opengl_engine->makeSphereObject(0.02f, Colour4f(1,1,0,1));
+		ob->ob_to_world_matrix = Matrix4f::translationMatrix(gui_client->cam_controller.getPosition().toVec4fPoint() + trace_dir * results.hit_t) *  Matrix4f::uniformScaleMatrix(0.03f);
+		gui_client->opengl_engine->addObject(ob);
+
+
+		return results.hit_t * dot(trace_dir, gui_client->cam_controller.getForwardsVec().toVec4fVector()); // Adjust from distance to depth
+	}
+	
+	virtual Vec3f normalForPosSS(const Vec2f& pos_ss)
+	{
+		const float sensor_width = ::sensorWidth();
+		const float sensor_height = sensor_width / gui_client->opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
+		const float lens_sensor_dist = ::lensSensorDist();
+
+		const Vec4f forwards = gui_client->cam_controller.getForwardsVec().toVec4fVector();
+		const Vec4f right = gui_client->cam_controller.getRightVec().toVec4fVector();
+		const Vec4f up = gui_client->cam_controller.getUpVec().toVec4fVector();
+
+		//Vec4f trace_dir = gui_client->cam_controller.getForwardsVec().toVec4fVector();
+		const float s_x = sensor_width  * (pos_ss.x - 0.5f); // (float)(pixel_pos_x - gl_w/2) / gl_w;  // dist right on sensor from centre of sensor
+		const float s_y = sensor_height * (pos_ss.y - 0.5f); // (float)(pixel_pos_y - gl_h/2) / gl_h; // dist down on sensor from centre of sensor
+
+		const float r_x = s_x / lens_sensor_dist;
+		const float r_y = s_y / lens_sensor_dist;
+
+		const Vec4f trace_dir = normalise(forwards + right * r_x + up * r_y);
+
+		RayTraceResult results;
+		gui_client->physics_world->traceRay(gui_client->cam_controller.getPosition().toVec4fPoint(), gui_client->cam_controller.getForwardsVec().toVec4fVector(), 10000.f, JPH::BodyID(), results);
+
+
+		// Temp: add marker in opengl scene
+		GLObjectRef ob = gui_client->opengl_engine->makeSphereObject(0.02f, Colour4f(1,0,0,1));
+		ob->ob_to_world_matrix = Matrix4f::translationMatrix(gui_client->cam_controller.getPosition().toVec4fPoint() + trace_dir * results.hit_t) *  Matrix4f::uniformScaleMatrix(0.03f);
+		gui_client->opengl_engine->addObject(ob);
+
+		return Vec3f(results.hit_normal_ws);
+	}
+	GUIClient* gui_client;
+};
+
+
 void GUIClient::keyPressed(KeyEvent& e)
 {
 	gl_ui->handleKeyPressedEvent(e);
@@ -13306,27 +13419,32 @@ void GUIClient::keyPressed(KeyEvent& e)
 	}
 	else if(e.key == Key::Key_P)
 	{
+		SSAODebugging debugging;
+		MySSAODebuggingDepthQuerier depth_querier;
+		depth_querier.gui_client = this;
+		debugging.computeReferenceAO(*opengl_engine, depth_querier);
+
 		// Spawn particle for testing
-		for(int i=0; i<1; ++i)
-		{
-			Particle particle;
-			particle.pos = (cam_controller.getFirstPersonPosition() + cam_controller.getForwardsVec()).toVec4fPoint(); // Vec4f(0,0,1.5,1);
+		//for(int i=0; i<1; ++i)
+		//{
+		//	Particle particle;
+		//	particle.pos = (cam_controller.getFirstPersonPosition() + cam_controller.getForwardsVec()).toVec4fPoint(); // Vec4f(0,0,1.5,1);
 
-			particle.vel = Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(),rng.unitRandom() * 2,0) * 1.f;
-		
-			particle.area = 0.01; // 0.000001f;
+		//	particle.vel = Vec4f(-1 + 2*rng.unitRandom(),-1 + 2*rng.unitRandom(),rng.unitRandom() * 2,0) * 1.f;
+		//
+		//	particle.area = 0.01; // 0.000001f;
 
-			particle.colour = Colour3f(0.75f);
+		//	particle.colour = Colour3f(0.75f);
 
-			particle.particle_type = Particle::ParticleType_Smoke;
+		//	particle.particle_type = Particle::ParticleType_Smoke;
 
-			particle.dwidth_dt = 0;
-			particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+		//	particle.dwidth_dt = 0;
+		//	particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
 
-			particle.dopacity_dt = 0;//-0.01f;
+		//	particle.dopacity_dt = 0;//-0.01f;
 
-			particle_manager->addParticle(particle);
-		}
+		//	particle_manager->addParticle(particle);
+		//}
 
 
 #if 0
