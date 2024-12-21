@@ -383,6 +383,7 @@ public:
 	Reference<GLLight> opengl_light;
 	Reference<PhysicsObject> physics_object;
 
+	Reference<GLObject> edit_aabb; // Visualisation of the object bounding box, for editing, for decal objects etc.
 
 	Reference<GLObject> diagnostics_gl_ob; // For diagnostics visualisation
 	Reference<GLObject> diagnostics_unsmoothed_gl_ob; // For diagnostics visualisation

@@ -51,6 +51,7 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 	
 	connect(this->windCheckBox,						SIGNAL(toggled(bool)),				this, SIGNAL(materialChanged()));
 	connect(this->doubleSidedCheckBox,				SIGNAL(toggled(bool)),				this, SIGNAL(materialChanged()));
+	connect(this->decalCheckBox,					SIGNAL(toggled(bool)),				this, SIGNAL(materialChanged()));
 }
 
 
@@ -122,6 +123,7 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 	
 	SignalBlocker::setChecked(this->windCheckBox,        (mat.flags & WorldMaterial::USE_VERT_COLOURS_FOR_WIND) != 0);
 	SignalBlocker::setChecked(this->doubleSidedCheckBox, (mat.flags & WorldMaterial::DOUBLE_SIDED_FLAG) != 0);
+	SignalBlocker::setChecked(this->decalCheckBox,       (mat.flags & WorldMaterial::DECAL_FLAG) != 0);
 
 	updateColourButton();
 }
@@ -167,6 +169,7 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 
 	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND, this->windCheckBox->isChecked());
 	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::DOUBLE_SIDED_FLAG, this->doubleSidedCheckBox->isChecked());
+	BitUtils::setOrZeroBit(mat_out.flags, WorldMaterial::DECAL_FLAG, this->decalCheckBox->isChecked());
 }
 
 

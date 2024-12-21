@@ -158,12 +158,10 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 }
 
 
-PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(VertexBufferAllocator& allocator)
+Reference<Indigo::Mesh> MeshBuilding::makeUnitCubeIndigoMesh()
 {
 	Indigo::MeshRef mesh = new Indigo::Mesh();
 	mesh->num_uv_mappings = 0;
-
-	// The y=0 and y=1 faces are the ones the image is actually applied to.
 
 	const unsigned int uv_indices[]   = {0, 0, 0};
 
@@ -242,6 +240,14 @@ PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(VertexBufferAllocator& alloc
 	}
 
 	mesh->endOfModel();
+
+	return mesh;
+}
+
+
+PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(VertexBufferAllocator& allocator)
+{
+	Indigo::MeshRef mesh = makeUnitCubeIndigoMesh();
 
 	PhysicsShape physics_shape;
 	physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);

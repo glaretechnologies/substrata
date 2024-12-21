@@ -59,6 +59,7 @@ private slots:;
 	void on_actionAdd_Web_View_triggered();
 	void on_actionAdd_Video_triggered();
 	void on_actionAdd_Audio_Source_triggered();
+	void on_actionAdd_Decal_triggered();
 	void on_actionCopy_Object_triggered();
 	void on_actionPaste_Object_triggered();
 	void on_actionCloneObject_triggered();

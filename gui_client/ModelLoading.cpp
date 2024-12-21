@@ -97,9 +97,10 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	opengl_mat.normal_map_path = mat.normal_map_url;
 	opengl_mat.transparent = (mat.opacity.val < 1.0f) || BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG); // Hologram is done with transparent material shader.
 
-	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
+	opengl_mat.hologram             = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
 	opengl_mat.use_wind_vert_shader = BitUtils::isBitSet(mat.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND);
-	opengl_mat.simple_double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
+	opengl_mat.simple_double_sided  = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
+	opengl_mat.decal                = BitUtils::isBitSet(mat.flags, WorldMaterial::DECAL_FLAG);
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
@@ -163,9 +164,10 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
-	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
+	opengl_mat.hologram             = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
 	opengl_mat.use_wind_vert_shader = BitUtils::isBitSet(mat.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND);
-	opengl_mat.simple_double_sided = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
+	opengl_mat.simple_double_sided  = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
+	opengl_mat.decal                = BitUtils::isBitSet(mat.flags, WorldMaterial::DECAL_FLAG);
 
 	opengl_mat.fresnel_scale = 0.3f;
 
