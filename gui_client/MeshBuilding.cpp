@@ -255,25 +255,27 @@ PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(VertexBufferAllocator& alloc
 }
 
 
+// See MeshPrimitiveBuilding::make3DArrowMesh()
 Reference<OpenGLMeshRenderData> MeshBuilding::makeRotationArcHandleMeshData(VertexBufferAllocator& allocator, float arc_end_angle)
 {
 	const int arc_res = 32;
-	const int res = 20; // Number of vertices round cylinder
+	const int res = 20; // Number of vertices around cylinder
+
 
 	js::Vector<Vec3f, 16> verts;
-	verts.resize(res * arc_res * 4 + res * 4 * 2); // Arrow head is res * 4 verts, 2 arrow heads.
+	verts.resize(res * arc_res * 4 + res * 8 * 2); // Arrow head is res * 8 verts, 2 arrow heads.
 	js::Vector<Vec3f, 16> normals;
-	normals.resize(res * arc_res * 4 + res * 4 * 2);
+	normals.resize(res * arc_res * 4 + res * 8 * 2);
 	js::Vector<Vec2f, 16> uvs;
-	uvs.resize(res * arc_res * 4 + res * 4 * 2);
+	uvs.resize(res * arc_res * 4 + res * 8 * 2);
 	js::Vector<uint32, 16> indices;
-	indices.resize(res * arc_res * 6 + res * 6 * 2); // two tris per quad
+	indices.resize(res * arc_res * 6 + res * 12 * 2); // two tris per quad
 
 	const Vec4f basis_j(0,0,1,0);
 
 	const float cyl_r = 0.02f;
 	const float head_len = 0.2f;
-	const float head_r = 0.04f;
+	const float head_r = 0.04f; // Radius at base of head
 
 	const float arc_start_angle = 0;
 
@@ -347,32 +349,64 @@ Reference<OpenGLMeshRenderData> MeshBuilding::makeRotationArcHandleMeshData(Vert
 				Vec4f normal1(basis_i * cos(angle     ) + basis_j * sin(angle     ));
 				Vec4f normal2(basis_i * cos(next_angle) + basis_j * sin(next_angle));
 
-				normals[v_offset + i*4 + 0] = toVec3f(normal1);
-				normals[v_offset + i*4 + 1] = toVec3f(normal2);
-				normals[v_offset + i*4 + 2] = toVec3f(normal2);
-				normals[v_offset + i*4 + 3] = toVec3f(normal1);
+				normals[v_offset + i*8 + 0] = toVec3f(normal1);
+				normals[v_offset + i*8 + 1] = toVec3f(normal2);
+				normals[v_offset + i*8 + 2] = toVec3f(normal2);
+				normals[v_offset + i*8 + 3] = toVec3f(normal1);
 
 				Vec4f v0 = cyl_centre_0 + ((basis_i * cos(angle     ) + basis_j * sin(angle     )) * head_r);
 				Vec4f v1 = cyl_centre_0 + ((basis_i * cos(next_angle) + basis_j * sin(next_angle)) * head_r);
 				Vec4f v2 = cyl_centre_0 + (dir * head_len);
 				Vec4f v3 = cyl_centre_0 + (dir * head_len);
 
-				verts[v_offset + i*4 + 0] = toVec3f(v0);
-				verts[v_offset + i*4 + 1] = toVec3f(v1);
-				verts[v_offset + i*4 + 2] = toVec3f(v2);
-				verts[v_offset + i*4 + 3] = toVec3f(v3);
+				verts[v_offset + i*8 + 0] = toVec3f(v0);
+				verts[v_offset + i*8 + 1] = toVec3f(v1);
+				verts[v_offset + i*8 + 2] = toVec3f(v2);
+				verts[v_offset + i*8 + 3] = toVec3f(v3);
 
-				uvs[v_offset + i*4 + 0] = Vec2f(0.f);
-				uvs[v_offset + i*4 + 1] = Vec2f(0.f);
-				uvs[v_offset + i*4 + 2] = Vec2f(0.f);
-				uvs[v_offset + i*4 + 3] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 0] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 1] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 2] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 3] = Vec2f(0.f);
 
-				indices[i_offset + i*6 + 0] = v_offset + i*4 + 0; 
-				indices[i_offset + i*6 + 1] = v_offset + i*4 + 1; 
-				indices[i_offset + i*6 + 2] = v_offset + i*4 + 2; 
-				indices[i_offset + i*6 + 3] = v_offset + i*4 + 0;
-				indices[i_offset + i*6 + 4] = v_offset + i*4 + 2;
-				indices[i_offset + i*6 + 5] = v_offset + i*4 + 3;
+				indices[i_offset + i*12 + 0] = v_offset + i*8 + 0; 
+				indices[i_offset + i*12 + 1] = v_offset + i*8 + 1; 
+				indices[i_offset + i*12 + 2] = v_offset + i*8 + 2; 
+				indices[i_offset + i*12 + 3] = v_offset + i*8 + 0;
+				indices[i_offset + i*12 + 4] = v_offset + i*8 + 2;
+				indices[i_offset + i*12 + 5] = v_offset + i*8 + 3;
+			}
+
+			// Draw disc on bottom of arrow head
+			{
+				Vec4f normal = -dir;
+
+				normals[v_offset + i*8 + 4] = toVec3f(normal);
+				normals[v_offset + i*8 + 5] = toVec3f(normal);
+				normals[v_offset + i*8 + 6] = toVec3f(normal);
+				normals[v_offset + i*8 + 7] = toVec3f(normal);
+
+				Vec4f v0 = cyl_centre_0 + ((basis_i * cos(next_angle) + basis_j * sin(next_angle)) * head_r);
+				Vec4f v1 = cyl_centre_0 + ((basis_i * cos(angle     ) + basis_j * sin(angle     )) * head_r);
+				Vec4f v2 = cyl_centre_0;
+				Vec4f v3 = cyl_centre_0;
+
+				verts[v_offset + i*8 + 4] = toVec3f(v0);
+				verts[v_offset + i*8 + 5] = toVec3f(v1);
+				verts[v_offset + i*8 + 6] = toVec3f(v2);
+				verts[v_offset + i*8 + 7] = toVec3f(v3);
+
+				uvs[v_offset + i*8 + 4] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 5] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 6] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 7] = Vec2f(0.f);
+
+				indices[i_offset + i*12 +  6] = v_offset + i*8 + 4; 
+				indices[i_offset + i*12 +  7] = v_offset + i*8 + 5; 
+				indices[i_offset + i*12 +  8] = v_offset + i*8 + 6; 
+				indices[i_offset + i*12 +  9] = v_offset + i*8 + 4;
+				indices[i_offset + i*12 + 10] = v_offset + i*8 + 6;
+				indices[i_offset + i*12 + 11] = v_offset + i*8 + 7;
 			}
 		}
 	}
@@ -385,8 +419,8 @@ Reference<OpenGLMeshRenderData> MeshBuilding::makeRotationArcHandleMeshData(Vert
 
 		const Vec4f dir = -crossProduct(basis_i, basis_j);
 
-		int v_offset = res * arc_res * 4 + res * 4;
-		int i_offset = res * arc_res * 6 + res * 6;
+		int v_offset = res * arc_res * 4 + res * 8;
+		int i_offset = res * arc_res * 6 + res * 12;
 		for(int i=0; i<res; ++i)
 		{
 			const float angle      = i       * Maths::get2Pi<float>() / res;
@@ -398,32 +432,64 @@ Reference<OpenGLMeshRenderData> MeshBuilding::makeRotationArcHandleMeshData(Vert
 				Vec4f normal1(basis_i * cos(angle     ) + basis_j * sin(angle     ));
 				Vec4f normal2(basis_i * cos(next_angle) + basis_j * sin(next_angle));
 
-				normals[v_offset + i*4 + 0] = toVec3f(normal1);
-				normals[v_offset + i*4 + 1] = toVec3f(normal2);
-				normals[v_offset + i*4 + 2] = toVec3f(normal2);
-				normals[v_offset + i*4 + 3] = toVec3f(normal1);
+				normals[v_offset + i*8 + 0] = toVec3f(normal1);
+				normals[v_offset + i*8 + 1] = toVec3f(normal2);
+				normals[v_offset + i*8 + 2] = toVec3f(normal2);
+				normals[v_offset + i*8 + 3] = toVec3f(normal1);
 
 				Vec4f v0 = cyl_centre_0 + ((basis_i * cos(angle     ) + basis_j * sin(angle     )) * head_r);
 				Vec4f v1 = cyl_centre_0 + ((basis_i * cos(next_angle) + basis_j * sin(next_angle)) * head_r);
 				Vec4f v2 = cyl_centre_0 + (dir * head_len);
 				Vec4f v3 = cyl_centre_0 + (dir * head_len);
 
-				verts[v_offset + i*4 + 0] = toVec3f(v0);
-				verts[v_offset + i*4 + 1] = toVec3f(v1);
-				verts[v_offset + i*4 + 2] = toVec3f(v2);
-				verts[v_offset + i*4 + 3] = toVec3f(v3);
+				verts[v_offset + i*8 + 0] = toVec3f(v0);
+				verts[v_offset + i*8 + 1] = toVec3f(v1);
+				verts[v_offset + i*8 + 2] = toVec3f(v2);
+				verts[v_offset + i*8 + 3] = toVec3f(v3);
 
-				uvs[v_offset + i*4 + 0] = Vec2f(0.f);
-				uvs[v_offset + i*4 + 1] = Vec2f(0.f);
-				uvs[v_offset + i*4 + 2] = Vec2f(0.f);
-				uvs[v_offset + i*4 + 3] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 0] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 1] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 2] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 3] = Vec2f(0.f);
 
-				indices[i_offset + i*6 + 0] = v_offset + i*4 + 0; 
-				indices[i_offset + i*6 + 1] = v_offset + i*4 + 1; 
-				indices[i_offset + i*6 + 2] = v_offset + i*4 + 2; 
-				indices[i_offset + i*6 + 3] = v_offset + i*4 + 0;
-				indices[i_offset + i*6 + 4] = v_offset + i*4 + 2;
-				indices[i_offset + i*6 + 5] = v_offset + i*4 + 3;
+				indices[i_offset + i*12 + 0] = v_offset + i*8 + 0; 
+				indices[i_offset + i*12 + 1] = v_offset + i*8 + 1; 
+				indices[i_offset + i*12 + 2] = v_offset + i*8 + 2; 
+				indices[i_offset + i*12 + 3] = v_offset + i*8 + 0;
+				indices[i_offset + i*12 + 4] = v_offset + i*8 + 2;
+				indices[i_offset + i*12 + 5] = v_offset + i*8 + 3;
+			}
+
+			// Draw disc on bottom of arrow head
+			{
+				Vec4f normal = -dir;
+
+				normals[v_offset + i*8 + 4] = toVec3f(normal);
+				normals[v_offset + i*8 + 5] = toVec3f(normal);
+				normals[v_offset + i*8 + 6] = toVec3f(normal);
+				normals[v_offset + i*8 + 7] = toVec3f(normal);
+
+				Vec4f v0 = cyl_centre_0 + ((basis_i * cos(next_angle) + basis_j * sin(next_angle)) * head_r);
+				Vec4f v1 = cyl_centre_0 + ((basis_i * cos(angle     ) + basis_j * sin(angle     )) * head_r);
+				Vec4f v2 = cyl_centre_0;
+				Vec4f v3 = cyl_centre_0;
+
+				verts[v_offset + i*8 + 4] = toVec3f(v0);
+				verts[v_offset + i*8 + 5] = toVec3f(v1);
+				verts[v_offset + i*8 + 6] = toVec3f(v2);
+				verts[v_offset + i*8 + 7] = toVec3f(v3);
+
+				uvs[v_offset + i*8 + 4] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 5] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 6] = Vec2f(0.f);
+				uvs[v_offset + i*8 + 7] = Vec2f(0.f);
+
+				indices[i_offset + i*12 +  6] = v_offset + i*8 + 4; 
+				indices[i_offset + i*12 +  7] = v_offset + i*8 + 5; 
+				indices[i_offset + i*12 +  8] = v_offset + i*8 + 6; 
+				indices[i_offset + i*12 +  9] = v_offset + i*8 + 4;
+				indices[i_offset + i*12 + 10] = v_offset + i*8 + 6;
+				indices[i_offset + i*12 + 11] = v_offset + i*8 + 7;
 			}
 		}
 	}
