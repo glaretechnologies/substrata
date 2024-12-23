@@ -122,6 +122,7 @@ static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f0
 static const Colour3f axis_arrows_default_cols[]   = { Colour3f(0.6f,0.2f,0.2f), Colour3f(0.2f,0.6f,0.2f), Colour3f(0.2f,0.2f,0.6f) };
 static const Colour3f axis_arrows_mouseover_cols[] = { Colour3f(1,0.45f,0.3f),   Colour3f(0.3f,1,0.3f),    Colour3f(0.3f,0.45f,1) };
 
+static const float DECAL_EDGE_AABB_WIDTH = 0.02f;
 
 static const float chunk_w = 128.f;
 
@@ -2338,11 +2339,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 	// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 	if(this->selected_ob == ob)
-	{
 		opengl_engine->selectObject(ob->opengl_engine_ob);
-		updateSelectedObjectPlacementBeam(); // We may have changed from a placeholder mesh, which has a different to-world matrix due to cube offset.
-		// So update the position of the object placement beam and axis arrows etc.
-	}
 }
 
 
@@ -2972,29 +2969,30 @@ static const Vec4f basis_vectors[6] = { Vec4f(0,1,0,0), Vec4f(0,0,1,0), Vec4f(0,
 
 // Update object placement beam - a beam that goes from the object to what's below it.
 // Also updates axis arrows and rotation arc handles.
-void GUIClient::updateSelectedObjectPlacementBeam()
+// Also updates preview AABB for decal objects.
+void GUIClient::updateSelectedObjectPlacementBeamAndGizmos()
 {
-	// Update object placement beam - a beam that goes from the object to what's below it.
-	if(selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull())
+	if(selected_ob && this->selected_ob->opengl_engine_ob)
 	{
+		//-------------------- Update object placement beam - a beam that goes from the object to what's below it. -----------------------
 		GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
 		const Matrix4f& to_world = opengl_ob->ob_to_world_matrix;
 
 		const js::AABBox new_aabb_ws = opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, to_world);
 
-		// We need to determine where to trace down from.  
+		// We need to determine where to trace down from.
 		// To find this point, first trace up *just* against the selected object.
 		// NOTE: With introduction of Jolt, we don't have just tracing against a single object, trace against world for now.
 		RayTraceResult trace_results;
 		Vec4f start_trace_pos = new_aabb_ws.centroid();
 		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
 		//this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e5f), trace_results);
-		this->physics_world->traceRay(start_trace_pos, Vec4f(0, 0, 1, 0), 1.0e5f, /*ignore body id=*/JPH::BodyID(), trace_results);
+		this->physics_world->traceRay(start_trace_pos, Vec4f(0, 0, 1, 0), /*max_t=*/1.0e3f, /*ignore body id=*/JPH::BodyID(), trace_results);
 		const float up_beam_len = trace_results.hit_object ? trace_results.hit_t : new_aabb_ws.axisLength(2) * 0.5f;
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
 		const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0, 0, 1, 0) * (up_beam_len - 0.001f);
-		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), trace_results);
+		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e3f, /*ignore body id=*/JPH::BodyID(), trace_results);
 		const float down_beam_len = trace_results.hit_object ? trace_results.hit_t : 1000.0f;
 		const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0, 0, 1, 0);
 
@@ -3014,38 +3012,15 @@ void GUIClient::updateSelectedObjectPlacementBeam()
 		if(opengl_engine->isObjectAdded(ob_placement_marker))
 			opengl_engine->updateObjectTransformData(*ob_placement_marker);
 
-		// Place x, y, z axis arrows.
+		//----------------------- Place x, y, z axis arrows. -----------------------
 		if(axis_and_rot_obs_enabled)
 		{
 			const Vec4f use_ob_origin = opengl_ob->ob_to_world_matrix.getColumn(3);
+			const Vec4f cam_to_ob = use_ob_origin - cam_controller.getPosition().toVec4fPoint();
+			const float control_scale = cam_to_ob.length() * 0.2f;
+
 			const Vec4f arrow_origin = use_ob_origin;
-
-			// Make arrow long enough so that it sticks out of the object, if the object is large.
-			// Try a bunch of different orientations of the object, computing the world space AABB for each orientation,
-			// take the union of all such AABBs.
-			js::AABBox use_aabb_ws = js::AABBox::emptyAABBox();
-			for(int x=0; x<8; ++x)
-				for(int y=0; y<5; ++y)
-				{
-					const float phi   = Maths::get2Pi<float>() * x / 8;
-					const float theta = Maths::pi<float>() * y / 5;
-					const Vec4f dir = GeometrySampling::dirForSphericalCoords(phi, theta);
-					const Matrix4f rot_m = Matrix4f::constructFromVectorStatic(dir);
-
-					const Vec4f translation((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z, 0.f);
-
-					const Matrix4f use_to_world = leftTranslateAffine3(translation, rot_m * Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z));
-
-					use_aabb_ws.enlargeToHoldAABBox(opengl_ob->mesh_data->aabb_os.transformedAABBFast(use_to_world));
-				}
-
-			const float max_control_scale = (float)this->selected_ob->pos.getDist(cam_controller.getPosition()) * 0.5f;
-			const float control_scale = myMin(max_control_scale, use_aabb_ws.axisLength(use_aabb_ws.longestAxis()));
-
-			const float arrow_len = myMax(1.f, control_scale * 0.85f);
-
-			const Vec4f ob_origin_ws = to_world * Vec4f(0, 0, 0, 1);
-			const Vec4f cam_to_ob = ob_origin_ws - cam_controller.getPosition().toVec4fPoint();
+			const float arrow_len = control_scale;
 
 			axis_arrow_segments[0] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(cam_to_ob[0] > 0 ? -arrow_len : arrow_len, 0, 0, 0)); // Put arrows on + or - x axis, facing towards camera.
 			axis_arrow_segments[1] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, cam_to_ob[1] > 0 ? -arrow_len : arrow_len, 0, 0));
@@ -3062,10 +3037,9 @@ void GUIClient::updateSelectedObjectPlacementBeam()
 					opengl_engine->updateObjectTransformData(*axis_arrow_objects[i]);
 			}
 
-			// Update rotation control handle arcs
-
-			const Vec4f arc_centre = use_ob_origin;// opengl_ob->ob_to_world_matrix.getColumn(3);
-			const float arc_radius = myMax(0.7f, control_scale * 0.85f * 0.7f); // Make the arcs not stick out so far from the centre as the arrows.
+			//----------------------- Update rotation control handle arcs -----------------------
+			const Vec4f arc_centre = use_ob_origin;
+			const float arc_radius = control_scale * 0.7f; // Make the arcs not stick out so far from the centre as the arrows.
 
 			for(int i=0; i<3; ++i)
 			{
@@ -3113,7 +3087,7 @@ void GUIClient::updateSelectedObjectPlacementBeam()
 
 	if(selected_ob && selected_ob->edit_aabb)
 	{
-		selected_ob->edit_aabb->ob_to_world_matrix = obToWorldMatrix(*selected_ob) * Matrix4f::translationMatrix(-0.03f, -0.03f, -0.03f);
+		selected_ob->edit_aabb->ob_to_world_matrix = obToWorldMatrix(*selected_ob) * Matrix4f::translationMatrix(-DECAL_EDGE_AABB_WIDTH, -DECAL_EDGE_AABB_WIDTH, -DECAL_EDGE_AABB_WIDTH);
 		opengl_engine->updateObjectTransformData(*selected_ob->edit_aabb);
 	}
 }
@@ -3424,10 +3398,6 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 			opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
 		}
 	}
-
-
-	if(ob.ptr() == this->selected_ob.ptr())
-		updateSelectedObjectPlacementBeam();
 }
 
 
@@ -3910,11 +3880,7 @@ void GUIClient::processLoading()
 
 							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 							if(this->selected_ob == voxel_ob)
-							{
 								opengl_engine->selectObject(voxel_ob->opengl_engine_ob);
-								updateSelectedObjectPlacementBeam(); // We may have changed from a placeholder mesh, which has a different to-world matrix due to cube offset.
-								// So update the position of the object placement beam and axis arrows etc.
-							}
 						}
 					}	
 
@@ -4916,6 +4882,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 
+	updateSelectedObjectPlacementBeamAndGizmos();
+
 	
 	if(physics_world.nonNull())
 	{
@@ -5028,11 +4996,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 								// Check for sending of renewal of object physics ownership message
 								checkRenewalOfPhysicsOwnershipOfObject(*ob, global_time);
-							}
-
-							if(this->selected_ob.ptr() == ob)
-							{
-								updateSelectedObjectPlacementBeam();
 							}
 						}
 					}
@@ -9207,8 +9170,6 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					//ui->objectEditor->setFromObject(*in_world_ob, ui->objectEditor->getSelectedMatIndex(), /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser());
 					ui_interface->setObjectEditorFromOb(*in_world_ob, ui_interface->getSelectedMatIndex(), /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser());
 
-					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
-
 					// updateInstancedCopiesOfObject(ob); // TODO: enable + test this
 					in_world_ob->transformChanged();
 
@@ -9845,8 +9806,6 @@ void GUIClient::objectTransformEdited()
 				physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
 					useScaleForWorldOb(selected_ob->scale).toVec4fVector());
 
-				updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
-
 				selected_ob->transformChanged(); // Recompute centroid_ws, biased_aabb_len etc..
 
 				Lock lock(this->world_state->mutex);
@@ -10219,8 +10178,6 @@ void GUIClient::objectEdited()
 					// Update in Indigo view
 					//ui->indigoView->objectTransformChanged(*selected_ob);
 
-					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
-
 					selected_ob->transformChanged();
 
 					Lock lock(this->world_state->mutex);
@@ -10433,8 +10390,6 @@ void GUIClient::posAndRot3DControlsToggled(bool enabled)
 					opengl_engine->addObject(rot_handle_arc_objects[i]);
 
 				axis_and_rot_obs_enabled = true;
-
-				updateSelectedObjectPlacementBeam();
 			}
 		}
 	}
@@ -11505,8 +11460,6 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 void GUIClient::mouseReleased(MouseEvent& e)
 {
-	updateSelectedObjectPlacementBeam(); // Update so that rot arc handles snap back oriented to camera.
-
 	// If we were dragging an object along a movement axis, we have released the mouse button and hence finished the movement.  un-grab the axis.
 	if(grabbed_axis != -1 && selected_ob.nonNull())
 	{
@@ -12061,8 +12014,6 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 		rotateObject(this->selected_ob, crossProduct(basis_a, basis_b), delta);
 
 		grabbed_angle = angle;
-
-		updateSelectedObjectPlacementBeam(); // Update rotation arc handles etc..
 	}
 	else
 	{
@@ -12331,13 +12282,11 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 
 			axis_and_rot_obs_enabled = true;
 		}
-
-		updateSelectedObjectPlacementBeam();
 	}
 
 	if(isObjectDecal(ob))
 	{
-		const float edge_w = 0.03f;
+		const float edge_w = DECAL_EDGE_AABB_WIDTH;
 		ob->edit_aabb = opengl_engine->makeCuboidEdgeAABBObject(
 			ob->getAABBOS().min_, 
 			ob->getAABBOS().max_ + Vec4f(2*edge_w, 2*edge_w, 2*edge_w, 0),  // Extend cube slightly so decal isn't applied to edges.

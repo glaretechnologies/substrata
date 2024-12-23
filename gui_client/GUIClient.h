@@ -218,7 +218,7 @@ public:
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
-	void updateSelectedObjectPlacementBeam();
+	void updateSelectedObjectPlacementBeamAndGizmos();
 	void updateInstancedCopiesOfObject(WorldObject* ob);
 	void removeInstancesOfObject(WorldObject* ob);
 	void removeObScriptingInfo(WorldObject* ob);
