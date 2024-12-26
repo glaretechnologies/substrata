@@ -30,6 +30,7 @@ public:
 	static const QString shadowsKey() { return "setting/shadows"; }
 
 	static const QString MSAAKey() { return "setting/MSAA"; }
+	static const QString SSAOKey() { return "setting/SSAO"; }
 
 	static const QString BloomKey() { return "setting/bloom"; }
 
