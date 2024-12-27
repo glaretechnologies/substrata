@@ -88,6 +88,10 @@ include("functions.cmake")
 # Make sure stuff exists.
 programAvailable("ruby")
 
+
+SET(INDIGO_SUPPORT OFF CACHE BOOL "Enable building with Indigo Renderer.")
+
+
 MESSAGE("\n----------Env vars:----------")
 
 # Get env vars
@@ -100,14 +104,16 @@ MESSAGE("Winter location: ${winterdir}")
 checkAndGetEnvVar(CYBERSPACE_OUTPUT CYBERSPACE_OUTPUT_ENV)
 MESSAGE("CYBERSPACE_OUTPUT: ${CYBERSPACE_OUTPUT_ENV}")
 
-#checkAndGetEnvVar(INDIGO_TRUNK_DIR INDIGO_TRUNK_DIR_ENV)
-#MESSAGE("INDIGO_TRUNK_DIR: ${INDIGO_TRUNK_DIR_ENV}")
-
 checkAndGetEnvVar(GLARE_CORE_TRUNK_DIR GLARE_CORE_TRUNK_DIR_ENV)
 MESSAGE("GLARE_CORE_TRUNK_DIR: ${GLARE_CORE_TRUNK_DIR_ENV}")
 
 SET(CEF_BINARY_DISTRIB_DIR_ENV $ENV{CEF_BINARY_DISTRIB_DIR})
 MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
+
+if(INDIGO_SUPPORT)
+	checkAndGetEnvVar(INDIGO_TRUNK_DIR INDIGO_TRUNK_DIR_ENV)
+	MESSAGE("INDIGO_TRUNK_DIR: ${INDIGO_TRUNK_DIR_ENV}")
+endif()
 
 MESSAGE("\n----------Cache vars:----------")
 
@@ -117,6 +123,9 @@ MESSAGE("CEF_SUPPORT: ${CEF_SUPPORT}")
 
 SET(BUGSPLAT_SUPPORT ON CACHE BOOL "Enable building with BugSplat - the crash handling and bug reporting tool.")
 MESSAGE("BUGSPLAT_SUPPORT: ${BUGSPLAT_SUPPORT}")
+
+
+MESSAGE("INDIGO_SUPPORT: ${INDIGO_SUPPORT}")
 
 
 SET(ENABLE_GLARE_PARCEL_AUCTION_CODE OFF CACHE BOOL "Enable use of private parcel auction code.")

@@ -1,17 +1,14 @@
 /*=====================================================================
 IndigoView.h
 ------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
 
 
-// #define INDIGO_SUPPORT 1
-
-
-#include "../utils/Timer.h"
-#include "../utils/Reference.h"
-#include "../utils/RefCounted.h"
+#include "utils/Timer.h"
+#include "utils/Reference.h"
+#include "utils/RefCounted.h"
 #include <QtWidgets/QWidget>
 
 

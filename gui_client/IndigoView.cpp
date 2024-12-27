@@ -1,7 +1,7 @@
 /*=====================================================================
 IndigoView.cpp
 --------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #include "IndigoView.h"
 
@@ -46,10 +46,9 @@ Copyright Glare Technologies Limited 2019 -
 #include "WorldState.h"
 
 
-//static const bool DO_REALTIME_VIEW = false;
+static const bool DO_REALTIME_VIEW = true;
 
 
-#if INDIGO_SUPPORT
 // Standard conversions between std::string and Indigo::String.
 static const std::string toStdString(const Indigo::String& s)
 {
@@ -60,7 +59,6 @@ static const Indigo::String toIndigoString(const std::string& s)
 {
 	return Indigo::String(s.c_str(), s.length());
 }
-#endif
 
 
 IndigoView::IndigoView(QWidget* parent)
@@ -109,9 +107,9 @@ void IndigoView::initialise(const std::string& base_dir_path)
 		this->context = new Indigo::IndigoContext();
 
 #ifndef NDEBUG
-		const std::string dll_dir = "C:/programming/indigo/output/vs2019/indigo_x64/Debug";
+		const std::string dll_dir = "C:/programming/indigo/output/vs2022/indigo_x64/Debug";
 #else
-		const std::string dll_dir = "C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo";
+		const std::string dll_dir = "C:/programming/indigo/output/vs2022/indigo_x64/RelWithDebInfo";
 #endif
 		//const std::string dll_dir = base_dir_path; // base_dir_path is the dir the main executable is in.
 
@@ -150,7 +148,7 @@ void IndigoView::initialise(const std::string& base_dir_path)
 			settings_node->metropolis.setValue(false);
 			settings_node->width.setValue(1920);
 			settings_node->height.setValue(1280);
-			settings_node->gpu.setValue(true);
+			settings_node->gpu.setValue(false);//TEMP
 			settings_node->vignetting.setValue(false);
 			settings_node->merging.setValue(false); // Set to false for now, to allow moving objects etc.. without requiring full rebuilds.  Will be improved in Indigo SDK soon.
 
@@ -314,9 +312,9 @@ void IndigoView::addExistingObjects(const WorldState& world_state, ResourceManag
 	if(this->renderer.isNull())
 		return;
 
-	for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
+	for(auto it = world_state.objects.valuesBegin(); it != world_state.objects.valuesEnd(); ++it)
 	{
-		WorldObject* ob = it->second.ptr();
+		WorldObject* ob = it.getValue().ptr();
 
 		if(ob->physics_object.nonNull())
 		{
@@ -477,7 +475,7 @@ void IndigoView::saveSceneToDisk()
 		std::vector<std::string> command_line_args;
 		command_line_args.push_back(indigo_path);
 		command_line_args.push_back(toStdString(options.disk_path));
-		Process process(indigo_path, command_line_args);
+		glare::Process process(indigo_path, command_line_args);
 
 #endif
 	}
