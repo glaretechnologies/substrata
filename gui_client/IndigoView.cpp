@@ -26,7 +26,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <dll/include/SceneNodeCamera.h>
 #include <dll/include/SceneNodeRenderSettings.h>
 
-#endif
+#endif // INDIGO_SUPPORT
 
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
@@ -49,6 +49,7 @@ Copyright Glare Technologies Limited 2024 -
 static const bool DO_REALTIME_VIEW = true;
 
 
+#if INDIGO_SUPPORT
 // Standard conversions between std::string and Indigo::String.
 static const std::string toStdString(const Indigo::String& s)
 {
@@ -59,6 +60,7 @@ static const Indigo::String toIndigoString(const std::string& s)
 {
 	return Indigo::String(s.c_str(), s.length());
 }
+#endif // INDIGO_SUPPORT
 
 
 IndigoView::IndigoView(QWidget* parent)
