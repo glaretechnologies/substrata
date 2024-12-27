@@ -16,7 +16,7 @@
 #
 #
 # On Mac there now seems to be a problem where Qt doesn't install the header files properly into the 'include' dir.  We can fix that ourselves:
-# cd /home/nick/libs/Qt/5.15.10
+# cd /home/nick/programming/libs/Qt/5.15.10
 # mkdir include/QtCore
 # cp lib/QtCore.framework/Headers/* include/QtCore/
 # mkdir include/QtWidgets/
@@ -29,6 +29,8 @@
 # cp lib/QtMultimedia.framework/Headers/* include/QtMultimedia/
 # mkdir include/QtNetwork
 # cp lib/QtNetwork.framework/Headers/* include/QtNetwork/
+# mkdir include/QtGamepad
+# cp lib/QtGamepad.framework/Headers/*.h include/QtGamepad/
 #
 
 require 'fileutils'
