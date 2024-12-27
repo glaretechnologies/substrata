@@ -88,7 +88,7 @@ Copyright Glare Technologies Limited 2024 -
 #if BUGSPLAT_SUPPORT
 #include <BugSplat.h>
 #endif
-#include <SDL.h>
+
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -1085,7 +1085,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	in_CEF_message_loop = false;
 
 
-	SDL_GameControllerUpdate();
+	// SDL_GameControllerUpdate(); // SDL gamepad support
 
 	// Append any accumulated Qt debug messages to the log window.
 	if(!qt_debug_msgs.empty())
