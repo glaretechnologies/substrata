@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/ResourceManager.h"
 #include <opengl/OpenGLMeshRenderData.h>
 #include <graphics/BatchedMesh.h>
+#include <graphics/ImageMap.h>
 #include <maths/matrix3.h>
 #include <maths/Matrix4f.h>
 #include <ConPrint.h>
@@ -270,12 +271,23 @@ Indigo::SceneNodeMaterialRef IndigoConversion::convertMaterialToIndigoMat(const 
 
 
 #if GUI_CLIENT
-Indigo::SceneNodeMeshRef IndigoConversion::convertMesh(const WorldObject& object)
+Indigo::SceneNodeMeshRef IndigoConversion::convertMesh(const WorldObject& object, ResourceManager& resource_manager)
 {
 	Indigo::SceneNodeMeshRef mesh = new Indigo::SceneNodeMesh();
 	mesh->setName("mesh geom");
 
-	mesh->mesh = object.physics_object->geometry->toIndigoMesh();
+
+	// TEMP HACK:
+	if(!object.model_url.empty())
+	{
+		const std::string local_path = resource_manager.getLocalAbsPathForResource(*resource_manager.getExistingResourceForURL(object.model_url));
+
+		BatchedMeshRef bmesh = BatchedMesh::readFromFile(local_path, NULL);
+
+		mesh->mesh = bmesh->buildIndigoMesh();
+	}
+
+	//mesh->mesh = object.physics_object->geometry->toIndigoMesh();
 
 	mesh->normal_smoothing = true;
 
@@ -334,7 +346,7 @@ Indigo::SceneNodeModelRef IndigoConversion::convertObject(const WorldObject& obj
 	}
 
 	// Convert geometry
-	model->setGeometry(convertMesh(object));
+	model->setGeometry(convertMesh(object, resource_manager));
 
 	return model;
 }

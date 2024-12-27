@@ -27,7 +27,7 @@ public:
 	static Reference<Indigo::SceneNodeMaterial> convertMaterialToIndigoMat(const WorldMaterial& mat, ResourceManager& resource_manager);
 
 #if GUI_CLIENT
-	static Reference<Indigo::SceneNodeMesh> convertMesh(const WorldObject& object);
+	static Reference<Indigo::SceneNodeMesh> convertMesh(const WorldObject& object, ResourceManager& resource_manager);
 
 	static Reference<Indigo::SceneNodeModel> convertObject(const WorldObject& object, ResourceManager& resource_manager);
 #endif

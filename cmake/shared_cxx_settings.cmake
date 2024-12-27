@@ -35,7 +35,10 @@ addIncludeDirectory("${zstddir}/lib")
 addIncludeDirectory("${zstddir}/lib/common")
 
 #Indigo SDK:
-#addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
+if(INDIGO_SUPPORT)
+	addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}")
+	addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
+endif()
 
 
 # Add OpenCL paths
@@ -82,6 +85,9 @@ if(EMSCRIPTEN)
 	add_definitions(-msimd128)
 	add_definitions(-msse4.1)
 	#add_definitions(-msse4.2)
+
+	add_definitions(-Wno-deprecated-builtins)
+	add_definitions(-Wno-deprecated-non-prototype)
 
 	#add_definitions("-sGL_ASSERTIONS")
 	#add_definitions("-fsanitize=address")
