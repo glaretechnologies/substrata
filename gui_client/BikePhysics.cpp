@@ -257,7 +257,6 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	try
 	{
-#if !EMSCRIPTEN // Sound doesn't work on web currently, and the sounds are not included in dist currently, so don't try and load.
 		engine_audio_source = new glare::AudioSource();
 		engine_audio_source->type = glare::AudioSource::SourceType_Streaming;
 		engine_audio_source->pos = object->getCentroidWS();
@@ -288,7 +287,6 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 		audio_engine->addSource(engine_audio_source);
 		audio_engine->addSource(wheel_audio_source[0]);
 		audio_engine->addSource(wheel_audio_source[1]);
-#endif
 	}
 	catch(glare::Exception& e)
 	{

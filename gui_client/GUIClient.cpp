@@ -348,8 +348,16 @@ void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings
 		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
 	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
 	tls_config_insecure_noverifyname(client_tls_config);
-#endif
 
+
+	// Init audio engine immediately if we are not on the web.  Web browsers need to wait for an input gesture is completed before trying to play sounds.
+	initAudioEngine();
+#endif
+}
+
+
+void GUIClient::initAudioEngine()
+{
 	try
 	{
 		audio_engine.init();
@@ -1262,14 +1270,6 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
 				in_range = ob_dist < maxAudioDistForSourceVolFactor(ob->audio_volume);
 			}
-
-#if EMSCRIPTEN
-			if(has_audio_extension)
-			{
-				// conPrint("Skipping downloading audio resource '" + url + "'...");
-				continue; // Skip loading audio under Emscripten for now
-			}
-#endif
 
 			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 			{
