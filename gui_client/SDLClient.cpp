@@ -707,10 +707,25 @@ double last_updateGL_time = 0;
 static bool doing_cam_rotate_mouse_drag = false; // Is the mouse pointer hidden, and will moving the mouse rotate the camera?
 // TODO: replace with ui_interface->getCamRotationOnMouseDragEnabled
 
+static bool have_received_input = false;
+static bool tried_initialise_audio_engine = false;
+
 
 static void doOneMainLoopIter()
 {
 	Timer loop_iter_timer;
+
+
+#ifdef EMSCRIPTEN
+	// Web browsers need to wait for an input gesture is completed before trying to play sounds.
+	if(have_received_input && !tried_initialise_audio_engine)
+	{
+		gui_client->initAudioEngine();
+		tried_initialise_audio_engine = true;
+	}
+#endif
+
+
 
 	if(SDL_GL_MakeCurrent(win, gl_context) != 0)
 		conPrint("SDL_GL_MakeCurrent failed.");
@@ -837,6 +852,8 @@ static void doOneMainLoopIter()
 
 				gui_client->keyReleased(key_event);
 			}
+
+			have_received_input = true;
 		}
 		else if(e.type == SDL_TEXTINPUT)
 		{

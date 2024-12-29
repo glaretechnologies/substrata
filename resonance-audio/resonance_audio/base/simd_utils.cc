@@ -842,7 +842,7 @@ void FloatFromInt16(size_t length, const int16_t* input, float* output) {
   }
 }
 
-#elif (defined SIMD_SSE && !defined(_MSC_VER))
+#elif (defined SIMD_SSE && !defined(_MSC_VER) && !defined(EMSCRIPTEN)) // GLARE NEW CODE: _mm_cvtps_pi16 seems to be missing in emscripten
 
 void Int16FromFloat(size_t length, const float* input, int16_t* output) {
   DCHECK(input);

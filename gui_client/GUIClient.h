@@ -120,6 +120,8 @@ public:
 	void afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine, 
 		const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts);
 
+	void initAudioEngine();
+
 	void shutdown();
 
 	void timerEvent(const MouseCursorState& mouse_cursor_state);

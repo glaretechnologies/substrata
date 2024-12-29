@@ -18,7 +18,8 @@ limitations under the License.
 #define RESONANCE_AUDIO_BASE_SIMD_MACROS_H_
 
 #if !defined(DISABLE_SIMD) && (defined(__x86_64__) || defined(_M_X64) || \
-                               defined(i386) || defined(_M_IX86))
+                               defined(i386) || defined(_M_IX86) || defined(EMSCRIPTEN))
+
 // SSE1 is enabled.
 #include <xmmintrin.h>
 typedef __m128 SimdVector;
