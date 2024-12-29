@@ -578,7 +578,7 @@ endif()
 
 
 #===================================== Resonance Audio =====================================
-if(NOT EMSCRIPTEN)
+if(1)
 
 	set(res_ambisonics
 	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc
@@ -1126,8 +1126,10 @@ if(EMSCRIPTEN)
 	# model_and_texture_loader_task_manager:		8
 	# ClientSenderThread							1
 	# ClientThread									1
+	# ResonanceThread								1
+	# StreamerThread								1
 	# 
-	# Total:										26
+	# Total:										28
 	
 	target_link_options(${CURRENT_TARGET} PRIVATE
 		"-sMIN_WEBGL_VERSION=2"
@@ -1139,7 +1141,7 @@ if(EMSCRIPTEN)
 		"-sMAXIMUM_MEMORY=4000MB" # Default is 2GB.
 		"-pthread"
 		"-sENVIRONMENT=web,worker" # Specify that the JS code only supports running in web/web workers.(Not node.js etc.)
-		"-sPTHREAD_POOL_SIZE=26" # See calculation above
+		"-sPTHREAD_POOL_SIZE=28" # See calculation above
 		"-sSTACK_SIZE=262144"
 		"-sEXPORTED_RUNTIME_METHODS=ccall" # Needed to be able to call into C++ from JS.  Used in emscripten_browser_clipboard.
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api

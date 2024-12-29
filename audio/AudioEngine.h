@@ -24,6 +24,7 @@ Copyright Glare Technologies Limited 2021 -
 
 class RtAudio;
 namespace vraudio { class ResonanceAudioApi; }
+struct ma_device;
 
 
 namespace glare
@@ -165,6 +166,8 @@ public:
 	void init();
 	void shutdown();
 
+	bool isInitialised() const { return initialised; }
+
 	void addSource(AudioSourceRef source);
 
 	void removeSource(AudioSourceRef source);
@@ -197,6 +200,7 @@ private:
 	SoundFileRef loadSoundFile(const std::string& sound_file_path);
 
 	RtAudio* audio;
+	ma_device* device; // Miniaudio device
 	vraudio::ResonanceAudioApi* resonance;
 
 	AudioCallbackData callback_data;
