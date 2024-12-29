@@ -1,22 +1,14 @@
 /*=====================================================================
 AudioEngine.cpp
 ---------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #include "AudioEngine.h"
-
-#if !defined(EMSCRIPTEN)
-#define RESONANCE_SUPPORT 1
-#endif
 
 
 #include "AudioFileReader.h"
 #include "MP3AudioFileReader.h"
 #include "StreamerThread.h"
-#include "../rtaudio/RtAudio.h"
-#if RESONANCE_SUPPORT
-#include <resonance_audio/api/resonance_audio_api.h>
-#endif
 #include <utils/MessageableThread.h>
 #include <utils/CircularBuffer.h>
 #include <utils/ConPrint.h>
@@ -25,7 +17,37 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/MemMappedFile.h>
 #include <utils/FileInStream.h>
 #include <utils/RuntimeCheck.h>
+#include <resonance_audio/api/resonance_audio_api.h>
 #include <tracy/Tracy.hpp>
+
+#define USE_MINIAUDIO 1
+
+#if USE_MINIAUDIO
+
+#define MA_NO_RESOURCE_MANAGER		// Disable playing sounds from files etc.
+#define MA_NO_DECODING				// Disables decoding APIs.
+#define MA_NO_ENCODING				// Disables encoding APIs.
+#define MA_NO_GENERATION			// Disables generation APIs such a ma_waveform and ma_noise.
+
+#if EMSCRIPTEN
+
+#define MA_ENABLE_ONLY_SPECIFIC_BACKENDS // Disables all backends by default and requires MA_ENABLE_* to enable specific backends.
+#define MA_ENABLE_WEBAUDIO
+
+#elif defined(__APPLE__)
+
+#define MA_NO_RUNTIME_LINKING // Disables runtime linking. This is useful for passing Apple's notarization process.
+
+#endif
+
+#define MINIAUDIO_IMPLEMENTATION
+#include "../miniaudio/miniaudio.h"
+
+#else // else if !USE_MINIAUDIO:
+
+#include "../rtaudio/RtAudio.h"
+
+#endif
 
 
 namespace glare
@@ -145,6 +167,44 @@ AudioEngine::~AudioEngine()
 }
 
 
+#if USE_MINIAUDIO
+
+// This function will be called when miniaudio needs more data.
+static void miniAudioCallBack(ma_device* device, void* output_buffer, const void* /*input_buffer*/, ma_uint32 frame_count)
+{
+	float* output_buffer_f = (float*)output_buffer;
+	AudioCallbackData* data = (AudioCallbackData*)(device->pUserData);
+	const size_t num_samples_needed = frame_count * 2; // We always use stereo output so each frame is 2 samples.
+
+	if(false)
+	{
+		size_t data_buffer_size;
+		{
+			Lock lock(data->buffer_mutex);
+			data_buffer_size = data->buffer.size();
+		}
+		conPrint("miniAudioCallBack(): num_samples_needed: " + toString(num_samples_needed) + ", data->buffer.size(): " + toString(data_buffer_size));
+	}
+
+	{
+		Lock lock(data->buffer_mutex);
+
+		const size_t num_samples_to_dequeue = myMin(num_samples_needed, data->buffer.size());
+
+		data->buffer.popFrontNItems(output_buffer_f, num_samples_to_dequeue);
+
+		// clamp data
+		for(size_t z=0; z<num_samples_to_dequeue; ++z)
+			output_buffer_f[z] = myClamp(output_buffer_f[z], -1.f, 1.f);
+
+		// Pad with zeroes if there wasn't enough data in the queue
+		for(size_t i=num_samples_to_dequeue; i<num_samples_needed; ++i)
+			output_buffer_f[i] = 0.f;
+	}
+}
+
+#else // else if !USE_MINIAUDIO:
+
 static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int n_buffer_frames, double stream_time, RtAudioStreamStatus status, void* user_data)
 {
 	float* output_buffer_f = (float*)output_buffer;
@@ -243,6 +303,7 @@ static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int
 
 	return 0;
 }
+#endif // end if !USE_MINIAUDIO
 
 
 static void zeroBuffer(js::Vector<float, 16>& v)
@@ -273,7 +334,8 @@ public:
 					num_samples_buffered = callback_data->buffer.size();
 				}
 
-				// 512/2 samples per buffer / 48000.0 samples/s = 0.00533 s / buffer.
+				// Consider individual buffers of 256 frames = 512 samples (each frame being 2 samples for stereo output).
+				// 256 frames per buffer / 48000.0 frames/s = 0.00533 s / buffer.
 				// So we will aim for N of these buffers being queued, resulting in N * 0.00533 s latency.
 				// For N = 4 this gives 0.0213 s = 21.3 ms of latency.
 				while(num_samples_buffered < 512 * 4)
@@ -412,7 +474,6 @@ public:
 								}
 							}
 
-#if RESONANCE_SUPPORT
 							runtimeCheck(contiguous_data_ptr != NULL);
 							if(source_sampling_rate == resonance_sampling_rate)
 							{
@@ -429,31 +490,24 @@ public:
 								const float* bufptr = resampled_buf.data();
 								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
-#endif
 
 
 							if(remove_source)
 							{
-#if RESONANCE_SUPPORT
 								resonance->DestroySource(source->resonance_handle);
-#endif
 								it = engine->audio_sources.erase(it); // Remove currently iterated to source, advance iterator.
 							}
 							else
 								++it;
-						}
+						} // End for each audio source
 
 						// Get mixed/filtered data from Resonance.
 						temp_buf.resizeNoCopy(frames_per_buffer * 2); // We will receive stereo data
-#if RESONANCE_SUPPORT
 						filled_valid_buffer = resonance->FillInterleavedOutputBuffer(
 							2, // num channels
 							frames_per_buffer, // num frames
 							temp_buf.data()
 						);
-#else
-						filled_valid_buffer = false;
-#endif
 
 						buffers_processed++;
 
@@ -462,12 +516,11 @@ public:
 						if(buffers_processed * frames_per_buffer < 48000) // Ignore first second or so of sound because resonance seems to fill it with garbage.
 							filled_valid_buffer = false;
 
-						//printVar(filled_valid_buffer);
 						if(!filled_valid_buffer)
 							break; // break while loop
 					} // End engine->mutex scope
 
-					// Push mixed/filtered data onto back of buffer that feeds to rtAudioCallback.
+					// Push mixed/filtered data onto back of buffer that feeds to rtAudioCallback / miniaudioCallBack.
 					if(filled_valid_buffer)
 					{
 						Lock lock(callback_data->buffer_mutex);
@@ -491,9 +544,7 @@ public:
 	}
 
 	AudioEngine* engine;
-#if RESONANCE_SUPPORT
 	vraudio::ResonanceAudioApi* resonance;
-#endif
 	AudioCallbackData* callback_data;
 	glare::AtomicInt die;
 
@@ -508,6 +559,38 @@ public:
 
 void AudioEngine::init()
 {
+	const unsigned int desired_sample_rate = 48000;
+
+	unsigned int buffer_frames = 256; // Request 256 frames per buffer. NOTE: might be changed by openStream() etc. below.
+
+	callback_data.resonance = NULL;
+	callback_data.engine = this;
+
+#if USE_MINIAUDIO
+
+	ma_device_config config = ma_device_config_init(ma_device_type_playback);
+	config.playback.format           = ma_format_f32;
+	config.playback.channels         = 2;
+	config.sampleRate                = desired_sample_rate;
+	config.periodSizeInFrames        = buffer_frames; // Without this, Firefox tries to use 2048 frames per buffer, which is too large for our purposes.
+	config.dataCallback              = miniAudioCallBack;   // This function will be called when miniaudio needs more data.
+	config.pUserData                 = &callback_data;   // Can be accessed from the device object (device.pUserData).
+	config.noPreSilencedOutputBuffer = true; // We will zero the output buffer ourself if needed.
+	config.noClip                    = true; // Disable clipping to [-1, 1], we do this ourself.
+	config.noDisableDenormals        = true; // We don't need denormals flushed during the callback
+	config.noFixedSizedCallback      = true; // We don't need fixed size callback buffers.
+
+
+	device = new ma_device();
+	const ma_result res = ma_device_init(NULL, &config, device);
+	if(res != MA_SUCCESS)
+		throw glare::Exception("Failed to initialise miniaudio device.  Error code: " + toString(res));
+
+	this->sample_rate = device->sampleRate; // Get actual sample rate used.
+	buffer_frames = device->playback.internalPeriodSizeInFrames; // Get actual buffer size used.
+
+#else // else if !USE_MINIAUDIO:
+
 #if defined(_WIN32)
 	const RtAudio::Api rtaudio_api = RtAudio::WINDOWS_DS;
 #elif defined(OSX)
@@ -551,36 +634,28 @@ void AudioEngine::init()
 		throw glare::Exception("Failed to find output audio device");
 
 	//unsigned int desired_sample_rate = 44100;// info.preferredSampleRate;
-	unsigned int desired_sample_rate = 48000;// info.preferredSampleRate;
 
 	RtAudio::StreamParameters parameters;
 	parameters.deviceId = audio->getDefaultOutputDevice();
 	parameters.nChannels = 2;
 	parameters.firstChannel = 0;
-	unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
-
-	// conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
-
-	callback_data.resonance = NULL;
-	callback_data.engine = this;
 
 	RtAudioErrorType rtaudio_res = audio->openStream(&parameters, /*input parameters=*/NULL, RTAUDIO_FLOAT32, desired_sample_rate, &buffer_frames, rtAudioCallback, /*userdata=*/&callback_data);
 	if(rtaudio_res != RTAUDIO_NO_ERROR)
 		throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
 
 	this->sample_rate = audio->getStreamSampleRate(); // Get actual sample rate used.
-
-	conPrint("Using sample rate of " + toString(sample_rate) + " hz");
 	
+#endif // end if !USE_MINIAUDIO
+
+	conPrint("Using sample rate: " + toString(sample_rate) + " hz, buffer_frames: " + toString(buffer_frames));
 
 	// Resonance audio
-#if RESONANCE_SUPPORT
 	resonance = vraudio::CreateResonanceAudioApi(
 		2, // num channels
 		buffer_frames, // frames per buffer
 		sample_rate // sample rate, hz
 	);
-#endif
 
 	/*vraudio::ReflectionProperties refl_props;
 
@@ -614,9 +689,7 @@ void AudioEngine::init()
 	{
 		Reference<ResonanceThread> t = new ResonanceThread();
 		t->engine = this;
-#if RESONANCE_SUPPORT
 		t->resonance = this->resonance;
-#endif
 		t->callback_data = &this->callback_data;
 		t->frames_per_buffer = buffer_frames;
 		t->temp_buf.resize(buffer_frames * 2);
@@ -628,9 +701,13 @@ void AudioEngine::init()
 		thread_manager.addThread(t);
 	}
 
+#if USE_MINIAUDIO
+	ma_device_start(device); // The device is sleeping by default so you'll need to start it manually.
+#else
 	rtaudio_res = audio->startStream();
 	if(rtaudio_res != RTAUDIO_NO_ERROR)
 		throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
+#endif
 
 	this->initialised = true;
 }
@@ -640,9 +717,7 @@ void AudioEngine::setRoomEffectsEnabled(bool enabled)
 {
 	if(!initialised)
 		return;
-#if RESONANCE_SUPPORT
 	resonance->EnableRoomEffects(enabled);
-#endif
 }
 
 
@@ -651,7 +726,6 @@ void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 	if(!initialised)
 		return;
 
-#if RESONANCE_SUPPORT
 	vraudio::ReflectionProperties refl_props;
 
 	refl_props.room_dimensions[0] = room_aabb.axisLength(0);
@@ -669,7 +743,6 @@ void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 	refl_props.coefficients[2] = 0.3f;
 	refl_props.gain = 0.7f;
 	resonance->SetReflectionProperties(refl_props);
-#endif
 }
 
 
@@ -678,9 +751,7 @@ void AudioEngine::setMasterVolume(float volume)
 	if(!initialised)
 		return;
 
-#if RESONANCE_SUPPORT
 	resonance->SetMasterVolume(volume);
-#endif
 }
 
 
@@ -688,6 +759,13 @@ void AudioEngine::shutdown()
 {
 	thread_manager.killThreadsBlocking();
 	
+#if USE_MINIAUDIO
+	if(device)
+	{
+		ma_device_uninit(device);
+		device = NULL;
+	}
+#else
 	if(audio)
 	{
 		if(audio->isStreamOpen())
@@ -698,13 +776,15 @@ void AudioEngine::shutdown()
 			audio->closeStream();
 		}
 	}
-
-#if RESONANCE_SUPPORT
-	delete resonance;
-	resonance = NULL;
 #endif
 
+	delete resonance;
+	resonance = NULL;
+
+#if USE_MINIAUDIO
+#else
 	delete audio;
+#endif
 	audio = NULL;
 }
 
@@ -717,7 +797,6 @@ void AudioEngine::addSource(AudioSourceRef source)
 	if(source->sampling_rate < 8000 || source->sampling_rate > 48000)
 		throw glare::Exception("Unsupported sampling rate for audio source: " + toString(source->sampling_rate));
 
-#if RESONANCE_SUPPORT
 	if(source->spatial_type == AudioSource::SourceSpatialType_Spatial)
 	{
 		source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
@@ -733,7 +812,6 @@ void AudioEngine::addSource(AudioSourceRef source)
 		source->resonance_handle = resonance->CreateStereoSource(/*num channels=*/2);
 		resonance->SetSourceVolume(source->resonance_handle, source->volume * source->getMuteVolumeFactor());
 	}
-#endif
 
 	source->resampler.init(/*src rate=*/source->sampling_rate, this->sample_rate);
 
@@ -746,9 +824,7 @@ void AudioEngine::removeSource(AudioSourceRef source)
 {
 	if(!initialised)
 		return;
-#if RESONANCE_SUPPORT
 	resonance->DestroySource(source->resonance_handle);
-#endif
 	{
 		Lock lock(mutex);
 		audio_sources.erase(source);
@@ -791,9 +867,7 @@ void AudioEngine::sourcePositionUpdated(AudioSource& source)
 
 	if(!source.pos.isFinite())
 		return; // Avoid crash in Resonance with NaN or Inf position coords.
-#if RESONANCE_SUPPORT
 	resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
-#endif
 }
 
 
@@ -801,10 +875,8 @@ void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 {
 	if(!initialised)
 		return;
-#if RESONANCE_SUPPORT
 	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
 	resonance->SetSourceVolume(source.resonance_handle, source.volume * source.getMuteVolumeFactor());
-#endif
 }
 
 
@@ -812,9 +884,7 @@ void AudioEngine::sourceNumOcclusionsUpdated(AudioSource& source)
 {
 	if(!initialised)
 		return;
-#if RESONANCE_SUPPORT
 	resonance->SetSoundObjectOcclusionIntensity(source.resonance_handle, source.num_occlusions);
-#endif
 }
 
 
@@ -827,10 +897,8 @@ void AudioEngine::setHeadTransform(const Vec4f& head_pos, const Quatf& head_rot)
 	
 	if(head_pos.isFinite() && head_rot.v.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
 	{
-#if RESONANCE_SUPPORT
 		resonance->SetHeadPosition(head_pos[0], head_pos[1], head_pos[2]);
 		resonance->SetHeadRotation(head_rot.v[0], head_rot.v[1], head_rot.v[2], head_rot.v[3]);
-#endif
 	}
 }
 
