@@ -2054,6 +2054,7 @@ void MainWindow::on_actionAdd_Decal_triggered()
 	new_world_object->angle = angle;
 	new_world_object->scale = Vec3f(1.f, 1.f, 1.f);
 	new_world_object->max_model_lod_level = 0;
+	BitUtils::zeroBit(new_world_object->flags, WorldObject::COLLIDABLE_FLAG); // make non-collidable.
 
 
 	std::string unit_cube_mesh_URL = "unit_cube_bmesh_7263660735544605926.bmesh";
