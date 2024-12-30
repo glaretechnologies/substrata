@@ -1526,7 +1526,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 {
-	ob1.getCompressedVoxels() == ob2.getCompressedVoxels();
+	testAssert(ob1.getCompressedVoxels() == ob2.getCompressedVoxels());
 
 	testAssert(ob1.materials.size() == ob2.materials.size());
 	for(size_t i=0; i<ob1.materials.size(); ++i)

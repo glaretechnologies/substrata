@@ -944,6 +944,8 @@ static void doOneMainLoopIter()
 					doing_cam_rotate_mouse_drag = false;
 				}
 			}
+
+			have_received_input = true;
 		}
 		else if(e.type == SDL_MOUSEWHEEL)
 		{
