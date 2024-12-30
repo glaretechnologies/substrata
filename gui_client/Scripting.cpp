@@ -366,8 +366,9 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	{
 		gl_ob->ob_to_world_matrix = ob_to_world;
 		gl_ob->ob_to_world_normal_matrix = ob_to_world_normal_matrix;
+		gl_ob->ob_to_world_matrix_determinant = det;
 		gl_ob->aabb_ws = gl_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
-		opengl_engine->objectTransformDataChanged(*gl_ob, det);
+		opengl_engine->objectTransformDataChanged(*gl_ob);
 
 		// Update object world space AABB (used for computing LOD level).
 		// For objects with animated rotation, we want to compute an AABB without rotation, otherwise we can get a world-space AABB
