@@ -10884,8 +10884,8 @@ Vec4f GUIClient::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const
 	const float sensor_height = sensor_width / opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
 	const float lens_sensor_dist = ::lensSensorDist();
 
-	const float gl_w = (float)opengl_engine->getMainViewPortWidth(); // ui->glWidget->geometry().width();
-	const float gl_h = (float)opengl_engine->getMainViewPortHeight(); // ui->glWidget->geometry().height();
+	const float gl_w = (float)opengl_engine->getMainViewPortWidth();
+	const float gl_h = (float)opengl_engine->getMainViewPortHeight();
 
 	const float s_x = sensor_width  * (float)(pixel_pos_x - gl_w/2) / gl_w;  // dist right on sensor from centre of sensor
 	const float s_y = sensor_height * (float)(pixel_pos_y - gl_h/2) / gl_h; // dist down on sensor from centre of sensor
@@ -12445,7 +12445,7 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 	if(this->physics_world.nonNull())
 	{
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-		const Vec4f dir = getDirForPixelTrace((int)e.cursor_pos.x, (int)e.cursor_pos.y);
+		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 	
 		RayTraceResult results;
 		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);

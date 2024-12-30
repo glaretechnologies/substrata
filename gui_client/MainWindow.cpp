@@ -1101,7 +1101,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const QPoint mouse_point = ui->glWidget->mapFromGlobal(QCursor::pos());
 
 	MouseCursorState mouse_cursor_state;
-	mouse_cursor_state.cursor_pos = Vec2i(mouse_point.x(), mouse_point.y());
+	mouse_cursor_state.cursor_pos = Vec2i(mouse_point.x(), mouse_point.y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_cursor_state.gl_coords =  GLCoordsForGLWidgetPos(this, Vec2f((float)mouse_point.x(), (float)mouse_point.y()));
 
 	// NOTE: Stupid qt: QApplication::keyboardModifiers() doesn't update properly when just CTRL is pressed/released, without any other events.
@@ -3514,7 +3514,7 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
 
 	MouseEvent mouse_event;
-	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
+	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_event.gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 	mouse_event.button = fromQtMouseButton(e->button());
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
@@ -3532,7 +3532,7 @@ void MainWindow::glWidgetMouseReleased(QMouseEvent* e)
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
 	MouseEvent mouse_event;
-	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
+	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_event.gl_coords = gl_coords;
 	mouse_event.button = fromQtMouseButton(e->button());
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
@@ -3706,7 +3706,7 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
 	MouseEvent mouse_event;
-	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
+	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_event.gl_coords = gl_coords;
 	mouse_event.button = fromQtMouseButton(e->button());
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
@@ -3723,7 +3723,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
 	MouseEvent mouse_event;
-	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
+	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_event.gl_coords = gl_coords;
 	mouse_event.button = fromQtMouseButton(e->button());
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
@@ -3741,7 +3741,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
 	MouseEvent mouse_event;
-	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
+	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_event.gl_coords = gl_coords;
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
 	mouse_event.button_state = fromQTMouseButtons(e->buttons());
@@ -3880,7 +3880,7 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
 	MouseWheelEvent mouse_event;
-	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y());
+	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_event.gl_coords = gl_coords;
 	mouse_event.angle_delta = Vec2i(e->angleDelta().x(), e->angleDelta().y());
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
