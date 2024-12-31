@@ -1108,6 +1108,10 @@ inline static bool shouldExcludeObjectFromLODChunkMesh(const WorldObject* ob)
 	if(!ob->content.empty() && hasPrefix(ob->content, "biome: park"))
 		return true;
 
+	// Objects that have been specifically designated to not be baked should not be baked
+	if(!ob->content.empty() && hasPrefix(ob->content, "no LOD Bake"))
+		return true;
+	
 	return false;
 }
 
