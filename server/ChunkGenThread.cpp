@@ -31,6 +31,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/RuntimeCheck.h>
 #include <utils/FileOutStream.h>
 #include <utils/FileUtils.h>
+#include <utils/LRUCache.h>
 #include <maths/matrix3.h>
 #if !GUI_CLIENT
 #include <encoder/basisu_comp.h>
@@ -191,7 +192,7 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 
 // May return null mesh if there were no voxels or mesh was simplified away.
 // May also return mesh with zero indices.
-BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, Matrix4f& voxel_scale_matrix_out)
+BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::string, BatchedMeshRef>& mesh_cache, size_t& mesh_cache_total_mem_usage, Matrix4f& voxel_scale_matrix_out)
 {
 	float voxel_scale = 1.f;
 	voxel_scale_matrix_out = Matrix4f::identity();
@@ -201,8 +202,41 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, Matrix4f& voxel_sc
 	{
 		if(!ob_info.model_path.empty())
 		{
-			conPrint("Loading '" + ob_info.model_path + "'...");
-			mesh = LODGeneration::loadModel(ob_info.model_path);
+			auto res = mesh_cache.find(ob_info.model_path);
+			if(res == mesh_cache.end())
+			{
+				conPrint("Loading '" + ob_info.model_path + "'...");
+				mesh = LODGeneration::loadModel(ob_info.model_path);
+
+				mesh_cache.insert(std::make_pair(ob_info.model_path, mesh));
+				mesh_cache_total_mem_usage += mesh->getTotalMemUsage();
+
+				// conPrint("New cache total size: " + toString(mesh_cache_total_mem_usage) + " B");
+
+				// Clear out old items from cache if needed
+				while(mesh_cache_total_mem_usage >= 256 * 1024 * 1024)
+				{
+					std::string removed_URL;
+					BatchedMeshRef removed_mesh;
+					bool removed_item = mesh_cache.removeLRUItem(removed_URL, removed_mesh);
+					if(removed_item)
+					{
+						// conPrint("evicting " + removed_URL + " from cache.");
+						assert(removed_mesh->getTotalMemUsage() >= mesh_cache_total_mem_usage);
+						mesh_cache_total_mem_usage -= removed_mesh->getTotalMemUsage();
+					}
+					else
+						break;
+				}
+			}
+			else
+			{
+				// conPrint("Using '" + ob_info.model_path + "' from cache.");
+
+				// already in cache
+				mesh = res->second.value;
+				mesh_cache.itemWasUsed(ob_info.model_path);
+			}
 		}
 	}
 	else if(ob_info.object_type == WorldObject::ObjectType_VoxelGroup)
@@ -396,6 +430,9 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 	ChunkBuildResults results;
 	results.ob_batch_ranges.resize(ob_infos.size());
 
+	LRUCache<std::string, BatchedMeshRef> mesh_cache;
+	size_t mesh_cache_total_mem_usage = 0;
+
 	//-------------------------- Create combined mesh -----------------------------
 	BatchedMeshRef combined_mesh = new BatchedMesh();
 	size_t offset = 0;
@@ -439,7 +476,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 		try
 		{
 			Matrix4f voxel_scale_matrix;
-			BatchedMeshRef mesh = loadAndSimplifyGeometry(ob_info, /*voxel_scale_matrix_out=*/voxel_scale_matrix);
+			BatchedMeshRef mesh = loadAndSimplifyGeometry(ob_info, mesh_cache, mesh_cache_total_mem_usage, /*voxel_scale_matrix_out=*/voxel_scale_matrix);
 			
 			if(mesh.nonNull() && (mesh->numIndices() > 0))
 			{
@@ -1108,19 +1145,38 @@ inline static bool shouldExcludeObjectFromLODChunkMesh(const WorldObject* ob)
 	if(!ob->content.empty() && hasPrefix(ob->content, "biome: park"))
 		return true;
 
+	// Large objects may extend past the chunk they are in (since objects are classified into chunks by centroid)
+	// This allows the camera to come close to objects in their LOD'd form, which we don't want.
+	// So if an object extends a significant distance out of the chunk, don't do chunk LODing on it.
+	{
+		const Vec4f centroid = ob->getCentroidWS();
+		const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
+		const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
+
+		const js::AABBox chunk_aabb(
+			Vec4f(chunk_x       * chunk_w, chunk_y       * chunk_w, -2000, 1),
+			Vec4f((chunk_x + 1) * chunk_w, (chunk_y + 1) * chunk_w,  2000, 1)
+		);
+
+		const js::AABBox ob_aabb_ws = ob->getAABBWS();
+		const float extension = myMax(horizontalMax((ob_aabb_ws.max_ - chunk_aabb.max_).v), horizontalMax((chunk_aabb.min_ - ob_aabb_ws.min_).v)); // Distance the object extends out of chunk AABB
+		if(extension > 6.f)
+			return true;
+	}
+
 	return false;
 }
 
 
-// Iterates over WorldObjects, and creates a LODChunks containing the object if one does not already exist.
+// Iterates over WorldObjects, and creates a LODChunk containing the object if one does not already exist.
 // Also sets or unsets INCLUDE_IN_LOD_CHUNK_MESH flag for all objects in world.
-static void addNewChunksForWorldIfNeeded(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock)
+static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock)
 {
-	//conPrint("ChunkGenThread::addNewChunksIfNeeded(), world_name: '" + world_name + "'");
-	//int num_new_chunks_added = 0;
 	Timer timer;
 
 	ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
+	ServerWorldState::LODChunkMapType& lod_chunks = world_state->getLODChunks(lock);
+
 	for(auto it = objects.begin(); it != objects.end(); ++it)
 	{
 		WorldObject* ob = it->second.ptr();
@@ -1128,7 +1184,8 @@ static void addNewChunksForWorldIfNeeded(ServerAllWorldsState* all_worlds_state,
 		// Update EXCLUDE_FROM_LOD_CHUNK_MESH flag if needed.
 		const bool should_exclude = shouldExcludeObjectFromLODChunkMesh(ob);
 		const bool cur_excluded = BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
-		if(cur_excluded != should_exclude)
+		const bool exclusion_changed = cur_excluded != should_exclude;
+		if(exclusion_changed)
 		{
 			conPrint("Updating EXCLUDE_FROM_LOD_CHUNK_MESH flag for ob to " + toString(should_exclude));
 			BitUtils::setOrZeroBit(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH, should_exclude);
@@ -1138,13 +1195,16 @@ static void addNewChunksForWorldIfNeeded(ServerAllWorldsState* all_worlds_state,
 			all_worlds_state->markAsChanged();
 		}
 
-		if(!should_exclude)
+		if(!should_exclude || exclusion_changed)
 		{
 			const Vec4f centroid = ob->getCentroidWS();
 			const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
 			const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
 			const Vec3i chunk_coords(chunk_x, chunk_y, 0);
-			if(world_state->getLODChunks(lock).count(chunk_coords) == 0)
+
+			auto chunk_res = lod_chunks.find(chunk_coords);
+
+			if(!should_exclude && (chunk_res == lod_chunks.end()))
 			{
 				// Need new chunk
 				conPrint("Adding new LODChunk with coords " + chunk_coords.toString());
@@ -1154,14 +1214,24 @@ static void addNewChunksForWorldIfNeeded(ServerAllWorldsState* all_worlds_state,
 				chunk->needs_rebuild = true;
 
 				// Add to world state, mark as db-dirty so gets saved to disk.
-				world_state->getLODChunks(lock).insert(std::make_pair(chunk_coords, chunk));
+				lod_chunks.insert(std::make_pair(chunk_coords, chunk));
 				world_state->addLODChunkAsDBDirty(chunk, lock);
 				all_worlds_state->markAsChanged();
+
+				chunk_res = lod_chunks.find(chunk_coords);
 			}
+
+			// If exclusion changed for this object, and there is a chunk object containing it, mark the chunk as needs-rebuild.
+			if(exclusion_changed && (chunk_res != lod_chunks.end()))
+			{
+				conPrint("Object " + ob->uid.toString() + " exclude-from-chunk changed to " + boolToString(should_exclude) + ", marking chunk " + chunk_coords.toString() + " as needs-rebuild.");
+				chunk_res->second->needs_rebuild = true;
+			}
+
 		}
 	}
 
-	//conPrint("ChunkGenThread::addNewChunksIfNeeded() done.  Added " + toString(num_new_chunks_added) + " new chunks.  Elapsed: " + timer.elapsedStringMSWIthNSigFigs(4));
+	// conPrint("ChunkGenThread::updateObjectExcludeFlagsAndUpdateChunks() done. Elapsed: " + timer.elapsedStringMSWIthNSigFigs(4));
 }
 
 
@@ -1233,7 +1303,7 @@ void ChunkGenThread::doRun()
 				{
 					ServerWorldState* world_state = it->second.ptr();
 
-					addNewChunksForWorldIfNeeded(all_worlds_state, it->first, world_state, lock);
+					updateObjectExcludeFlagsAndUpdateChunks(all_worlds_state, it->first, world_state, lock);
 
 					for(auto chunk_it = world_state->getLODChunks(lock).begin(); chunk_it != world_state->getLODChunks(lock).end(); ++chunk_it)
 					{
