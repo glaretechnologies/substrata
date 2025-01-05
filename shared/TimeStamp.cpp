@@ -45,9 +45,13 @@ TimeStamp TimeStamp::fromComponents(int year, int month, int day, int hour, int 
 	t.tm_min = minutes;
 	t.tm_sec = seconds;
 
+#ifdef _WIN32
 	const time_t res = _mkgmtime(&t);
+#else
+	const time_t res = timegm(&t);
+#endif
 	if(res == -1)
-		throw glare::Exception("Failed to convert to time_t");
+		throw glare::Exception("TimeStamp::fromComponents(): Failed to convert to time_t");
 	return TimeStamp(res);
 }
 
