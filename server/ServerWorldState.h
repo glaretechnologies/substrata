@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/WorldStateLock.h"
 #include "../shared/LODChunk.h"
 #include "NewsPost.h"
+#include "SubEvent.h"
 #include "User.h"
 #include "Order.h"
 #include "UserWebSession.h"
@@ -271,6 +272,7 @@ public:
 	uint64 getNextSubEthTransactionUID();
 	uint64 getNextScreenshotUID();
 	uint64 getNextNewsPostUID();
+	uint64 getNextEventUID();
 
 	ObjectStorageItemRef getOrCreateObjectStorageItem(const ObjectStorageKey& key) REQUIRES(mutex); // Throws exception if too many items for object already created.
 	void clearObjectStorageItems() REQUIRES(mutex); // Just for tests
@@ -292,6 +294,7 @@ public:
 	void addScreenshotAsDBDirty(const ScreenshotRef screenshot)				REQUIRES(mutex) { db_dirty_screenshots.insert(screenshot); changed = 1; }
 	void addUserAsDBDirty(const UserRef user)								REQUIRES(mutex) { db_dirty_users.insert(user); changed = 1; }
 	void addNewsPostAsDBDirty(const NewsPostRef post)						REQUIRES(mutex) { db_dirty_news_posts.insert(post); changed = 1; }
+	void addEventAsDBDirty(const SubEventRef event)							REQUIRES(mutex) { db_dirty_events.insert(event); changed = 1; }
 
 	void addEverythingToDirtySets();
 
@@ -322,6 +325,8 @@ public:
 	std::unordered_map<UID, uint64, UIDHasher> object_num_storage_items GUARDED_BY(mutex); // Map from object UID to number of storage items for object.
 
 	std::map<UserSecretKey, UserSecretRef> user_secrets GUARDED_BY(mutex);
+
+	std::map<uint64, SubEventRef> events GUARDED_BY(mutex); // SubEvent id to SubEvent
 
 	// For the map:
 	MapTileInfo map_tile_info;
@@ -374,6 +379,7 @@ public:
 	std::unordered_set<UserRef, UserRefHash>							db_dirty_users					GUARDED_BY(mutex);
 	std::unordered_set<ObjectStorageItemRef, ObjectStorageItemRefHash>	db_dirty_object_storage_items	GUARDED_BY(mutex);
 	std::unordered_set<UserSecretRef, UserSecretRefHash>				db_dirty_user_secrets			GUARDED_BY(mutex);
+	std::unordered_set<SubEventRef, SubEventRefHash>					db_dirty_events					GUARDED_BY(mutex);
 
 	std::unordered_set<DatabaseKey, DatabaseKeyHash>					db_records_to_delete			GUARDED_BY(mutex);
 

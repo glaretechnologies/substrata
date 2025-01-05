@@ -2437,6 +2437,7 @@ void WorkerThread::doRun()
 							Reference<UserEnteredParcelThreadMessage> msg = new UserEnteredParcelThreadMessage();
 							msg->world = cur_world_state;
 							msg->avatar_uid = client_avatar_uid;
+							msg->client_user_id = client_user_id;
 							msg->object_uid = object_uid;
 							msg->parcel_id = parcel_id;
 							server->enqueueMsg(msg);

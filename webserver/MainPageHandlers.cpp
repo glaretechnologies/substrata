@@ -62,7 +62,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	//page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" class=\"logo-root-page\" />";
 
 
-	std::string auction_html, latest_news_html;
+	std::string auction_html, latest_news_html, events_html;
 	{ // lock scope
 		WorldStateLock lock(world_state.mutex);
 
@@ -168,6 +168,40 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		}
 		latest_news_html += "</div>\n";
 
+
+		// Build events HTML
+		events_html += "<div class=\"root-events-div-container\">\n";		const int max_num_events_to_display = 4;
+		int num_events_displayed = 0;
+		for(auto it = world_state.events.rbegin(); (it != world_state.events.rend()) && (num_events_displayed < max_num_events_to_display); ++it)
+		{
+			const SubEvent* event = it->second.ptr();
+
+			// We don't want to show old events, so end time has to be in the future, or sometime today, e.g. end_time >= (current time - 24 hours)
+			const TimeStamp min_end_time(TimeStamp::currentTime().time - 24 * 3600);
+			if((event->end_time >= min_end_time) && (event->state == SubEvent::State_published))
+			{
+				events_html += "<div class=\"root-event-div\">";
+
+				events_html += "<div class=\"root-event-title\"><a href=\"/event/" + toString(event->id) + "\">" + web::Escaping::HTMLEscape(event->title) + "</a></div>";
+
+				events_html += "<div class=\"root-event-description\">";
+				const size_t MAX_DESCRIP_SHOW_LEN = 80;
+				events_html += web::Escaping::HTMLEscape(event->description.substr(0, MAX_DESCRIP_SHOW_LEN));
+				if(event->description.size() > MAX_DESCRIP_SHOW_LEN)
+					events_html += "...";
+				events_html += "</div>";
+
+				events_html += "<div class=\"root-event-time\">" + event->start_time.dayAndTimeStringUTC() + "</div>";
+
+				events_html += "</div>";
+
+				num_events_displayed++;
+			}
+		}
+		if(num_events_displayed == 0)
+			events_html += "There are no upcoming events.  Create one!";
+		events_html += "</div>\n";
+
 	} // end lock scope
 
 
@@ -180,6 +214,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	StringUtils::replaceFirstInPlace(page_out, "LATEST_NEWS_HTML", latest_news_html);
 
 	StringUtils::replaceFirstInPlace(page_out, "LAND_PARCELS_FOR_SALE_HTML", auction_html);
+
+	StringUtils::replaceFirstInPlace(page_out, "EVENTS_HTML", events_html);
 
 	page_out += "<script src=\"/files/root-page.js\"></script>";
 	

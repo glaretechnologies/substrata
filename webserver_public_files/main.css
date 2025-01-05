@@ -226,7 +226,6 @@ td
 	margin-bottom: 30px;
 }
 
-
 .root-news-thumb-div {
 	min-height: 160px;
 }
@@ -264,6 +263,83 @@ td
 .news-post-content {
 	margin-bottom: 60px;
 }
+
+
+
+/*----------------------------------------Events-----------------------------------------*/
+.root-events-div-container {
+	/* Use grid layout, works pretty well with putting items side by side, also works well with having a little bit of space between them */
+	display: grid;
+	/*auto-fit: Fit whatever columns there are into the space. Prefer expanding columns to fill space rather than empty columns.*/
+	grid-template-columns: repeat(auto-fit, minmax( /*min=*/ 230px, /*max=*/ 230px));
+	grid-auto-flow: row;
+	gap: 15px 15px;
+}
+
+.root-event-div {
+	margin-bottom: 30px;
+}
+
+.root-event-thumb-div {
+	min-height: 160px;
+}
+
+.root-event-thumbnail {
+	width: 230px;
+	height: 131px;
+	object-fit: cover;
+}
+
+.root-event-title {
+	font-weight: bold;
+}
+
+.root-event-title a { /*override link colour*/
+	color: black;
+}
+
+.root-event-content {
+}
+
+.root-event-content a { /*override link colour*/
+	color: black;
+	text-decoration: none;
+}
+
+.root-event-time {
+	font-size: 0.8em;
+	color: #777;
+}
+
+.event-image {
+	max-width: 650px;
+}
+
+.event-post-timestamp {
+	font-size: 0.8em;
+}
+
+.event-post-content {
+	margin-bottom: 60px;
+}
+
+.event-datum-title {
+	position: absolute;
+}
+.event-datum {
+	padding-left: 12em;
+}
+
+.event-title {
+	font-size: 1.2em;
+}
+
+.event-description {
+	padding-bottom: 1em;
+}
+
+
+
 
 
 

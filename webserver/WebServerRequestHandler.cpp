@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
 #include "ResourceHandlers.h"
+#include "SubEventHandlers.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include <webserver/PayPalHandlers.h>
 #include <webserver/CoinbaseHandlers.h>
@@ -285,6 +286,18 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			NewsPostHandlers::handleDeleteNewsPostPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/create_event_post")
+		{
+			SubEventHandlers::handleCreateEventPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/edit_event_post")
+		{
+			SubEventHandlers::handleEditEventPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/delete_event_post")
+		{
+			SubEventHandlers::handleDeleteEventPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
@@ -523,6 +536,22 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/news"))
 		{
 			NewsPostHandlers::renderAllNewsPage(*world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/event/")) // Event ID follows
+		{
+			SubEventHandlers::renderEventPage(*world_state, request, reply_info);
+		}
+		else if(request.path == "/events")
+		{
+			SubEventHandlers::renderAllEventsPage(*world_state, request, reply_info);
+		}
+		else if(request.path == "/create_event")
+		{
+			SubEventHandlers::renderCreateEventPage(*world_state, request, reply_info);
+		}
+		else if(request.path == "/edit_event")
+		{
+			SubEventHandlers::renderEditEventPage(*world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{
