@@ -681,16 +681,43 @@ int main(int argc, char *argv[])
 					{
 						const UserEnteredParcelThreadMessage* parcel_msg = static_cast<UserEnteredParcelThreadMessage*>(msg.ptr());
 
-						// Look up object
-						WorldStateLock world_lock(server.world_state->mutex);
-						auto res = parcel_msg->world->getObjects(world_lock).find(parcel_msg->object_uid);
-						if(res != parcel_msg->world->getObjects(world_lock).end())
+						if(parcel_msg->object_uid.valid())
 						{
-							WorldObject* ob = res->second.ptr();
+							// Look up object
+							WorldStateLock world_lock(server.world_state->mutex);
+							auto res = parcel_msg->world->getObjects(world_lock).find(parcel_msg->object_uid);
+							if(res != parcel_msg->world->getObjects(world_lock).end())
+							{
+								WorldObject* ob = res->second.ptr();
 
-							// Execute event handler in any scripts that are listening on this object
-							if(ob->event_handlers)
-								ob->event_handlers->executeOnUserEnteredParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
+								// Execute event handler in any scripts that are listening on this object
+								if(ob->event_handlers)
+									ob->event_handlers->executeOnUserEnteredParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
+							}
+						}
+						else
+						{
+							// If object_uid is invalid, then this event is not from a script, but just from a user entering a parcel.
+							// See if there are any social events currently happening on this parcel, if there are, add user to attendee list.
+							if(parcel_msg->client_user_id.valid())
+							{
+								const TimeStamp current_time = TimeStamp::currentTime();
+
+								WorldStateLock world_lock(server.world_state->mutex);
+								for(auto it = server.world_state->events.begin(); it != server.world_state->events.end(); ++it)
+								{
+									SubEvent* event = it->second.ptr();
+									if((event->parcel_id == parcel_msg->parcel_id) && // If event is at this parcel
+										(event->start_time <= current_time) && // and is currently happening
+										(event->end_time >= current_time))
+									{
+										// Add the client to the event attendee list (if not already inserted)
+										const bool inserted = event->attendee_ids.insert(parcel_msg->client_user_id).second;
+										if(inserted)
+											server.world_state->addEventAsDBDirty(event);
+									}
+								}
+							}
 						}
 					}
 					else if(dynamic_cast<UserExitedParcelThreadMessage*>(msg.ptr()))

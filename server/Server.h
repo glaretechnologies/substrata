@@ -86,6 +86,7 @@ class UserEnteredParcelThreadMessage : public ThreadMessage
 {
 public:
 	UID avatar_uid; // May be invalid if user is not logged in
+	UserID client_user_id;  // May be invalid if user is not logged in
 
 	Reference<ServerWorldState> world; // World the client is connected to and that the object is in.
 	UID object_uid;

@@ -35,6 +35,23 @@ TimeStamp::~TimeStamp()
 }
 
 
+TimeStamp TimeStamp::fromComponents(int year, int month, int day, int hour, int minutes, int seconds)
+{
+	tm t;
+	t.tm_year = year - 1900; // tm_year = years since 1900
+	t.tm_mon = month; // months since January
+	t.tm_mday = day; // day of the month ([1, 31])
+	t.tm_hour = hour;
+	t.tm_min = minutes;
+	t.tm_sec = seconds;
+
+	const time_t res = _mkgmtime(&t);
+	if(res == -1)
+		throw glare::Exception("Failed to convert to time_t");
+	return TimeStamp(res);
+}
+
+
 static const std::string monthString(int month)
 {
 	std::string monthstr;
@@ -90,8 +107,6 @@ const std::string TimeStamp::dayString() const
 	time_t t = this->time;
 	tm thetime;
 
-	//const tm* thetime = localtime(&t);
-
 	// Use threadsafe versions of localtime: 
 #ifdef _WIN32
 	localtime_s(&thetime, &t);
@@ -99,12 +114,31 @@ const std::string TimeStamp::dayString() const
 	localtime_r(&t, &thetime);
 #endif
 	
-
 	const int day = thetime.tm_mday; // Day of month (1 – 31).
 	const int month = thetime.tm_mon; // Month (0 – 11; January = 0).
 	const int year = thetime.tm_year + 1900; // tm_year = Year (current year minus 1900).
 
 	return toString(day) + " " + monthString(month) + " " + toString(year);
+}
+
+
+const std::string TimeStamp::dayAndTimeStringUTC() const
+{
+	time_t t = this->time;
+	tm thetime;
+
+	// Use threadsafe versions of localtime: 
+#ifdef _WIN32
+	gmtime_s(&thetime, &t);
+#else
+	gmtime_r(&t, &thetime);
+#endif
+
+	const int day = thetime.tm_mday; // Day of month (1 – 31).
+	const int month = thetime.tm_mon; // Month (0 – 11; January = 0).
+	const int year = thetime.tm_year + 1900; // tm_year = Year (current year minus 1900).
+
+	return toString(day) + " " + monthString(month) + " " + toString(year) + ", " + ::leftPad(toString(thetime.tm_hour), '0', 2) + ":" + ::leftPad(toString(thetime.tm_min), '0', 2);
 }
 
 
@@ -120,6 +154,74 @@ const std::string TimeStamp::RFC822FormatedString() const // http://www.faqs.org
 	{
 		return "[String formatting failed]";
 	}
+}
+
+
+static const std::string twoDigitString(int x)
+{
+	return ::leftPad(::toString(x), '0', 2);
+}
+
+
+// See https://developer.mozilla.org/en-US/docs/Web/HTML/Date_and_time_formats#local_date_and_time_strings
+// Returns a string like "1970-07-20T22:00"
+const std::string TimeStamp::HTTPDateTimeFormattedStringUTC() const
+{
+	time_t t = this->time;
+
+	tm thetime;
+	// Get calender time in UTC.  Use threadsafe versions of gmtime.
+#ifdef _WIN32
+	const errno_t res = gmtime_s(&thetime, &t);
+	if(res != 0)
+		throw glare::Exception("time formatting failed");
+#else
+	const tm* res = gmtime_r(&t, &thetime);
+	if(res == NULL)
+		throw glare::Exception("time formatting failed");
+#endif
+
+	const int year = thetime.tm_year + 1900; // tm_year = Year (current year minus 1900).
+	const int month = thetime.tm_mon; // Month (0 – 11; January = 0).
+	const int day = thetime.tm_mday; // Day of month (1 – 31).
+
+	// NOTE: not including optional seconds.  
+	return toString(year) + "-" + twoDigitString(month + 1) + "-" + twoDigitString(day) + "T" + twoDigitString(thetime.tm_hour) + ":" + twoDigitString(thetime.tm_min);
+}
+
+
+const std::string TimeStamp::durationDescription(int seconds)
+{
+	int mins = seconds / 60;
+
+	const int days = mins / (24 * 60);
+	mins -= days * 24 * 60;
+
+	const int hours = mins / 60;
+	mins -= hours * 60;
+
+	std::string s;
+	if(days == 1)
+		s += "1 day";
+	else if(days > 1)
+		s += toString(days) + " days";
+	if(hours > 0)
+	{
+		if(!s.empty())
+			s += ", ";
+		if(hours == 1)
+			s += "1 hour";
+		else
+			s += ::toString(hours) + " hours";
+	}
+	if(mins > 0)
+	{
+		if(!s.empty())
+			s += " and ";
+		s += ::toString(mins) + " minutes";
+	}
+
+	return s;
 }
 
 

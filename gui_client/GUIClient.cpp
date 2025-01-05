@@ -5350,6 +5350,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						}
 					}
 				}
+
+				// Send UserEnteredParcelMessage without an object UID.  This will be used for adding the user to social event attendee lists.
+				MessageUtils::initPacket(scratch_packet, Protocol::UserEnteredParcelMessage);
+				writeToStream(UID::invalidUID(), scratch_packet);
+				writeToStream(parcel->id, scratch_packet);
+				enqueueMessageToSend(*client_thread, scratch_packet);
 			}
 
 			this->cur_in_parcel_id = new_in_parcel_id;

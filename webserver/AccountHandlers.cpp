@@ -91,6 +91,18 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 			}
 		}
 
+		//-------------------------------- List events created by user --------------------------------
+		page += "<h2>Events</h2>\n";
+		for(auto it = world_state.events.begin(); it != world_state.events.end(); ++it)
+		{
+			const SubEvent* event = it->second.ptr();
+			if(event->creator_id == logged_in_user->id)
+			{
+				page += "<div><a href=\"/event/" + toString(event->id) + "\">" + web::Escaping::HTMLEscape(event->title) + "</a></div>";
+			}
+		}
+
+
 		page += "<h2>Ethereum</h2>\n";
 
 		page += "Linked Ethereum address: ";

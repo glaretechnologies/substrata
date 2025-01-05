@@ -54,13 +54,13 @@ Substrata is almost completely open-source, check out the source code <a href="h
 <h2 id="downloads">Downloads</h2>
 <p>You can enter <a href="/webclient">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.20_Setup.exe">Substrata_v1.2.20_Setup.exe</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.5.10_Setup.exe">Substrata_v1.5.10_Setup.exe</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.20_x64.pkg">Substrata_v1.2.20_x64.pkg</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.5.10_x64.pkg">Substrata_v1.5.10_x64.pkg</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.2.20.tar.gz">Substrata_v1.2.20.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.5.10.tar.gz">Substrata_v1.5.10.tar.gz</a>
 </p>
 
 
@@ -68,10 +68,14 @@ Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_
 
 LATEST_NEWS_HTML
 
-
 <a href="/news">See all news</a> or find us on Twitter/X:
 <a href="https://twitter.com/SubstrataVr" ><img width="20px" src="/files/twitter.png" />@SubstrataVr</a>
 
+<h2>Events</h2>
+
+EVENTS_HTML
+
+<a href="/events">See all events</a> or <a href="/create_event">Create an event</a>
 
 <h2>Buy a land parcel</h2>
 
