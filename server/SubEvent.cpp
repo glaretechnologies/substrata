@@ -113,3 +113,57 @@ void readSubEventFromStream(RandomAccessInStream& stream, SubEvent& event)
 	if(read_B < buffer_size)
 		stream.advanceReadIndex(buffer_size - read_B);
 }
+
+
+#if BUILD_TESTS
+
+
+#include <utils/TestUtils.h>
+
+
+void SubEvent::test()
+{
+	{
+		SubEvent ev;
+		ev.world_name = "a";
+		ev.title = "b";
+		ev.description = "c";
+		ev.state = State_deleted;
+		ev.attendee_ids.insert(UserID(100));
+		ev.attendee_ids.insert(UserID(101));
+		ev.attendee_ids.insert(UserID(102));
+
+		BufferOutStream stream;
+		ev.writeToStream(stream);
+
+		BufferInStream instream(stream.buf);
+
+		SubEvent ev2;
+		readSubEventFromStream(instream, ev2);
+		testAssert(ev2.world_name == ev.world_name);
+		testAssert(ev2.title == ev.title);
+		testAssert(ev2.description == ev.description);
+		testAssert(ev2.state == ev.state);
+		testAssert(ev2.attendee_ids == ev.attendee_ids);
+	}
+
+	{
+		SubEvent ev;
+		
+		BufferOutStream stream;
+		ev.writeToStream(stream);
+
+		BufferInStream instream(stream.buf);
+
+		SubEvent ev2;
+		readSubEventFromStream(instream, ev2);
+		testAssert(ev2.world_name == ev.world_name);
+		testAssert(ev2.title == ev.title);
+		testAssert(ev2.description == ev.description);
+		testAssert(ev2.state == ev.state);
+		testAssert(ev2.attendee_ids == ev.attendee_ids);
+	}
+}
+
+
+#endif
