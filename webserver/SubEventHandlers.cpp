@@ -178,7 +178,7 @@ void renderAllEventsPage(ServerAllWorldsState& world_state, const web::RequestIn
 			for(; it != world_state.events.rend() && num_displayed < max_num_to_display; ++it)
 			{
 				const SubEvent* event = it->second.ptr();
-				if(event->state == NewsPost::State_published)
+				if(event->state == SubEvent::State_published)
 				{
 					page += "<h2 class=\"event-title\"><a href=\"/event/" + toString(event->id) + "\">" + web::Escaping::HTMLEscape(event->title) + "</a></h2>";
 
