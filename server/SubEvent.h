@@ -58,6 +58,8 @@ public:
 
 	static std::string stateString(State s);
 
+	static void test();
+
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.
 
