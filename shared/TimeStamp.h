@@ -43,18 +43,25 @@ public:
 
 	int64 numSecondsAgo() const;
 
-	const std::string timeAgoDescription() const; // Returns a string like '1 hour ago'
 
-	const std::string timeDescription() const; // Returns a string like '1 hour ago' or 'in 5 minutes'
+	static std::string durationDescription(int seconds); // E.g. "2 days, 3 hours and 30 minutes"
+	static std::string timeAgoDescription(int64 seconds_ago); // Returns a string like '1 hour ago'
+	static std::string timeInFutureDescription(int64 time_minus_current_time); // Returns a string like 'in 5 minutes'
+
+	std::string timeDescription() const; // Description of timestamp relative to current time.  Returns a string like '1 hour ago' or 'in 5 minutes'
+	std::string timeAgoDescription() const; // Description of timestamp relative to current time.  Returns a string like '1 hour ago'
+
 
 	const std::string RFC822FormatedString() const; // http://www.faqs.org/rfcs/rfc822.html
 
 	const std::string HTTPDateTimeFormattedStringUTC() const; // e.g. 
 
-	static const std::string durationDescription(int seconds); // E.g. "2 days, 3 hours and 30 minutes"
+
 
 	bool operator <= (const TimeStamp& other) const { return time <= other.time; }
 	bool operator >= (const TimeStamp& other) const { return time >= other.time; }
+
+	static void test();
 
 	uint64 time; // Seconds since 1970 UTC.
 };
