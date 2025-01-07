@@ -15,7 +15,7 @@ LuaHTTPRequestManager::LuaHTTPRequestManager(Server* server_)
 :	server(server_)
 {
 	if(!server->config.do_lua_http_request_rate_limiting)
-		conPrint("Lua HTTP Reqest rate limiting is disabled.");
+		conPrint("Lua HTTP request rate limiting is disabled.");
 
 	for(int i=0; i<4; ++i)
 	{
