@@ -194,8 +194,12 @@ const std::string TimeStamp::HTTPDateTimeFormattedStringUTC() const
 }
 
 
-const std::string TimeStamp::durationDescription(int seconds)
+std::string TimeStamp::durationDescription(int seconds)
 {
+	// If less than 1 minute, show just seconds
+	if(seconds < 60)
+		return toString(seconds) + " seconds";
+
 	int mins = seconds / 60;
 
 	const int days = mins / (24 * 60);
@@ -218,11 +222,11 @@ const std::string TimeStamp::durationDescription(int seconds)
 		else
 			s += ::toString(hours) + " hours";
 	}
-	if(mins > 0)
+	if((mins > 0) || s.empty())
 	{
 		if(!s.empty())
 			s += " and ";
-		s += ::toString(mins) + " minutes";
+		s += ::toString(mins) + ((mins > 1) ? " minutes" : " minute");
 	}
 
 	return s;
@@ -264,70 +268,111 @@ int64 TimeStamp::numSecondsAgo() const
 }
 
 
-const std::string TimeStamp::timeAgoDescription() const // Returns a string like '1 hour ago'
+std::string TimeStamp::timeAgoDescription() const // Returns a string like '1 hour ago'
 {
-	int diff_s = (int)(currentTime().time - this->time); // Get num seconds ago
+	const int64 seconds_ago = (int64)(currentTime().time - this->time); // Get num seconds ago
 	
+	return timeAgoDescription(seconds_ago);
+}
+
+
+std::string TimeStamp::timeInFutureDescription(int64 time_minus_current_time)
+{
+	return "in " + durationDescription((int)time_minus_current_time);
+}
+
+
+std::string TimeStamp::timeAgoDescription(int64 seconds_ago)
+{
+	const int64 diff_s = seconds_ago;
+
 	if(diff_s < 60) // If less than 1 minute ago:
 	{
 		return diff_s == 1 ? "1 second ago" : toString(diff_s) + " seconds ago";
 	}
 	else if(diff_s < 3600) // If less than 1 hour ago:
 	{
-		int diff_m = diff_s / 60;
+		int64 diff_m = diff_s / 60;
 		return diff_m == 1 ? "1 minute ago" : toString(diff_m) + " minutes ago";
 	}
 	else if(diff_s < (3600 * 24)) // Else if less than 1 day ago:
 	{
-		int diff_h = diff_s / 3600;
+		int64 diff_h = diff_s / 3600;
 		return diff_h == 1 ? "1 hour ago" : toString(diff_h) + " hours ago";
 	}
 	else
 	{
-		int diff_d = diff_s / (3600 * 24);
+		int64 diff_d = diff_s / (3600 * 24);
 		return diff_d == 1 ? "1 day ago" : toString(diff_d) + " days ago";
 	}
 }
 
 
-static const std::string hourString(int h)
+std::string TimeStamp::timeDescription() const // Returns a string like '1 hour ago' or 'in 5 minutes'
 {
-	return (h == 1) ? "1 hour" : toString(h) + " hours";
-}
-
-
-const std::string TimeStamp::timeDescription() const // Returns a string like '1 hour ago' or 'in 5 minutes'
-{
-	if(currentTime().time >= this->time)
-	{
-		return timeAgoDescription();
-	}
+	const int64 diff_s = (int64)this->time - (int64)currentTime().time;
+	if(diff_s < 0)
+		return timeAgoDescription(diff_s);
 	else
-	{
-		const int diff_s = (int)(this->time - currentTime().time); // Get secods in future
-
-		if(diff_s < 3600) // If less than 1 hour:
-		{
-			int diff_m = diff_s / 60;
-			return diff_m == 1 ? "in 1 minute" : "in " + toString(diff_m) + " minutes";
-		}
-		else if(diff_s < (3600 * 24)) // Else if less than 1 day ago:
-		{
-			int diff_h = diff_s / 3600;
-			return diff_h == 1 ? "in 1 hour" : "in " + toString(diff_h) + " hours";
-		}
-		else
-		{
-			int diff_h = diff_s / 3600;
-			int diff_d = diff_s / (3600 * 24);
-			if(diff_d <= 5)
-			{
-				// Show hours as well, something like "in 2 days and 16 hours"
-				const int remaining_hours = diff_h - diff_d * 24;
-				return (diff_d == 1) ? ("in 1 day and " + hourString(remaining_hours)) : ("in " + toString(diff_d) + " days and " + hourString(remaining_hours));
-			}
-			else
-				return (diff_d == 1) ? "in 1 day" : ("in " + toString(diff_d) + " days");
-		}
-	}
+		return timeInFutureDescription(diff_s);
 }
+
+
+#if BUILD_TESTS
+
+
+#include <utils/TestUtils.h>
+
+
+void TimeStamp::test()
+{
+	//-------------------------------- Test durationDescription --------------------------------
+	testAssert(durationDescription(3600 * 24 * 7 + 4 * 3600 + 37 * 60 + 52) == "7 days, 4 hours and 37 minutes");
+	testAssert(durationDescription(4 * 3600 + 37 * 60 + 52) == "4 hours and 37 minutes");
+	testAssert(durationDescription(37 * 60 + 52) == "37 minutes");
+	testAssert(durationDescription(52) == "52 seconds");
+	testAssert(durationDescription(0) == "0 seconds");
+
+	// Test singular day
+	testAssert(durationDescription(3600 * 24) == "1 day");
+	testAssert(durationDescription(3600 * 24 + 40 * 60) == "1 day and 40 minutes");
+
+	// Test singular hour
+	testAssert(durationDescription(3600) == "1 hour");
+	testAssert(durationDescription(3600 + 40 * 60) == "1 hour and 40 minutes");
+
+	// Test singular minute
+	testAssert(durationDescription(60) == "1 minute");
+	testAssert(durationDescription(60 + 10) == "1 minute");
+
+	testAssert(durationDescription(4 * 3600) == "4 hours"); // shouldn't say "0 minutes" if there is an hour present
+	
+	//-------------------------------- Test timeInFutureDescription --------------------------------
+	testAssert(timeInFutureDescription(3600 * 24 * 7 + 4 * 3600 + 37 * 60 + 52) == "in 7 days, 4 hours and 37 minutes");
+
+	testAssert(timeInFutureDescription(60) == "in 1 minute");
+
+	testAssert(timeInFutureDescription(40) == "in 40 seconds");
+
+	testAssert(timeInFutureDescription(0) == "in 0 seconds");
+
+	testAssert(timeInFutureDescription(-10) == "in -10 seconds");
+
+	//-------------------------------- Test timeAgoDescription --------------------------------
+	testAssert(timeAgoDescription(3600 * 24 * 7 + 4 * 3600 + 37 * 60 + 52) == "7 days ago");
+	testAssert(timeAgoDescription(3600 * 24 * 1 + 4 * 3600 + 37 * 60 + 52) == "1 day ago");
+	testAssert(timeAgoDescription(4 * 3600 + 37 * 60 + 52) == "4 hours ago");
+	testAssert(timeAgoDescription(1 * 3600 + 37 * 60 + 52) == "1 hour ago");
+
+	testAssert(timeAgoDescription(37 * 60 + 52) == "37 minutes ago");
+	testAssert(timeAgoDescription(1 * 60 + 52) == "1 minute ago");
+
+	testAssert(timeAgoDescription(52) == "52 seconds ago");
+	testAssert(timeAgoDescription(1) == "1 second ago");
+
+	testAssert(timeAgoDescription(-10) == "-10 seconds ago");
+
+}
+
+
+#endif
