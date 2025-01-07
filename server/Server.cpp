@@ -185,13 +185,14 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	pugi::xml_node root_elem = doc.getRootElement();
 
 	ServerConfig config;
-	config.webserver_fragments_dir		= XMLParseUtils::parseStringWithDefault(root_elem, "webserver_fragments_dir", /*default val=*/"");
-	config.webserver_public_files_dir	= XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
-	config.webclient_dir				= XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
-	config.tls_certificate_path			= XMLParseUtils::parseStringWithDefault(root_elem, "tls_certificate_path", /*default val=*/"");
-	config.tls_private_key_path			= XMLParseUtils::parseStringWithDefault(root_elem, "tls_private_key_path", /*default val=*/"");
-	config.allow_light_mapper_bot_full_perms = XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
-	config.update_parcel_sales			= XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
+	config.webserver_fragments_dir				= XMLParseUtils::parseStringWithDefault(root_elem, "webserver_fragments_dir", /*default val=*/"");
+	config.webserver_public_files_dir			= XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
+	config.webclient_dir						= XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
+	config.tls_certificate_path					= XMLParseUtils::parseStringWithDefault(root_elem, "tls_certificate_path", /*default val=*/"");
+	config.tls_private_key_path					= XMLParseUtils::parseStringWithDefault(root_elem, "tls_private_key_path", /*default val=*/"");
+	config.allow_light_mapper_bot_full_perms	= XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
+	config.update_parcel_sales					= XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
+	config.do_lua_http_request_rate_limiting	= XMLParseUtils::parseBoolWithDefault(root_elem, "do_lua_http_request_rate_limiting", /*default val=*/true);
 	return config;
 }
 

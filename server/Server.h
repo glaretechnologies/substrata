@@ -23,7 +23,7 @@ class LuaHTTPRequest;
 class ServerConfig
 {
 public:
-	ServerConfig() : allow_light_mapper_bot_full_perms(false), update_parcel_sales(false) {}
+	ServerConfig() : allow_light_mapper_bot_full_perms(false), update_parcel_sales(false), do_lua_http_request_rate_limiting(true) {}
 	
 	std::string webserver_fragments_dir; // empty string = use default.
 	std::string webserver_public_files_dir; // empty string = use default.
@@ -35,6 +35,8 @@ public:
 	bool allow_light_mapper_bot_full_perms; // Allow lightmapper bot (User account with name "lightmapperbot" to have full write permissions.
 
 	bool update_parcel_sales; // Should we run auctions?
+
+	bool do_lua_http_request_rate_limiting; // Should we rate-limit HTTP requests made by Lua scripts?
 };
 
 
