@@ -1184,12 +1184,6 @@ elseif(WIN32)
 	target_link_libraries(${CURRENT_TARGET}
 		OpenGL32
 
-	
-		
-		debug 		C:/programming/indigo/output/vs2022/indigo_x64/Debug/indigo_sdk_lib.lib
-		optimized 	C:/programming/indigo/output/vs2022/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
-
-
 		# Media foundation video reading:
 		mfplat.lib 
 		mfreadwrite.lib 
@@ -1207,6 +1201,13 @@ elseif(WIN32)
 		
 		Opus
 	)
+	
+	if(INDIGO_SUPPORT)
+		target_link_libraries(${CURRENT_TARGET}
+			debug 		C:/programming/indigo/output/vs2022/indigo_x64/Debug/indigo_sdk_lib.lib
+			optimized 	C:/programming/indigo/output/vs2022/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
+		)
+	endif()
 	
 	if(USE_SDL)
 		target_link_libraries(${CURRENT_TARGET}
