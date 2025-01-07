@@ -14,6 +14,9 @@ Copyright Glare Technologies Limited 2024 -
 LuaHTTPRequestManager::LuaHTTPRequestManager(Server* server_)
 :	server(server_)
 {
+	if(!server->config.do_lua_http_request_rate_limiting)
+		conPrint("Lua HTTP Reqest rate limiting is disabled.");
+
 	for(int i=0; i<4; ++i)
 	{
 		thread_manager.addThread(new LuaHTTPWorkerThread(this));
@@ -75,19 +78,26 @@ void LuaHTTPRequestManager::enqueueHTTPRequest(Reference<LuaHTTPRequest> request
 
 	if(http_requests_enabled)
 	{
-		// Look up rate limiter for this request
-		RateLimiter* rate_limiter;
-		auto res = rate_limiters.find(request->script_user_id);
-		if(res == rate_limiters.end())
+		bool can_enqueue_request;
+		if(server->config.do_lua_http_request_rate_limiting)
 		{
-			rate_limiter = new RateLimiter(/*period=*/300.0, /*max num in period=*/10);
-			rate_limiters.insert(std::make_pair(request->script_user_id, rate_limiter));
-		}
-		else
-			rate_limiter = res->second.ptr();
+			// Look up rate limiter for this request
+			RateLimiter* rate_limiter;
+			auto res = rate_limiters.find(request->script_user_id);
+			if(res == rate_limiters.end())
+			{
+				rate_limiter = new RateLimiter(/*period=*/300.0, /*max num in period=*/10);
+				rate_limiters.insert(std::make_pair(request->script_user_id, rate_limiter));
+			}
+			else
+				rate_limiter = res->second.ptr();
 
-		const bool can_enqueue = rate_limiter->checkAddEvent(Clock::getCurTimeRealSec());
-		if(can_enqueue)
+			can_enqueue_request = rate_limiter->checkAddEvent(Clock::getCurTimeRealSec());
+		}
+		else // Else if rate limiting disabled:
+			can_enqueue_request = true;
+
+		if(can_enqueue_request)
 		{
 			request_queue.enqueue(request);
 		}
