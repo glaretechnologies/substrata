@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2024 -
 #define MA_NO_DECODING				// Disables decoding APIs.
 #define MA_NO_ENCODING				// Disables encoding APIs.
 #define MA_NO_GENERATION			// Disables generation APIs such a ma_waveform and ma_noise.
+#define MA_COINIT_VALUE		COINIT_APARTMENTTHREADED	// This is needed otherwise Qt's OpenFileDialog hangs.
 
 #if EMSCRIPTEN
 
@@ -39,6 +40,8 @@ Copyright Glare Technologies Limited 2024 -
 #define MA_NO_RUNTIME_LINKING // Disables runtime linking. This is useful for passing Apple's notarization process.
 
 #endif
+
+#include <objbase.h> // For COINIT_APARTMENTTHREADED
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "../miniaudio/miniaudio.h"
