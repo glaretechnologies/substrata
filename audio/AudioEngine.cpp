@@ -41,7 +41,9 @@ Copyright Glare Technologies Limited 2024 -
 
 #endif
 
+#ifdef _WIN32
 #include <objbase.h> // For COINIT_APARTMENTTHREADED
+#endif
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "../miniaudio/miniaudio.h"
