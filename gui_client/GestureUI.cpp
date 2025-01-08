@@ -29,10 +29,10 @@ GestureUI::~GestureUI()
 static const char* gestures[] = {
 	"Clapping",						"",				"Loop",		"",
 	"Dancing",						"AnimHead",		"Loop",		"",
-	"Excited",						"AnimHead",		"",			"6.5666666",
+	"Excited",						"AnimHead",		"Loop",		"6.5666666",
 	"Looking",						"AnimHead",		"",			"8.016666",
 	"Quick Informal Bow",			"AnimHead",		"",			"2.75",
-	"Rejected",						"AnimHead",		"",			 "4.8166666",
+	"Rejected",						"AnimHead",		"",			"4.8166666",
 	"Sit",							"",				"Loop",		"",
 	"Sitting On Ground",			"",				"Loop",		"",
 	"Sitting Talking",				"",				"Loop",		"",
