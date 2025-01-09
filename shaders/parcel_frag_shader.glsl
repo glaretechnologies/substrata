@@ -8,7 +8,6 @@ uniform vec3 colour;
 // Various outputs for order-independent transparency.
 layout(location = 0) out vec4 transmittance_out;
 layout(location = 1) out vec4 accum_out;
-layout(location = 2) out float av_transmittance_out;
 
 
 float gridFactor(float tiling, float w)
@@ -98,5 +97,4 @@ void main()
 
 	float T = 1.0;
 	transmittance_out = vec4(T, T, T, T);
-	av_transmittance_out = T;
 }
