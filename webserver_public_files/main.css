@@ -324,10 +324,9 @@ td
 }
 
 .event-datum-title {
-	position: absolute;
+	padding-right: 1em;
 }
 .event-datum {
-	padding-left: 12em;
 }
 
 .event-title {
