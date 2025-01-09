@@ -74,33 +74,33 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 						creator_username = res2->second->name;
 				}
 
-				page += "<dl>\n"; // data list
+				page += "<table>\n"; // Event data table
 
 				if(logged_in_user_is_event_owner)
-					page += "<dt class=\"event-datum-title\">Status:</dt><dd class=\"event-datum\"><b>" + SubEvent::stateString(event->state) + "</b></dd>\n";
+					page += "<tr><td class=\"event-datum-title\">Status:</td><td class=\"event-datum\"><b>" + SubEvent::stateString(event->state) + "</b></td></tr>\n";
 
 				if(event->world_name.empty()) // If in main world:
 				{
 					const std::string parcel_description = event->parcel_id.valid() ? ("Parcel " + event->parcel_id.toString()) : "Unspecified parcel";
-					page += "<dt class=\"event-datum-title\">Location:</dt><dd class=\"event-datum\"><a href=\"/parcel/" + event->parcel_id.toString() + "\"> " + parcel_description + "</a></dd>\n";
+					page += "<tr><td class=\"event-datum-title\">Location:</td><td class=\"event-datum\"><a href=\"/parcel/" + event->parcel_id.toString() + "\"> " + parcel_description + "</a></td></tr>\n";
 				}
 				else // Else if in personal world:
 				{
-					page += "<dt class=\"event-datum-title\">Location:</dt><dd class=\"event-datum\">" + web::Escaping::HTMLEscape(creator_username) + "'s personal world</dd>\n";
+					page += "<tr><td class=\"event-datum-title\">Location:</td><td class=\"event-datum\">" + web::Escaping::HTMLEscape(creator_username) + "'s personal world</td></tr>\n";
 				}
 
 
-				page += "<dt class=\"event-datum-title\">Start date and time:</dt><dd class=\"event-datum\">" + event->start_time.dayAndTimeStringUTC() + " UTC (" + event->start_time.timeDescription() + ")</dd>";
+				page += "<tr><td class=\"event-datum-title\">Start date and time:</td><td class=\"event-datum\">" + event->start_time.dayAndTimeStringUTC() + " UTC (" + event->start_time.timeDescription() + ")</td></tr>";
 
 				const std::string duration_str = (event->end_time.time >= event->start_time.time) ? 
 					TimeStamp::durationDescription((int)(event->end_time.time - event->start_time.time)) :
 					"unknown";
-				page += "<dt class=\"event-datum-title\">Duration:</dt><dd class=\"event-datum\">" + duration_str + "</dd>";
+				page += "<tr><td class=\"event-datum-title\">Duration:</td><td class=\"event-datum\">" + duration_str + "</td></tr>";
 
 				
-				page += "<dt class=\"event-datum-title\">Created by:</dt><dd class=\"event-datum\">" + web::Escaping::HTMLEscape(creator_username) + "</dd>\n";
+				page += "<tr><td class=\"event-datum-title\">Created by:</td><td class=\"event-datum\">" + web::Escaping::HTMLEscape(creator_username) + "</td></tr>\n";
 
-				page += "</dl>\n";
+				page += "</table>\n";
 
 				page += "<h3 class=\"event-description-header\">Description</h3>\n";
 				page += "<div class=\"event-description\">\n";
