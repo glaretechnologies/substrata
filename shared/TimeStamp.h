@@ -47,9 +47,10 @@ public:
 	static std::string durationDescription(int seconds); // E.g. "2 days, 3 hours and 30 minutes"
 	static std::string timeAgoDescription(int64 seconds_ago); // Returns a string like '1 hour ago'
 	static std::string timeInFutureDescription(int64 time_minus_current_time); // Returns a string like 'in 5 minutes'
+	static std::string timeDescription(int64 time_minus_current_time); // Returns a string like '1 hour ago' or 'in 5 minutes'
 
-	std::string timeDescription() const; // Description of timestamp relative to current time.  Returns a string like '1 hour ago' or 'in 5 minutes'
 	std::string timeAgoDescription() const; // Description of timestamp relative to current time.  Returns a string like '1 hour ago'
+	std::string timeDescription() const; // Description of timestamp relative to current time.  Returns a string like '1 hour ago' or 'in 5 minutes'
 
 
 	const std::string RFC822FormatedString() const; // http://www.faqs.org/rfcs/rfc822.html

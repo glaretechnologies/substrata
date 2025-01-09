@@ -268,17 +268,18 @@ int64 TimeStamp::numSecondsAgo() const
 }
 
 
-std::string TimeStamp::timeAgoDescription() const // Returns a string like '1 hour ago'
-{
-	const int64 seconds_ago = (int64)(currentTime().time - this->time); // Get num seconds ago
-	
-	return timeAgoDescription(seconds_ago);
-}
-
-
 std::string TimeStamp::timeInFutureDescription(int64 time_minus_current_time)
 {
 	return "in " + durationDescription((int)time_minus_current_time);
+}
+
+
+std::string TimeStamp::timeDescription(int64 time_minus_current_time)
+{
+	if(time_minus_current_time < 0)
+		return timeAgoDescription(/*seconds ago=*/-time_minus_current_time);
+	else
+		return timeInFutureDescription(time_minus_current_time);
 }
 
 
@@ -308,13 +309,17 @@ std::string TimeStamp::timeAgoDescription(int64 seconds_ago)
 }
 
 
+std::string TimeStamp::timeAgoDescription() const // Returns a string like '1 hour ago'
+{
+	const int64 seconds_ago = (int64)currentTime().time - (int64)this->time; // Get num seconds ago
+	return timeAgoDescription(seconds_ago);
+}
+
+
 std::string TimeStamp::timeDescription() const // Returns a string like '1 hour ago' or 'in 5 minutes'
 {
 	const int64 diff_s = (int64)this->time - (int64)currentTime().time;
-	if(diff_s < 0)
-		return timeAgoDescription(diff_s);
-	else
-		return timeInFutureDescription(diff_s);
+	return timeDescription(diff_s);
 }
 
 
@@ -372,6 +377,13 @@ void TimeStamp::test()
 
 	testAssert(timeAgoDescription(-10) == "-10 seconds ago");
 
+	//-------------------------------- Test timeDescription --------------------------------
+	testAssert(timeDescription(3600 * 24 * 7 + 4 * 3600 + 37 * 60 + 52) == "in 7 days, 4 hours and 37 minutes");
+	testAssert(timeDescription(37 * 60 + 52) == "in 37 minutes");
+	testAssert(timeDescription(52) == "in 52 seconds");
+	
+	testAssert(timeDescription(-(37 * 60 + 52)) == "37 minutes ago");
+	testAssert(timeDescription(-52) == "52 seconds ago");
 }
 
 
