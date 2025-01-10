@@ -1,7 +1,7 @@
 /*=====================================================================
 ListObjectsNearbyDialog.cpp
 ---------------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #include "ListObjectsNearbyDialog.h"
 
@@ -21,13 +21,14 @@ ListObjectsNearbyDialog::ListObjectsNearbyDialog(QSettings* settings_, WorldStat
 {
 	setupUi(this);
 
-	objectTableWidget->setColumnCount(7);
+	objectTableWidget->setColumnCount(8);
 
 	QStringList column_labels;
 	column_labels.push_back("UID");
 	column_labels.push_back("type");
 	column_labels.push_back("Creator");
 	column_labels.push_back("Creation time ago (hrs)");
+	column_labels.push_back("Last modified time ago (hrs)");
 	column_labels.push_back("model URL");
 	column_labels.push_back("audio source URL");
 	column_labels.push_back("script");
@@ -35,13 +36,14 @@ ListObjectsNearbyDialog::ListObjectsNearbyDialog(QSettings* settings_, WorldStat
 
 	objectTableWidget->verticalHeader()->setVisible(false); // Hide row numbers
 
-	objectTableWidget->setColumnWidth(0, 80);
-	objectTableWidget->setColumnWidth(1, 80);
-	objectTableWidget->setColumnWidth(2, 100);
-	objectTableWidget->setColumnWidth(3, 160);
-	objectTableWidget->setColumnWidth(4, 400);
-	objectTableWidget->setColumnWidth(5, 400);
-	objectTableWidget->setColumnWidth(6, 400);
+	objectTableWidget->setColumnWidth(0, 80); // UID
+	objectTableWidget->setColumnWidth(1, 80); // type
+	objectTableWidget->setColumnWidth(2, 100); // Creator
+	objectTableWidget->setColumnWidth(3, 140); // Creation time ago (hrs)
+	objectTableWidget->setColumnWidth(4, 160); // last modified time ago (hrs)
+	objectTableWidget->setColumnWidth(5, 400); // model URL
+	objectTableWidget->setColumnWidth(6, 400); // audio source URL
+	objectTableWidget->setColumnWidth(7, 400); // script
 
 
 	connect(this->objectTableWidget,			SIGNAL(itemSelectionChanged()),			this, SLOT(itemSelectionChanged()));
@@ -56,6 +58,10 @@ ListObjectsNearbyDialog::ListObjectsNearbyDialog(QSettings* settings_, WorldStat
 
 	// TODO: Save table state
 	//this->objectTableWidget->restoreGeometry(settings->value("ListObjectsNearbyDialog/objectTableWidget_geometry").toByteArray());
+
+	// Hide until implemented
+	this->showVehiclesOnlyCheckBoxLabel->hide();
+	this->showVehiclesOnlyCheckBox->hide();
 
 	updateResultsTable();
 }
@@ -143,38 +149,50 @@ void ListObjectsNearbyDialog::updateResultsTable()
 				{
 
 					QTableWidgetItem* uid_item = new QTableWidgetItem(QtUtils::toQString(ob->uid.toString()));
+					uid_item->setData(Qt::DisplayRole, QVariant(ob->uid.value()));
 					objectTableWidget->setItem(row, 0, uid_item);
-
 
 					QTableWidgetItem* type_item = new QTableWidgetItem(QtUtils::toQString(ob->objectTypeString((WorldObject::ObjectType)ob->object_type)));
 					objectTableWidget->setItem(row, 1, type_item);
 
-
 					QTableWidgetItem* creator_name_item = new QTableWidgetItem(QtUtils::toQString(ob->creator_name));
-					objectTableWidget->setItem(row,2, creator_name_item);
+					objectTableWidget->setItem(row, 2, creator_name_item);
 
+					{
+						const double secs_ago = now.time - ob->created_time.time;
+						const double hrs_ago = secs_ago / 3600.0;
+						std::string hrs_ago_string;
+						if(hrs_ago < 8)
+							hrs_ago_string = doubleToStringNDecimalPlaces(hrs_ago, 1);
+						else
+							hrs_ago_string = toString((int)hrs_ago);
 
-					const double secs_ago = now.time - ob->created_time.time;
-					const double hrs_ago = secs_ago / 3600.0;
-					std::string hrs_ago_string;
-					if(hrs_ago < 8)
-						hrs_ago_string = doubleToStringNDecimalPlaces(hrs_ago, 1);
-					else
-						hrs_ago_string = toString((int)hrs_ago);
+						QTableWidgetItem* creation_time_ago_item = new QTableWidgetItem(QtUtils::toQString(hrs_ago_string));
+						creation_time_ago_item->setData(Qt::DisplayRole, QVariant(hrs_ago)); // Setting this explictly makes numerical sorting work, otherwise sorts by string.
+						objectTableWidget->setItem(row, 3, creation_time_ago_item);
+					}
+					{
+						const double secs_ago = now.time - ob->last_modified_time.time;
+						const double hrs_ago = secs_ago / 3600.0;
+						std::string hrs_ago_string;
+						if(hrs_ago < 8)
+							hrs_ago_string = doubleToStringNDecimalPlaces(hrs_ago, 1);
+						else
+							hrs_ago_string = toString((int)hrs_ago);
 
-					QTableWidgetItem* creation_time_ago_item = new QTableWidgetItem(QtUtils::toQString(hrs_ago_string));
-					objectTableWidget->setItem(row,3, creation_time_ago_item);
-
+						QTableWidgetItem* last_modified_time_ago_item = new QTableWidgetItem(QtUtils::toQString(hrs_ago_string));
+						last_modified_time_ago_item->setData(Qt::DisplayRole, QVariant(hrs_ago)); // Setting this explictly makes numerical sorting work, otherwise sorts by string.
+						objectTableWidget->setItem(row, 4, last_modified_time_ago_item);
+					}
 
 					QTableWidgetItem* model_URL_item = new QTableWidgetItem(QtUtils::toQString(ob->model_url));
-					objectTableWidget->setItem(row, 4, model_URL_item);
-
+					objectTableWidget->setItem(row, 5, model_URL_item);
 
 					QTableWidgetItem* audio_source_URL_item = new QTableWidgetItem(QtUtils::toQString(ob->audio_source_url));
-					objectTableWidget->setItem(row, 5, audio_source_URL_item);
+					objectTableWidget->setItem(row, 6, audio_source_URL_item);
 
 					QTableWidgetItem* script_item = new QTableWidgetItem(QtUtils::toQString(ob->script.substr(0, 100)));
-					objectTableWidget->setItem(row, 6, script_item);
+					objectTableWidget->setItem(row, 7, script_item);
 
 					row++;
 				}

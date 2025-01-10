@@ -622,6 +622,9 @@
    <property name="text">
     <string>Find Objects Nearby</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+F</string>
+   </property>
   </action>
   <action name="actionAdd_Web_View">
    <property name="text">
