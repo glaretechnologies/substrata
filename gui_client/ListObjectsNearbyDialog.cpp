@@ -149,7 +149,7 @@ void ListObjectsNearbyDialog::updateResultsTable()
 				{
 
 					QTableWidgetItem* uid_item = new QTableWidgetItem(QtUtils::toQString(ob->uid.toString()));
-					uid_item->setData(Qt::DisplayRole, QVariant(ob->uid.value()));
+					uid_item->setData(Qt::DisplayRole, QVariant((qulonglong)ob->uid.value()));
 					objectTableWidget->setItem(row, 0, uid_item);
 
 					QTableWidgetItem* type_item = new QTableWidgetItem(QtUtils::toQString(ob->objectTypeString((WorldObject::ObjectType)ob->object_type)));
