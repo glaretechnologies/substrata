@@ -148,8 +148,8 @@ void ListObjectsNearbyDialog::updateResultsTable()
 					StringUtils::containsStringCaseInvariant(ob->script, search_term))
 				{
 
-					QTableWidgetItem* uid_item = new QTableWidgetItem(QtUtils::toQString(ob->uid.toString()));
-					uid_item->setData(Qt::DisplayRole, QVariant((qulonglong)ob->uid.value()));
+					QTableWidgetItem* uid_item = new QTableWidgetItem();
+					uid_item->setData(Qt::DisplayRole, QVariant((qulonglong)ob->uid.value())); // Setting DisplayRole explictly makes sorting work properly.
 					objectTableWidget->setItem(row, 0, uid_item);
 
 					QTableWidgetItem* type_item = new QTableWidgetItem(QtUtils::toQString(ob->objectTypeString((WorldObject::ObjectType)ob->object_type)));
@@ -167,7 +167,7 @@ void ListObjectsNearbyDialog::updateResultsTable()
 						else
 							hrs_ago_string = toString((int)hrs_ago);
 
-						QTableWidgetItem* creation_time_ago_item = new QTableWidgetItem(QtUtils::toQString(hrs_ago_string));
+						QTableWidgetItem* creation_time_ago_item = new QTableWidgetItem();
 						creation_time_ago_item->setData(Qt::DisplayRole, QVariant(hrs_ago)); // Setting this explictly makes numerical sorting work, otherwise sorts by string.
 						objectTableWidget->setItem(row, 3, creation_time_ago_item);
 					}
@@ -180,7 +180,7 @@ void ListObjectsNearbyDialog::updateResultsTable()
 						else
 							hrs_ago_string = toString((int)hrs_ago);
 
-						QTableWidgetItem* last_modified_time_ago_item = new QTableWidgetItem(QtUtils::toQString(hrs_ago_string));
+						QTableWidgetItem* last_modified_time_ago_item = new QTableWidgetItem();
 						last_modified_time_ago_item->setData(Qt::DisplayRole, QVariant(hrs_ago)); // Setting this explictly makes numerical sorting work, otherwise sorts by string.
 						objectTableWidget->setItem(row, 4, last_modified_time_ago_item);
 					}
