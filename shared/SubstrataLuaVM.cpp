@@ -54,6 +54,7 @@ enum StringAtomEnum
 	Atom_dynamic,
 	Atom_sensor,
 	Atom_content,
+	Atom_target_url,
 	Atom_video_autoplay,
 	Atom_video_loop,
 	Atom_video_muted,
@@ -115,6 +116,7 @@ static StringAtom string_atoms[] =
 	StringAtom({"dynamic",					Atom_dynamic,					}),
 	StringAtom({"sensor",					Atom_sensor,					}),
 	StringAtom({"content",					Atom_content,					}),
+	StringAtom({"target_url",				Atom_target_url,				}),
 	StringAtom({"video_autoplay",			Atom_video_autoplay,			}),
 	StringAtom({"video_loop",				Atom_video_loop,				}),
 	StringAtom({"video_muted",				Atom_video_muted,				}),
@@ -1124,6 +1126,10 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "content"));
 		LuaUtils::pushString(state, ob->content);
 		break;
+	case Atom_target_url:
+		assert(stringEqual(key_str, "target_url"));
+		LuaUtils::pushString(state, ob->target_url);
+		break;
 	case Atom_video_autoplay:
 		assert(stringEqual(key_str, "video_autoplay"));
 		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY));
@@ -1281,6 +1287,16 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->content, /*field name=*/"content", /*max size=*/WorldObject::MAX_CONTENT_SIZE);
 
 		ob->from_remote_content_dirty = true; // TODO: rename
+		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
+		break;
+		}
+	case Atom_target_url:
+		{
+		assert(stringEqual(key_str, "target_url"));
+
+		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->target_url, /*field name=*/"target_url", /*max size=*/WorldObject::MAX_URL_SIZE);
+
+		ob->from_remote_other_dirty = true; // TODO: rename
 		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 		break;
 		}
