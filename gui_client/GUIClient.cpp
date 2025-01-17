@@ -12324,11 +12324,11 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 			"Alt + left-click: Delete voxel.\n"
 			"\n";
 	
-		text += "'E' key: Pick up/drop object.\n"
+		text += "'P' key: Pick up/drop object.\n"
 			"Click and drag the mouse to move the object around when picked up.\n"
 			"'[' and  ']' keys rotate the object.\n"
 			"PgUp and  pgDown keys rotate the object.\n"
-			"'-' and '+' keys or mouse wheel moves object near/far.\n"
+			"'-' and '+' keys move object near/far.\n"
 			"Esc key: deselect object.";
 	
 		ui_interface->setHelpInfoLabel(text);
@@ -13374,10 +13374,10 @@ void GUIClient::keyPressed(KeyEvent& e)
 	}
 	else if(e.key == Key::Key_P)
 	{
-		SSAODebugging debugging;
-		MySSAODebuggingDepthQuerier depth_querier;
-		depth_querier.gui_client = this;
-		debugging.computeReferenceAO(*opengl_engine, depth_querier);
+		// SSAODebugging debugging;
+		// MySSAODebuggingDepthQuerier depth_querier;
+		// depth_querier.gui_client = this;
+		// debugging.computeReferenceAO(*opengl_engine, depth_querier);
 
 		// Spawn particle for testing
 		//for(int i=0; i<1; ++i)
@@ -13539,7 +13539,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 		{
 			this->selection_vec_cs[1] *= (1/1.05f);
 		}
-		else if(e.key == Key::Key_E)
+		else if(e.key == Key::Key_P)
 		{
 			if(!this->selected_ob_picked_up)
 				pickUpSelectedObject();
