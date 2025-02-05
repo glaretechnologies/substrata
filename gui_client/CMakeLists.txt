@@ -230,8 +230,6 @@ ${CMAKE_SOURCE_DIR}/gui_client/SaveResourcesDBThread.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/SaveResourcesDBThread.h
 ${CMAKE_SOURCE_DIR}/gui_client/Scripting.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/Scripting.h
-${CMAKE_SOURCE_DIR}/gui_client/SettingsStore.cpp
-${CMAKE_SOURCE_DIR}/gui_client/SettingsStore.h
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainDecalManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainDecalManager.h
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainScattering.cpp
@@ -273,8 +271,6 @@ if(USE_SDL)
 		${CMAKE_SOURCE_DIR}/gui_client/SDLClient.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/SDLUIInterface.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/SDLUIInterface.h
-		${CMAKE_SOURCE_DIR}/gui_client/SDLSettingsStore.cpp
-		${CMAKE_SOURCE_DIR}/gui_client/SDLSettingsStore.h
 	)
 else()
 	SET(gui_client ${gui_client}
@@ -357,8 +353,6 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.ui
-		${CMAKE_SOURCE_DIR}/gui_client/QSettingsStore.cpp
-		${CMAKE_SOURCE_DIR}/gui_client/QSettingsStore.h
 		${CMAKE_SOURCE_DIR}/gui_client/SignUpDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/SignUpDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/SignUpDialog.ui
@@ -492,8 +486,6 @@ SET(shared_files
 ../shared/Resource.h
 ../shared/ResourceManager.cpp
 ../shared/ResourceManager.h
-../shared/TimeStamp.cpp
-../shared/TimeStamp.h
 ../shared/UID.h
 ../shared/UserID.h
 ../shared/Version.h
@@ -563,6 +555,34 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/ui/UIEvents.h
 )
 
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver)
+
+
+set(settings
+${GLARE_CORE_TRUNK_DIR_ENV}/settings/SettingsStore.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/settings/SettingsStore.h
+)
+
+if(USE_SDL)
+	if(EMSCRIPTEN)
+		set(settings
+		${settings}
+		${GLARE_CORE_TRUNK_DIR_ENV}/settings/EmscriptenSettingsStore.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/settings/EmscriptenSettingsStore.h
+		)
+	else()
+		set(settings
+		${settings}
+		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.h
+		)
+	endif()
+else()
+	set(settings
+	${settings}
+	${GLARE_CORE_TRUNK_DIR_ENV}/settings/QSettingsStore.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/settings/QSettingsStore.h
+	)
+endif()
 
 
 #===================================== Docs =====================================
@@ -1009,6 +1029,7 @@ SOURCE_GROUP(freetype FILES ${freetype})
 SOURCE_GROUP(imgui FILES ${imgui})
 SOURCE_GROUP(ui FILES ${ui})
 SOURCE_GROUP(basis_universal/transcoder FILES ${basisu_transcoder_files})
+SOURCE_GROUP(settings FILES ${settings})
 
 
 
@@ -1087,6 +1108,7 @@ ${luau_vm}
 ${luau_compiler}
 ${lua}
 ${basisu_transcoder_files}
+${settings}
 )
 
 add_definitions(-DGUI_CLIENT=1)

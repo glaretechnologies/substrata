@@ -263,6 +263,8 @@ ${UTILS_DIR}/ThreadSafeQueue.h
 ${UTILS_DIR}/ThreadSafeRefCounted.h
 ${UTILS_DIR}/ThreadTests.cpp
 ${UTILS_DIR}/ThreadTests.h
+${UTILS_DIR}/TimeStamp.cpp
+${UTILS_DIR}/TimeStamp.h
 ${UTILS_DIR}/Timer.cpp
 ${UTILS_DIR}/Timer.h
 ${UTILS_DIR}/UTF8Utils.cpp

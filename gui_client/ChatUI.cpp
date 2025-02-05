@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "GUIClient.h"
-#include "SettingsStore.h"
+#include <settings/SettingsStore.h>
 #include <graphics/SRGBUtils.h>
 #include <opengl/MeshPrimitiveBuilding.h>
 #include <utils/UTF8Utils.h>
