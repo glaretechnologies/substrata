@@ -8,7 +8,9 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "AccountHandlers.h"
 #include "ServerLuaScriptTests.h"
+#include "SubEvent.h"
 #include "../shared/WorldObject.h"
+#include "../shared/RateLimiter.h"
 #include "../shared/LODGeneration.h"
 #include "../ethereum/RLP.h"
 #include "../ethereum/Signing.h"
@@ -22,9 +24,14 @@ Copyright Glare Technologies Limited 2023 -
 #include <graphics/PNGDecoder.h>
 #include <graphics/GifDecoder.h>
 #include <graphics/BatchedMeshTests.h>
+#include <graphics/ShelfPack.h>
+#include <graphics/MeshSimplification.h>
+#include <graphics/ImageMapTests.h>
+#include <utils/TimeStamp.h>
 #include <utils/PlatformUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/Timer.h>
+#include <utils/SmallVector.h>
 #include <utils/SHA256.h>
 #include <utils/DatabaseTests.h>
 #include <utils/BestFitAllocator.h>
@@ -33,9 +40,15 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/CryptoRNG.h>
 #include <utils/Base64.h>
 #include <utils/ReferenceTest.h>
+#include <utils/GlareString.h>
+#include <utils/CircularBuffer.h>
+#include <utils/LRUCache.h>
+#include <utils/Array.h>
 #include <lua/LuaTests.h>
 #include <lua/LuaUtils.h>
 #include <lua/LuaSerialisation.h>
+#include <graphics/KTXDecoder.h>
+#include <graphics/BasisDecoder.h>
 #include <functional>
 
 
@@ -89,13 +102,21 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { glare::testArray();													});
+	runTest([&]() { BasisDecoder::test();												});
+	runTest([&]() { WorldObject::test();												});
+	runTest([&]() { testLRUCache();														});
+	runTest([&]() { TimeStamp::test();													});
+	runTest([&]() { SubEvent::test();													});
+	runTest([&]() { RateLimiter::test();												});
+	runTest([&]() { testHashMap();														});
 	runTest([&]() { doArrayRefTests();													});
 	runTest([&]() { URL::test();														});
 	runTest([&]() { LuaSerialisation::test();											});
 	runTest([&]() { ReferenceTest::run();												});
-	runTest([&]() { ServerLuaScriptTests::test(); });
-	runTest([&]() { LuaUtils::test(); });
-	runTest([&]() { LuaTests::test(); });
+	runTest([&]() { ServerLuaScriptTests::test();										});
+	runTest([&]() { LuaUtils::test();													});
+	runTest([&]() { LuaTests::test();													});
 	runTest([&]() { web::ResponseUtils::test();											});
 	runTest([&]() { Parser::doUnitTests();												});
 	runTest([&]() { StringUtils::test();												});
