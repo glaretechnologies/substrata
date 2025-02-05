@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2017 -
 
 
 #include "PasswordReset.h"
-#include "../shared/TimeStamp.h"
+#include <TimeStamp.h>
 #include "../shared/UserID.h"
 #include "../shared/WorldMaterial.h"
 #include "../shared/Avatar.h"

@@ -7,7 +7,11 @@ Copyright Glare Technologies Limited 2024 -
 
 #include "GUIClient.h"
 #include "SDLUIInterface.h"
-#include "SDLSettingsStore.h"
+#if EMSCRIPTEN
+#include <settings/EmscriptenSettingsStore.h>
+#else
+#include <settings/RegistrySettingsStore.h>
+#endif
 #include "TestSuite.h"
 #include "URLParser.h"
 #include <maths/GeometrySampling.h>
@@ -258,7 +262,11 @@ int main(int argc, char** argv)
 		last_update_URL_timer = new Timer();
 
 
-		SDLSettingsStore* settings_store = new SDLSettingsStore();
+#if EMSCRIPTEN
+		EmscriptenSettingsStore* settings_store = new EmscriptenSettingsStore();
+#else
+		RegistrySettingsStore* settings_store = new RegistrySettingsStore("Glare Technologies", "Cyberspace");
+#endif
 	
 		//=========================== Init SDL and OpenGL ================================
 		if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0)

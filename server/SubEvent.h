@@ -6,10 +6,9 @@ Copyright Glare Technologies Limited 2025 -
 #pragma once
 
 
-#include "../shared/TimeStamp.h"
 #include "../shared/ParcelID.h"
 #include "../shared/UserID.h"
-#include "TimeStamp.h"
+#include <TimeStamp.h>
 #include <utils/RandomAccessInStream.h>
 #include <utils/RandomAccessOutStream.h>
 #include <utils/ThreadSafeRefCounted.h>

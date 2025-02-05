@@ -37,8 +37,6 @@ SET(shared_files
 ../shared/Resource.h
 ../shared/ResourceManager.cpp
 ../shared/ResourceManager.h
-../shared/TimeStamp.cpp
-../shared/TimeStamp.h
 ../shared/UID.h
 ../shared/UserID.h
 ../shared/VoxelMeshBuilding.cpp
@@ -82,8 +80,6 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StressTest.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StressTest.h
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/TimeStamp.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/TimeStamp.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebsiteExcep.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThread.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThread.h

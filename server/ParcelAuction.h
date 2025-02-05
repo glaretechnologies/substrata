@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "AuctionLock.h"
-#include "../shared/TimeStamp.h"
+#include <TimeStamp.h>
 #include "../shared/ParcelID.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
