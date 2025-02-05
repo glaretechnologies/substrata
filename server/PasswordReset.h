@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2018 -
 #pragma once
 
 
-#include "../shared/TimeStamp.h"
+#include <TimeStamp.h>
 #include "../shared/UserID.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>

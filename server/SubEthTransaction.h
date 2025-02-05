@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
-#include "../shared/TimeStamp.h"
+#include <TimeStamp.h>
 #include "../shared/ParcelID.h"
 #include "../shared/UserID.h"
 #include "../ethereum/UInt256.h"
