@@ -560,6 +560,8 @@ int main(int argc, char *argv[])
 		// A map from world name to a vector of packets to send to clients connected to that world.
 		std::map<std::string, std::vector<std::string>> broadcast_packets;
 
+		SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
 		// Main server loop
 		uint64 loop_iter = 0;
 		while(!should_quit)
@@ -739,9 +741,6 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
-
-
-			SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 			{ // Begin scope for world_state->mutex lock
 
