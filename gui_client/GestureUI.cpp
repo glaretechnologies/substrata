@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "GUIClient.h"
-#include "SettingsStore.h"
+#include <settings/SettingsStore.h>
 #include <graphics/SRGBUtils.h>
 
 

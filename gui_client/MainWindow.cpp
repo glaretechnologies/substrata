@@ -29,7 +29,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "LoginDialog.h"
 #include "SignUpDialog.h"
 #include "GoToParcelDialog.h"
-#include "QSettingsStore.h"
+#include <settings/QSettingsStore.h>
 #include "URLWidget.h"
 #include "URLWhitelist.h"
 #include "URLParser.h"

@@ -9,7 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "IncludeOpenGL.h"
 #include "GUIClient.h"
 #include "ClientThread.h"
-#include "SettingsStore.h"
+#include <settings/SettingsStore.h>
 #include "../shared/Protocol.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/ResourceManager.h"

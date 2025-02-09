@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "GUIClient.h"
-#include "SettingsStore.h"
+#include <settings/SettingsStore.h>
 #include "ClientThread.h"
 #include "ModelLoading.h"
 #include "MeshBuilding.h"
