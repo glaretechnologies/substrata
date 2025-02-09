@@ -1,7 +1,7 @@
 /*=====================================================================
-ScreenshotBot.h
-----------------
-Copyright Glare Technologies Limited 2022 -
+ScreenshotBot.cpp
+-----------------
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 
 
@@ -27,7 +27,9 @@ Copyright Glare Technologies Limited 2022 -
 
 struct ScreenshotBotConfig
 {
+	std::string server_hostname;
 	std::string screenshot_bot_password;
+	std::string substrata_client_path;
 };
 
 
@@ -37,7 +39,9 @@ static ScreenshotBotConfig parseScreenshotBotConfig(const std::string& config_pa
 	pugi::xml_node root_elem = doc.getRootElement();
 
 	ScreenshotBotConfig config;
-	config.screenshot_bot_password = XMLParseUtils::parseString(root_elem, "screenshot_bot_password");
+	config.server_hostname			= XMLParseUtils::parseString(root_elem, "server_hostname");
+	config.screenshot_bot_password	= XMLParseUtils::parseString(root_elem, "screenshot_bot_password");
+	config.substrata_client_path	= XMLParseUtils::parseString(root_elem, "substrata_client_path");
 	return config;
 }
 
@@ -66,8 +70,7 @@ int main(int argc, char* argv[])
 			// Connect to substrata server
 			try
 			{
-				//const std::string server_hostname = "localhost";
-				const std::string server_hostname = "substrata.info";
+				const std::string server_hostname = config.server_hostname;
 				const int server_port = 7600;
 
 				conPrint("Connecting to " + server_hostname + ":" + toString(server_port) + "...");
@@ -208,7 +211,7 @@ int main(int argc, char* argv[])
 							{
 								// Command a gui_client process to take the screenshot
 
-								const std::string gui_client_path = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/gui_client.exe";
+								const std::string gui_client_path = config.substrata_client_path;
 
 								std::vector<std::string> command_line_args;
 								command_line_args.push_back(gui_client_path);
