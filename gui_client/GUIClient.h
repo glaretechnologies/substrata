@@ -707,4 +707,6 @@ public:
 	ParcelID cur_in_parcel_id;
 
 	bool last_cursor_movement_was_from_mouse; // as opposed to from gamepad moving crosshair.
+
+	bool sent_perform_gesture_without_stop_gesture;
 };

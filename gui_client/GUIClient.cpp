@@ -170,7 +170,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	ui_interface(NULL),
 	extracted_anim_data_loaded(false),
 	server_using_lod_chunks(false),
-	last_cursor_movement_was_from_mouse(true)
+	last_cursor_movement_was_from_mouse(true),
+	sent_perform_gesture_without_stop_gesture(false)
 {
 	resources_dir_path = base_dir_path + "/data/resources";
 
@@ -10834,6 +10835,8 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	// Turn it on as soon as the player tries to move.
 	this->player_physics.setGravityEnabled(false);
 
+	this->sent_perform_gesture_without_stop_gesture = false;
+
 #if EMSCRIPTEN
 	// For Emscripten, since this data is loaded from the webserver, now we know the server hostname, start loading these textures asynchronously.
 	this->async_texture_loader = new AsyncTextureLoader(this->server_hostname, /*url_path_prefix=*/"/webclient/data", opengl_engine.ptr());
@@ -12799,6 +12802,7 @@ void GUIClient::performGestureClicked(const std::string& gesture_name, bool anim
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
+	sent_perform_gesture_without_stop_gesture = true;
 }
 
 
@@ -12824,12 +12828,15 @@ void GUIClient::stopGesture()
 	// Send AvatarStopGesture message
 	// If we are not logged in, we can't perform a gesture, so don't send a AvatarStopGesture message or we will just get error messages back from the server.
 	//if(this->logged_in_user_id.valid())
-	//{
+	if(sent_perform_gesture_without_stop_gesture) // Make sure we don't spam AvatarStopGesture messages.
+	{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
 		writeToStream(this->client_avatar_uid, scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
-	//}
+
+		sent_perform_gesture_without_stop_gesture = false;
+	}
 }
 
 
