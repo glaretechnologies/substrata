@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <BitUtils.h>
 #include <graphics/colour3.h>
 #include "../shared/UID.h"
-#include "vec3.h"
+#include <maths/vec3.h>
 #include <maths/Matrix2.h>
 #include <string>
 #include <vector>
