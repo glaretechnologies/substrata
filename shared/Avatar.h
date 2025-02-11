@@ -11,12 +11,12 @@ Generated at 2016-01-12 12:24:54 +1300
 #if GUI_CLIENT
 #include "../gui_client/AvatarGraphics.h"
 #endif
-#include <ThreadSafeRefCounted.h>
-#include <Reference.h>
 #include "../shared/UID.h"
-#include "graphics/colour3.h"
-#include "vec3.h"
-#include "Matrix4f.h"
+#include <graphics/colour3.h>
+#include <maths/vec3.h>
+#include <maths/Matrix4f.h>
+#include <utils/ThreadSafeRefCounted.h>
+#include <utils/Reference.h>
 #include <string>
 #include <vector>
 #include <set>
