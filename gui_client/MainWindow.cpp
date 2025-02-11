@@ -969,6 +969,8 @@ void MainWindow::setUpForScreenshot()
 
 	ui->glWidget->take_map_screenshot = taking_map_screenshot;
 
+	gui_client.chat_ui.destroy();
+
 	gui_client.gesture_ui.destroy();
 
 	gui_client.minimap.destroy();

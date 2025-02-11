@@ -380,6 +380,9 @@ static inline uint32_t uint32Hash(uint32_t a)
 
 void MiniMap::checkUpdateTilesForCurCamPosition()
 {
+	if(!opengl_engine)
+		return;
+
 	Reference<OpenGLScene> last_scene = opengl_engine->getCurrentScene();
 	opengl_engine->setCurrentScene(this->scene);
 
@@ -681,6 +684,9 @@ static const float button_h_px = 50;
 
 void MiniMap::handleMouseMoved(MouseEvent& mouse_event)
 {
+	if(gl_ui.isNull())
+		return;
+
 	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(mouse_event.gl_coords);
 
 	if(expanded)

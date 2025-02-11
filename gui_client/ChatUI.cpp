@@ -138,6 +138,9 @@ void ChatUI::destroy()
 
 void ChatUI::setVisible(bool visible)
 {
+	if(!isInitialisedFully())
+		return;
+
 	background_overlay_ob->draw = visible && expanded;
 	chat_line_edit->setVisible(visible && expanded);
 	collapse_button->setVisible(visible && expanded);
