@@ -290,6 +290,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 
 
 			this->buildOutputTextEdit->setPlainText("XML script built successfully.");
+			this->executionOutputTextEdit->clear();
 
 			shaderEdit->blockSignals(true); // Block signals so a text edited signal is not emitted when highlighting text.
 			this->highlighter->clearError();

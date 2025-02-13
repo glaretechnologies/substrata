@@ -40,7 +40,7 @@ private:
 };
 
 
-LuaScriptEvaluator::LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler_, 
+LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler_, 
 	const std::string& script_src, WorldObject* world_object_,
 #if SERVER
 		ServerWorldState* world_state_, // The world that the object belongs to.

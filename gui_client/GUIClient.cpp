@@ -177,9 +177,10 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 	scripted_ob_proximity_checker.gui_client = this;
 
-	lua_vm.set(new SubstrataLuaVM());
-	lua_vm->gui_client = this;
-	lua_vm->player_physics = &this->player_physics;
+	SubstrataLuaVM::SubstrataLuaVMArgs lua_vm_args;
+	lua_vm_args.gui_client = this;
+	lua_vm_args.player_physics = &this->player_physics;
+	lua_vm = new SubstrataLuaVM(lua_vm_args);
 
 	SHIFT_down = false;
 	CTRL_down = false;
@@ -2606,6 +2607,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 				ob->is_path_controlled = true;
 
 				// conPrint("Added path controller, path_controllers.size(): " + toString(path_controllers.size()));
+				if(ob->isDynamic() && (ob->creator_id == this->logged_in_user_id) && (selected_ob == ob))
+					showErrorNotification("Object with follow-path script has the 'dynamic' physics option enabled.  Disable it for the follow-path script to work.");
 			}
 
 			if(vehicle_script.nonNull())
@@ -2642,7 +2645,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 				if((ob->creator_id == this->logged_in_user_id) && (selected_ob == ob))
 					ui_interface->printFromLuaScript("Running script at " + Clock::get12HourClockLocalTimeOfDayString(), ob->uid);
 
-				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm.ptr(), /*script output handler=*/this, ob->script, ob, world_state_lock);
+				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm, /*script output handler=*/this, ob->script, ob, world_state_lock);
 
 				// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.  TEMP: just add in all cases.
 				scripted_ob_proximity_checker.addObject(ob);
@@ -9939,9 +9942,13 @@ void GUIClient::objectEdited()
 			}
 		}
 
+		// Scripted objects (e.g. objects being path controlled), need to be kinematic.  If we enabled a script, but the existing physics object is not kinematic, reload the physics object.
+		const bool physics_rebuild_needed_for_script_enabling = BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED) &&
+			selected_ob->physics_object && !selected_ob->physics_object->kinematic && !selected_ob->script.empty();
 		
 		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
-			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
+			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)) ||
+			physics_rebuild_needed_for_script_enabling)
 		{
 			if(vehicle_controllers.find(selected_ob.ptr()) != vehicle_controllers.end()) // If there is a vehicle controller for selected_ob:
 			{
@@ -12180,37 +12187,103 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 		ObjectPathController* path_controller = getPathControllerForOb(ob);
 		if(path_controller)
 		{
+			OpenGLMaterial material;
+			material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f, 0.3f, 0.3f));
+			material.transparent = true;
+			material.alpha = 0.9f;
+
+			Reference<OpenGLMeshRenderData> cylinder_meshdata = MeshPrimitiveBuilding::makeCylinderMesh(*opengl_engine->vert_buf_allocator, /*end caps=*/false);
+
 			// Draw path by making opengl objects
 			for(size_t i=0; i<path_controller->waypoints.size(); ++i)
 			{
 				const Vec4f begin_pos = path_controller->waypoints[i].pos;
-				const Vec4f end_pos = path_controller->waypoints[Maths::intMod((int)i + 1, (int)path_controller->waypoints.size())].pos;
-
-				GLObjectRef edge_gl_ob = opengl_engine->allocateObject();
-
-				const Matrix4f dir_matrix = Matrix4f::constructFromVectorStatic(normalise(end_pos - begin_pos));
-				const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, begin_pos.getDist(end_pos));
-				const Matrix4f ob_to_world = Matrix4f::translationMatrix(begin_pos) * dir_matrix * scale_matrix;
-
-				edge_gl_ob->ob_to_world_matrix = ob_to_world;
-				edge_gl_ob->mesh_data = opengl_engine->getCylinderMesh();
-
-				OpenGLMaterial material;
-				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f, 0.3f, 0.3f));
-				material.transparent = true;
-				material.alpha = 0.9f;
-				edge_gl_ob->setSingleMaterial(material);
-
-				opengl_engine->addObject(edge_gl_ob);
 
 				// Add cube at vertex
-				const float half_w = 0.2f;
-				GLObjectRef vert_gl_ob = opengl_engine->makeAABBObject(begin_pos - Vec4f(half_w, half_w, half_w, 0), begin_pos + Vec4f(half_w, half_w, half_w, 0), Colour4f(0.3f, 0.8f, 0.3f, 0.9f));
-				opengl_engine->addObject(vert_gl_ob);
+				const Colour4f col = 
+					(path_controller->waypoints[i].waypoint_type == PathWaypointIn::CurveIn) ? Colour4f(0.1f, 0.8f, 0.1f, 0.9f) : // green
+					((path_controller->waypoints[i].waypoint_type == PathWaypointIn::CurveOut) ? Colour4f(0.1f, 0.1f, 0.8f, 0.9f) :  // blue
+						 Colour4f(0.8f, 0.1f, 0.1f, 0.9f)); // red
 
-				// Keep track of these objects we added.
-				selected_ob_vis_gl_obs.push_back(edge_gl_ob);
-				selected_ob_vis_gl_obs.push_back(vert_gl_ob);
+				const float half_w = 0.2f;
+				GLObjectRef vert_gl_ob = opengl_engine->makeAABBObject(begin_pos - Vec4f(half_w, half_w, half_w, 0), begin_pos + Vec4f(half_w, half_w, half_w, 0), col);
+				opengl_engine->addObject(vert_gl_ob);
+				selected_ob_vis_gl_obs.push_back(vert_gl_ob); // Keep track of these objects we added.
+
+
+				// Add text above cube saying the index
+				{
+					const int font_size_px = 42;
+					const std::string use_text = "Waypoint " + toString(i);
+
+					std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
+					Rect2f rect_os;
+					OpenGLTextureRef atlas_texture;
+					Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine, gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
+						/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
+
+					GLObjectRef opengl_ob = opengl_engine->allocateObject();
+					opengl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(begin_pos) * Matrix4f::uniformScaleMatrix(0.3f);
+					opengl_ob->mesh_data = meshdata;
+					opengl_ob->materials.resize(1);
+					opengl_ob->materials[0].alpha_blend = true; // Make use alpha blending
+					opengl_ob->materials[0].sdf_text = true;
+					opengl_ob->materials[0].transmission_texture = atlas_texture;
+					opengl_ob->materials[0].albedo_linear_rgb = Colour3f(0.0f, 0.2f, 0.0f);
+					opengl_ob->materials[0].fresnel_scale = 0;
+
+					opengl_engine->addObject(opengl_ob);
+					selected_ob_vis_gl_obs.push_back(opengl_ob); // Keep track of these objects we added.
+				}
+
+				if(path_controller->waypoints[i].waypoint_type == PathWaypointIn::CurveIn)
+				{
+					// Divide curve into multiple segments
+					const int N = 16;
+					for(size_t n=0; n<N; ++n)
+					{
+						const Vec4f curve_pos_n   = path_controller->evalSegmentCurvePos((int)i, /*frac=*/(float)n       / N);
+						const Vec4f curve_pos_n_1 = path_controller->evalSegmentCurvePos((int)i, /*frac=*/(float)(n + 1) / N);
+
+						if(curve_pos_n_1.getDist(curve_pos_n) > 1.0e-6f)
+						{
+							GLObjectRef edge_gl_ob = opengl_engine->allocateObject();
+
+							const Matrix4f dir_matrix = Matrix4f::constructFromVectorStatic(normalise(curve_pos_n_1 - curve_pos_n));
+							const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, curve_pos_n.getDist(curve_pos_n_1));
+							const Matrix4f ob_to_world = Matrix4f::translationMatrix(curve_pos_n) * dir_matrix * scale_matrix;
+
+							edge_gl_ob->ob_to_world_matrix = ob_to_world;
+							edge_gl_ob->mesh_data = cylinder_meshdata;
+							edge_gl_ob->setSingleMaterial(material);
+
+							opengl_engine->addObject(edge_gl_ob);
+
+							// Keep track of these objects we added.
+							selected_ob_vis_gl_obs.push_back(edge_gl_ob);
+						}
+					}
+				}
+				else
+				{
+					
+					const Vec4f end_pos = path_controller->waypoints[Maths::intMod((int)i + 1, (int)path_controller->waypoints.size())].pos;
+
+					GLObjectRef edge_gl_ob = opengl_engine->allocateObject();
+
+					const Matrix4f dir_matrix = Matrix4f::constructFromVectorStatic(normalise(end_pos - begin_pos));
+					const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, begin_pos.getDist(end_pos));
+					const Matrix4f ob_to_world = Matrix4f::translationMatrix(begin_pos) * dir_matrix * scale_matrix;
+
+					edge_gl_ob->ob_to_world_matrix = ob_to_world;
+					edge_gl_ob->mesh_data = cylinder_meshdata;
+					edge_gl_ob->setSingleMaterial(material);
+
+					opengl_engine->addObject(edge_gl_ob);
+
+					// Keep track of these objects we added.
+					selected_ob_vis_gl_obs.push_back(edge_gl_ob);
+				}
 			}
 		}
 	}
