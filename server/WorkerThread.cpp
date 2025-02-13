@@ -1729,12 +1729,31 @@ void WorkerThread::doRun()
 												sendGetFileMessageIfNeeded(it->URL);
 
 											// Add script evaluator if needed
-											if(hasPrefix(ob->script, "--lua") && BitUtils::isBitSet(world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
+											if(hasPrefix(ob->script, "--lua") && BitUtils::isBitSet(world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG) &&
+												ob->creator_id.valid())
 											{
 												ob->lua_script_evaluator = NULL;
 												try
 												{
-													ob->lua_script_evaluator = new LuaScriptEvaluator(server->lua_vm.ptr(), /*script output handler=*/server, ob->script, ob, cur_world_state.ptr(), lock);
+													runtimeCheck(ob->creator_id.valid()); // Invalid UserID is the empty key so make sure is valid.
+
+													// Get SubstrataLuaVM for the user who created the object, or create SubstrataLuaVM for user if it does not yet exist.
+													SubstrataLuaVM* lua_vm;
+													auto lua_vm_res = world_state->lua_vms.find(ob->creator_id);
+													if(lua_vm_res == world_state->lua_vms.end())
+													{
+														conPrint("Creating new SubstrataLuaVM for user " + ob->creator_id.toString() + "...");
+														Timer timer;
+														lua_vm = new SubstrataLuaVM(SubstrataLuaVM::SubstrataLuaVMArgs(server));
+														conPrint("\tCreating SubstrataLuaVM took " + timer.elapsedStringMSWIthNSigFigs(4));
+														world_state->lua_vms[ob->creator_id] = lua_vm;
+													}
+													else
+														lua_vm = lua_vm_res->second.ptr();
+
+													runtimeCheck(lua_vm);
+
+													ob->lua_script_evaluator = new LuaScriptEvaluator(lua_vm, /*script output handler=*/server, ob->script, ob, cur_world_state.ptr(), lock);
 												}
 												catch(LuaScriptExcepWithLocation& e)
 												{
@@ -2043,7 +2062,10 @@ void WorkerThread::doRun()
 
 							const uint32 num_cells = msg_buffer.readUInt32();
 							if(num_cells > 100000)
+							{
+								writeErrorMessageToClient(socket, "QueryObjects: too many cells: " + toString(num_cells));
 								throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
+							}
 
 							//conPrint("QueryObjects, num_cells=" + toString(num_cells));
 					

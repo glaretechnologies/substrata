@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/WorldSettings.h"
 #include "../shared/WorldStateLock.h"
 #include "../shared/LODChunk.h"
+#include "../shared/SubstrataLuaVM.h"
 #include "NewsPost.h"
 #include "SubEvent.h"
 #include "User.h"
@@ -26,6 +27,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <Mutex.h>
 #include <Database.h>
 #include <CircularBuffer.h>
+#include <HashMap.h>
 #include <map>
 #include <unordered_set>
 class ServerWorldState;
@@ -327,6 +329,8 @@ public:
 	std::map<UserSecretKey, UserSecretRef> user_secrets GUARDED_BY(mutex);
 
 	std::map<uint64, SubEventRef> events GUARDED_BY(mutex); // SubEvent id to SubEvent
+
+	HashMap<UserID, Reference<SubstrataLuaVM>, UserIDHasher> lua_vms;
 
 	// For the map:
 	MapTileInfo map_tile_info;

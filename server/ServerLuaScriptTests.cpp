@@ -47,6 +47,7 @@ public:
 
 void ServerLuaScriptTests::test()
 {
+#if SERVER
 	try
 	{
 		Server server;
@@ -57,9 +58,9 @@ void ServerLuaScriptTests::test()
 		server.world_state->world_states[""] = main_world_state;
 
 
-		SubstrataLuaVM vm;
+		SubstrataLuaVM::SubstrataLuaVMArgs args(&server);
+		SubstrataLuaVM vm(args);
 		vm.setAsNotIndependentlyHeapAllocated();
-		vm.server = &server;
 
 		ServerTestLuaScriptOutputHandler output_handler;
 
@@ -986,6 +987,7 @@ void ServerLuaScriptTests::test()
 	{
 		failTest(e.what());
 	}
+#endif
 }
 
 

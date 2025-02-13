@@ -23,6 +23,7 @@ Generated at 2016-01-12 12:22:34 +1300
 
 
 ServerAllWorldsState::ServerAllWorldsState()
+:	lua_vms(/*empty key=*/UserID::invalidUserID())
 {
 	next_avatar_uid = UID(0);
 	next_object_uid = UID(0);
@@ -50,6 +51,10 @@ ServerAllWorldsState::ServerAllWorldsState()
 
 ServerAllWorldsState::~ServerAllWorldsState()
 {
+	// Delete any objects first, which may contain references to Lua stuff, before we delete the Lua VMs
+	world_states.clear();
+
+	lua_vms.clear();
 }
 
 

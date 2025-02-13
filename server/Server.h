@@ -160,8 +160,6 @@ public:
 	std::map<WorkerThread*, ServerConnectedClientInfo> connected_clients;
 	glare::AtomicInt connected_clients_changed;
 
-	UniqueRef<SubstrataLuaVM> lua_vm;
-
 	Timer total_timer;
 	TimerQueue timer_queue;
 	std::vector<TimerQueueTimer> temp_triggered_timers;
