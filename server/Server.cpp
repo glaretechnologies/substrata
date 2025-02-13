@@ -308,11 +308,6 @@ int main(int argc, char *argv[])
 		}
 
 
-		// Create LUA VM
-		server.lua_vm.set(new SubstrataLuaVM());
-		server.lua_vm->server = &server;
-
-
 		const std::string server_resource_dir = server_state_dir + "/server_resources";
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
 
@@ -531,11 +526,28 @@ int main(int argc, char *argv[])
 				for(auto i = objects.begin(); i != objects.end(); ++i)
 				{
 					WorldObject* ob = i->second.ptr();
-					if(hasPrefix(ob->script, "--lua"))
+					if(hasPrefix(ob->script, "--lua") && ob->creator_id.valid())
 					{
 						try
 						{
-							ob->lua_script_evaluator = new LuaScriptEvaluator(server.lua_vm.ptr(), /*script output handler=*/&server, ob->script, ob, world_state.ptr(), lock);
+							runtimeCheck(ob->creator_id.valid()); // Invalid UserID is the empty key so make sure is valid.
+
+							// Get the SubstrataLuaVM for the user who created the object, or create it if it does not yet exist.
+							SubstrataLuaVM* lua_vm;
+							auto res = server.world_state->lua_vms.find(ob->creator_id);
+							if(res == server.world_state->lua_vms.end())
+							{
+								conPrint("Creating new SubstrataLuaVM for user " + ob->creator_id.toString() + "...");
+								Timer timer;
+								lua_vm = new SubstrataLuaVM(SubstrataLuaVM::SubstrataLuaVMArgs(&server));
+								conPrint("\tCreating SubstrataLuaVM took " + timer.elapsedStringMSWIthNSigFigs(4));
+								server.world_state->lua_vms[ob->creator_id] = lua_vm;
+							}
+							else
+								lua_vm = res->second.ptr();
+
+							runtimeCheck(lua_vm);
+							ob->lua_script_evaluator = new LuaScriptEvaluator(lua_vm, /*script output handler=*/&server, ob->script, ob, world_state.ptr(), lock);
 						}
 						catch(LuaScriptExcepWithLocation& e)
 						{
@@ -1095,6 +1107,9 @@ int main(int argc, char *argv[])
 			}
 
 			loop_iter++;
+
+			//if(loop_iter > 100) // TEMP: test shutting down
+			//	break;
 		} // End of main server loop
 
 		conPrint("Closing...");
@@ -1157,10 +1172,7 @@ Server::~Server()
 	message_queue.clear();
 	timer_queue.clear();
 
-	// Destroy WorldObjects before Lua VM as they may have references to Lua VM stuff.
 	world_state = nullptr;
-
-	lua_vm.set(nullptr);
 }
 
 

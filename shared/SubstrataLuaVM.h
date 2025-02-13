@@ -70,7 +70,23 @@ ________________    |         _____________
 class SubstrataLuaVM : public RefCounted
 {
 public:
-	SubstrataLuaVM();
+#if GUI_CLIENT
+	struct SubstrataLuaVMArgs
+	{
+		GUIClient* gui_client;
+		PlayerPhysics* player_physics;
+	};
+#endif
+#if SERVER
+	struct SubstrataLuaVMArgs
+	{
+		SubstrataLuaVMArgs(Server* server_) : server(server_) {}
+		Server* server;
+	};
+#endif
+
+	SubstrataLuaVM(const SubstrataLuaVMArgs& args);
+
 	~SubstrataLuaVM();
 
 
