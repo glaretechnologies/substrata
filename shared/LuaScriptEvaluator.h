@@ -30,7 +30,7 @@ Per-WorldObject
 class LuaScriptEvaluator : public WeakRefCounted
 {
 public:
-	LuaScriptEvaluator(SubstrataLuaVM* substrata_lua_vm, LuaScriptOutputHandler* script_output_handler, 
+	LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrata_lua_vm, LuaScriptOutputHandler* script_output_handler, 
 		const std::string& script_src, WorldObject* world_object,
 #if SERVER
 		ServerWorldState* world_state, // The world that the object belongs to.
@@ -69,8 +69,7 @@ public:
 	void pushWorldObjectTableOntoStack(UID ob_uid); // OLD: Push a table for this->world_object onto Lua stack.
 	void pushParcelTableOntoStack(ParcelID parcel_id);
 public:
-
-	SubstrataLuaVM* substrata_lua_vm;
+	Reference<SubstrataLuaVM> substrata_lua_vm;
 	UniqueRef<LuaScript> lua_script;
 	LuaScriptOutputHandler* script_output_handler;
 	bool hit_error;

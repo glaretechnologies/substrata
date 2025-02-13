@@ -144,6 +144,7 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 				follow_ob_uid = UID(XMLParseUtils::parseInt(follow_path_elem, "follow_ob_uid"));
 
 			const double follow_dist = XMLParseUtils::parseDoubleWithDefault(follow_path_elem, "follow_dist", 0.0);
+			const bool orient_along_path = XMLParseUtils::parseBoolWithDefault(follow_path_elem, "orient_along_path", true);
 
 			for(pugi::xml_node waypoint_elem = follow_path_elem.child("waypoint"); waypoint_elem; waypoint_elem = waypoint_elem.next_sibling("waypoint"))
 			{
@@ -173,7 +174,7 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 			}
 
 			if(ob.nonNull())
-				path_controller_out = new ObjectPathController(ob, waypoints, global_time + time_offset, /*follow ob UID=*/follow_ob_uid, /*follow dist=*/(float)follow_dist);
+				path_controller_out = new ObjectPathController(ob, waypoints, global_time + time_offset, /*follow ob UID=*/follow_ob_uid, /*follow dist=*/(float)follow_dist, orient_along_path);
 		}
 
 		// ----------- hover car -----------

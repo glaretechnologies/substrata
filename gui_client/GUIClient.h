@@ -692,7 +692,7 @@ public:
 
 	std::list<Notification> script_messages;
 
-	UniqueRef<SubstrataLuaVM> lua_vm;
+	Reference<SubstrataLuaVM> lua_vm;
 
 	TimerQueue timer_queue;
 	std::vector<TimerQueueTimer> temp_triggered_timers;

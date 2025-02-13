@@ -332,7 +332,7 @@ static WorldObject* getWorldObjectForUID(LuaScriptEvaluator* script_evaluator, c
 	{
 #if GUI_CLIENT
 		{
-			SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm; //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
+			SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm.ptr(); //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
 			WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
 
 			checkHoldWorldStateMutex(script_evaluator, world_state);
@@ -429,7 +429,7 @@ static int luaAddEventListener(lua_State* state)
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 	
 #if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm;
+	SubstrataLuaVM* sub_lua_vm = script_evaluator->substrata_lua_vm.ptr();
 	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
 #endif
 
@@ -1849,8 +1849,15 @@ static const uint32 User_metatable_UID			= 102;
 static const uint32 Avatar_metatable_UID		= 103;
 
 
-SubstrataLuaVM::SubstrataLuaVM()
-:	metatable_uid_to_ref_map(std::numeric_limits<uint32>::max())
+SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
+:	metatable_uid_to_ref_map(std::numeric_limits<uint32>::max()),
+#if GUI_CLIENT
+	gui_client(args.gui_client),
+	player_physics(args.player_physics)
+#endif
+#if SERVER
+	server(args.server)
+#endif
 {
 	lua_vm.set(new LuaVM());
 	lua_vm->max_total_mem_allowed = 16 * 1024 * 1024;
