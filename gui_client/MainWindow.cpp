@@ -1191,6 +1191,25 @@ void MainWindow::timerEvent(QTimerEvent* event)
 }
 
 
+void MainWindow::changeEvent(QEvent* event)
+{
+	// When the window is minimised, reduce the timer frequency from the default 1000hz.  Otherwise too much CPU will be used as no GL rendering takes place.
+	// Restore it when maximised.
+	if(event->type() == QEvent::WindowStateChange)
+	{
+		if(windowState() == Qt::WindowMinimized)
+		{
+			killTimer(main_timer_id);
+			main_timer_id = startTimer(/*period (ms)=*/16);
+		}
+		else
+		{
+			startMainTimer();
+		}
+	}
+}
+
+
 void MainWindow::updateDiagnostics()
 {
 	if(ui->diagnosticsDockWidget->isVisible() && (gui_client.num_frames_since_fps_timer_reset == 1))
