@@ -29,7 +29,7 @@ static const float max_air_speed = 8;
 static const float JUMP_PERIOD = 0.1f; // Allow a jump command to be executed even if the player is not quite on the ground yet.
 
 static const float SPHERE_RAD = 0.3f;
-static const float INTERACTION_SPHERE_RAD = 0.28f;
+//static const float INTERACTION_SPHERE_RAD = 0.28f;
 static const float CYLINDER_HEIGHT = 1.3f; // Chosen so the capsule top is about the same height as the head of xbot.glb.  Can test this by jumping into an overhead ledge :)
 static const float EYE_HEIGHT = 1.67f;
 
@@ -302,6 +302,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 		Vec3f parralel_vel = move_desired_vel;
 		parralel_vel.z = 0;
 
+		jolt_character->UpdateGroundVelocity(); // Get updated ground velocity.  Helps reduce jitter on platforms etc.
+
 		if(jolt_character->IsSupported() && // GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround)
 			((vel.z - jolt_character->GetGroundVelocity().GetZ()) < 0.1f)) // And not moving away from ground.  (Need this because sometimes IsSupported() is true after we jumped)
 		{
@@ -344,8 +346,6 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	this->on_ground = jolt_character->IsSupported() && 
 		((jolt_character->GetLinearVelocity().GetZ() - jolt_character->GetGroundVelocity().GetZ()) < 0.1f); // And not moving away from ground.  (Need this because sometimes IsSupported() is true after we jumped)
 
-	// conPrint("Current ground state: " + getGroundStateName(jolt_character->GetGroundState()));
-	
 	// Jump
 	const double time_since_jump_pressed = cur_time - last_jump_time;
 	if((time_since_jump_pressed < JUMP_PERIOD) &&
@@ -511,7 +511,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 }
 
 
-// Just run a basis CharacterVirtual Update(), so that collisions with sensors are detected.
+// Just run a basic CharacterVirtual Update(), so that collisions with sensors are detected.
 // This means we can still trigger contacts with sensor objects while in a vehicle.
 // Collisions with vehicle_body_id will be ignored
 void PlayerPhysics::updateForInVehicle(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, JPH::BodyID vehicle_body_id)
