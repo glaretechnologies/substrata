@@ -9,12 +9,12 @@ Copyright Glare Technologies Limited 2022 -
 #include "CameraController.h"
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
+#include "JoltUtils.h"
 #include "../shared/WorldObject.h"
 #include "../shared/LuaScriptEvaluator.h"
-#include "JoltUtils.h"
-#include <StringUtils.h>
-#include <ConPrint.h>
-#include <PlatformUtils.h>
+#include <utils/StringUtils.h>
+#include <utils/ConPrint.h>
+#include <utils/PlatformUtils.h>
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
@@ -86,7 +86,7 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 		jolt_character->SetListener(this);
 	}
 
-	// NOTE Jolt now supports detecting contacts between CharacterVirtual and sensor objects.  So we don't need an interaction character for that.
+	// NOTE: Jolt now supports detecting contacts between CharacterVirtual and sensor objects.  So we don't need an interaction character for that.
 }
 
 
@@ -145,7 +145,7 @@ float PlayerPhysics::getEyeHeight()
 }
 
 
-inline float doRunFactor(bool runpressed)
+static inline float doRunFactor(bool runpressed)
 {
 	if(runpressed)
 		return run_factor;
@@ -230,22 +230,22 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	// Apply movement forces
 	if(!fly_mode) // if not flying
 	{
-		Vec3f parralel_vel = move_desired_vel;
-		parralel_vel.z = 0;
+		Vec3f parallel_vel = move_desired_vel;
+		parallel_vel.z = 0;
 
 		jolt_character->UpdateGroundVelocity(); // Get updated ground velocity.  Helps reduce jitter on platforms etc.
 
 		if(jolt_character->IsSupported() && // GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround)
 			((vel.z - jolt_character->GetGroundVelocity().GetZ()) < 0.1f)) // And not moving away from ground.  (Need this because sometimes IsSupported() is true after we jumped)
 		{
-			vel = parralel_vel; // When on the ground, set velocity instantly to the desired velocity.
+			vel = parallel_vel; // When on the ground, set velocity instantly to the desired velocity.
 			vel += toVec3f(jolt_character->GetGroundVelocity()); // Add ground velocity, so player will move with a platform they are standing on.
 		}
 		else
 		{
-			if(parralel_vel.length() > max_air_speed) // maxairspeed is really max acceleration in air.
-				parralel_vel.setLength(max_air_speed);
-			vel += parralel_vel * dtime; // Acclerate in desired direction.
+			if(parallel_vel.length() > max_air_speed) // maxairspeed is really max acceleration in air.
+				parallel_vel.setLength(max_air_speed);
+			vel += parallel_vel * dtime; // Accelerate in desired direction.
 		}
 
 		// Apply gravity, even when we are on the ground (supported).  Applying gravity when on ground seems to be important for preventing being InAir occasionally while riding platforms.
