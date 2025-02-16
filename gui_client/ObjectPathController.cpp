@@ -82,6 +82,7 @@ ObjectPathController::ObjectPathController(WorldObjectRef controlled_ob_, const 
 				waypoints[i].entry_segment_len = entry_pos.getDist(exit_pos);
 				waypoints[i].curve_angle  = 0;
 				waypoints[i].curve_r  = 1000.f;
+				waypoints[i].exit_segment_unit_dir = normalise(exit_pos - entry_pos);
 			}
 			else
 			{
@@ -102,6 +103,7 @@ ObjectPathController::ObjectPathController(WorldObjectRef controlled_ob_, const 
 				waypoints[i].entry_segment_len = entry_segment_len;
 				waypoints[i].curve_angle  = angle;
 				waypoints[i].curve_r  = curve_r;
+				waypoints[i].exit_segment_unit_dir = normalise(exit_pos - dir_intersect_p);
 			}
 		}
 		else
@@ -174,7 +176,7 @@ void ObjectPathController::evalAlongPathDistBackwards(int waypoint_index, float 
 				{
 					const float curve_frac = (dist_along_segment - entry_segment_len) / just_curve_len; // Fraction along curve
 
-					const Vec4f orthog_exit_dir = normalise(::removeComponentInDir(exit_dir, entry_dir)); // TODO: handle parallel or antiparallel begin_dir and exit_dir.
+					const Vec4f orthog_exit_dir = normalise(::removeComponentInDir(waypoints[waypoint_index].exit_segment_unit_dir, entry_dir)); // TODO: handle parallel or antiparallel begin_dir and exit_dir.
 					const float angle = curve_frac * waypoints[waypoint_index].curve_angle;
 					const float curve_r     = waypoints[waypoint_index].curve_r;
 					
@@ -185,8 +187,8 @@ void ObjectPathController::evalAlongPathDistBackwards(int waypoint_index, float 
 				{
 					const float dist_uncovered = total_segment_len - dist_along_segment;
 
-					pos_out = exit_pos - exit_dir * dist_uncovered;
-					dir_out = exit_dir;
+					pos_out = exit_pos - waypoints[waypoint_index].exit_segment_unit_dir * dist_uncovered;
+					dir_out = waypoints[waypoint_index].exit_segment_unit_dir;
 				}
 				break;
 			}
@@ -238,7 +240,6 @@ void ObjectPathController::walkAlongPathForTime(double delta_time, Vec4f& pos_ou
 		const Vec4f exit_pos  = waypointPos(cur_waypoint_index + 1);
 
 		const Vec4f begin_dir = normalise(entry_pos - waypointPos(cur_waypoint_index - 1));
-		const Vec4f exit_dir  = normalise(waypointPos(cur_waypoint_index + 2) - exit_pos);
 
 		const float vel = waypoints[cur_waypoint_index].speed;
 		if(waypoints[cur_waypoint_index].waypoint_type == PathWaypointIn::CurveIn)
@@ -270,12 +271,13 @@ void ObjectPathController::walkAlongPathForTime(double delta_time, Vec4f& pos_ou
 
 					const float curve_frac = (m_dist_along_segment - entry_segment_len) / just_curve_len; // Fraction along curve
 
-					const Vec4f orthog_exit_dir = normalise(::removeComponentInDir(exit_dir, begin_dir)); // TODO: handle parallel or antiparallel begin_dir and exit_dir.
+					const Vec4f orthog_dir = normalise(::removeComponentInDir(waypoints[cur_waypoint_index].exit_segment_unit_dir, begin_dir)); // TODO: handle parallel or antiparallel begin_dir and exit_dir.
+
 					const float angle = curve_frac * waypoints[cur_waypoint_index].curve_angle;
 					const float curve_r     = waypoints[cur_waypoint_index].curve_r;
 					
-					pos_out = entry_pos + begin_dir * entry_segment_len         +     (begin_dir * curve_r * std::sin(angle)   +    orthog_exit_dir * curve_r * (1 - std::cos(angle)));
-					dir_out = begin_dir * cos(angle) + orthog_exit_dir * sin(angle);
+					pos_out = entry_pos + begin_dir * entry_segment_len         +     (begin_dir * curve_r * std::sin(angle)   +    orthog_dir * curve_r * (1 - std::cos(angle)));
+					dir_out = begin_dir * cos(angle) + orthog_dir * sin(angle);
 				}
 				else // Else we will end up on the exit segment (the straight line after the curve)
 				{
@@ -284,8 +286,8 @@ void ObjectPathController::walkAlongPathForTime(double delta_time, Vec4f& pos_ou
 
 					const float dist_uncovered = curve_len - m_dist_along_segment;
 
-					pos_out = exit_pos - exit_dir * dist_uncovered;
-					dir_out = exit_dir;
+					pos_out = exit_pos - waypoints[cur_waypoint_index].exit_segment_unit_dir * dist_uncovered;
+					dir_out = waypoints[cur_waypoint_index].exit_segment_unit_dir;
 				}
 
 				dtime_remaining = 0;
@@ -399,7 +401,6 @@ Vec4f ObjectPathController::evalSegmentCurvePos(int waypoint_index, float frac) 
 	const Vec4f exit_pos  = waypointPos(waypoint_index + 1);
 
 	const Vec4f begin_dir = normalise(entry_pos - waypointPos(waypoint_index - 1));
-	const Vec4f exit_dir  = normalise(waypointPos(waypoint_index + 2) - exit_pos);
 
 	const float curve_len = waypoints[waypoint_index].segment_len;
 	const float vel       = waypoints[waypoint_index].speed;
@@ -423,16 +424,16 @@ Vec4f ObjectPathController::evalSegmentCurvePos(int waypoint_index, float frac) 
 
 		float curve_frac = (dist_along_segment - entry_segment_len) / just_curve_len;
 
-		const Vec4f orthog_exit_dir = normalise(::removeComponentInDir(exit_dir, begin_dir)); // TODO: handle parallel or antiparallel vecs
+		const Vec4f orthog_dir = normalise(::removeComponentInDir(waypoints[waypoint_index].exit_segment_unit_dir, begin_dir)); // TODO: handle parallel or antiparallel begin_dir and exit_dir.
 		const float angle = curve_frac * waypoints[waypoint_index].curve_angle;
 		const float curve_r     = waypoints[waypoint_index].curve_r;
-		return entry_pos + begin_dir * entry_segment_len         +     (begin_dir * curve_r * std::sin(angle)   +    orthog_exit_dir * curve_r * (1 - std::cos(angle)));
+		return entry_pos + begin_dir * entry_segment_len         +     (begin_dir * curve_r * std::sin(angle)   +    orthog_dir * curve_r * (1 - std::cos(angle)));
 	}
 	else // Else we will end up on the exit segment (the straight line after the curve)
 	{
 		const float dist_along_segment = t * vel;
 		const float dist_uncovered = curve_len - dist_along_segment;
-		return exit_pos - exit_dir * dist_uncovered;
+		return exit_pos - waypoints[waypoint_index].exit_segment_unit_dir * dist_uncovered;
 	}
 }
 
