@@ -7020,7 +7020,7 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 		RayTraceResult trace_results;
 		if(physics_world)
 			physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
-				/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), trace_results);
+				/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, /*ignore body id=*/JPH::BodyID(), trace_results);
 		else
 			trace_results.hit_object = NULL;
 
@@ -8296,7 +8296,7 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 			const Vec4f dir = getDirForPixelTrace(mouse_cursor_state.cursor_pos.x, mouse_cursor_state.cursor_pos.y);
 			RayTraceResult results;
-			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 			if(results.hit_object)
 			{
 				const Vec4f hitpos_ws = origin + dir*results.hit_t;
@@ -11291,7 +11291,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -11381,7 +11381,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 		if(results.hit_object)
 		{
 			const Vec4f hitpos_ws = origin + dir*results.hit_t;
@@ -11497,7 +11497,7 @@ void GUIClient::mouseReleased(MouseEvent& e)
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -11714,7 +11714,7 @@ void GUIClient::doObjectSelectionTraceForMouseEvent(MouseEvent& e)
 	const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 
 	RayTraceResult results;
-	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 
 	if(results.hit_object)
 	{
@@ -11815,7 +11815,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 		const Vec4f dir = getDirForPixelTrace(cursor_pos.x, cursor_pos.y);
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 
 		bool show_mouseover_info_ui = false;
 		if(results.hit_object)
@@ -12546,7 +12546,7 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
 	
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 	
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -13162,7 +13162,7 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 		const Vec4f dir = getDirForPixelTrace(widget_pos.x, widget_pos.y);
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/player_physics.getInteractionCharBodyID(), results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
 
 		if(results.hit_object)
 		{

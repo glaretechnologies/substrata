@@ -43,8 +43,6 @@ public:
 	void init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos);
 	void shutdown();
 
-	JPH::BodyID getInteractionCharBodyID() { return /*interaction_char_body_id*/JPH::BodyID(); }
-
 	void setStandingShape(PhysicsWorld& physics_world);
 	void setSittingShape(PhysicsWorld& physics_world);
 
@@ -121,12 +119,6 @@ private:
 	JPH::PhysicsSystem* physics_system;
 
 	JPH::Ref<JPH::CharacterVirtual> jolt_character;
-
-	//JPH::Ref<JPH::Character> interaction_character;
-	//JPH::BodyID interaction_char_body_id;
-
-	//JPH::RefConst<JPH::Shape> standing_interaction_shape;
-	//JPH::RefConst<JPH::Shape> sitting_interaction_shape;
 
 	JPH::RefConst<JPH::Shape> standing_shape;
 	JPH::RefConst<JPH::Shape> sitting_shape;
