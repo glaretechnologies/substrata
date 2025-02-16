@@ -594,6 +594,10 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 	ui->glWidget->makeCurrent();
 
+	// If we are in fullscreen mode, exit it before we save the window state.  This is because we want to start next time not in fullscreen mode.
+	if(this->isFullScreen())
+		exitFromFullScreenMode();
+
 	// Save main window geometry and state.  See http://doc.qt.io/archives/qt-4.8/qmainwindow.html#saveState
 	settings->setValue("mainwindow/geometry", saveGeometry());
 	settings->setValue("mainwindow/windowState", saveState());
@@ -3268,6 +3272,12 @@ void MainWindow::on_actionDelete_All_Parcel_Objects_triggered()
 }
 
 
+void MainWindow::on_actionEnter_Fullscreen_triggered()
+{
+	enterFullScreenMode();
+}
+
+
 void MainWindow::diagnosticsWidgetChanged()
 {
 	opengl_engine->setDrawWireFrames(ui->diagnosticsWidget->showWireframesCheckBox->isChecked());
@@ -3854,8 +3864,52 @@ void setKeyEventFromQt(const QKeyEvent* e, KeyEvent& event_out)
 }
 
 
+void MainWindow::enterFullScreenMode()
+{
+	// Save window state (saves which dock widgets are open etc.)
+	this->pre_fullscreen_window_state = this->saveState();
+
+	//this->setWindowFlags(Qt::Window);
+	this->showFullScreen();
+
+	this->ui->menubar->hide();
+	this->ui->toolBar->hide();
+	this->ui->statusbar->hide();
+
+	// Hide all dock widgets
+	this->ui->helpInfoDockWidget->hide();
+	this->ui->chatDockWidget->hide();
+	this->ui->editorDockWidget->hide();
+	this->ui->materialBrowserDockWidget->hide();
+	this->ui->environmentDockWidget->hide();
+	this->ui->worldSettingsWidget->hide();
+	this->ui->diagnosticsDockWidget->hide();
+	this->ui->worldSettingsDockWidget->hide();
+
+	gui_client.showInfoNotification("Full-screen mode entered.  Press ALT + ENTER to exit it.");
+}
+
+void MainWindow::exitFromFullScreenMode()
+{
+	this->showNormal();
+	this->ui->menubar->show();
+	this->ui->statusbar->show();
+	this->restoreState(this->pre_fullscreen_window_state);
+}
+
+
 void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 {
+	// If ALT+ENTER is pressed, enter or exit fullscreen mode.
+	if((e->key() == Qt::Key_Return) && ((e->modifiers() & Qt::AltModifier) != 0))
+	{
+		if(this->isFullScreen())
+			exitFromFullScreenMode();
+		else
+			enterFullScreenMode();
+		return;
+	}
+
 	KeyEvent key_event;
 	setKeyEventFromQt(e, key_event);
 

@@ -24,6 +24,9 @@
     <property name="rightMargin">
      <number>0</number>
     </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
     <item>
      <widget class="GlWidget" name="glWidget" native="true"/>
     </item>
@@ -43,6 +46,7 @@
      <string>Window</string>
     </property>
     <addaction name="actionReset_Layout"/>
+    <addaction name="actionEnter_Fullscreen"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -724,6 +728,11 @@
   <action name="actionAdd_Decal">
    <property name="text">
     <string>Add Decal</string>
+   </property>
+  </action>
+  <action name="actionEnter_Fullscreen">
+   <property name="text">
+    <string>Enter Fullscreen Mode</string>
    </property>
   </action>
  </widget>
