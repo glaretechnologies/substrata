@@ -4663,7 +4663,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		this->last_animated_tex_time = timer.elapsed();
 	}
 
-	// NOTE: goes after sceeenshot code, which might update campos.
+	// NOTE: goes after screenshot code, which might update campos.
 	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
@@ -4700,15 +4700,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	if(opengl_engine)
 		opengl_engine->setCurrentTime((float)cur_time);
 
-	if(this->world_state.nonNull())
-	{
-		ZoneScopedN("path_controllers eval"); // Tracy profiler
-
-		Lock lock(this->world_state->mutex);
-		for(size_t i=0; i<path_controllers.size(); ++i)
-			path_controllers[i]->update(*world_state, *physics_world, opengl_engine.ptr(), (float)dt);
-	}
-
 
 	UpdateEvents physics_events;
 
@@ -4728,7 +4719,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// This prevents stuff like the player falling off the back of a train when loading stutters occur.
 	const double MAX_SUBSTEP_DT = 1.0 / 60.0;
 	const int unclamped_num_substeps = (int)std::ceil(dt / MAX_SUBSTEP_DT); // May get very large.
-	const int num_substeps  = myMin(unclamped_num_substeps, 60); // Only do up to 60 steps
+	const int num_substeps  = myMin(unclamped_num_substeps, 500); // Only do up to N steps
 	const double substep_dt = myMin(dt / num_substeps, MAX_SUBSTEP_DT); // Don't make the substep time > 1/60s.
 
 	assert(substep_dt <= MAX_SUBSTEP_DT);
@@ -4741,24 +4732,39 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		for(int i=0; i<num_substeps; ++i)
 		{
-			if(physics_world.nonNull())
+			if(physics_world && world_state)
 			{
-				physics_world->think(substep_dt); // Advance physics simulation
+				// Do path controllers (which call MoveKinematic()), then player physics, then main physics update.
+				// Path controller goes before player physics, so that the player velocity can match the newly computed platform velocity if standing on a kinematic platform.
+				// Player physics goes before main physics update because that's what the Jolt example code does.  It also results in less spurious jumping in the air when moving on an upwards moving platform.
+				//
+				// Path controllers are updated in this substep-loop as well as player physics and the main physics engine.
+				// This means if that many substeps need to be run at once, for example if there is a large stutter of e.g. 1 second, then the player won't fall off a moving platform.
+				// The disadvantage however is that path-controlled objects can potentially get out of sync with the global time, for exmaple if the num_substeps limit is hit.
 
+				// Run path controllers
+				{
+					ZoneScopedN("path_controllers eval"); // Tracy profiler
+					Lock lock(this->world_state->mutex);
+					for(size_t z=0; z<path_controllers.size(); ++z)
+						path_controllers[z]->update(*world_state, *physics_world, opengl_engine.ptr(), (float)substep_dt);
+				}
+
+				// Process player physics
 				if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 				{
 					if(this->cur_seat_index == 0) // If we are driving it:
 						vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
 
-					// Process player physics
 					player_physics.updateForInVehicle(*this->physics_world, physics_input, (float)substep_dt, /*vehicle body id=*/vehicle_controller_inside->getBodyID());
 				}
 				else
 				{
-					// Process player physics
-					UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
+					const UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
 					physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
 				}
+
+				physics_world->think(substep_dt); // Advance physics simulation
 
 				// Process contact events for objects that the player touched.
 				// Take physics ownership of any such object if needed.
@@ -5058,7 +5064,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
-		// Show vehicle speed on UI: Disabled until we can not create a zillion textures for this.
+		// Show vehicle speed on UI
 		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 		{
 			const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
@@ -12194,6 +12200,13 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 
 			Reference<OpenGLMeshRenderData> cylinder_meshdata = MeshPrimitiveBuilding::makeCylinderMesh(*opengl_engine->vert_buf_allocator, /*end caps=*/false);
 
+			js::AABBox waypoints_aabb = js::AABBox::emptyAABBox();
+			for(size_t i=0; i<path_controller->waypoints.size(); ++i)
+				waypoints_aabb.enlargeToHoldPoint(path_controller->waypoints[i].pos);
+
+			const float half_w = myClamp(waypoints_aabb.longestLength() * 0.01f, 0.2f, 2.f);
+			const float cylinder_r = myClamp(waypoints_aabb.longestLength() * 0.002f, 0.03f, 0.3f);
+
 			// Draw path by making opengl objects
 			for(size_t i=0; i<path_controller->waypoints.size(); ++i)
 			{
@@ -12205,9 +12218,9 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 					((path_controller->waypoints[i].waypoint_type == PathWaypointIn::CurveOut) ? Colour4f(0.1f, 0.1f, 0.8f, 0.9f) :  // blue
 						 Colour4f(0.8f, 0.1f, 0.1f, 0.9f)); // red
 
-				const float half_w = 0.2f;
 				GLObjectRef vert_gl_ob = opengl_engine->makeAABBObject(begin_pos - Vec4f(half_w, half_w, half_w, 0), begin_pos + Vec4f(half_w, half_w, half_w, 0), col);
 				opengl_engine->addObject(vert_gl_ob);
+				opengl_engine->selectObject(vert_gl_ob);
 				selected_ob_vis_gl_obs.push_back(vert_gl_ob); // Keep track of these objects we added.
 
 
@@ -12223,7 +12236,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 						/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
 
 					GLObjectRef opengl_ob = opengl_engine->allocateObject();
-					opengl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(begin_pos) * Matrix4f::uniformScaleMatrix(0.3f);
+					opengl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(begin_pos) * Matrix4f::uniformScaleMatrix(half_w);
 					opengl_ob->mesh_data = meshdata;
 					opengl_ob->materials.resize(1);
 					opengl_ob->materials[0].alpha_blend = true; // Make use alpha blending
@@ -12233,6 +12246,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 					opengl_ob->materials[0].fresnel_scale = 0;
 
 					opengl_engine->addObject(opengl_ob);
+					opengl_engine->selectObject(opengl_ob);
 					selected_ob_vis_gl_obs.push_back(opengl_ob); // Keep track of these objects we added.
 				}
 
@@ -12250,7 +12264,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 							GLObjectRef edge_gl_ob = opengl_engine->allocateObject();
 
 							const Matrix4f dir_matrix = Matrix4f::constructFromVectorStatic(normalise(curve_pos_n_1 - curve_pos_n));
-							const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, curve_pos_n.getDist(curve_pos_n_1));
+							const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/cylinder_r,/*radius=*/cylinder_r, curve_pos_n.getDist(curve_pos_n_1));
 							const Matrix4f ob_to_world = Matrix4f::translationMatrix(curve_pos_n) * dir_matrix * scale_matrix;
 
 							edge_gl_ob->ob_to_world_matrix = ob_to_world;
@@ -12258,6 +12272,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 							edge_gl_ob->setSingleMaterial(material);
 
 							opengl_engine->addObject(edge_gl_ob);
+							opengl_engine->selectObject(edge_gl_ob);
 
 							// Keep track of these objects we added.
 							selected_ob_vis_gl_obs.push_back(edge_gl_ob);
@@ -12272,7 +12287,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 					GLObjectRef edge_gl_ob = opengl_engine->allocateObject();
 
 					const Matrix4f dir_matrix = Matrix4f::constructFromVectorStatic(normalise(end_pos - begin_pos));
-					const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, begin_pos.getDist(end_pos));
+					const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/cylinder_r,/*radius=*/cylinder_r, begin_pos.getDist(end_pos));
 					const Matrix4f ob_to_world = Matrix4f::translationMatrix(begin_pos) * dir_matrix * scale_matrix;
 
 					edge_gl_ob->ob_to_world_matrix = ob_to_world;
@@ -12280,6 +12295,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 					edge_gl_ob->setSingleMaterial(material);
 
 					opengl_engine->addObject(edge_gl_ob);
+					opengl_engine->selectObject(edge_gl_ob);
 
 					// Keep track of these objects we added.
 					selected_ob_vis_gl_obs.push_back(edge_gl_ob);
