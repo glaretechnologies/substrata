@@ -98,6 +98,7 @@ private slots:;
 	void on_actionSave_Parcel_Objects_To_Disk_triggered();
 	void on_actionLoad_Objects_From_Disk_triggered();
 	void on_actionDelete_All_Parcel_Objects_triggered();
+	void on_actionEnter_Fullscreen_triggered();
 
 	void diagnosticsWidgetChanged();
 	void diagnosticsReloadTerrain();
@@ -119,6 +120,9 @@ private slots:;
 	void glWidgetCutShortcutTriggered();
 	void glWidgetCopyShortcutTriggered();
 	void glWidgetPasteShortcutTriggered();
+
+	void enterFullScreenMode();
+	void exitFromFullScreenMode();
 
 	void objectTransformEditedSlot();
 	void objectEditedSlot();
@@ -343,4 +347,5 @@ public:
 	Reference<glare::Allocator> main_mem_allocator;
 
 	//struct _SDL_GameController* game_controller;
+	QByteArray pre_fullscreen_window_state;
 };

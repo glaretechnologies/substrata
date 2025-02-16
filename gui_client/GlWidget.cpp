@@ -222,14 +222,17 @@ void GlWidget::resizeGL(int width_, int height_)
 
 	viewport_aspect_ratio = (double)width_ / (double)height_;
 
-	this->opengl_engine->setViewportDims(viewport_w, viewport_h);
+	if(this->opengl_engine)
+	{
+		this->opengl_engine->setViewportDims(viewport_w, viewport_h);
 
-	this->opengl_engine->setMainViewportDims(viewport_w, viewport_h);
+		this->opengl_engine->setMainViewportDims(viewport_w, viewport_h);
 
 #if QT_VERSION_MAJOR >= 6
-	// In Qt6, the GL widget uses a custom framebuffer (defaultFramebufferObject).  We want to make sure we draw to this.
-	this->opengl_engine->setTargetFrameBuffer(new FrameBuffer(this->defaultFramebufferObject()));
+		// In Qt6, the GL widget uses a custom framebuffer (defaultFramebufferObject).  We want to make sure we draw to this.
+		this->opengl_engine->setTargetFrameBuffer(new FrameBuffer(this->defaultFramebufferObject()));
 #endif
+	}
 
 	emit viewportResizedSignal(width_, height_);
 }
