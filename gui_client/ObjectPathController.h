@@ -86,6 +86,7 @@ public:
 		float entry_segment_len; // length of straight part before curve (if any)
 		float curve_angle;
 		float curve_r;
+		Vec4f exit_segment_unit_dir; // = normalise(exit_pos - intersection)
 	};
 	std::vector<PathWaypoint> waypoints;
 };
