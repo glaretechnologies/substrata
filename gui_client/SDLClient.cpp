@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <settings/EmscriptenSettingsStore.h>
 #else
 #include <settings/RegistrySettingsStore.h>
+#include <settings/XMLSettingsStore.h>
 #endif
 #include "TestSuite.h"
 #include "URLParser.h"
@@ -261,11 +262,14 @@ int main(int argc, char** argv)
 		mem_usage_sampling_timer = new Timer();
 		last_update_URL_timer = new Timer();
 
+		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 
 #if EMSCRIPTEN
-		EmscriptenSettingsStore* settings_store = new EmscriptenSettingsStore();
+		Reference<EmscriptenSettingsStore> settings_store = new EmscriptenSettingsStore();
+#elif defined(_WIN32)
+		Reference<RegistrySettingsStore> settings_store = new RegistrySettingsStore("Glare Technologies", "Cyberspace");
 #else
-		RegistrySettingsStore* settings_store = new RegistrySettingsStore("Glare Technologies", "Cyberspace");
+		Reference<XMLSettingsStore> settings_store = new XMLSettingsStore(appdata_path + "/settings_store.xml");
 #endif
 	
 		//=========================== Init SDL and OpenGL ================================
@@ -442,9 +446,6 @@ int main(int argc, char** argv)
 		opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
 
 
-		
-		
-		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 
 
 		gui_client = new GUIClient(base_dir, appdata_path, parsed_args);

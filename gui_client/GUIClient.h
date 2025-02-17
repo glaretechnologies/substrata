@@ -32,6 +32,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/WorldObject.h"
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/TimerQueue.h"
+#include "../settings/SettingsStore.h"
 #include <ui/UIEvents.h>
 #include <utils/ArgumentParser.h>
 #include <utils/Timer.h>
@@ -116,7 +117,7 @@ public:
 	static void staticInit();
 	static void staticShutdown();
 
-	void initialise(const std::string& cache_dir, SettingsStore* settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_);
+	void initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_);
 	void afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine, 
 		const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts);
 
@@ -127,7 +128,7 @@ public:
 	void timerEvent(const MouseCursorState& mouse_cursor_state);
 
 
-	SettingsStore* getSettingsStore() { return settings; }
+	Reference<SettingsStore> getSettingsStore() { return settings; }
 
 	void setGLWidgetContextAsCurrent();
 	Vec2i getGlWidgetPosInGlobalSpace();
@@ -351,7 +352,7 @@ public:
 public:
 	Reference<OpenGLEngine> opengl_engine;
 
-	SettingsStore* settings;
+	Reference<SettingsStore> settings;
 
 
 	std::string base_dir_path;
