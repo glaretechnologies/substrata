@@ -278,7 +278,7 @@ static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_com
 #endif // EMSCRIPTEN
 
 
-void GUIClient::initialise(const std::string& cache_dir, SettingsStore* settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_)
+void GUIClient::initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_)
 {
 	settings = settings_store_;
 	ui_interface = ui_interface_;
