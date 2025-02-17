@@ -81,6 +81,9 @@ Start build:
 
 Or to just build the GUI client:
 	make gui_client
+	
+Or to just build the server:
+	make server
 
 To build with e.g. 8 threads:
 	make gui_client -j 8
