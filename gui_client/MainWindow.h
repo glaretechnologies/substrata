@@ -305,7 +305,7 @@ public:
 
 	
 	QSettings* settings;
-	QSettingsStore* settings_store;
+	Reference<QSettingsStore> settings_store;
 
 	UserDetailsWidget* user_details;
 	URLWidget* url_widget;
