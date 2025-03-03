@@ -68,6 +68,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../networking/SMTPClient.h"
 #include "../webserver/Escaping.h"
 #include "../opengl/ui/TextEditingUtils.h"
+#include <settings/XMLSettingsStore.h>
 #include <functional>
 #include <Sort.h>
 
@@ -127,6 +128,7 @@ void TestSuite::test()
 #else
 	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
 #endif
+	runTest([&]() { XMLSettingsStore::test(); });
 	runTest([&]() { TextEditingUtils::test(); });
 	runTest([&]() { JPEGDecoder::test(base_dir_path); });
 	runTest([&]() { PNGDecoder::test(base_dir_path); });

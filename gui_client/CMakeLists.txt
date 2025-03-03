@@ -572,6 +572,8 @@ if(USE_SDL)
 	else()
 		set(settings
 		${settings}
+		${GLARE_CORE_TRUNK_DIR_ENV}/settings/XMLSettingsStore.cpp
+		${GLARE_CORE_TRUNK_DIR_ENV}/settings/XMLSettingsStore.h
 		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.cpp
 		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.h
 		)

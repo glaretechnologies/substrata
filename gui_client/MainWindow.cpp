@@ -133,7 +133,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	done_screenshot_setup(false),
 	running_destructor(false),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
-	settings_store(NULL)
+	settings(NULL)
 	//game_controller(NULL)
 {
 	QGamepadManager::instance(); // Creating the instance here before any windows are created is required for querying gamepads to work.
@@ -554,8 +554,6 @@ MainWindow::~MainWindow()
 	delete main_task_manager;
 	delete high_priority_task_manager;
 
-	delete settings_store;
-
 #if !defined(_WIN32)
 	QDesktopServices::unsetUrlHandler("sub"); // Remove 'this' as an URL handler.
 #endif
@@ -577,6 +575,8 @@ MainWindow::~MainWindow()
 #endif
 
 	delete ui;
+	
+	delete settings;
 }
 
 
