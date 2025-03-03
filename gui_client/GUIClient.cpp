@@ -4756,6 +4756,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					if(this->cur_seat_index == 0) // If we are driving it:
 						vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
 
+					// Note that the player position and velocity is set later with player_physics.setCapsuleBottomPosition()
 					player_physics.updateForInVehicle(*this->physics_world, physics_input, (float)substep_dt, /*vehicle body id=*/vehicle_controller_inside->getBodyID());
 				}
 				else
@@ -12106,6 +12107,9 @@ void GUIClient::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 
 		// Update in opengl engine.
 		GLObjectRef opengl_ob = ob->opengl_engine_ob;
+		if(!opengl_ob)
+			return;
+
 		opengl_ob->ob_to_world_matrix = new_ob_to_world;
 		opengl_engine->updateObjectTransformData(*opengl_ob);
 
