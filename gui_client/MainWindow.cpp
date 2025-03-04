@@ -576,7 +576,8 @@ MainWindow::~MainWindow()
 
 	delete ui;
 	
-	delete settings;
+	settings_store = nullptr;
+	// NOTE: can't delete settings here as some widget destructors access it after here.
 }
 
 

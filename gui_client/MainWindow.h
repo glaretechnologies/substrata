@@ -314,7 +314,7 @@ public:
 	double last_updateGL_time;
 private:
 	bool need_help_info_dock_widget_position; // We may need to position the Help info dock widget to the bottom right of the GL view.
-	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
+	// But we need to wait until the gl view has been resized before we do this, so set this flag to do in a timer event.
 	
 	QTimer* update_ob_editor_transform_timer;
 	QTimer* lightmap_flag_timer;
