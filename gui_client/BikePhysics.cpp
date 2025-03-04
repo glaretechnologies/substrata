@@ -268,7 +268,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 		engine_audio_source->mix_sources[2].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_High_Speed_Steady_01_44100hz_mono.mp3");
 		engine_audio_source->sampling_rate = 44100;
 
-		glare::SoundFileRef tire_squeal_sound = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/tires_squal_loop_44100.wav");
+		glare::SoundFileRef tire_squeal_sound = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/tires_squeal_loop_44100.mp3");
 
 		wheel_audio_source[0] = new glare::AudioSource();
 		wheel_audio_source[0]->type = glare::AudioSource::SourceType_Looping;

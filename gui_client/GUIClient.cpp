@@ -6558,7 +6558,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 							opengl_engine->addObject(avatar->nametag_gl_ob); // Add to 3d engine
 
 							// Play entry teleport sound
-							audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
+							audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3", avatar->pos.toVec4fVector());
 						}
 					} // End if reload_opengl_model
 
