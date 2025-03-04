@@ -50,6 +50,19 @@ FileUtils.cp_r(substrata_dir + "/shaders/.", "data/shaders", :verbose=>true) # C
 
 FileUtils.cp_r(glare_core + "/opengl/gl_data", "data", :verbose=>true)
 
+# Remove sky dir, just copy in a few files that we need for the default sun elevation angle.
+FileUtils.rm_r("data/gl_data/sky", :verbose=>true) # Remove sky dir
+FileUtils.mkdir_p("data/gl_data/sky", :verbose => true)
+for i in 0..5 do
+	FileUtils.cp(glare_core + "/opengl/gl_data/sky/diffuse_sky_no_sun_24_#{i}.exr", "data/gl_data/sky", :verbose => true)
+	FileUtils.cp(glare_core + "/opengl/gl_data/sky/diffuse_sky_no_sun_25_#{i}.exr", "data/gl_data/sky", :verbose => true)
+end
+FileUtils.cp(glare_core + "/opengl/gl_data/sky/sky_no_sun_24.exr", "data/gl_data/sky", :verbose => true)
+FileUtils.cp(glare_core + "/opengl/gl_data/sky/sky_no_sun_25.exr", "data/gl_data/sky", :verbose => true)
+FileUtils.cp(glare_core + "/opengl/gl_data/sky/specular_refl_sky_no_sun_combined_24.exr", "data/gl_data/sky", :verbose => true)
+FileUtils.cp(glare_core + "/opengl/gl_data/sky/specular_refl_sky_no_sun_combined_25.exr", "data/gl_data/sky", :verbose => true)
+
+
 FileUtils.rm_r("data/gl_data/caustics", :verbose=>true) # These files are explictly downloaded in OpenGLEngine::startAsyncLoadingData().
 
 
