@@ -234,23 +234,15 @@ void MiscInfoUI::updateWidgetPositions()
 		const float min_max_y = gl_ui->getViewportMinMaxY();
 		const float vert_offset = 0;
 
-		float cur_x = 0;
-		if(login_button)
+		if(login_button && signup_button)
 		{
-			const Vec2f button_dims = login_button->rect.getWidths();
-
-			login_button->setPos(/*botleft=*/Vec2f(- button_dims.x / 2, min_max_y - button_dims.y + vert_offset));
-
-			cur_x = - button_dims.x / 2 + button_dims.x;
-		}
-		
-		if(signup_button)
-		{
-			const Vec2f button_dims = signup_button->rect.getWidths();
-
+			const Vec2f login_button_dims  = login_button->rect.getWidths();
+			const Vec2f signup_button_dims = signup_button->rect.getWidths();
 			const float x_spacing = gl_ui->getUIWidthForDevIndepPixelWidth(10);
+			const float total_w = login_button_dims.x + x_spacing + signup_button_dims.x;
 
-			signup_button->setPos(/*botleft=*/Vec2f(cur_x + x_spacing, min_max_y - button_dims.y + vert_offset));
+			login_button ->setPos(/*botleft=*/Vec2f(-total_w/2,                                   min_max_y - login_button_dims.y  + vert_offset));
+			signup_button->setPos(/*botleft=*/Vec2f(-total_w/2 + login_button_dims.x + x_spacing, min_max_y - signup_button_dims.y + vert_offset));
 		}
 
 		if(logged_in_button)
