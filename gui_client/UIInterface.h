@@ -44,6 +44,11 @@ public:
 	virtual void setTextAsNotLoggedIn() = 0;
 	virtual void setTextAsLoggedIn(const std::string& username) = 0;
 
+	// Login/signup buttons
+	virtual void loginButtonClicked() = 0;
+	virtual void signUpButtonClicked() = 0;
+	virtual void loggedInButtonClicked() = 0;
+
 	// worldSettingsWidget:
 	virtual void updateWorldSettingsControlsEditable() = 0;
 	virtual void updateWorldSettingsUIFromWorldSettings() = 0;

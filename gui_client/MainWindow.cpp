@@ -725,6 +725,24 @@ void MainWindow::setTextAsLoggedIn(const std::string& username)
 }
 
 
+void MainWindow::loginButtonClicked()
+{
+	on_actionLogIn_triggered();
+}
+
+
+void MainWindow::signUpButtonClicked()
+{
+	on_actionSignUp_triggered();
+}
+
+
+void MainWindow::loggedInButtonClicked()
+{
+	//on_actionSignUp_triggered();
+}
+
+
 void MainWindow::updateWorldSettingsControlsEditable()
 {
 	ui->worldSettingsWidget->updateControlsEditable();

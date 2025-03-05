@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
+#include <opengl/ui/GLUITextButton.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 #include <opengl/ui/GLUITextView.h>
 
@@ -29,6 +30,9 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
+	void showLogInAndSignUpButtons();
+	void showLoggedInButton(const std::string& username);
+
 	void think();
 
 	void showServerAdminMessage(const std::string& msg);
@@ -45,6 +49,10 @@ private:
 	void updateWidgetPositions();
 
 	GUIClient* gui_client;
+
+	GLUITextButtonRef login_button;
+	GLUITextButtonRef signup_button;
+	GLUITextButtonRef logged_in_button; // shows 'logged in as USERNAME'
 
 	GLUITextViewRef admin_msg_text_view;
 

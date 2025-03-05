@@ -7531,6 +7531,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			recolourParcelsForLoggedInState();
 			ui_interface->updateWorldSettingsControlsEditable();
 
+			misc_info_ui.showLoggedInButton(m->username);
+
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAngles();
 			Avatar avatar;
@@ -7555,6 +7557,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			recolourParcelsForLoggedInState();
 			ui_interface->updateWorldSettingsControlsEditable();
 
+			misc_info_ui.showLogInAndSignUpButtons();
+
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAngles();
 			Avatar avatar;
@@ -7578,6 +7582,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_id = m->user_id;
 			this->logged_in_user_name = m->username;
 			this->logged_in_user_flags = 0;
+
+			misc_info_ui.showLoggedInButton(m->username);
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -13314,6 +13320,49 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 }
 
 
+void GUIClient::loginButtonClicked()
+{
+	ui_interface->loginButtonClicked();
+}
+
+
+void GUIClient::signupButtonClicked()
+{
+	ui_interface->signUpButtonClicked();
+}
+
+
+void GUIClient::loggedInButtonClicked()
+{
+	ui_interface->loggedInButtonClicked();
+}
+
+
+std::string GUIClient::getCurrentWebClientURLPath() const
+{
+	std::string url_path = "/webclient?";
+
+	if(!this->server_worldname.empty()) // Append world if != empty string.
+		url_path += "world=" + web::Escaping::URLEscape(this->server_worldname) + '&';
+
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition();
+
+	const double heading_deg = Maths::doubleMod(::radToDegree(this->cam_controller.getAngles().x), 360.0);
+
+	// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
+	url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 2) + 
+		"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1);
+
+	// If the original URL had an explicit sun angle in it, keep it.
+	if(this->last_url_parse_results.parsed_sun_azimuth_angle)
+		url_path += "&sun_azimuth_angle=" + doubleToStringNDecimalPlaces(this->last_url_parse_results.sun_azimuth_angle, 1);
+	if(this->last_url_parse_results.parsed_sun_vert_angle)
+		url_path += "&sun_vert_angle=" + doubleToStringNDecimalPlaces(this->last_url_parse_results.sun_vert_angle, 1);
+
+	return url_path;
+}
+
+
 class MySSAODebuggingDepthQuerier : public SSAODebugging::DepthQuerier
 {
 public:
@@ -13788,7 +13837,7 @@ void GUIClient::updateNotifications(double cur_time)
 		const float frac = (float)((cur_time - it->creation_time) / NOTIFICATION_DISPLAY_TIME);
 		const float alpha = myClamp(1.f - Maths::smoothStep(0.8f, 1.2f, frac) * 2, 0.f, 1.f);
 
-		it->text_view->setAlpha(alpha);
+		it->text_view->setTextAlpha(alpha);
 		it->text_view->setBackgroundAlpha(alpha);
 	}
 
@@ -13822,7 +13871,7 @@ void GUIClient::updateNotifications(double cur_time)
 		const float frac = (float)((cur_time - it->creation_time) / SCRIPT_MESSAGE_DISPLAY_TIME);
 		const float alpha = myClamp(1.f - Maths::smoothStep(0.8f, 1.2f, frac) * 2, 0.f, 1.f);
 
-		it->text_view->setAlpha(alpha);
+		it->text_view->setTextAlpha(alpha);
 		it->text_view->setBackgroundAlpha(alpha);
 	}
 }
