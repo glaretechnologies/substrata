@@ -160,19 +160,6 @@ void renderLoginPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 }
 
 
-bool isSafeReturnURL(const std::string& URL)
-{
-	if(!::hasPrefix(URL, "/")) // Only allow absolute paths with no domain etc.. (don't want to redirect to another site)
-		return false;
-
-	for(size_t i=0; i<URL.size(); ++i)
-		if(!(isAlphaNumeric(URL[i]) || URL[i] == '_' || URL[i] == '/'))
-			return false;
-
-	return true;
-}
-
-
 void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	try
@@ -189,10 +176,15 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		std::string return_URL = raw_return_URL.str();
 		if(return_URL.empty())
 			return_URL = "/";
-
-		// See if we have a URL to return to after logging in.
-		if(!isSafeReturnURL(return_URL))
-			throw glare::Exception("Invalid return URL.");
+		else
+		{
+			// Prefix the return URL with the current site hostname, to prevent redirects to dodgy sites.
+			const std::string hostname = request_info.getHostHeader(); // Find the hostname the request was sent to
+			if(hostname.empty())
+				return_URL = "/";
+			else
+				return_URL = std::string(request_info.tls_connection ? "https://" : "http://") + hostname + return_URL;
+		}
 
 		bool valid_username_and_credentials = false;
 		std::string session_id;
@@ -341,8 +333,15 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 		std::string return_URL = raw_return_URL.str();
 		if(return_URL.empty())
 			return_URL = "/";
-		if(!isSafeReturnURL(return_URL))
-			throw glare::Exception("Invalid return URL.");
+		else
+		{
+			// Prefix the return URL with the current site hostname, to prevent redirects to dodgy sites.
+			const std::string hostname = request_info.getHostHeader(); // Find the hostname the request was sent to
+			if(hostname.empty())
+				return_URL = "/";
+			else
+				return_URL = std::string(request_info.tls_connection ? "https://" : "http://") + hostname + return_URL;
+		}
 
 		std::string reply;
 
