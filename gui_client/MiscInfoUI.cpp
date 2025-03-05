@@ -24,12 +24,36 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
+	GLUITextButton::CreateArgs login_args;
+	login_args.tooltip = "Log in to an existing user account";
+	login_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Log in", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), login_args);
+	login_button->handler = this;
+	gl_ui->addWidget(login_button);
+
+	GLUITextButton::CreateArgs signup_args;
+	signup_args.tooltip = "Create a new user account";
+	signup_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Sign up", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), signup_args);
+	signup_button->handler = this;
+	gl_ui->addWidget(signup_button);
+
 	updateWidgetPositions();
 }
 
 
 void MiscInfoUI::destroy()
 {
+	if(login_button.nonNull())
+		gl_ui->removeWidget(login_button);
+	login_button = NULL;
+
+	if(signup_button.nonNull())
+		gl_ui->removeWidget(signup_button);
+	signup_button = NULL;
+
+	if(logged_in_button.nonNull())
+		gl_ui->removeWidget(logged_in_button);
+	logged_in_button = NULL;
+
 	if(admin_msg_text_view.nonNull())
 		gl_ui->removeWidget(admin_msg_text_view);
 	admin_msg_text_view = NULL;
@@ -44,6 +68,45 @@ void MiscInfoUI::destroy()
 	
 	gl_ui = NULL;
 	opengl_engine = NULL;
+}
+
+
+void MiscInfoUI::showLogInAndSignUpButtons()
+{
+	if(login_button)
+		login_button->setVisible(true);
+
+	if(signup_button)
+		signup_button->setVisible(true);
+	
+	if(logged_in_button)
+		logged_in_button->setVisible(false);
+}
+
+
+void MiscInfoUI::showLoggedInButton(const std::string& username)
+{
+	// Hide login and signup buttons
+	if(login_button)
+		login_button->setVisible(false);
+
+	if(signup_button)
+		signup_button->setVisible(false);
+	
+
+	// Remove any existing logged_in_button (as text may change)
+	if(logged_in_button)
+		gl_ui->removeWidget(logged_in_button);
+	logged_in_button = NULL;
+
+
+	GLUITextButton::CreateArgs logged_in_button_args;
+	logged_in_button_args.tooltip = "View user account";
+	logged_in_button = new GLUITextButton(*gl_ui, opengl_engine, "Logged in as " + username, Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), logged_in_button_args);
+	logged_in_button->handler = this;
+	gl_ui->addWidget(logged_in_button);
+
+	updateWidgetPositions();
 }
 
 
@@ -64,7 +127,7 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 		{
 			GLUITextView::CreateArgs create_args;
 			admin_msg_text_view = new GLUITextView(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(0.1f, 0.9f), create_args); // Create off-screen
-			admin_msg_text_view->setColour(Colour3f(1.0f, 0.6f, 0.3f));
+			admin_msg_text_view->setTextColour(Colour3f(1.0f, 0.6f, 0.3f));
 			gl_ui->addWidget(admin_msg_text_view);
 		}
 
@@ -100,6 +163,7 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 			GLUITextView::CreateArgs create_args;
 			create_args.font_size_px = speed_font_size_px;
 			create_args.background_alpha = 0;
+			create_args.text_selectable = false;
 			prebuilt_digits[i] = new GLUITextView(*gl_ui, opengl_engine, toString(digit_val), Vec2f(0.f + (-3 + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y), create_args);
 		}
 	}
@@ -124,8 +188,9 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 		GLUITextView::CreateArgs create_args;
 		create_args.font_size_px = speed_font_size_px;
 		create_args.background_alpha = 0;
+		create_args.text_selectable = false;
 		unit_string_view = new GLUITextView(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y), create_args); // Create off-screen
-		unit_string_view->setColour(Colour3f(1.0f, 1.0f, 1.0f));
+		unit_string_view->setTextColour(Colour3f(1.0f, 1.0f, 1.0f));
 		gl_ui->addWidget(unit_string_view);
 	}
 	else
@@ -166,10 +231,38 @@ void MiscInfoUI::updateWidgetPositions()
 {
 	if(gl_ui.nonNull())
 	{
+		const float min_max_y = gl_ui->getViewportMinMaxY();
+		const float vert_offset = 0;
+
+		float cur_x = 0;
+		if(login_button)
+		{
+			const Vec2f button_dims = login_button->rect.getWidths();
+
+			login_button->setPos(/*botleft=*/Vec2f(- button_dims.x / 2, min_max_y - button_dims.y + vert_offset));
+
+			cur_x = - button_dims.x / 2 + button_dims.x;
+		}
+		
+		if(signup_button)
+		{
+			const Vec2f button_dims = signup_button->rect.getWidths();
+
+			const float x_spacing = gl_ui->getUIWidthForDevIndepPixelWidth(10);
+
+			signup_button->setPos(/*botleft=*/Vec2f(cur_x + x_spacing, min_max_y - button_dims.y + vert_offset));
+		}
+
+		if(logged_in_button)
+		{
+			const Vec2f button_dims = logged_in_button->rect.getWidths();
+
+			logged_in_button->setPos(/*botleft=*/Vec2f(- button_dims.x / 2, min_max_y - button_dims.y + vert_offset));
+		}
+
+
 		if(admin_msg_text_view.nonNull())
 		{
-			const float min_max_y = gl_ui->getViewportMinMaxY();
-
 			const Vec2f text_dims = admin_msg_text_view->getRect().getWidths();
 
 			const float vert_margin = 50.f / opengl_engine->getViewPortWidth(); // 50 pixels
@@ -213,6 +306,24 @@ void MiscInfoUI::eventOccurred(GLUICallbackEvent& event)
 
 			//conPrint("Clicked on text view!");
 			//gui_client->setSelfieModeEnabled(selfie_button->toggled);
+		}
+		else if(event.widget == login_button.ptr())
+		{
+			gui_client->loginButtonClicked();
+
+			event.accepted = true;
+		}
+		else if(event.widget == signup_button.ptr())
+		{
+			gui_client->signupButtonClicked();
+
+			event.accepted = true;
+		}
+		else if(event.widget == logged_in_button.ptr())
+		{
+			gui_client->loggedInButtonClicked();
+
+			event.accepted = true;
 		}
 	}
 }

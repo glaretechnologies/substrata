@@ -10,10 +10,28 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/ConPrint.h>
 #include <graphics/ImageMap.h>
 #include <graphics/TextRenderer.h>
+#include <webserver/Escaping.h>
 #include <SDL.h>
 #include <iostream>
 #if EMSCRIPTEN
 #include <emscripten.h>
+#endif
+
+
+
+
+#if EMSCRIPTEN
+
+// Define openURLInNewBrowserTab(const char* URL) function
+EM_JS(void, openURLInNewBrowserTab, (const char* URL), {
+	window.open(UTF8ToString(URL), "mozillaTab"); // See https://developer.mozilla.org/en-US/docs/Web/API/Window/open
+});
+
+// Define navigateToURL(const char* URL) function
+EM_JS(void, navigateToURL, (const char* URL), {
+	window.location = UTF8ToString(URL);
+});
+
 #endif
 
 
@@ -65,6 +83,31 @@ void SDLUIInterface::setTextAsNotLoggedIn()
 void SDLUIInterface::setTextAsLoggedIn(const std::string& username)
 {
 	logged_in_username = username;
+}
+
+void SDLUIInterface::loginButtonClicked()
+{
+#if EMSCRIPTEN
+	const std::string return_url = gui_client->getCurrentWebClientURLPath();
+	const std::string url = "/login?return=" + web::Escaping::URLEscape(return_url);
+	navigateToURL(url.c_str());
+#endif
+}
+
+void SDLUIInterface::signUpButtonClicked()
+{
+#if EMSCRIPTEN
+	const std::string return_url = gui_client->getCurrentWebClientURLPath();
+	const std::string url = "/signup?return=" + web::Escaping::URLEscape(return_url);
+	navigateToURL(url.c_str());
+#endif
+}
+
+void SDLUIInterface::loggedInButtonClicked()
+{
+#if EMSCRIPTEN
+	navigateToURL("/account");
+#endif
 }
 
 void SDLUIInterface::updateWorldSettingsControlsEditable()
@@ -260,21 +303,11 @@ void SDLUIInterface::enableFirstPersonCamera()
 }
 
 
-#if EMSCRIPTEN
-
-// Define openURLInBrowser(const char* URL) function
-EM_JS(void, openURLInBrowser, (const char* URL), {
-	window.open(UTF8ToString(URL), "mozillaTab"); // See https://developer.mozilla.org/en-US/docs/Web/API/Window/open
-});
-
-#endif
-
-
 void SDLUIInterface::openURL(const std::string& URL)
 {
 	conPrint("SDLUIInterface::openURL: URL: " + URL);
 #if EMSCRIPTEN
-	openURLInBrowser(URL.c_str());
+	openURLInNewBrowserTab(URL.c_str());
 #else
 	SDL_OpenURL(URL.c_str());
 #endif

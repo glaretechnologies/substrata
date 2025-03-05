@@ -1105,24 +1105,7 @@ static void doOneMainLoopIter()
 	// We can't do this too often or we will get an "Attempt to use history.replacestate() more than 100 times per 30 seconds" error in Safari.
 	if(last_update_URL_timer->elapsed() > 0.5)
 	{
-		std::string url_path = "/webclient?";
-
-		if(!gui_client->server_worldname.empty()) // Append world if != empty string.
-			url_path += "world=" + web::Escaping::URLEscape(gui_client->server_worldname) + '&';
-
-		const Vec3d pos = gui_client->cam_controller.getFirstPersonPosition();
-
-		const double heading_deg = Maths::doubleMod(::radToDegree(gui_client->cam_controller.getAngles().x), 360.0);
-
-		// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
-		url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 2) + 
-			"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1);
-
-		// If the original URL had an explicit sun angle in it, keep it.
-		if(gui_client->last_url_parse_results.parsed_sun_azimuth_angle)
-			url_path += "&sun_azimuth_angle=" + doubleToStringNDecimalPlaces(gui_client->last_url_parse_results.sun_azimuth_angle, 1);
-		if(gui_client->last_url_parse_results.parsed_sun_vert_angle)
-			url_path += "&sun_vert_angle=" + doubleToStringNDecimalPlaces(gui_client->last_url_parse_results.sun_vert_angle, 1);
+		const std::string url_path = gui_client->getCurrentWebClientURLPath();
 	
 		updateURL(url_path.c_str());
 

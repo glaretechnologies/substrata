@@ -29,6 +29,11 @@ public:
 	virtual void setTextAsNotLoggedIn() override;
 	virtual void setTextAsLoggedIn(const std::string& username) override;
 
+	// Login/signup buttons
+	virtual void loginButtonClicked() override;
+	virtual void signUpButtonClicked() override;
+	virtual void loggedInButtonClicked() override;
+
 	// worldSettingsWidget:
 	virtual void updateWorldSettingsControlsEditable() override;
 

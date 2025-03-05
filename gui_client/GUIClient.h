@@ -188,6 +188,10 @@ public:
 	void updateGroundPlane();
 	void sendLightmapNeededFlagsSlot();
 	void useActionTriggered(bool use_mouse_cursor); // if use_mouse_cursor is false, use crosshair as cursor instead.
+	void loginButtonClicked();
+	void signupButtonClicked();
+	void loggedInButtonClicked();
+	std::string getCurrentWebClientURLPath() const;
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
