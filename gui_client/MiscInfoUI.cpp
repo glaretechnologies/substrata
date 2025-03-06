@@ -36,12 +36,27 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	signup_button->handler = this;
 	gl_ui->addWidget(signup_button);
 
+	
+	{
+		movement_buttons[0] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
+		movement_buttons[1] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
+		movement_buttons[2] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
+		movement_buttons[3] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
+	}
+
 	updateWidgetPositions();
 }
 
 
 void MiscInfoUI::destroy()
 {
+	for(int i=0; i<4; ++i)
+		if(movement_buttons[i])
+		{
+			gl_ui->removeWidget(login_button);
+			movement_buttons[i] = NULL;
+		}
+
 	if(login_button.nonNull())
 		gl_ui->removeWidget(login_button);
 	login_button = NULL;
@@ -273,6 +288,21 @@ void MiscInfoUI::updateWidgetPositions()
 		}
 		if(unit_string_view.nonNull())
 			unit_string_view->setPos(*gl_ui, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y));
+
+
+		if(movement_buttons[0])
+		{
+			const float y_scale = gl_ui->getYScale();
+			const float spacing_rad = 0.15f;
+			const float button_w = 0.1f;
+			const float button_h = button_w * y_scale;
+			const Vec2f centre = Vec2f(0, -min_max_y + spacing_rad + button_w);
+
+			movement_buttons[0]->setPosAndDims(centre - Vec2f(spacing_rad, 0),           Vec2f(button_w, button_h)); // left button
+			movement_buttons[1]->setPosAndDims(centre + Vec2f(spacing_rad, 0),           Vec2f(button_w, button_h)); // right button
+			movement_buttons[2]->setPosAndDims(centre - Vec2f(0, spacing_rad * y_scale), Vec2f(button_w, button_h)); // bottom button
+			movement_buttons[3]->setPosAndDims(centre + Vec2f(0, spacing_rad * y_scale), Vec2f(button_w, button_h)); // top button
+		}
 	}
 }
 
