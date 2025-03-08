@@ -202,6 +202,10 @@ static void miniAudioCallBack(ma_device* device, void* output_buffer, const void
 		for(size_t z=0; z<num_samples_to_dequeue; ++z)
 			output_buffer_f[z] = myClamp(output_buffer_f[z], -1.f, 1.f);
 
+
+		//if(num_samples_to_dequeue < num_samples_needed)
+		//	conPrint("miniAudioCallBack(): underflow: not enough samples in queue."); // Note that this will also happen if there are no audio sources.
+
 		// Pad with zeroes if there wasn't enough data in the queue
 		for(size_t i=num_samples_to_dequeue; i<num_samples_needed; ++i)
 			output_buffer_f[i] = 0.f;
@@ -566,7 +570,11 @@ void AudioEngine::init()
 {
 	const unsigned int desired_sample_rate = 48000;
 
+#if EMSCRIPTEN
+	unsigned int buffer_frames = 512; // Chrome seems to need more frames to avoid underflow.
+#else
 	unsigned int buffer_frames = 256; // Request 256 frames per buffer. NOTE: might be changed by openStream() etc. below.
+#endif
 
 	callback_data.resonance = NULL;
 	callback_data.engine = this;
