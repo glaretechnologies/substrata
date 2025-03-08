@@ -463,7 +463,14 @@ int main(int argc, char** argv)
 
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager);
 
-		gui_client->afterGLInitInitialise(/*device pixel ratio=*/1.0, opengl_engine, fonts, emoji_fonts);
+#if EMSCRIPTEN
+		const double device_pixel_ratio = emscripten_get_device_pixel_ratio();
+#else
+		const double device_pixel_ratio = 1.0;
+#endif
+
+		printVar(device_pixel_ratio);
+		gui_client->afterGLInitInitialise(device_pixel_ratio, opengl_engine, fonts, emoji_fonts);
 
 		gui_client->gl_ui->callbacks = new SDLClientGLUICallbacks();
 

@@ -44,6 +44,8 @@ public:
 	virtual void eventOccurred(GLUICallbackEvent& event);
 private:
 	bool isInitialisedFully();
+	float computeWidgetWidth();
+	float computeWidgetHeight();
 
 	struct ChatMessage
 	{

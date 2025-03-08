@@ -4244,6 +4244,16 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		if(right_down)
 		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); }
 
+		if(misc_info_ui.movement_button->pressed)
+		{
+			const Vec2f frac_coords = div((gl_ui->getLastMouseUICoords() - misc_info_ui.movement_button->rect.getMin()), misc_info_ui.movement_button->rect.getWidths());
+
+			player_physics.processStrafeRight (selfie_move_factor * 2 * (frac_coords.x - 0.5f), SHIFT_down, this->cam_controller);
+			player_physics.processMoveForwards(selfie_move_factor * 2 * (frac_coords.y - 0.5f), SHIFT_down, this->cam_controller);
+			
+			move_key_pressed = true;
+		}
+
 
 		input_out.SHIFT_down =	SHIFT_down;
 		input_out.CTRL_down =	CTRL_down;

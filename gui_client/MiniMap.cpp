@@ -31,8 +31,7 @@ MiniMap::~MiniMap()
 {}
 
 
-static const float minimap_width = 0.29f; // Width in UI coordinates
-static const float margin = 0.03f; // margin around map in UI coordinates
+static const float x_margin = 0.03f; // margin around map in UI coordinates
 
 static const float arrow_width_px = 22;
 
@@ -81,14 +80,16 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTextureFormat::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
 	// Create minimap image
-	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", Vec2f(1 - margin - minimap_width, gl_ui->getViewportMinMaxY() - margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
+	const float y_margin = computeMiniMapTopMargin();
+	const float minimap_width = computeMiniMapWidth();
+	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", Vec2f(1 - x_margin - minimap_width, gl_ui->getViewportMinMaxY() - y_margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
 	minimap_image->overlay_ob->material.albedo_texture = minimap_texture;
 	minimap_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	minimap_image->handler = this;
 	gl_ui->addWidget(minimap_image);
 
 	// Create facing arrow image
-	arrow_image = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - margin - minimap_width/2, gl_ui->getViewportMinMaxY() - margin - minimap_width/2), Vec2f(0.005f), 
+	arrow_image = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - x_margin - minimap_width/2, gl_ui->getViewportMinMaxY() - y_margin - minimap_width/2), Vec2f(0.005f), 
 		/*tooltip=*/"You", ARROW_IMAGE_Z);
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
@@ -357,7 +358,9 @@ void MiniMap::think()
 	const float heading = (float)gui_client->cam_controller.getAngles().x;
 
 	const float arrow_width = gl_ui->getUIWidthForDevIndepPixelWidth(arrow_width_px);
-	arrow_image->setTransform(Vec2f(1 - margin - minimap_width/2 - arrow_width/2, gl_ui->getViewportMinMaxY() - margin - minimap_width/2 - arrow_width/2), 
+	const float minimap_width = computeMiniMapWidth();
+	const float y_margin = computeMiniMapTopMargin();
+	arrow_image->setTransform(Vec2f(1 - x_margin - minimap_width/2 - arrow_width/2, gl_ui->getViewportMinMaxY() - y_margin - minimap_width/2 - arrow_width/2), 
 		/*dims=*/Vec2f(arrow_width), 
 		/*rotation=*/heading,
 		/*z=*/ARROW_IMAGE_Z);
@@ -710,7 +713,9 @@ void MiniMap::updateWidgetPositions()
 	{
 		if(minimap_image.nonNull())
 		{
-			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - margin, gl_ui->getViewportMinMaxY() - minimap_width - margin), Vec2f(minimap_width), MINIMAP_Z);
+			const float minimap_width = computeMiniMapWidth();
+			const float y_margin = computeMiniMapTopMargin();
+			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - x_margin, gl_ui->getViewportMinMaxY() - minimap_width - y_margin), Vec2f(minimap_width), MINIMAP_Z);
 
 			//last_minimap_bot_left_pos = minimap_image->rect.getMin();
 
@@ -723,7 +728,8 @@ void MiniMap::updateWidgetPositions()
 			//---------------------------- Update expand_button ----------------------------
 			const float expand_button_w_px = 36;
 			const float expand_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(expand_button_w_px);
-			expand_button->setPosAndDims(Vec2f(1.f - gl_ui->getUIWidthForDevIndepPixelWidth(20 + expand_button_w_px), gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(20 + expand_button_w_px)), 
+			const float margin_px = 18;
+			expand_button->setPosAndDims(Vec2f(1.f - gl_ui->getUIWidthForDevIndepPixelWidth(margin_px + expand_button_w_px), gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(margin_px + expand_button_w_px)), 
 				Vec2f(expand_button_w, expand_button_w));
 		}
 	}
@@ -736,9 +742,25 @@ Vec2f MiniMap::mapUICoordsForWorldSpacePos(const Vec3d& pos)
 
 	const Vec2f cam_to_pos_xy_ws((float)cam_to_pos_ws.x, (float)cam_to_pos_ws.y);
 
-	const Vec2f map_centre_ui(1 - margin - minimap_width/2,  gl_ui->getViewportMinMaxY() - margin - minimap_width/2);
+	const float minimap_width = computeMiniMapWidth();
+	const Vec2f map_centre_ui(1 - x_margin - minimap_width/2,  gl_ui->getViewportMinMaxY() - computeMiniMapTopMargin() - minimap_width/2);
 
 	return map_centre_ui + minimap_width * cam_to_pos_xy_ws / map_width_ws;
+}
+
+
+float MiniMap::computeMiniMapWidth()
+{
+	return myClamp(gl_ui->getUIWidthForDevIndepPixelWidth(300), 0.f, 1.f);
+}
+
+
+float MiniMap::computeMiniMapTopMargin()
+{
+	if(computeMiniMapWidth() > 0.8f) // If minimap extends sufficiently far across screen (will be case for narrow screens such as on phones)
+		return gl_ui->getUIWidthForDevIndepPixelWidth(60); // lower map so does not cover login/signup buttons.
+	else
+		return x_margin;
 }
 
 
@@ -755,10 +777,11 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 
 	// Clamp marker to screen.
 	const float in_map_margin_w = 0.02f;
-	const float map_min_x = 1 - margin - minimap_width + in_map_margin_w;
-	const float map_max_x = 1 - margin - in_map_margin_w;
-	const float map_min_y = gl_ui->getViewportMinMaxY() - margin - minimap_width + in_map_margin_w;
-	const float map_max_y = gl_ui->getViewportMinMaxY() - margin - in_map_margin_w;
+	const float minimap_width = computeMiniMapWidth();
+	const float map_min_x = 1 - x_margin - minimap_width + in_map_margin_w;
+	const float map_max_x = 1 - x_margin - in_map_margin_w;
+	const float map_min_y = gl_ui->getViewportMinMaxY() - computeMiniMapTopMargin() - minimap_width + in_map_margin_w;
+	const float map_max_y = gl_ui->getViewportMinMaxY() - computeMiniMapTopMargin() - in_map_margin_w;
 
 	Vec2f clamped_ui_coords;
 	clamped_ui_coords.x = myClamp(ui_coords.x, map_min_x, map_max_x);

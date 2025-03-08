@@ -53,9 +53,9 @@ private:
 	GLUITextButtonRef login_button;
 	GLUITextButtonRef signup_button;
 	GLUITextButtonRef logged_in_button; // shows 'logged in as USERNAME'
-
-	GLUIButtonRef movement_buttons[4];
-
+public:
+	GLUIButtonRef movement_button;
+private:
 	GLUITextViewRef admin_msg_text_view;
 
 	std::vector<GLUITextViewRef> prebuilt_digits;
