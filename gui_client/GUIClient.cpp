@@ -4244,7 +4244,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		if(right_down)
 		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); }
 
-		if(misc_info_ui.movement_button->pressed)
+		if(misc_info_ui.movement_button && misc_info_ui.movement_button->pressed)
 		{
 			const Vec2f frac_coords = div((gl_ui->getLastMouseUICoords() - misc_info_ui.movement_button->rect.getMin()), misc_info_ui.movement_button->rect.getWidths());
 
