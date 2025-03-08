@@ -37,12 +37,9 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	gl_ui->addWidget(signup_button);
 
 	
-	{
-		movement_buttons[0] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
-		movement_buttons[1] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
-		movement_buttons[2] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
-		movement_buttons[3] = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/left_tab.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
-	}
+	movement_button = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/dir_pad.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
+	movement_button->handler = this;
+	gl_ui->addWidget(movement_button);
 
 	updateWidgetPositions();
 }
@@ -50,12 +47,9 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 
 void MiscInfoUI::destroy()
 {
-	for(int i=0; i<4; ++i)
-		if(movement_buttons[i])
-		{
-			gl_ui->removeWidget(login_button);
-			movement_buttons[i] = NULL;
-		}
+	if(movement_button)
+		gl_ui->removeWidget(movement_button);
+	movement_button = NULL;
 
 	if(login_button.nonNull())
 		gl_ui->removeWidget(login_button);
@@ -253,11 +247,12 @@ void MiscInfoUI::updateWidgetPositions()
 		{
 			const Vec2f login_button_dims  = login_button->rect.getWidths();
 			const Vec2f signup_button_dims = signup_button->rect.getWidths();
-			const float x_spacing = gl_ui->getUIWidthForDevIndepPixelWidth(10);
+			const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(18);
+			const float x_spacing = margin;//gl_ui->getUIWidthForDevIndepPixelWidth(10);
 			const float total_w = login_button_dims.x + x_spacing + signup_button_dims.x;
 
-			login_button ->setPos(/*botleft=*/Vec2f(-total_w/2,                                   min_max_y - login_button_dims.y  + vert_offset));
-			signup_button->setPos(/*botleft=*/Vec2f(-total_w/2 + login_button_dims.x + x_spacing, min_max_y - signup_button_dims.y + vert_offset));
+			login_button ->setPos(/*botleft=*/Vec2f(-1 + margin                                  , min_max_y - login_button_dims.y  - margin));
+			signup_button->setPos(/*botleft=*/Vec2f(-1 + margin + login_button_dims.x + x_spacing, min_max_y - signup_button_dims.y - margin));
 		}
 
 		if(logged_in_button)
@@ -290,18 +285,15 @@ void MiscInfoUI::updateWidgetPositions()
 			unit_string_view->setPos(*gl_ui, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y));
 
 
-		if(movement_buttons[0])
+		if(movement_button)
 		{
-			const float y_scale = gl_ui->getYScale();
-			const float spacing_rad = 0.15f;
-			const float button_w = 0.1f;
-			const float button_h = button_w * y_scale;
-			const Vec2f centre = Vec2f(0, -min_max_y + spacing_rad + button_w);
+			const float spacing = gl_ui->getUIWidthForDevIndepPixelWidth(25);
 
-			movement_buttons[0]->setPosAndDims(centre - Vec2f(spacing_rad, 0),           Vec2f(button_w, button_h)); // left button
-			movement_buttons[1]->setPosAndDims(centre + Vec2f(spacing_rad, 0),           Vec2f(button_w, button_h)); // right button
-			movement_buttons[2]->setPosAndDims(centre - Vec2f(0, spacing_rad * y_scale), Vec2f(button_w, button_h)); // bottom button
-			movement_buttons[3]->setPosAndDims(centre + Vec2f(0, spacing_rad * y_scale), Vec2f(button_w, button_h)); // top button
+			const float button_w = myMax(gl_ui->getUIWidthForDevIndepPixelWidth(100), 0.15f);
+			const float button_h = button_w;
+			const Vec2f pos = Vec2f(-1.f + 0.4f /*+ spacing*/, -min_max_y + spacing);
+
+			movement_button->setPosAndDims(pos, Vec2f(button_w, button_h));
 		}
 	}
 }
@@ -345,6 +337,10 @@ void MiscInfoUI::eventOccurred(GLUICallbackEvent& event)
 		{
 			gui_client->loggedInButtonClicked();
 
+			event.accepted = true;
+		}
+		else if(event.widget == movement_button.ptr())
+		{
 			event.accepted = true;
 		}
 	}

@@ -227,14 +227,16 @@ void GestureUI::updateWidgetPositions()
 		const float BUTTON_H = BUTTON_W;
 		const float SPACING = BUTTON_W * 0.28f;
 
-		const int NUM_BUTTONS_PER_ROW = 7;
+		// On narrow screens (e.g. phones), the gesture buttons may intefere with other buttons or even go offscreen to the left.  So arrange more vertically, with less per line.
+		const int NUM_BUTTONS_PER_ROW = ((BUTTON_W * 7 + SPACING * 7) < 0.8f) ? 7 : 3;
 		const float GESTURES_LEFT_X = gestures_visible ? (1 - (BUTTON_W * NUM_BUTTONS_PER_ROW + SPACING * NUM_BUTTONS_PER_ROW)) : 1000;
 
+		const float gestures_bottom_margin = (GESTURES_LEFT_X < 0.3f) ? gl_ui->getUIWidthForDevIndepPixelWidth(120) : SPACING; // If gesture buttons would overlap with other buttons (e.g. on narrow screens), move up.
 		for(size_t i=0; i<gesture_buttons.size(); ++i)
 		{
 			const float x = (i % NUM_BUTTONS_PER_ROW) * (BUTTON_W + SPACING) + GESTURES_LEFT_X;
 			const float y = (i / NUM_BUTTONS_PER_ROW) * (BUTTON_H + SPACING);
-			gesture_buttons[i]->setPosAndDims(Vec2f(x, -min_max_y + y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+			gesture_buttons[i]->setPosAndDims(Vec2f(x, -min_max_y + y + gestures_bottom_margin), Vec2f(BUTTON_W, BUTTON_H));
 		}
 
 		if(collapse_button.nonNull())
@@ -246,7 +248,8 @@ void GestureUI::updateWidgetPositions()
 			const float collapse_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_w_px);
 			const float collapse_button_h = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_h_px);
 
-			collapse_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - collapse_button_w - SPACING, -min_max_y + BUTTON_H*2 + SPACING*2 - collapse_button_h), Vec2f(collapse_button_w, collapse_button_h));
+			const float num_gesture_button_rows = Maths::roundedUpDivide((int)gesture_buttons.size(), NUM_BUTTONS_PER_ROW);
+			collapse_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - collapse_button_w - SPACING, -min_max_y + num_gesture_button_rows * (BUTTON_H + SPACING) - SPACING - collapse_button_h + gestures_bottom_margin), Vec2f(collapse_button_w, collapse_button_h));
 
 			expand_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, TAB_BUTTON_W/*BUTTON_H * 2 + SPACING*/));
 			expand_button->setVisible(!gestures_visible);

@@ -23,7 +23,6 @@ ChatUI::~ChatUI()
 {}
 
 
-static const float widget_w = 0.6f;
 static const float corner_radius_px = 8;
 static const int font_size_px = 12;
 static const int msgs_padding_w_px = 8;
@@ -51,7 +50,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 
 
 		GLUILineEdit::CreateArgs create_args;
-		create_args.width = widget_w;
+		create_args.width = computeWidgetWidth();
 		create_args.background_colour = Colour3f(0.0f);
 		create_args.background_alpha = 0.8f;
 		create_args.font_size_px = font_size_px;
@@ -159,6 +158,19 @@ bool ChatUI::isInitialisedFully()
 }
 
 
+float ChatUI::computeWidgetWidth()
+{
+	// Upper bound so that there is always enough room to show the minimise button to the right of the chat window.
+	return myClamp(gl_ui->getUIWidthForDevIndepPixelWidth(300.f), /*lower bound=*/0.4f, /*upper bound=*/1.6f);
+}
+
+
+float ChatUI::computeWidgetHeight()
+{
+	return myMin(gl_ui->getUIWidthForDevIndepPixelWidth(300.f), /*upper bound=*/gl_ui->getViewportMinMaxY());
+}
+
+
 void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
 {
 	// Remove existing text views
@@ -171,7 +183,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
 	chatmessage.msg_text = NULL;
 
 
-	const float text_area_w = widget_w - gl_ui->getUIWidthForDevIndepPixelWidth(msgs_padding_w_px) * 2;
+	const float text_area_w = computeWidgetWidth() - gl_ui->getUIWidthForDevIndepPixelWidth(msgs_padding_w_px) * 2;
 	{
 		GLUITextView::CreateArgs name_args;
 		name_args.text_colour = chatmessage.avatar_colour;
@@ -281,15 +293,23 @@ void ChatUI::updateWidgetTransforms()
 	if(!isInitialisedFully())
 		return;
 
+	const float widget_width  = computeWidgetWidth();
+	const float widget_height = computeWidgetHeight();
+
 	//---------------------------- Update chat_line_edit ----------------------------
 
-	const float chat_line_edit_y = -gl_ui->getViewportMinMaxY() + /*0.15f*/gl_ui->getUIWidthForDevIndepPixelWidth(20);
+	chat_line_edit->setWidth(widget_width);
+	float chat_line_edit_y = -gl_ui->getViewportMinMaxY() + /*0.15f*/gl_ui->getUIWidthForDevIndepPixelWidth(20);
+
+	if(-1.f + widget_width >= -0.4f) // gl_ui->getUIWidthForDevIndepPixelWidth(800) > 2.f)
+		chat_line_edit_y += myMax(gl_ui->getUIWidthForDevIndepPixelWidth(100), 0.15f) + gl_ui->getUIWidthForDevIndepPixelWidth(20); // Move above movement button in MiscInfoUI.
+
 	chat_line_edit->setPos(/*botleft=*/Vec2f(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20), chat_line_edit_y));
 
 
 	//---------------------------- Update background_overlay_ob ----------------------------
-	const float background_w = widget_w;
-	const float background_h = 0.5f;
+	const float background_w = widget_width;
+	const float background_h = widget_height;
 
 	const float y_scale = opengl_engine->getViewPortAspectRatio(); // scale from GL UI to opengl coords
 	const float z = 0.1f;
@@ -301,9 +321,9 @@ void ChatUI::updateWidgetTransforms()
 	this->last_background_top_right_pos = background_pos + Vec2f(background_w, background_h);
 	
 
+	// Viewport has changed, recreate rounded-corner rect.
 	if(this->last_viewport_dims != opengl_engine->getViewportDims())
 	{
-		// Viewport has changed, recreate rounded-corner rect.
 		conPrint("ChatUI: Viewport has changed, recreate rounded-corner rect.");
 		background_overlay_ob->mesh_data = MeshPrimitiveBuilding::makeRoundedCornerRect(*opengl_engine->vert_buf_allocator, /*i=*/Vec4f(1,0,0,0), /*j=*/Vec4f(0,1,0,0), /*w=*/background_w, /*h=*/background_h, 
 			/*corner radius=*/gl_ui->getUIWidthForDevIndepPixelWidth(corner_radius_px), /*tris_per_corner=*/8);

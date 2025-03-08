@@ -74,6 +74,8 @@ private:
 	void updateWidgetPositions();
 	void renderTilesToTexture();
 	Vec2f mapUICoordsForWorldSpacePos(const Vec3d& pos);
+	float computeMiniMapWidth();
+	float computeMiniMapTopMargin();
 
 	GUIClient* gui_client;
 	GLUIRef gl_ui;
