@@ -24,6 +24,7 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
+#if EMSCRIPTEN // Only show login, signup and movement buttons on web.
 	GLUITextButton::CreateArgs login_args;
 	login_args.tooltip = "Log in to an existing user account";
 	login_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Log in", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), login_args);
@@ -36,10 +37,11 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	signup_button->handler = this;
 	gl_ui->addWidget(signup_button);
 
-	
+
 	movement_button = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/dir_pad.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
 	movement_button->handler = this;
 	gl_ui->addWidget(movement_button);
+#endif
 
 	updateWidgetPositions();
 }
@@ -108,12 +110,13 @@ void MiscInfoUI::showLoggedInButton(const std::string& username)
 		gl_ui->removeWidget(logged_in_button);
 	logged_in_button = NULL;
 
-
+#if EMSCRIPTEN // Only show on web
 	GLUITextButton::CreateArgs logged_in_button_args;
 	logged_in_button_args.tooltip = "View user account";
 	logged_in_button = new GLUITextButton(*gl_ui, opengl_engine, "Logged in as " + username, Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), logged_in_button_args);
 	logged_in_button->handler = this;
 	gl_ui->addWidget(logged_in_button);
+#endif
 
 	updateWidgetPositions();
 }
@@ -241,15 +244,15 @@ void MiscInfoUI::updateWidgetPositions()
 	if(gl_ui.nonNull())
 	{
 		const float min_max_y = gl_ui->getViewportMinMaxY();
-		const float vert_offset = 0;
+		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(18);
 
 		if(login_button && signup_button)
 		{
 			const Vec2f login_button_dims  = login_button->rect.getWidths();
 			const Vec2f signup_button_dims = signup_button->rect.getWidths();
-			const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(18);
+			
 			const float x_spacing = margin;//gl_ui->getUIWidthForDevIndepPixelWidth(10);
-			const float total_w = login_button_dims.x + x_spacing + signup_button_dims.x;
+			//const float total_w = login_button_dims.x + x_spacing + signup_button_dims.x;
 
 			login_button ->setPos(/*botleft=*/Vec2f(-1 + margin                                  , min_max_y - login_button_dims.y  - margin));
 			signup_button->setPos(/*botleft=*/Vec2f(-1 + margin + login_button_dims.x + x_spacing, min_max_y - signup_button_dims.y - margin));
@@ -259,7 +262,7 @@ void MiscInfoUI::updateWidgetPositions()
 		{
 			const Vec2f button_dims = logged_in_button->rect.getWidths();
 
-			logged_in_button->setPos(/*botleft=*/Vec2f(- button_dims.x / 2, min_max_y - button_dims.y + vert_offset));
+			logged_in_button->setPos(/*botleft=*/Vec2f(-1 + margin, min_max_y - button_dims.y + - margin));
 		}
 
 
