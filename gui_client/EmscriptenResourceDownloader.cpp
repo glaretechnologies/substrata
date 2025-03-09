@@ -62,18 +62,19 @@ void EmscriptenResourceDownloader::shutdown()
 
 #if EMSCRIPTEN
 
-static void onLoad(unsigned int firstarg, void* userdata_arg, const char* filename)
+// Callback on successful load of the file.
+static void onLoad(unsigned int request_handle, void* userdata_arg, void* buffer, unsigned int buffer_size_B)
 {
 	// conPrint("DownloadResourcesThread: onLoad: " + std::string(filename) + ", firstarg: " + toString(firstarg));
 
 	Reference<CurrentlyDownloadingResource> downloading_resource((CurrentlyDownloadingResource*)userdata_arg);
 
-	downloading_resource->resource_downloader->onResourceLoad(downloading_resource);
+	downloading_resource->resource_downloader->onResourceLoad(downloading_resource, buffer, buffer_size_B);
 	
 }
 
 
-static void onError(unsigned int, void* userdata_arg, int http_status_code)
+static void onError(unsigned int request_handle, void* userdata_arg, int http_status_code, const char* status_descrip)
 {
 	// conPrint("DownloadResourcesThread: onError: " + toString(http_status_code));
 
@@ -83,7 +84,7 @@ static void onError(unsigned int, void* userdata_arg, int http_status_code)
 }
 
 
-static void onProgress(unsigned int, void* userdata_arg, int percent_complete)
+static void onProgress(unsigned int request_handle, void* userdata_arg, int percent_complete, int total_data_size)
 {
 	// conPrint("DownloadResourcesThread: onProgress: " + toString(percent_complete));
 }
@@ -91,7 +92,7 @@ static void onProgress(unsigned int, void* userdata_arg, int percent_complete)
 #endif // EMSCRIPTEN
 
 
-void EmscriptenResourceDownloader::onResourceLoad(Reference<CurrentlyDownloadingResource> downloading_resource)
+void EmscriptenResourceDownloader::onResourceLoad(Reference<CurrentlyDownloadingResource> downloading_resource, void* buffer, unsigned int buffer_size_B)
 {
 	if(resource_manager.isNull()) // If not initialised:
 		return;
@@ -102,16 +103,13 @@ void EmscriptenResourceDownloader::onResourceLoad(Reference<CurrentlyDownloading
 	ResourceRef resource = resource_manager->getOrCreateResourceForURL(downloading_resource->URL);
 
 	resource->setState(Resource::State_Present);
-	try
-	{
-		resource->file_size_B = FileUtils::getFileSize(resource_manager->getLocalAbsPathForResource(*resource));
-		resource_manager->addResourceSizeToTotalPresent(resource);
-	}
-	catch(glare::Exception& e)
-	{
-		conPrint("Error: Failed to get file size for downloaded resource: " + e.what());
-		resource->file_size_B = 0;
-	}
+
+	resource->loaded_buffer = new LoadedBuffer();
+	resource->loaded_buffer->buffer = buffer;
+	resource->loaded_buffer->buffer_size = buffer_size_B;
+	resource->file_size_B = buffer_size_B;
+	resource_manager->addResourceSizeToTotalPresent(resource);
+
 
 	resource_manager->markAsChanged();
 
@@ -167,12 +165,11 @@ void EmscriptenResourceDownloader::think()
 					const std::string http_URL = "/resource/" + URL;
 					
 					// conPrint("Calling emscripten_wget_data for URL '" + http_URL + "'...");
-
-					const std::string local_abs_path = resource_manager->getLocalAbsPathForResource(*resource);
-
 #if EMSCRIPTEN
-					downloading_resource->request_handle = emscripten_async_wget2(http_URL.c_str(), local_abs_path.c_str(), /*requesttype =*/"GET", /*POST params=*/"", 
-						/*userdata arg=*/downloading_resource.ptr(), onLoad, onError, onProgress);
+					downloading_resource->request_handle = emscripten_async_wget2_data(http_URL.c_str(), /*request type=*/"GET", /*POST params=*/"", 
+						/*userdata arg=*/downloading_resource.ptr(), 
+						/*free mem=*/0, // we'll free the memory ourselves.
+						onLoad, onError, onProgress);
 #endif
 				}
 			}

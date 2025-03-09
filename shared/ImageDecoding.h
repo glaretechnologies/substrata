@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../utils/Reference.h"
 #include "../utils/Exception.h"
 #include "../utils/string_view.h"
+#include "../utils/ArrayRef.h"
 #include <string>
 #include <vector>
 class Map2D;
@@ -30,7 +31,10 @@ public:
 		bool ETC_support;
 	};
 
+	// Decode image from disk
 	static Reference<Map2D> decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator = NULL, const ImageDecodingOptions& options = ImageDecodingOptions());
+
+	static Reference<Map2D> decodeImageFromBuffer(const std::string& indigo_base_dir, const std::string& path, ArrayRef<uint8> texture_data_buf, glare::Allocator* mem_allocator = NULL, const ImageDecodingOptions& options = ImageDecodingOptions());
 
 	static bool isSupportedImageExtension(string_view extension);
 

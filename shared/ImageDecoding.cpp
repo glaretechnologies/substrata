@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <graphics/BasisDecoder.h>
 #include <graphics/Map2D.h>
 #include <utils/StringUtils.h>
+#include <utils/MemMappedFile.h>
 #include <maths/mathstypes.h>
 #include <stdlib.h> // for NULL
 #include <fstream>
@@ -22,13 +23,33 @@ Copyright Glare Technologies Limited 2022 -
 
 Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator, const ImageDecodingOptions& options) // throws ImFormatExcep on failure
 {
+	if(hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
+		hasExtension(path, "png") ||
+		hasExtension(path, "exr") ||
+		hasExtension(path, "gif") ||
+		hasExtension(path, "ktx") ||
+		hasExtension(path, "ktx2") ||
+		hasExtension(path, "basis"))
+	{
+		MemMappedFile file(path);
+		return decodeImageFromBuffer(indigo_base_dir, path, ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize()), mem_allocator, options);
+	}
+	else
+	{
+		throw glare::Exception("Unhandled image format ('" + getExtension(path) + "')");
+	}
+}
+
+
+Reference<Map2D> ImageDecoding::decodeImageFromBuffer(const std::string& indigo_base_dir, const std::string& path, ArrayRef<uint8> texture_data_buf, glare::Allocator* mem_allocator, const ImageDecodingOptions& options)
+{
 	if(hasExtension(path, "jpg") || hasExtension(path, "jpeg"))
 	{
-		return JPEGDecoder::decode(indigo_base_dir, path, mem_allocator);
+		return JPEGDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), indigo_base_dir, mem_allocator);
 	}
 	else if(hasExtension(path, "png"))
 	{
-		return PNGDecoder::decode(path, mem_allocator);
+		return PNGDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator);
 	}
 	// Disable TIFF loading until we fuzz it etc.
 	/*else if(hasExtension(path, "tif") || hasExtension(path, "tiff"))
@@ -37,25 +58,25 @@ Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, 
 	}*/
 	else if(hasExtension(path, "exr"))
 	{
-		return EXRDecoder::decode(path, mem_allocator);
+		return EXRDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), path, mem_allocator);
 	}
 	else if(hasExtension(path, "gif"))
 	{
-		return GIFDecoder::decode(path, mem_allocator);
+		return GIFDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator);
 	}
 	else if(hasExtension(path, "ktx"))
 	{
-		return KTXDecoder::decode(path, mem_allocator);
+		return KTXDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator);
 	}
 	else if(hasExtension(path, "ktx2"))
 	{
-		return KTXDecoder::decodeKTX2(path, mem_allocator);
+		return KTXDecoder::decodeKTX2FromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator);
 	}
 	else if(hasExtension(path, "basis"))
 	{
 		BasisDecoder::BasisDecoderOptions basis_options;
 		basis_options.ETC_support = options.ETC_support;
-		return BasisDecoder::decode(path, mem_allocator, basis_options);
+		return BasisDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator, basis_options);
 	}
 	else
 	{

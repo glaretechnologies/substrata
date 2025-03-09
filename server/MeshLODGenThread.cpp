@@ -580,7 +580,8 @@ void MeshLODGenThread::doRun()
 							mesh_to_gen.lod_URL, // URL
 							raw_path, // raw local path
 							Resource::State_Present, // state
-							mesh_to_gen.owner_id
+							mesh_to_gen.owner_id,
+							/*external_resource=*/false
 						);
 
 						world_state->addResourcesAsDBDirty(resource);
@@ -620,7 +621,8 @@ void MeshLODGenThread::doRun()
 							tex_to_gen.lod_URL, // URL
 							raw_path, // raw local path
 							Resource::State_Present, // state
-							tex_to_gen.owner_id
+							tex_to_gen.owner_id,
+							/*external_resource=*/false
 						);
 
 						world_state->addResourcesAsDBDirty(resource);

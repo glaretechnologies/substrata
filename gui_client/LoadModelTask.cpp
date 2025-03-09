@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <FileUtils.h>
+#include <MemMappedFile.h>
 #include <tracy/Tracy.hpp>
 
 
@@ -92,12 +93,37 @@ void LoadModelTask::run(size_t thread_index)
 			ZoneText(lod_model_url.c_str(), lod_model_url.size());
 
 			assert(!lod_model_url.empty());
+			runtimeCheck(resource.nonNull() && resource_manager.nonNull());
 
-			// We want to load and build the mesh at lod_model_url.
 			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
-			const std::string lod_model_path = resource_manager->pathForURL(lod_model_url);
+
+			ArrayRef<uint8> model_buffer;
+#if EMSCRIPTEN
+			const std::string lod_model_path = lod_model_url; // Just for the extension
+			
+			if(resource->external_resource)
+			{
+				// conPrint("LoadModelTask: '" + lod_model_url + "' is an external_resource, using MemMappedFile...");
+				MemMappedFile file(lod_model_path);
+				model_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
+			}
+			else
+			{
+				// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
+				if(!resource->loaded_buffer)
+					conPrint("LoadModelTask: resource->loaded_buffer is null for resource with URL '" + lod_model_url + "'");
+				runtimeCheck(resource->loaded_buffer.nonNull());
+			}
+			model_buffer = ArrayRef<uint8>((const uint8*)resource->loaded_buffer->buffer, resource->loaded_buffer->buffer_size);
+#else
+			// We want to load and build the mesh at lod_model_url.
+			const std::string lod_model_path = resource_manager->getLocalAbsPathForResource(*this->resource);
+			const MemMappedFile file(lod_model_path);
+			model_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
+#endif
 
 			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(lod_model_path,
+				model_buffer,
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.
 				build_physics_ob,

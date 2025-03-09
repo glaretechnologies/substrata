@@ -83,7 +83,7 @@ public:
 
 
 	// Build OpenGLMeshRenderData and Physics shape from a mesh on disk identified by lod_model_path.
-	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndBatchedMeshForModelPath(const std::string& lod_model_path, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, 
+	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndBatchedMeshForModelPath(const std::string& lod_model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, 
 		glare::Allocator* mem_allocator,
 		PhysicsShape& physics_shape_out);
 

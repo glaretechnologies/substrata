@@ -20,6 +20,20 @@ namespace glare
 
 SoundFileRef AudioFileReader::readAudioFile(const std::string& path)
 {
+	if(
+		::hasExtension(path, "mp3") || 
+		::hasExtension(path, "wav"))
+	{
+		MemMappedFile file(path);
+		return readAudioFileFromBuffer(path, ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize()));
+	}
+	else
+		throw glare::Exception("Unhandled audio format: " + ::getExtension(path));
+}
+
+
+SoundFileRef AudioFileReader::readAudioFileFromBuffer(const std::string& path, ArrayRef<uint8> audio_data_buf)
+{
 	// NOTE: Using WMFVideoReader (windows media foundation) for audio file reading was causing the rendering to stutter - something in nvopengl.dll was waiting for something the WMF was doing
 	// when decoding an Mp3.
 	// minimp3 is way faster than WMF also.

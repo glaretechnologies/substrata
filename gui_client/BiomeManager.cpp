@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Exception.h>
 #include <RuntimeCheck.h>
 #include <Parser.h>
+#include <MemMappedFile.h>
 
 
 BiomeManager::BiomeManager()
@@ -36,8 +37,13 @@ void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_worl
 
 void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
-	if(!resource_manager.isFileForURLPresent("Quad_obj_17249492137259942610.bmesh"))
-		resource_manager.copyLocalFileToResourceDir(resources_dir_path + "/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
+	const std::string quad_mesh_URL = "Quad_obj_17249492137259942610.bmesh";
+	if(resource_manager.getExistingResourceForURL(quad_mesh_URL).isNull())
+	{
+		ResourceRef resource = new Resource(quad_mesh_URL, /*local (abs) path=*/resources_dir_path + "/" + quad_mesh_URL, Resource::State_Present, UserID(), /*external_resource=*/true);
+		resource_manager.addResource(resource);
+	}
+
 //	if(!resource_manager.isFileForURLPresent("grass_2819211535648845788.bmesh"))
 //		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/grass_2819211535648845788.bmesh", "grass_2819211535648845788.bmesh");
 
@@ -65,8 +71,11 @@ void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, 
 	{
 		const std::string model_path = resources_dir_path + "/elm_RT_glb_3393252396927074015.bmesh";
 
+		MemMappedFile file(model_path);
+		ArrayRef<uint8> model_buffer((const uint8*)file.fileData(), file.fileSize());
+
 		PhysicsShape physics_shape;
-		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(model_path,
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(model_path, model_buffer,
 			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, opengl_engine.mem_allocator.ptr(), physics_shape);
 
 		elm_tree_physics_shape = physics_shape;

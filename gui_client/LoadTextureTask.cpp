@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <IncludeHalf.h>
+#include <MemMappedFile.h>
 #include <tracy/Tracy.hpp>
 
 
@@ -40,16 +41,28 @@ void LoadTextureTask::run(size_t thread_index)
 
 		const std::string& key = this->path;
 
+
+		runtimeCheck(resource.nonNull() && resource_manager.nonNull());
+		ArrayRef<uint8> texture_data_buffer;
+#if EMSCRIPTEN
+		// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
+		runtimeCheck(resource->loaded_buffer.nonNull());
+		texture_data_buffer = ArrayRef<uint8>((const uint8*)resource->loaded_buffer->buffer, resource->loaded_buffer->buffer_size);
+#else
+		MemMappedFile file(key);
+		texture_data_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
+#endif
+
 		// Load texture from disk and decode it.
 		Reference<Map2D> map;
 		if(hasExtension(key, "gif"))
-			map = GIFDecoder::decodeImageSequence(key, opengl_engine->mem_allocator.ptr());
+			map = GIFDecoder::decodeImageSequenceFromBuffer(texture_data_buffer.data(), texture_data_buffer.size(), opengl_engine->mem_allocator.ptr());
 		else
 		{
 			ImageDecoding::ImageDecodingOptions options;
 			options.ETC_support = opengl_engine->texture_compression_ETC_support;
 
-			map = ImageDecoding::decodeImage(".", key, opengl_engine->mem_allocator.ptr(), options);
+			map = ImageDecoding::decodeImageFromBuffer(/*base dir path (not used)=*/".", key, texture_data_buffer, opengl_engine->mem_allocator.ptr(), options);
 		}
 
 #if USE_TEXTURE_VIEWS // NOTE: USE_TEXTURE_VIEWS is defined in opengl/TextureAllocator.h

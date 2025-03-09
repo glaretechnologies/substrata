@@ -24,6 +24,7 @@ class AudioFileReader
 {
 public:
 	static SoundFileRef readAudioFile(const std::string& path);
+	static SoundFileRef readAudioFileFromBuffer(const std::string& path, ArrayRef<uint8> audio_data_buf);
 
 	static void test();
 };

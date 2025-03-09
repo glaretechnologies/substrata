@@ -998,7 +998,7 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(const std::string& model_path, VertexBufferAllocator* vert_buf_allocator, 
+Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(const std::string& model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, 
 	bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, 
 	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
@@ -1010,7 +1010,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 		Indigo::MeshRef mesh = new Indigo::Mesh();
 
 		MLTLibMaterials mats;
-		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
+		FormatDecoderObj::loadModelFromBuffer(model_data_buf.data(), model_data_buf.dataSizeBytes(), model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
 
 		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
@@ -1018,19 +1018,19 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 	{
 		Indigo::MeshRef mesh = new Indigo::Mesh();
 
-		FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
+		FormatDecoderSTL::loadModelFromBuffer(model_data_buf.data(), model_data_buf.dataSizeBytes(), *mesh, 1.f);
 
 		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "gltf"))
 	{
 		GLTFLoadedData gltf_data;
-		batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data);
+		batched_mesh = FormatDecoderGLTF::loadGLTFFileFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), /*gltf base dir=*/FileUtils::getDirectory(model_path), /*write_images_to_disk=*/false, gltf_data);
 	}
 	else if(hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
 	{
 		GLTFLoadedData gltf_data;
-		batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
+		batched_mesh = FormatDecoderGLTF::loadGLBFileFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), /*gltf base dir=*/FileUtils::getDirectory(model_path), /*write_images_to_disk=*/false, gltf_data);
 	}
 	else if(hasExtension(model_path, "igmesh"))
 	{
@@ -1038,7 +1038,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 
 		try
 		{
-			Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
+			Indigo::Mesh::readFromBuffer(model_data_buf.data(), model_data_buf.dataSizeBytes(), *mesh);
 		}
 		catch(Indigo::IndigoException& e)
 		{
@@ -1049,7 +1049,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		batched_mesh = BatchedMesh::readFromFile(model_path, mem_allocator);
+		batched_mesh = BatchedMesh::readFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), mem_allocator);
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
