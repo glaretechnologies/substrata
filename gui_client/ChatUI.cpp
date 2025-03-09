@@ -33,7 +33,12 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
-	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_chat", /*default_value=*/true);
+#if EMSCRIPTEN
+	const bool default_chat_expanded = false; // On mobile screens, chat can cover most of the viewport, so make collapsed by default.
+#else
+	const bool default_chat_expanded = true;
+#endif
+	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_chat", /*default_value=*/default_chat_expanded);
 	last_background_top_right_pos = Vec2f(0.f);
 
 	try
