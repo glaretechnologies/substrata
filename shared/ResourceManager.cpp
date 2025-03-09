@@ -133,7 +133,8 @@ ResourceRef ResourceManager::getOrCreateResourceForURL(const std::string& URL) /
 			URL, 
 			raw_local_path,
 			(!raw_local_path.empty() && FileUtils::fileExists(abs_path)) ? Resource::State_Present : Resource::State_NotPresent,
-			UserID::invalidUserID()
+			UserID::invalidUserID(),
+			/*external_resource=*/false
 		);
 		resource_for_url[URL] = resource;
 		this->changed = 1;
@@ -265,20 +266,21 @@ void ResourceManager::deleteResourceLocally(const ResourceRef& resource)
 {
 	Lock lock(mutex);
 
-	if(resource.nonNull())
+	if(resource)
 	{
-		const std::string local_abs_path = resource->getLocalAbsPath(this->base_resource_dir);
-		// conPrint("Deleting local resource '" + local_abs_path + "'...");
-		FileUtils::deleteFile(local_abs_path);
-
-		resource->setState(Resource::State_NotPresent);
-
-		resource->locally_deleted = true;
+	//	const std::string local_abs_path = resource->getLocalAbsPath(this->base_resource_dir);
+	//	// conPrint("Deleting local resource '" + local_abs_path + "'...");
+	//	FileUtils::deleteFile(local_abs_path);
+	//
+	//	resource->setState(Resource::State_NotPresent);
+	//
+	//	resource->locally_deleted = true;
 
 		assert(this->total_present_resources_size_B >= (int64)resource->file_size_B);
 		this->total_present_resources_size_B -= (int64)resource->file_size_B;
 
-		this->changed = 1;
+		//conPrint("Removing resource '" + resource->URL + "'...");
+		this->resource_for_url.erase(resource->URL); // Remove from resources map.
 	}
 }
 
@@ -480,8 +482,12 @@ void ResourceManager::saveToDisk(const std::string& path)
 			{
 				for(auto i=resource_for_url.begin(); i != resource_for_url.end(); ++i)
 				{
-					stream.writeUInt32(RESOURCE_CHUNK);
-					i->second->writeToStream(stream);
+					const Resource* resource = i->second.ptr();
+					if(!resource->external_resource) // Don't save external resources to disk.
+					{
+						stream.writeUInt32(RESOURCE_CHUNK);
+						resource->writeToStream(stream);
+					}
 				}
 			}
 

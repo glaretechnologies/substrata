@@ -19,21 +19,28 @@ Version history:
 */
 
 
-Resource::Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_)
+Resource::Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_, bool external_resource_)
 :	URL(URL_), 
 	local_path(raw_local_path_), 
 	state(s), 
 	owner_id(owner_id_)/*, num_buffer_readers(0)*/,
+	external_resource(external_resource_),
 	locally_deleted(false),
 	file_size_B(0)
 {
-	assert(!FileUtils::isPathAbsolute(local_path));
+	if(!external_resource)
+	{
+		assert(!FileUtils::isPathAbsolute(local_path));
+	}
 }
 
 
-void Resource::writeToStreamCommon(OutStream& stream)
+void Resource::writeToStreamCommon(OutStream& stream) const
 {
-	assert(!FileUtils::isPathAbsolute(local_path));
+	if(!external_resource)
+	{
+		assert(!FileUtils::isPathAbsolute(local_path));
+	}
 
 	stream.writeStringLengthFirst(URL); 
 	stream.writeStringLengthFirst(local_path);
@@ -64,7 +71,7 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Resource& res
 }
 
 
-void Resource::writeToStream(OutStream& stream)
+void Resource::writeToStream(OutStream& stream) const
 {
 	// Write version
 	stream.writeUInt32(RESOURCE_SERIALISATION_VERSION);

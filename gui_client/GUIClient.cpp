@@ -322,25 +322,15 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 #endif
 
 
-	try
+	// Add default avatar mesh as an external resource. 
 	{
-		// Copy default avatar mesh into resource dir (from distribution resources dir), if it isn't in there already.
-		// We do this so we can use it as a standard resource.
+		const std::string mesh_URL = "xbot_glb_3242545562312850498.bmesh";
+		if(resource_manager->getExistingResourceForURL(mesh_URL).isNull())
 		{
-			const std::string mesh_URL = "xbot_glb_3242545562312850498.bmesh";
-
-			if(!resource_manager->isFileForURLPresent(mesh_URL))
-			{
-				conPrint("Copying '" + mesh_URL + "' into resource dir...");
-				resource_manager->copyLocalFileToResourceDir(resources_dir_path + "/" + mesh_URL, mesh_URL);
-			}
+			ResourceRef resource = new Resource(mesh_URL, /*local (abs) path=*/resources_dir_path + "/" + mesh_URL, Resource::State_Present, UserID(), /*external_resource=*/true);
+			resource_manager->addResource(resource);
 		}
 	}
-	catch(glare::Exception& e)
-	{
-		conPrint("WARNING: " + e.what());
-	}
-
 
 
 #if !defined(EMSCRIPTEN)
@@ -654,8 +644,11 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
 			const std::string path = "D:\\models\\generic dude avatar.glb";
 
+			MemMappedFile model_file(path);
+			ArrayRef<uint8> model_buffer((const uint8*)model_file.fileData(), model_file.fileSize());
+
 			PhysicsShape physics_shape;
-			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path,
+			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path, model_buffer,
 				opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, opengl_engine->mem_allocator.ptr(), physics_shape);
 
 			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 

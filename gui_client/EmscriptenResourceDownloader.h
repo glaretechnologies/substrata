@@ -47,7 +47,7 @@ public:
 	void think();
 
 
-	void onResourceLoad(Reference<CurrentlyDownloadingResource> res);
+	void onResourceLoad(Reference<CurrentlyDownloadingResource> res, void* buffer, unsigned int buffer_size_B);
 	void onResourceError(Reference<CurrentlyDownloadingResource> res);
 private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;

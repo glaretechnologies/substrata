@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/StringUtils.h>
 #include <utils/PlatformUtils.h>
 #include <utils/ThreadSafeQueue.h>
+#include <utils/MemMappedFile.h>
 #include <tracy/Tracy.hpp>
 
 
@@ -32,7 +33,18 @@ void LoadAudioTask::run(size_t thread_index)
 
 	try
 	{
-		glare::SoundFileRef sound_file = glare::AudioFileReader::readAudioFile(audio_source_path);
+		runtimeCheck(resource.nonNull() && resource_manager.nonNull());
+		ArrayRef<uint8> audio_data_buffer;
+#if EMSCRIPTEN
+		// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
+		runtimeCheck(resource->loaded_buffer.nonNull());
+		audio_data_buffer = ArrayRef<uint8>((const uint8*)resource->loaded_buffer->buffer, resource->loaded_buffer->buffer_size);
+#else
+		MemMappedFile file(audio_source_path);
+		audio_data_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
+#endif
+
+		glare::SoundFileRef sound_file = glare::AudioFileReader::readAudioFileFromBuffer(audio_source_path, audio_data_buffer);
 
 		Reference<AudioLoadedThreadMessage> msg = new AudioLoadedThreadMessage();
 		msg->audio_source_url = audio_source_url;
