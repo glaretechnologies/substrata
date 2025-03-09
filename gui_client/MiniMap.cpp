@@ -75,7 +75,12 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
-	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_minimap", /*default_value=*/true);
+#if EMSCRIPTEN
+	const bool default_minimap_expanded = false; // On small mobile screens, make collapsed by default.
+#else
+	const bool default_minimap_expanded = true;
+#endif
+	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_minimap", /*default_value=*/default_minimap_expanded);
 	
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTextureFormat::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
