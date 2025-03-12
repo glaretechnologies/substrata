@@ -166,7 +166,7 @@ void NetDownloadResourcesThread::doRun()
 								resource->setState(Resource::State_Present);
 								resource_manager->markAsChanged();
 
-								out_msg_queue->enqueue(new ResourceDownloadedMessage(url));
+								out_msg_queue->enqueue(new ResourceDownloadedMessage(url, resource));
 							}
 							catch(FileUtils::FileUtilsExcep& e)
 							{

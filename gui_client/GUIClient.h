@@ -78,11 +78,12 @@ class TextRendererFontFace;
 class Resource;
 class AsyncTextureLoader;
 class SubstrataLuaVM;
+struct LoadedBuffer;
 
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : build_physics_ob(true), build_dynamic_physics_ob(false) {}
+	DownloadingResourceInfo() : build_physics_ob(true), build_dynamic_physics_ob(false), used_by_avatar(false), used_by_terrain(false), used_by_lod_chunk(false) {}
 
 	TextureParams texture_params; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
 
@@ -91,10 +92,17 @@ struct DownloadingResourceInfo
 
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
+
+	SmallVector<UID, 4> using_object_uids; // UIDs of objects that use the resource.
+	//SmallVector<UID, 4> using_avatar_uids; // UIDs of avatars that use the resource.
+
+	bool used_by_avatar;
+	bool used_by_terrain;
+	bool used_by_lod_chunk;
 };
 
 
-extern float proj_len_viewable_threshold; // TEMP for tweaking with ImGui.
+//extern float proj_len_viewable_threshold; // TEMP for tweaking with ImGui.
 
 
 /*=====================================================================
@@ -209,7 +217,7 @@ public:
 	void loadScriptForObject(WorldObject* ob, WorldStateLock& world_state_lock);
 	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
 	void doBiomeScatteringForObject(WorldObject* ob);
-	void loadAudioForObject(WorldObject* ob);
+	void loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer>& loaded_buffer);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
 	void showScriptMessage(const std::string& message);
@@ -233,6 +241,9 @@ public:
 	std::string serialiseAllObjectsInParcelToXML(size_t& num_obs_serialised_out);
 	void deleteAllParcelObjects(size_t& num_obs_deleted_out);
 	void setMaterialFlagsForObject(WorldObject* ob);
+	bool isResourceCurrentlyNeededForObject(const std::string& url, const WorldObject* ob) const;
+	bool isResourceCurrentlyNeededForObjectGivenIsDependency(const std::string& url, const WorldObject* ob) const;
+	bool isDownloadingResourceCurrentlyNeeded(const std::string& url) const;
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersPersonalWorldOrGodUser();

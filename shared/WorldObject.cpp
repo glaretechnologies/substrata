@@ -80,6 +80,7 @@ WorldObject::WorldObject() noexcept
 	is_selected = false;
 	in_proximity = false;
 	in_script_proximity = false;
+	in_audio_proximity = false;
 	exclude_from_lod_chunk_mesh = false;
 	lightmap_baking = false;
 	current_lod_level = 0;

@@ -40,7 +40,7 @@ void PhysicsShapeData::shapeDataBecameUnused() const
 }
 
 
-inline void MeshManager::checkRunningOnMainThread()
+inline void MeshManager::checkRunningOnMainThread() const
 {
 #if !defined(EMSCRIPTEN)
 	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
@@ -138,7 +138,7 @@ Reference<PhysicsShapeData> MeshManager::insertPhysicsShape(const MeshManagerPhy
 }
 
 
-Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
+Reference<MeshData> MeshManager::getMeshData(const std::string& model_url) const
 {
 	checkRunningOnMainThread();
 

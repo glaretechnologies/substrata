@@ -16,6 +16,7 @@ class ThreadMessage;
 namespace glare { class AtomicInt; }
 class DownloadingResourceQueue;
 class EmscriptenResourceDownloader;
+class GUIClient;
 
 
 struct CurrentlyDownloadingResource : public RefCounted
@@ -40,7 +41,7 @@ public:
 	~EmscriptenResourceDownloader();
 
 	void init(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager, const std::string& hostname, int port,
-		glare::AtomicInt* num_resources_downloading_, DownloadingResourceQueue* download_queue_);
+		glare::AtomicInt* num_resources_downloading_, DownloadingResourceQueue* download_queue_, GUIClient* gui_client_);
 
 	void shutdown();
 
@@ -50,6 +51,7 @@ public:
 	void onResourceLoad(Reference<CurrentlyDownloadingResource> res, void* buffer, unsigned int buffer_size_B);
 	void onResourceError(Reference<CurrentlyDownloadingResource> res);
 private:
+	GUIClient* gui_client;
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	Reference<ResourceManager> resource_manager;
 	std::string hostname;

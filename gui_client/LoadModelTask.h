@@ -66,6 +66,8 @@ public:
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
 	int voxel_ob_model_lod_level; // If we are loading a voxel model, the model LOD level of the object.
 
+	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
+
 	PhysicsShape unit_cube_shape;
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<ResourceManager> resource_manager;

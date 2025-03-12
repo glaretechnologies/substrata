@@ -46,8 +46,8 @@ void LoadTextureTask::run(size_t thread_index)
 		ArrayRef<uint8> texture_data_buffer;
 #if EMSCRIPTEN
 		// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
-		runtimeCheck(resource->loaded_buffer.nonNull());
-		texture_data_buffer = ArrayRef<uint8>((const uint8*)resource->loaded_buffer->buffer, resource->loaded_buffer->buffer_size);
+		runtimeCheck(loaded_buffer.nonNull());
+		texture_data_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
 #else
 		MemMappedFile file(key);
 		texture_data_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
@@ -141,19 +141,4 @@ void LoadTextureTask::run(size_t thread_index)
 	{
 		result_msg_queue->enqueue(new LogMessage("Error while loading texture: failed to allocate mem (bad_alloc)"));
 	}
-
-
-#if EMSCRIPTEN
-	if(resource.nonNull())
-	{
-		try
-		{
-			resource_manager->deleteResourceLocally(resource);
-		}
-		catch(glare::Exception& e)
-		{
-			conPrint("Warning: excep while deleting resource locally: " + e.what());
-		}
-	}
-#endif
 }

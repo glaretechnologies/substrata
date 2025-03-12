@@ -38,7 +38,7 @@ class MP3AudioStreamer : public ThreadSafeRefCounted
 {
 public:
 	MP3AudioStreamer(const std::string& path);
-	MP3AudioStreamer(const ArrayRef<uint8> data);
+	MP3AudioStreamer(const Reference<MP3AudioStreamerDataSource>& source);
 	~MP3AudioStreamer();
 
 	// Returns true if reached EOF
@@ -51,6 +51,7 @@ public:
 	mp3dec_t decoder;
 
 	MemMappedFile* mem_mapped_file;
+	Reference<MP3AudioStreamerDataSource> source;
 	BufferViewInStream in_stream;
 };
 

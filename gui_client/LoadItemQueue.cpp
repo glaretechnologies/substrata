@@ -73,7 +73,7 @@ void LoadItemQueue::checkUpdateItemPosition(const std::string& key, const WorldO
 
 void LoadItemQueue::checkUpdateItemPosition(const std::string& key, const Avatar& avatar, bool our_avatar)
 {
-	// Prioritise laoding our avatar first
+	// Prioritise loading our avatar first
 	const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
 	checkUpdateItemPosition(key, avatar.pos.toVec4fPoint(), LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor));

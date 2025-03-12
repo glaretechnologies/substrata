@@ -15,6 +15,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <map>
 #include <unordered_set>
 #include <Mutex.h>
+#include <HashMap.h>
 #include <AtomicInt.h>
 
 
@@ -67,9 +68,6 @@ public:
 
 	bool isFileForURLPresent(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
-	void deleteResourceLocally(const ResourceRef& resource);
-
-
 	void addToDownloadFailedURLs(const std::string& URL);
 	bool isInDownloadFailedURLs(const std::string& URL) const;
 
@@ -84,9 +82,6 @@ public:
 
 	Mutex& getMutex() { return mutex; }
 
-	void addResourceSizeToTotalPresent(ResourceRef& res);
-	int64 getTotalPresentResourcesSizeB() const;
-
 	// Just used on client:
 	void loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk);
 	void saveToDisk(const std::string& path);
@@ -97,12 +92,15 @@ private:
 
 	mutable Mutex mutex;
 	std::map<std::string, ResourceRef> resource_for_url			GUARDED_BY(mutex);
+	//HashMap<std::string, ResourceRef> resource_for_url			GUARDED_BY(mutex);
 	glare::AtomicInt changed;
 
 
 	std::unordered_set<std::string> download_failed_URLs; // Ephemeral state, used to prevent trying to download the same resource over and over again in one client execution.
 
-	int64 total_present_resources_size_B;
+public:
+	// Total amount of memory in LoadedBuffer objects that are not persistently used.
+	glare::AtomicInt total_unused_loaded_buffer_size_B;
 };
 
 

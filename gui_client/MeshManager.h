@@ -159,7 +159,7 @@ public:
 	Reference<MeshData> insertMesh(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata);
 	Reference<PhysicsShapeData> insertPhysicsShape(const MeshManagerPhysicsShapeKey& key, PhysicsShape& physics_shape);
 
-	Reference<MeshData> getMeshData(const std::string& model_url); // Returns null reference if not found.
+	Reference<MeshData> getMeshData(const std::string& model_url) const; // Returns null reference if not found.
 	Reference<PhysicsShapeData> getPhysicsShapeData(const MeshManagerPhysicsShapeKey& key); // Returns null reference if not found.
 
 	void meshDataBecameUsed(const MeshData* meshdata);
@@ -176,7 +176,7 @@ public:
 
 	//Mutex& getMutex() { return mutex; }
 private:
-	void checkRunningOnMainThread();
+	void checkRunningOnMainThread() const;
 
 	//mutable Mutex mutex;
 	ManagerWithCache<std::string, Reference<MeshData> > model_URL_to_mesh_map;

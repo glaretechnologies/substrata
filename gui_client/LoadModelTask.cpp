@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <FileUtils.h>
+#include <UniqueRef.h>
 #include <MemMappedFile.h>
 #include <tracy/Tracy.hpp>
 
@@ -97,29 +98,30 @@ void LoadModelTask::run(size_t thread_index)
 
 			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
 
+			const std::string lod_model_path = resource_manager->getLocalAbsPathForResource(*this->resource);
+
+			UniqueRef<MemMappedFile> file;
 			ArrayRef<uint8> model_buffer;
 #if EMSCRIPTEN
-			const std::string lod_model_path = lod_model_url; // Just for the extension
-			
 			if(resource->external_resource)
 			{
 				// conPrint("LoadModelTask: '" + lod_model_url + "' is an external_resource, using MemMappedFile...");
-				MemMappedFile file(lod_model_path);
-				model_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
+				file.set(new MemMappedFile(lod_model_path));
+				model_buffer = ArrayRef<uint8>((const uint8*)file->fileData(), file->fileSize());
 			}
 			else
 			{
 				// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
-				if(!resource->loaded_buffer)
-					conPrint("LoadModelTask: resource->loaded_buffer is null for resource with URL '" + lod_model_url + "'");
-				runtimeCheck(resource->loaded_buffer.nonNull());
+				if(!loaded_buffer)
+					conPrint("LoadModelTask: loaded_buffer is null for resource with URL '" + lod_model_url + "'");
+				runtimeCheck(loaded_buffer.nonNull());
+				model_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
 			}
-			model_buffer = ArrayRef<uint8>((const uint8*)resource->loaded_buffer->buffer, resource->loaded_buffer->buffer_size);
 #else
 			// We want to load and build the mesh at lod_model_url.
-			const std::string lod_model_path = resource_manager->getLocalAbsPathForResource(*this->resource);
-			const MemMappedFile file(lod_model_path);
-			model_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
+			
+			file.set(new MemMappedFile(lod_model_path));
+			model_buffer = ArrayRef<uint8>((const uint8*)file->fileData(), file->fileSize());
 #endif
 
 			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(lod_model_path,
@@ -151,25 +153,12 @@ void LoadModelTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
+		//conPrint("LoadModelTask: excep: " + e.what());
 		result_msg_queue->enqueue(new LogMessage("Error while loading model: " + e.what()));
 	}
 	catch(std::bad_alloc&)
 	{
+		//conPrint("LoadModelTask: excep: " + e.what());
 		result_msg_queue->enqueue(new LogMessage("Error while loading model: failed to allocate mem (bad_alloc)"));
 	}
-
-
-#if EMSCRIPTEN
-	if(resource.nonNull())
-	{
-		try
-		{
-			resource_manager->deleteResourceLocally(resource);
-		}
-		catch(glare::Exception& e)
-		{
-			conPrint("Warning: excep while deleting resource locally: " + e.what());
-		}
-	}
-#endif
 }

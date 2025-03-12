@@ -28,9 +28,10 @@ glare::MP3AudioStreamer::MP3AudioStreamer(const std::string& path)
 }
 
 
-glare::MP3AudioStreamer::MP3AudioStreamer(const ArrayRef<uint8> data)
+glare::MP3AudioStreamer::MP3AudioStreamer(const Reference<MP3AudioStreamerDataSource>& source_)
 :	mem_mapped_file(NULL),
-	in_stream(data)
+	source(source_),
+	in_stream(ArrayRef<uint8>(source_->getData(), source_->getSize()))
 {
 	mp3dec_init(&decoder);
 }
