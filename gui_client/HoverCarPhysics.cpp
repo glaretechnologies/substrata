@@ -336,7 +336,6 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 		physics_world.traceRay(trace_origin, trace_dir, max_trace_dist, /*ignore body id=*/JPH::BodyID(), trace_results);
 
 		float water_hit_dist = (physics_world.getWaterZ() - trace_origin[2]) / trace_dir[2];
-		printVar(water_hit_dist);
 
 		// If trace hit water surface, and water hit distance is less than other object hit distance, or no other hit:
 		if((water_hit_dist >= 0) && (water_hit_dist < max_trace_dist) && (!trace_results.hit_object || (trace_results.hit_t > water_hit_dist)))
