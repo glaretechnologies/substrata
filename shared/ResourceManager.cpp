@@ -20,7 +20,7 @@ Generated at 2016-01-12 12:22:34 +1300
 
 
 ResourceManager::ResourceManager(const std::string& base_resource_dir_)
-:	base_resource_dir(base_resource_dir_), changed(0)//, resource_for_url(/*empty key=*/std::string())
+:	base_resource_dir(base_resource_dir_), changed(0)
 {
 }
 
