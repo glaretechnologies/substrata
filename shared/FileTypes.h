@@ -21,10 +21,7 @@ public:
 	{
 		return
 			StringUtils::equalCaseInsensitive(extension, "mp3") ||
-			StringUtils::equalCaseInsensitive(extension, "m4a") ||
-			StringUtils::equalCaseInsensitive(extension, "wav") ||
-			StringUtils::equalCaseInsensitive(extension, "aac") ||
-			StringUtils::equalCaseInsensitive(extension, "flac");
+			StringUtils::equalCaseInsensitive(extension, "wav");
 	}
 
 	static bool hasAudioFileExtension(const std::string& url)
