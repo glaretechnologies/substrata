@@ -14,8 +14,8 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Reference.h>
 #include <map>
 #include <unordered_set>
+#include <unordered_map>
 #include <Mutex.h>
-#include <HashMap.h>
 #include <AtomicInt.h>
 
 
@@ -73,8 +73,8 @@ public:
 
 	// Used for deserialising resource objects from serialised server state.
 	void addResource(ResourceRef& res);
-	const std::map<std::string, ResourceRef>& getResourcesForURL() const { return resource_for_url; }
-	std::map<std::string, ResourceRef>& getResourcesForURL() { return resource_for_url; }
+	const std::unordered_map<std::string, ResourceRef>& getResourcesForURL() const { return resource_for_url; }
+	std::unordered_map<std::string, ResourceRef>& getResourcesForURL() { return resource_for_url; }
 
 	bool hasChanged() const { return changed != 0; }
 	void clearChangedFlag() { changed = 0; }
@@ -91,8 +91,7 @@ private:
 	std::string base_resource_dir;
 
 	mutable Mutex mutex;
-	std::map<std::string, ResourceRef> resource_for_url			GUARDED_BY(mutex);
-	//HashMap<std::string, ResourceRef> resource_for_url			GUARDED_BY(mutex);
+	std::unordered_map<std::string, ResourceRef> resource_for_url			GUARDED_BY(mutex); // Use unordered_map for now instead of HashMap so we don't need to specify an empty key.
 	glare::AtomicInt changed;
 
 
