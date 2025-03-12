@@ -347,7 +347,7 @@ public:
 				// 256 frames per buffer / 48000.0 frames/s = 0.00533 s / buffer.
 				// So we will aim for N of these buffers being queued, resulting in N * 0.00533 s latency.
 				// For N = 4 this gives 0.0213 s = 21.3 ms of latency.
-				while(num_samples_buffered < 512 * 4)
+				while(num_samples_buffered < (frames_per_buffer * 2) * 4)
 				{
 					bool filled_valid_buffer = false;
 					{
@@ -571,7 +571,7 @@ void AudioEngine::init()
 	const unsigned int desired_sample_rate = 48000;
 
 #if EMSCRIPTEN
-	unsigned int buffer_frames = 512; // Chrome seems to need more frames to avoid underflow.
+	unsigned int buffer_frames = 1024; // Chrome seems to need more frames to avoid underflow.
 #else
 	unsigned int buffer_frames = 256; // Request 256 frames per buffer. NOTE: might be changed by openStream() etc. below.
 #endif
@@ -996,7 +996,7 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 //}
 
 
-AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, float source_volume, double global_time)
+AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Reference<MP3AudioStreamerDataSource>& sound_data_source, const Vec4f& pos, float source_volume, double global_time)
 {
 	Lock lock(mutex);
 
@@ -1011,7 +1011,11 @@ AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& s
 	if(res == streams.end())
 	{
 		// Load the sound
-		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer(sound_file_path);
+		Reference<MP3AudioStreamer> streamer;
+		if(sound_data_source)
+			streamer = new MP3AudioStreamer(sound_data_source);
+		else
+			streamer = new MP3AudioStreamer(sound_file_path);
 
 		streamer->seekToApproxTimeWrapped(global_time);
 
@@ -1072,9 +1076,9 @@ void glare::AudioEngine::test()
 		//engine.addSource(source);
 
 		//AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile("D:\\files\\Good_Gas___Live_A_Lil_ft__MadeinTYO__UnoTheActivist___FKi_1st__Lyrics__mp3_3425190382177260630.mp3", Vec4f(1, 0, 0, 1), /*global time=*/0.0);
-		AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 0, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
+		AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", nullptr, Vec4f(1, 0, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
 		PlatformUtils::Sleep(1);
-		AudioSourceRef source2 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 1, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
+		AudioSourceRef source2 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", nullptr, Vec4f(1, 1, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
 
 		testAssert(engine.streams.size() == 1);
 		testAssert(engine.sources_playing_streams.size() == 1);

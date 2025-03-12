@@ -267,7 +267,7 @@ void DownloadResourcesThread::doRun()
 									resource->setState(Resource::State_Present);
 									resource_manager->markAsChanged();
 
-									out_msg_queue->enqueue(new ResourceDownloadedMessage(URL));
+									out_msg_queue->enqueue(new ResourceDownloadedMessage(URL, resource));
 								}
 								catch(glare::Exception& e)
 								{

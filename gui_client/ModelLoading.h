@@ -40,6 +40,8 @@ public:
 
 	static void applyScaleToMesh(Indigo::Mesh& mesh, float scale);
 
+	inline static bool isSupportedModelExtension(string_view extension);
+
 	inline static bool hasSupportedModelExtension(const std::string& path);
 
 	// Load a model file from disk.
@@ -100,10 +102,8 @@ public:
 };
 
 
-bool ModelLoading::hasSupportedModelExtension(const std::string& path)
+bool ModelLoading::isSupportedModelExtension(string_view extension)
 {
-	const string_view extension = getExtensionStringView(path);
-
 	return
 		StringUtils::equalCaseInsensitive(extension, "bmesh") ||
 		StringUtils::equalCaseInsensitive(extension, "vox") ||
@@ -113,4 +113,12 @@ bool ModelLoading::hasSupportedModelExtension(const std::string& path)
 		StringUtils::equalCaseInsensitive(extension, "glb") ||
 		StringUtils::equalCaseInsensitive(extension, "vrm") ||
 		StringUtils::equalCaseInsensitive(extension, "igmesh");
+}
+
+
+bool ModelLoading::hasSupportedModelExtension(const std::string& path)
+{
+	const string_view extension = getExtensionStringView(path);
+
+	return isSupportedModelExtension(extension);
 }

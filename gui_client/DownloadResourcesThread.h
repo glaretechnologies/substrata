@@ -30,8 +30,11 @@ class DownloadingResourceQueue;
 class ResourceDownloadedMessage : public ThreadMessage
 {
 public:
-	ResourceDownloadedMessage(const std::string& URL_) : URL(URL_) {}
+	ResourceDownloadedMessage(const std::string& URL_, const ResourceRef& resource_) : URL(URL_), resource(resource_) {}
 	std::string URL;
+	ResourceRef resource;
+
+	Reference<LoadedBuffer> loaded_buffer; // For emscripten, where we will load directly into memory instead of to disk.
 };
 
 

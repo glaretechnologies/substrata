@@ -17,9 +17,26 @@ FileTypes
 class FileTypes
 {
 public:
+	static bool isSupportedAudioFileExtension(string_view extension)
+	{
+		return
+			StringUtils::equalCaseInsensitive(extension, "mp3") ||
+			StringUtils::equalCaseInsensitive(extension, "m4a") ||
+			StringUtils::equalCaseInsensitive(extension, "wav") ||
+			StringUtils::equalCaseInsensitive(extension, "aac") ||
+			StringUtils::equalCaseInsensitive(extension, "flac");
+	}
+
 	static bool hasAudioFileExtension(const std::string& url)
 	{
-		return hasExtensionStringView(url, "mp3") || hasExtensionStringView(url, "m4a") || hasExtensionStringView(url, "wav") || hasExtensionStringView(url, "aac") || hasExtensionStringView(url, "flac");
+		const string_view extension = getExtensionStringView(url);
+		return isSupportedAudioFileExtension(extension);
+	}
+
+
+	static inline bool isSupportedVideoFileExtension(string_view extension)
+	{
+		return StringUtils::equalCaseInsensitive(extension, "mp4");
 	}
 
 	static inline bool hasSupportedVideoFileExtension(const std::string& url)

@@ -267,6 +267,7 @@ public:
 	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
 	bool in_proximity; // Is the object currently in load proximity to camera?
 	bool in_script_proximity; // Is the object currently in script proximity to camera?  For onUserMovedNearToObject and onUserMovedAwayFromObject events.
+	bool in_audio_proximity;
 	bool exclude_from_lod_chunk_mesh; // Equal to BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH), but placed in first object cache line.
 private:
 	js::AABBox aabb_os; // Object-space AABB
@@ -426,7 +427,7 @@ public:
 
 	int loading_or_loaded_model_lod_level; // The LOD level we have started (or finished) loading the model for this object at.  Can be different than loading_or_loaded_lod_level due to max_model_lod_level clamping.
 	int loading_or_loaded_lod_level; // Lod level for textures etc.. 
-	// Both these lod levels will be reset to -10 if the model is unloaded due to being out of camera proximity.
+	// Both these lod levels will be reset to -10 if the model is unloaded due to being out of camera proximity, so that the model can be reloaded.
 
 	bool is_path_controlled; // Is this object controlled by a path controller script?  If so, we want to set the OpenGL transform from the physics engine.
 

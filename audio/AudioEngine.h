@@ -68,6 +68,17 @@ struct MixSource
 };
 
 
+class MP3AudioStreamerDataSource : public ThreadSafeRefCounted
+{
+public:
+	virtual ~MP3AudioStreamerDataSource() {}
+
+	virtual const uint8* getData() = 0;
+	virtual size_t getSize() = 0;
+};
+
+
+
 class AudioSource : public ThreadSafeRefCounted
 {
 public:
@@ -174,7 +185,8 @@ public:
 
 	//AudioSourceRef addSourceFromSoundFile(const std::string& sound_file_path);
 
-	AudioSourceRef addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, float source_volume, double global_time);
+	// sound_data_source may be null.  If non-null, read from it, otherwise read from disk from sound_file_path
+	AudioSourceRef addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Reference<MP3AudioStreamerDataSource>& sound_data_source, const Vec4f& pos, float source_volume, double global_time);
 
 	void sourcePositionUpdated(AudioSource& source);
 

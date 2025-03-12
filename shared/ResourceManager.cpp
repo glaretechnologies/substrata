@@ -20,7 +20,7 @@ Generated at 2016-01-12 12:22:34 +1300
 
 
 ResourceManager::ResourceManager(const std::string& base_resource_dir_)
-:	base_resource_dir(base_resource_dir_), changed(0), total_present_resources_size_B(0)
+:	base_resource_dir(base_resource_dir_), changed(0)//, resource_for_url(/*empty key=*/std::string())
 {
 }
 
@@ -260,31 +260,6 @@ bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws glar
 }
 
 
-// Used when running in a browser under Emscripten, since we use MEMFS currently, e.g. an in-memory filesystem.
-// So we delete resources to free up RAM.
-void ResourceManager::deleteResourceLocally(const ResourceRef& resource)
-{
-	Lock lock(mutex);
-
-	if(resource)
-	{
-	//	const std::string local_abs_path = resource->getLocalAbsPath(this->base_resource_dir);
-	//	// conPrint("Deleting local resource '" + local_abs_path + "'...");
-	//	FileUtils::deleteFile(local_abs_path);
-	//
-	//	resource->setState(Resource::State_NotPresent);
-	//
-	//	resource->locally_deleted = true;
-
-		assert(this->total_present_resources_size_B >= (int64)resource->file_size_B);
-		this->total_present_resources_size_B -= (int64)resource->file_size_B;
-
-		//conPrint("Removing resource '" + resource->URL + "'...");
-		this->resource_for_url.erase(resource->URL); // Remove from resources map.
-	}
-}
-
-
 void ResourceManager::addResource(ResourceRef& res)
 {
 	Lock lock(mutex);
@@ -323,7 +298,6 @@ std::string ResourceManager::getDiagnostics() const
 	size_t num_not_present = 0;
 	size_t num_transferring = 0;
 	size_t num_present = 0;
-	size_t num_locally_deleted = 0;
 	for(auto it = resource_for_url.begin(); it != resource_for_url.end(); ++it)
 	{
 		if(it->second->getState() == Resource::State_Present)
@@ -332,9 +306,6 @@ std::string ResourceManager::getDiagnostics() const
 			num_transferring++;
 		else
 			num_not_present++;
-
-		if(it->second->locally_deleted)
-			num_locally_deleted++;
 	}
 
 	std::string s;
@@ -342,8 +313,7 @@ std::string ResourceManager::getDiagnostics() const
 	s += "num_not_present:     " + toString(num_not_present) + "\n";
 	s += "num_transferring:    " + toString(num_transferring) + "\n";
 	s += "num_present:         " + toString(num_present) + "\n";
-	s += "present total size:  " + getMBSizeString(total_present_resources_size_B) + "\n";
-	s += "num_locally_deleted: " + toString(num_locally_deleted) + "\n";
+	s += "total_unused_loaded_buffer_size_B:  " + getMBSizeString(total_unused_loaded_buffer_size_B) + "\n";
 
 	s += "Present resources:\n";
 	const int max_num_to_display = 16;
@@ -502,18 +472,4 @@ void ResourceManager::saveToDisk(const std::string& path)
 	{
 		throw glare::Exception(e.what());
 	}
-}
-
-
-void ResourceManager::addResourceSizeToTotalPresent(ResourceRef& res)
-{
-	Lock lock(mutex);
-	total_present_resources_size_B += (int64)res->file_size_B;
-}
-
-
-int64 ResourceManager::getTotalPresentResourcesSizeB() const
-{
-	Lock lock(mutex);
-	return total_present_resources_size_B;
 }

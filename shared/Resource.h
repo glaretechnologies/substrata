@@ -24,11 +24,25 @@ Copyright Glare Technologies Limited 2022 -
 // We use emscripten_async_wget2_data in EmscriptenResourceDownloader, and need to free the buffer memory ourselves.
 struct LoadedBuffer : public ThreadSafeRefCounted
 {
-	LoadedBuffer() : buffer(nullptr) {}
-	~LoadedBuffer() { free(buffer); }
+	LoadedBuffer() : buffer(nullptr), is_used(false) {}
+	~LoadedBuffer()
+	{ 
+		free(buffer);
+		if(!is_used)
+			(*total_unused_loaded_buffer_size_B) -= (int64)buffer_size;
+	}
+
+	void considerMemUsed()
+	{ 
+		(*total_unused_loaded_buffer_size_B) -= (int64)buffer_size;
+		is_used = true;
+	}
 
 	void* buffer;
 	size_t buffer_size;
+	bool is_used; // In some cases (MP3AudioStreamer), the buffer is needed to stick around, and this will be set to true.
+
+	glare::AtomicInt* total_unused_loaded_buffer_size_B;
 };
 
 
@@ -52,7 +66,7 @@ public:
 	};
 
 	Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_, bool external_resource);
-	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, locally_deleted(false), file_size_B(0), external_resource(false) {}
+	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, file_size_B(0), external_resource(false) {}
 	
 	const std::string getLocalAbsPath(const std::string& base_resource_dir) const { return external_resource ? local_path : (base_resource_dir + "/" + local_path); }
 	const std::string getRawLocalPath() const { return local_path; } // Relative path on local disk from base_resources_dir.
@@ -72,8 +86,6 @@ public:
 	//void addDownloadListener(const Reference<ResourceDownloadListener>& listener);
 	//void removeDownloadListener(const Reference<ResourceDownloadListener>& listener);
 
-	Reference<LoadedBuffer> loaded_buffer; // For emscripten
-
 	DatabaseKey database_key;
 private:
 	void writeToStreamCommon(OutStream& stream) const;
@@ -88,7 +100,6 @@ private:
 	std::string local_path; // Relative path on local disk from base_resources_dir.
 public:
 	bool external_resource; // External resources are stored locally outside of base_resources_dir.   local_path is absolute.
-	bool locally_deleted; // Has resource been deleted with ResourceManager::deleteResourceLocally().  (For Emscripten)
 
 	size_t file_size_B; // Size of resource on disk.  Just used with Emscripten.
 };

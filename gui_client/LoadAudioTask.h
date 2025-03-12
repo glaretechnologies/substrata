@@ -37,6 +37,7 @@ public:
 	virtual void run(size_t thread_index);
 
 	ResourceRef resource;
+	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.Reference<LoadedBuffer> loaded_buffer;
 	std::string audio_source_url;
 	std::string audio_source_path;
 	Reference<ResourceManager> resource_manager;

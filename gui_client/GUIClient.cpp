@@ -855,6 +855,8 @@ void GUIClient::shutdown()
 
 void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, const DownloadingResourceInfo& resource_info)
 {
+	assert(resource_info.used_by_avatar || resource_info.used_by_lod_chunk || resource_info.used_by_terrain || !resource_info.using_object_uids.empty());
+
 	//conPrint("-------------------GUIClient::startDownloadingResource()-------------------\nURL: " + url);
 	//if(shouldStreamResourceViaHTTP(url))
 	//	return;
@@ -866,13 +868,6 @@ void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& ce
 		return;
 	}
 
-	if(resource->locally_deleted)
-	{
-		// Don't redownload
-		// conPrint("Skipping locally deleted resource '" + url + "'...");
-		return;
-	}
-
 	if(resource_manager->isInDownloadFailedURLs(url))
 	{
 		//conPrint("startDownloadingResource(): Skipping download due to having failed: " + url);
@@ -881,7 +876,21 @@ void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& ce
 
 	try
 	{
-		this->URL_to_downloading_info[url] = resource_info;
+		if(this->URL_to_downloading_info.count(url) == 0)
+		{
+			this->URL_to_downloading_info[url] = resource_info;
+		}
+		else
+		{
+			// Merge
+			DownloadingResourceInfo& existing_info = this->URL_to_downloading_info[url];
+			existing_info.used_by_avatar    = existing_info.used_by_avatar || resource_info.used_by_avatar;
+			existing_info.used_by_lod_chunk = existing_info.used_by_avatar || resource_info.used_by_lod_chunk;
+			existing_info.used_by_terrain   = existing_info.used_by_avatar || resource_info.used_by_terrain;
+
+			if(!resource_info.using_object_uids.empty())
+				existing_info.using_object_uids.push_back(resource_info.using_object_uids[0]);
+		}
 
 		if(hasPrefix(url, "http://") || hasPrefix(url, "https://"))
 		{
@@ -890,6 +899,7 @@ void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& ce
 		}
 		else
 		{
+			// conPrint("Queued resource to download...");
 			this->download_queue.enqueueOrUpdateItem(url, centroid_ws, /*size factor=*/DownloadQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len));
 		}
 	}
@@ -1233,9 +1243,154 @@ static inline float maxAudioDistForSourceVolFactor(float volume_factor)
 }
 
 
+// Returns false if the resource is already being loaded, or is already loaded into e.g. the opengl engine.
+// Also returns false if it's audio that is past the max audio distance etc.
+bool GUIClient::isResourceCurrentlyNeededForObjectGivenIsDependency(const std::string& url, const WorldObject* ob) const
+{
+	// conPrint("isResourceCurrentlyNeededForObjectGivenIsDependency: url: " + url);
+
+	const string_view extension = getExtensionStringView(url);
+
+	if(ImageDecoding::isSupportedImageExtension(extension))
+	{
+		// If we are already processing this file, don't download it.
+		if(textures_processing.count(url) > 0)
+			return false;
+
+		// If it's already loaded into the opengl engine, don't download it.
+		ResourceRef resource = resource_manager->getOrCreateResourceForURL(url); // NOTE: don't want to add resource here ideally.
+		const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
+		if(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(local_path)))
+			return false;
+	}
+	else
+	{
+		if(ModelLoading::isSupportedModelExtension(extension))
+		{
+			if(models_processing.count(ModelProcessingKey(url, ob->isDynamic())) > 0)
+				return false;
+			if(mesh_manager.getMeshData(url))
+				return false;
+		}
+		else
+		{
+			if(FileTypes::isSupportedAudioFileExtension(extension))
+			{
+				if(audio_processing.count(url) > 0)
+				{
+					// conPrint("'" + url + "' is in audio_processing.");
+					return false;
+				}
+
+				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+				const bool in_range = ob_dist < maxAudioDistForSourceVolFactor(ob->audio_volume);
+				if(!in_range)
+				{
+					// conPrint("'" + url + "' is not in range.");
+					return false;
+				}
+			}
+			else
+			{
+				if(FileTypes::isSupportedVideoFileExtension(extension))
+				{
+					const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+					const double max_play_dist = AnimatedTexData::maxVidPlayDist();
+					const bool in_range = ob_dist < max_play_dist;
+					if(!in_range)
+						return false;
+				}
+				else
+				{
+					// Else not any kind of valid extension.
+					return false;
+				}
+			}
+		}
+	}
+
+	// conPrint("isResourceCurrentlyNeededForObjectGivenIsDependency: returning true for url: " + url);
+	return true;
+}
+
+
+// Does the resource with the given URL need to be loaded by this object?
+// True iff the resource is used by the object, and it's not already loaded or being loaded.
+// Called handling ResourceDownloadedMessage
+bool GUIClient::isResourceCurrentlyNeededForObject(const std::string& url, const WorldObject* ob) const
+{
+	// conPrint("isResourceCurrentlyNeededForObject(): " + url + ", ob: " + ob->uid.toString());
+	if(!ob->in_proximity)
+	{
+		// conPrint("!ob->in_proximity");
+		return false;
+	}
+
+	const int ob_lod_level = ob->current_lod_level;
+	if(ob_lod_level < -1)
+	{
+		// conPrint("ob_lod_level < -1: " + toString(ob->current_lod_level));
+		return false;
+	}
+
+	WorldObject::GetDependencyOptions options;
+	std::set<DependencyURL> dependency_URLs;
+	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
+
+	//if(dependency_URLs.count(DependencyURL(url)) == 0) // TODO: handle sRGB stuff
+	//	return false;
+	bool found = false;
+	for(auto it=dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
+		if(it->URL == url)
+		{
+			found = true;
+			break;
+		}
+	if(!found)
+	{
+		// conPrint("not a dependency.");
+		return false;
+	}
+
+	return isResourceCurrentlyNeededForObjectGivenIsDependency(url, ob);
+}
+
+
+// Does the resource with the given URL need to be loaded?
+// Called handling ResourceDownloadedMessage and by EmscriptenResourceDownloader
+bool GUIClient::isDownloadingResourceCurrentlyNeeded(const std::string& URL) const
+{
+	auto res = URL_to_downloading_info.find(URL);
+	if(res != URL_to_downloading_info.end())
+	{
+		const DownloadingResourceInfo& info = res->second;
+		if(info.used_by_avatar || info.used_by_terrain || info.used_by_lod_chunk)
+			return true;
+
+		// See if the resource is needed by a WorldObject:
+		Lock lock(this->world_state->mutex);
+		for(size_t i=0; i<info.using_object_uids.size(); ++i)
+		{
+			// Lookup WorldObject for UID
+			auto ob_res = world_state->objects.find(info.using_object_uids[i]);
+			if(ob_res != world_state->objects.end())
+			{
+				WorldObject* ob = ob_res.getValue().ptr();
+				if(isResourceCurrentlyNeededForObject(URL, ob))
+					return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it, if we are not already downloading it.
 void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
+	// conPrint("startDownloadingResourcesForObject: ob_lod_level: " + toString(ob_lod_level));
+
 	WorldObject::GetDependencyOptions options;
 	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
@@ -1244,29 +1399,9 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 		const DependencyURL& url_info = *it;
 		const std::string& url = url_info.URL;
 		
-		// If resources are streamable, don't download them.
-		//const bool stream = shouldStreamResourceViaHTTP(url);
-
-		const bool has_audio_extension = FileTypes::hasAudioFileExtension(url);
-		const bool has_video_extension = FileTypes::hasSupportedVideoFileExtension(url);
-
-		if(has_audio_extension || has_video_extension || ImageDecoding::hasSupportedImageExtension(url) || ModelLoading::hasSupportedModelExtension(url))
+		if(!resource_manager->isFileForURLPresent(url))
 		{
-			// Only download mp4s and audio files if the camera is near them in the world.
-			bool in_range = true;
-			if(has_video_extension)
-			{
-				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
-				const double max_play_dist = AnimatedTexData::maxVidPlayDist();
-				in_range = ob_dist < max_play_dist;
-			}
-			else if(has_audio_extension)
-			{
-				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
-				in_range = ob_dist < maxAudioDistForSourceVolFactor(ob->audio_volume);
-			}
-
-			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
+			if(isResourceCurrentlyNeededForObjectGivenIsDependency(url, ob))
 			{
 				DownloadingResourceInfo info;
 				info.texture_params.use_sRGB = url_info.use_sRGB;
@@ -1281,6 +1416,7 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 				info.build_dynamic_physics_ob = ob->isDynamic();
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance_factor=*/1.f);
+				info.using_object_uids.push_back(ob->uid);
 
 				startDownloadingResource(url, ob->getCentroidWS(), ob->getAABBWSLongestLength(), info);
 			}
@@ -1320,6 +1456,7 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level,
 				info.build_dynamic_physics_ob = false;
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor);
+				info.used_by_avatar = true;
 
 				startDownloadingResource(url, ob->pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, info);
 			}
@@ -2783,11 +2920,28 @@ void GUIClient::doBiomeScatteringForObject(WorldObject* ob)
 }
 
 
+// Hangs on to the LoadedBuffer reference to keep it alive.
+class LoadedBufferAudioDataSource : public glare::MP3AudioStreamerDataSource
+{
+public:
+	virtual ~LoadedBufferAudioDataSource() {}
+
+	virtual const uint8* getData() { return (const uint8*)loaded_buffer->buffer; }
+	virtual size_t getSize() { return loaded_buffer->buffer_size; }
+
+	Reference<LoadedBuffer> loaded_buffer;
+};
+
+
 // Try and start loading the audio file for the world object, as specified by ob->audio_source_url.
 // If the audio file is already loaded, (e.g. ob->loaded_audio_source_url == ob->audio_source_url), then do nothing.
 // If the object is further than MAX_AUDIO_DIST from the camera, don't load the audio.
-void GUIClient::loadAudioForObject(WorldObject* ob)
+//
+// loaded_buffer is for emscripten, when resource is loaded directly from memory instead of disk.   may be null.
+void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer>& loaded_buffer)
 {
+	// conPrint("GUIClient::loadAudioForObject(), audio_source_url: " + ob->audio_source_url);
+
 	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
 	{
 		//conPrint("GUIClient::loadAudioForObject(): AUDIO_SOURCE_URL_CHANGED bit was set, setting state to AudioState_NotLoaded.");
@@ -2826,14 +2980,27 @@ void GUIClient::loadAudioForObject(WorldObject* ob)
 
 				ob->audio_state = WorldObject::AudioState_Loading;
 
-				if(resource_manager->isFileForURLPresent(ob->audio_source_url))
+
+				Reference<LoadedBufferAudioDataSource> data_source;
+#if EMSCRIPTEN
+				// conPrint("GUIClient::loadAudioForObject(), loaded_buffer.nonNUll(): " + toString(loaded_buffer.nonNull()));
+				if(!loaded_buffer)
+					return;
+				data_source = new LoadedBufferAudioDataSource();
+				data_source->loaded_buffer = loaded_buffer;
+				loaded_buffer->considerMemUsed();
+#else
+				if(!resource_manager->isFileForURLPresent(ob->audio_source_url))
+					return;
+#endif
+
 				{
 					//if(!isAudioProcessed(ob->audio_source_url)) // If we are not already loading the audio:
 
 					if(hasExtensionStringView(ob->audio_source_url, "mp3"))
 					{
 						// Make a new audio source
-						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(resource_manager->pathForURL(ob->audio_source_url), ob->pos.toVec4fPoint(), ob->audio_volume, this->world_state->getCurrentGlobalTime());
+						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(resource_manager->pathForURL(ob->audio_source_url), data_source, ob->pos.toVec4fPoint(), ob->audio_volume, this->world_state->getCurrentGlobalTime());
 
 						Lock lock(world_state->mutex);
 						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
@@ -2877,6 +3044,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob)
 							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
 							load_audio_task->resource_manager = this->resource_manager;
 							load_audio_task->result_msg_queue = &this->msg_queue;
+							load_audio_task->loaded_buffer = loaded_buffer;
 
 							load_item_queue.enqueueItem(/*key=*/ob->audio_source_url, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
 						}
@@ -3398,11 +3566,6 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 }
 
 
-float proj_len_viewable_threshold = 0.02f;
-
-
-
-
 static inline float xyDist2(const Vec4f& a, const Vec4f& b)
 {
 	Vec4f a_to_b = b - a;
@@ -3428,8 +3591,6 @@ void GUIClient::checkForLODChanges()
 	if(world_state.isNull())
 		return;
 		
-	
-
 	//Timer timer;
 	{
 		WorldStateLock lock(this->world_state->mutex);
@@ -3442,7 +3603,8 @@ void GUIClient::checkForLODChanges()
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
 #if EMSCRIPTEN
-		const float proj_len_viewable_threshold_ = proj_len_viewable_threshold;
+		const float proj_len_viewable_threshold = 0.02f;
+		const float min_load_distance2 = Maths::square(60.f); // Load everything <= this distance.
 #endif
 		const float load_distance2_ = this->load_distance2;
 
@@ -3473,7 +3635,7 @@ void GUIClient::checkForLODChanges()
 
 			const float proj_len = ob->getBiasedAABBLength() * recip_dist;
 
-			bool in_proximity = (proj_len > proj_len_viewable_threshold_) && (cam_to_ob_d2 < load_distance2_);
+			bool in_proximity = (proj_len > proj_len_viewable_threshold) || (cam_to_ob_d2 <= min_load_distance2);
 #else
 			bool in_proximity = cam_to_ob_d2 < load_distance2_;
 #endif
@@ -3545,31 +3707,32 @@ void GUIClient::checkForAudioRangeChanges()
 		{
 			WorldObject* ob = it->ptr();
 
-			if(!ob->audio_source_url.empty() || ob->audio_source.nonNull())
+			const float dist2 = cam_pos.getDist2(ob->pos.toVec4fPoint());
+			const float max_audio_dist2 = Maths::square(maxAudioDistForSourceVolFactor(ob->audio_volume)); // MAX_AUDIO_DIST
+			
+			if(ob->in_audio_proximity && (dist2 > max_audio_dist2)) // If object was in audio proximity, and moved out of it:
 			{
-				const float dist2 = cam_pos.getDist2(ob->pos.toVec4fPoint());
-				const float max_audio_dist2 = Maths::square(maxAudioDistForSourceVolFactor(ob->audio_volume)); // MAX_AUDIO_DIST
-				if(ob->audio_source.nonNull())
+				// conPrint("Object moved out of audio range, removing audio object.  ob->audio_source_url: '" + ob->audio_source_url + "'");
+				if(ob->audio_source)
+					audio_engine.removeSource(ob->audio_source);
+				ob->audio_source = NULL;
+				ob->audio_state = WorldObject::AudioState_NotLoaded;
+				
+				ob->in_audio_proximity = false;
+			}
+			else if(!ob->in_audio_proximity && (dist2 <= max_audio_dist2)) // If object was out of audio proximity, and moved into it:
+			{
+				if(!ob->audio_source_url.empty())
 				{
-					if(dist2 > max_audio_dist2)
-					{
-						// conPrint("Object out of range, removing audio object '" + ob->audio_source->debugname + "'.");
-						audio_engine.removeSource(ob->audio_source);
-						ob->audio_source = NULL;
-						ob->audio_state = WorldObject::AudioState_NotLoaded;
-						//ob->loaded_audio_source_url.clear();
-					}
-				}
-				else // Else if audio source is NULL:
-				{
-					assert(!ob->audio_source_url.empty()); // The object has an audio URL to play:
+					// conPrint("Object moved in to audio range, loading audio object.  ob->audio_source_url: '" + ob->audio_source_url + "'");
+					loadAudioForObject(ob, /*loaded buffer=*/nullptr);
 
-					if(dist2 <= max_audio_dist2)
-					{
-						// conPrint("Object in range, loading audio object.");
-						loadAudioForObject(ob);
-					}
+					// Trigger downloading of resources, now we are in audio range, since audio resource won't have been downloaded before when out of range.
+					// TODO: process audio resource only?
+					startDownloadingResourcesForObject(ob, ob->current_lod_level);
 				}
+				
+				ob->in_audio_proximity = true;
 			}
 		}
 	} // End lock scope
@@ -5607,7 +5770,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						if(ob->in_proximity)
 						{
 							loadModelForObject(ob, lock);
-							loadAudioForObject(ob);
+							loadAudioForObject(ob, /*loaded buffer=*/nullptr);
 						}
 						
 						if(!ob->audio_source_url.empty() || ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video)
@@ -5653,7 +5816,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								}
 							}
 
-							loadAudioForObject(ob); // Check for re-loading audio if audio URL changed.
+							loadAudioForObject(ob, /*loaded buffer=*/nullptr); // Check for re-loading audio if audio URL changed.
 
 							// Update audio volume if the audio_source has been created
 							if(ob->audio_source && (ob->audio_source->volume != ob->audio_volume))
@@ -6250,6 +6413,7 @@ void GUIClient::updateLODChunkGraphics()
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(chunk_w, /*importance_factor=*/1.f);
 				info.build_physics_ob = false;
+				info.used_by_lod_chunk = true;
 				startDownloadingResource(chunk->mesh_url, centroid_ws, chunk_w, info);
 			}
 
@@ -6258,6 +6422,7 @@ void GUIClient::updateLODChunkGraphics()
 				DownloadingResourceInfo info;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(chunk_w, /*importance_factor=*/1.f);
+				info.used_by_lod_chunk = true;
 				startDownloadingResource(chunk->combined_array_texture_url, centroid_ws, chunk_w, info);
 			}
 
@@ -7059,9 +7224,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		}
 	}
 
-	for(size_t i=0; i<temp_msgs.size(); ++i)
+	for(size_t msg_i=0; msg_i<temp_msgs.size(); ++msg_i)
 	{
-		ThreadMessage* const msg = temp_msgs[i].ptr();
+		ThreadMessage* const msg = temp_msgs[msg_i].ptr();
 
 		if(dynamic_cast<ModelLoadedThreadMessage*>(msg))
 		{
@@ -7759,11 +7924,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg);
 			const std::string& URL = m->URL;
+			ResourceRef resource = m->resource;
 			logMessage("Resource downloaded: '" + URL + "'");
 
 			if(world_state.nonNull())
 			{
-				ResourceRef resource = this->resource_manager->getExistingResourceForURL(URL);
 				assert(resource.nonNull()); // The downloaded file should have been added as a resource in DownloadResourcesThread or NetDownloadResourcesThread.
 				if(resource.nonNull())
 				{
@@ -7771,112 +7936,94 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					// in the net download case.
 					const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-					TextureParams texture_params;
-					Vec3d pos(0, 0, 0);
-					float size_factor = 1;
-					bool build_physics_ob = false;
-					bool build_dynamic_physics_ob = false;
-					// Look up in our map of downloading resources
 					auto res = URL_to_downloading_info.find(URL);
 					if(res != URL_to_downloading_info.end())
 					{
 						const DownloadingResourceInfo& info = res->second;
-						texture_params = info.texture_params;
-						pos = info.pos;
-						size_factor = info.size_factor;
-						build_physics_ob = info.build_physics_ob;
-						build_dynamic_physics_ob = info.build_dynamic_physics_ob;
+						const Vec3d pos = info.pos;
+						const float size_factor = info.size_factor;
+
+						if(isDownloadingResourceCurrentlyNeeded(URL))
+						{
+							// If we just downloaded a texture, start loading it.
+							// NOTE: Do we want to check this texture is actually used by an object?
+							if(ImageDecoding::hasSupportedImageExtension(local_path))
+							{
+								//conPrint("Downloaded texture resource, loading it...");
+						
+								const std::string tex_path = local_path;
+
+								if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(tex_path))) // If texture is not uploaded to GPU already:
+								{
+									const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
+									if(just_added)
+									{
+										const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_path);
+
+										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, used_by_terrain);
+										task->loaded_buffer = m->loaded_buffer;
+										load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, task, /*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
+									}
+									else
+										load_item_queue.checkUpdateItemPosition(/*key=*/URL, pos.toVec4fPoint(), size_factor);
+								}
+							}
+							else if(FileTypes::hasAudioFileExtension(local_path))
+							{
+								Lock lock(this->world_state->mutex);
+								for(size_t i=0; i<info.using_object_uids.size(); ++i)
+								{
+									// Lookup WorldObject for UID
+									auto ob_res = world_state->objects.find(info.using_object_uids[i]);
+									if(ob_res != world_state->objects.end())
+									{
+										WorldObject* ob = ob_res.getValue().ptr();
+										if(ob->audio_source_url == URL)
+											loadAudioForObject(ob, m->loaded_buffer);
+									}
+								}
+							}
+							else if(ModelLoading::hasSupportedModelExtension(local_path)) // Else we didn't download a texture, but maybe a model:
+							{
+								try
+								{
+									// Start loading the model
+									Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+									load_model_task->resource = resource;
+									load_model_task->lod_model_url = URL;
+									load_model_task->opengl_engine = this->opengl_engine;
+									load_model_task->unit_cube_shape = this->unit_cube_shape;
+									load_model_task->result_msg_queue = &this->msg_queue;
+									load_model_task->resource_manager = resource_manager;
+									load_model_task->build_physics_ob = info.build_physics_ob;
+									load_model_task->build_dynamic_physics_ob = info.build_dynamic_physics_ob;
+									load_model_task->loaded_buffer = m->loaded_buffer;
+
+									load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
+										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
+								}
+								catch(glare::Exception& e)
+								{
+									print("Error while loading object: " + e.what());
+								}
+							}
+							else
+							{
+								// TODO: Handle video files here?
+							
+								//print("file did not have a supported image, audio, or model extension: '" + getExtension(local_path) + "'");
+							}
+						}
+						else
+						{
+							// conPrint("GUIClient handleMessage(): downloaded resource '" + URL + "' is not currently used, not loading.");
+						}
 					}
 					else
 					{
 						assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
 					}
-
-					const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_path);
-
-					// If we just downloaded a texture, start loading it.
-					// NOTE: Do we want to check this texture is actually used by an object?
-					if(ImageDecoding::hasSupportedImageExtension(local_path))
-					{
-						//conPrint("Downloaded texture resource, loading it...");
-						
-						const std::string tex_path = local_path;
-
-						if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(tex_path))) // If texture is not uploaded to GPU already:
-						{
-							const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
-							if(just_added)
-							{
-								load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, 
-									new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, texture_params, used_by_terrain),
-									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
-							}
-							else
-								load_item_queue.checkUpdateItemPosition(/*key=*/URL, pos.toVec4fPoint(), size_factor);
-						}
-					}
-					else if(FileTypes::hasAudioFileExtension(local_path))
-					{
-						// Iterate over objects, if any object is using this audio file, load it.
-						{
-							Lock lock(this->world_state->mutex);
-
-							for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
-							{
-								WorldObject* ob = it.getValue().ptr();
-
-								if(ob->audio_source_url == URL)
-									loadAudioForObject(ob);
-							}
-						}
-					}
-					else if(ModelLoading::hasSupportedModelExtension(local_path)) // Else we didn't download a texture, but maybe a model:
-					{
-						try
-						{
-							// Start loading the model
-							Reference<LoadModelTask> load_model_task = new LoadModelTask();
-
-							load_model_task->resource = resource_manager->getOrCreateResourceForURL(URL);
-							load_model_task->lod_model_url = URL;
-							load_model_task->opengl_engine = this->opengl_engine;
-							load_model_task->unit_cube_shape = this->unit_cube_shape;
-							load_model_task->result_msg_queue = &this->msg_queue;
-							load_model_task->resource_manager = resource_manager;
-							load_model_task->build_physics_ob = build_physics_ob;
-							load_model_task->build_dynamic_physics_ob = build_dynamic_physics_ob;
-
-							load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
-								/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
-						}
-						catch(glare::Exception& e)
-						{
-							print("Error while loading object: " + e.what());
-						}
-					}
-					else
-					{
-						// TODO: Handle video files here?
-							
-						//print("file did not have a supported image, audio, or model extension: '" + getExtension(local_path) + "'");
-					}
-
-					// Delete resource from disk if it isn't being used in e.g. a LoadModelTask.
-					// If it isn't being used, it should have reference count = 2:  1 reference from the resource manager, one from the 'resource' local variable.
-#if EMSCRIPTEN
-					if(resource->getRefCount() == 2)
-					{
-						// conPrint("Handling ResourceDownloadedMessage: resource '" + resource->URL + "' refcount was 2, deleting it locally...");
-						try
-						{
-							resource_manager->deleteResourceLocally(resource);
-						}
-						catch(glare::Exception& e)
-						{
-							conPrint("Warning: excep while deleting resource locally: " + e.what());
-						}
-					}
-#endif
 				}
 			}
 		}
@@ -7962,6 +8109,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "num obs with scripts: " + toString(obs_with_scripts.size()) + "\n";
 	msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
 	msg += "num LOD chunks: " + toString(num_lod_chunks) + "\n";
+	msg += "download queue size: " + toString(this->download_queue.size()) + "\n";
 	msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
 	msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
 	msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
@@ -8859,6 +9007,9 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 			if(!resource_manager->isFileForURLPresent(new_world_object->model_url))
 			{
 				use_print_output.print("Downloading model '" + new_world_object->model_url + "'...");
+				DownloadingResourceInfo info;
+				//info.using_object_uids.push_back(
+				// NOTE: don't have valid UID here
 				startDownloadingResource(new_world_object->model_url, this->cam_controller.getPosition().toVec4fPoint(), 1.f, DownloadingResourceInfo());
 				
 				// Wait until downloaded...
@@ -10242,7 +10393,7 @@ void GUIClient::objectEdited()
 		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
 		{
 			this->audio_obs.insert(this->selected_ob);
-			loadAudioForObject(this->selected_ob.getPointer());
+			loadAudioForObject(this->selected_ob.getPointer(), /*loaded buffer=*/nullptr);
 		}
 
 		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
@@ -10831,7 +10982,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	client_thread_manager.addThread(client_thread);
 
 #if defined(EMSCRIPTEN)
-	emscripten_resource_downloader.init(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, &this->download_queue);
+	emscripten_resource_downloader.init(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, &this->download_queue, this);
 #else
 	for(int z=0; z<4; ++z)
 		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
@@ -12766,6 +12917,7 @@ void GUIClient::updateGroundPlane()
 				info.texture_params = heightmap_tex_params;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				info.used_by_terrain = true;
 				startDownloadingResource(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, info);
 			}
 			if(!section_spec.mask_map_URL.empty())
@@ -12774,6 +12926,7 @@ void GUIClient::updateGroundPlane()
 				info.texture_params = maskmap_tex_params;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				info.used_by_terrain = true;
 				startDownloadingResource(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
 			}
 			if(!section_spec.tree_mask_map_URL.empty())
@@ -12782,6 +12935,7 @@ void GUIClient::updateGroundPlane()
 				info.texture_params = maskmap_tex_params;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				info.used_by_terrain = true;
 				startDownloadingResource(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len, info);
 			}
 		}
@@ -12794,6 +12948,7 @@ void GUIClient::updateGroundPlane()
 				info.texture_params = detail_colourmap_tex_params;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				info.used_by_terrain = true;
 				startDownloadingResource(spec.detail_col_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
 			}
 			if(!spec.detail_height_map_URLs[i].empty())
@@ -12802,6 +12957,7 @@ void GUIClient::updateGroundPlane()
 				info.texture_params = heightmap_tex_params;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				info.used_by_terrain = true;
 				startDownloadingResource(spec.detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
 			}
 		}
