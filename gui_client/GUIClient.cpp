@@ -9008,8 +9008,9 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 			{
 				use_print_output.print("Downloading model '" + new_world_object->model_url + "'...");
 				DownloadingResourceInfo info;
-				//info.using_object_uids.push_back(
-				// NOTE: don't have valid UID here
+				// NOTE: don't have valid object UID here.  
+				// Just hack isDownloadingResourceCurrentlyNeeded() to return true by setting used_by_avatar.
+				info.used_by_avatar = true;
 				startDownloadingResource(new_world_object->model_url, this->cam_controller.getPosition().toVec4fPoint(), 1.f, DownloadingResourceInfo());
 				
 				// Wait until downloaded...
