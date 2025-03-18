@@ -560,6 +560,8 @@ include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver)
 set(settings
 ${GLARE_CORE_TRUNK_DIR_ENV}/settings/SettingsStore.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/settings/SettingsStore.h
+${GLARE_CORE_TRUNK_DIR_ENV}/settings/XMLSettingsStore.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/settings/XMLSettingsStore.h
 )
 
 if(USE_SDL)
@@ -571,9 +573,7 @@ if(USE_SDL)
 		)
 	else()
 		set(settings
-		${settings}
-		${GLARE_CORE_TRUNK_DIR_ENV}/settings/XMLSettingsStore.cpp
-		${GLARE_CORE_TRUNK_DIR_ENV}/settings/XMLSettingsStore.h
+		${settings}	
 		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.cpp
 		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.h
 		)
