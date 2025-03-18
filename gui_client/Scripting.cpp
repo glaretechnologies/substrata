@@ -273,6 +273,39 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 				vehicle_script_out = bike_script;
 			}
 		}
+
+		// ----------- car -----------
+		{
+			pugi::xml_node car_elem = root_elem.child("car");
+			if(car_elem)
+			{
+				Reference<CarScript> car_script = new CarScript();
+
+				car_script->settings = new CarScriptSettings();
+
+				car_script->settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(car_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+				car_script->settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(car_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+
+				for(pugi::xml_node seat_elem = car_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
+				{
+					SeatSettings default_seat_settings;
+					default_seat_settings.upper_leg_rot_around_thigh_bone_angle = 0.27;
+					default_seat_settings.upper_leg_apart_angle = 0.17;
+					default_seat_settings.lower_leg_apart_angle = 0.1;
+					default_seat_settings.rotate_foot_out_angle = 0.5;
+					default_seat_settings.arm_down_angle = 2.7;
+					default_seat_settings.arm_out_angle = 0.2;
+					SeatSettings seat_settings = parseSeatSettings(seat_elem, default_seat_settings);
+
+					car_script->settings->seat_settings.push_back(seat_settings);
+				}
+
+				if(car_script->settings->seat_settings.empty())
+					throw glare::Exception("car element must have at least one seat element");
+
+				vehicle_script_out = car_script;
+			}
+		}
 	}
 	catch(glare::Exception& e)
 	{

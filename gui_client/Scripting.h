@@ -123,6 +123,22 @@ public:
 
 
 
+struct CarScriptSettings : public VehicleScriptedSettings
+{
+};
+
+class CarScript : public VehicleScript
+{
+public:
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	virtual bool isRightable() const override { return true; }
+};
+
+
+
+
+
 void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<VehicleScript>& vehicle_script_out);
 
 
