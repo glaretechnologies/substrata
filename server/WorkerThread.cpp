@@ -327,6 +327,7 @@ void WorkerThread::handleResourceUploadConnection()
 				server->enqueueMsgForLodGenThread(msg);
 			}
 
+			// Textures used by e.g. an avatar need to have .basis versions generated.  Instead of iterating over objects, just send a CheckGenLodResourcesForURL to MeshLodGenThread.
 			server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(URL));
 		}
 

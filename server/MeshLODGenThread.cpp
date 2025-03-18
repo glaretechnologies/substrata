@@ -455,18 +455,18 @@ static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_sta
 static void checkForBasisTexturesToGenerateForURL(const std::string& URL, ResourceManager* resource_manager, std::unordered_set<std::string>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
-	const std::string texture_URL = URL;
+	const std::string base_texture_URL = URL;
 
-	if(!texture_URL.empty() && ImageDecoding::hasSupportedImageExtension(URL) && !hasExtension(texture_URL, "mp4")) // Don't generate basis textures for mp4s
+	if(ImageDecoding::hasSupportedImageExtension(URL) && !hasExtension(base_texture_URL, "mp4")) // Don't generate basis textures for mp4s
 	{
-		ResourceRef base_resource = resource_manager->getExistingResourceForURL(texture_URL);
+		ResourceRef base_resource = resource_manager->getExistingResourceForURL(base_texture_URL);
 		if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 		{
 			const std::string tex_abs_path = resource_manager->getLocalAbsPathForResource(*base_resource);
 
 			for(int lvl = 0; lvl <= 2; ++lvl)
 			{
-				const std::string basis_lod_URL = removeDotAndExtension(texture_URL) + ((lvl > 0) ? ("_lod" + toString(lvl)) : std::string()) + ".basis"; // mat->getLODTextureURLForLevel(texture_URL, lvl, /*has_alpha=*/false, /*use basis=-*/true);  // Lod URL without ktx extension (jpg or PNG)
+				const std::string basis_lod_URL = removeDotAndExtension(base_texture_URL) + ((lvl > 0) ? ("_lod" + toString(lvl)) : std::string()) + ".basis";
 				if(lod_URLs_considered.count(basis_lod_URL) == 0)
 				{
 					lod_URLs_considered.insert(basis_lod_URL);
@@ -523,6 +523,7 @@ void MeshLODGenThread::doRun()
 				}
 				else if(CheckGenLodResourcesForURL* check_gen_msg = dynamic_cast<CheckGenLodResourcesForURL*>(msg.ptr()))
 				{
+					// Textures used by e.g. an avatar need to have .basis versions generated.
 					URL_to_check = check_gen_msg->URL;
 
 					conPrint("MeshLODGenThread: Received message to scan URL " + check_gen_msg->URL);
@@ -601,7 +602,7 @@ void MeshLODGenThread::doRun()
 						}
 					}
 				}
-				else
+				else if(!URL_to_check.empty())
 				{
 					checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
 				}

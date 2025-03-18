@@ -155,7 +155,7 @@ void DownloadResourcesThread::doRun()
 		const uint32 server_protocol_version = socket->readUInt32();
 
 		// Read server capabilities
-		uint32 server_capabilities = 0;
+		[[maybe_unused]] uint32 server_capabilities = 0;
 		if(server_protocol_version >= 41)
 			server_capabilities = socket->readUInt32();
 
