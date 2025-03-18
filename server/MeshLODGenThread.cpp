@@ -706,7 +706,7 @@ void MeshLODGenThread::doRun()
 				const BasisTextureToGen& tex_to_gen = basis_textures_to_gen[i];
 				try
 				{
-					conPrint("MeshLODGenThread: (ktx " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating KTX texture with URL " + tex_to_gen.basis_URL);
+					conPrint("MeshLODGenThread: (basis " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating basis texture with URL " + tex_to_gen.basis_URL);
 
 					LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, 
 						tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, 
