@@ -1089,11 +1089,15 @@ void ClientThread::doRun()
 		// Read server protocol version
 		const uint32 peer_protocol_version = socket->readUInt32();
 
+		// Read server capabilities
+		uint32 server_capabilities = 0;
+		if(peer_protocol_version >= 41)
+			server_capabilities = socket->readUInt32();
 
 		// Read assigned client avatar UID
 		this->client_avatar_uid = readUIDFromStream(*socket);
 
-		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version));
+		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version, server_capabilities));
 
 #if defined(EMSCRIPTEN)
 		js::Vector<uint8, 16> data_to_send_copy;

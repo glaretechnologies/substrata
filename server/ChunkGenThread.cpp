@@ -359,7 +359,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 				basisu::image img(resized_map_uint8->getData(), (uint32)new_W, (uint32)new_W, (uint32)3);
 
 				//tex_info.array_image_index = params.m_source_images.size();
-				array_image_indices_out[tex_path] = params.m_source_images.size();
+				array_image_indices_out[tex_path] = (int)params.m_source_images.size();
 
 				params.m_source_images.push_back(img);
 			}
@@ -380,19 +380,15 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 
 			params.m_status_output = false;
 	
-			params.m_write_output_basis_files = true;
-			params.m_out_filename = PlatformUtils::getTempDirPath() + "/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
+			params.m_write_output_basis_or_ktx2_files = true;
+			params.m_out_filename = PlatformUtils::getTempDirPath() + "/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + "_q128.basis";
 			//params.m_out_filename = "d:/tempfiles/main_world/chunk_array_texture_" + toString(chunk_x) + "_" + toString(chunk_y) + ".basis";
 			params.m_create_ktx2_file = false;
 
 			params.m_mip_gen = true; // Generate mipmaps for each source image
 			params.m_mip_srgb = true; // Convert image to linear before filtering, then back to sRGB
 
-			params.m_quality_level = 255;
-
-			// Need to be set if m_quality_level is not explicitly set.
-			//params.m_max_endpoint_clusters = 16128;
-			//params.m_max_selector_clusters = 16128;
+			params.m_etc1s_quality_level = 128;
 
 			basisu::job_pool jpool(PlatformUtils::getNumLogicalProcessors());
 			params.m_pJob_pool = &jpool;

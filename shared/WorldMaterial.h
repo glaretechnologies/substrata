@@ -132,11 +132,12 @@ public:
 			flags == b.flags;
 	}
 
-	std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha) const;
+	std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha, bool use_basis) const;
 
-	void appendDependencyURLs(int lod_level, std::vector<DependencyURL>& paths_out) const;
-	void appendDependencyURLsAllLODLevels(std::vector<DependencyURL>& paths_out) const;
-	void appendDependencyURLsBaseLevel(std::vector<DependencyURL>& paths_out) const;
+
+	void appendDependencyURLs(int lod_level, bool use_basis, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLsAllLODLevels(bool use_basis, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLsBaseLevel(bool use_basis, std::vector<DependencyURL>& paths_out) const;
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 

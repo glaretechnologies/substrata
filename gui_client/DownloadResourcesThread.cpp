@@ -152,7 +152,12 @@ void DownloadResourcesThread::doRun()
 			throw glare::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
 		// Read server protocol version
-		/*const uint32 server_protocol_version =*/ socket->readUInt32();
+		const uint32 server_protocol_version = socket->readUInt32();
+
+		// Read server capabilities
+		uint32 server_capabilities = 0;
+		if(server_protocol_version >= 41)
+			server_capabilities = socket->readUInt32();
 
 		std::set<std::string> URLs_to_get; // Set of URLs that this thread will get from the server.
 

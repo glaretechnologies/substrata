@@ -69,6 +69,7 @@ public:
 	bool isFileForURLPresent(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
 	void addToDownloadFailedURLs(const std::string& URL);
+	void removeFromDownloadFailedURLs(const std::string& URL);
 	bool isInDownloadFailedURLs(const std::string& URL) const;
 
 	// Used for deserialising resource objects from serialised server state.

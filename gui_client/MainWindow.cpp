@@ -1564,7 +1564,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 			std::set<DependencyURL> paths;
-			avatar.getDependencyURLSet(/*ob_lod_level=*/0, paths);
+			avatar.getDependencyURLSet(/*ob_lod_level=*/0, /*use_basis=*/gui_client.server_has_basis_textures, paths);
 			for(auto it = paths.begin(); it != paths.end(); ++it)
 			{
 				const std::string path = it->URL;
@@ -1579,11 +1579,11 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			// Convert texture paths on the object to URLs
 			avatar.convertLocalPathsToURLS(*gui_client.resource_manager);
 
-			if(!gui_client.task_manager)
-				gui_client.task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
+			//if(!gui_client.task_manager)
+			//	gui_client.task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
 
 			// Generate LOD textures for materials, if not already present on disk.
-			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *gui_client.resource_manager, *gui_client.task_manager);
+			// LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *gui_client.resource_manager, *gui_client.task_manager);
 
 			// Send AvatarFullUpdate message to server
 			MessageUtils::initPacket(gui_client.scratch_packet, Protocol::AvatarFullUpdate);

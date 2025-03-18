@@ -521,6 +521,14 @@ ${basisu_dir}/encoder/basisu_ssim.cpp
 ${basisu_dir}/encoder/basisu_ssim.h
 ${basisu_dir}/encoder/basisu_uastc_enc.cpp
 ${basisu_dir}/encoder/basisu_uastc_enc.h
+
+${basisu_dir}/encoder/basisu_uastc_hdr_4x4_enc.cpp
+${basisu_dir}/encoder/basisu_uastc_hdr_4x4_enc.h
+${basisu_dir}/encoder/basisu_astc_hdr_6x6_enc.cpp
+${basisu_dir}/encoder/basisu_astc_hdr_common.cpp
+
+${basisu_dir}/encoder/3rdparty/android_astc_decomp.cpp
+
 )
 
 set(basisu_transcoder_files

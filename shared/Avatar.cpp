@@ -84,17 +84,17 @@ Avatar::~Avatar()
 {}
 
 
-void Avatar::appendDependencyURLs(int ob_lod_level, std::vector<DependencyURL>& URLs_out)
+void Avatar::appendDependencyURLs(int ob_lod_level, bool use_basis, std::vector<DependencyURL>& URLs_out)
 {
 	if(!avatar_settings.model_url.empty())
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level)));
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		avatar_settings.materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
+		avatar_settings.materials[i]->appendDependencyURLs(ob_lod_level, use_basis, URLs_out);
 }
 
 
-void Avatar::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out)
+void Avatar::appendDependencyURLsForAllLODLevels(bool use_basis, std::vector<DependencyURL>& URLs_out)
 {
 	if(!avatar_settings.model_url.empty())
 	{
@@ -104,23 +104,23 @@ void Avatar::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URL
 	}
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(URLs_out);
+		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(use_basis, URLs_out);
 }
 
 
-void Avatar::getDependencyURLSet(int ob_lod_level, std::set<DependencyURL>& URLS_out)
+void Avatar::getDependencyURLSet(int ob_lod_level, bool use_basis, std::set<DependencyURL>& URLS_out)
 {
 	std::vector<DependencyURL> URLs;
-	this->appendDependencyURLs(ob_lod_level, URLs);
+	this->appendDependencyURLs(ob_lod_level, use_basis, URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
 
 
-void Avatar::getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out)
+void Avatar::getDependencyURLSetForAllLODLevels(bool use_basis, std::set<DependencyURL>& URLS_out)
 {
 	std::vector<DependencyURL> URLs;
-	this->appendDependencyURLsForAllLODLevels(URLs);
+	this->appendDependencyURLsForAllLODLevels(use_basis, URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }

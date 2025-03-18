@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "../shared/UID.h"
 #include <MessageableThread.h>
+class Server;
 class ServerAllWorldsState;
 
 
@@ -18,22 +19,39 @@ public:
 };
 
 
+class CheckGenLodResourcesForURL : public ThreadMessage
+{
+public:
+	CheckGenLodResourcesForURL(const std::string& URL_) : URL(URL_) {}
+	std::string URL;
+};
+
+
+class NewResourceGenerated : public ThreadMessage
+{
+public:
+	NewResourceGenerated(const std::string& URL_) : URL(URL_) {}
+	std::string URL;
+};
+
+
 /*=====================================================================
 MeshLODGenThread
 ----------------
-Does generation of LOD meshes, also LOD textures and KTX textures.
+Does generation of LOD meshes, also LOD textures and Basis textures.
 
 Lightmap LOD generation is done by LightMapperBot.
 =====================================================================*/
 class MeshLODGenThread : public MessageableThread
 {
 public:
-	MeshLODGenThread(ServerAllWorldsState* world_state);
+	MeshLODGenThread(Server* server, ServerAllWorldsState* world_state);
 
 	virtual ~MeshLODGenThread();
 
 	virtual void doRun();
 
 private:
+	Server* server;
 	ServerAllWorldsState* world_state;
 };

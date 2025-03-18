@@ -222,14 +222,14 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 	}
 
 	for(size_t i=0; i<materials.size(); ++i)
-		materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
+		materials[i]->appendDependencyURLs(ob_lod_level, options.use_basis, URLs_out);
 
 	if(!audio_source_url.empty())
 		URLs_out.push_back(DependencyURL(audio_source_url));
 }
 
 
-void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out) const
+void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const
 {
 	if(!model_url.empty())
 	{
@@ -250,7 +250,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>
 		}
 
 	for(size_t i=0; i<materials.size(); ++i)
-		materials[i]->appendDependencyURLsAllLODLevels(URLs_out);
+		materials[i]->appendDependencyURLsAllLODLevels(options.use_basis, URLs_out);
 
 	if(!audio_source_url.empty())
 		URLs_out.push_back(DependencyURL(audio_source_url));
@@ -270,7 +270,7 @@ void WorldObject::appendDependencyURLsBaseLevel(const GetDependencyOptions& opti
 	}
 
 	for(size_t i=0; i<materials.size(); ++i)
-		materials[i]->appendDependencyURLsBaseLevel(URLs_out);
+		materials[i]->appendDependencyURLsBaseLevel(options.use_basis, URLs_out);
 
 	if(!audio_source_url.empty())
 		URLs_out.push_back(DependencyURL(audio_source_url));
@@ -286,10 +286,10 @@ void WorldObject::getDependencyURLSet(int ob_lod_level, const GetDependencyOptio
 }
 
 
-void WorldObject::getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out) const
+void WorldObject::getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const
 {
 	std::vector<DependencyURL> URLs;
-	this->appendDependencyURLsForAllLODLevels(URLs);
+	this->appendDependencyURLsForAllLODLevels(options, URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }

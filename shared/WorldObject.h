@@ -168,15 +168,16 @@ public:
 	// Sometimes we are not interested in all dependencies, such as lightmaps.  So make returning those optional.
 	struct GetDependencyOptions
 	{
-		GetDependencyOptions() : include_lightmaps(true) {}
+		GetDependencyOptions() : include_lightmaps(true), use_basis(true) {}
 		bool include_lightmaps;
+		bool use_basis;
 	};
 	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
-	void appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out) const;
+	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
 	void appendDependencyURLsBaseLevel( const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
 
 	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
-	void getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out) const;
+	void getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
 	void getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);

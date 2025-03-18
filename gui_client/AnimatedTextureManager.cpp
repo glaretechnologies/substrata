@@ -22,9 +22,10 @@ Copyright Glare Technologies Limited 2023 -
 #include <xxhash.h>
 
 
-AnimatedTexData::AnimatedTexData()
+AnimatedTexData::AnimatedTexData(bool is_mp4_)
 :	last_loaded_frame_i(-1),
-	cur_frame_i(0)
+	cur_frame_i(0),
+	is_mp4(is_mp4_)
 {}
 
 AnimatedTexData::~AnimatedTexData()
@@ -275,45 +276,40 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 			OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
 			
 			//---- Handle animated reflection texture ----
-			if(mat.albedo_texture.nonNull() && hasExtensionStringView(mat.tex_path, "gif"))
+			AnimatedTexData* refl_data = animation_data.mat_animtexdata[m].refl_col_animated_tex_data.ptr();
+			if(refl_data)
 			{
-				if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
-					animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
-
-				processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.albedo_texture, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
-				stats.num_gif_textures_processed++;
-			}
-			else if(hasExtensionStringView(mat.tex_path, "mp4"))
-			{
-				if(mp4_large_enough)
+				if(refl_data->is_mp4)
 				{
-					if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
-						animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
-
-					processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
-					stats.num_mp4_textures_processed++;
+					if(mp4_large_enough)
+					{
+						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *refl_data, mat.tex_path, /*is refl tex=*/true);
+						stats.num_mp4_textures_processed++;
+					}
+				}
+				else
+				{
+					processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.albedo_texture, *refl_data, mat.tex_path, /*is refl tex=*/true);
+					stats.num_gif_textures_processed++;
 				}
 			}
 
 			//---- Handle animated emission texture ----
-			if(mat.emission_texture.nonNull() && hasExtensionStringView(mat.emission_tex_path, "gif"))
+			AnimatedTexData* emission_data = animation_data.mat_animtexdata[m].emission_col_animated_tex_data.ptr();
+			if(emission_data)
 			{
-				if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
-					animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
-
-				processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.emission_texture, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
-				stats.num_gif_textures_processed++;
-
-			}
-			else if(hasExtensionStringView(mat.emission_tex_path, "mp4"))
-			{
-				if(mp4_large_enough)
+				if(emission_data->is_mp4)
 				{
-					if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
-						animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
-
-					processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
-					stats.num_mp4_textures_processed++;
+					if(mp4_large_enough)
+					{
+						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *emission_data, mat.emission_tex_path, /*is refl tex=*/false);
+						stats.num_mp4_textures_processed++;
+					}
+				}
+				else
+				{
+					processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.emission_texture, *emission_data, mat.emission_tex_path, /*is refl tex=*/false);
+					stats.num_gif_textures_processed++;
 				}
 			}
 		}
@@ -368,4 +364,46 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 	// NOTE: nothing to do now tex_data for animated textures is stored in the texture?
 
 	return stats;
+}
+
+
+void AnimatedTexObData::rescanObjectForAnimatedTextures(WorldObject* ob)
+{
+	if(ob->opengl_engine_ob.isNull())
+		return;
+
+	AnimatedTexObData& animation_data = *this;
+	animation_data.mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
+
+	for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
+	{
+		const OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
+
+		if(mat.albedo_texture && mat.albedo_texture->texture_data && mat.albedo_texture->texture_data->isMultiFrame())
+		{
+			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
+				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/false);
+		}
+		else if(hasExtensionStringView(mat.tex_path, "mp4"))
+		{
+			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
+				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);
+		}
+		//else
+		//	animation_data.mat_animtexdata[m].refl_col_animated_tex_data = nullptr;
+
+		// Emission tex
+		if(mat.emission_texture && mat.emission_texture->texture_data && mat.emission_texture->texture_data->isMultiFrame())
+		{
+			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
+				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/false);
+		}
+		else if(hasExtensionStringView(mat.emission_tex_path, "mp4"))
+		{
+			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
+				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);
+		}
+		//else
+		//	animation_data.mat_animtexdata[m].emission_col_animated_tex_data = nullptr;
+	}
 }

@@ -284,6 +284,13 @@ void ResourceManager::addToDownloadFailedURLs(const std::string& URL)
 }
 
 
+void ResourceManager::removeFromDownloadFailedURLs(const std::string& URL)
+{
+	Lock lock(mutex);
+	download_failed_URLs.erase(URL);
+}
+
+
 bool ResourceManager::isInDownloadFailedURLs(const std::string& URL) const
 {
 	Lock lock(mutex);

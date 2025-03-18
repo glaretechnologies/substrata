@@ -126,11 +126,11 @@ static const std::string toLocalPath(const std::string& URL, ResourceManager& re
 }
 
 
-void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
+void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const std::string& lightmap_url, bool use_basis, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_linear_rgb = sanitiseAndConvertToLinearAlbedoColour(mat.colour_rgb);
 	if(!mat.colour_texture_url.empty())
-		opengl_mat.tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
+		opengl_mat.tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha(), use_basis), resource_manager);
 	else
 		opengl_mat.tex_path.clear();
 
@@ -140,17 +140,17 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 
 
 	if(!mat.emission_texture_url.empty())
-		opengl_mat.emission_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.emission_texture_url, lod_level, /*has alpha=*/false), resource_manager);
+		opengl_mat.emission_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.emission_texture_url, lod_level, /*has alpha=*/false, use_basis), resource_manager);
 	else
 		opengl_mat.emission_tex_path.clear();
 
 	if(!mat.roughness.texture_url.empty())
-		opengl_mat.metallic_roughness_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.roughness.texture_url, lod_level, /*has alpha=*/false), resource_manager);
+		opengl_mat.metallic_roughness_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.roughness.texture_url, lod_level, /*has alpha=*/false, use_basis), resource_manager);
 	else
 		opengl_mat.metallic_roughness_tex_path.clear();
 
 	if(!mat.normal_map_url.empty())
-		opengl_mat.normal_map_path = toLocalPath(mat.getLODTextureURLForLevel(mat.normal_map_url, lod_level, /*has alpha=*/false), resource_manager);
+		opengl_mat.normal_map_path = toLocalPath(mat.getLODTextureURLForLevel(mat.normal_map_url, lod_level, /*has alpha=*/false, use_basis), resource_manager);
 	else
 		opengl_mat.normal_map_path.clear();
 
@@ -936,7 +936,7 @@ GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAll
 
 
 GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_engine, const Reference<OpenGLMeshRenderData> gl_meshdata, //size_t num_materials_referenced,
-	int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
+	int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url, bool use_basis,
 	ResourceManager& resource_manager,
 	const Matrix4f& ob_to_world_matrix)
 {
@@ -950,7 +950,7 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_e
 	{
 		if(i < materials.size())
 		{
-			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, resource_manager, ob->materials[i]);
+			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, use_basis, resource_manager, ob->materials[i]);
 		}
 		else
 		{
@@ -988,12 +988,12 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_e
 
 
 void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_level, const std::vector<WorldMaterialRef>& materials,
-	const std::string& lightmap_url, ResourceManager& resource_manager)
+	const std::string& lightmap_url, bool use_basis, ResourceManager& resource_manager)
 {
 	for(size_t i=0; i<gl_ob.materials.size(); ++i)
 	{
 		if(i < materials.size())
-			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, resource_manager, gl_ob.materials[i]);
+			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, use_basis, resource_manager, gl_ob.materials[i]);
 	}
 }
 

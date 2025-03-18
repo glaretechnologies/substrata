@@ -308,7 +308,9 @@ void WorkerThread::handleResourceUploadConnection()
 					{
 						const WorldObject* ob = it->second.ptr();
 						URLs.clear();
-						ob->getDependencyURLSetForAllLODLevels(URLs);
+						WorldObject::GetDependencyOptions options;
+						options.use_basis = false;
+						ob->getDependencyURLSetForAllLODLevels(options, URLs);
 
 						if(URLs.count(DependencyURL(URL)) > 0) // If the object uses the resource with this URL:
 						{
@@ -324,6 +326,8 @@ void WorkerThread::handleResourceUploadConnection()
 				msg->ob_uid = ob_uids[i];
 				server->enqueueMsgForLodGenThread(msg);
 			}
+
+			server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(URL));
 		}
 
 
@@ -880,6 +884,12 @@ void WorkerThread::doRun()
 
 		socket->writeUInt32(Protocol::CyberspaceProtocolVersion);
 
+		if(client_protocol_version >= 41) // Sending server_capabilities was added in protocol version 41.
+		{
+			const uint32 server_capabilities = 1; // 0x1 = has basisu support
+			socket->writeUInt32(server_capabilities);
+		}
+
 		const uint32 connection_type = socket->readUInt32();
 	
 		if(connection_type == Protocol::ConnectionTypeUploadResource)
@@ -1318,9 +1328,13 @@ void WorkerThread::doRun()
 
 							// Process resources
 							std::set<DependencyURL> URLs;
-							temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
+							temp_avatar.getDependencyURLSetForAllLODLevels(/*use basis=*/false, URLs); // Get non-basis resources, convert to basis on server.
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
+							{
 								sendGetFileMessageIfNeeded(it->URL);
+
+								server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(it->URL));
+							}
 
 							break;
 						}
@@ -1363,9 +1377,13 @@ void WorkerThread::doRun()
 
 							// Process resources
 							std::set<DependencyURL> URLs;
-							temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
+							temp_avatar.getDependencyURLSetForAllLODLevels(/*use basis=*/false, URLs); // Get non-basis resources, convert to basis on server.
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
+							{
 								sendGetFileMessageIfNeeded(it->URL);
+
+								server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(it->URL));
+							}
 
 							conPrintIfNotFuzzing("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
 
@@ -1724,6 +1742,7 @@ void WorkerThread::doRun()
 											// Process resources
 											std::set<DependencyURL> URLs;
 											WorldObject::GetDependencyOptions options;
+											options.use_basis = false; // Get plain textures, convert to basis on server.
 											ob->getDependencyURLSetBaseLevel(options, URLs);
 											for(auto it = URLs.begin(); it != URLs.end(); ++it)
 												sendGetFileMessageIfNeeded(it->URL);
@@ -1945,6 +1964,7 @@ void WorkerThread::doRun()
 
 									std::set<DependencyURL> URLs;
 									WorldObject::GetDependencyOptions options;
+									options.use_basis = false; // Get plain textures, convert to basis on server.
 									new_ob->getDependencyURLSetBaseLevel(options, URLs);
 									for(auto it = URLs.begin(); it != URLs.end(); ++it)
 										sendGetFileMessageIfNeeded(it->URL);
