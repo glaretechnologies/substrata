@@ -248,7 +248,7 @@ void GestureUI::updateWidgetPositions()
 			const float collapse_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_w_px);
 			const float collapse_button_h = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_h_px);
 
-			const float num_gesture_button_rows = Maths::roundedUpDivide((int)gesture_buttons.size(), NUM_BUTTONS_PER_ROW);
+			const float num_gesture_button_rows = (float)Maths::roundedUpDivide((int)gesture_buttons.size(), NUM_BUTTONS_PER_ROW);
 			collapse_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - collapse_button_w - SPACING, -min_max_y + num_gesture_button_rows * (BUTTON_H + SPACING) - SPACING - collapse_button_h + gestures_bottom_margin), Vec2f(collapse_button_w, collapse_button_h));
 
 			expand_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, TAB_BUTTON_W/*BUTTON_H * 2 + SPACING*/));

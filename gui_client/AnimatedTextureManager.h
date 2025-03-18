@@ -22,7 +22,7 @@ class OpenGLTexture;
 // Each material can potentially have its own animation.  This is thus per-material data.
 struct AnimatedTexData : public RefCounted
 { 
-	AnimatedTexData();
+	AnimatedTexData(bool is_mp4);
 	~AnimatedTexData();
 
 	static double maxVidPlayDist() { return 20.0; }
@@ -31,6 +31,8 @@ struct AnimatedTexData : public RefCounted
 	int cur_frame_i; // -1 = reached EOS
 
 	Reference<EmbeddedBrowser> browser;
+
+	bool is_mp4;
 };
 
 
@@ -53,12 +55,12 @@ struct AnimatedTexObData : public RefCounted
 
 	AnimatedTexObDataProcessStats process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
+	void rescanObjectForAnimatedTextures(WorldObject* ob);
+
 private:
 	void processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 		OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
 
 	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
-
-	std::vector<float> temp_buf; // Used for audio
 };

@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "MeshLODGenThread.h"
 
 
+#include "Server.h"
 #include "ServerWorldState.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
@@ -21,8 +22,9 @@ Copyright Glare Technologies Limited 2022 -
 #include <graphics/ImageMap.h>
 
 
-MeshLODGenThread::MeshLODGenThread(ServerAllWorldsState* world_state_)
-:	world_state(world_state_)
+MeshLODGenThread::MeshLODGenThread(Server* server_, ServerAllWorldsState* world_state_)
+:	server(server_),
+	world_state(world_state_)
 {
 }
 
@@ -58,11 +60,11 @@ struct LODTextureToGen
 };
 
 
-struct KTXTextureToGen
+struct BasisTextureToGen
 {
 	std::string source_tex_abs_path; // source texture abs path
-	std::string ktx_tex_abs_path; // abs path to write KTX texture to.
-	std::string ktx_URL;
+	std::string basis_tex_abs_path; // abs path to write KTX texture to.
+	std::string basis_URL;
 	int base_lod_level;
 	int lod_level;
 	UserID owner_id;
@@ -360,7 +362,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 						if(texture_URL == mat->colour_texture_url)
 							has_alpha = BitUtils::isBitSet(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG); // Assume mat->flags are correct.
 
-						const std::string lod_URL = mat->getLODTextureURLForLevel(texture_URL, lvl, has_alpha);
+						const std::string lod_URL = mat->getLODTextureURLForLevel(texture_URL, lvl, has_alpha, /*use basis=*/false);
 
 						if(lod_URL != texture_URL) // We don't do LOD for some texture types.
 						{
@@ -391,56 +393,97 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 }
 
 
-// Make tasks for generating KTX level textures.
-static void checkForKTXTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered,
-	std::vector<KTXTextureToGen>& ktx_textures_to_gen)
+// Make tasks for generating Basis level textures.
+static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered,
+	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
 	{
 		const WorldMaterial* mat = ob->materials[z].ptr();
 
-		for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
+		std::vector<std::string> URLs;
+		URLs.push_back(mat->colour_texture_url);
+		URLs.push_back(mat->emission_texture_url);
+		URLs.push_back(mat->roughness.texture_url);
+		URLs.push_back(mat->normal_map_url);
+
+		for(size_t q=0; q<URLs.size(); ++q)
 		{
-			std::vector<std::string> URLs;
-			URLs.push_back(mat->colour_texture_url);
-			URLs.push_back(mat->emission_texture_url);
-			URLs.push_back(mat->roughness.texture_url);
-			URLs.push_back(mat->normal_map_url);
+			const std::string texture_URL = URLs[q];
 
-			for(size_t q=0; q<URLs.size(); ++q)
+			if(!texture_URL.empty() && !hasExtension(texture_URL, "mp4")) // Don't generate basis textures for mp4s
 			{
-				const std::string texture_URL = URLs[q];
-				if(!texture_URL.empty() && !hasExtension(texture_URL, "mp4") && !hasExtension(texture_URL, "gif")) // Don't generate KTX textures for mp4s or gifs
+				ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(texture_URL);
+				if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 				{
-					ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(texture_URL);
-					if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
+					const std::string tex_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
+
+					for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
 					{
-						const std::string lod_URL = mat->getLODTextureURLForLevel(texture_URL, lvl, /*has_alpha=*/false);  // Lod URL without ktx extension (jpg or PNG)
-						if(!hasExtension(lod_URL, "ktx2"))
+						const std::string basis_lod_URL = mat->getLODTextureURLForLevel(texture_URL, lvl, /*has_alpha=*/false, /*use basis=-*/true);  // Lod URL without ktx extension (jpg or PNG)
+						if(hasExtension(basis_lod_URL, "basis"))
 						{
-							const std::string ktx_lod_URL = ::eatExtension(lod_URL) + "ktx2";
-
-							if(lod_URLs_considered.count(ktx_lod_URL) == 0)
+							if(lod_URLs_considered.count(basis_lod_URL) == 0)
 							{
-								lod_URLs_considered.insert(ktx_lod_URL);
+								lod_URLs_considered.insert(basis_lod_URL);
 
-								if(!world_state->resource_manager->isFileForURLPresent(ktx_lod_URL))
+								if(!world_state->resource_manager->isFileForURLPresent(basis_lod_URL))
 								{
-									const std::string lod_abs_path = world_state->resource_manager->pathForURL(lod_URL);
-									const std::string ktx_abs_path = world_state->resource_manager->pathForURL(ktx_lod_URL);
+									const std::string basis_abs_path = world_state->resource_manager->pathForURL(basis_lod_URL);
 
-									// Generate the texture
-									KTXTextureToGen tex_to_gen;
-									tex_to_gen.source_tex_abs_path = lod_abs_path; // source texture abs path
-									tex_to_gen.ktx_tex_abs_path = ktx_abs_path; // abs path to write KTX texture to.
-									tex_to_gen.ktx_URL = ktx_lod_URL;
+									// Add to list of textures to generate
+									BasisTextureToGen tex_to_gen;
+									tex_to_gen.source_tex_abs_path = tex_abs_path; // source texture abs path
+									tex_to_gen.basis_tex_abs_path = basis_abs_path; // abs path to write Basis texture to.
+									tex_to_gen.basis_URL = basis_lod_URL;
 									tex_to_gen.base_lod_level = mat->minLODLevel();
 									tex_to_gen.lod_level = lvl;
 									tex_to_gen.owner_id = base_resource->owner_id;
-									ktx_textures_to_gen.push_back(tex_to_gen);
+									basis_textures_to_gen.push_back(tex_to_gen);
 								}
 							}
 						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+// Make tasks for generating Basis level textures.
+static void checkForBasisTexturesToGenerateForURL(const std::string& URL, ResourceManager* resource_manager, std::unordered_set<std::string>& lod_URLs_considered,
+	std::vector<BasisTextureToGen>& basis_textures_to_gen)
+{
+	const std::string texture_URL = URL;
+
+	if(!texture_URL.empty() && ImageDecoding::hasSupportedImageExtension(URL) && !hasExtension(texture_URL, "mp4")) // Don't generate basis textures for mp4s
+	{
+		ResourceRef base_resource = resource_manager->getExistingResourceForURL(texture_URL);
+		if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
+		{
+			const std::string tex_abs_path = resource_manager->getLocalAbsPathForResource(*base_resource);
+
+			for(int lvl = 0; lvl <= 2; ++lvl)
+			{
+				const std::string basis_lod_URL = removeDotAndExtension(texture_URL) + ((lvl > 0) ? ("_lod" + toString(lvl)) : std::string()) + ".basis"; // mat->getLODTextureURLForLevel(texture_URL, lvl, /*has_alpha=*/false, /*use basis=-*/true);  // Lod URL without ktx extension (jpg or PNG)
+				if(lod_URLs_considered.count(basis_lod_URL) == 0)
+				{
+					lod_URLs_considered.insert(basis_lod_URL);
+
+					if(!resource_manager->isFileForURLPresent(basis_lod_URL))
+					{
+						const std::string basis_abs_path = resource_manager->pathForURL(basis_lod_URL);
+
+						// Add to list of textures to generate
+						BasisTextureToGen tex_to_gen;
+						tex_to_gen.source_tex_abs_path = tex_abs_path; // source texture abs path
+						tex_to_gen.basis_tex_abs_path = basis_abs_path; // abs path to write Basis texture to.
+						tex_to_gen.basis_URL = basis_lod_URL;
+						tex_to_gen.base_lod_level = 0;
+						tex_to_gen.lod_level = lvl;
+						tex_to_gen.owner_id = base_resource->owner_id;
+						basis_textures_to_gen.push_back(tex_to_gen);
 					}
 				}
 			}
@@ -464,6 +507,7 @@ void MeshLODGenThread::doRun()
 		while(1)
 		{
 			UID ob_to_scan_UID = UID::invalidUID();
+			std::string URL_to_check;
 			if(!do_initial_full_scan)
 			{
 				// Block until we have a message
@@ -477,6 +521,12 @@ void MeshLODGenThread::doRun()
 
 					conPrint("MeshLODGenThread: Received message to scan object with UID " + ob_to_scan_UID.toString());
 				}
+				else if(CheckGenLodResourcesForURL* check_gen_msg = dynamic_cast<CheckGenLodResourcesForURL*>(msg.ptr()))
+				{
+					URL_to_check = check_gen_msg->URL;
+
+					conPrint("MeshLODGenThread: Received message to scan URL " + check_gen_msg->URL);
+				}
 				else if(dynamic_cast<KillThreadMessage*>(msg.ptr()))
 				{
 					return;
@@ -489,7 +539,7 @@ void MeshLODGenThread::doRun()
 			// Compute list of LOD meshes we need to generate.
 			std::vector<LODMeshToGen> meshes_to_gen;
 			std::vector<LODTextureToGen> lod_textures_to_gen;
-			std::vector<KTXTextureToGen> ktx_textures_to_gen;
+			std::vector<BasisTextureToGen> basis_textures_to_gen;
 			std::unordered_set<std::string> lod_URLs_considered;
 			std::map<std::string, MeshLODGenThreadTexInfo> tex_info; // Cached info about textures
 
@@ -518,7 +568,7 @@ void MeshLODGenThread::doRun()
 
 								checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
 								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-								checkForKTXTexturesToGenerate(world_state, world, ob, lod_URLs_considered, ktx_textures_to_gen);
+								checkForBasisTexturesToGenerateForOb(world_state, world, ob, lod_URLs_considered, basis_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
@@ -528,7 +578,7 @@ void MeshLODGenThread::doRun()
 					}
 					do_initial_full_scan = false;
 				}
-				else
+				else if(ob_to_scan_UID.valid())
 				{
 					// Look up object for UID
 					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
@@ -542,7 +592,7 @@ void MeshLODGenThread::doRun()
 							{
 								checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
 								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-								checkForKTXTexturesToGenerate(world_state, world, ob, lod_URLs_considered, ktx_textures_to_gen);
+								checkForBasisTexturesToGenerateForOb(world_state, world, ob, lod_URLs_considered, basis_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
@@ -551,10 +601,14 @@ void MeshLODGenThread::doRun()
 						}
 					}
 				}
+				else
+				{
+					checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+				}
 			} // End lock scope
 
 			conPrint("MeshLODGenThread: Iterating over objects took " + timer.elapsedStringNSigFigs(4) + ", meshes_to_gen: " + toString(meshes_to_gen.size()) + ", lod_textures_to_gen: " + toString(lod_textures_to_gen.size()) + 
-				", ktx_textures_to_gen: " + toString(ktx_textures_to_gen.size()));
+				", basis_textures_to_gen: " + toString(basis_textures_to_gen.size()));
 
 
 			//-------------------------------------------  Generate each mesh, without holding the world lock -------------------------------------------
@@ -588,6 +642,8 @@ void MeshLODGenThread::doRun()
 						world_state->resource_manager->addResource(resource);
 						
 					} // End lock scope
+
+					server->enqueueMsg(new NewResourceGenerated(mesh_to_gen.lod_URL));
 				}
 				catch(glare::Exception& e)
 				{
@@ -629,6 +685,8 @@ void MeshLODGenThread::doRun()
 						world_state->resource_manager->addResource(resource);
 
 					} // End lock scope
+
+					server->enqueueMsg(new NewResourceGenerated(tex_to_gen.lod_URL));
 				}
 				catch(glare::Exception& e)
 				{
@@ -638,49 +696,49 @@ void MeshLODGenThread::doRun()
 
 			conPrint("MeshLODGenThread: Done generating LOD textures. (Elapsed: " + timer.elapsedStringNSigFigs(4));
 
-			//------------------------------------------- Generate each KTX texture, without holding the world lock -------------------------------------------
-// NOTE: Disable KTX texture generation currently, since basis universal has lots of compile warnings which clutter up the build output, and we don't use basisu KTX files currently.
-#if 0
-			conPrint("MeshLODGenThread: Generating KTX textures...");
+			//------------------------------------------- Generate each Basis texture, without holding the world lock -------------------------------------------
+			conPrint("MeshLODGenThread: Generating Basis textures...");
 			timer.reset();
 
-			for(size_t i=0; i<ktx_textures_to_gen.size(); ++i)
+			for(size_t i=0; i<basis_textures_to_gen.size(); ++i)
 			{
-				const KTXTextureToGen& tex_to_gen = ktx_textures_to_gen[i];
+				const BasisTextureToGen& tex_to_gen = basis_textures_to_gen[i];
 				try
 				{
-					conPrint("MeshLODGenThread: (ktx " + toString(i) + " / " + toString(ktx_textures_to_gen.size()) + "): Generating KTX texture with URL " + tex_to_gen.ktx_URL);
+					conPrint("MeshLODGenThread: (ktx " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating KTX texture with URL " + tex_to_gen.basis_URL);
 
-					LODGeneration::generateKTXTexture(tex_to_gen.source_tex_abs_path, 
-						tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.ktx_tex_abs_path, 
+					LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, 
+						tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, 
 						task_manager);
 
 					// Now that we have generated the LOD model, add it to resources.
 					{ // lock scope
 						Lock lock(world_state->mutex);
 
-						const std::string raw_path = FileUtils::getFilename(tex_to_gen.ktx_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
+						const std::string raw_path = FileUtils::getFilename(tex_to_gen.basis_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
 
 						ResourceRef resource = new Resource(
-							tex_to_gen.ktx_URL, // URL
+							tex_to_gen.basis_URL, // URL
 							raw_path, // raw local path
 							Resource::State_Present, // state
-							tex_to_gen.owner_id
+							tex_to_gen.owner_id,
+							/*external resource=*/false
 						);
 
 						world_state->addResourcesAsDBDirty(resource);
 						world_state->resource_manager->addResource(resource);
 
 					} // End lock scope
+
+					server->enqueueMsg(new NewResourceGenerated(tex_to_gen.basis_URL));
 				}
 				catch(glare::Exception& e)
 				{
-					conPrint("\tMeshLODGenThread: excep while generating KTX texture: " + e.what());
+					conPrint("\tMeshLODGenThread: excep while generating Basis texture: " + e.what());
 				}
 			}
 
-			conPrint("MeshLODGenThread: Done generating KTX textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
-#endif
+			conPrint("MeshLODGenThread: Done generating Basis textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 			//------------------------------------------- End Generate each KTX texture  -------------------------------------------
 		}
 	}

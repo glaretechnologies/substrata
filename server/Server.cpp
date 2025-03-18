@@ -503,7 +503,7 @@ int main(int argc, char *argv[])
 		conPrint("Done.");
 		//----------------------------------------------- End launch substrata protocol server -----------------------------------------------
 
-		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
+		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(&server, server.world_state.ptr()));
 
 		thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 
@@ -574,6 +574,8 @@ int main(int argc, char *argv[])
 
 		SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
+		js::Vector<ThreadMessageRef, 16> temp_thread_messages;
+
 		// Main server loop
 		uint64 loop_iter = 0;
 		while(!should_quit)
@@ -623,10 +625,11 @@ int main(int argc, char *argv[])
 			
 			// Handle any queued messages from worker threads
 			{
-				Lock queue_lock(server.message_queue.getMutex());
-				while(server.message_queue.unlockedNonEmpty())
+				server.message_queue.dequeueAllItems(temp_thread_messages);
+
+				for(size_t msg_i=0; msg_i<temp_thread_messages.size(); ++msg_i)
 				{
-					Reference<ThreadMessage> msg = server.message_queue.unlockedDequeue();
+					Reference<ThreadMessage> msg = temp_thread_messages[msg_i];
 
 					if(dynamic_cast<UserUsedObjectThreadMessage*>(msg.ptr()))
 					{
@@ -749,6 +752,22 @@ int main(int argc, char *argv[])
 							// Execute event handler in any scripts that are listening on this object
 							if(ob->event_handlers)
 								ob->event_handlers->executeOnUserExitedParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
+						}
+					}
+					else if(NewResourceGenerated* gen_msg = dynamic_cast<NewResourceGenerated*>(msg.ptr()))
+					{
+						// Send NewResourceOnServer message to connected clients
+						{
+							MessageUtils::initPacket(scratch_packet, Protocol::NewResourceOnServer);
+							scratch_packet.writeStringLengthFirst(gen_msg->URL);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+
+							Lock lock3(server.worker_thread_manager.getMutex());
+							for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
+							{
+								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(scratch_packet);
+							}
 						}
 					}
 				}

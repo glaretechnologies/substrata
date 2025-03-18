@@ -81,6 +81,12 @@ class SubstrataLuaVM;
 struct LoadedBuffer;
 
 
+struct ResourceUserList
+{
+	SmallVector<UID, 4> using_object_uids; // UIDs of objects that use the resource.
+};
+
+
 struct DownloadingResourceInfo
 {
 	DownloadingResourceInfo() : build_physics_ob(true), build_dynamic_physics_ob(false), used_by_avatar(false), used_by_terrain(false), used_by_lod_chunk(false) {}
@@ -93,7 +99,7 @@ struct DownloadingResourceInfo
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
 
-	SmallVector<UID, 4> using_object_uids; // UIDs of objects that use the resource.
+	ResourceUserList using_objects;
 	//SmallVector<UID, 4> using_avatar_uids; // UIDs of avatars that use the resource.
 
 	bool used_by_avatar;
@@ -277,11 +283,11 @@ public:
 	bool checkAddAudioToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
-	void startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureIfPresent(const UID& ob_uid, const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
-	void startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureForLocalPath(const UID& ob_uid, const std::string& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
-	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
+	void startLoadingTextureForObject(const UID& ob_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
 		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
@@ -346,6 +352,8 @@ public:
 
 	void handleLODChunkTextureLoaded(const std::string& tex_URL, OpenGLTextureRef opengl_tex);
 	void handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data);
+
+	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -486,7 +494,7 @@ public:
 	Reference<OpenGLProgram> parcel_shader_prog;
 
 	StandardPrintOutput print_output;
-	glare::TaskManager* task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff. Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent(). Lazily created.
+	//glare::TaskManager* task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff. Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent(). Lazily created.
 	
 	glare::TaskManager model_and_texture_loader_task_manager;
 
@@ -611,6 +619,8 @@ public:
 	std::map<ModelProcessingKey, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
 	std::map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
 
+	std::map<std::string, std::set<UID>> loading_texture_abs_path_to_world_ob_UID_map;
+
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 
 	std::vector<Reference<GLObject> > wheel_gl_objects;
@@ -627,8 +637,8 @@ public:
 	PhysicsShape cur_loading_physics_shape;
 	int cur_loading_voxel_ob_model_lod_level;
 
+	// Current loading texture information
 	Map2DRef cur_loading_terrain_map; // Non-null iff we are currently loading a map used for the terrain system into OpenGL.
-
 	OpenGLTextureLoadingProgress tex_loading_progress;
 
 	Reference<glare::PoolAllocator> world_ob_pool_allocator;
@@ -637,6 +647,7 @@ public:
 
 	UID client_avatar_uid; // When we connect to a server, the server assigns a UID to the client/avatar.
 	uint32 server_protocol_version;
+	uint32 server_capabilities;
 
 	uint64 frame_num;
 
@@ -674,6 +685,8 @@ public:
 	uint32 logged_in_user_flags;
 
 	bool server_using_lod_chunks; // Should be equal to !world_state->lod_chunks.empty(), cached in a boolean.
+
+	bool server_has_basis_textures;
 
 	bool shown_object_modification_error_msg;
 

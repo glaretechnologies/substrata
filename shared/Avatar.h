@@ -68,10 +68,10 @@ public:
 	std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 
-	void appendDependencyURLs(int ob_lod_level, std::vector<DependencyURL>& URLs_out);
-	void appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out);
-	void getDependencyURLSet(int ob_lod_level, std::set<DependencyURL>& URLS_out);
-	void getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out);
+	void appendDependencyURLs(int ob_lod_level, bool use_basis, std::vector<DependencyURL>& URLs_out);
+	void appendDependencyURLsForAllLODLevels(bool use_basis, std::vector<DependencyURL>& URLs_out);
+	void getDependencyURLSet(int ob_lod_level, bool use_basis, std::set<DependencyURL>& URLS_out);
+	void getDependencyURLSetForAllLODLevels(bool use_basis, std::set<DependencyURL>& URLS_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 
