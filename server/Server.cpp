@@ -1199,7 +1199,7 @@ void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 {
 	const std::string message(s, len);
 
-	conPrint("LUA: " + message);
+	// conPrint("LUA: " + message);
 
 	// Store log message for user in the per-user script message log.
 	
