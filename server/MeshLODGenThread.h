@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "../shared/UID.h"
 #include <MessageableThread.h>
+#include <AtomicInt.h>
 class Server;
 class ServerAllWorldsState;
 
@@ -49,9 +50,12 @@ public:
 
 	virtual ~MeshLODGenThread();
 
-	virtual void doRun();
+	virtual void doRun() override;
+
+	virtual void kill() override;
 
 private:
 	Server* server;
 	ServerAllWorldsState* world_state;
+	glare::AtomicInt should_quit;
 };
