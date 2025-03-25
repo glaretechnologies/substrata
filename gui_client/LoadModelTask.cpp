@@ -50,9 +50,7 @@ void LoadModelTask::run(size_t thread_index)
 
 			if(voxel_ob->getCompressedVoxels().size() == 0)
 			{
-				// Add dummy cube marker for zero-voxel case.
-				gl_meshdata = opengl_engine->getCubeMeshData();
-				physics_shape = unit_cube_shape;
+				throw glare::Exception("zero voxels");
 			}
 			else
 			{
@@ -134,6 +132,65 @@ void LoadModelTask::run(size_t thread_index)
 				/*physics shape out=*/physics_shape);
 		}
 
+
+		ArrayRef<uint8> vert_data;
+		ArrayRef<uint8> index_data;
+		if(gl_meshdata->batched_mesh)
+		{
+			vert_data = ArrayRef<uint8>(gl_meshdata->batched_mesh->vertex_data.data(), gl_meshdata->batched_mesh->vertex_data.dataSizeBytes());
+			index_data = ArrayRef<uint8>(gl_meshdata->batched_mesh->index_data.data(), gl_meshdata->batched_mesh->index_data.dataSizeBytes());
+		}
+		else
+		{
+			vert_data = ArrayRef<uint8>(gl_meshdata->vert_data.data(), gl_meshdata->vert_data.dataSizeBytes());
+			if(!gl_meshdata->vert_index_buffer.empty())
+				index_data = ArrayRef<uint8>((const uint8*)gl_meshdata->vert_index_buffer.data(), gl_meshdata->vert_index_buffer.dataSizeBytes());
+			else if(!gl_meshdata->vert_index_buffer_uint16.empty())
+				index_data = ArrayRef<uint8>((const uint8*)gl_meshdata->vert_index_buffer_uint16.data(), gl_meshdata->vert_index_buffer_uint16.dataSizeBytes());
+			else if(!gl_meshdata->vert_index_buffer_uint8.empty())
+				index_data = ArrayRef<uint8>((const uint8*)gl_meshdata->vert_index_buffer_uint8.data(), gl_meshdata->vert_index_buffer_uint8.dataSizeBytes());
+		}
+			
+		const size_t index_data_src_offset_B = Maths::roundUpToMultipleOfPowerOf2<size_t>(vert_data.size(), 16); // Offset in VBO
+		const size_t total_geom_size_B = index_data_src_offset_B + index_data.size();
+
+		VBORef vbo;
+		for(int i=0; i<10; ++i)
+		{
+			vbo = opengl_engine->vbo_pool.getMappedVBO(total_geom_size_B);
+			if(vbo)
+			{
+				// Copy mesh data to mapped VBO
+
+				// Copy vertex data first
+				std::memcpy(vbo->getMappedPtr(), vert_data.data(), vert_data.size());
+
+				// Copy index data
+				std::memcpy((uint8*)vbo->getMappedPtr() + index_data_src_offset_B, index_data.data(), index_data.size());
+
+				// Free geometry memory now it has been copied to the PBO.
+				if(gl_meshdata->batched_mesh)
+				{
+					gl_meshdata->batched_mesh->vertex_data.clearAndFreeMem();
+					gl_meshdata->batched_mesh->index_data.clearAndFreeMem();
+				}
+				else
+				{
+					gl_meshdata->vert_data.clearAndFreeMem();
+					gl_meshdata->vert_index_buffer.clearAndFreeMem();
+					gl_meshdata->vert_index_buffer_uint16.clearAndFreeMem();
+					gl_meshdata->vert_index_buffer_uint8.clearAndFreeMem();
+				}
+
+				break;
+			}
+			PlatformUtils::Sleep(1);
+		}
+
+		if(!vbo)
+			conPrint("LoadModelTask: Failed to get mapped VBO for " + toString(total_geom_size_B) + " B");
+
+
 		// Send a ModelLoadedThreadMessage back to main window.
 		Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
 		msg->gl_meshdata = gl_meshdata;
@@ -143,6 +200,10 @@ void LoadModelTask::run(size_t thread_index)
 		msg->voxel_ob_model_lod_level = voxel_ob_model_lod_level;
 		msg->subsample_factor = subsample_factor;
 		msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
+		msg->vbo = vbo;
+		msg->index_data_src_offset_B = index_data_src_offset_B;
+		msg->vert_data_size_B = vert_data.size();
+		msg->index_data_size_B = index_data.size();
 
 		// Null out references to gl_meshdata and jolt shape here, before we pass to another thread.
 		// This is important for gl_meshdata, since the main thread may set gl_meshdata->individual_vao, which could then be destroyed on this thread, which is invalid.

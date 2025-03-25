@@ -46,6 +46,8 @@ AnimatedTexData::~AnimatedTexData()
 void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 	OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
 {
+	if(!texture)
+		return;
 	TextureData* texdata = texture->texture_data.ptr();
 	if(texdata)
 	{

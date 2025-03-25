@@ -35,6 +35,12 @@ public:
 	UID voxel_ob_uid; // Valid if we are loading voxel for an object, invalid otherwise.  Avoid storing WorldObjectRef to avoid dangling refs
 	int voxel_ob_model_lod_level;// If we loaded a voxel model, the model LOD level of the object.
 	int subsample_factor; // Computed when loading voxels.
+
+	VBORef vbo;
+	// vert data offset = 0
+	size_t index_data_src_offset_B;
+	size_t vert_data_size_B; // in source VBO
+	size_t index_data_size_B; // in source VBO
 };
 
 
@@ -68,7 +74,6 @@ public:
 
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
 
-	PhysicsShape unit_cube_shape;
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<ResourceManager> resource_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
