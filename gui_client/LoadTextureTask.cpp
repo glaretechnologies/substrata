@@ -108,6 +108,53 @@ void LoadTextureTask::run(size_t thread_index)
 		}
 
 
+		PBORef pbo;
+		if(!texture_data->isMultiFrame())
+		{
+			ArrayRef<uint8> source_data;
+			if(!texture_data->mipmap_data.empty())
+				source_data = ArrayRef<uint8>(texture_data->mipmap_data.data(), texture_data->mipmap_data.size());
+			else
+			{
+				runtimeCheck(texture_data->converted_image.nonNull());
+				if(dynamic_cast<const ImageMapUInt8*>(texture_data->converted_image.ptr()))
+				{
+					const ImageMapUInt8* uint8_map = static_cast<const ImageMapUInt8*>(texture_data->converted_image.ptr());
+					source_data = ArrayRef<uint8>(uint8_map->getData(), uint8_map->getDataSizeB());
+				}
+				if(dynamic_cast<const ImageMap<half, HalfComponentValueTraits>*>(texture_data->converted_image.ptr()))
+				{
+					const ImageMap<half, HalfComponentValueTraits>* half_map = static_cast<const ImageMap<half, HalfComponentValueTraits>*>(texture_data->converted_image.ptr());
+					source_data = ArrayRef<uint8>((const uint8*)half_map->getData(), half_map->getDataSizeB());
+				}
+			}
+
+			assert(source_data.data());
+			if(source_data.data())
+			{
+				const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 10;
+				for(int i=0; i<max_num_attempts; ++i)
+				{
+					pbo = opengl_engine->pbo_pool.getMappedPBO(source_data.size());
+					if(pbo)
+					{
+						//conPrint("LoadTextureTask: Memcpying to PBO mem: " + toString(source_data.size()) + " B");
+						std::memcpy(pbo->getMappedPtr(), source_data.data(), source_data.size()); // TODO: remove memcpy and build texture data directly into PBO
+
+						// Free image texture memory now it has been copied to the PBO.
+						texture_data->mipmap_data.clearAndFreeMem();
+						if(texture_data->converted_image)
+							texture_data->converted_image = nullptr;
+
+						break;
+					}
+					PlatformUtils::Sleep(1);
+				}
+			}
+			
+			if(!pbo)
+				conPrint("LoadTextureTask: Failed to get mapped PBO for " + toString(texture_data->mipmap_data.size()) + " B");
+		}
 
 
 		if(hasExtension(key, "gif") && texture_data->totalCPUMemUsage() > 100000000)
@@ -121,9 +168,10 @@ void LoadTextureTask::run(size_t thread_index)
 		msg->tex_path = path;
 		msg->tex_key = key;
 		msg->tex_params = tex_params;
-		msg->texture_data = texture_data;
+		msg->pbo = pbo;
 		if(is_terrain_map)
 			msg->terrain_map = map;
+		msg->texture_data = texture_data;
 
 		texture_data = NULL;
 

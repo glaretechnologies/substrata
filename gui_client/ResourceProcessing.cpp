@@ -48,9 +48,9 @@ static void convertTextureToCompressedKTX2File(KTXDecoder::Format ktx_format, co
 
 			level_image_data[k].resize(level_compressed_size);
 
-			runtimeCheck(tex_data->level_offsets[k].offset + level_compressed_size <= tex_data->frames[0].mipmap_data.size());
+			runtimeCheck(tex_data->level_offsets[k].offset + level_compressed_size <= tex_data->mipmap_data.size());
 
-			std::memcpy(level_image_data[k].data(), &tex_data->frames[0].mipmap_data[tex_data->level_offsets[k].offset], level_compressed_size);
+			std::memcpy(level_image_data[k].data(), &tex_data->mipmap_data[tex_data->level_offsets[k].offset], level_compressed_size);
 		}
 
 		KTXDecoder::writeKTX2File(ktx_format, /*supercompress=*/false, (int)im->getMapWidth(), (int)im->getMapHeight(), level_image_data, save_path);

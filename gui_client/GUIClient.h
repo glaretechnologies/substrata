@@ -79,6 +79,8 @@ class Resource;
 class AsyncTextureLoader;
 class SubstrataLuaVM;
 struct LoadedBuffer;
+struct AsyncUploadedGeometryInfo;
+struct PBOAsyncUploadedTextureInfo;
 
 
 struct ResourceUserList
@@ -355,6 +357,9 @@ public:
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
+	void handleUploadedMeshData(const std::string& lod_model_url, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, UID voxel_ob_uid, int voxel_ob_model_lod_level, int voxel_subsample_factor);
+	void handleUploadedTexture(const std::string& path, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
+
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
 	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
@@ -514,8 +519,10 @@ public:
 
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
-	
 	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
+
+	std::deque<Reference<ModelLoadedThreadMessage> > async_model_loaded_messages_to_process;
+	std::deque<Reference<TextureLoadedThreadMessage> > async_texture_loaded_messages_to_process;
 	
 	bool process_model_loaded_next;
 
@@ -632,7 +639,7 @@ public:
 	Reference<OpenGLMeshRenderData> cur_loading_mesh_data;
 	std::string cur_loading_lod_model_url;
 	bool cur_loading_dynamic_physics_shape;
-	WorldObjectRef cur_loading_voxel_ob;
+	UID cur_loading_voxel_ob_uid;
 	int cur_loading_voxel_subsample_factor;
 	PhysicsShape cur_loading_physics_shape;
 	int cur_loading_voxel_ob_model_lod_level;
@@ -706,7 +713,7 @@ public:
 
 	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down, B_down;
 
-	std::vector<Reference<ThreadMessage> > temp_msgs;
+	js::Vector<Reference<ThreadMessage>, 16> temp_msgs;
 
 	bool extracted_anim_data_loaded;
 
@@ -738,4 +745,30 @@ public:
 	bool last_cursor_movement_was_from_mouse; // as opposed to from gamepad moving crosshair.
 
 	bool sent_perform_gesture_without_stop_gesture;
+
+	struct PBOAsyncTextureUploading
+	{
+		std::string path;
+		Reference<TextureData> tex_data;
+		Reference<OpenGLTexture> opengl_tex;
+		Map2DRef terrain_map;
+	};
+	
+	std::map<Reference<OpenGLTexture>, PBOAsyncTextureUploading> pbo_async_uploading_textures;
+
+
+	struct AsyncGeometryUploading
+	{
+		std::string lod_model_url;
+		bool dynamic_physics_shape;
+		PhysicsShape physics_shape;
+		UID voxel_ob_uid;
+		int voxel_ob_model_lod_level;
+		int voxel_subsample_factor;
+	};
+	
+	std::map<OpenGLMeshRenderDataRef, AsyncGeometryUploading> async_uploading_geom;
+
+	js::Vector<AsyncUploadedGeometryInfo, 16> temp_uploaded_geom_infos;
+	js::Vector<PBOAsyncUploadedTextureInfo, 16> temp_loaded_texture_infos;
 };
