@@ -650,6 +650,9 @@ void MeshLODGenThread::doRun()
 				{
 					conPrint("\tMeshLODGenThread: glare::Exception while generating LOD model: " + e.what());
 				}
+
+				if(should_quit)
+					return;
 			}
 
 			conPrint("MeshLODGenThread: Done generating LOD meshes. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
@@ -693,6 +696,9 @@ void MeshLODGenThread::doRun()
 				{
 					conPrint("\tMeshLODGenThread: excep while generating LOD texture: " + e.what());
 				}
+
+				if(should_quit)
+					return;
 			}
 
 			conPrint("MeshLODGenThread: Done generating LOD textures. (Elapsed: " + timer.elapsedStringNSigFigs(4));
@@ -737,6 +743,9 @@ void MeshLODGenThread::doRun()
 				{
 					conPrint("\tMeshLODGenThread: excep while generating Basis texture: " + e.what());
 				}
+
+				if(should_quit)
+					return;
 			}
 
 			conPrint("MeshLODGenThread: Done generating Basis textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
@@ -751,4 +760,9 @@ void MeshLODGenThread::doRun()
 	{
 		conPrint(std::string("MeshLODGenThread: Caught std::exception: ") + e.what());
 	}
+}
+
+void MeshLODGenThread::kill()
+{
+	should_quit = 1;
 }
