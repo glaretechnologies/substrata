@@ -859,8 +859,8 @@ public:
 
 			CefMouseEvent cef_mouse_event;
 			//cef_mouse_event.Reset();
-			cef_mouse_event.x = uv_x         * mRenderHandler->opengl_tex->xRes();
-			cef_mouse_event.y = (1.f - uv_y) * mRenderHandler->opengl_tex->yRes();
+			cef_mouse_event.x = (int)(uv_x         * mRenderHandler->opengl_tex->xRes());
+			cef_mouse_event.y = (int)((1.f - uv_y) * mRenderHandler->opengl_tex->yRes());
 			cef_mouse_event.modifiers = cef_modifiers;
 
 			int last_click_count = 1;
@@ -874,8 +874,8 @@ public:
 		{
 			CefMouseEvent cef_mouse_event;
 			//cef_mouse_event.Reset();
-			cef_mouse_event.x = uv_x         * mRenderHandler->opengl_tex->xRes();
-			cef_mouse_event.y = (1.f - uv_y) * mRenderHandler->opengl_tex->yRes();
+			cef_mouse_event.x = (int)(uv_x         * mRenderHandler->opengl_tex->xRes());
+			cef_mouse_event.y = (int)((1.f - uv_y) * mRenderHandler->opengl_tex->yRes());
 			cef_mouse_event.modifiers = cef_modifiers;
 
 			bool mouse_leave = false;
@@ -889,8 +889,8 @@ public:
 		{
 			CefMouseEvent cef_mouse_event;
 			//cef_mouse_event.Reset();
-			cef_mouse_event.x = uv_x         * mRenderHandler->opengl_tex->xRes();
-			cef_mouse_event.y = (1.f - uv_y) * mRenderHandler->opengl_tex->yRes();
+			cef_mouse_event.x = (int)(uv_x         * mRenderHandler->opengl_tex->xRes());
+			cef_mouse_event.y = (int)((1.f - uv_y) * mRenderHandler->opengl_tex->yRes());
 			cef_mouse_event.modifiers = cef_modifiers;
 
 			cef_browser->GetHost()->SendMouseWheelEvent(cef_mouse_event, (int)delta_x, (int)delta_y);
