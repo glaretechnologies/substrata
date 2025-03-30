@@ -43,9 +43,11 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 
 	try
 	{
+		Colour3f chat_background_col(0.1f);
+
 		// Create background quad to go behind text
 		background_overlay_ob = new OverlayObject();
-		background_overlay_ob->material.albedo_linear_rgb = Colour3f(0);
+		background_overlay_ob->material.albedo_linear_rgb = chat_background_col;
 		background_overlay_ob->material.alpha = 0.8f;
 		// Init with dummy data, will be updated in updateWidgetTransforms()
 		background_overlay_ob->ob_to_world_matrix = Matrix4f::identity();
@@ -56,7 +58,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 
 		GLUILineEdit::CreateArgs create_args;
 		create_args.width = computeWidgetWidth();
-		create_args.background_colour = Colour3f(0.0f);
+		create_args.background_colour = chat_background_col;
 		create_args.background_alpha = 0.8f;
 		create_args.font_size_px = font_size_px;
 		chat_line_edit = new GLUILineEdit(*gl_ui, opengl_engine, /*dummy botleft=*/Vec2f(0.f), create_args);
