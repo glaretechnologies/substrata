@@ -175,7 +175,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	GLenum is_complete = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if(is_complete != GL_FRAMEBUFFER_COMPLETE)
 	{
-		conPrint("Error: renderMaskMap(): framebuffer is not complete.");
+		conPrint("Error: MiniMap::create(): framebuffer is not complete.");
 		assert(0);
 	}
 
@@ -355,7 +355,7 @@ void MiniMap::think()
 	
 	renderTilesToTexture();
 
-	opengl_engine->setCurrentScene(last_scene);
+	opengl_engine->setCurrentScene(last_scene); // Restore scene to previous scene
 	opengl_engine->setViewportDims(last_viewport);
 	opengl_engine->setTargetFrameBuffer(last_target_framebuffer);
 
