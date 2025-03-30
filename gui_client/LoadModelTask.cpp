@@ -155,6 +155,7 @@ void LoadModelTask::run(size_t thread_index)
 		const size_t total_geom_size_B = index_data_src_offset_B + index_data.size();
 
 		VBORef vbo;
+#if !EMSCRIPTEN
 		for(int i=0; i<10; ++i)
 		{
 			vbo = opengl_engine->vbo_pool.getMappedVBO(total_geom_size_B);
@@ -189,6 +190,7 @@ void LoadModelTask::run(size_t thread_index)
 
 		if(!vbo)
 			conPrint("LoadModelTask: Failed to get mapped VBO for " + toString(total_geom_size_B) + " B");
+#endif
 
 
 		// Send a ModelLoadedThreadMessage back to main window.

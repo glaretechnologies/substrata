@@ -194,6 +194,7 @@ EM_JS(char*, getTranslatedShaderSource, (int32_t nm), {
 
 #endif
 
+
 int main(int argc, char** argv)
 {
 	try
@@ -271,8 +272,10 @@ int main(int argc, char** argv)
 #else
 		Reference<XMLSettingsStore> settings_store = new XMLSettingsStore(appdata_path + "/settings_store.xml");
 #endif
-	
+		
 		//=========================== Init SDL and OpenGL ================================
+		SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, "#canvas"); // Target the canvas element
+
 		if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0)
 			throw glare::Exception("SDL_Init Error: " + std::string(SDL_GetError()));
 
@@ -282,6 +285,9 @@ int main(int argc, char** argv)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		setGLAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+
+		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8); // Enable alpha channel for video alpha cutout
+
 #elif defined(__APPLE__)
 		setGLAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4); // We need to request a specific version for a core profile.
 		setGLAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
@@ -324,6 +330,15 @@ int main(int argc, char** argv)
 		win = SDL_CreateWindow(window_name, 600, 100, primary_W, primary_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 		if(win == nullptr)
 			throw glare::Exception("SDL_CreateWindow Error: " + std::string(SDL_GetError()));
+
+#if EMSCRIPTEN
+		EmscriptenWebGLContextAttributes attrs;
+		emscripten_webgl_init_context_attributes(&attrs);
+
+		attrs.premultipliedAlpha = EM_FALSE; // Disable premultiplied alpha, to get desired blending behaviour for our alpha=0 cutout regions for video playing on web.
+
+		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context("#canvas", &attrs);
+#endif
 
 
 		gl_context = SDL_GL_CreateContext(win);
@@ -816,6 +831,13 @@ static void doOneMainLoopIter()
 					else
 						conPrint("translated_code was NULL");
 				}
+#endif
+			}
+			else if(e.key.keysym.sym == SDLK_F5)
+			{
+#if EMSCRIPTEN
+				EM_ASM( window.location.reload(); ); // Just passing F5 on to the browser doesn't trigger a reload.  Need to call this.
+				continue;
 #endif
 			}
 
