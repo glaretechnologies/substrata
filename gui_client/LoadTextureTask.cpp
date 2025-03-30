@@ -109,6 +109,7 @@ void LoadTextureTask::run(size_t thread_index)
 
 
 		PBORef pbo;
+#if !EMSCRIPTEN
 		if(!texture_data->isMultiFrame())
 		{
 			ArrayRef<uint8> source_data;
@@ -155,6 +156,7 @@ void LoadTextureTask::run(size_t thread_index)
 			if(!pbo)
 				conPrint("LoadTextureTask: Failed to get mapped PBO for " + toString(texture_data->mipmap_data.size()) + " B");
 		}
+#endif
 
 
 		if(hasExtension(key, "gif") && texture_data->totalCPUMemUsage() > 100000000)

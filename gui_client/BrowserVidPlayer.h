@@ -45,6 +45,8 @@ public:
 private:
 	void createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob);
 
+	GUIClient* m_gui_client;
+
 	enum State
 	{
 		State_Unloaded,
@@ -56,6 +58,7 @@ private:
 	std::string loaded_video_url;
 
 	Reference<EmbeddedBrowser> browser;
+	int html_view_handle;
 
 	bool previous_is_visible;
 };

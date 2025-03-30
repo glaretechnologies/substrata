@@ -21,21 +21,46 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/PlatformUtils.h>
 #include <utils/Base64.h>
 #include "superluminal/PerformanceAPI.h"
+#if EMSCRIPTEN
+#include <emscripten.h>
+#endif
 
 
 #define GL_BGRA                           0x80E1
 
 
+#if EMSCRIPTEN
+EM_JS(void, destroyHTMLViewJS, (int handle), {
+	console.log("=================destroyHTMLViewJS()================");
+	
+	let div = html_view_elem_handle_to_div_map[handle];
+	div.remove();
+	delete html_view_elem_handle_to_div_map.handle; // Remove from html_view_elem_handle_to_div_map
+});
+#endif
+
+
 BrowserVidPlayer::BrowserVidPlayer()
 :	browser(NULL),
 	previous_is_visible(true),
-	state(State_Unloaded)
+	state(State_Unloaded),
+	m_gui_client(NULL),
+	html_view_handle(-1)
 {}
 
 
 BrowserVidPlayer::~BrowserVidPlayer()
 {
 	browser = NULL;
+
+#if EMSCRIPTEN
+	// If there is a browser, destroy it.
+	if(html_view_handle >= 0)
+	{
+		destroyHTMLViewJS(html_view_handle);
+		html_view_handle = -1;
+	}
+#endif
 }
 
 
@@ -48,7 +73,7 @@ static void checkYouTubeVideoID(const std::string& s)
 }
 
 
-// For youtube URLs, we want to transform the URL into an embedded webpage, and encode it into a data URL.
+// For YouTube URLs, we want to transform the URL into an embedded webpage, and encode it into a data URL.
 // Throws glare::Exception on failure.
 static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int width, int height, WorldObject* ob, ResourceManager& resource_manager, const std::string& server_hostname)
 {
@@ -209,7 +234,7 @@ static void getVidTextureDimensions(const std::string& video_URL, WorldObject* o
 	{
 		// Use standard YouTube embed aspect ratio.  See also MainWindow::on_actionAdd_Video_triggered().
 		width_out = 1024;
-		height_out = (int)(1024.f / 1920.f * 1080.f);
+		height_out = (int)(1024.f / 1920.f * 1080.f); // = 576
 	}
 }
 
@@ -267,15 +292,310 @@ void BrowserVidPlayer::createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngin
 }
 
 
+#if EMSCRIPTEN
+
+
+EM_JS(int, makeHTMLViewJS, (), {
+	console.log("=================makeHTMLViewJS()================");
+	let new_div = document.createElement('div');
+	new_div.className = 'transformable-html-view';
+	document.getElementById('iframe-container-camera').appendChild(new_div);
+
+	// Make handle, insert into global handle->div map
+	let handle = next_html_view_elem_handle;
+	next_html_view_elem_handle++;
+	html_view_elem_handle_to_div_map[handle] = new_div;
+
+	return handle;
+});
+
+
+EM_JS(void, startLoadingYouTubeIFrameAPI, (), {
+	// Load the YouTube IFrame Player API code asynchronously.  See https://developers.google.com/youtube/iframe_api_reference
+	var tag = document.createElement('script');
+	tag.src = "https://www.youtube.com/iframe_api";
+	var firstScriptTag = document.getElementsByTagName('script')[0];
+	firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+});
+
+
+EM_JS(int, isYouTubeIFrameAPILoaded, (), {
+	return youtube_iframe_API_ready;
+});
+
+
+EM_JS(int, makeYouTubeHTMLView, (const char* video_id, int autoplay, int loop, int muted), {
+	console.log("=================makeYouTubeHTMLView()================");
+	// console.log("video_id: " + UTF8ToString(video_id));
+	// console.log("autoplay: " + autoplay);
+	// console.log("loop: " + loop);
+	// console.log("muted: " + muted);
+
+	if(!youtube_iframe_API_ready)
+		return -2;
+
+	let video_id_str = UTF8ToString(video_id);
+
+	// Get handle
+	let handle = next_html_view_elem_handle;
+	next_html_view_elem_handle++;
+
+	let new_div = document.createElement('div');
+	new_div.className = 'transformable-html-view';
+	new_div.width = '1024';
+	new_div.height = '576';
+	new_div.id = 'transformable-html-view-' + handle.toString(); // Make unique ID
+
+
+	// Make the iframe ourself so we can set credentialless attribute.
+	let youtube_iframe = document.createElement('iframe');
+	youtube_iframe.src = "https://www.youtube.com/embed/" + video_id_str + "?enablejsapi=1&origin=" + window.location.protocol + "//" + window.location.host;
+	youtube_iframe.width = '1024';
+	youtube_iframe.height = '576';
+	//youtube_iframe.frameborder = '0';
+	youtube_iframe.id = 'transformable-html-view-youtube-' + handle.toString(); // Make unique ID
+	youtube_iframe.setAttribute('credentialless', "");
+	youtube_iframe.setAttribute('allow', "autoplay");
+	new_div.appendChild(youtube_iframe);
+
+	document.getElementById('iframe-container-camera').appendChild(new_div);
+
+	// insert into global handle->div map
+	html_view_elem_handle_to_div_map[handle] = new_div;
+	
+	let height = 1024;
+	let width = 576;
+	if(autoplay != 0)
+		muted = 1; // Force muted=true if autoplaying, otherwise autoplay doesn't work.
+
+	let player_params = {
+		height: height,
+		width: width,
+		videoId: video_id_str,
+		playerVars: {
+			'playsinline': 1,
+			'autoplay': autoplay,
+			'loop':  loop,
+			'playlist': video_id_str, // Set the playlist to the video ID.  This is needed for looping to work.
+			'mute': (muted ? 1 : 0)
+		},
+		events: {
+			'onReady': function(e) {
+				//console.log("****************player onReady()****************");
+				if(muted) { e.target.mute(); }  // If video should be muted, insert a call to mute the video here.
+				e.target.playVideo();
+			}
+		}
+	};
+
+	//console.log("player_params: ");
+	//console.log(player_params);
+
+	var player = new YT.Player(youtube_iframe, player_params);
+
+	//console.log("makeYouTubeHTMLView() done, returning handle " + handle.toString());
+	return handle;
+});
+
+
+EM_JS(int, makeTwitchHTMLView, (const char* iframe_src_url), {
+	console.log("=================makeTwitchHTMLView()================");
+	console.log("video_id: " + UTF8ToString(iframe_src_url));
+
+	
+	let iframe_src_url_str = UTF8ToString(iframe_src_url);
+
+	// Get handle
+	let handle = next_html_view_elem_handle;
+	next_html_view_elem_handle++;
+
+	let new_div = document.createElement('div');
+	new_div.className = 'transformable-html-view';
+	new_div.id = 'transformable-html-view-' + handle.toString(); // Make unique ID
+
+	// Make the iframe ourself so we can set credentialless attribute.
+	let twitch_iframe = document.createElement('iframe');
+	twitch_iframe.src = iframe_src_url_str;
+	twitch_iframe.width = '1024';
+	twitch_iframe.height = '576';
+	twitch_iframe.frameborder = '0';
+	twitch_iframe.id = 'transformable-html-view-twitch-' + handle.toString(); // Make unique ID
+	twitch_iframe.setAttribute('credentialless', "");
+	new_div.appendChild(twitch_iframe);
+
+	document.getElementById('iframe-container-camera').appendChild(new_div);
+
+	// insert into global handle->div map
+	html_view_elem_handle_to_div_map[handle] = new_div;
+	
+	// console.log("makeTwitchHTMLView() done, returning handle " + handle.toString());
+	return handle;
+});
+
+
+EM_JS(void, setHTMLElementCSSTransform, (int handle, const char* matrix_string), {
+	//console.log("=================setHTMLElementCSSTransform()================");
+	//console.log("handle: " + handle);
+	//console.log("matrix_string: " + UTF8ToString(matrix_string));
+
+	// Lookup div for handle
+	let div = html_view_elem_handle_to_div_map[handle];
+	console.assert(div, "div for handle is null");
+
+	div.style.transform = UTF8ToString(matrix_string);
+
+	let vw = document.getElementById('canvas').offsetWidth;
+	// console.log("JS vw: " + vw.toString());
+	let pers_str = ((0.025 / 0.035) * document.getElementById('canvas').offsetWidth).toString() + "px";
+	// console.log("Setting perspective to " + pers_str);
+	document.getElementById('iframe-container-camera').style.perspective = pers_str;
+});
+
+
+// Define getLocationHost2() function
+EM_JS(char*, getLocationHost2, (), {
+	return stringToNewUTF8(window.location.host);
+});
+
+
+#endif // end if EMSCRIPTEN
+
+
+static bool started_loading_youtube_api = false;
+
+
 void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
-#if CEF_SUPPORT
+	m_gui_client = gui_client;
+
 
 	const double ob_dist_from_cam = ob->pos.getDist(gui_client->cam_controller.getPosition());
 	const double max_play_dist = maxBrowserDist();
+	const double unload_dist = maxBrowserDist() * 1.5;
 	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
+
+	
+#if EMSCRIPTEN
+	if(in_process_dist)
+	{
+		if(html_view_handle < 0)
+		{
+			const std::string& video_url = ob->materials[0]->emission_texture_url;
+
+			const bool is_http_URL = hasPrefix(video_url, "http://") || hasPrefix(video_url, "https://");
+
+			if(is_http_URL)
+			{
+				const URL parsed_URL = URL::parseURL(video_url);
+
+				if(parsed_URL.host == "www.youtube.com" || parsed_URL.host == "youtu.be")
+				{
+					if(!started_loading_youtube_api)
+					{
+						startLoadingYouTubeIFrameAPI();
+						started_loading_youtube_api = true;
+					}
+
+					if(isYouTubeIFrameAPILoaded())
+					{
+						std::string video_id;
+						if(parsed_URL.host == "www.youtube.com")
+						{
+							// Parse query
+							const std::map<std::string, std::string> params = URL::parseQuery(parsed_URL.query);
+							const auto res = params.find("v"); // Find "v" param (video id)
+							if(res != params.end())
+								video_id = res->second;
+							else
+								throw glare::Exception("Could not find video id param (v) in YouTube URL.");
+						}
+						else
+						{
+							// Handle URLs of the form https://youtu.be/SaejB5NSzOs
+							assert(parsed_URL.host == "youtu.be");
+							video_id = eatSuffix(eatPrefix(parsed_URL.path, "/"), "/");
+						}
+
+						checkYouTubeVideoID(video_id); // Check video id so we don't need to worry about escaping it
+
+						const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
+						const bool loop     = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
+						const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
+
+						conPrint("BrowserVidPlayer: Making new YouTube HTML View");
+						html_view_handle = makeYouTubeHTMLView(video_id.c_str(), autoplay ? 1 : 0, loop ? 1 : 0, muted ? 1 : 0);
+					}
+					else
+					{
+						conPrint("waiting for YouTubeIFrameAPI ...");
+					}
+				}
+				else if(parsed_URL.host == "www.twitch.tv")
+				{
+					std::string channel_name = parsed_URL.path;
+					channel_name = eatPrefix(channel_name, "/");
+
+					// Extract URL details to connect to from from webpage URL
+					char* location_host_str = getLocationHost2();
+					const std::string location_host(location_host_str);
+					free(location_host_str);
+
+					const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
+					const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
+					const std::string iframe_src_url = "https://player.twitch.tv/?channel=" + web::Escaping::URLEscape(channel_name) + "&parent=" + location_host + "&autoplay=" + boolToString(autoplay) + "&muted=" + boolToString(muted);
+
+					conPrint("BrowserVidPlayer: Making new Twitch HTML View");
+					html_view_handle = makeTwitchHTMLView(iframe_src_url.c_str());
+				}
+			}
+		}
+	}
+	else // else if !in_process_dist:
+	{
+		if(ob_dist_from_cam >= unload_dist)
+		{
+			// If there is a browser, destroy it.
+			if(html_view_handle >= 0)
+			{
+				destroyHTMLViewJS(html_view_handle);
+				html_view_handle = -1;
+			}
+		}
+	}
+
+
+	// Set transform on the browser iframe div, if it exists.
+	if(html_view_handle >= 0)
+	{
+		const float vw = (float)opengl_engine->getMainViewPortWidth();
+		const float vh = (float)opengl_engine->getMainViewPortHeight();
+		const float cam_dist = (opengl_engine->getCurrentScene()->lens_sensor_dist / opengl_engine->getCurrentScene()->use_sensor_width) * vw;
+
+		const float elem_w_px = 1024;
+		const float elem_h_px = 576;
+
+		const Matrix4f transform = Matrix4f::translationMatrix(vw/2, vh/2 - elem_w_px, cam_dist) * 
+			Matrix4f::scaleMatrix(1, -1, 1) * Matrix4f::translationMatrix(0, -elem_w_px, 0) * Matrix4f::uniformScaleMatrix(elem_w_px) * 
+			opengl_engine->getCurrentScene()->last_view_matrix * ob->obToWorldMatrix() * 
+			/*rot from x-y plane to x-z plane=*/Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::translationMatrix(0, 1, 0) * Matrix4f::scaleMatrix(1, -1, 1) * 
+			Matrix4f::scaleMatrix(1 / elem_w_px, 1 / elem_h_px, 1 / elem_w_px);
+			
+		std::string matrix_string = "matrix3d(";
+		for(int i=0; i<16; ++i)
+		{
+			matrix_string += ::toString(transform.e[i]);
+			if(i + 1 < 16)
+				matrix_string += ", ";
+		}
+		matrix_string += ")";
+		setHTMLElementCSSTransform(html_view_handle, matrix_string.c_str());
+	}
+#endif // end if EMSCRIPTEN
+
+
+#if CEF_SUPPORT
 	if(in_process_dist)
 	{
 		if(state == State_Unloaded)
@@ -404,6 +724,25 @@ void BrowserVidPlayer::mousePressed(MouseEvent* e, const Vec2f& uv_coords)
 
 	if(browser.nonNull())
 		browser->mousePressed(e, uv_coords);
+
+	if(m_gui_client)
+		m_gui_client->showInfoNotification("Interacting with video player");
+
+#if EMSCRIPTEN
+	EM_ASM({
+		document.getElementById('background-div').style.zIndex = 100; // move background to front
+
+		//console.log("Clearing previous timer:");
+		//console.log(move_background_timer_id);
+
+		//clearTimeout(move_background_timer_id);
+
+		move_background_timer_id = setTimeout(function() {
+			//canvas.style.pointerEvents = "auto";
+			document.getElementById('background-div').style.zIndex = -1; // move background to back
+		}, 5000);
+	});
+#endif
 }
 
 

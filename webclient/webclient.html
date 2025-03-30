@@ -11,6 +11,11 @@
 			height:100dvh; /* percentage of viewport height.  See https://www.frontend.fyi/tutorials/finally-a-fix-for-100vh-on-mobile */
 			border: none;
 			display: block; /* Needed to get rid of 4 pixel region under the canvas */
+			background-color: transparent;
+			
+			position: absolute;
+			top: 0;
+			left: 0;
 		}
 		body {
 			margin: 0;
@@ -27,10 +32,68 @@
 			width: 30%;
 			border: 2px solid rgb(150, 150, 150);
 		}
+
+		.background-div {
+			width:100%;
+			height:100dvh; /* percentage of viewport height.  See https://www.frontend.fyi/tutorials/finally-a-fix-for-100vh-on-mobile */
+			border: none;
+			display: block; /* Needed to get rid of 4 pixel region under the canvas */
+			
+			/*z-index: -1;*/ /* TEMP WAS -1*/
+			/*background-color: grey;*/
+			position: absolute;
+			top: 0;
+			left: 0;
+			
+			overflow: hidden;
+		}
+		
+		#iframe-container {
+			border: solid red;
+			transform-origin: top left;
+			transform: translate3d(500px, 100px, 714px) scale3d(1, -1, 1) translate3d(0px, -400px, 0) scale3d(400, 400, 400) translate3d(0px, 0px, -2px) translate3d(0px, 1px, 0px) scale3d(1, -1, 1) scale3d(0.0025, 0.0025, 0.0025);
+			
+			/* model to world and world to cam */ 
+			/*perspective:  500px;*/
+
+			/*translate3d(0, 0, -2)*/
+ 
+			width:  400px;
+			height: 400px;
+			background-color: green;
+			font-size: 30px;
+		}
+		
+		.transformable-html-view {
+			/*border: solid red;*/
+			transform-origin: top left;
+			background-color: blue;
+			width:  1024px;
+			height: 576px;
+			position: absolute; /* to prevent second and later divs being offset downwards */
+			
+			z-index: -1;
+		}
+		
+		#iframe-container-camera {
+			/*transform: translate3d(50%, 50%, 0px);*/
+			perspective:  714px;
+			
+			/*transform-style: preserve-3d;*/
+		
+			width:100%;
+			height:100dvh; /* percentage of viewport height.  See https://www.frontend.fyi/tutorials/finally-a-fix-for-100vh-on-mobile */
+		}
+
 		</style>
 	</head>
 	<body>
 		<div id="status">downloading...</div>
+
+		<div class="background-div" id="background-div">
+			<div id="iframe-container-camera">
+			</div>
+		</div>
 
 		<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
 
@@ -39,7 +102,7 @@
 		isNode = false; // To fix runtime error with new Emscripten
 
 		var statusElement = document.getElementById('status');
-		
+
 		var Module = {
 			print: (function() {})(),
 			canvas: (() => {
@@ -59,7 +122,7 @@
 			totalDependencies: 0,
 			monitorRunDependencies: (left) => {
 				Module.totalDependencies = Math.max(Module.totalDependencies, left);
-				Module.setStatus(left ? 'Preparing... (' + (Module.totalDependencies-left) + '/' + Module.totalDependencies + ')' : 'All downloads complete.');
+				Module.setStatus(left ? 'Preparing... (' + (Module.totalDependencies - left) + '/' + Module.totalDependencies + ')' : 'All downloads complete.');
 			},
 			calledRun: false,
 			onRuntimeInitialized: () => {
@@ -83,14 +146,34 @@
 
 		Module.setStatus('Downloading...');
 
-		window.onerror = () => {
-			Module.setStatus('Exception thrown, see JavaScript console');
-			
+		window.onerror = (message, source, lineno, colno, error) => {
+			Module.setStatus('Exception thrown: ' + message);
+
 			Module.setStatus = (text) => {
 				if (text) console.error('[post-exception status] ' + text);
 			};
 		};
-		</script>
-		<script async type="text/javascript" src="/webclient/gui_client.js?hash=GUI_CLIENT_JS_HASH"></script>
+
+
+		var next_html_view_elem_handle = 1;
+		var html_view_elem_handle_to_div_map = {};
+		var youtube_iframe_API_ready = false;
+
+		function onYouTubeIframeAPIReady() {
+			console.log("****************onYouTubeIframeAPIReady()*************************");
+			youtube_iframe_API_ready = true;
+		}
+
+		var move_background_timer_id = null;
+		
+		var background_div = document.getElementById('background-div');
+		background_div.addEventListener('mousedown', function(e) {
+			console.log("background mousedown event, moving to background...");
+			background_div.style.zIndex = -1; 
+		});
+	</script>
+
+	<script async type="text/javascript" src="/webclient/gui_client.js?hash=GUI_CLIENT_JS_HASH"></script>
+
 	</body>
 </html>
