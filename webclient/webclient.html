@@ -39,6 +39,7 @@
 			border: none;
 			display: block; /* Needed to get rid of 4 pixel region under the canvas */
 			
+			z-index: -1;
 			/*z-index: -1;*/ /* TEMP WAS -1*/
 			/*background-color: grey;*/
 			position: absolute;
@@ -67,20 +68,17 @@
 		.transformable-html-view {
 			/*border: solid red;*/
 			transform-origin: top left;
-			background-color: blue;
+			background-color: grey;
 			width:  1024px;
 			height: 576px;
 			position: absolute; /* to prevent second and later divs being offset downwards */
 			
-			z-index: -1;
+			/*z-index: -1;*/
 		}
 		
 		#iframe-container-camera {
-			/*transform: translate3d(50%, 50%, 0px);*/
 			perspective:  714px;
-			
-			/*transform-style: preserve-3d;*/
-		
+			transform-style: preserve-3d; /* To make objects occlude each other properly in 3d */
 			width:100%;
 			height:100dvh; /* percentage of viewport height.  See https://www.frontend.fyi/tutorials/finally-a-fix-for-100vh-on-mobile */
 		}
@@ -168,7 +166,7 @@
 		
 		var background_div = document.getElementById('background-div');
 		background_div.addEventListener('mousedown', function(e) {
-			console.log("background mousedown event, moving to background...");
+			console.log("background mousedown event, moving background back to background...");
 			background_div.style.zIndex = -1; 
 		});
 	</script>

@@ -42,9 +42,13 @@ public:
 	void handleTextInputEvent(TextInputEvent& e);
 
 private:
+	void startInteractingWithWebViewEmscripten();
+	GUIClient* m_gui_client;
+
 	std::string loaded_target_url;
 
 	Reference<EmbeddedBrowser> browser;
+	int html_view_handle;
 
 	bool showing_click_to_load_text;
 	bool user_clicked_to_load;
