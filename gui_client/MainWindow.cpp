@@ -1563,8 +1563,9 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+			// Don't transform to basis URLs, the server will want the original PNG/JPEGs.
 			std::set<DependencyURL> paths;
-			avatar.getDependencyURLSet(/*ob_lod_level=*/0, /*use_basis=*/gui_client.server_has_basis_textures, paths);
+			avatar.getDependencyURLSet(/*ob_lod_level=*/0, /*use_basis=*/false, paths);
 			for(auto it = paths.begin(); it != paths.end(); ++it)
 			{
 				const std::string path = it->URL;
