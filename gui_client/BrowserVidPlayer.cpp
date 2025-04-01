@@ -45,7 +45,8 @@ BrowserVidPlayer::BrowserVidPlayer()
 	previous_is_visible(true),
 	state(State_Unloaded),
 	m_gui_client(NULL),
-	html_view_handle(-1)
+	html_view_handle(-1),
+	using_iframe(false)
 {}
 
 
@@ -458,6 +459,76 @@ EM_JS(char*, getLocationHost2, (), {
 });
 
 
+EM_JS(int, makeHTMLVideoElement, (const char* http_URL, int autoplay, int loop, int muted), {
+	console.log("=================makeHTMLVideoElement()================");
+	console.log("http_URL: " + UTF8ToString(http_URL));
+
+	let handle = next_html_view_elem_handle;
+	next_html_view_elem_handle++;
+
+	let video_elem = document.createElement('video');
+	video_elem.src = UTF8ToString(http_URL);
+	if(autoplay)
+		video_elem.setAttribute('autoplay', ""); 
+	if(loop)
+		video_elem.setAttribute('loop', "");
+	if(muted)
+		video_elem.setAttribute('muted', "");
+
+	// There's a bug in Chrome where the muted attribute doesn't work.  Work around it:  (see https://stackoverflow.com/questions/47638344/muted-autoplay-in-chrome-still-not-working)
+	video_elem.addEventListener("canplay", (event) => { video_elem.muted = true; });
+	
+	document.getElementById('background-div').appendChild(video_elem);
+
+	html_view_elem_handle_to_div_map[handle] = video_elem;
+
+	return handle;
+});
+
+
+// Should return 0 if the video metadata has not been loaded yet.
+EM_JS(int, getVideoWidth, (int handle), {
+	//console.log("=================getVideoWidth()================");
+
+	console.assert(html_view_elem_handle_to_div_map[handle]);
+	return html_view_elem_handle_to_div_map[handle].videoWidth;
+});
+
+
+// Should return 0 if the video metadata has not been loaded yet.
+EM_JS(int, getVideoHeight, (int handle), {
+	//console.log("=================getVideoHeight()================");
+
+	console.assert(html_view_elem_handle_to_div_map[handle]);
+	return html_view_elem_handle_to_div_map[handle].videoHeight;
+});
+
+
+EM_JS(void, updateOpenGLTexWithVideoElementFrame, (int tex_handle, int video_elem_handle), {
+	//console.log("=================updateOpenGLTexWithVideoElementFrame()================");
+	//console.log("tex_handle: " + tex_handle);
+	//console.log("video_elem_handle: " + video_elem_handle);
+
+	console.assert(html_view_elem_handle_to_div_map[video_elem_handle]);
+	console.assert(GL.textures[tex_handle]);
+
+	let video_elem = html_view_elem_handle_to_div_map[video_elem_handle];
+
+	let width  = video_elem.videoWidth;
+	let height = video_elem.videoHeight;
+
+	let gl_tex = GL.textures[tex_handle];
+
+	let gl = GLctx;
+
+	gl.bindTexture(gl.TEXTURE_2D, gl_tex);
+
+	gl.texSubImage2D(gl.TEXTURE_2D, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0, width, height, /*format=*/gl.RGB, /*type=*/gl.UNSIGNED_BYTE, /*source=*/video_elem);	
+	
+	gl.bindTexture(gl.TEXTURE_2D, null); // unbind
+});
+
+
 #endif // end if EMSCRIPTEN
 
 
@@ -480,7 +551,7 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 #if EMSCRIPTEN
 	if(in_process_dist)
 	{
-		if(html_view_handle < 0)
+		if(html_view_handle < 0) // If HTML view not created yet:
 		{
 			const std::string& video_url = ob->materials[0]->emission_texture_url;
 
@@ -549,6 +620,28 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 					conPrint("BrowserVidPlayer: Making new Twitch HTML View");
 					html_view_handle = makeTwitchHTMLView(iframe_src_url.c_str());
 				}
+
+				if(html_view_handle >= 0) // If loaded:
+				{
+					// Now that we are loading the iframe, draw this object with alpha zero.
+					ob->opengl_engine_ob->materials[0].alpha = 0.f; // Set alpha to zero for alpha-cutout technique, to show web views in iframe under the opengl canvas.
+					opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
+				}
+
+				using_iframe = true;
+			}
+			else // Else non-http: (e.g. mp4 resource)
+			{
+				const std::string video_http_URL = "/resource/" + ob->materials[0]->emission_texture_url;
+
+				const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
+				const bool loop     = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
+				const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
+
+				// Make <video> element, append to page
+				html_view_handle = makeHTMLVideoElement(video_http_URL.c_str(), autoplay ? 1 : 0, loop ? 1 : 0, muted ? 1 : 0);
+
+				using_iframe = false;
 			}
 		}
 	}
@@ -569,28 +662,63 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 	// Set transform on the browser iframe div, if it exists.
 	if(html_view_handle >= 0)
 	{
-		const float vw = (float)opengl_engine->getMainViewPortWidth();
-		const float vh = (float)opengl_engine->getMainViewPortHeight();
-		const float cam_dist = (opengl_engine->getCurrentScene()->lens_sensor_dist / opengl_engine->getCurrentScene()->use_sensor_width) * vw;
-
-		const float elem_w_px = 1024;
-		const float elem_h_px = 576;
-
-		const Matrix4f transform = Matrix4f::translationMatrix(vw/2, vh/2 - elem_w_px, cam_dist) * 
-			Matrix4f::scaleMatrix(1, -1, 1) * Matrix4f::translationMatrix(0, -elem_w_px, 0) * Matrix4f::uniformScaleMatrix(elem_w_px) * 
-			opengl_engine->getCurrentScene()->last_view_matrix * ob->obToWorldMatrix() * 
-			/*rot from x-y plane to x-z plane=*/Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::translationMatrix(0, 1, 0) * Matrix4f::scaleMatrix(1, -1, 1) * 
-			Matrix4f::scaleMatrix(1 / elem_w_px, 1 / elem_h_px, 1 / elem_w_px);
-			
-		std::string matrix_string = "matrix3d(";
-		for(int i=0; i<16; ++i)
+		if(using_iframe)
 		{
-			matrix_string += ::toString(transform.e[i]);
-			if(i + 1 < 16)
-				matrix_string += ", ";
+			const float vw = (float)opengl_engine->getMainViewPortWidth();
+			const float vh = (float)opengl_engine->getMainViewPortHeight();
+			const float cam_dist = (opengl_engine->getCurrentScene()->lens_sensor_dist / opengl_engine->getCurrentScene()->use_sensor_width) * vw;
+
+			const float elem_w_px = 1024;
+			const float elem_h_px = 576;
+
+			const Matrix4f transform = Matrix4f::translationMatrix(vw/2, vh/2 - elem_w_px, cam_dist) * 
+				Matrix4f::scaleMatrix(1, -1, 1) * Matrix4f::translationMatrix(0, -elem_w_px, 0) * Matrix4f::uniformScaleMatrix(elem_w_px) * 
+				opengl_engine->getCurrentScene()->last_view_matrix * ob->obToWorldMatrix() * 
+				/*rot from x-y plane to x-z plane=*/Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::translationMatrix(0, 1, 0) * Matrix4f::scaleMatrix(1, -1, 1) * 
+				Matrix4f::scaleMatrix(1 / elem_w_px, 1 / elem_h_px, 1 / elem_w_px);
+			
+			std::string matrix_string = "matrix3d(";
+			for(int i=0; i<16; ++i)
+			{
+				matrix_string += ::toString(transform.e[i]);
+				if(i + 1 < 16)
+					matrix_string += ", ";
+			}
+			matrix_string += ")";
+			setHTMLElementCSSTransform(html_view_handle, matrix_string.c_str());
 		}
-		matrix_string += ")";
-		setHTMLElementCSSTransform(html_view_handle, matrix_string.c_str());
+		else
+		{
+			// if we haven't created the video texture yet:
+			if(!ob->opengl_engine_ob->materials[0].emission_texture)
+			{
+				const int video_width = getVideoWidth(html_view_handle);
+				if(video_width > 0) // if the video metadata has been loaded:
+				{
+					const int video_height = getVideoHeight(html_view_handle);
+
+					// conPrint("Creating OpenGL texture for vid with dimensions " + toString(video_width) + " x " + toString(video_height) + "...");
+
+					// Although using sRGB internal formats does work, it's very slow.  Likely the nonlinear to linear conversion is done single-threaded on the CPU in the driver or ANGLE.
+					// So just use a RGB format and do the conversion in the phong shader with convert_albedo_from_srgb = true.
+					//
+					// Using a with-alpha (Format_RGBA_Linear_Uint8, GL_RGBA8, GL_RGBA) format here also works and seems just as fast.
+					ob->opengl_engine_ob->materials[0].emission_texture = new OpenGLTexture(video_width, video_height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_RGB_Linear_Uint8,
+						GL_RGB8, // GL internal format
+						GL_RGB, // GL format.
+						OpenGLTexture::Filtering_Bilinear);
+
+					ob->opengl_engine_ob->materials[0].convert_albedo_from_srgb = true;
+					opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
+				}
+			}
+
+			if(ob->opengl_engine_ob->materials[0].emission_texture)
+			{
+				const uint32 tex_handle = ob->opengl_engine_ob->materials[0].emission_texture->texture_handle;
+				updateOpenGLTexWithVideoElementFrame(tex_handle, html_view_handle);
+			}
+		}
 	}
 #endif // end if EMSCRIPTEN
 
@@ -725,23 +853,26 @@ void BrowserVidPlayer::mousePressed(MouseEvent* e, const Vec2f& uv_coords)
 	if(browser.nonNull())
 		browser->mousePressed(e, uv_coords);
 
-	if(m_gui_client)
-		m_gui_client->showInfoNotification("Interacting with video player");
-
 #if EMSCRIPTEN
-	EM_ASM({
-		document.getElementById('background-div').style.zIndex = 100; // move background to front
+	if(using_iframe)
+	{
+		if(m_gui_client)
+			m_gui_client->showInfoNotification("Interacting with video player");
 
-		//console.log("Clearing previous timer:");
-		//console.log(move_background_timer_id);
+		EM_ASM({
+			document.getElementById('background-div').style.zIndex = 100; // move background to front
 
-		//clearTimeout(move_background_timer_id);
+			//console.log("Clearing previous timer:");
+			//console.log(move_background_timer_id);
 
-		move_background_timer_id = setTimeout(function() {
-			//canvas.style.pointerEvents = "auto";
-			document.getElementById('background-div').style.zIndex = -1; // move background to back
-		}, 5000);
-	});
+			//clearTimeout(move_background_timer_id);
+
+			move_background_timer_id = setTimeout(function() {
+				//canvas.style.pointerEvents = "auto";
+				document.getElementById('background-div').style.zIndex = -1; // move background to back
+			}, 5000);
+		});
+	}
 #endif
 }
 
