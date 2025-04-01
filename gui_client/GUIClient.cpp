@@ -2193,9 +2193,6 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
 				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
-#if EMSCRIPTEN
-				opengl_ob->materials[0].alpha = 0.f; // Set alpha to zero for alpha-cutout technique, to show videos in iframe under the opengl canvas.
-#endif
 
 				ob->opengl_engine_ob = opengl_ob;
 				ob->physics_object = physics_ob;

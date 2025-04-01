@@ -60,6 +60,8 @@ private:
 	Reference<EmbeddedBrowser> browser;
 	int html_view_handle;
 
+	bool using_iframe;
+
 	bool previous_is_visible;
 };
 
