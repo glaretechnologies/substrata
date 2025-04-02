@@ -23,6 +23,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/Clock.h>
 #include <utils/PoolAllocator.h>
 #include <utils/Timer.h>
+#include <utils/BufferViewInStream.h>
+#include <zstd.h>
 #if EMSCRIPTEN
 #include <networking/EmscriptenWebSocket.h>
 #endif
@@ -104,6 +106,22 @@ WorldObjectRef ClientThread::allocWorldObject()
 	ob_ptr->allocation_index = alloc_res.index;
 
 	return ob_ptr;
+}
+
+
+static void decompressWithZstdTo(const void* src, size_t src_len, glare::AllocatorVector<unsigned char, 16>& decompressed_buf_out)
+{
+	const uint64 decompressed_size = ZSTD_getFrameContentSize(src, src_len);
+	if(decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN || decompressed_size == ZSTD_CONTENTSIZE_ERROR)
+		throw glare::Exception("Failed to get decompressed_size");
+
+	decompressed_buf_out.resizeNoCopy(decompressed_size);
+
+	const size_t res = ZSTD_decompress(/*dest=*/decompressed_buf_out.data(), /*dest capacity =*/decompressed_buf_out.size(), /*source=*/src, /*compressed size=*/src_len);
+	if(ZSTD_isError(res))
+		throw glare::Exception("Decompression of buffer failed: " + toString(res));
+	if(res < decompressed_size)
+		throw glare::Exception("Decompression of buffer failed: not enough bytes in result");
 }
 
 
@@ -805,6 +823,49 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 				world_state->parcels[parcel->id] = parcel;
 				world_state->dirty_from_remote_parcels.insert(parcel);
 			}
+			break;
+		}
+	case Protocol::ParcelInitialSendCompressed:
+		{
+			// Decompress body with zstd
+			BufferInStream temp_msg_buffer;
+			decompressWithZstdTo(/*src=*/msg_buffer.currentReadPtr(), /*src len=*/msg_buffer.size() - msg_buffer.getReadIndex(), /*decompressed buf out=*/temp_msg_buffer.buf);
+
+			{ // World state lock scope
+				::Lock lock(world_state->mutex);
+
+				while(!temp_msg_buffer.endOfStream())
+				{
+					// Read sub-msg type and length
+					uint32 sub_msg_type_and_len[2];
+					temp_msg_buffer.readData(sub_msg_type_and_len, sizeof(uint32) * 2);
+					const uint32 sub_msg_type = sub_msg_type_and_len[0];
+					const uint32 sub_msg_len  = sub_msg_type_and_len[1];
+					if(sub_msg_type != Protocol::ParcelCreated)
+						throw glare::Exception("sub-message was not ParcelCreated");
+
+					if((sub_msg_len < sizeof(uint32)*2))
+						throw glare::Exception("invalid sub message length");
+
+					const size_t remaining_sub_msg_len = sub_msg_len - sizeof(uint32)*2;
+					if(!temp_msg_buffer.canReadNBytes(remaining_sub_msg_len))
+						throw glare::Exception("invalid sub message length");
+					BufferViewInStream sub_buffer_view(ArrayRef<uint8>((const uint8*)temp_msg_buffer.currentReadPtr(), remaining_sub_msg_len));
+					
+					ParcelRef parcel = new Parcel();
+					const ParcelID parcel_id = readParcelIDFromStream(sub_buffer_view);
+					readFromNetworkStreamGivenID(sub_buffer_view, *parcel, peer_protocol_version);
+					parcel->id = parcel_id;
+					parcel->state = Parcel::State_JustCreated;
+					parcel->from_remote_dirty = true;
+
+					world_state->parcels[parcel->id] = parcel;
+					world_state->dirty_from_remote_parcels.insert(parcel);
+
+					temp_msg_buffer.advanceReadIndex(remaining_sub_msg_len);
+				}
+			} // End world state lock scope
+
 			break;
 		}
 	case Protocol::ParcelDestroyed:

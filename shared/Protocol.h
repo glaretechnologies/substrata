@@ -35,13 +35,14 @@ CyberspaceProtocolVersion
 39: Added QueryMapTiles, MapTilesResult
 40: Added QueryLODChunksMessage, LODChunkInitialSend, LODChunkUpdatedMessage
 41: Added server capabilities uint sent back in initial handshake
+42: Added ParcelInitialSendCompressed
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 41;
+const uint32 CyberspaceProtocolVersion = 42;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -97,6 +98,7 @@ const uint32 QueryObjectsInAABB		= 3022; // Client wants to query objects in a p
 const uint32 ParcelCreated			= 3100;
 const uint32 ParcelDestroyed		= 3101;
 const uint32 ParcelFullUpdate		= 3103;
+const uint32 ParcelInitialSendCompressed		= 3104;
 
 const uint32 QueryParcels			= 3150;
 const uint32 ParcelList				= 3160;
