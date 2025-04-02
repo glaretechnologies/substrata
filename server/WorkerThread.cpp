@@ -45,6 +45,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <algorithm>
 #include <RuntimeCheck.h>
 #include <Timer.h>
+#include <zstd.h>
 
 
 static const bool VERBOSE = false;
@@ -1047,6 +1048,54 @@ void WorkerThread::doRun()
 			}*/
 
 			// Send all current parcel data to client
+			// Send compressed parcel data if the client is new enough to handle it.
+			// As of 3/4/2025, uncompressed parcel data on substrata.info is 308331 B.
+			// With zstd compression: 
+			// Compressed to size 59929 B with compression level 3, compression took 2.454600064083934 ms
+			const bool send_compressed_parcel_data = client_protocol_version >= 42;
+			if(send_compressed_parcel_data)
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+				{ // Lock scope
+					WorldStateLock lock(world_state->mutex);
+					for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
+					{
+						const Parcel* parcel = it->second.getPointer();
+
+						// Build ParcelCreated message in scratch_packet
+						MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
+						writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
+						MessageUtils::updatePacketLengthField(scratch_packet);
+
+						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet to packet
+					}
+				} // End lock scope
+
+				// Compress packet to temp_buf
+				const size_t compressed_bound = ZSTD_compressBound(packet.buf.size());
+				m_temp_buf.resizeNoCopy(compressed_bound);
+	
+				Timer timer;
+				const size_t compressed_size = ZSTD_compress(m_temp_buf.data(), m_temp_buf.size(), packet.buf.data(), packet.buf.size(),
+					ZSTD_CLEVEL_DEFAULT // compression level
+				);
+				if(ZSTD_isError(compressed_size))
+					throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
+				const double compression_elapsed = timer.elapsed();
+				m_temp_buf.resize(compressed_size);
+
+				// Initialise ParcelInitialSendCompressed message in scratch_packet
+				MessageUtils::initPacket(scratch_packet, Protocol::ParcelInitialSendCompressed);
+				scratch_packet.writeData(m_temp_buf.data(), m_temp_buf.size()); // Write compressed data to scratch_packet
+				MessageUtils::updatePacketLengthField(scratch_packet);
+
+				// Write the ParcelInitialSendCompressed message
+				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				socket->flush();
+				conPrint("Sent " + toString(scratch_packet.getWriteIndex()) + " B ParcelInitialSendCompressed message (compression took " + doubleToStringNSigFigs(compression_elapsed * 1.0e3, 4) + " ms)");
+			}
+			else
 			{
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
@@ -1065,6 +1114,7 @@ void WorkerThread::doRun()
 					}
 				} // End lock scope
 
+				// conPrint("Sending total of " + toString(packet.getWriteIndex()) + " B in ParcelCreated messages");
 				socket->writeData(packet.buf.data(), packet.buf.size());
 				socket->flush();
 			}
@@ -2149,6 +2199,25 @@ void WorkerThread::doRun()
 
 								socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
 								socket->flush();
+
+								// TEMP: write to disk
+								FileUtils::writeEntireFile("d:/files/object_data.bin", (const char*)packet.buf.data(), packet.buf.size());
+
+								const size_t compressed_bound = ZSTD_compressBound(packet.buf.size());
+
+								std::vector<uint8> compressed_data;
+								compressed_data.resize(compressed_bound);
+	
+								Timer timer;
+								const int comp_level = ZSTD_CLEVEL_DEFAULT;
+								const size_t compressed_size = ZSTD_compress(compressed_data.data(), compressed_data.size(), packet.buf.data(), packet.buf.size(),
+									comp_level // compression level
+								);
+								const double compression_elapsed = timer.elapsed();
+								compressed_data.resize(compressed_size);
+
+								conPrint("Compressed " + toString(packet.buf.size()) + " B to size " + toString(compressed_size) + " B with compression level " + toString(comp_level) + ", compression took " + toString(compression_elapsed * 1.0e3) + " ms");
+
 							}
 						
 							break;
@@ -2259,6 +2328,25 @@ void WorkerThread::doRun()
 								}
 
 								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on objects took " + timer.elapsedStringNSigFigs(4));
+
+								// TEMP: write to disk
+								FileUtils::writeEntireFile("d:/files/object_data.bin", (const char*)packet.buf.data(), packet.buf.size());
+
+								const size_t compressed_bound = ZSTD_compressBound(packet.buf.size());
+
+								std::vector<uint8> compressed_data;
+								compressed_data.resize(compressed_bound);
+	
+								timer.reset();
+								const int comp_level = ZSTD_CLEVEL_DEFAULT;
+								const size_t compressed_size = ZSTD_compress(compressed_data.data(), compressed_data.size(), packet.buf.data(), packet.buf.size(),
+									comp_level // compression level
+								);
+								const double compression_elapsed = timer.elapsed();
+								compressed_data.resize(compressed_size);
+
+								conPrint("Compressed " + toString(packet.buf.size()) + " B to size " + toString(compressed_size) + " B with compression level " + toString(comp_level) + ", compression took " + toString(compression_elapsed * 1.0e3) + " ms");
+
 							}
 
 							break;
