@@ -476,7 +476,8 @@ EM_JS(int, makeHTMLVideoElement, (const char* http_URL, int autoplay, int loop, 
 		video_elem.setAttribute('muted', "");
 
 	// There's a bug in Chrome where the muted attribute doesn't work.  Work around it:  (see https://stackoverflow.com/questions/47638344/muted-autoplay-in-chrome-still-not-working)
-	video_elem.addEventListener("canplay", (event) => { video_elem.muted = true; });
+	if(muted)
+		video_elem.addEventListener("canplay", (event) => { video_elem.muted = true; });
 	
 	document.getElementById('background-div').appendChild(video_elem);
 
