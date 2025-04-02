@@ -837,6 +837,19 @@ static void markLODChunkAsNeedsRebuildForChangedObject(ServerWorldState* world_s
 }
 
 
+static void compressWithZstd(const void* src, size_t src_size, int compression_level, js::Vector<uint8, 16>& compressed_data_out)
+{
+	// Compress packet to temp_buf
+	const size_t compressed_bound = ZSTD_compressBound(src_size);
+	compressed_data_out.resizeNoCopy(compressed_bound);
+	
+	const size_t compressed_size = ZSTD_compress(/*dest=*/compressed_data_out.data(), /*dest capacity=*/compressed_data_out.size(), /*src=*/src, /*src size=*/src_size, compression_level);
+	if(ZSTD_isError(compressed_size))
+		throw glare::Exception(std::string("Zstd Compression failed: ") + ZSTD_getErrorName(compressed_size));
+	compressed_data_out.resize(compressed_size);
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -1073,17 +1086,9 @@ void WorkerThread::doRun()
 				} // End lock scope
 
 				// Compress packet to temp_buf
-				const size_t compressed_bound = ZSTD_compressBound(packet.buf.size());
-				m_temp_buf.resizeNoCopy(compressed_bound);
-	
 				Timer timer;
-				const size_t compressed_size = ZSTD_compress(m_temp_buf.data(), m_temp_buf.size(), packet.buf.data(), packet.buf.size(),
-					ZSTD_CLEVEL_DEFAULT // compression level
-				);
-				if(ZSTD_isError(compressed_size))
-					throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
+				compressWithZstd(/*src=*/packet.buf.data(), /*src size=*/packet.buf.size(), /*compression level=*/ZSTD_CLEVEL_DEFAULT, /*compressed data out=*/m_temp_buf);
 				const double compression_elapsed = timer.elapsed();
-				m_temp_buf.resize(compressed_size);
 
 				// Initialise ParcelInitialSendCompressed message in scratch_packet
 				MessageUtils::initPacket(scratch_packet, Protocol::ParcelInitialSendCompressed);
