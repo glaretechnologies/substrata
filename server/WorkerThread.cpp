@@ -1047,7 +1047,7 @@ void WorkerThread::doRun()
 				}
 			}*/
 
-			// Send all current parcel data to client
+			// Send all current parcel data to client.
 			// Send compressed parcel data if the client is new enough to handle it.
 			// As of 3/4/2025, uncompressed parcel data on substrata.info is 308331 B.
 			// With zstd compression: 
