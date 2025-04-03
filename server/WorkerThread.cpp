@@ -1125,7 +1125,7 @@ void WorkerThread::doRun()
 			}
 
 			// Send all current LOD chunk data to client, if they are using a sufficiently new protocol version.
-			if(client_protocol_version >= 40)
+			if(client_protocol_version >= 40 && server->config.enable_LOD_chunking)
 			{
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				{
