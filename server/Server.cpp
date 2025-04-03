@@ -505,7 +505,7 @@ int main(int argc, char *argv[])
 		//----------------------------------------------- End launch substrata protocol server -----------------------------------------------
 
 		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(&server, server.world_state.ptr()));
-		if(server_config.disable_LOD_chunking)
+		if(server_config.enable_LOD_chunking)
 			thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 
 		server.udp_handler_thread_manager.addThread(new UDPHandlerThread(&server));
