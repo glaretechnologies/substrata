@@ -193,6 +193,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.allow_light_mapper_bot_full_perms	= XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
 	config.update_parcel_sales					= XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
 	config.do_lua_http_request_rate_limiting	= XMLParseUtils::parseBoolWithDefault(root_elem, "do_lua_http_request_rate_limiting", /*default val=*/true);
+	config.enable_LOD_chunking					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_LOD_chunking", /*default val=*/true);
 	return config;
 }
 
@@ -504,8 +505,8 @@ int main(int argc, char *argv[])
 		//----------------------------------------------- End launch substrata protocol server -----------------------------------------------
 
 		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(&server, server.world_state.ptr()));
-
-		thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
+		if(server_config.enable_LOD_chunking)
+			thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 
 		server.udp_handler_thread_manager.addThread(new UDPHandlerThread(&server));
 
