@@ -232,9 +232,24 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			in_buffer.size = read_chunk_end;
 
 			// Do some decompression
-			const size_t res = ZSTD_decompressStream(dstream, &out_buffer, &in_buffer);
+			size_t res = ZSTD_decompressStream(dstream, &out_buffer, &in_buffer);
 			if(ZSTD_isError(res))
 				throw glare::Exception("Error from ZSTD_decompressStream(): " + std::string(ZSTD_getErrorName(res)));
+
+			if(read_chunk_end == compressed_size) // If we have read all data from socket into compressed_buffer, make sure decompression is finished.
+			{
+				// We may need to call ZSTD_decompressStream one or more times to flush remaining data.  See https://facebook.github.io/zstd/zstd_manual.html#Chapter9
+				int max_num_flush_iters = 1024;
+				int iter = 0;
+				while(out_buffer.pos < out_buffer.size)
+				{
+					res = ZSTD_decompressStream(dstream, &out_buffer, &in_buffer);
+					if(ZSTD_isError(res))
+						throw glare::Exception("Error from ZSTD_decompressStream(): " + std::string(ZSTD_getErrorName(res)));
+					iter++;
+					runtimeCheck(iter < max_num_flush_iters); // Avoid infinite loops on zstd failure or incorrect API usage.
+				}
+			}
 
 			// conPrint("Read " + toString(read_chunk_end) + " / " + toString(compressed_size) + " B of compressed data, decoded " + toString(num_obs_decoded) + " obs");
 
