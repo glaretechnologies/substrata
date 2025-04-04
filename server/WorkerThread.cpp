@@ -53,12 +53,13 @@ static const int MAX_STRING_LEN = 10000;
 static const bool CAPTURE_TRACES = false; // If true, records a trace of data read from the socket, for fuzz seeding.
 
 
-WorkerThread::WorkerThread(const Reference<SocketInterface>& socket_, Server* server_)
+WorkerThread::WorkerThread(const Reference<SocketInterface>& socket_, Server* server_, bool is_websocket_connection_)
 :	socket(socket_),
 	server(server_),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	fuzzing(false),
-	write_trace(false)
+	write_trace(false),
+	is_websocket_connection(is_websocket_connection_)
 {
 	//if(VERBOSE) print("event_fd.efd: " + toString(event_fd.efd));
 
@@ -1125,7 +1126,7 @@ void WorkerThread::doRun()
 			}
 
 			// Send all current LOD chunk data to client, if they are using a sufficiently new protocol version.
-			if(client_protocol_version >= 40 && server->config.enable_LOD_chunking)
+			if((client_protocol_version >= 40) && server->config.enable_LOD_chunking)
 			{
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				{
@@ -1151,6 +1152,14 @@ void WorkerThread::doRun()
 				packet.writeUInt32(Protocol::InitialStateSent);
 				socket->writeData(packet.buf.data(), packet.buf.size());
 			}*/
+
+			// Read client capabilities
+			uint32 client_capabilities = 0;
+			if(client_protocol_version >= 42)
+			{
+				client_capabilities = socket->readUInt32();
+				conPrint("received client_capabilities of " + toString(client_capabilities) + " from client.");
+			}
 
 
 			assert(cur_world_state.nonNull());
@@ -2222,7 +2231,6 @@ void WorkerThread::doRun()
 								compressed_data.resize(compressed_size);
 
 								conPrint("Compressed " + toString(packet.buf.size()) + " B to size " + toString(compressed_size) + " B with compression level " + toString(comp_level) + ", compression took " + toString(compression_elapsed * 1.0e3) + " ms");
-
 							}
 						
 							break;
@@ -2298,7 +2306,7 @@ void WorkerThread::doRun()
 								{
 									const WorldObject* ob = obs[i];
 
-									// Create ObjectInitialSend packet
+									// Create ObjectInitialSend message, store in scratch_packet
 									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
 									ob->writeToNetworkStream(scratch_packet);
 									MessageUtils::updatePacketLengthField(scratch_packet);
@@ -2313,46 +2321,64 @@ void WorkerThread::doRun()
 								}
 							} // End lock scope
 
-							// Send back the data, now we have released the world lock.  Send it back in chunks instead of one big write. (better for websockets)
-							if(!packet.buf.empty())
-							{
-								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(obs.size()) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
-								Timer timer;
+							Timer timer;
 
-								for(size_t i=0; i<chunk_begin_offsets.size(); ++i)
+							const bool use_streaming_zstd_compression = BitUtils::isBitSet(client_capabilities, Protocol::STREAMING_COMPRESSED_OBJECT_SUPPORT);
+							if(use_streaming_zstd_compression)
+							{
+								runtimeCheck(client_protocol_version >= 42);
+
+								compressWithZstd(packet.buf.data(), packet.buf.size(), ZSTD_CLEVEL_DEFAULT, /*compressed data out=*/m_temp_buf);
+
+								const size_t message_size = /*message header size=*/sizeof(uint32)*2 + /*decompressed size size=*/sizeof(uint64) + /*compressed data size=*/m_temp_buf.size();
+								const uint32 msg_header[2] = { Protocol::ObjectInitialSendCompressed, (uint32)message_size };
+								socket->writeData(msg_header, sizeof(uint32) * 2);
+
+								socket->writeUInt64(packet.buf.size()); // Write decompressed size
+
+								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(obs.size()) + " object(s) (orig size: " + toString(packet.buf.size()) + 
+									" B, compressed size: " + toString(m_temp_buf.size()) + " B, compression took " + timer.elapsedStringMSWIthNSigFigs(4) + ")");
+
+								if(!is_websocket_connection)
 								{
-									const size_t chunk_offset = chunk_begin_offsets[i];
-									if(chunk_offset < packet.buf.size())
+									socket->writeData(m_temp_buf.data(), m_temp_buf.size()); // Write all compressed data to network.
+								}
+								else
+								{
+									// Write compressed data in chunks so we can flush occasionally
+									const size_t max_chunk_size = 32768;
+									for(size_t write_i=0; write_i<m_temp_buf.size(); write_i += max_chunk_size)
 									{
-										const size_t chunk_end = ((i + 1) < chunk_begin_offsets.size()) ? chunk_begin_offsets[i + 1] : packet.buf.size();
-										const size_t chunk_size = chunk_end - chunk_offset;
-										runtimeCheck((chunk_offset < packet.buf.size()) && (CheckedMaths::addUnsignedInts(chunk_offset, chunk_size) <= packet.buf.size())); 
-										socket->writeData(&packet.buf[chunk_offset], chunk_size); // Write data to network
-										socket->flush(); // Will cause websockets to send a data frame.
+										const size_t chunk_end = myMin(write_i + max_chunk_size, m_temp_buf.size());
+										runtimeCheck((write_i < m_temp_buf.size()) && (CheckedMaths::addUnsignedInts(write_i, chunk_end - write_i) <= m_temp_buf.size())); 
+										socket->writeData(&m_temp_buf[write_i], chunk_end - write_i); // Write data to network
+										socket->flush(); // Will cause websocket to send a data frame.
 									}
 								}
-
-								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on objects took " + timer.elapsedStringNSigFigs(4));
-
-								// TEMP: write to disk
-								FileUtils::writeEntireFile("d:/files/object_data.bin", (const char*)packet.buf.data(), packet.buf.size());
-
-								const size_t compressed_bound = ZSTD_compressBound(packet.buf.size());
-
-								std::vector<uint8> compressed_data;
-								compressed_data.resize(compressed_bound);
-	
-								timer.reset();
-								const int comp_level = ZSTD_CLEVEL_DEFAULT;
-								const size_t compressed_size = ZSTD_compress(compressed_data.data(), compressed_data.size(), packet.buf.data(), packet.buf.size(),
-									comp_level // compression level
-								);
-								const double compression_elapsed = timer.elapsed();
-								compressed_data.resize(compressed_size);
-
-								conPrint("Compressed " + toString(packet.buf.size()) + " B to size " + toString(compressed_size) + " B with compression level " + toString(comp_level) + ", compression took " + toString(compression_elapsed * 1.0e3) + " ms");
-
 							}
+							else
+							{
+								// Send back the data, now we have released the world lock.  Send it back in chunks instead of one big write. (better for websockets)
+								if(!packet.buf.empty())
+								{
+									conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(obs.size()) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+
+									for(size_t i=0; i<chunk_begin_offsets.size(); ++i)
+									{
+										const size_t chunk_offset = chunk_begin_offsets[i];
+										if(chunk_offset < packet.buf.size())
+										{
+											const size_t chunk_end = ((i + 1) < chunk_begin_offsets.size()) ? chunk_begin_offsets[i + 1] : packet.buf.size();
+											const size_t chunk_size = chunk_end - chunk_offset;
+											runtimeCheck((chunk_offset < packet.buf.size()) && (CheckedMaths::addUnsignedInts(chunk_offset, chunk_size) <= packet.buf.size())); 
+											socket->writeData(&packet.buf[chunk_offset], chunk_size); // Write data to network
+											socket->flush(); // Will cause websockets to send a data frame.
+										}
+									}
+								}
+							}
+
+							conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on objects took " + timer.elapsedStringNSigFigs(4));
 
 							break;
 						}

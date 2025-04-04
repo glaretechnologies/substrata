@@ -26,6 +26,7 @@ class WorldObject;
 class SocketInterface;
 struct tls_config;
 namespace glare { class PoolAllocator; }
+struct ZSTD_DCtx_s;
 
 
 class ChatMessage : public ThreadMessage
@@ -251,6 +252,7 @@ public:
 	Reference<WorldState> world_state;
 private:
 	void readAndHandleMessage(uint32 peer_protocol_version);
+	void handleObjectInitialSend(RandomAccessInStream& msg_stream);
 
 	UID client_avatar_uid;
 
@@ -277,4 +279,6 @@ private:
 
 	ThreadManager client_sender_thread_manager;
 	Reference<ClientSenderThread> client_sender_thread		GUARDED_BY(data_to_send_mutex);
+
+	ZSTD_DCtx_s* dstream;
 };
