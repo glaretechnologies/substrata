@@ -2213,24 +2213,6 @@ void WorkerThread::doRun()
 
 								socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
 								socket->flush();
-
-								// TEMP: write to disk
-								FileUtils::writeEntireFile("d:/files/object_data.bin", (const char*)packet.buf.data(), packet.buf.size());
-
-								const size_t compressed_bound = ZSTD_compressBound(packet.buf.size());
-
-								std::vector<uint8> compressed_data;
-								compressed_data.resize(compressed_bound);
-	
-								Timer timer;
-								const int comp_level = ZSTD_CLEVEL_DEFAULT;
-								const size_t compressed_size = ZSTD_compress(compressed_data.data(), compressed_data.size(), packet.buf.data(), packet.buf.size(),
-									comp_level // compression level
-								);
-								const double compression_elapsed = timer.elapsed();
-								compressed_data.resize(compressed_size);
-
-								conPrint("Compressed " + toString(packet.buf.size()) + " B to size " + toString(compressed_size) + " B with compression level " + toString(comp_level) + ", compression took " + toString(compression_elapsed * 1.0e3) + " ms");
 							}
 						
 							break;
