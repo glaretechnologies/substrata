@@ -29,7 +29,7 @@ class WorkerThread : public MessageableThread
 {
 public:
 	// May throw glare::Exception from constructor if EventFD init fails.
-	WorkerThread(const Reference<SocketInterface>& socket, Server* server);
+	WorkerThread(const Reference<SocketInterface>& socket, Server* server, bool is_websocket_connection);
 	virtual ~WorkerThread();
 
 	virtual void doRun() override;
@@ -70,4 +70,6 @@ private:
 	bool write_trace; // Should we write a record of network traffic to disk for fuzz seeding?
 
 	glare::AtomicInt should_quit;
+
+	bool is_websocket_connection;
 };

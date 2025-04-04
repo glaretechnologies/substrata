@@ -42,18 +42,26 @@ ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_q
 	all_objects_received(false),
 	config(config_),
 	world_ob_pool_allocator(world_ob_pool_allocator_),
-	send_data_to_socket(false)
+	send_data_to_socket(false),
+	dstream(nullptr)
 {
 #if !defined(EMSCRIPTEN)
 	MySocketRef mysocket = new MySocket();
 	mysocket->setUseNetworkByteOrder(false);
 	socket = mysocket;
 #endif
+
+	dstream = ZSTD_createDStream();
+	if(!dstream)
+		throw glare::Exception("ZSTD_createDStream failed.");
 }
 
 
 ClientThread::~ClientThread()
-{}
+{
+	if(dstream)
+		ZSTD_freeDStream(dstream);
+}
 
 
 void ClientThread::kill()
@@ -119,9 +127,49 @@ static void decompressWithZstdTo(const void* src, size_t src_len, glare::Allocat
 
 	const size_t res = ZSTD_decompress(/*dest=*/decompressed_buf_out.data(), /*dest capacity =*/decompressed_buf_out.size(), /*source=*/src, /*compressed size=*/src_len);
 	if(ZSTD_isError(res))
-		throw glare::Exception("Decompression of buffer failed: " + toString(res));
+		throw glare::Exception("Decompression of buffer failed: " + std::string(ZSTD_getErrorName(res)));
 	if(res < decompressed_size)
 		throw glare::Exception("Decompression of buffer failed: not enough bytes in result");
+}
+
+
+void ClientThread::handleObjectInitialSend(RandomAccessInStream& msg_stream)
+{
+	// NOTE: currently same code/semantics as ObjectCreated
+	//conPrint("ObjectInitialSend");
+	const UID object_uid = readUIDFromStream(msg_stream);
+
+	// Read from stream
+	WorldObjectRef ob = allocWorldObject();
+	ob->uid = object_uid;
+	readWorldObjectFromNetworkStreamGivenUID(msg_stream, *ob);
+
+	if(!isFinite(ob->angle))
+		ob->angle = 0;
+	if(!ob->axis.isFinite())
+		ob->axis = Vec3f(1,0,0);
+
+	ob->state = WorldObject::State_InitialSend;
+	ob->from_remote_other_dirty = true;
+	ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+
+	// TEMP HACK: set a smaller max loading distance for CV features
+	const char* feature_prefix = "CryptoVoxels Feature, uuid: ";
+	if(hasPrefix(ob->content, feature_prefix))
+		ob->max_load_dist2 = Maths::square(100.f);
+
+	// Insert into world state.
+	{
+		::Lock lock(world_state->mutex);
+
+		// When a client moves and a new cell comes into proximity, a QueryObjects message is sent to the server.
+		// The server replies with ObjectInitialSend messages.
+		// This means that the client may already have the object inserted, when moving back into a cell previously in proximity.
+		// We want to make sure not to add the object twice or load it into the graphics engine twice.
+		const bool added = world_state->objects.insert(object_uid, ob);
+		if(added)
+			world_state->dirty_from_remote_objects.insert(ob);
+	}
 }
 
 
@@ -129,15 +177,109 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 {
 	// Read msg type and length
 	uint32 msg_type_and_len[2];
-	socket->readData(msg_type_and_len, sizeof(uint32) * 2);
+	const size_t msg_header_size_B = sizeof(uint32) * 2;
+	socket->readData(msg_type_and_len, msg_header_size_B);
 	const uint32 msg_type = msg_type_and_len[0];
-	const uint32 msg_len = msg_type_and_len[1];
+	const uint32 msg_len  = msg_type_and_len[1]; // Total message length, including the message header.
 				
 	// conPrint("ClientThread: Read message header: id: " + toString(msg_type) + ", len: " + toString(msg_len));
 
-	if((msg_len < sizeof(uint32) * 2) || (msg_len > 1000000))
+	if(msg_len < msg_header_size_B)
 		throw glare::Exception("Invalid message size: " + toString(msg_len));
 
+	// Handle ObjectInitialSendCompressed specially since we do a streaming read and decompression of its body.
+	if(msg_type == Protocol::ObjectInitialSendCompressed)
+	{
+		// Do streaming decompression of objects
+
+		if(msg_len < msg_header_size_B + sizeof(uint64)) // Message should contain decompressed_size uint64.
+			throw glare::Exception("Invalid message size: " + toString(msg_len));
+
+		const uint64 decompressed_size = socket->readUInt64();
+		const size_t compressed_size = msg_len - (msg_header_size_B + sizeof(uint64)); // Compressed data is the rest of the message after the header and decompressed size
+
+		if(decompressed_size > 100000000)
+			throw glare::Exception("ObjectInitialSendCompressed: decompressed_size is too large: " + toString(decompressed_size)); 
+		if(compressed_size > 100000000)
+			throw glare::Exception("ObjectInitialSendCompressed: compressed_size is too large: " + toString(compressed_size)); 
+		
+		ZSTD_initDStream(dstream); // Call before new decompression operation using same DStream
+
+		js::Vector<uint8, 16> compressed_buffer(compressed_size);
+		js::Vector<uint8, 16> decompressed_buffer(decompressed_size);
+
+		ZSTD_outBuffer out_buffer;
+		out_buffer.dst = decompressed_buffer.data(); // start of output buffer
+		out_buffer.size = decompressed_size; // size of output buffer
+		out_buffer.pos = 0; // position where writing stopped. Will be updated. Necessarily 0 <= pos <= size
+
+		ZSTD_inBuffer in_buffer;
+		in_buffer.src = compressed_buffer.data(); // start of input buffer
+		in_buffer.size = 0; // size of input buffer
+		in_buffer.pos = 0; // position where reading stopped. Will be updated. Necessarily 0 <= pos <= size
+
+		size_t next_ob_send_msg_start_i = 0; // Byte index in decompressed_buffer where the next ObjectInitialSend message will start.
+		size_t num_obs_decoded = 0;
+
+		const size_t max_read_chunk_size = 32768; // max number of bytes to read per socket read call.  The first zstd decoded data arrives after ~= 32768 input bytes, so no point reading much smaller amounts.
+		for(size_t read_i=0; read_i<compressed_size; read_i += max_read_chunk_size)
+		{
+			// Read some data from network to compressed_buffer
+			const size_t read_chunk_end = myMin(read_i + max_read_chunk_size, compressed_size);
+			const size_t read_chunk_actual_size = read_chunk_end - read_i;
+
+			socket->readData(/*dest buf=*/compressed_buffer.data() + read_i, /*num bytes=*/read_chunk_actual_size);
+			in_buffer.size = read_chunk_end;
+
+			// Do some decompression
+			const size_t res = ZSTD_decompressStream(dstream, &out_buffer, &in_buffer);
+			if(ZSTD_isError(res))
+				throw glare::Exception("Error from ZSTD_decompressStream(): " + std::string(ZSTD_getErrorName(res)));
+
+			// conPrint("Read " + toString(read_chunk_end) + " / " + toString(compressed_size) + " B of compressed data, decoded " + toString(num_obs_decoded) + " obs");
+
+			// Process any complete ObjectInitialSend messages in our decompressed data
+			while(1)
+			{
+				if((out_buffer.pos - next_ob_send_msg_start_i) >= sizeof(uint32) * 2) // If we have read at least the header of the next ObjectInitialSend message:
+				{
+					uint32 sub_msg_header[2];
+					std::memcpy(sub_msg_header, decompressed_buffer.data() + next_ob_send_msg_start_i, sizeof(uint32) * 2);
+					if(sub_msg_header[0] != Protocol::ObjectInitialSend)
+						throw glare::Exception("invalid sub-msg in ObjectInitialSendCompressed");
+					
+					const size_t sub_msg_len = sub_msg_header[1];
+					if((sub_msg_len < msg_header_size_B) || (sub_msg_len > 1000000))
+						throw glare::Exception("Invalid sub-message size: " + toString(sub_msg_len));
+
+					if((next_ob_send_msg_start_i + sub_msg_len) <= out_buffer.pos) // If we have decompressed this entire sub-message:
+					{
+						// Process it
+						BufferViewInStream sub_msg_buffer_view(ArrayRef<uint8>(decompressed_buffer.data() + next_ob_send_msg_start_i, sub_msg_len));
+						sub_msg_buffer_view.advanceReadIndex(sizeof(uint32) * 2); // Skip header
+
+						handleObjectInitialSend(sub_msg_buffer_view);
+
+						num_obs_decoded++;
+						next_ob_send_msg_start_i += sub_msg_len;
+					}
+					else
+						break;
+				}
+				else
+					break;
+			}
+		}
+
+		// NOTE: do we need to flush the decompression stream here?
+
+		// conPrint("ObjectInitialSendCompressed: Final num objects decoded: " + toString(num_obs_decoded));
+		return;
+	}
+
+	if(msg_len > 1000000)
+		throw glare::Exception("Invalid message size: " + toString(msg_len));
+	
 	// Read entire message
 	msg_buffer.buf.resizeNoCopy(msg_len);
 	msg_buffer.read_index = sizeof(uint32) * 2;
@@ -753,41 +895,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::ObjectInitialSend:
 		{
-			// NOTE: currently same code/semantics as ObjectCreated
-			//conPrint("ObjectInitialSend");
-			const UID object_uid = readUIDFromStream(msg_buffer);
-
-			// Read from network
-			WorldObjectRef ob = allocWorldObject();
-			ob->uid = object_uid;
-			readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
-
-			if(!isFinite(ob->angle))
-				ob->angle = 0;
-			if(!ob->axis.isFinite())
-				ob->axis = Vec3f(1,0,0);
-
-			ob->state = WorldObject::State_InitialSend;
-			ob->from_remote_other_dirty = true;
-			ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
-
-			// TEMP HACK: set a smaller max loading distance for CV features
-			const char* feature_prefix = "CryptoVoxels Feature, uuid: ";
-			if(hasPrefix(ob->content, feature_prefix))
-				ob->max_load_dist2 = Maths::square(100.f);
-
-			// Insert into world state.
-			{
-				::Lock lock(world_state->mutex);
-
-				// When a client moves and a new cell comes into proximity, a QueryObjects message is sent to the server.
-				// The server replies with ObjectInitialSend messages.
-				// This means that the client may already have the object inserted, when moving back into a cell previously in proximity.
-				// We want to make sure not to add the object twice or load it into the graphics engine twice.
-				const bool added = world_state->objects.insert(object_uid, ob);
-				if(added)
-					world_state->dirty_from_remote_objects.insert(ob);
-			}
+			handleObjectInitialSend(msg_buffer);
 			break;
 		}
 	case Protocol::ObjectDestroyed:
@@ -1157,6 +1265,13 @@ void ClientThread::doRun()
 
 		// Read assigned client avatar UID
 		this->client_avatar_uid = readUIDFromStream(*socket);
+
+		if(peer_protocol_version >= 42)
+		{
+			// Send client capabilities
+			const uint32 client_capabilities = Protocol::STREAMING_COMPRESSED_OBJECT_SUPPORT;
+			socket->writeUInt32(client_capabilities);
+		}
 
 		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version, server_capabilities));
 

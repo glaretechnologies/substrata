@@ -733,7 +733,7 @@ void WebServerRequestHandler::handleWebSocketConnection(const web::RequestInfo& 
 	WebSocketRef websocket = new WebSocket(socket);
 
 	// Handle the connection in a worker thread.
-	Reference<WorkerThread> worker_thread = new WorkerThread(websocket, server);
+	Reference<WorkerThread> worker_thread = new WorkerThread(websocket, server, /*is_websocket_connection=*/true);
 
 	worker_thread->websocket_request_info = request_info;
 

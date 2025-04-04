@@ -101,7 +101,8 @@ void ListenerThread::doRun()
 				// Handle the connection in a worker thread.
 				Reference<WorkerThread> worker_thread = new WorkerThread(
 					use_socket,
-					server
+					server,
+					false // is_websocket_connection
 				);
 
 				server->worker_thread_manager.addThread(worker_thread);

@@ -35,7 +35,7 @@ CyberspaceProtocolVersion
 39: Added QueryMapTiles, MapTilesResult
 40: Added QueryLODChunksMessage, LODChunkInitialSend, LODChunkUpdatedMessage
 41: Added server capabilities uint sent back in initial handshake
-42: Added ParcelInitialSendCompressed
+42: Added ParcelInitialSendCompressed, client_capabilities
 */
 namespace Protocol
 {
@@ -93,6 +93,7 @@ const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
 const uint32 QueryObjects			= 3020; // Client wants to query objects in certain grid cells
 const uint32 ObjectInitialSend		= 3021;
 const uint32 QueryObjectsInAABB		= 3022; // Client wants to query objects in a particular AABB
+const uint32 ObjectInitialSendCompressed		= 3023; // A message composed of compressed ObjectInitialSend messages.
 
 
 const uint32 ParcelCreated			= 3100;
@@ -171,5 +172,11 @@ const uint32 EthTransactionSubmitted			= 12002;
 const uint32 EthTransactionSubmissionFailed		= 12003;
 
 const uint32 KeepAlive				= 13000; // A message that doesn't do anything apart from provide a means for the client or server to check a connection is still working by making a socket call.
+
+
+
+
+// Client capabilities
+const uint32 STREAMING_COMPRESSED_OBJECT_SUPPORT = 0x1; // Can the client handle ObjectInitialSendCompressed messages?
 
 } // end namespace Protocol
