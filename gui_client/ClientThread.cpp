@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2024 -
 #if EMSCRIPTEN
 #include <networking/EmscriptenWebSocket.h>
 #endif
+#include <tracy/Tracy.hpp>
 
 
 static const size_t MAX_STRING_LEN = 10000;
@@ -175,6 +176,8 @@ void ClientThread::handleObjectInitialSend(RandomAccessInStream& msg_stream)
 
 void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 {
+	ZoneScopedN("ClientThread::readAndHandleMessage"); // Tracy profiler
+
 	// Read msg type and length
 	uint32 msg_type_and_len[2];
 	const size_t msg_header_size_B = sizeof(uint32) * 2;
@@ -183,6 +186,11 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 	const uint32 msg_len  = msg_type_and_len[1]; // Total message length, including the message header.
 				
 	// conPrint("ClientThread: Read message header: id: " + toString(msg_type) + ", len: " + toString(msg_len));
+#ifdef TRACY_ENABLE
+	const std::string zone_text = "msg type: " + toString(msg_type) + ", len: " + toString(msg_len) + " B";
+	ZoneText(zone_text.c_str(), zone_text.size());
+#endif
+
 
 	if(msg_len < msg_header_size_B)
 		throw glare::Exception("Invalid message size: " + toString(msg_len));
@@ -191,6 +199,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 	if(msg_type == Protocol::ObjectInitialSendCompressed)
 	{
 		// Do streaming decompression of objects
+
+		ZoneScopedN("ClientThread: handling ObjectInitialSendCompressed"); // Tracy profiler
 
 		if(msg_len < msg_header_size_B + sizeof(uint64)) // Message should contain decompressed_size uint64.
 			throw glare::Exception("Invalid message size: " + toString(msg_len));
@@ -950,6 +960,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::ParcelInitialSendCompressed:
 		{
+			ZoneScopedN("ClientThread: handling ParcelInitialSendCompressed"); // Tracy profiler
+
 			// Decompress body with zstd
 			BufferInStream temp_msg_buffer;
 			decompressWithZstdTo(/*src=*/msg_buffer.currentReadPtr(), /*src len=*/msg_buffer.size() - msg_buffer.getReadIndex(), /*decompressed buf out=*/temp_msg_buffer.buf);
@@ -1174,6 +1186,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::LODChunkInitialSend:
 		{
+			ZoneScopedN("ClientThread: handling LODChunkInitialSend"); // Tracy profiler
+
 			LODChunkRef chunk = new LODChunk();
 			readLODChunkFromStream(msg_buffer, *chunk);
 
@@ -1236,14 +1250,17 @@ void ClientThread::doRun()
 
 		socket = new TLSSocket(socket.downcast<MySocket>(), config, hostname);
 #endif
-		conPrint("ClientThread Connected to " + hostname + ":" + toString(port) + "!");
+		TracyMessageL("ClientThread: TLSSocket connected");
+
 
 		// Do initial query-response part of protocol
-		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
-		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
-		socket->writeUInt32(Protocol::ConnectionTypeUpdates); // Write connection type
 
-		socket->writeStringLengthFirst(world_name); // Write world name
+		SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		scratch_packet.writeUInt32(Protocol::CyberspaceHello); // Write hello
+		scratch_packet.writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
+		scratch_packet.writeUInt32(Protocol::ConnectionTypeUpdates); // Write connection type
+		scratch_packet.writeStringLengthFirst(world_name); // Write world name
+		socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 
 
 		// Read hello response from server
@@ -1288,6 +1305,8 @@ void ClientThread::doRun()
 			socket->writeUInt32(client_capabilities);
 		}
 
+		TracyMessageL("ClientThread: read initial data");
+
 		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version, server_capabilities));
 
 #if defined(EMSCRIPTEN)
@@ -1323,8 +1342,6 @@ void ClientThread::doRun()
 #endif
 
 
-		socket->setNoDelayEnabled(true); // We will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
-		
 		while(1)
 		{
 			if(should_die)

@@ -283,6 +283,8 @@ static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_com
 
 void GUIClient::initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_)
 {
+	ZoneScoped; // Tracy profiler
+
 	settings = settings_store_;
 	ui_interface = ui_interface_;
 	high_priority_task_manager = high_priority_task_manager_;
@@ -7629,6 +7631,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->server_capabilities     = connected_msg->server_capabilities;
 
 			logMessage("Connected to server.  server_protocol_version: " + toString(server_protocol_version) + ", server_capabilities: " + toString(server_capabilities));
+
+			TracyMessageL("ClientConnectedToServerMessage received");
 			
 			this->server_has_basis_textures = BitUtils::isBitSet(this->server_capabilities, 0x1u);
 
@@ -11260,6 +11264,8 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 
 	world_state = new WorldState();
 	world_state->url_whitelist->loadDefaultWhitelist();
+
+	TracyMessageL("Creating ClientThread");
 
 	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, server_worldname, this->client_tls_config, this->world_ob_pool_allocator);
 	client_thread->world_state = world_state;
