@@ -17,6 +17,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <FileInStream.h>
 #include <FileOutStream.h>
 #include <IncludeXXHash.h>
+#include <tracy/Tracy.hpp>
 
 
 ResourceManager::ResourceManager(const std::string& base_resource_dir_)
@@ -350,6 +351,7 @@ Version history:
 
 void ResourceManager::loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk)
 {
+	ZoneScoped; // Tracy profiler
 	conPrint("Reading resource info from '" + path + "'...");
 
 	Lock lock(mutex);

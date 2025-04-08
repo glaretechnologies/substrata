@@ -872,8 +872,6 @@ void WorkerThread::doRun()
 
 	try
 	{
-		socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
-
 		// Read hello bytes
 		const uint32 hello = socket->readUInt32();
 		if(hello != Protocol::CyberspaceHello)
