@@ -1177,6 +1177,12 @@ static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_wo
 	{
 		WorldObject* ob = it->second.ptr();
 
+		if(!ob->axis.isFinite())
+			ob->axis = Vec3f(0,0,1);
+
+		if(!isFinite(ob->angle))
+			ob->angle = 0;
+
 		// Update EXCLUDE_FROM_LOD_CHUNK_MESH flag if needed.
 		const bool should_exclude = shouldExcludeObjectFromLODChunkMesh(ob);
 		const bool cur_excluded = BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
