@@ -11933,6 +11933,13 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 void GUIClient::mouseReleased(MouseEvent& e)
 {
+	if(gl_ui.nonNull())
+	{
+		gl_ui->handleMouseRelease(e);
+		if(e.accepted)
+			return;
+	}
+
 	// If we were dragging an object along a movement axis, we have released the mouse button and hence finished the movement.  un-grab the axis.
 	if(grabbed_axis != -1 && selected_ob.nonNull())
 	{
