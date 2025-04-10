@@ -82,6 +82,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 #endif
 	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_minimap", /*default_value=*/default_minimap_expanded);
 	
+	// NOTE: Format_SRGB_Uint8 doesn't work for framebuffers (incomplete) in webgl.
 	minimap_texture = new OpenGLTexture(256, 256, opengl_engine.ptr(), ArrayRef<uint8>(NULL, 0), OpenGLTextureFormat::Format_RGB_Linear_Uint8, OpenGLTexture::Filtering_Bilinear);
 
 	// Create minimap image
@@ -90,6 +91,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", Vec2f(1 - x_margin - minimap_width, gl_ui->getViewportMinMaxY() - y_margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", MINIMAP_Z);
 	minimap_image->overlay_ob->material.albedo_texture = minimap_texture;
 	minimap_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
+	minimap_image->overlay_ob->material.overlay_target_is_nonlinear = false;
 	minimap_image->setColour(Colour3f(1.f));
 	minimap_image->setMouseOverColour(Colour3f(1.f));
 	minimap_image->handler = this;
@@ -656,6 +658,7 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 				downloading_info.texture_params = tex_params;
 				downloading_info.pos = tile_pos;
 				downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(tile_w_ws, /*importance_factor=*/1.f);
+				downloading_info.used_by_other = true;
 
 				// conPrint("Starting to download screenshot '" + URL + "'...");
 				gui_client->startDownloadingResource(URL, tile_pos.toVec4fPoint(), tile_w_ws, downloading_info);
@@ -758,7 +761,7 @@ Vec2f MiniMap::mapUICoordsForWorldSpacePos(const Vec3d& pos)
 
 float MiniMap::computeMiniMapWidth()
 {
-	return myClamp(gl_ui->getUIWidthForDevIndepPixelWidth(300), 0.f, 1.f);
+	return myClamp(gl_ui->getUIWidthForDevIndepPixelWidth(250), 0.f, 1.f);
 }
 
 
