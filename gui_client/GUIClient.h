@@ -91,7 +91,7 @@ struct ResourceUserList
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : build_physics_ob(true), build_dynamic_physics_ob(false), used_by_avatar(false), used_by_terrain(false), used_by_lod_chunk(false) {}
+	DownloadingResourceInfo() : build_physics_ob(true), build_dynamic_physics_ob(false), used_by_terrain(false), used_by_other(false) {}
 
 	TextureParams texture_params; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
 
@@ -104,9 +104,8 @@ struct DownloadingResourceInfo
 	ResourceUserList using_objects;
 	//SmallVector<UID, 4> using_avatar_uids; // UIDs of avatars that use the resource.
 
-	bool used_by_avatar;
 	bool used_by_terrain;
-	bool used_by_lod_chunk;
+	bool used_by_other; // avatar or minimap or LOD chunk
 };
 
 

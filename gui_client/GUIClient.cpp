@@ -891,9 +891,8 @@ void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& ce
 		{
 			// Merge
 			DownloadingResourceInfo& existing_info = this->URL_to_downloading_info[url];
-			existing_info.used_by_avatar    = existing_info.used_by_avatar    || resource_info.used_by_avatar;
-			existing_info.used_by_lod_chunk = existing_info.used_by_lod_chunk || resource_info.used_by_lod_chunk;
 			existing_info.used_by_terrain   = existing_info.used_by_terrain   || resource_info.used_by_terrain;
+			existing_info.used_by_other     = existing_info.used_by_other     || resource_info.used_by_other;
 
 			if(!resource_info.using_objects.using_object_uids.empty())
 				existing_info.using_objects.using_object_uids.push_back(resource_info.using_objects.using_object_uids[0]);
@@ -1374,7 +1373,7 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const std::string& URL) con
 	if(res != URL_to_downloading_info.end())
 	{
 		const DownloadingResourceInfo& info = res->second;
-		if(info.used_by_avatar || info.used_by_terrain || info.used_by_lod_chunk)
+		if(info.used_by_other || info.used_by_terrain)
 			return true;
 
 		// See if the resource is needed by a WorldObject:
@@ -1467,7 +1466,7 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level,
 				info.build_dynamic_physics_ob = false;
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor);
-				info.used_by_avatar = true;
+				info.used_by_other = true;
 
 				startDownloadingResource(url, ob->pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, info);
 			}
@@ -4129,7 +4128,7 @@ void GUIClient::processLoading()
 					opengl_engine->partialLoadOpenGLMeshDataIntoOpenGL(*opengl_engine->vert_buf_allocator, *cur_loading_mesh_data, mesh_data_loading_progress,
 						total_bytes_uploaded, max_total_upload_bytes);
 				}
-				catch(glare::Exception& e)
+				catch(glare::Exception& /*e*/)
 				{
 					//logMessage("Error while loading mesh '" + loading_item_name + "' into OpenGL: " + e.what());
 					cur_loading_mesh_data = NULL;
@@ -6646,7 +6645,7 @@ void GUIClient::updateLODChunkGraphics()
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(chunk_w, /*importance_factor=*/1.f);
 				info.build_physics_ob = false;
-				info.used_by_lod_chunk = true;
+				info.used_by_other = true;
 				startDownloadingResource(chunk->mesh_url, centroid_ws, chunk_w, info);
 			}
 
@@ -6655,7 +6654,7 @@ void GUIClient::updateLODChunkGraphics()
 				DownloadingResourceInfo info;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(chunk_w, /*importance_factor=*/1.f);
-				info.used_by_lod_chunk = true;
+				info.used_by_other = true;
 				startDownloadingResource(chunk->combined_array_texture_url, centroid_ws, chunk_w, info);
 			}
 
@@ -8161,7 +8160,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									downloading_info.build_physics_ob = false;
 									downloading_info.pos = av->pos;
 									downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(1.8f, /*importance_factor=*/1.f);
-									downloading_info.used_by_avatar = true;
+									downloading_info.used_by_other = true;
 									centroid_ws = av->pos.toVec4fPoint();
 									aabb_ws_longest_len = 1.8f;
 
@@ -9281,8 +9280,8 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 				use_print_output.print("Downloading model '" + new_world_object->model_url + "'...");
 				DownloadingResourceInfo info;
 				// NOTE: don't have valid object UID here.  
-				// Just hack isDownloadingResourceCurrentlyNeeded() to return true by setting used_by_avatar.
-				info.used_by_avatar = true;
+				// Just hack isDownloadingResourceCurrentlyNeeded() to return true by setting used_by_other.
+				info.used_by_other = true;
 				startDownloadingResource(new_world_object->model_url, this->cam_controller.getPosition().toVec4fPoint(), 1.f, DownloadingResourceInfo());
 				
 				// Wait until downloaded...
