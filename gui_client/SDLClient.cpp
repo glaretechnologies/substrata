@@ -273,6 +273,16 @@ int main(int argc, char** argv)
 		Reference<XMLSettingsStore> settings_store = new XMLSettingsStore(appdata_path + "/settings_store.xml");
 #endif
 		
+
+
+#if EMSCRIPTEN
+		const double device_pixel_ratio = emscripten_get_device_pixel_ratio();
+#else
+		const double device_pixel_ratio = 1.0;
+#endif
+		printVar(device_pixel_ratio);
+
+
 		//=========================== Init SDL and OpenGL ================================
 		SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, "#canvas"); // Target the canvas element
 
@@ -298,7 +308,11 @@ int main(int argc, char** argv)
 		setGLAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 #endif
 
+#if EMSCRIPTEN
+		const bool use_MSAA = (device_pixel_ratio == 1.0) ? true : false; // device_pixel_ratio != 1 is probably a mobile device, disable MSAA in that case.
+#else
 		const bool use_MSAA = settings_store->getBoolValue("setting/MSAA", /*default value=*/true);
+#endif
 		conPrint("Using MSAA: " + boolToString(use_MSAA));
 		if(use_MSAA)
 		{
@@ -336,14 +350,24 @@ int main(int argc, char** argv)
 		emscripten_webgl_init_context_attributes(&attrs);
 
 		attrs.premultipliedAlpha = EM_FALSE; // Disable premultiplied alpha, to get desired blending behaviour for our alpha=0 cutout regions for video playing on web.
+		attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE; // This is required, otherwise we get a "WebGL: lost context" error on iPad.
 
-		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context("#canvas", &attrs);
-#endif
+		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context("canvas", &attrs);
+		if(ctx == 0)
+			throw glare::Exception("emscripten_webgl_create_context failed.");
 
+		emscripten_webgl_make_context_current(ctx);
+		//gl_context = (SDL_GLContext)ctx;
+		//SDL_GL_MakeCurrent(win, gl_context);
 
 		gl_context = SDL_GL_CreateContext(win);
 		if(!gl_context)
 			throw glare::Exception("OpenGL context could not be created! SDL Error: " + std::string(SDL_GetError()));
+#else
+		gl_context = SDL_GL_CreateContext(win);
+		if(!gl_context)
+			throw glare::Exception("OpenGL context could not be created! SDL Error: " + std::string(SDL_GetError()));
+#endif
 
 
 		// SDL_GL_SetSwapInterval(0); // Disable Vsync
@@ -437,6 +461,9 @@ int main(int argc, char** argv)
 
 #if defined(EMSCRIPTEN)
 		settings.max_tex_CPU_mem_usage = 512 * 1024 * 1024ull;
+
+		if(device_pixel_ratio != 1.0)
+			settings.shadow_mapping_detail = OpenGLEngineSettings::ShadowMappingDetail_low;  // This is probably a mobile device:
 #endif
 
 		opengl_engine = new OpenGLEngine(settings);
@@ -478,13 +505,7 @@ int main(int argc, char** argv)
 
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager);
 
-#if EMSCRIPTEN
-		const double device_pixel_ratio = emscripten_get_device_pixel_ratio();
-#else
-		const double device_pixel_ratio = 1.0;
-#endif
 
-		printVar(device_pixel_ratio);
 		gui_client->afterGLInitInitialise(device_pixel_ratio, opengl_engine, fonts, emoji_fonts);
 
 		gui_client->gl_ui->callbacks = new SDLClientGLUICallbacks();
@@ -563,8 +584,13 @@ int main(int argc, char** argv)
 		opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir + "/data/resources/cirrus.exr"));
 
 
-
+#if EMSCRIPTEN
+		// Just disable bloom on mobile devices, is not working properly, probably due to lack of floating point buffer formats or something similar.
+		const bool bloom = (device_pixel_ratio == 1.0) ? true : false;
+#else
 		const bool bloom = settings_store->getBoolValue("setting/bloom", /*default val=*/true);
+#endif
+		conPrint("Bloom enabled: " + boolToString(bloom));
 		if(bloom)
 			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
 
