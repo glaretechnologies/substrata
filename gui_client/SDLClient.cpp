@@ -149,6 +149,9 @@ static std::vector<float> mem_usage_values;
 static bool show_imgui_info_window = false;
 
 
+static double cur_canvas_css_W = 800; // Current device-independent pixel width.  Canvas element css width in WebGL.
+static double cur_canvas_css_H = 800;
+
 #if EMSCRIPTEN
 
 // Define getLocationHost() function
@@ -309,7 +312,8 @@ int main(int argc, char** argv)
 #endif
 
 #if EMSCRIPTEN
-		const bool use_MSAA = (device_pixel_ratio == 1.0) ? true : false; // device_pixel_ratio != 1 is probably a mobile device, disable MSAA in that case.
+		// Since we are not doing hi dpi rendering, we can have MSAA on.
+		const bool use_MSAA = true; // OLD: (device_pixel_ratio == 1.0) ? true : false; // device_pixel_ratio != 1 is probably a mobile device, disable MSAA in that case.
 #else
 		const bool use_MSAA = settings_store->getBoolValue("setting/MSAA", /*default value=*/true);
 #endif
@@ -341,9 +345,14 @@ int main(int argc, char** argv)
 #else
 		const char* window_name = "Substrata SDL Client";
 #endif
+		// SDL_WINDOW_ALLOW_HIGHDPI results in 1:1 drawable (viewport) pixels to device/hardware pixels.
+		// This is too high res for mobile - rendering is too slow.  So just leave it off for now.
 		win = SDL_CreateWindow(window_name, 600, 100, primary_W, primary_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 		if(win == nullptr)
 			throw glare::Exception("SDL_CreateWindow Error: " + std::string(SDL_GetError()));
+
+		cur_canvas_css_W = primary_W;
+		cur_canvas_css_H = primary_H;
 
 #if EMSCRIPTEN
 		EmscriptenWebGLContextAttributes attrs;
@@ -506,9 +515,14 @@ int main(int argc, char** argv)
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager);
 
 
-		gui_client->afterGLInitInitialise(device_pixel_ratio, opengl_engine, fonts, emoji_fonts);
+		// NOTE: use 1 for device_pixel_ratio as we are not doing high DPI rendering.
+		gui_client->afterGLInitInitialise(/*device_pixel_ratio*/1.f, opengl_engine, fonts, emoji_fonts);
 
 		gui_client->gl_ui->callbacks = new SDLClientGLUICallbacks();
+
+		// A high device_pixel_ratio indicates the UI is going to be very small unless it is scaled up a bit.
+		if(device_pixel_ratio > 2.f)
+			gui_client->gl_ui->setUIScale((float)device_pixel_ratio / 2.f);
 
 
 		URLParseResults url_parse_results;
@@ -644,20 +658,17 @@ static float sensorWidth() { return 0.035f; }
 static float lensSensorDist() { return 0.025f; }
 
 
-static Vec2f GLCoordsForGLWidgetPos(OpenGLEngine& gl_engine, const Vec2f widget_pos)
+static Vec2f GLCoordsForGLWidgetPos(OpenGLEngine& gl_engine, const Vec2f widget_pos, double device_pixel_ratio)
 {
 	const int vp_width  = gl_engine.getViewPortWidth();
 	const int vp_height = gl_engine.getViewPortHeight();
 
-
-	const int device_pixel_ratio = 1; // TEMP main_window->ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
-	const int use_vp_width  = vp_width  / device_pixel_ratio;
-	const int use_vp_height = vp_height / device_pixel_ratio;
-
+	const double use_vp_width  = vp_width  / device_pixel_ratio;
+	const double use_vp_height = vp_height / device_pixel_ratio;
 
 	return Vec2f(
-		 (widget_pos.x - use_vp_width /2) / (use_vp_width /2),
-		-(widget_pos.y - use_vp_height/2) / (use_vp_height/2)
+		(float)( (widget_pos.x - use_vp_width /2) / (use_vp_width /2)),
+		(float)(-(widget_pos.y - use_vp_height/2) / (use_vp_height/2))
 	);
 }
 
@@ -803,6 +814,8 @@ static void doOneMainLoopIter()
 	}
 #endif
 
+	double canvas_drawable_pixels_per_css_pixels = (double)opengl_engine->getMainViewPortWidth() / cur_canvas_css_W;
+
 	// Handle any events
 	SDL_Event e;
 	while(SDL_PollEvent(&e))
@@ -833,7 +846,19 @@ static void doOneMainLoopIter()
 				opengl_engine->setViewportDims(w, h);
 				opengl_engine->setMainViewportDims(w, h);
 
-				gui_client->viewportResized(w, h);
+#if EMSCRIPTEN
+				emscripten_get_element_css_size("canvas", &cur_canvas_css_W, &cur_canvas_css_H);
+				// conPrint("emscripten_get_element_css_size returned " + toString(cur_canvas_css_W) + " x " + toString(cur_canvas_css_H));
+#else
+				cur_canvas_css_W = w;
+				cur_canvas_css_H = h;
+#endif
+
+				canvas_drawable_pixels_per_css_pixels = (double)opengl_engine->getMainViewPortWidth() / cur_canvas_css_W;
+
+				gui_client->gl_ui->setCurrentDevicePixelRatio((float)canvas_drawable_pixels_per_css_pixels); // Use the actual computed device pixel ratio for the canvas element.
+
+				gui_client->viewportResized(w, h); // Do this last so UI will reposition
 			}
 		}
 		else if(e.type == SDL_KEYDOWN)
@@ -953,7 +978,7 @@ static void doOneMainLoopIter()
 
 				MouseEvent move_event;
 				move_event.cursor_pos = Vec2i(e.motion.x, e.motion.y);
-				move_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.motion.x, (float)e.motion.y));
+				move_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.motion.x, (float)e.motion.y), canvas_drawable_pixels_per_css_pixels);
 				move_event.modifiers = convertSDLModifiers(SDL_GetModState());
 				move_event.button_state = convertSDLMouseButtonState(e.motion.state);
 				gui_client->mouseMoved(move_event);
@@ -969,7 +994,7 @@ static void doOneMainLoopIter()
 
 				MouseEvent mouse_event;
 				mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
-				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
+				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y), canvas_drawable_pixels_per_css_pixels);
 				mouse_event.button = convertSDLMouseButton(e.button.button);
 				mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
 
@@ -995,7 +1020,7 @@ static void doOneMainLoopIter()
 			{
 				MouseEvent mouse_event;
 				mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
-				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y));
+				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y), canvas_drawable_pixels_per_css_pixels);
 				mouse_event.button = convertSDLMouseButton(e.button.button);
 				mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
 				gui_client->gl_ui->handleMouseRelease(mouse_event);
@@ -1017,7 +1042,7 @@ static void doOneMainLoopIter()
 			{
 				MouseWheelEvent wheel_event;
 				wheel_event.cursor_pos = Vec2i(e.wheel.mouseX, e.wheel.mouseY);
-				wheel_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.wheel.mouseX, (float)e.wheel.mouseY));
+				wheel_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.wheel.mouseX, (float)e.wheel.mouseY), canvas_drawable_pixels_per_css_pixels);
 				const float scale_factor = 100; // To bring in line with what we get from Qt's angleDelta().
 				wheel_event.angle_delta = Vec2i((int)(e.wheel.preciseX * scale_factor), (int)(e.wheel.preciseY * scale_factor));
 				wheel_event.modifiers = convertSDLModifiers(SDL_GetModState());
@@ -1030,7 +1055,7 @@ static void doOneMainLoopIter()
 	MouseCursorState mouse_cursor_state;
 	{
 		SDL_GetMouseState(&mouse_cursor_state.cursor_pos.x, &mouse_cursor_state.cursor_pos.y); // Get mouse cursor pos
-		mouse_cursor_state.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)mouse_cursor_state.cursor_pos.x, (float)mouse_cursor_state.cursor_pos.y));
+		mouse_cursor_state.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)mouse_cursor_state.cursor_pos.x, (float)mouse_cursor_state.cursor_pos.y), canvas_drawable_pixels_per_css_pixels);
 	
 		const SDL_Keymod mod_state = SDL_GetModState();
 		mouse_cursor_state.ctrl_key_down = (mod_state & KMOD_CTRL) != 0;

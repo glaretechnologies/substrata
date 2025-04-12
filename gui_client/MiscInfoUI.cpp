@@ -309,6 +309,10 @@ void MiscInfoUI::viewportResized(int w, int h)
 {
 	if(gl_ui.nonNull())
 	{
+		if(login_button) login_button->rebuild();
+		if(signup_button) signup_button->rebuild();
+		if(logged_in_button) logged_in_button->rebuild();
+
 		updateWidgetPositions();
 	}
 }
