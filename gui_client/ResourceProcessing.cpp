@@ -19,11 +19,13 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/ConPrint.h"
 #include "../utils/StringUtils.h"
 #include "../maths/vec2.h"
+#include <encoder/basisu_comp.h>
 
 
 #if BUILD_TESTS
 
 
+#if 0
 static void convertTextureToCompressedKTX2File(KTXDecoder::Format ktx_format, const std::string& path)
 {
 	const std::string save_path = ::eatExtension(path) + "ktx2";
@@ -33,8 +35,6 @@ static void convertTextureToCompressedKTX2File(KTXDecoder::Format ktx_format, co
 
 	try
 	{
-		
-
 		Reference<Map2D> im = PNGDecoder::decode(path);
 			
 		Reference<TextureData> tex_data = TextureProcessing::buildTextureData(im.ptr(), &allocator, NULL, /*allow compression=*/true, /*build mipmaps=*/true);
@@ -66,30 +66,85 @@ static void convertTextureToCompressedKTX2File(KTXDecoder::Format ktx_format, co
 
 	allocator.decRefCount();
 }
+#endif
+
+
+static void convertTextureToBasisFile(const std::string& path)
+{
+#if SERVER // basisu compression stuff is only compiled into the server.
+	conPrint("-------------------convertTextureToBasisFile: " + path + "------------------------");
+	const std::string save_path = ::eatExtension(path) + "basis";
+
+	try
+	{
+		Reference<Map2D> im = PNGDecoder::decode(path);
+			
+		basisu::basisu_encoder_init(); // Can be called multiple times harmlessly.
+		basisu::basis_compressor_params params;
+
+
+		ImageMapUInt8Ref map_uint8 = im.downcast<ImageMapUInt8>();
+
+		basisu::image img(map_uint8->getData(), (uint32)map_uint8->getWidth(), (uint32)map_uint8->getHeight(), (uint32)map_uint8->getN());
+		params.m_source_images.push_back(img);
+
+		params.m_tex_type = basist::cBASISTexType2D;
+		params.m_perceptual = true;
+		params.m_status_output = false;
+		params.m_write_output_basis_or_ktx2_files = true;
+		params.m_out_filename = save_path;
+		params.m_create_ktx2_file = false;
+		params.m_mip_gen = true; // Generate mipmaps for each source image
+		params.m_mip_srgb = true; // Convert image to linear before filtering, then back to sRGB
+		params.m_etc1s_quality_level = 255;
+
+		basisu::job_pool jpool(PlatformUtils::getNumLogicalProcessors());
+		params.m_pJob_pool = &jpool;
+
+		basisu::basis_compressor basisCompressor;
+		basisu::enable_debug_printf(false);
+
+		const bool res = basisCompressor.init(params);
+		if(!res)
+			throw glare::Exception("Failed to create basisCompressor");
+
+		basisu::basis_compressor::error_code result = basisCompressor.process();
+
+		if(result != basisu::basis_compressor::cECSuccess)
+			throw glare::Exception("basisCompressor.process() failed.");
+
+		conPrint("Saved to '" + save_path + "'.");
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+#endif
+}
 
 
 static void convertTextures()
 {
-	
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "C:\\programming\\cyberspace\\output\\vs2022\\cyberspace_x64\\Debug\\foam_windowed.png");
+	convertTextureToBasisFile("C:\\code\\glare-core\\source_resources\\foam_windowed.png");
 
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\foam_sprite_top.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\foam_sprite_bottom.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\foam_sprite_left.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\foam_sprite_right.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\foam_sprite_rear.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\foam_sprite_front.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\foam_sprite_top.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\foam_sprite_bottom.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\foam_sprite_left.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\foam_sprite_right.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\foam_sprite_rear.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\foam_sprite_front.png");
 
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\smoke_sprite_top.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\smoke_sprite_bottom.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\smoke_sprite_left.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\smoke_sprite_right.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\smoke_sprite_rear.png");
-	convertTextureToCompressedKTX2File(KTXDecoder::Format_BC3, "d:\\models\\smoke_sprite_front.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_top.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_bottom.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_left.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_right.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_rear.png");
+	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_front.png");
 
 	// Build caustic textures
 	for(int im_i=0; im_i<32; ++im_i)
-		convertTextureToCompressedKTX2File(KTXDecoder::Format_BC1, "caus3 (1)\\save." + ::leftPad(toString(1 + im_i), '0', 2) + ".png");
+		convertTextureToBasisFile("D:\\models\\caustics\\save." + ::leftPad(toString(1 + im_i), '0', 2) + ".png");
+		//convertTextureToCompressedKTX2File(KTXDecoder::Format_BC1, "caus3 (1)\\save." + ::leftPad(toString(1 + im_i), '0', 2) + ".png");
 	
 	// Modify foam image
 	{
