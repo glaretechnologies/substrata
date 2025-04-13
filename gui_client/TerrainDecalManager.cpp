@@ -12,8 +12,8 @@ TerrainDecalManager::TerrainDecalManager(const std::string& base_dir_path, Async
 {
 	TextureParams params;
 	params.wrapping = OpenGLTexture::Wrapping_Clamp;
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/foam_windowed.ktx2", this, params));
-	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_front.ktx2", this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/foam_windowed.basis", this, params));
+	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/sprites/foam_sprite_front.basis", this, params));
 }
 
 
@@ -27,9 +27,9 @@ void TerrainDecalManager::textureLoaded(Reference<OpenGLTexture> texture, const 
 {
 	// conPrint("TerrainDecalManager::textureLoaded: local_filename: '" + local_filename + "'");
 
-	if(local_filename == "/resources/foam_windowed.ktx2")
+	if(local_filename == "/resources/foam_windowed.basis")
 		foam_texture = texture;
-	else if(local_filename == "/resources/sprites/foam_sprite_front.ktx2")
+	else if(local_filename == "/resources/sprites/foam_sprite_front.basis")
 		foam_sprite_front = texture;
 	else
 	{
