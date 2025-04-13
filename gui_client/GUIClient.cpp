@@ -862,7 +862,7 @@ void GUIClient::shutdown()
 
 void GUIClient::startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, const DownloadingResourceInfo& resource_info)
 {
-	assert(resource_info.used_by_avatar || resource_info.used_by_lod_chunk || resource_info.used_by_terrain || !resource_info.using_objects.using_object_uids.empty());
+	assert(resource_info.used_by_other || resource_info.used_by_terrain || !resource_info.using_objects.using_object_uids.empty());
 
 	//conPrint("-------------------GUIClient::startDownloadingResource()-------------------\nURL: " + url);
 	//if(shouldStreamResourceViaHTTP(url))
