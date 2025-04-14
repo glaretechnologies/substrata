@@ -962,7 +962,11 @@ static void doOneMainLoopIter()
 
 					// conPrint("delta: " + delta.toString());
 
+#if EMSCRIPTEN
+					const double speed_factor = 1.0; // This gives similar results in a web browser to the 0.35 below.
+#else
 					const double speed_factor = 0.35; // To make delta similar to what Qt gives.
+#endif
 					gui_client->cam_controller.update(Vec3d(0, 0, 0), Vec2d(delta.y, delta.x) * speed_factor);
 
 					// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.
