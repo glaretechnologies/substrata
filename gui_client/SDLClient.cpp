@@ -312,8 +312,9 @@ int main(int argc, char** argv)
 #endif
 
 #if EMSCRIPTEN
-		// Since we are not doing hi dpi rendering, we can have MSAA on.
-		const bool use_MSAA = true; // OLD: (device_pixel_ratio == 1.0) ? true : false; // device_pixel_ratio != 1 is probably a mobile device, disable MSAA in that case.
+		// In theory, since we are not doing hi dpi rendering, we can have MSAA on.
+		// However MSAA causes iPad to give context lost errors, so just disable if device_pixel_ratio != 1.
+		const bool use_MSAA = (device_pixel_ratio == 1.0) ? true : false; // device_pixel_ratio != 1 is probably a mobile device, disable MSAA in that case.
 #else
 		const bool use_MSAA = settings_store->getBoolValue("setting/MSAA", /*default value=*/true);
 #endif
