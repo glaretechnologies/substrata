@@ -18,6 +18,8 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/PlatformUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/StringUtils.h"
+#include "../utils/FileUtils.h"
+#include "../utils/TaskManager.h"
 #include "../maths/vec2.h"
 #include <encoder/basisu_comp.h>
 
@@ -125,6 +127,32 @@ static void convertTextureToBasisFile(const std::string& path)
 
 static void convertTextures()
 {
+	glare::TaskManager task_manager;
+
+	{
+		const std::vector<std::string> paths = FileUtils::getFilesInDirFullPaths("C:\\code\\substrata\\source_resources\\buttons_with_outlines");
+
+		for(size_t i=0; i<paths.size(); ++i)
+		{
+			
+			Map2DRef map = PNGDecoder::decode(paths[i]);
+
+			int W = 128;
+			int H = 128;
+			//if(StringUtils::containsString(FileUtils::getFilename(paths[i]), "_tab"))
+			{
+				W = (int)((double)map->getMapWidth() / (double)map->getMapHeight() * 128.0);
+			}
+
+			conPrint("Resizing " + paths[i] + " to " + toString(W) + " x " + toString(H) + "...");
+
+			Map2DRef resized = map->resizeMidQuality(W, H, &task_manager);
+
+
+			PNGDecoder::write(*resized.downcast<ImageMapUInt8>(), "C:\\code\\substrata\\resources\\buttons\\" + FileUtils::getFilename(paths[i]));
+		}
+	}
+
 	convertTextureToBasisFile("C:\\code\\glare-core\\source_resources\\foam_windowed.png");
 
 	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\foam_sprite_top.png");
