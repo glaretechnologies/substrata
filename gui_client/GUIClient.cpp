@@ -173,6 +173,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	extracted_anim_data_loaded(false),
 	server_using_lod_chunks(false),
 	server_has_basis_textures(false),
+	server_has_basisu_terrain_detail_maps(false),
 	last_cursor_movement_was_from_mouse(true),
 	sent_perform_gesture_without_stop_gesture(false)
 {
@@ -980,19 +981,25 @@ static inline bool isValidImageTextureURL(const std::string& URL)
 }
 
 
-static inline bool isValidLightMapURL(const std::string& URL)
+static inline bool isValidLightMapURL(OpenGLEngine& opengl_engine, const std::string& URL)
 {
 	if(URL.empty())
 		return false;
 	else
 	{
-#ifdef OSX
-		// KTX and KTX2 files used for lightmaps use bc6h compression, which mac doesn't support.  So don't try and load them on Mac.
-		const string_view extension = getExtensionStringView(URL);
-		return ImageDecoding::hasSupportedImageExtension(URL) && (extension != "ktx") && (extension != "ktx2");
-#else
-		return ImageDecoding::hasSupportedImageExtension(URL);
-#endif
+		if(ImageDecoding::hasSupportedImageExtension(URL))
+		{
+			// KTX and KTX2 files used for lightmaps use bc6h compression, which mac and some web platforms don't support.  So don't try and load them if we don't support BC6H.
+			if(opengl_engine.texture_compression_BC6H_support)
+				return true;
+			else
+			{
+				const string_view extension = getExtensionStringView(URL);
+				return (extension != "ktx") && (extension != "ktx2"); 
+			}
+		}
+		else
+			return false;
 	}
 }
 
@@ -1085,7 +1092,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 	}
 
 	// Start loading lightmap
-	if(isValidLightMapURL(ob.lightmap_url))
+	if(isValidLightMapURL(*opengl_engine, ob.lightmap_url))
 	{
 		const std::string lod_tex_url = WorldObject::getLODLightmapURL(ob.lightmap_url, ob_lod_level);
 
@@ -1620,7 +1627,7 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 			}
 		}
 
-		if(isValidLightMapURL(opengl_mat.lightmap_path))
+		if(isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
 		{
 			try
 			{
@@ -4272,8 +4279,9 @@ void GUIClient::processLoading()
 						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, opengl_engine, OpenGLTextureKey(message->tex_key), message->tex_params,
 							message->texture_data, this->tex_loading_progress);
 					}
-					catch(glare::Exception&)
+					catch(glare::Exception& e)
 					{
+						conPrint("Error while creating texture '" + message->tex_path + "': " + e.what());
 						this->tex_loading_progress.tex_data = NULL;
 						this->tex_loading_progress.opengl_tex = NULL;
 					}
@@ -7633,7 +7641,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			TracyMessageL("ClientConnectedToServerMessage received");
 			
-			this->server_has_basis_textures = BitUtils::isBitSet(this->server_capabilities, 0x1u);
+			this->server_has_basis_textures             = BitUtils::isBitSet(this->server_capabilities, Protocol::OBJECT_TEXTURE_BASISU_SUPPORT);
+			this->server_has_basisu_terrain_detail_maps = BitUtils::isBitSet(this->server_capabilities, Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT);
 
 			// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
 			if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
@@ -13171,12 +13180,23 @@ void GUIClient::updateGroundPlane()
 				path_spec.section_specs[i].tree_mask_map_path  = resource_manager->pathForURL(spec.section_specs[i].tree_mask_map_URL);
 		}
 
+		// Convert to .basis extensions if the server supports basis generation of terrain detail maps.
+		std::string use_detail_col_map_URLs[4];
+		std::string use_detail_height_map_URLs[4];
 		for(int i=0; i<4; ++i)
 		{
 			if(!spec.detail_col_map_URLs[i].empty())
-				path_spec.detail_col_map_paths[i]    = resource_manager->pathForURL(spec.detail_col_map_URLs[i]);
+				use_detail_col_map_URLs[i] = this->server_has_basisu_terrain_detail_maps ? (eatExtension(spec.detail_col_map_URLs[i]) + "basis") : spec.detail_col_map_URLs[i];
 			if(!spec.detail_height_map_URLs[i].empty())
-				path_spec.detail_height_map_paths[i] = resource_manager->pathForURL(spec.detail_height_map_URLs[i]);
+				use_detail_col_map_URLs[i] = this->server_has_basisu_terrain_detail_maps ? (eatExtension(spec.detail_height_map_URLs[i]) + "basis") : spec.detail_height_map_URLs[i];
+		}
+
+		for(int i=0; i<4; ++i)
+		{
+			if(!use_detail_col_map_URLs[i].empty())
+				path_spec.detail_col_map_paths[i]    = resource_manager->pathForURL(use_detail_col_map_URLs[i]);
+			if(!use_detail_height_map_URLs[i].empty())
+				path_spec.detail_height_map_paths[i] = resource_manager->pathForURL(use_detail_height_map_URLs[i]);
 		}
 
 		const float terrain_section_width_m = myClamp(spec.terrain_section_width_m, 8.f, 1000000.f);
@@ -13238,23 +13258,26 @@ void GUIClient::updateGroundPlane()
 
 		for(int i=0; i<4; ++i)
 		{
-			if(!spec.detail_col_map_URLs[i].empty())
+			if(i == 0) // TEMP: don't load detail colour + height map 0 (rock), as it's not used currently in the terrain shader (see phong_frag_shader.glsl #if TERRAIN section)
+				continue; 
+
+			if(!use_detail_col_map_URLs[i].empty())
 			{
 				DownloadingResourceInfo info;
 				info.texture_params = detail_colourmap_tex_params;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
 				info.used_by_terrain = true;
-				startDownloadingResource(spec.detail_col_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
+				startDownloadingResource(use_detail_col_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
 			}
-			if(!spec.detail_height_map_URLs[i].empty())
+			if(!use_detail_height_map_URLs[i].empty())
 			{
 				DownloadingResourceInfo info;
 				info.texture_params = heightmap_tex_params;
 				info.pos = Vec3d(0,0,0);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
 				info.used_by_terrain = true;
-				startDownloadingResource(spec.detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
+				startDownloadingResource(use_detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
 			}
 		}
 		//--------------------------------------------------------------------------------------------------------------------------
@@ -13286,14 +13309,17 @@ void GUIClient::updateGroundPlane()
 
 		for(int i=0; i<4; ++i)
 		{
-			if(!spec.detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_col_map_URLs[i]))
-				load_item_queue.enqueueItem(spec.detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(spec.detail_col_map_URLs[i]), detail_colourmap_tex_params, /*is terrain map=*/true), 
+			if(i == 0) // TEMP: don't load detail colour + height map 0 (rock), as it's not used currently in the terrain shader (see phong_frag_shader.glsl #if TERRAIN section)
+				continue; 
+
+			if(!use_detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_col_map_URLs[i]))
+				load_item_queue.enqueueItem(use_detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]), detail_colourmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
-			if(!spec.detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(spec.detail_height_map_URLs[i]))
-				load_item_queue.enqueueItem(spec.detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(spec.detail_height_map_URLs[i]), heightmap_tex_params, /*is terrain map=*/true), 
+			if(!use_detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_height_map_URLs[i]))
+				load_item_queue.enqueueItem(use_detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), heightmap_tex_params, /*is terrain map=*/true), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------

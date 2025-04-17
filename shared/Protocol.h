@@ -177,6 +177,10 @@ const uint32 KeepAlive				= 13000; // A message that doesn't do anything apart f
 
 
 // Client capabilities
-const uint32 STREAMING_COMPRESSED_OBJECT_SUPPORT = 0x1; // Can the client handle ObjectInitialSendCompressed messages?
+const uint32 STREAMING_COMPRESSED_OBJECT_SUPPORT	= 0x1; // Can the client handle ObjectInitialSendCompressed messages?
+
+// Server capabilities
+const uint32 OBJECT_TEXTURE_BASISU_SUPPORT			= 0x1;
+const uint32 TERRAIN_DETAIL_MAPS_BASISU_SUPPORT		= 0x2;
 
 } // end namespace Protocol

@@ -693,6 +693,7 @@ public:
 	bool server_using_lod_chunks; // Should be equal to !world_state->lod_chunks.empty(), cached in a boolean.
 
 	bool server_has_basis_textures;
+	bool server_has_basisu_terrain_detail_maps;
 
 	bool shown_object_modification_error_msg;
 
