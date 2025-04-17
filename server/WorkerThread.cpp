@@ -902,7 +902,7 @@ void WorkerThread::doRun()
 
 		if(client_protocol_version >= 41) // Sending server_capabilities was added in protocol version 41.
 		{
-			const uint32 server_capabilities = 1; // 0x1 = has basisu support
+			const uint32 server_capabilities = Protocol::OBJECT_TEXTURE_BASISU_SUPPORT | Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT;
 			socket->writeUInt32(server_capabilities);
 		}
 
@@ -2875,6 +2875,13 @@ void WorkerThread::doRun()
 									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									enqueuePacketToBroadcast(scratch_packet, server);
+								}
+
+								// Textures used by terrain need to have basis versions generated.
+								for(int i=0; i<4; ++i)
+								{
+									server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(world_settings.terrain_spec.detail_col_map_URLs[i]));
+									server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(world_settings.terrain_spec.detail_height_map_URLs[i]));
 								}
 							}
 							else

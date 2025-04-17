@@ -576,7 +576,18 @@ void MeshLODGenThread::doRun()
 								conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
 							}
 						}
+
+						// Check world settings textures
+						for(int i=0; i<4; ++i)
+						{
+							const std::string detail_col_map_URL = world->world_settings.terrain_spec.detail_col_map_URLs[i];
+							checkForBasisTexturesToGenerateForURL(detail_col_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+
+							const std::string detail_height_map_URL = world->world_settings.terrain_spec.detail_height_map_URLs[i];
+							checkForBasisTexturesToGenerateForURL(detail_height_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+						}
 					}
+
 					do_initial_full_scan = false;
 				}
 				else if(ob_to_scan_UID.valid())
