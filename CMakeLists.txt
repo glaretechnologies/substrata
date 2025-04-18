@@ -187,7 +187,7 @@ MESSAGE("TRACY_ENABLED (Tracy profiler instrumentation support): ${TRACY_ENABLED
 
 # To use a Clang sanitizer, for example address sanitizer, set on command line like so:
 # -DUSE_SANITIZER=address or -DUSE_SANITIZER=thread
-# Note that due to visual studio being shitty, you also need to manually set the 'Enable Address Sanitizer' setting in C/C++ > General project settings to 'Yes', otherwise
+# Note that due to visual studio being annoying, you also need to manually set the 'Enable Address Sanitizer' setting in C/C++ > General project settings to 'Yes', otherwise
 # you get an error at runtime: "clang_rt.asan_dynamic-x86-64.dll was not found".
 SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")
 MESSAGE("USE_SANITIZER (address, thread): ${USE_SANITIZER}")
@@ -239,7 +239,7 @@ if(WIN32)
 	set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "$ENV{CYBERSPACE_OUTPUT}/${VS_SUB_DIR}/cyberspace_${CYBERSPACE_PLATFORM}")
 	set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY "$ENV{CYBERSPACE_OUTPUT}/${VS_SUB_DIR}/cyberspace_${CYBERSPACE_PLATFORM}")
 	
-	set (ACTUAL_FUCKING_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$(Configuration)")
+	set (ACTUAL_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$(Configuration)")
 	
 else() # Mac or Linux.
 	if(APPLE)
@@ -253,15 +253,15 @@ else() # Mac or Linux.
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "$ENV{CYBERSPACE_OUTPUT}/test_builds")
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "$ENV{CYBERSPACE_OUTPUT}")
 	
-	# Set ACTUAL_FUCKING_OUTPUT_DIR
+	# Set ACTUAL_OUTPUT_DIR
 	if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-		set (ACTUAL_FUCKING_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG})
+		set (ACTUAL_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG})
 	elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
-		set (ACTUAL_FUCKING_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO})
+		set (ACTUAL_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO})
 	elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-		set (ACTUAL_FUCKING_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE})
+		set (ACTUAL_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE})
 	else()
-		MESSAGE(FATAL_ERROR "Unknown build type, can't set ACTUAL_FUCKING_OUTPUT_DIR")
+		MESSAGE(FATAL_ERROR "Unknown build type, can't set ACTUAL_OUTPUT_DIR")
 	endif()
 
 	set (CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG "$ENV{CYBERSPACE_OUTPUT}/test_builds")
@@ -282,7 +282,7 @@ MESSAGE("libressldir: ${libressldir}")
 MESSAGE("openssldir: ${openssldir}")
 
 MESSAGE("")
-MESSAGE("ACTUAL_FUCKING_OUTPUT_DIR: ${ACTUAL_FUCKING_OUTPUT_DIR}")
+MESSAGE("ACTUAL_OUTPUT_DIR: ${ACTUAL_OUTPUT_DIR}")
 MESSAGE("")
 
 
