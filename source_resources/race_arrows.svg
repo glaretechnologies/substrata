@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg5"
+   inkscape:export-filename="arrows.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="race_arrows.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#cccccc"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="true"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.93806818"
+     inkscape:cx="343.79164"
+     inkscape:cy="564.99091"
+     inkscape:window-width="1731"
+     inkscape:window-height="1079"
+     inkscape:window-x="365"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       style="fill:none;stroke:#949494;stroke-width:12;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
+       d="m 18.897435,74.179486 11.928394,9.01674 23.892117,18.060184 -35.53846,27.07692"
+       id="path851"
+       sodipodi:nodetypes="cccc" />
+    <path
+       style="fill:none;stroke:#949494;stroke-width:12;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
+       d="M 65.859171,73.615386 101.67968,100.69231 66.141222,127.76923"
+       id="path851-6"
+       sodipodi:nodetypes="ccc" />
+    <path
+       style="fill:none;stroke:#949494;stroke-width:12;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
+       d="m 113.52584,74.46154 35.82051,27.07692 -35.53846,27.07693"
+       id="path851-2"
+       sodipodi:nodetypes="ccc" />
+  </g>
+</svg>
