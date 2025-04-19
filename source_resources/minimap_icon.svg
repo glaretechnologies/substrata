@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg2532"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="minimap_icon.svg"
+   inkscape:export-filename="minimap_icon.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview2534"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="false"
+     showguides="true"
+     inkscape:zoom="0.33165719"
+     inkscape:cx="-394.98617"
+     inkscape:cy="-93.470009"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2529">
+    <linearGradient
+       id="linearGradient1072"
+       inkscape:swatch="solid">
+      <stop
+         style="stop-color:#000000;stop-opacity:1;"
+         offset="0"
+         id="stop1070" />
+    </linearGradient>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#939393;stroke-width:2.90424;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect1366"
+       width="54.273537"
+       height="52.229343"
+       x="80.22892"
+       y="101.52249" />
+    <path
+       style="mix-blend-mode:normal;fill:none;stroke:#949494;stroke-width:2.06167;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
+       d="m 96.158187,126.03871 20.283213,-7.0486 -0.74345,1.16246 -10.79231,16.87565 -0.99127,-8.25936 z"
+       id="path2770"
+       sodipodi:nodetypes="cccccc" />
+  </g>
+</svg>
