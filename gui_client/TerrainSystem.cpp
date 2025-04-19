@@ -415,14 +415,13 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 
 	assert(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(path)));
 
-	bool used_texture = false;
+	bool terrain_needs_rebuild = false;
 
 	for(int i=0; i<4; ++i)
 	{
 		if(spec.detail_col_map_paths[i] == path)
 		{
 			opengl_engine->setDetailTexture(i, opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path)));
-			used_texture = true;
 		}
 
 		if(spec.detail_height_map_paths[i] == path)
@@ -430,7 +429,6 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 			opengl_engine->setDetailHeightmap(i, opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path)));
 
 			detail_heightmaps[i] = map;
-			used_texture = true;
 		}
 	}
 
@@ -443,22 +441,22 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 		{
 			section.heightmap = map;
 			section.heightmap_gl_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path));
-			used_texture = true;
+			terrain_needs_rebuild = true;
 		}
 		if(section.mask_map_path == path)
 		{
 			section.maskmap = map;
 			section.mask_gl_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path));
-			used_texture = true;
+			terrain_needs_rebuild = true;
 		}
 		if(section.tree_mask_map_path == path)
 		{
 			section.treemaskmap = map;
-			used_texture = true;
+			terrain_needs_rebuild = true;
 		}
 	}
 
-	if(used_texture)
+	if(terrain_needs_rebuild)
 	{
 		// Reload terrain:
 		removeSubtree(root_node.ptr(), root_node->old_subtree_gl_obs, root_node->old_subtree_phys_obs);
