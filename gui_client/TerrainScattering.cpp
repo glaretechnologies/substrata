@@ -175,7 +175,10 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 	}
 
 	for(int i=0; i<DETAIL_MASK_MAP_SECTION_RES*DETAIL_MASK_MAP_SECTION_RES; ++i)
+	{
 		detail_mask_map_sections[i].gl_tex_valid = false;
+		detail_mask_map_sections[i].detail_mask_map.setAsNotIndependentlyHeapAllocated();
+	}
 
 
 	//{
@@ -505,22 +508,36 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 
 	// Read texture back to main memory
 	Timer timer;
+	if(temp_detail_mask_map.isNull())
+		temp_detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 1);
 #if defined(EMSCRIPTEN)
 	// glGetTexImage isn't supported in WebGL, so use glReadPixels (which reads from the frame buffer) instead.
 
-	if(section.detail_mask_map.isNull())
-		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 1);
-
 	opengl_engine->mask_map_frame_buffer->bindForReading();
-	glReadPixels(0, 0, detail_mask_map_width_px, detail_mask_map_width_px, GL_RED, GL_UNSIGNED_BYTE, section.detail_mask_map->getData());
+	glReadPixels(0, 0, detail_mask_map_width_px, detail_mask_map_width_px, GL_RED, GL_UNSIGNED_BYTE, temp_detail_mask_map->getData());
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 #else
-	if(section.detail_mask_map.isNull())
-		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 1);
-
-	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(section.detail_mask_map->getData(), section.detail_mask_map->getDataSize()));
+	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(temp_detail_mask_map->getData(), temp_detail_mask_map->getDataSize()));
 #endif
 	//conPrint("\nTerrain scattering: reading back texture took " + timer.elapsedStringMSWIthNSigFigs(4) + "");
+
+	// Convert temp_detail_mask_map (8-bit) to section.detail_mask_map (1-bit)
+	{
+		//Timer timer2;
+		section.detail_mask_map.resizeNoCopy(detail_mask_map_width_px, detail_mask_map_width_px);
+
+		const uint8* const src_data = temp_detail_mask_map->getData();
+		static_assert(detail_mask_map_width_px % 32 == 0);
+		for(size_t i=0; i<detail_mask_map_width_px*detail_mask_map_width_px/32; ++i)
+		{
+			uint32 v = 0;
+			for(int z=0; z<32; ++z)
+				v |= ((uint32)src_data[i * 32 + z] >> 7) << z; // Extract most-significant bit of the uint8 value by shifting right by 7, then OR it into the correct place in v.
+			section.detail_mask_map.data.v[i] = v;
+		}
+		//conPrint("Conversion of temp_detail_mask_map to section.detail_mask_map (1-bit) took " + timer2.elapsedStringMSWIthNSigFigs());
+	}
+
 
 #else
 	if(section.detail_mask_map.isNull())
@@ -534,7 +551,7 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 
 	// Build non-zero mipmap
 	//timer.reset();
-	section.non_zero_mip_map.build(*section.detail_mask_map, /*channel=*/0);
+	section.non_zero_mip_map.build(section.detail_mask_map, /*channel=*/0);
 	//conPrint("non_zero_mip_map.build " + timer.elapsedStringMSWIthNSigFigs(4) + "\n");
 
 	//PNGDecoder::write(*section.detail_mask_map, "detail_mask_map_" + toString(section_x) + "_" + toString(section_y) + ".png");
@@ -1109,14 +1126,14 @@ void TerrainScattering::buildVegLocationInfo(int chunk_x_index, int chunk_y_inde
 	locations_out.reserve(N);
 
 	// Work out which detail mask map covers this chunk
-	const ImageMapUInt8* detail_mask_map = NULL;
+	const ImageMapUInt1* detail_mask_map = NULL;
 	{
 		const int detail_mask_section_x = Maths::floorToInt(((chunk_x_index + 0.5f) * chunk_w_m) / detail_mask_map_width_m) + DETAIL_MASK_MAP_SECTION_RES/2;
 		const int detail_mask_section_y = Maths::floorToInt(((chunk_y_index + 0.5f) * chunk_w_m) / detail_mask_map_width_m) + DETAIL_MASK_MAP_SECTION_RES/2;
 		if( detail_mask_section_x >= 0 && detail_mask_section_x < DETAIL_MASK_MAP_SECTION_RES &&
 			detail_mask_section_y >= 0 && detail_mask_section_y < DETAIL_MASK_MAP_SECTION_RES)
 		{
-			detail_mask_map = detail_mask_map_sections[detail_mask_section_x + detail_mask_section_y*DETAIL_MASK_MAP_SECTION_RES].detail_mask_map.ptr();
+			detail_mask_map = &detail_mask_map_sections[detail_mask_section_x + detail_mask_section_y*DETAIL_MASK_MAP_SECTION_RES].detail_mask_map;
 		}
 	}
 
@@ -1975,8 +1992,7 @@ std::string TerrainScattering::getDiagnostics() const
 		if(detail_mask_map_sections[i].mask_map_gl_tex.nonNull())
 			detail_mask_map_gpu_mem += detail_mask_map_sections[i].mask_map_gl_tex->getByteSize();
 
-		if(detail_mask_map_sections[i].detail_mask_map.nonNull())
-			detail_mask_map_cpu_mem += detail_mask_map_sections[i].detail_mask_map->getByteSize();
+		detail_mask_map_cpu_mem += detail_mask_map_sections[i].detail_mask_map.getByteSize();
 	}
 	s += "detail mask map GPU RAM: " + getNiceByteSize(detail_mask_map_gpu_mem) + "\n";
 	s += "detail mask map CPU RAM: " + getNiceByteSize(detail_mask_map_cpu_mem) + "\n";
