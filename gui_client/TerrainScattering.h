@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "OpenGLEngine.h"
 #include "PhysicsObject.h"
 #include <graphics/NonZeroMipMap.h>
+#include <graphics/ImageMapUInt1.h>
 #include "../utils/RefCounted.h"
 #include "../utils/Reference.h"
 #include "../utils/Array2D.h"
@@ -194,7 +195,7 @@ private:
 	struct DetailMaskMapSection
 	{
 		Reference<OpenGLTexture> mask_map_gl_tex;
-		ImageMapUInt8Ref detail_mask_map;
+		ImageMapUInt1 detail_mask_map;
 		bool gl_tex_valid;
 
 		NonZeroMipMap non_zero_mip_map;
@@ -205,4 +206,6 @@ private:
 
 
 	OpenGLTextureRef default_detail_mask_tex;
+
+	ImageMapUInt8Ref temp_detail_mask_map;
 };

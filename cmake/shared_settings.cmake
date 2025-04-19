@@ -52,6 +52,8 @@ ${GRAPHICS_DIR}/ImageFilter.cpp
 ${GRAPHICS_DIR}/ImageFilter.h
 ${GRAPHICS_DIR}/ImageMap.cpp
 ${GRAPHICS_DIR}/ImageMap.h
+${GRAPHICS_DIR}/ImageMapUInt1.cpp
+${GRAPHICS_DIR}/ImageMapUInt1.h
 ${GRAPHICS_DIR}/ImageMapSequence.h
 ${GRAPHICS_DIR}/ImageMapTests.cpp
 ${GRAPHICS_DIR}/ImageMapTests.h
@@ -176,6 +178,7 @@ ${UTILS_DIR}/FileUtils.cpp
 ${UTILS_DIR}/FileUtils.h
 ${UTILS_DIR}/GlareString.cpp
 ${UTILS_DIR}/GlareString.h
+${UTILS_DIR}/GlareAllocator.h
 ${UTILS_DIR}/IncludeWindows.h
 ${UTILS_DIR}/AtomicInt.cpp
 ${UTILS_DIR}/AtomicInt.h
@@ -312,6 +315,8 @@ ${UTILS_DIR}/XMLWriteUtils.cpp
 ${UTILS_DIR}/XMLWriteUtils.h
 ${UTILS_DIR}/LRUCache.cpp
 ${UTILS_DIR}/LRUCache.h
+${UTILS_DIR}/LimitedAllocator.cpp
+${UTILS_DIR}/LimitedAllocator.h
 )
 
 
