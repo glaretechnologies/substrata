@@ -485,7 +485,7 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 	{
 		section.mask_map_gl_tex = new OpenGLTexture(detail_mask_map_width_px, detail_mask_map_width_px, /*opengl_engine=*/opengl_engine,
 			ArrayRef<uint8>(NULL, 0),
-			OpenGLTextureFormat::Format_RGB_Linear_Uint8, // Format_Greyscale_Uint8 doesn't seem to work. (Framebuffer not complete)
+			OpenGLTextureFormat::Format_Greyscale_Uint8,
 			OpenGLTexture::Filtering_Bilinear
 		);
 	}
@@ -509,14 +509,14 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 	// glGetTexImage isn't supported in WebGL, so use glReadPixels (which reads from the frame buffer) instead.
 
 	if(section.detail_mask_map.isNull())
-		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 4); // GL_RGBA
+		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 1);
 
 	opengl_engine->mask_map_frame_buffer->bindForReading();
-	glReadPixels(0, 0, detail_mask_map_width_px, detail_mask_map_width_px, GL_RGBA, GL_UNSIGNED_BYTE, section.detail_mask_map->getData());
+	glReadPixels(0, 0, detail_mask_map_width_px, detail_mask_map_width_px, GL_RED, GL_UNSIGNED_BYTE, section.detail_mask_map->getData());
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 #else
 	if(section.detail_mask_map.isNull())
-		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 3); // GL_RGB
+		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 1);
 
 	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(section.detail_mask_map->getData(), section.detail_mask_map->getDataSize()));
 #endif
