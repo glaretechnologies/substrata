@@ -155,7 +155,7 @@ static void makeVoxelMeshForVertPosKeyType(const VoxelBounds& bounds_, const Vec
 		const int dim_min = bounds.min[dim];
 		const int dim_size = res[dim];
 
-		// An array of faces that still need to be processed.  We store the face material index if the face needs to be processed, and no_voxel_mat otherwise.  Processed = included in a greedy quad already.
+		// An array of voxel faces that still need to be processed.  We store the face material index if the face needs to be processed, and no_voxel_mat otherwise.  Processed = included in a greedy quad already.
 		Array2D<VoxelMatIndexType> face_needed_mat(a_size, b_size);
 
 		for(int dim_coord = 0; dim_coord < dim_size; ++dim_coord)
@@ -163,7 +163,7 @@ static void makeVoxelMeshForVertPosKeyType(const VoxelBounds& bounds_, const Vec
 			Vec3<int> vox_indices, adjacent_vox_indices; // pos coords of current voxel, and adjacent voxel
 
 			//================= Do lower faces along dim ==========================
-			// Build face_needed data for this slice
+			// Build face_needed_mat data for this slice
 			vox_indices[dim] = dim_coord;
 			adjacent_vox_indices[dim] = dim_coord - 1;
 			for(int y=0; y<b_size; ++y)
@@ -261,7 +261,7 @@ static void makeVoxelMeshForVertPosKeyType(const VoxelBounds& bounds_, const Vec
 					// Add the greedy quad
 					unsigned int v_i[4]; // quad vert indices
 					Indigo::Vec3f v; // Vertex position coordinates
-					v[dim] = (float)(dim_coord + dim_min);
+					v[dim] = (float)(dim_min + dim_coord);
 
 					VertPosKeyType key;
 					assert(dim_coord >= 0 && dim_coord <= std::numeric_limits<VertPosIntType>::max());
@@ -620,7 +620,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const gl
 			bounds_max = max(bounds_max, vox_pos);
 			if(voxels[i].mat_index < 0)
 				throw glare::Exception("Invalid mat index (< 0)");
-			max_mat_index = myMax(voxels[i].mat_index, max_mat_index);
+			max_mat_index = myMax((int)voxels[i].mat_index, max_mat_index);
 		}
 
 		// We want to be able to fit all the material indices, plus the 'no voxel' index, into the 256 values of a uint8.  So mat_index of 255 = no voxel index.
@@ -722,7 +722,7 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshWithShadingNormalsForVo
 	{
 		const Vec3i p(voxels[i].pos.x / subsample_factor, voxels[i].pos.y / subsample_factor, voxels[i].pos.z / subsample_factor);
 		voxel_hash[p] = voxels[i].mat_index;
-		max_mat_index = myMax(max_mat_index, voxels[i].mat_index);
+		max_mat_index = myMax(max_mat_index, (int)voxels[i].mat_index);
 	}
 
 	const int num_mats = max_mat_index + 1;
