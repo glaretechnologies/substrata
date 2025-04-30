@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2022 -
 #endif
 
 namespace glare { class TaskManager; }
+namespace glare { class StackAllocator; }
 namespace Indigo { class Mesh; }
 class PrintOutput;
 class BatchedMesh;
@@ -101,10 +102,10 @@ class PhysicsWorld : public ThreadSafeRefCounted
 #endif
 {
 public:
-	PhysicsWorld(glare::TaskManager* task_manager);
+	PhysicsWorld(glare::TaskManager* task_manager, glare::StackAllocator* stack_allocator);
 	~PhysicsWorld();
 
-	static void init();
+	static void init(/*Reference<glare::Allocator> global_jolt_allocator*/);
 
 	void setWaterBuoyancyEnabled(bool enabled);
 	bool getWaterBuoyancyEnabled() const { return water_buoyancy_enabled; }
@@ -119,8 +120,8 @@ public:
 
 	void setObjectLayer(const Reference<PhysicsObject>& object, uint8 new_object_layer);
 
-	static PhysicsShape createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob);
-	static PhysicsShape createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob);
+	static PhysicsShape createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator = nullptr);
+	static PhysicsShape createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator = nullptr);
 
 	static PhysicsShape createJoltHeightFieldShape(int vert_res, const Array2D<float>& heightfield, float quad_w);
 
@@ -204,4 +205,5 @@ private:
 	float water_z;
 
 	glare::TaskManager* task_manager;
+	glare::StackAllocator* stack_allocator;
 };
