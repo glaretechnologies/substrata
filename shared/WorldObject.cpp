@@ -1164,7 +1164,7 @@ const Matrix4f worldToObMatrix(const WorldObject& ob)
 size_t WorldObject::getTotalMemUsage() const
 {
 	return sizeof(WorldObject) + 
-		compressed_voxels.capacitySizeBytes() + (voxel_group.voxels.capacity() * sizeof(Voxel));
+		compressed_voxels.capacitySizeBytes() + (voxel_group.voxels.capacitySizeBytes());
 }
 
 

@@ -77,4 +77,6 @@ public:
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<ResourceManager> resource_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
+
+	Reference<glare::Allocator> worker_allocator;
 };

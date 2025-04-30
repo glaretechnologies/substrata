@@ -165,7 +165,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	frame_num(0),
 	axis_and_rot_obs_enabled(false),
 	last_vehicle_renewal_msg_time(-1),
-	stack_allocator(/*size (B)=*/4 * 1024 * 1024),
+	stack_allocator(/*size (B)=*/22 * 1024 * 1024), // Used for the Jolt physics temp allocator also.
 	server_protocol_version(0),
 	server_capabilities(0),
 	settings(NULL),
@@ -175,7 +175,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	server_has_basis_textures(false),
 	server_has_basisu_terrain_detail_maps(false),
 	last_cursor_movement_was_from_mouse(true),
-	sent_perform_gesture_without_stop_gesture(false)
+	sent_perform_gesture_without_stop_gesture(false),
+	use_lightmaps(true)
 {
 	resources_dir_path = base_dir_path + "/data/resources";
 
@@ -282,13 +283,14 @@ static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_com
 #endif // EMSCRIPTEN
 
 
-void GUIClient::initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_)
+void GUIClient::initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator_)
 {
 	ZoneScoped; // Tracy profiler
 
 	settings = settings_store_;
 	ui_interface = ui_interface_;
 	high_priority_task_manager = high_priority_task_manager_;
+	worker_allocator = worker_allocator_;
 
 	PhysicsWorld::init(); // init Jolt stuff
 
@@ -654,7 +656,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 			PhysicsShape physics_shape;
 			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path, model_buffer,
-				opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, opengl_engine->mem_allocator.ptr(), physics_shape);
+				opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, /*allocator=*/nullptr, physics_shape);
 
 			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 
 				test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), /*use_basis=*/true, *resource_manager, ob_to_world_matrix);
@@ -687,7 +689,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	if(false)
 	{
 		ModelLoading::MakeGLObjectResults results;
-		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, 
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, 
 			//"D:\\models\\readyplayerme_avatar_animation_18.glb", 
 			"D:\\models\\BMWCONCEPTBIKE\\bike no armature.glb",
 			//"N:\\glare-core\\trunk\\testfiles\\gltf\\BoxAnimated.glb", 
@@ -1035,7 +1037,7 @@ void GUIClient::startLoadingTextureForLocalPath(const UID& ob_uid, const std::st
 			// conPrint("Adding LoadTextureTask for texture '" + local_abs_tex_path + "'...");
 			const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_abs_tex_path);
 
-			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource, tex_params, used_by_terrain);
+			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource, tex_params, used_by_terrain, worker_allocator);
 
 			load_item_queue.enqueueItem(
 				resource->URL, // key
@@ -1092,7 +1094,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 	}
 
 	// Start loading lightmap
-	if(isValidLightMapURL(*opengl_engine, ob.lightmap_url))
+	if(this->use_lightmaps && isValidLightMapURL(*opengl_engine, ob.lightmap_url))
 	{
 		const std::string lod_tex_url = WorldObject::getLODLightmapURL(ob.lightmap_url, ob_lod_level);
 
@@ -1114,7 +1116,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 					tex_params.use_mipmaps = false;
 					load_item_queue.enqueueItem(/*key=*/lod_tex_url, ob, 
-						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false), 
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false, worker_allocator), 
 						max_dist_for_ob_lod_level_clamped_0); // Lightmaps don't have LOD level -1 so used max dist for LOD level >= 0.
 				}
 				// Lightmaps are only used by a single object, so there should be no other uses of the lightmap, so don't need to call load_item_queue.checkUpdateItemPosition()
@@ -1350,6 +1352,7 @@ bool GUIClient::isResourceCurrentlyNeededForObject(const std::string& url, const
 
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
+	options.include_lightmaps = this->use_lightmaps;
 	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
 
@@ -1409,6 +1412,7 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
+	options.include_lightmaps = this->use_lightmaps;
 	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
@@ -1522,7 +1526,7 @@ static inline bool isNonEmptyAndNotMp4(const std::string& path)
 // Update textures to correct LOD-level textures.
 // Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
-static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, bool& assigned_animated_tex_out)
+static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, bool& assigned_animated_tex_out)
 {
 	assigned_animated_tex_out = false;
 
@@ -1627,7 +1631,7 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 			}
 		}
 
-		if(isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
+		if(use_lightmaps && isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
 		{
 			try
 			{
@@ -1654,7 +1658,7 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 {
 	bool assigned_animated_tex = false;
-	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, assigned_animated_tex);
+	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, assigned_animated_tex);
 	if(assigned_animated_tex)
 	{
 		if(ob->animated_tex_data.isNull())
@@ -2044,6 +2048,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 						task->result_msg_queue = &this->msg_queue;
 						task->hypercard_content = ob->content;
 						task->opengl_engine = opengl_engine;
+						task->worker_allocator = worker_allocator;
 						load_item_queue.enqueueItem(/*key=*/tex_key, *ob, task, /*max_dist_for_ob_lod_level=*/200.f);
 					}
 				}
@@ -2228,6 +2233,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				load_model_task->resource_manager = resource_manager;
 				load_model_task->voxel_ob = ob;
 				load_model_task->build_dynamic_physics_ob = ob->isDynamic();
+				load_model_task->worker_allocator = worker_allocator;
 
 				if(ob->getCompressedVoxels().size() == 0)
 					throw glare::Exception("zero voxels");	
@@ -2316,6 +2322,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
+							load_model_task->worker_allocator = worker_allocator;
 
 							load_item_queue.enqueueItem(/*key=*/lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
@@ -2711,6 +2718,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
+					load_model_task->worker_allocator = worker_allocator;
 
 					load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
 				}
@@ -4099,6 +4107,9 @@ void GUIClient::handleUploadedTexture(const std::string& path, const OpenGLTextu
 
 void GUIClient::processLoading()
 {
+	if(!opengl_engine)
+		return;
+
 	//double frame_loading_time = 0;
 	//std::vector<std::string> loading_times; // TEMP just for profiling/debugging
 	if(world_state.nonNull())
@@ -6683,6 +6694,7 @@ void GUIClient::updateLODChunkGraphics()
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->build_physics_ob = false;
 					load_model_task->build_dynamic_physics_ob = false;
+					load_model_task->worker_allocator = worker_allocator;
 
 					load_item_queue.enqueueItem(chunk->mesh_url, centroid_ws, chunk_w, 
 						load_model_task, 
@@ -6702,7 +6714,7 @@ void GUIClient::updateLODChunkGraphics()
 				{
 					TextureParams tex_params;
 					load_item_queue.enqueueItem(chunk->combined_array_texture_url, centroid_ws, chunk_w, 
-						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false), 
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false, worker_allocator), 
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 				}
 			}
@@ -6757,10 +6769,11 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 		{
 			try
 			{
-				mesh_data->meshDataBecameUsed();
-
 				if(!chunk->graphics_ob)
 				{
+					mesh_data->meshDataBecameUsed();
+					chunk->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
 					chunk->graphics_ob = new GLObject();
 					chunk->graphics_ob->mesh_data = mesh_data->gl_meshdata;
 					chunk->graphics_ob->ob_to_world_matrix = Matrix4f::identity();
@@ -8136,6 +8149,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							{
 								WorldObject::GetDependencyOptions options;
 								options.use_basis = this->server_has_basis_textures;
+								options.include_lightmaps = this->use_lightmaps;
 								std::set<DependencyURL> URL_set;
 								ob->getDependencyURLSet(ob_lod_level, options, URL_set);
 								if(URL_set.count(DependencyURL(m->URL)) != 0)
@@ -8238,7 +8252,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									{
 										const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_path);
 
-										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, used_by_terrain);
+										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, used_by_terrain, worker_allocator);
 										task->loaded_buffer = m->loaded_buffer;
 										load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, task, /*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 									}
@@ -8276,6 +8290,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									load_model_task->build_physics_ob = info.build_physics_ob;
 									load_model_task->build_dynamic_physics_ob = info.build_dynamic_physics_ob;
 									load_model_task->loaded_buffer = m->loaded_buffer;
+									load_model_task->worker_allocator = worker_allocator;
 
 									load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
 										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
@@ -8370,7 +8385,8 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		msg += "-------------------------------\n";
 	}
 
-	size_t num_lod_chunks;
+	size_t num_lod_chunks = 0;
+	if(this->world_state)
 	{
 		WorldStateLock lock(this->world_state->mutex);
 		num_lod_chunks = this->world_state->lod_chunks.size();
@@ -8407,8 +8423,14 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 
 	if(opengl_engine.nonNull() && opengl_engine->mem_allocator.nonNull())
 	{
-		msg += "---------------Mem Allocator-----------------\n";
+		msg += "---------------OpenGL Mem Allocator-----------------\n";
 		msg += std::string(opengl_engine->mem_allocator->getDiagnostics().c_str());
+		msg += "---------------------------------------------\n";
+	}
+	if(worker_allocator)
+	{
+		msg += "---------------Worker Mem Allocator-----------------\n";
+		msg += std::string(worker_allocator->getDiagnostics().c_str());
 		msg += "---------------------------------------------\n";
 	}
 
@@ -9178,6 +9200,7 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
+	options.include_lightmaps = this->use_lightmaps;
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSetBaseLevel(options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
@@ -9252,7 +9275,7 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 
 				// Use makeGLObjectForModelFile() which will load materials too, unpack GLBs etc.  We don't actually need the gl object.
 				ModelLoading::MakeGLObjectResults results;
-				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, original_mesh_path, /*do_opengl_stuff=*/false, results);
+				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(), original_mesh_path, /*do_opengl_stuff=*/false, results);
 
 				batched_mesh = results.batched_mesh;
 				new_world_object->materials = results.materials;
@@ -9362,6 +9385,7 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
+	options.include_lightmaps = this->use_lightmaps;
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSetBaseLevel(options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
@@ -9859,7 +9883,7 @@ void GUIClient::summonBike()
 	if(false)
 	{
 		ModelLoading::MakeGLObjectResults results;
-		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, 
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(),
 			"D:\\models\\BMWCONCEPTBIKE\\optimized-dressed_fix7_offset4.glb", // This is exported from Blender from source_resources/bike-optimized-dressed_fix7_offset.blend
 			/*do_opengl_stuff=*/true,
 			results);
@@ -9987,7 +10011,7 @@ void GUIClient::summonHovercar()
 	if(false)
 	{
 		ModelLoading::MakeGLObjectResults results;
-		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, 
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(),
 			"D:\\models\\peugot_closed.glb",
 			/*do_opengl_stuff=*/true,
 			results);
@@ -10353,7 +10377,7 @@ void GUIClient::objectEdited()
 				const int subsample_factor = 1;
 				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 					opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
-					opengl_engine->mem_allocator.ptr(), 
+					worker_allocator.ptr(), 
 					physics_shape);
 
 				// Remove existing physics object
@@ -10413,7 +10437,7 @@ void GUIClient::objectEdited()
 				const std::string mesh_path = FileUtils::fileExists(this->selected_ob->model_url) ? this->selected_ob->model_url : resource_manager->pathForURL(this->selected_ob->model_url);
 
 				ModelLoading::MakeGLObjectResults results;
-				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, mesh_path,
+				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(), mesh_path,
 					/*do_opengl_stuff=*/true,
 					results
 				);
@@ -10468,7 +10492,7 @@ void GUIClient::objectEdited()
 				assert(selected_ob->physics_object.isNull());
 				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
 
-				PhysicsShape use_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
+				PhysicsShape use_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic(), worker_allocator.ptr());
 				if(selected_ob->centre_of_mass_offset_os != Vec3f(0.f))
 					use_shape = PhysicsWorld::createCOMOffsetShapeForShape(use_shape, selected_ob->centre_of_mass_offset_os.toVec4fVector());
 
@@ -10504,6 +10528,7 @@ void GUIClient::objectEdited()
 		// URLs will actually be paths from editing for now.
 		WorldObject::GetDependencyOptions options;
 		options.use_basis = this->server_has_basis_textures;
+		options.include_lightmaps = this->use_lightmaps;
 		std::vector<DependencyURL> URLs;
 		this->selected_ob->appendDependencyURLsBaseLevel(options, URLs);
 
@@ -10607,6 +10632,7 @@ void GUIClient::objectEdited()
 									task->result_msg_queue = &this->msg_queue;
 									task->hypercard_content = selected_ob->content;
 									task->opengl_engine = opengl_engine;
+									task->worker_allocator = worker_allocator;
 									load_item_queue.enqueueItem(/*key=*/tex_key, *this->selected_ob, task, /*max task dist=*/200.f);
 								}
 							}
@@ -11140,6 +11166,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 			{
 				opengl_engine->removeObject(chunk->graphics_ob);
 				chunk->graphics_ob = NULL;
+				chunk->mesh_manager_data = NULL;
 			}
 		}
 	}
@@ -11292,7 +11319,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 
 	if(physics_world.isNull())
 	{
-		physics_world = new PhysicsWorld(high_priority_task_manager);
+		physics_world = new PhysicsWorld(high_priority_task_manager, &this->stack_allocator);
 		physics_world->event_listener = this;
 		player_physics.init(*physics_world, spawn_pos);
 
@@ -12045,7 +12072,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 			opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/ob->isDynamic(),
-			opengl_engine->mem_allocator.ptr(),
+			worker_allocator.ptr(),
 			physics_shape);
 
 		GLObjectRef gl_ob = opengl_engine->allocateObject();
@@ -13293,17 +13320,17 @@ void GUIClient::updateGroundPlane()
 			
 			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
 				load_item_queue.enqueueItem(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, this->resource_manager->getOrCreateResourceForURL(section_spec.heightmap_URL), heightmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, this->resource_manager->getOrCreateResourceForURL(section_spec.heightmap_URL), heightmap_tex_params, /*is terrain map=*/true, worker_allocator), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.mask_map_URL))
 				load_item_queue.enqueueItem(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL), maskmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL), maskmap_tex_params, /*is terrain map=*/true, worker_allocator), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.tree_mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.tree_mask_map_URL))
 				load_item_queue.enqueueItem(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL), maskmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL), maskmap_tex_params, /*is terrain map=*/true, worker_allocator), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 
@@ -13314,12 +13341,12 @@ void GUIClient::updateGroundPlane()
 
 			if(!use_detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_col_map_URLs[i]))
 				load_item_queue.enqueueItem(use_detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]), detail_colourmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]), detail_colourmap_tex_params, /*is terrain map=*/true, worker_allocator), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!use_detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_height_map_URLs[i]))
 				load_item_queue.enqueueItem(use_detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), heightmap_tex_params, /*is terrain map=*/true), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), heightmap_tex_params, /*is terrain map=*/true, worker_allocator), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------
@@ -13498,7 +13525,7 @@ void GUIClient::createModelObject(const std::string& local_model_path)
 	}
 
 	ModelLoading::MakeGLObjectResults results;
-	ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, local_model_path, /*do_opengl_stuff=*/false,
+	ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(), local_model_path, /*do_opengl_stuff=*/false,
 		results
 	);
 
@@ -13563,6 +13590,7 @@ void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_imag
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
+	options.include_lightmaps = this->use_lightmaps;
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)

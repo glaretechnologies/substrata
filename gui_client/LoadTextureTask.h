@@ -43,7 +43,7 @@ class LoadTextureTask : public glare::Task
 {
 public:
 	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource,
-		const TextureParams& tex_params, bool is_terrain_map);
+		const TextureParams& tex_params, bool is_terrain_map, const Reference<glare::Allocator>& worker_allocator);
 
 	virtual void run(size_t thread_index);
 
@@ -55,4 +55,5 @@ public:
 	TextureParams tex_params;
 	bool is_terrain_map;
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.Reference<LoadedBuffer> loaded_buffer;
+	Reference<glare::Allocator> worker_allocator;
 };

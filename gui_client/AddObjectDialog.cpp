@@ -212,7 +212,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		else if(ModelLoading::hasSupportedModelExtension(local_path))
 		{
 			ModelLoading::MakeGLObjectResults results;
-			ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, local_path, /*do_opengl_stuff=*/true,
+			ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, local_path, /*do_opengl_stuff=*/true,
 				results
 			);
 
