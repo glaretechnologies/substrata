@@ -19,6 +19,8 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/PlatformUtils.h>
 #include <utils/TaskManager.h>
 #include <utils/FastPoolAllocator.h>
+#include <utils/StackAllocator.h>
+#include <utils/LimitedAllocator.h>
 #include <tracy/Tracy.hpp>
 #include <stdarg.h>
 #include <Lock.h>
@@ -306,77 +308,35 @@ void PhysicsWorld::setWaterZ(float water_z_)
 }
 
 
-// Modified from TempAllocatorImpl, added maxTop high water mark.
 class PhysicsWorldAllocatorImpl final : public JPH::TempAllocator
 {
 public:
 	JPH_OVERRIDE_NEW_DELETE
 
-	/// Constructs the allocator with a maximum allocatable size of inSize
-	explicit PhysicsWorldAllocatorImpl(uint inSize) :
-		mBase(static_cast<uint8 *>(JPH::AlignedAllocate(inSize, JPH_RVECTOR_ALIGNMENT))),
-		mSize(inSize),
-		maxTop(0)
-	{
-	}
+	explicit PhysicsWorldAllocatorImpl(glare::StackAllocator* stack_allocator_) : stack_allocator(stack_allocator_)
+	{}
 
-	/// Destructor, frees the block
 	virtual	~PhysicsWorldAllocatorImpl() override
-	{
-		assert(mTop == 0);
-		JPH::AlignedFree(mBase);
-	}
+	{}
 
 	// See: TempAllocator
 	virtual void* Allocate(uint inSize) override
 	{
 		if(inSize == 0)
-		{
 			return nullptr;
-		}
 		else
-		{
-			uint new_top = mTop + JPH::AlignUp(inSize, JPH_RVECTOR_ALIGNMENT);
-			if(new_top > mSize)
-				throw glare::Exception("PhysicsWorldAllocatorImpl: out of memory");//JPH_CRASH; // Out of memory
-			void *address = mBase + mTop;
-			mTop = new_top;
-			maxTop = myMax(maxTop, mTop);
-			return address;
-		}
+			return stack_allocator->alloc(inSize, JPH_RVECTOR_ALIGNMENT);
 	}
 
 	// See: TempAllocator
 	virtual void Free(void *inAddress, uint inSize) override
 	{
-		if(inAddress == nullptr)
-		{
-			assert(inSize == 0);
-		}
-		else
-		{
-			mTop -= JPH::AlignUp(inSize, JPH_RVECTOR_ALIGNMENT);
-			if(mBase + mTop != inAddress)
-				throw glare::Exception("PhysicsWorldAllocatorImpl: Freeing in the wrong order"); // JPH_CRASH; // Freeing in the wrong order
-		}
+		if(inSize != 0)
+			stack_allocator->free(inAddress);
 	}
 
-	// Check if no allocations have been made
-	bool IsEmpty() const
-	{
-		return mTop == 0;
-	}
-
-	uint getMaxAllocated() const { return maxTop; }
-	uint getSize() const { return mSize; }
-
-private:
-	uint8 *							mBase;							///< Base address of the memory block
-	uint							mSize;							///< Size of the memory block
-	uint							mTop = 0;						///< Current top of the stack
-	uint							maxTop;							// high water mark
+	glare::StackAllocator* stack_allocator;
 };
-
 
 
 class JoltJobTask : public glare::Task
@@ -522,13 +482,14 @@ private:
 
 
 
-PhysicsWorld::PhysicsWorld(glare::TaskManager* task_manager_/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
+PhysicsWorld::PhysicsWorld(glare::TaskManager* task_manager_/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/, glare::StackAllocator* stack_allocator_)
 :	activated_obs(/*empty_key_=*/NULL),
 	newly_activated_obs(/*empty_key_=*/NULL),
 	water_buoyancy_enabled(false),
 	water_z(0),
 	event_listener(NULL),
-	task_manager(task_manager_)
+	task_manager(task_manager_),
+	stack_allocator(stack_allocator_)
 #if !USE_JOLT
 	,ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
 	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
@@ -537,7 +498,7 @@ PhysicsWorld::PhysicsWorld(glare::TaskManager* task_manager_/*PhysicsWorldBodyAc
 #if USE_JOLT
 	// Highest high water mark I have seen so far is 20.5 MB.  
 	// Note that increasing mMaxNumHits in CharacterVirtualSettings results in a lot more mem usage.
-	temp_allocator = new PhysicsWorldAllocatorImpl(32 * 1024 * 1024);
+	temp_allocator = new PhysicsWorldAllocatorImpl(stack_allocator);
 
 	// We need a job system that will execute physics jobs on multiple threads. Typically
 	// you would implement the JobSystem interface yourself and let Jolt Physics run on top
@@ -771,7 +732,7 @@ void PhysicsWorld::moveKinematicObject(PhysicsObject& object, const Vec4f& trans
 
 static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
 {
-	JPH::Shape::VisitedShapes visited_shapes(/*empty key=*/nullptr); // Jolt uses this to make sure it doesn't double-count sub-shapes.
+	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
 
 	JPH::Shape::Stats shape_stats = jolt_shape->GetStatsRecursive(visited_shapes);
 
@@ -779,7 +740,7 @@ static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
 }
 
 
-PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob)
+PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -793,7 +754,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 	if(build_dynamic_physics_ob)
 	{
 		// Jolt doesn't support dynamic triangles mesh shapes, so we need to convert it to a convex hull shape.
-		JPH::Array<JPH::Vec3> points(verts_size);
+		glare::AllocatorVector<JPH::Vec3> points(verts_size, mem_allocator);
 
 		for(size_t i = 0; i < verts_size; ++i)
 		{
@@ -802,7 +763,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 		}
 
 		JPH::Ref<JPH::ConvexHullShapeSettings> hull_shape_settings = new JPH::ConvexHullShapeSettings(
-			points
+			points.data(), (int)points.size()
 		);
 
 		JPH::Result<JPH::Ref<JPH::Shape>> result = hull_shape_settings->Create();
@@ -816,8 +777,8 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 	}
 	else
 	{
-		JPH::VertexList vertex_list(verts_size);
-		JPH::IndexedTriangleList tri_list(final_num_tris_size);
+		JPH::VertexList vertex_list(verts_size); // size_B = sizeof(JPH::Float3) * verts_size = sizeof(float) * 3 * verts_size
+		JPH::IndexedTriangleList tri_list(final_num_tris_size);// size_B = sizeof(JPH::IndexedTriangle) * final_num_tris_size = sizeof(uint32) * 5 * final_num_tris_size
 	
 		for(size_t i = 0; i < verts_size; ++i)
 		{
@@ -915,7 +876,7 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 
 
 
-PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob)
+PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -926,8 +887,8 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 	const BatchedMesh::VertAttribute* pos_attr = mesh.findAttribute(BatchedMesh::VertAttribute_Position);
 	if(!pos_attr)
 		throw glare::Exception("Pos attribute not present.");
-	if(pos_attr->component_type != BatchedMesh::ComponentType_Float)
-		throw glare::Exception("Pos attribute must have float type.");
+	if(!(pos_attr->component_type == BatchedMesh::ComponentType_Float || pos_attr->component_type == BatchedMesh::ComponentType_UInt16))
+		throw glare::Exception("PhysicsWorld::createJoltShapeForBatchedMesh(): Pos attribute must have float or uint16 type.");
 	const size_t pos_offset = pos_attr->offset_B;
 
 
@@ -994,6 +955,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 	}
 
 
+	const bool pos_is_float = pos_attr->component_type == BatchedMesh::ComponentType_Float;
 
 	if(build_dynamic_physics_ob)
 	{
@@ -1004,7 +966,15 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		for(size_t i = 0; i < num_verts; ++i)
 		{
 			Vec4f vert_pos(1.f);
-			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size_B, sizeof(::Vec3f));
+			if(pos_is_float)
+				std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size_B, sizeof(::Vec3f));
+			else
+			{
+				uint16 vals[3];
+				std::memcpy(vals, src_vertex_data + pos_offset + i * vert_size_B, sizeof(uint16) * 3);
+				const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
+				vert_pos = mesh.aabb_os.min_ + dequantisation_scale * Vec4f((float)vals[0], (float)vals[1], (float)vals[2], 1);
+			}
 
 			if(use_skin_transforms)
 				vert_pos = transformSkinnedVertex(vert_pos, joint_offset_B, weights_offset_B, joints_component_type, weights_component_type, joint_matrices, src_vertex_data, vert_size_B, i);
@@ -1035,7 +1005,15 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		for(size_t i = 0; i < num_verts; ++i)
 		{
 			Vec4f vert_pos(1.f);
-			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size_B, sizeof(::Vec3f));
+			if(pos_is_float)
+				std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size_B, sizeof(::Vec3f));
+			else
+			{
+				uint16 vals[3];
+				std::memcpy(vals, src_vertex_data + pos_offset + i * vert_size_B, sizeof(uint16) * 3);
+				const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
+				vert_pos = mesh.aabb_os.min_ + dequantisation_scale * Vec4f((float)vals[0], (float)vals[1], (float)vals[2], 1);
+			}
 
 			if(use_skin_transforms)
 				vert_pos = transformSkinnedVertex(vert_pos, joint_offset_B, weights_offset_B, joints_component_type, weights_component_type, joint_matrices, src_vertex_data, vert_size_B, i);
@@ -1359,7 +1337,9 @@ void PhysicsWorld::think(double dt)
 	const int cCollisionSteps = 1;
 
 	// We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
+	assert(dynamic_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->stack_allocator->curNumAllocs() == 0);
 	physics_system->Update((float)dt, cCollisionSteps, temp_allocator, job_system);
+	assert(dynamic_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->stack_allocator->curNumAllocs() == 0);
 
 
 	// Apply buoyancy to all activated dynamic objects if enabled
@@ -1388,17 +1368,23 @@ void PhysicsWorld::think(double dt)
 					const float buoyancy = fluid_density * body->GetShape()->GetVolume() / physics_ob->mass;
 
 					float total_volume, submerged_volume;
-					const bool impulse_applied = body->ApplyBuoyancyImpulse(
+					JPH::Vec3 relative_centre_of_buoyancy;
+					body->GetSubmergedVolume(
 						JPH::RVec3Arg(0,0, this->water_z), // inSurfacePosition
 						JPH::RVec3Arg(0,0,1), // inSurfaceNormal
+						total_volume,
+						submerged_volume,
+						relative_centre_of_buoyancy
+					);
+					
+					const bool impulse_applied = body->ApplyBuoyancyImpulse(
+						total_volume, submerged_volume, relative_centre_of_buoyancy,
 						buoyancy, // inBuoyancy
 						physics_ob->use_zero_linear_drag ? 0.f : 0.1f, // inLinearDrag
-						0.2f, // inAngularDrag
+						0.6f, // inAngularDrag
 						JPH::Vec3Arg(0,0,0), // inFluidVelocity
 						JPH::Vec3Arg(0,0,-9.81f), // inGravity
-						(float)dt, // inDeltaTime
-						total_volume,
-						submerged_volume
+						(float)dt // inDeltaTime
 					);
 
 					// conPrint("submerged_volume: " + ::doubleToStringNSigFigs(submerged_volume, 4) + ", total_volume: " + ::doubleToStringNSigFigs(total_volume, 4));
@@ -1527,7 +1513,7 @@ PhysicsWorld::MemUsageStats PhysicsWorld::getMemUsageStats() const
 	stats.num_meshes = 0;
 	stats.mem = 0;
 
-	JPH::Shape::VisitedShapes visited_shapes(/*empty key=*/nullptr); // Jolt uses this to make sure it doesn't double-count sub-shapes.
+	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
@@ -1570,9 +1556,6 @@ std::string PhysicsWorld::getDiagnostics() const
 	}
 	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
-
-	assert(dynamic_cast<PhysicsWorldAllocatorImpl*>(temp_allocator));
-	s += "temp allocator max used: " + getNiceByteSize(static_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->getMaxAllocated()) + " (Total: " + getNiceByteSize(static_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->getSize()) + ")\n";
 
 	return s;
 }
@@ -1708,7 +1691,8 @@ void PhysicsWorld::test()
 		//GLTFLoadedData data;
 		//BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", data);
 		//BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/2CylinderEngine.glb", data);
-		BatchedMeshRef mesh = BatchedMesh::readFromFile("C:\\Users\\nick\\AppData\\Roaming\\Cyberspace\\resources\\mausoleum_glb_2010952405149410706_lod1.bmesh", nullptr);
+		//BatchedMeshRef mesh = BatchedMesh::readFromFile("C:\\Users\\nick\\AppData\\Roaming\\Cyberspace\\resources\\mausoleum_glb_2010952405149410706_lod1.bmesh", nullptr);
+		BatchedMeshRef mesh = BatchedMesh::readFromFile("C:\\Users\\nick\\AppData\\Roaming\\Cyberspace/resources/SUB_TRACK3_glb_16841937726500498382.bmesh", nullptr);
 
 
 		glare::TaskManager task_manager(0);
@@ -1733,18 +1717,29 @@ void PhysicsWorld::test()
 			}
 		}*/
 
+		
 
+		printVar(mesh->numVerts());
+		printVar(mesh->numIndices());
+
+		Reference<glare::LimitedAllocator> allocator = new glare::LimitedAllocator(mesh->numIndices() * 110);
 
 
 		double min_time = 1.0e10;
 		for(int i=0; i<1000; ++i)
 		{
 			Timer timer;
-			const uint64 initial_num_jolt_allocs = ::num_jolt_allocs_done;
-			auto res = createJoltShapeForBatchedMesh(*mesh, /*is dynamic=*/false);
-			const uint64 num_allocs = ::num_jolt_allocs_done - initial_num_jolt_allocs;
+			//const uint64 initial_num_jolt_allocs = ::num_jolt_allocs_done;
+			//const uint64 initial_total_alloced = jolt_total_alloced;
+
+			PhysicsShape shape = createJoltShapeForBatchedMesh(*mesh, /*is dynamic=*/false, allocator.ptr());
+
+			//const uint64 num_allocs = ::num_jolt_allocs_done - initial_num_jolt_allocs;
+			//const uint64 amount_alloced = jolt_total_alloced - initial_total_alloced;
 			min_time = myMin(min_time, timer.elapsed());
-			conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", num_allocs: " + toString(num_allocs) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time * 1.0e3, 4) + " ms");
+			//conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", num_allocs: " + toString(num_allocs) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time * 1.0e3, 4) + " ms");
+			//printVar(amount_alloced);
+			//printVar(jolt_high_watermark);
 		}
 	}
 	catch(glare::Exception& e)
