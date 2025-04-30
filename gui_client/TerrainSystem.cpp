@@ -196,7 +196,7 @@ static IndexBufAllocationHandle createIndexBufferForChunkWithRes(OpenGLEngine* o
 	for(int y=0; y<quad_res_with_borders; ++y)
 	for(int x=0; x<quad_res_with_borders; ++x)
 	{
-		// Trianglulate the quad in this way to match how Jolt triangulates the height field shape.
+		// Triangulate the quad in this way to match how Jolt triangulates the height field shape.
 		// 
 		// 
 		// |----|
@@ -1384,7 +1384,7 @@ void TerrainSystem::createInteriorNodeSubtree(TerrainNode* node, const Vec3d& ca
 
 static const float USE_MIN_DIST_TO_AABB = 5.f;
 
-static const int LOWER_DEPTH_BOUND = 3; // Enfore some tesselation to make sure each chunk lies completely in only one source terrain section.
+static const int LOWER_DEPTH_BOUND = 3; // Enforce some tessellation to make sure each chunk lies completely in only one source terrain section.
 
 // The root node of the subtree, 'node', has already been created.
 void TerrainSystem::createSubtree(TerrainNode* node, const Vec3d& campos)
