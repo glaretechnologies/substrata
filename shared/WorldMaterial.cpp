@@ -46,7 +46,15 @@ static std::string getLODTextureURLForLevel(const std::string& base_texture_url,
 		return base_texture_url; 
 
 	if(level <= material_min_lod_level)
+	{
+#if 1 // EMSCRIPTEN
+		// If this is the web build, use LOD 1 as the minimum LOD level for gifs.  This is to save RAM as gifs can be quite large (e.g. 20 MB).
+		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
+		if(is_gif)
+			return use_basis ? (removeDotAndExtension(base_texture_url) + "_lod1.basis") : (removeDotAndExtension(base_texture_url) + "_lod1.gif");
+#endif
 		return use_basis ? (removeDotAndExtension(base_texture_url) + ".basis") : base_texture_url;
+	}
 	else
 	{
 		if(use_basis)
