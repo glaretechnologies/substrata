@@ -132,7 +132,7 @@ public:
 	static void staticInit();
 	static void staticShutdown();
 
-	void initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_);
+	void initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator);
 	void afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine, 
 		const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts);
 
@@ -669,6 +669,7 @@ public:
 	Reference<AsyncTextureLoader> async_texture_loader;
 
 	glare::StackAllocator stack_allocator;
+	Reference<glare::Allocator> worker_allocator;
 
 
 	Mutex particles_creation_buf_mutex;
@@ -771,4 +772,6 @@ public:
 
 	js::Vector<AsyncUploadedGeometryInfo, 16> temp_uploaded_geom_infos;
 	js::Vector<PBOAsyncUploadedTextureInfo, 16> temp_loaded_texture_infos;
+
+	bool use_lightmaps;
 };

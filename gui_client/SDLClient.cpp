@@ -31,7 +31,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/FileUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
-//#include <utils/LimitedAllocator.h>
+#include <utils/StringUtils.h>
+#include <utils/LimitedAllocator.h>
 #include <networking/URL.h>
 #include <webserver/Escaping.h>
 #include <GL/gl3w.h>
@@ -426,8 +427,9 @@ int main(int argc, char** argv)
 
 
 		//Reference<glare::Allocator> mem_allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/2 * 1024 * 1024 * 1024ull);
-		//Reference<glare::Allocator> mem_allocator = new glare::LimitedAllocator(/*max_size_B=*/1536 * 1024 * 1024ull);
 		Reference<glare::Allocator> mem_allocator = new glare::MallocAllocator();
+		Reference<glare::Allocator> worker_allocator = new glare::LimitedAllocator(/*max_size_B=*/512 * 1024 * 1024ull);
+		//Reference<glare::Allocator> mem_allocator = new glare::MallocAllocator();
 
 
 		EXRDecoder::setTaskManager(main_task_manager);
@@ -460,6 +462,7 @@ int main(int argc, char** argv)
 		settings.depth_fog = true;
 		settings.render_water_caustics = true;
 		settings.msaa_samples = use_MSAA ? 4 : 1;
+		settings.render_to_offscreen_renderbuffers = true;
 
 		if(parsed_args.isArgPresent("--no_MDI"))
 			settings.allow_multi_draw_indirect = false;
@@ -503,6 +506,12 @@ int main(int argc, char** argv)
 		gui_client = new GUIClient(base_dir, appdata_path, parsed_args);
 		gui_client->opengl_engine = opengl_engine;
 
+#if EMSCRIPTEN
+		// Don't use lightmaps on mobile devices for now, to reduce RAM usage.
+		if(device_pixel_ratio > 1.0)
+			gui_client->use_lightmaps = false;
+#endif
+
 
 		std::string cache_dir = appdata_path;
 
@@ -513,7 +522,7 @@ int main(int argc, char** argv)
 		sdl_ui_interface->gui_client = gui_client;
 		sdl_ui_interface->game_controller = game_controller;
 
-		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager);
+		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager, worker_allocator);
 
 
 		// NOTE: use 1 for device_pixel_ratio as we are not doing high DPI rendering.

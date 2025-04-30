@@ -462,6 +462,7 @@ static float roughnessForExponent(float exponent)
 void ModelLoading::makeGLObjectForModelFile(
 	OpenGLEngine& gl_engine,
 	VertexBufferAllocator& vert_buf_allocator,
+	glare::Allocator* allocator,
 	const std::string& model_path, 
 	bool do_opengl_stuff,
 	MakeGLObjectResults& results_out
@@ -521,7 +522,7 @@ void ModelLoading::makeGLObjectForModelFile(
 		const int subsample_factor = 1;
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/do_opengl_stuff, 
-			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, gl_engine.mem_allocator.ptr(), physics_shape);
+			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, allocator, physics_shape);
 
 		GLObjectRef ob;
 		if(do_opengl_stuff)
@@ -828,7 +829,7 @@ void ModelLoading::makeGLObjectForModelFile(
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		BatchedMeshRef bmesh = BatchedMesh::readFromFile(model_path, gl_engine.mem_allocator.ptr());
+		BatchedMeshRef bmesh = BatchedMesh::readFromFile(model_path, allocator);
 
 		bmesh->checkValidAndSanitiseMesh();
 
@@ -1070,7 +1071,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 	gl_meshdata->num_materials_referenced = batched_mesh->numMaterialsReferenced();
 
 	if(build_physics_ob)
-		physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob);
+		physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob, mem_allocator);
 
 	return gl_meshdata;
 }
@@ -1576,7 +1577,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Convert Indigo mesh to opengl data
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh, mem_allocator);
 
-	physics_shape_out = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, build_dynamic_physics_ob);
+	physics_shape_out = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, build_dynamic_physics_ob, mem_allocator);
 
 	// Load rendering data into GPU mem if requested.
 	if(do_opengl_stuff)

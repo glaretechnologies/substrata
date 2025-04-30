@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <vector>
 #include <set>
 struct GLObject;
+struct MeshData;
 
 
 /*=====================================================================
@@ -54,6 +55,8 @@ public:
 	std::string combined_array_texture_path;
 
 	Reference<GLObject> diagnostics_gl_ob; // For diagnostics visualisation
+
+	Reference<MeshData> mesh_manager_data; // Hang on to a reference to the mesh data, so when chunk-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 #endif
 
 

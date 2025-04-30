@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/RuntimeCheck.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
+#include "../gui_client/MeshManager.h"
 #endif
 #include <zstd.h>
 

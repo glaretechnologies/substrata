@@ -71,7 +71,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
 #include "../utils/IndigoXMLDoc.h"
-#include "../utils/TaskManager.h"
+#include "../utils/LimitedAllocator.h"
 #include "../networking/MySocket.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
@@ -297,6 +297,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 
 	main_mem_allocator = new glare::MallocAllocator(); // TEMP TODO: use something better
+	//main_mem_allocator = new glare::LimitedAllocator(10'000'000'000ull); // TEMP TODO: use something better
 
 	ui->glWidget->main_task_manager = main_task_manager;
 	ui->glWidget->high_priority_task_manager = high_priority_task_manager;
@@ -384,7 +385,9 @@ void MainWindow::initialise()
 
 	settings_store = new QSettingsStore(settings);
 
-	gui_client.initialise(cache_dir, settings_store, this, high_priority_task_manager);
+	Reference<glare::Allocator> worker_allocator = new glare::LimitedAllocator(/*max_size_B=*/2048 * 1024 * 1024ull);
+
+	gui_client.initialise(cache_dir, settings_store, this, high_priority_task_manager, /*worker allocator=*/worker_allocator);
 
 #ifdef _WIN32
 	// Create a GPU device.  Needed to get hardware accelerated video decoding.
@@ -1161,11 +1164,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		const double heading_deg = Maths::doubleMod(::radToDegree(gui_client.cam_controller.getAngles().x), 360.0);
 
 		// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
-		this->url_widget->setURL("sub://" + gui_client.server_hostname + "/" + gui_client.server_worldname +
-			"?x=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().x, 1) + 
-			"&y=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().y, 1) +
-			"&z=" + doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().z, 2) +
-			"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1));
+		std::string url;
+		url.reserve(128);
+		url += "sub://";
+		url += gui_client.server_hostname;
+		url += "/";
+		url += gui_client.server_worldname;
+		url += "?x="; 
+		url += doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().x, 1);
+		url += "&y=";
+		url += doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().y, 1);
+		url += "&z="; 
+		url += doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().z, 2);
+		url += "&heading=";
+		url += doubleToStringNDecimalPlaces(heading_deg, 1);
+		this->url_widget->setURL(url);
 	}
 
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));

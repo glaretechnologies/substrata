@@ -33,4 +33,5 @@ public:
 	Reference<OpenGLEngine> opengl_engine;
 	std::string hypercard_content;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
+	Reference<glare::Allocator> worker_allocator;
 };

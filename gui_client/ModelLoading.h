@@ -64,7 +64,7 @@ public:
 		Vec3f axis;
 		float angle;
 	};
-	static void makeGLObjectForModelFile(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, const std::string& model_path, bool do_opengl_stuff, MakeGLObjectResults& results_out);
+	static void makeGLObjectForModelFile(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, glare::Allocator* allocator, const std::string& model_path, bool do_opengl_stuff, MakeGLObjectResults& results_out);
 
 
 	// This is a cube object with two materials, for displaying images or videos.
