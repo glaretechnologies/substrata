@@ -356,7 +356,7 @@ public:
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
-	void handleUploadedMeshData(const std::string& lod_model_url, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, UID voxel_ob_uid, int voxel_ob_model_lod_level, int voxel_subsample_factor);
+	void handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, UID voxel_ob_uid, int voxel_subsample_factor);
 	void handleUploadedTexture(const std::string& path, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
@@ -637,11 +637,11 @@ public:
 	MeshDataLoadingProgress mesh_data_loading_progress;
 	Reference<OpenGLMeshRenderData> cur_loading_mesh_data;
 	std::string cur_loading_lod_model_url;
+	int cur_loading_model_lod_level;
 	bool cur_loading_dynamic_physics_shape;
 	UID cur_loading_voxel_ob_uid;
 	int cur_loading_voxel_subsample_factor;
 	PhysicsShape cur_loading_physics_shape;
-	int cur_loading_voxel_ob_model_lod_level;
 
 	// Current loading texture information
 	Map2DRef cur_loading_terrain_map; // Non-null iff we are currently loading a map used for the terrain system into OpenGL.
@@ -695,6 +695,8 @@ public:
 
 	bool server_has_basis_textures;
 	bool server_has_basisu_terrain_detail_maps;
+	bool server_has_optimised_meshes;
+	int server_opt_mesh_version;
 
 	bool shown_object_modification_error_msg;
 
@@ -761,10 +763,10 @@ public:
 	struct AsyncGeometryUploading
 	{
 		std::string lod_model_url;
+		int ob_model_lod_level;
 		bool dynamic_physics_shape;
 		PhysicsShape physics_shape;
 		UID voxel_ob_uid;
-		int voxel_ob_model_lod_level;
 		int voxel_subsample_factor;
 	};
 	

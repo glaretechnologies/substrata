@@ -65,13 +65,27 @@ public:
 	int getLODLevel(const Vec3d& campos) const;
 	float getMaxDistForLODLevel(int level) const;
 
-	std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
+	struct GetLODModelURLOptions
+	{
+		GetLODModelURLOptions(bool get_optimised_mesh_, int opt_mesh_version_) : get_optimised_mesh(get_optimised_mesh_), opt_mesh_version(opt_mesh_version_) {}
+		bool get_optimised_mesh;
+		int opt_mesh_version;
+	};
+
+	std::string getLODModelURLForLevel(const std::string& base_model_url, int level, const GetLODModelURLOptions& options);
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 
-	void appendDependencyURLs(int ob_lod_level, bool use_basis, std::vector<DependencyURL>& URLs_out);
-	void appendDependencyURLsForAllLODLevels(bool use_basis, std::vector<DependencyURL>& URLs_out);
-	void getDependencyURLSet(int ob_lod_level, bool use_basis, std::set<DependencyURL>& URLS_out);
-	void getDependencyURLSetForAllLODLevels(bool use_basis, std::set<DependencyURL>& URLS_out);
+	struct GetDependencyOptions
+	{
+		GetDependencyOptions() : use_basis(true), get_optimised_mesh(false), opt_mesh_version(-1) {}
+		bool use_basis;
+		bool get_optimised_mesh;
+		int opt_mesh_version;
+	};
+	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out);
+	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out);
+	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out);
+	void getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 

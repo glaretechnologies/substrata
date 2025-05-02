@@ -312,6 +312,7 @@ void WorkerThread::handleResourceUploadConnection()
 						URLs.clear();
 						WorldObject::GetDependencyOptions options;
 						options.use_basis = false;
+						options.get_optimised_mesh = false;
 						ob->getDependencyURLSetForAllLODLevels(options, URLs);
 
 						if(URLs.count(DependencyURL(URL)) > 0) // If the object uses the resource with this URL:
@@ -628,7 +629,7 @@ void WorkerThread::handleEthBotConnection()
 
 				server->world_state->last_eth_bot_contact_time = TimeStamp::currentTime();
 
-				// Find first transction in New state.  NOTE: slow linear scan.
+				// Find first transaction in New state.  NOTE: slow linear scan.
 				for(auto it = server->world_state->sub_eth_transactions.begin(); it != server->world_state->sub_eth_transactions.end(); ++it)
 				{
 					if(it->second->state == SubEthTransaction::State_New)
@@ -902,8 +903,13 @@ void WorkerThread::doRun()
 
 		if(client_protocol_version >= 41) // Sending server_capabilities was added in protocol version 41.
 		{
-			const uint32 server_capabilities = Protocol::OBJECT_TEXTURE_BASISU_SUPPORT | Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT;
+			const uint32 server_capabilities = Protocol::OBJECT_TEXTURE_BASISU_SUPPORT | Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT | Protocol::OPTIMISED_MESH_SUPPORT;
 			socket->writeUInt32(server_capabilities);
+		}
+
+		if(client_protocol_version >= 43) // Sending mesh optimisation version was added in protocol version 43.
+		{
+			socket->writeInt32(Protocol::OPTIMISED_MESH_VERSION);
 		}
 
 		const uint32 connection_type = socket->readUInt32();
@@ -1390,7 +1396,10 @@ void WorkerThread::doRun()
 
 							// Process resources
 							std::set<DependencyURL> URLs;
-							temp_avatar.getDependencyURLSetForAllLODLevels(/*use basis=*/false, URLs); // Get non-basis resources, convert to basis on server.
+							Avatar::GetDependencyOptions options;
+							options.get_optimised_mesh = false; // Get non-optimised mesh, optimise on server.
+							options.use_basis = false; // Get non-basis resources, convert to basis on server.
+							temp_avatar.getDependencyURLSetForAllLODLevels(options, URLs); 
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 							{
 								sendGetFileMessageIfNeeded(it->URL);
@@ -1439,7 +1448,10 @@ void WorkerThread::doRun()
 
 							// Process resources
 							std::set<DependencyURL> URLs;
-							temp_avatar.getDependencyURLSetForAllLODLevels(/*use basis=*/false, URLs); // Get non-basis resources, convert to basis on server.
+							Avatar::GetDependencyOptions options;
+							options.get_optimised_mesh = false; // Get non-optimised mesh, optimise on server.
+							options.use_basis = false; // Get non-basis resources, convert to basis on server.
+							temp_avatar.getDependencyURLSetForAllLODLevels(options, URLs);
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 							{
 								sendGetFileMessageIfNeeded(it->URL);
@@ -1805,6 +1817,7 @@ void WorkerThread::doRun()
 											std::set<DependencyURL> URLs;
 											WorldObject::GetDependencyOptions options;
 											options.use_basis = false; // Get plain textures, convert to basis on server.
+											options.get_optimised_mesh = false;
 											ob->getDependencyURLSetBaseLevel(options, URLs);
 											for(auto it = URLs.begin(); it != URLs.end(); ++it)
 												sendGetFileMessageIfNeeded(it->URL);
@@ -2027,6 +2040,7 @@ void WorkerThread::doRun()
 									std::set<DependencyURL> URLs;
 									WorldObject::GetDependencyOptions options;
 									options.use_basis = false; // Get plain textures, convert to basis on server.
+									options.get_optimised_mesh = false;
 									new_ob->getDependencyURLSetBaseLevel(options, URLs);
 									for(auto it = URLs.begin(); it != URLs.end(); ++it)
 										sendGetFileMessageIfNeeded(it->URL);

@@ -174,9 +174,12 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	server_using_lod_chunks(false),
 	server_has_basis_textures(false),
 	server_has_basisu_terrain_detail_maps(false),
+	server_has_optimised_meshes(false),
+	server_opt_mesh_version(-1),
 	last_cursor_movement_was_from_mouse(true),
 	sent_perform_gesture_without_stop_gesture(false),
-	use_lightmaps(true)
+	use_lightmaps(true),
+	cur_loading_model_lod_level(-1)
 {
 	resources_dir_path = base_dir_path + "/data/resources";
 
@@ -1353,6 +1356,8 @@ bool GUIClient::isResourceCurrentlyNeededForObject(const std::string& url, const
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
 	options.include_lightmaps = this->use_lightmaps;
+	options.get_optimised_mesh = this->server_has_optimised_meshes;
+	options.opt_mesh_version = this->server_opt_mesh_version;
 	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
 
@@ -1413,6 +1418,8 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
 	options.include_lightmaps = this->use_lightmaps;
+	options.get_optimised_mesh = this->server_has_optimised_meshes;
+	options.opt_mesh_version = this->server_opt_mesh_version;
 	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
@@ -1448,8 +1455,14 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 
 void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar)
 {
+	Avatar::GetDependencyOptions options;
+	options.get_optimised_mesh = this->server_has_optimised_meshes;
+	options.use_basis = this->server_has_basis_textures;
+	options.opt_mesh_version = this->server_opt_mesh_version;
+
 	std::set<DependencyURL> dependency_URLs;
-	ob->getDependencyURLSet(ob_lod_level, /*use_basis=*/this->server_has_basis_textures, dependency_URLs);
+	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
+
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 	{
 		const DependencyURL& url_info = *it;
@@ -2227,7 +2240,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
 				Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-				load_model_task->voxel_ob_model_lod_level = ob_model_lod_level;
+				load_model_task->model_lod_level = ob_model_lod_level;
 				load_model_task->opengl_engine = opengl_engine;
 				load_model_task->result_msg_queue = &this->msg_queue;
 				load_model_task->resource_manager = resource_manager;
@@ -2290,7 +2303,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				ob->loading_or_loaded_model_lod_level = ob_model_lod_level;
 
 				bool added_opengl_ob = false;
-				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
+
+				WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
+				options.get_optimised_mesh = this->server_has_optimised_meshes;
+				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_model_lod_level, options);
 
 				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
@@ -2318,6 +2334,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 							load_model_task->resource = resource_manager->getOrCreateResourceForURL(lod_model_url);
 							load_model_task->lod_model_url = lod_model_url;
+							load_model_task->model_lod_level = ob_model_lod_level;
 							load_model_task->opengl_engine = this->opengl_engine;
 							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
@@ -2686,7 +2703,8 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 
 		bool added_opengl_ob = false;
 
-		const std::string lod_model_url = WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level);
+		WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
+		const std::string lod_model_url = WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level, options);
 
 		avatar->graphics.loaded_lod_level = ob_lod_level;
 
@@ -2714,6 +2732,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 
 					load_model_task->resource = resource_manager->getOrCreateResourceForURL(lod_model_url);
 					load_model_task->lod_model_url = lod_model_url;
+					load_model_task->model_lod_level = ob_model_lod_level;
 					load_model_task->opengl_engine = this->opengl_engine;
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
@@ -3837,8 +3856,8 @@ struct CloserToCamComparator
 
 
 
-void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, UID voxel_ob_uid, int voxel_ob_model_lod_level,
-	int voxel_subsample_factor)
+void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
+	UID voxel_ob_uid, int voxel_subsample_factor)
 {
 	if(voxel_ob_uid.valid())
 	{
@@ -3855,7 +3874,7 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, bool dy
 				const int ob_model_lod_level = myClamp(ob_lod_level, 0, voxel_ob->max_model_lod_level);
 
 				// Check the object wants this particular LOD level model right now:
-				if(ob_model_lod_level == voxel_ob_model_lod_level)
+				if(ob_model_lod_level == loaded_model_lod_level)
 				{
 					removeAndDeleteGLObjectsForOb(*voxel_ob); // Remove any existing OpenGL model
 
@@ -3950,7 +3969,7 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, bool dy
 						loadScriptForObject(voxel_ob.ptr(), lock); // Load any script for the object.
 					}
 
-					voxel_ob->loading_or_loaded_model_lod_level = voxel_ob_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
+					voxel_ob->loading_or_loaded_model_lod_level = loaded_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
 
 					// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 					if(this->selected_ob == voxel_ob)
@@ -3971,10 +3990,7 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, bool dy
 		Reference<MeshData> the_mesh_data					= mesh_manager.insertMesh(lod_model_url, mesh_data);
 		Reference<PhysicsShapeData> physics_shape_data		= mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(lod_model_url, /*is dynamic=*/dynamic_physics_shape), physics_shape);
 
-		// Data is uploaded - assign to any waiting objects
-		const int loaded_model_lod_level = WorldObject::getLODLevelForURL(lod_model_url/*message->lod_model_url*/);
-
-		// Assign the loaded model for any objects using waiting for this model:
+		// Data is uploaded - assign the loaded model for any objects using waiting for this model:
 		WorldStateLock lock(this->world_state->mutex);
 
 		const ModelProcessingKey model_loading_key(lod_model_url, dynamic_physics_shape);
@@ -4041,7 +4057,8 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, bool dy
 						const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
 
 						// Check the avatar wants this particular LOD level model right now:
-						const std::string current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level);
+						Avatar::GetLODModelURLOptions options(this->server_has_optimised_meshes, this->server_opt_mesh_version);
+						const std::string current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level, options);
 						if(current_desired_model_LOD_URL == lod_model_url)
 						{
 							try
@@ -4154,11 +4171,12 @@ void GUIClient::processLoading()
 
 				if(mesh_data_loading_progress.done())
 				{
-					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape, cur_loading_voxel_ob_uid, cur_loading_voxel_ob_model_lod_level,
+					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape, cur_loading_voxel_ob_uid, 
 						cur_loading_voxel_subsample_factor);
 
 					cur_loading_mesh_data = NULL;
 					cur_loading_lod_model_url.clear();
+					cur_loading_model_lod_level = -1;
 					cur_loading_voxel_ob_uid = UID::invalidUID();
 					cur_loading_physics_shape = PhysicsShape();
 				}
@@ -4230,7 +4248,7 @@ void GUIClient::processLoading()
 										this->cur_loading_voxel_ob_uid = message->voxel_ob_uid;
 										this->cur_loading_voxel_subsample_factor = message->subsample_factor;
 										this->cur_loading_physics_shape = message->physics_shape;
-										this->cur_loading_voxel_ob_model_lod_level = message->voxel_ob_model_lod_level;
+										this->cur_loading_model_lod_level = message->model_lod_level;
 										opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
 										//logMessage("Initialised loading of voxel mesh: " + mesh_data_loading_progress.summaryString());
@@ -4251,6 +4269,7 @@ void GUIClient::processLoading()
 								this->cur_loading_mesh_data = message->gl_meshdata;
 								this->cur_loading_physics_shape = message->physics_shape;
 								this->cur_loading_lod_model_url = message->lod_model_url;
+								this->cur_loading_model_lod_level = message->model_lod_level;;
 								this->cur_loading_dynamic_physics_shape = message->built_dynamic_physics_ob;
 								opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
@@ -4333,10 +4352,10 @@ void GUIClient::processLoading()
 
 		AsyncGeometryUploading loading_info;
 		loading_info.lod_model_url = message->lod_model_url;
+		loading_info.ob_model_lod_level = message->model_lod_level;
 		loading_info.dynamic_physics_shape = message->built_dynamic_physics_ob;
 		loading_info.physics_shape = message->physics_shape;
 		loading_info.voxel_ob_uid = message->voxel_ob_uid;
-		loading_info.voxel_ob_model_lod_level = message->voxel_ob_model_lod_level;
 		loading_info.voxel_subsample_factor = message->subsample_factor;
 
 		assert(async_uploading_geom.count(message->gl_meshdata) == 0);
@@ -4385,7 +4404,7 @@ void GUIClient::processLoading()
 				AsyncGeometryUploading& loading_info = res->second;
 
 				// Process the finished upload
-				handleUploadedMeshData(loading_info.lod_model_url, loading_info.dynamic_physics_shape, res->first, loading_info.physics_shape, loading_info.voxel_ob_uid, loading_info.voxel_ob_model_lod_level,
+				handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, res->first, loading_info.physics_shape, loading_info.voxel_ob_uid, 
 					loading_info.voxel_subsample_factor);
 
 				async_uploading_geom.erase(res); // Remove from async_uploading_geom map
@@ -6689,6 +6708,7 @@ void GUIClient::updateLODChunkGraphics()
 					
 					load_model_task->resource = resource;
 					load_model_task->lod_model_url = chunk->mesh_url;
+					load_model_task->model_lod_level = 0;
 					load_model_task->opengl_engine = this->opengl_engine;
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
@@ -7649,13 +7669,15 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->client_avatar_uid       = connected_msg->client_avatar_uid;
 			this->server_protocol_version = connected_msg->server_protocol_version;
 			this->server_capabilities     = connected_msg->server_capabilities;
+			this->server_opt_mesh_version = connected_msg->server_mesh_optimisation_version;
 
-			logMessage("Connected to server.  server_protocol_version: " + toString(server_protocol_version) + ", server_capabilities: " + toString(server_capabilities));
+			logMessage("Connected to server.  server_protocol_version: " + toString(server_protocol_version) + ", server_capabilities: " + toString(server_capabilities) + ", server_opt_mesh_version: " + toString(server_opt_mesh_version));
 
 			TracyMessageL("ClientConnectedToServerMessage received");
 			
 			this->server_has_basis_textures             = BitUtils::isBitSet(this->server_capabilities, Protocol::OBJECT_TEXTURE_BASISU_SUPPORT);
 			this->server_has_basisu_terrain_detail_maps = BitUtils::isBitSet(this->server_capabilities, Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT);
+			this->server_has_optimised_meshes           = BitUtils::isBitSet(this->server_capabilities, Protocol::OPTIMISED_MESH_SUPPORT);
 
 			// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
 			if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
@@ -8150,6 +8172,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								WorldObject::GetDependencyOptions options;
 								options.use_basis = this->server_has_basis_textures;
 								options.include_lightmaps = this->use_lightmaps;
+								options.get_optimised_mesh = this->server_has_optimised_meshes;
+								options.opt_mesh_version = this->server_opt_mesh_version;
 								std::set<DependencyURL> URL_set;
 								ob->getDependencyURLSet(ob_lod_level, options, URL_set);
 								if(URL_set.count(DependencyURL(m->URL)) != 0)
@@ -8175,8 +8199,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 							//if(ob->using_placeholder_model)
 							{
+								Avatar::GetDependencyOptions options;
+								options.get_optimised_mesh = this->server_has_optimised_meshes;
+								options.opt_mesh_version = this->server_opt_mesh_version;
+								options.use_basis = this->server_has_basis_textures;
+
 								std::set<DependencyURL> URL_set;
-								av->getDependencyURLSet(av_lod_level, /*use_basis=*/this->server_has_basis_textures, URL_set);
+								av->getDependencyURLSet(av_lod_level, options, URL_set);
 								if(URL_set.count(DependencyURL(m->URL)) != 0)
 								{
 									downloading_info.texture_params.use_sRGB = true; // TEMP HACK
@@ -8284,6 +8313,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 									load_model_task->resource = resource;
 									load_model_task->lod_model_url = URL;
+									load_model_task->model_lod_level = WorldObject::getLODLevelForURL(URL);
 									load_model_task->opengl_engine = this->opengl_engine;
 									load_model_task->result_msg_queue = &this->msg_queue;
 									load_model_task->resource_manager = resource_manager;
@@ -9201,6 +9231,8 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
 	options.include_lightmaps = this->use_lightmaps;
+	options.get_optimised_mesh = this->server_has_optimised_meshes;
+	options.opt_mesh_version = this->server_opt_mesh_version;
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSetBaseLevel(options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
@@ -9386,6 +9418,7 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
 	options.include_lightmaps = this->use_lightmaps;
+	options.get_optimised_mesh = false;//this->server_has_optimised_meshes;
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSetBaseLevel(options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
@@ -10529,6 +10562,7 @@ void GUIClient::objectEdited()
 		WorldObject::GetDependencyOptions options;
 		options.use_basis = this->server_has_basis_textures;
 		options.include_lightmaps = this->use_lightmaps;
+		options.get_optimised_mesh = false;//this->server_has_optimised_meshes;
 		std::vector<DependencyURL> URLs;
 		this->selected_ob->appendDependencyURLsBaseLevel(options, URLs);
 
@@ -13591,6 +13625,7 @@ void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_imag
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
 	options.include_lightmaps = this->use_lightmaps;
+	options.get_optimised_mesh = false; // this->server_has_optimised_meshes;
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)

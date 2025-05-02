@@ -159,6 +159,11 @@ void DownloadResourcesThread::doRun()
 		if(server_protocol_version >= 41)
 			server_capabilities = socket->readUInt32();
 
+		// Read server_mesh_optimisation_version
+		[[maybe_unused]] int server_mesh_optimisation_version = 1;
+		if(server_protocol_version >= 43)
+			server_mesh_optimisation_version = socket->readInt32();
+
 		std::set<std::string> URLs_to_get; // Set of URLs that this thread will get from the server.
 
 		while(1)

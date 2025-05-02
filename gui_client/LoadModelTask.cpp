@@ -24,7 +24,8 @@ Copyright Glare Technologies Limited 2021 -
 
 LoadModelTask::LoadModelTask()
 :	build_physics_ob(true),
-	build_dynamic_physics_ob(false)
+	build_dynamic_physics_ob(false),
+	model_lod_level(-1)
 {}
 
 
@@ -61,7 +62,7 @@ void LoadModelTask::run(size_t thread_index)
 					WorldObject::decompressVoxelGroup(voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size(), worker_allocator.ptr(), /*decompressed group out=*/voxel_group);
 
 					const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
-					const int use_model_lod_level = myMin(voxel_ob_model_lod_level/*model_lod_level*/, max_model_lod_level);
+					const int use_model_lod_level = myMin(model_lod_level, max_model_lod_level);
 
 					// conPrint("!!!!!!!!!!!!!! LoadModelTask: Loading voxel ob " + toHexString((uint64)voxel_ob.ptr()) + " with use_model_lod_level " + toString(use_model_lod_level));
 
@@ -200,8 +201,8 @@ void LoadModelTask::run(size_t thread_index)
 			msg->gl_meshdata = gl_meshdata;
 			msg->physics_shape = physics_shape;
 			msg->lod_model_url = lod_model_url;
+			msg->model_lod_level = model_lod_level;
 			msg->voxel_ob_uid = voxel_ob.nonNull() ? voxel_ob->uid : UID::invalidUID();
-			msg->voxel_ob_model_lod_level = voxel_ob_model_lod_level;
 			msg->subsample_factor = subsample_factor;
 			msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
 			msg->vbo = vbo;

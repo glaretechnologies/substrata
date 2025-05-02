@@ -1295,6 +1295,11 @@ void ClientThread::doRun()
 		if(peer_protocol_version >= 41)
 			server_capabilities = socket->readUInt32();
 
+		// Read server_mesh_optimisation_version
+		int server_mesh_optimisation_version = 1;
+		if(peer_protocol_version >= 43)
+			server_mesh_optimisation_version = socket->readInt32();
+
 		// Read assigned client avatar UID
 		this->client_avatar_uid = readUIDFromStream(*socket);
 
@@ -1307,7 +1312,7 @@ void ClientThread::doRun()
 
 		TracyMessageL("ClientThread: read initial data");
 
-		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version, server_capabilities));
+		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid, peer_protocol_version, server_capabilities, server_mesh_optimisation_version));
 
 #if defined(EMSCRIPTEN)
 		js::Vector<uint8, 16> data_to_send_copy;
