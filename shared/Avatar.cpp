@@ -8,6 +8,7 @@ Generated at 2016-01-12 12:24:54 +1300
 
 
 #include "ResourceManager.h"
+#include "WorldObject.h"
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
@@ -84,43 +85,49 @@ Avatar::~Avatar()
 {}
 
 
-void Avatar::appendDependencyURLs(int ob_lod_level, bool use_basis, std::vector<DependencyURL>& URLs_out)
-{
-	if(!avatar_settings.model_url.empty())
-		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level)));
-
-	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		avatar_settings.materials[i]->appendDependencyURLs(ob_lod_level, use_basis, URLs_out);
-}
-
-
-void Avatar::appendDependencyURLsForAllLODLevels(bool use_basis, std::vector<DependencyURL>& URLs_out)
+void Avatar::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out)
 {
 	if(!avatar_settings.model_url.empty())
 	{
-		URLs_out.push_back(DependencyURL(avatar_settings.model_url));
-		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 1)));
-		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 2)));
+		GetLODModelURLOptions url_options(options.get_optimised_mesh, options.opt_mesh_version);
+
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level, url_options)));
 	}
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(use_basis, URLs_out);
+		avatar_settings.materials[i]->appendDependencyURLs(ob_lod_level, options.use_basis, URLs_out);
 }
 
 
-void Avatar::getDependencyURLSet(int ob_lod_level, bool use_basis, std::set<DependencyURL>& URLS_out)
+void Avatar::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out)
+{
+	if(!avatar_settings.model_url.empty())
+	{
+		GetLODModelURLOptions url_options(options.get_optimised_mesh, options.opt_mesh_version);
+
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 0, url_options)));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 1, url_options)));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 2, url_options)));
+	}
+
+	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
+		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(options.use_basis, URLs_out);
+}
+
+
+void Avatar::getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out)
 {
 	std::vector<DependencyURL> URLs;
-	this->appendDependencyURLs(ob_lod_level, use_basis, URLs);
+	this->appendDependencyURLs(ob_lod_level, options, URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
 
 
-void Avatar::getDependencyURLSetForAllLODLevels(bool use_basis, std::set<DependencyURL>& URLS_out)
+void Avatar::getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out)
 {
 	std::vector<DependencyURL> URLs;
-	this->appendDependencyURLsForAllLODLevels(use_basis, URLs);
+	this->appendDependencyURLsForAllLODLevels(options, URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
@@ -166,20 +173,15 @@ float Avatar::getMaxDistForLODLevel(int level) const
 }
 
 
-std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, int level)
+std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, int lod_level, const GetLODModelURLOptions& options)
 {
-	if(level == 0)
+	if((lod_level == 0) && !options.get_optimised_mesh)
 		return base_model_url;
-	else
-	{
-		if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
-			return base_model_url;
 
-		if(level == 1)
-			return removeDotAndExtension(base_model_url) + "_lod1.bmesh"; // LOD models are always saved in BatchedMesh (bmesh) format.
-		else
-			return removeDotAndExtension(base_model_url) + "_lod2.bmesh";
-	}
+	if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
+		return base_model_url;
+
+	return WorldObject::makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version);
 }
 
 

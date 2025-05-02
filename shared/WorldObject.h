@@ -153,9 +153,17 @@ public:
 	void* operator new  (size_t size, void* ptr) { return ptr; }
 #endif
 
-	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
+	struct GetLODModelURLOptions
+	{
+		GetLODModelURLOptions(bool get_optimised_mesh_, int opt_mesh_version_) : get_optimised_mesh(get_optimised_mesh_), opt_mesh_version(opt_mesh_version_) {}
+		bool get_optimised_mesh;
+		int opt_mesh_version;
+	};
+
+	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level, const GetLODModelURLOptions& options);
 	static int getLODLevelForURL(const std::string& URL); // Identifies _lod1 etc. suffix.
 	static std::string getLODLightmapURL(const std::string& base_lightmap_url, int level);
+	static std::string makeOptimisedMeshURL(const std::string& base_model_url, int lod_level, bool get_optimised_mesh, int opt_mesh_version);
 
 	inline int getLODLevel(const Vec3d& campos) const;
 	inline int getLODLevel(const Vec4f& campos) const;
@@ -163,14 +171,16 @@ public:
 	inline int getLODLevel(float cam_to_ob_d2) const;
 	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
-	std::string getLODModelURL(const Vec3d& campos) const; // Using lod level clamped to max_model_lod_level
+	std::string getLODModelURL(const Vec3d& campos, const GetLODModelURLOptions& options) const; // Using lod level clamped to max_model_lod_level
 
 	// Sometimes we are not interested in all dependencies, such as lightmaps.  So make returning those optional.
 	struct GetDependencyOptions
 	{
-		GetDependencyOptions() : include_lightmaps(true), use_basis(true) {}
+		GetDependencyOptions() : include_lightmaps(true), use_basis(true), get_optimised_mesh(false), opt_mesh_version(-1) {}
 		bool include_lightmaps;
 		bool use_basis;
+		bool get_optimised_mesh;
+		int opt_mesh_version;
 	};
 	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
 	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
@@ -294,7 +304,7 @@ public:
 
 	static const uint32 COLLIDABLE_FLAG                         = 1; // Is this object solid from the point of view of the physics engine?
 	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG           = 2; // Does the lightmap for this object need to be built or rebuilt?
-	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 4; // Does a hiqh-quality lightmap for this object need to be built or rebuilt?
+	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 4; // Does a high-quality lightmap for this object need to be built or rebuilt?
 	static const uint32 DYNAMIC_FLAG                            = 8; // Is this object a dynamic object (moving object) from the point of view of the physics engine?
 	static const uint32 SUMMONED_FLAG                           = 16; // Is this object a vehicle object that was summoned by a user?
 	static const uint32 VIDEO_AUTOPLAY                          = 32; // For video objects, should the video auto-play?

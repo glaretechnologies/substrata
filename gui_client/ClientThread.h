@@ -126,11 +126,12 @@ public:
 class ClientConnectedToServerMessage : public ThreadMessage
 {
 public:
-	ClientConnectedToServerMessage(const UID client_avatar_uid_, uint32 server_protocol_version_, uint32 server_capabilities_) : 
-		client_avatar_uid(client_avatar_uid_), server_protocol_version(server_protocol_version_), server_capabilities(server_capabilities_) {}
+	ClientConnectedToServerMessage(const UID client_avatar_uid_, uint32 server_protocol_version_, uint32 server_capabilities_, int server_mesh_optimisation_version_) : 
+		client_avatar_uid(client_avatar_uid_), server_protocol_version(server_protocol_version_), server_capabilities(server_capabilities_), server_mesh_optimisation_version(server_mesh_optimisation_version_) {}
 	UID client_avatar_uid;
 	uint32 server_protocol_version;
 	uint32 server_capabilities;
+	int server_mesh_optimisation_version;
 };
 
 

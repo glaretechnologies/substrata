@@ -84,6 +84,11 @@ void UploadResourceThread::doRun()
 		if(server_protocol_version >= 41)
 			server_capabilities = socket->readUInt32();
 
+		// Read server_mesh_optimisation_version
+		[[maybe_unused]] int server_mesh_optimisation_version = 1;
+		if(server_protocol_version >= 43)
+			server_mesh_optimisation_version = socket->readInt32();
+
 		// Send login details
 		socket->writeStringLengthFirst(username);
 		socket->writeStringLengthFirst(password);

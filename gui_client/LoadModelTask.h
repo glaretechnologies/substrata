@@ -30,10 +30,10 @@ public:
 	PhysicsShape physics_shape;
 	
 	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
+	int model_lod_level; // LOD level of the model we loaded.
 	bool built_dynamic_physics_ob;
 
 	UID voxel_ob_uid; // Valid if we are loading voxel for an object, invalid otherwise.  Avoid storing WorldObjectRef to avoid dangling refs
-	int voxel_ob_model_lod_level;// If we loaded a voxel model, the model LOD level of the object.
 	int subsample_factor; // Computed when loading voxels.
 
 	VBORef vbo;
@@ -65,12 +65,12 @@ public:
 	virtual void run(size_t thread_index);
 
 	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
+	int model_lod_level; // The model LOD level of the object
 	ResourceRef resource;
 	bool build_physics_ob;
 	bool build_dynamic_physics_ob; // If true, build a convex hull shape instead of a mesh physics shape.
 	
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
-	int voxel_ob_model_lod_level; // If we are loading a voxel model, the model LOD level of the object.
 
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
 

@@ -36,13 +36,14 @@ CyberspaceProtocolVersion
 40: Added QueryLODChunksMessage, LODChunkInitialSend, LODChunkUpdatedMessage
 41: Added server capabilities uint sent back in initial handshake
 42: Added ParcelInitialSendCompressed, client_capabilities
+43: Added sending mesh optimisation version to client
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 42;
+const uint32 CyberspaceProtocolVersion = 43;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -182,5 +183,8 @@ const uint32 STREAMING_COMPRESSED_OBJECT_SUPPORT	= 0x1; // Can the client handle
 // Server capabilities
 const uint32 OBJECT_TEXTURE_BASISU_SUPPORT			= 0x1;
 const uint32 TERRAIN_DETAIL_MAPS_BASISU_SUPPORT		= 0x2;
+const uint32 OPTIMISED_MESH_SUPPORT					= 0x4;
+
+const int OPTIMISED_MESH_VERSION = 3;
 
 } // end namespace Protocol
