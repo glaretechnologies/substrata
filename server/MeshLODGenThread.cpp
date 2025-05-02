@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "ServerWorldState.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
+#include "../shared/Protocol.h"
 #include <ConPrint.h>
 #include <Exception.h>
 #include <Lock.h>
@@ -40,6 +41,7 @@ static bool textureHasAlphaChannel(Reference<Map2D>& map)
 }
 
 
+// Also for optimised meshes to generate.
 struct LODMeshToGen
 {
 	std::string model_abs_path;
@@ -47,6 +49,7 @@ struct LODMeshToGen
 	std::string lod_URL;
 	int lod_level;
 	UserID owner_id;
+	bool build_optimised_mesh;
 };
 
 
@@ -201,8 +204,9 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 				{
 					for(int lvl = 1; lvl <= 2; ++lvl)
 					{
-						const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(model_abs_path, lvl);
-						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl);
+						WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/false, Protocol::OPTIMISED_MESH_VERSION);
+						const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(model_abs_path, lvl, options);
+						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
 
 						if(lod_URLs_considered.count(lod_URL) == 0)
 						{
@@ -217,6 +221,7 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 								mesh_to_gen.LOD_model_abs_path = lod_abs_path;
 								mesh_to_gen.lod_URL = lod_URL;
 								mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
+								mesh_to_gen.build_optimised_mesh = false;
 								meshes_to_gen.push_back(mesh_to_gen);
 							}
 							//else // Else if LOD model is present on disk:
@@ -249,6 +254,118 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 							//}
 						}
 					}
+				}
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("MeshLODGenThread: glare::Exception: " + e.what());
+	}
+	catch(std::exception& e) // catch std::bad_alloc etc..
+	{
+		conPrint(std::string("MeshLODGenThread: Caught std::exception: ") + e.what());
+	}
+}
+
+
+//static size_t sum_base_size_B = 0;
+//static size_t sum_optimised_size_B = 0;
+
+
+static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+{
+	try
+	{
+		if(ob->object_type == WorldObject::ObjectType_Generic)
+		{
+			if(!ob->model_url.empty())
+			{
+				//if(StringUtils::containsString(ob->model_url, "bad_apple_gds"))
+				//	return; // TEMP HACK DON'T PROCESS SLOW MESH
+
+				const std::string base_model_abs_path = world_state->resource_manager->pathForURL(ob->model_url);
+
+				for(int lvl = 0; lvl <= myMin(2, ob->max_model_lod_level); ++lvl)
+				{
+					WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
+
+					const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
+					const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
+
+					if(lod_URLs_considered.count(lod_URL) == 0)
+					{
+						lod_URLs_considered.insert(lod_URL);
+
+						if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+						{
+							// Add to list of models to generate
+							LODMeshToGen mesh_to_gen;
+							mesh_to_gen.lod_level = lvl;
+							mesh_to_gen.model_abs_path = base_model_abs_path;
+							mesh_to_gen.LOD_model_abs_path = lod_abs_path;
+							mesh_to_gen.lod_URL = lod_URL;
+							mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
+							mesh_to_gen.build_optimised_mesh = true;
+							meshes_to_gen.push_back(mesh_to_gen);
+						}
+						else
+						{
+							/*if(FileUtils::fileExists(base_model_abs_path) && FileUtils::fileExists(lod_abs_path))
+							{
+								//conPrint("base model size: " + toString(FileUtils::getFileSize(base_model_abs_path)));
+								sum_base_size_B += FileUtils::getFileSize(base_model_abs_path);
+							
+								//conPrint("optimised model size: " + toString(FileUtils::getFileSize(lod_abs_path)));
+								sum_optimised_size_B += FileUtils::getFileSize(lod_abs_path);
+							}*/
+						}
+					}
+				}
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("MeshLODGenThread: glare::Exception: " + e.what());
+	}
+	catch(std::exception& e) // catch std::bad_alloc etc..
+	{
+		conPrint(std::string("MeshLODGenThread: Caught std::exception: ") + e.what());
+	}
+}
+
+
+static void checkForOptimisedMeshToGenerateForURL(const std::string& URL, ResourceManager* resource_manager, std::unordered_set<std::string>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+{
+	try
+	{
+		if(hasExtension(URL, "bmesh")) // Just support building optimised meshes for bmeshes for now.  All upload meshes should be bmeshes anyway.
+		{
+			const std::string base_model_abs_path = resource_manager->pathForURL(URL);
+
+			const int lvl = 0;
+
+			WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
+
+			const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
+			const std::string lod_URL      = WorldObject::getLODModelURLForLevel(URL, lvl, options);
+
+			if(lod_URLs_considered.count(lod_URL) == 0)
+			{
+				lod_URLs_considered.insert(lod_URL);
+
+				if(!resource_manager->isFileForURLPresent(lod_URL))
+				{
+					// Add to list of models to generate
+					LODMeshToGen mesh_to_gen;
+					mesh_to_gen.lod_level = lvl;
+					mesh_to_gen.model_abs_path = base_model_abs_path;
+					mesh_to_gen.LOD_model_abs_path = lod_abs_path;
+					mesh_to_gen.lod_URL = lod_URL;
+					mesh_to_gen.owner_id = resource_manager->getOrCreateResourceForURL(URL)->owner_id;
+					mesh_to_gen.build_optimised_mesh = true;
+					meshes_to_gen.push_back(mesh_to_gen);
 				}
 			}
 		}
@@ -394,12 +511,12 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered,
+static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<std::string>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
-	for(size_t z=0; z<ob->materials.size(); ++z)
+	for(size_t z=0; z<materials.size(); ++z)
 	{
-		const WorldMaterial* mat = ob->materials[z].ptr();
+		const WorldMaterial* mat = materials[z].ptr();
 
 		std::vector<std::string> URLs;
 		URLs.push_back(mat->colour_texture_url);
@@ -452,6 +569,14 @@ static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_sta
 
 
 // Make tasks for generating Basis level textures.
+static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered,
+	std::vector<BasisTextureToGen>& basis_textures_to_gen)
+{
+	checkForBasisTexturesToGenerateForMaterials(world_state, /*world, */ob->materials, lod_URLs_considered, basis_textures_to_gen);
+}
+
+
+// Make tasks for generating Basis level textures.
 static void checkForBasisTexturesToGenerateForURL(const std::string& URL, ResourceManager* resource_manager, std::unordered_set<std::string>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
@@ -490,6 +615,77 @@ static void checkForBasisTexturesToGenerateForURL(const std::string& URL, Resour
 		}
 	}
 }
+
+
+#if 0
+static void markOptimisedMeshesAsNotPresentForOb(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob)
+{
+	try
+	{
+		if(ob->object_type == WorldObject::ObjectType_Generic)
+		{
+			if(!ob->model_url.empty())
+			{
+				for(int lvl = 0; lvl <= myMin(2, ob->max_model_lod_level); ++lvl)
+				{
+					WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
+
+					const std::string lod_URL = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
+
+					ResourceRef resource = world_state->resource_manager->getExistingResourceForURL(lod_URL);
+					if(resource && resource->isPresent())
+						resource->setState(Resource::State_NotPresent);
+				}
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("MeshLODGenThread: glare::Exception: " + e.what());
+	}
+	catch(std::exception& e) // catch std::bad_alloc etc..
+	{
+		conPrint(std::string("MeshLODGenThread: Caught std::exception: ") + e.what());
+	}
+}
+
+
+static void markOptimisedMeshesAsNotPresent(ServerAllWorldsState* world_state)
+{
+	conPrint("================================ markOptimisedMeshesAsNotPresent() ================================");
+	WorldStateLock lock(world_state->mutex);
+
+	for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
+	{
+		ServerWorldState* world = world_it->second.ptr();
+		ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
+		for(auto it = objects.begin(); it != objects.end(); ++it)
+		{
+			WorldObject* ob = it->second.ptr();
+			try
+			{
+				markOptimisedMeshesAsNotPresentForOb(world_state, world, ob);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
+			}
+		}
+	}
+
+	// Check user avatars
+	for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+	{
+		const User* user = it->second.ptr();
+		if(!user->avatar_settings.model_url.empty())
+		{
+			ResourceRef resource = world_state->resource_manager->getExistingResourceForURL(user->avatar_settings.model_url);
+			if(resource && resource->isPresent())
+				resource->setState(Resource::State_NotPresent);
+		}
+	}
+}
+#endif
 
 
 void MeshLODGenThread::doRun()
@@ -550,6 +746,8 @@ void MeshLODGenThread::doRun()
 			{
 				WorldStateLock lock(world_state->mutex);
 
+				// markOptimisedMeshesAsNotPresent(world_state);
+
 				if(do_initial_full_scan)
 				{
 					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
@@ -568,8 +766,9 @@ void MeshLODGenThread::doRun()
 									checkMaterialFlags(world_state, world, ob, tex_info);
 
 								checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
+								checkForOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
 								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-								checkForBasisTexturesToGenerateForOb(world_state, world, ob, lod_URLs_considered, basis_textures_to_gen);
+								checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
@@ -588,6 +787,15 @@ void MeshLODGenThread::doRun()
 						}
 					}
 
+					// Check user avatars
+					for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+					{
+						const User* user = it->second.ptr();
+						checkForOptimisedMeshToGenerateForURL(user->avatar_settings.model_url, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+
+						checkForBasisTexturesToGenerateForMaterials(world_state, user->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
+					}
+
 					do_initial_full_scan = false;
 				}
 				else if(ob_to_scan_UID.valid())
@@ -603,8 +811,9 @@ void MeshLODGenThread::doRun()
 							try
 							{
 								checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
+								checkForOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
 								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-								checkForBasisTexturesToGenerateForOb(world_state, world, ob, lod_URLs_considered, basis_textures_to_gen);
+								checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
@@ -616,6 +825,7 @@ void MeshLODGenThread::doRun()
 				else if(!URL_to_check.empty())
 				{
 					checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+					checkForOptimisedMeshToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 				}
 			} // End lock scope
 
@@ -632,9 +842,18 @@ void MeshLODGenThread::doRun()
 				const LODMeshToGen& mesh_to_gen = meshes_to_gen[i];
 				try
 				{
-					conPrint("MeshLODGenThread: Generating LOD mesh with URL " + mesh_to_gen.lod_URL);
+					conPrint("MeshLODGenThread: (mesh " + toString(i) + " / " + toString(meshes_to_gen.size()) + "): Generating " + (mesh_to_gen.build_optimised_mesh ? "optimised" : "LOD") + " mesh with URL " + mesh_to_gen.lod_URL);
 
-					LODGeneration::generateLODModel(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
+					if(mesh_to_gen.build_optimised_mesh) // If building optimised mesh (may be LOD mesh also):
+					{
+						LODGeneration::generateOptimisedMesh(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
+
+						conPrint("\tMeshLODGenThread: done generating mesh.");
+					}
+					else // Else if building (unoptimised) LOD mesh:
+					{
+						LODGeneration::generateLODModel(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
+					}
 
 					// Now that we have generated the LOD model, add it to resources.
 					{ // lock scope

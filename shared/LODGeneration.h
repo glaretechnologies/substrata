@@ -35,6 +35,8 @@ void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::str
 
 void generateLODModel(const std::string& model_path, int lod_level, const std::string& LOD_model_path);
 
+void generateOptimisedMesh(const std::string& source_mesh_abs_path, int lod_level, const std::string& optimised_mesh_path);
+
 bool textureHasAlphaChannel(const std::string& tex_path, Map2DRef map);
 
 void generateLODTexture(const std::string& base_tex_path, int lod_level, const std::string& LOD_tex_path, glare::TaskManager& task_manager);
