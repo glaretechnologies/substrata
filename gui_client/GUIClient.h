@@ -627,6 +627,8 @@ public:
 
 	std::map<std::string, std::set<UID>> loading_texture_abs_path_to_world_ob_UID_map;
 
+	std::map<std::string, Vec3i> loading_mesh_URL_to_chunk_coords_map;
+
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 
 	std::vector<Reference<GLObject> > wheel_gl_objects;

@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/LODGeneration.h"
 #include "../shared/VoxelMeshBuilding.h"
 #include "../shared/ImageDecoding.h"
+#include "../shared/Protocol.h"
 #include <graphics/MeshSimplification.h>
 #include <graphics/GifDecoder.h>
 #include <graphics/ImageMapSequence.h>
@@ -110,12 +111,13 @@ struct ChunkBuildResults
 	js::Vector<OutputMatInfo> output_mat_infos;
 	std::string combined_mesh_path;
 	uint64 combined_mesh_hash;
+	std::string optimised_mesh_path;
 	std::string combined_texture_path;
 	uint64 combined_texture_hash;
 };
 
 
-// NOTE: code dupliacated from ModelLoading.cpp
+// NOTE: code duplicated from ModelLoading.cpp
 static inline Colour3f sanitiseAlbedoColour(const Colour3f& col)
 {
 	const Colour3f clamped = col.clamp(0.f, 1.f);
@@ -985,14 +987,19 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 			// Write combined mesh to disk
 			conPrint("Writing combined mesh to disk...");
+			// NOTE: naming scheme needs to start with "chunk_", see if(hasPrefix(lod_model_url, "chunk_")) check in GUIClient::handleUploadedMeshData().
 			const std::string path = PlatformUtils::getTempDirPath() + "/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
 			//const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
-			BatchedMesh::WriteOptions options;
-			options.compression_level = 19;
-			options.use_meshopt = true;
-			options.pos_mantissa_bits = 14;
-			options.uv_mantissa_bits = 8;
-			combined_mesh->writeToFile(path, options);
+			{
+				BatchedMesh::WriteOptions options;
+				options.write_mesh_version_2 = true; // Write older batched mesh version for backwards compatibility
+				options.compression_level = 19;
+				options.use_meshopt = true;
+				options.meshopt_vertex_version = 0; // For backwards compat.
+				options.pos_mantissa_bits = 14;
+				options.uv_mantissa_bits = 8;
+				combined_mesh->writeToFile(path, options);
+			}
 
 			// FormatDecoderGLTF::writeBatchedMeshToGLBFile(*combined_mesh, "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".glb", GLTFWriteOptions());
 
@@ -1003,6 +1010,27 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 			// Compute hash over it
 			const uint64 hash = FileChecksum::fileChecksum(path);
 
+
+			//--------------------------- Build optimised mesh ---------------------------
+			// Can't do meshopt optimisations because they reorder indices, which we need to preserve for object index ranges.
+
+			BatchedMesh::QuantiseOptions quantise_options;
+			quantise_options.pos_bits = 13;
+			quantise_options.uv_bits  = 8;
+			combined_mesh = combined_mesh->buildQuantisedMesh(quantise_options);
+
+			const std::string opt_mesh_path = path + "_opt"; // The final optimised mesh URL will be computed later.
+
+			// Write optimised mesh (using quantised position etc.)
+			{
+				BatchedMesh::WriteOptions options;
+				options.compression_level = 19;
+				options.use_meshopt = true;
+				combined_mesh->writeToFile(opt_mesh_path, options);
+			}
+
+			conPrint("Wrote optimised chunk mesh to '" + opt_mesh_path + "'.");
+			//---------------------------------------------------------------------------------
 
 
 			// Write output_mat_infos for testing
@@ -1031,6 +1059,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 			results.output_mat_infos = output_mat_infos;
 			results.combined_mesh_path = path;
 			results.combined_mesh_hash = hash;
+			results.optimised_mesh_path = opt_mesh_path;
 		}
 	}
 
@@ -1345,16 +1374,33 @@ void ChunkGenThread::doRun()
 				//---------------------------------------------------
 
 				// Copy combined mesh and texture array files into resource system.
+
+				const int MESH_EPOCH = 2; // This can be bumped to punch through caches, in particular if the optimised mesh needs to be rebuilt.
+
 				std::string mesh_URL;
 				if(!results.combined_mesh_path.empty())
 				{
-					mesh_URL = ResourceManager::URLForPathAndHash(results.combined_mesh_path, results.combined_mesh_hash);
+					mesh_URL = ResourceManager::URLForPathAndHashAndEpoch(results.combined_mesh_path, results.combined_mesh_hash, MESH_EPOCH);
 					if(!all_worlds_state->resource_manager->isFileForURLPresent(mesh_URL))
 					{
 						all_worlds_state->resource_manager->copyLocalFileToResourceDir(results.combined_mesh_path, mesh_URL);
 
 						WorldStateLock lock(all_worlds_state->mutex);
 						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(mesh_URL));
+					}
+				}
+
+				// Copy optimised mesh into resource system.
+				if(!results.optimised_mesh_path.empty())
+				{	
+					const std::string optimised_mesh_URL = removeDotAndExtension(ResourceManager::URLForPathAndHashAndEpoch(results.combined_mesh_path, results.combined_mesh_hash, MESH_EPOCH)) + "_opt" + toString(Protocol::OPTIMISED_MESH_VERSION) + ".bmesh";
+
+					if(!all_worlds_state->resource_manager->isFileForURLPresent(optimised_mesh_URL))
+					{
+						all_worlds_state->resource_manager->copyLocalFileToResourceDir(results.optimised_mesh_path, optimised_mesh_URL);
+
+						WorldStateLock lock(all_worlds_state->mutex);
+						all_worlds_state->addResourcesAsDBDirty(all_worlds_state->resource_manager->getOrCreateResourceForURL(optimised_mesh_URL));
 					}
 				}
 
@@ -1411,6 +1457,9 @@ void ChunkGenThread::doRun()
 
 				// TODO: Send out a chunk-updated message to clients
 			}
+
+			if(!dirty_chunks.empty())
+				conPrint("---------Finished building " + toString(dirty_chunks.size()) + " dirty chunks.---------");
 
 			bool keep_running = true;
 			waitForPeriod(30.0, keep_running);
