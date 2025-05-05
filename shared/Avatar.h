@@ -72,7 +72,7 @@ public:
 		int opt_mesh_version;
 	};
 
-	std::string getLODModelURLForLevel(const std::string& base_model_url, int level, const GetLODModelURLOptions& options);
+	std::string getLODModelURLForLevel(const std::string& base_model_url, int level, const GetLODModelURLOptions& options) const;
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 
 	struct GetDependencyOptions
@@ -84,8 +84,12 @@ public:
 	};
 	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out);
 	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out);
+	void appendDependencyURLsBaseLevel(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
+	
 	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out);
 	void getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out);
+	void getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
+
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 
