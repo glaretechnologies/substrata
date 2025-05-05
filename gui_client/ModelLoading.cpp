@@ -1204,13 +1204,14 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		// Allocate index buffer
 		const size_t num_indices = num_tris * 3;
 		size_t bytes_per_index_val;
-		if(vert_positions_size < 128)
+		/*if(vert_positions_size < 128)
 		{
+			// Don't use 8-bit indices for now, possible bad performance on some devices.
 			mesh_data->setIndexType(GL_UNSIGNED_BYTE);
 			mesh_data->vert_index_buffer_uint8.resize(num_indices);
 			bytes_per_index_val = 1;
 		}
-		else if(vert_positions_size < 32768)
+		else */if(vert_positions_size < 32768)
 		{
 			mesh_data->setIndexType(GL_UNSIGNED_SHORT);
 			mesh_data->vert_index_buffer_uint16.resize(num_indices);
@@ -1436,8 +1437,10 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		// Build index data
 		const size_t num_indices = uint32_indices.size();
 
-		if(num_merged_verts < 128)
+		/*if(num_merged_verts < 128)
 		{
+			// Don't use 8-bit indices for now, possible bad performance on some devices.
+
 			mesh_data->setIndexType(GL_UNSIGNED_BYTE);
 
 			mesh_data->vert_index_buffer_uint8.resize(num_indices);
@@ -1446,7 +1449,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 			for(size_t i=0; i<num_indices; ++i)
 				dest_indices[i] = (uint8)uint32_indices[i];
 		}
-		else if(num_merged_verts < 32768)
+		else */if(num_merged_verts < 32768)
 		{
 			mesh_data->setIndexType(GL_UNSIGNED_SHORT);
 
