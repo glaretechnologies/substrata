@@ -10025,7 +10025,7 @@ void GUIClient::summonBike()
 	new_world_object->model_url = "optimized_dressed_fix7_offset4_glb_4474648345850208925.bmesh";
 	new_world_object->max_model_lod_level = 2;
 
-	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG;
+	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
 
 	new_world_object->uid = UID(0); // A new UID will be assigned by server
 	new_world_object->materials = materials;
@@ -10147,7 +10147,7 @@ void GUIClient::summonHovercar()
 	new_world_object->model_url = "peugot_closed_glb_2887717763908023194.bmesh";
 	new_world_object->max_model_lod_level = 2;
 
-	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG;
+	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
 
 	new_world_object->uid = UID(0); // A new UID will be assigned by server
 	new_world_object->materials = materials;
@@ -10248,7 +10248,7 @@ void GUIClient::summonBoat()
 	new_world_object->model_url = "poweryacht3_2_glb_17116251394697619807.bmesh";
 	new_world_object->max_model_lod_level = 2;
 
-	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG;
+	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
 
 	new_world_object->uid = UID(0); // A new UID will be assigned by server
 	new_world_object->materials = materials;
