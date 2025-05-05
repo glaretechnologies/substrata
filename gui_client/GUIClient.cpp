@@ -13639,9 +13639,9 @@ void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_imag
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
-	options.use_basis = this->server_has_basis_textures;
-	options.include_lightmaps = this->use_lightmaps;
-	options.get_optimised_mesh = false; // this->server_has_optimised_meshes;
+	options.use_basis = false; // Server will want the original non-basis textures.
+	options.include_lightmaps = false;
+	options.get_optimised_mesh = false; // Server will want the original unoptimised mesh.
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
