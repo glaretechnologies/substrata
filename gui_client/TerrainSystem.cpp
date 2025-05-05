@@ -411,7 +411,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 
 void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef& map)
 {
-	conPrint("TerrainSystem::handleTextureLoaded(): path: '" + path + "'");
+	// conPrint("TerrainSystem::handleTextureLoaded(): path: '" + path + "'");
 
 	assert(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(path)));
 
