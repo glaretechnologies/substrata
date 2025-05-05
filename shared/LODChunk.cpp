@@ -77,6 +77,15 @@ void LODChunk::copyNetworkStateFrom(const LODChunk& other)
 }
 
 
+const std::string LODChunk::computeMeshURL(bool use_optimised_meshes, int opt_mesh_version) const
+{
+	if(use_optimised_meshes)
+		return removeDotAndExtension(mesh_url) + "_opt" + toString(opt_mesh_version) + ".bmesh";
+	else
+		return mesh_url;
+}
+
+
 void readLODChunkFromStream(RandomAccessInStream& stream, LODChunk& chunk)
 {
 	const size_t initial_read_index = stream.getReadIndex();

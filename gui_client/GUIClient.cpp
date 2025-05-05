@@ -4076,7 +4076,8 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loa
 		}
 
 		// Assign to any LOD chunks using this model
-		handleLODChunkMeshLoaded(lod_model_url, the_mesh_data);
+		if(hasPrefix(lod_model_url, "chunk_")) // Bit of a hack to distinguish chunk mesh URLs.  Could do this by passing around a 'bool loading_chunk' instead.
+			handleLODChunkMeshLoaded(lod_model_url, the_mesh_data);
 	}
 }
 
@@ -6677,14 +6678,20 @@ void GUIClient::updateLODChunkGraphics()
 
 			const Vec4f centroid_ws((chunk->coords.x + 0.5f) * chunk_w, (chunk->coords.y + 0.5f) * chunk_w, 0.f, 1.f);
 
-			if(!chunk->mesh_url.empty())
+			std::string use_mesh_url;
+			if(!chunk->getMeshURL().empty())
+				use_mesh_url = chunk->computeMeshURL(this->server_has_optimised_meshes, this->server_opt_mesh_version);
+
+			if(!use_mesh_url.empty())
 			{
 				DownloadingResourceInfo info;
 				info.pos = Vec3d(centroid_ws);
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(chunk_w, /*importance_factor=*/1.f);
 				info.build_physics_ob = false;
 				info.used_by_other = true;
-				startDownloadingResource(chunk->mesh_url, centroid_ws, chunk_w, info);
+				startDownloadingResource(use_mesh_url, centroid_ws, chunk_w, info);
+
+				this->loading_mesh_URL_to_chunk_coords_map[use_mesh_url] = chunk->coords; // Loading will begin when mesh is downloaded, so set this now.
 			}
 
 			if(!chunk->combined_array_texture_url.empty())
@@ -6697,9 +6704,9 @@ void GUIClient::updateLODChunkGraphics()
 			}
 
 			//----------------------------- Start loading model and texture, if the resource is already present on disk -----------------------------
-			if(!chunk->mesh_url.empty())
+			if(!use_mesh_url.empty())
 			{
-				ResourceRef resource = this->resource_manager->getExistingResourceForURL(chunk->mesh_url);
+				ResourceRef resource = this->resource_manager->getExistingResourceForURL(use_mesh_url);
 				if(resource && (resource->getState() == Resource::State_Present))
 				{
 					const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
@@ -6707,7 +6714,7 @@ void GUIClient::updateLODChunkGraphics()
 					Reference<LoadModelTask> load_model_task = new LoadModelTask();
 					
 					load_model_task->resource = resource;
-					load_model_task->lod_model_url = chunk->mesh_url;
+					load_model_task->lod_model_url = use_mesh_url;
 					load_model_task->model_lod_level = 0;
 					load_model_task->opengl_engine = this->opengl_engine;
 					load_model_task->result_msg_queue = &this->msg_queue;
@@ -6716,9 +6723,11 @@ void GUIClient::updateLODChunkGraphics()
 					load_model_task->build_dynamic_physics_ob = false;
 					load_model_task->worker_allocator = worker_allocator;
 
-					load_item_queue.enqueueItem(chunk->mesh_url, centroid_ws, chunk_w, 
+					load_item_queue.enqueueItem(use_mesh_url, centroid_ws, chunk_w, 
 						load_model_task, 
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+
+					this->loading_mesh_URL_to_chunk_coords_map[use_mesh_url] = chunk->coords;
 				}
 			}
 
@@ -6781,12 +6790,20 @@ void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLT
 void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data)
 {
 	WorldStateLock lock(this->world_state->mutex);
-	
-	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
+
+	auto loading_res = loading_mesh_URL_to_chunk_coords_map.find(mesh_URL);
+	if(loading_res != loading_mesh_URL_to_chunk_coords_map.end())
 	{
-		LODChunk* chunk = it->second.ptr();
-		if(mesh_URL == chunk->mesh_url)
+		const Vec3i chunk_coords = loading_res->second;
+
+		// Look up chunk
+		auto chunk_res = world_state->lod_chunks.find(chunk_coords);
+		if(chunk_res != world_state->lod_chunks.end())
 		{
+			LODChunk* chunk = chunk_res->second.ptr();
+	
+			assert(mesh_URL == chunk->computeMeshURL(this->server_has_optimised_meshes, this->server_opt_mesh_version));
+
 			try
 			{
 				if(!chunk->graphics_ob)
@@ -8560,7 +8577,7 @@ void GUIClient::diagnosticsSettingsChanged()
 		
 		if(show_chunk_vis_aabb)
 		{
-			if(!chunk->mesh_url.empty()) // Don't visualise empty chunks
+			if(!chunk->getMeshURL().empty()) // Don't visualise empty chunks
 			{
 				const Vec4f chunk_min = Vec4f(chunk->coords.x * chunk_w, chunk->coords.y * chunk_w, -20, 1);
 				const Vec4f chunk_max = Vec4f((chunk->coords.x + 1) * chunk_w, (chunk->coords.y + 1) * chunk_w, 30, 1);
@@ -9229,10 +9246,9 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
-	options.use_basis = this->server_has_basis_textures;
-	options.include_lightmaps = this->use_lightmaps;
-	options.get_optimised_mesh = this->server_has_optimised_meshes;
-	options.opt_mesh_version = this->server_opt_mesh_version;
+	options.use_basis = false; // Server will want the original non-basis textures.
+	options.include_lightmaps = false;
+	options.get_optimised_mesh = false; // Server will want the original unoptimised mesh.
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSetBaseLevel(options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
@@ -9416,9 +9432,9 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
-	options.use_basis = this->server_has_basis_textures;
-	options.include_lightmaps = this->use_lightmaps;
-	options.get_optimised_mesh = false;//this->server_has_optimised_meshes;
+	options.use_basis = false; // Server will want the original non-basis textures.
+	options.include_lightmaps = false;
+	options.get_optimised_mesh = false; // Server will want the original unoptimised mesh.
 	std::set<DependencyURL> paths;
 	new_world_object->getDependencyURLSetBaseLevel(options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)

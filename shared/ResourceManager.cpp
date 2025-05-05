@@ -77,6 +77,16 @@ const std::string ResourceManager::URLForPathAndHash(const std::string& path, ui
 }
 
 
+const std::string ResourceManager::URLForPathAndHashAndEpoch(const std::string& path, uint64 hash, int epoch)
+{
+	const std::string filename = FileUtils::getFilename(path);
+
+	const std::string extension = ::getExtension(filename);
+
+	return sanitiseString(removeDotAndExtension(filename)) + "_" + toString(hash) + "_" + toString(epoch) + "." + extension;
+}
+
+
 bool ResourceManager::isValidURL(const std::string& URL)
 {
 	//for(size_t i=0; i<URL.size(); ++i)

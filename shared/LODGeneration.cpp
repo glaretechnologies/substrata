@@ -140,15 +140,16 @@ void generateOptimisedMesh(const std::string& source_mesh_abs_path, int lod_leve
 	if(lod_level > 0)
 		batched_mesh = LODGeneration::computeLODModel(batched_mesh, lod_level);
 
-	batched_mesh = batched_mesh->buildQuantisedMesh();
+	BatchedMesh::QuantiseOptions quantise_options;
+	quantise_options.pos_bits = (lod_level == 0) ? 16 : 12;
+	quantise_options.uv_bits  = (lod_level == 0) ? 16 : 10;
+	batched_mesh = batched_mesh->buildQuantisedMesh(quantise_options);
 
 	batched_mesh->doMeshOptimizerOptimisations();
 
 	BatchedMesh::WriteOptions options;
 	options.use_meshopt = true;
 	options.compression_level = 19;
-	options.pos_mantissa_bits = (lod_level == 0) ? 16 : 12;
-	options.uv_mantissa_bits = (lod_level == 0) ? 16 : 10;
 	batched_mesh->writeToFile(optimised_mesh_path, options);
 }
 

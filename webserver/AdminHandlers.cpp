@@ -883,7 +883,7 @@ void renderAdminLODChunksPage(ServerAllWorldsState& all_worlds_state, const web:
 				{
 					const LODChunk* chunk = lod_it->second.ptr();
 
-					page_out += "<div>Coords: " + chunk->coords.toString() + ", <br/> mesh_url: " + web::Escaping::HTMLEscape(chunk->mesh_url) + ", <br/> combined_array_texture_url: " + web::Escaping::HTMLEscape(chunk->combined_array_texture_url) + 
+					page_out += "<div>Coords: " + chunk->coords.toString() + ", <br/> mesh_url: " + web::Escaping::HTMLEscape(chunk->getMeshURL()) + ", <br/> combined_array_texture_url: " + web::Escaping::HTMLEscape(chunk->combined_array_texture_url) + 
 						"<br/> compressed_mat_info: " + toString(chunk->compressed_mat_info.size()) + " B, <br/> needs_rebuild: " + boolToString(chunk->needs_rebuild) + "</div><br/>";
 				}
 			}

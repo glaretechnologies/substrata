@@ -40,9 +40,11 @@ public:
 
 	void copyNetworkStateFrom(const LODChunk& other);
 
+	const std::string computeMeshURL(bool use_optimised_meshes, int opt_mesh_version) const;
+
+	const std::string& getMeshURL() const { return mesh_url; }
 
 	Vec3i coords;
-
 	std::string mesh_url;
 	std::string combined_array_texture_url;
 	js::Vector<uint8> compressed_mat_info;

@@ -37,6 +37,8 @@ public:
 	// For a path like "d:/audio/some.mp3", returns a URL like "some_473446464646.mp3"
 	static const std::string URLForPathAndHash(const std::string& path, uint64 hash);
 
+	static const std::string URLForPathAndHashAndEpoch(const std::string& path, uint64 hash, int epoch);
+
 	static bool isValidURL(const std::string& URL);
 
 	// Will create a new Resource object if not already inserted.
