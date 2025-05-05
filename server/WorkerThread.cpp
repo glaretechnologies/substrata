@@ -1391,15 +1391,12 @@ void WorkerThread::doRun()
 								}
 							}
 
-							if(!temp_avatar.avatar_settings.model_url.empty())
-								sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
-
 							// Process resources
 							std::set<DependencyURL> URLs;
 							Avatar::GetDependencyOptions options;
 							options.get_optimised_mesh = false; // Get non-optimised mesh, optimise on server.
 							options.use_basis = false; // Get non-basis resources, convert to basis on server.
-							temp_avatar.getDependencyURLSetForAllLODLevels(options, URLs); 
+							temp_avatar.getDependencyURLSetBaseLevel(options, URLs); 
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 							{
 								sendGetFileMessageIfNeeded(it->URL);

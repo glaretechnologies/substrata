@@ -115,6 +115,20 @@ void Avatar::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& opt
 }
 
 
+void Avatar::appendDependencyURLsBaseLevel(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const
+{
+	if(!avatar_settings.model_url.empty())
+	{
+		GetLODModelURLOptions url_options(options.get_optimised_mesh, options.opt_mesh_version);
+
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 0, url_options)));
+	}
+
+	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
+		avatar_settings.materials[i]->appendDependencyURLsBaseLevel(options.use_basis, URLs_out);
+}
+
+
 void Avatar::getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out)
 {
 	std::vector<DependencyURL> URLs;
@@ -128,6 +142,15 @@ void Avatar::getDependencyURLSetForAllLODLevels(const GetDependencyOptions& opti
 {
 	std::vector<DependencyURL> URLs;
 	this->appendDependencyURLsForAllLODLevels(options, URLs);
+
+	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
+}
+
+
+void Avatar::getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const
+{
+	std::vector<DependencyURL> URLs;
+	this->appendDependencyURLsBaseLevel(options, URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
@@ -173,7 +196,7 @@ float Avatar::getMaxDistForLODLevel(int level) const
 }
 
 
-std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, int lod_level, const GetLODModelURLOptions& options)
+std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, int lod_level, const GetLODModelURLOptions& options) const
 {
 	if((lod_level == 0) && !options.get_optimised_mesh)
 		return base_model_url;
