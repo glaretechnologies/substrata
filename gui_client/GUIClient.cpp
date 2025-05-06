@@ -127,6 +127,8 @@ static const float DECAL_EDGE_AABB_WIDTH = 0.02f;
 
 static const float chunk_w = 128.f;
 
+static const std::string DEFAULT_AVATAR_MODEL_URL = "xbot.bmesh"; // This file should be in the resources directory in the distribution.
+
 
 GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args)
 :	base_dir_path(base_dir_path_),
@@ -333,14 +335,11 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 #endif
 
 
-	// Add default avatar mesh as an external resource. 
+	// Add default avatar mesh as an external resource.
+	if(resource_manager->getExistingResourceForURL(DEFAULT_AVATAR_MODEL_URL).isNull())
 	{
-		const std::string mesh_URL = "xbot_glb_3242545562312850498.bmesh";
-		if(resource_manager->getExistingResourceForURL(mesh_URL).isNull())
-		{
-			ResourceRef resource = new Resource(mesh_URL, /*local (abs) path=*/resources_dir_path + "/" + mesh_URL, Resource::State_Present, UserID(), /*external_resource=*/true);
-			resource_manager->addResource(resource);
-		}
+		ResourceRef resource = new Resource(/*URL=*/DEFAULT_AVATAR_MODEL_URL, /*local (abs) path=*/resources_dir_path + "/" + DEFAULT_AVATAR_MODEL_URL, Resource::State_Present, UserID(), /*external_resource=*/true);
+		resource_manager->addResource(resource);
 	}
 
 
@@ -2664,8 +2663,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 	// If the avatar model URL is empty, we will be using the default xbot model.  Need to make it be rotated from y-up to z-up, and assign materials.
 	if(avatar->avatar_settings.model_url.empty())
 	{
-		const std::string default_model_url = "xbot_glb_3242545562312850498.bmesh";
-		avatar->avatar_settings.model_url = default_model_url;
+		avatar->avatar_settings.model_url = DEFAULT_AVATAR_MODEL_URL;
 		avatar->avatar_settings.materials.resize(2);
 
 		avatar->avatar_settings.materials[0] = new WorldMaterial();
@@ -2685,8 +2683,11 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 
 	try
 	{
+		const bool avatar_is_default_model = avatar->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL;
+
 		// Start downloading any resources we don't have that the object uses.
-		startDownloadingResourcesForAvatar(avatar, ob_lod_level, our_avatar);
+		if(!avatar_is_default_model) // Avoid downloading optimised version of default avatar; is already optimised.
+			startDownloadingResourcesForAvatar(avatar, ob_lod_level, our_avatar);
 
 		startLoadingTexturesForAvatar(*avatar, ob_lod_level, max_dist_for_ob_lod_level, our_avatar);
 
@@ -2704,7 +2705,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		bool added_opengl_ob = false;
 
 		WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
-		const std::string lod_model_url = WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level, options);
+		const std::string lod_model_url = avatar_is_default_model ? DEFAULT_AVATAR_MODEL_URL : WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level, options);
 
 		avatar->graphics.loaded_lod_level = ob_lod_level;
 
@@ -4057,9 +4058,10 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loa
 						const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
 
 						// Check the avatar wants this particular LOD level model right now:
+						// If we are using the default avatar, make sure this check doesn't fail due to getLODModelURLForLevel() appending "_optX" suffix.
 						Avatar::GetLODModelURLOptions options(this->server_has_optimised_meshes, this->server_opt_mesh_version);
 						const std::string current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level, options);
-						if(current_desired_model_LOD_URL == lod_model_url)
+						if((current_desired_model_LOD_URL == lod_model_url) || (av->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL))
 						{
 							try
 							{
