@@ -1006,7 +1006,11 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 	// Load mesh from disk:
 	BatchedMeshRef batched_mesh;
 
-	if(hasExtension(model_path, "obj"))
+	if(hasExtension(model_path, "bmesh"))
+	{
+		batched_mesh = BatchedMesh::readFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), mem_allocator);
+	}
+	else if(hasExtension(model_path, "obj"))
 	{
 		Indigo::MeshRef mesh = new Indigo::Mesh();
 
@@ -1047,10 +1051,6 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 		}
 
 		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
-	}
-	else if(hasExtension(model_path, "bmesh"))
-	{
-		batched_mesh = BatchedMesh::readFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), mem_allocator);
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
