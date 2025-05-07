@@ -159,7 +159,7 @@ void LoadModelTask::run(size_t thread_index)
 
 			VBORef vbo;
 #if !EMSCRIPTEN
-			for(int i=0; i<10; ++i)
+			for(int i=0; i<100; ++i)
 			{
 				vbo = opengl_engine->vbo_pool.getMappedVBO(total_geom_size_B);
 				if(vbo)
@@ -192,7 +192,7 @@ void LoadModelTask::run(size_t thread_index)
 			}
 
 			if(!vbo)
-				conPrint("LoadModelTask: Failed to get mapped VBO for " + toString(total_geom_size_B) + " B");
+				conPrint("LoadModelTask: Failed to get mapped VBO for " + uInt32ToStringCommaSeparated((uint32)total_geom_size_B) + " B");
 #endif
 
 

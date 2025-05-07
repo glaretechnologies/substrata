@@ -126,7 +126,7 @@ void LoadTextureTask::run(size_t thread_index)
 						const ImageMapUInt8* uint8_map = static_cast<const ImageMapUInt8*>(texture_data->converted_image.ptr());
 						source_data = ArrayRef<uint8>(uint8_map->getData(), uint8_map->getDataSizeB());
 					}
-					if(dynamic_cast<const ImageMap<half, HalfComponentValueTraits>*>(texture_data->converted_image.ptr()))
+					else if(dynamic_cast<const ImageMap<half, HalfComponentValueTraits>*>(texture_data->converted_image.ptr()))
 					{
 						const ImageMap<half, HalfComponentValueTraits>* half_map = static_cast<const ImageMap<half, HalfComponentValueTraits>*>(texture_data->converted_image.ptr());
 						source_data = ArrayRef<uint8>((const uint8*)half_map->getData(), half_map->getDataSizeB());
@@ -136,7 +136,7 @@ void LoadTextureTask::run(size_t thread_index)
 				assert(source_data.data());
 				if(source_data.data())
 				{
-					const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 10;
+					const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 50;
 					for(int i=0; i<max_num_attempts; ++i)
 					{
 						pbo = opengl_engine->pbo_pool.getMappedPBO(source_data.size());
@@ -157,7 +157,7 @@ void LoadTextureTask::run(size_t thread_index)
 				}
 			
 				if(!pbo)
-					conPrint("LoadTextureTask: Failed to get mapped PBO for " + toString(texture_data->mipmap_data.size()) + " B");
+					conPrint("LoadTextureTask: Failed to get mapped PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
 			}
 #endif
 
