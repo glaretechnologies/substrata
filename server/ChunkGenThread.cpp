@@ -1069,7 +1069,6 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference<ServerWorldState> world, const js::AABBox chunk_aabb, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
 {
-	conPrint("================================= Building chunk " + toString(chunk_x) + ", " + toString(chunk_y) + " =================================");
 	std::vector<ObInfo> ob_infos;
 
 	{
@@ -1154,7 +1153,6 @@ static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference
 
 
 	ChunkBuildResults results = buildChunkForObInfo(ob_infos, chunk_x, chunk_y, task_manager);
-	conPrint("================================= chunk " + toString(chunk_x) + ", " + toString(chunk_y) + " built. =================================");
 	return results;
 }
 
@@ -1359,8 +1357,11 @@ void ChunkGenThread::doRun()
 					Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w,  500.f, 1.f) // max
 				);
 
+				conPrint("================================= Building chunk " + toString(x) + ", " + toString(y) + " (" + toString(i) + "/" + toString(dirty_chunks.size()) + " dirty chunks) =================================");
+
 				const ChunkBuildResults results = buildChunk(all_worlds_state, dirty_chunks[i].world_state, chunk_aabb, x, y, task_manager);
 
+				conPrint("====== chunk " + toString(x) + ", " + toString(y) + " built. ======");
 
 				//------------ Build compressed mat_info ------------
 				js::Vector<uint8> compressed_data(ZSTD_compressBound(results.output_mat_infos.dataSizeBytes()));
@@ -1376,6 +1377,7 @@ void ChunkGenThread::doRun()
 				// Copy combined mesh and texture array files into resource system.
 
 				const int MESH_EPOCH = 2; // This can be bumped to punch through caches, in particular if the optimised mesh needs to be rebuilt.
+				// Note that because we store mesh_url in the LodChunk object, which is sent to clients, they will automatically pick up a new epoch version if it's incremented.
 
 				std::string mesh_URL;
 				if(!results.combined_mesh_path.empty())
