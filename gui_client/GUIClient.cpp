@@ -2370,7 +2370,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 		if(load_placeholder)
 		{
-			if(ob->opengl_engine_ob.isNull())
+			if(ob->opengl_engine_ob.isNull() && !BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH))
 			{
 				// We will use part of the chunk geometry as the placeholder graphics for this object, while it is loading.
 				// Use the sub-range of the indices from the LOD chunk geometry that correspond to this object.
