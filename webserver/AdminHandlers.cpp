@@ -863,7 +863,7 @@ void renderAdminLODChunksPage(ServerAllWorldsState& all_worlds_state, const web:
 		//-----------------------
 		page_out += "<hr/>";
 		page_out += "<form action=\"/admin_rebuild_world_lod_chunks\" method=\"post\">";
-		page_out += "world name: <input type=\"text\" name=\"world_name\"><br>";
+		page_out += "world name: (Enter 'ALL' to rebuild chunks in all worlds) <input type=\"text\" name=\"world_name\"><br>";
 		page_out += "<input type=\"submit\" value=\"Rebuild world LOD chunks\">";
 		page_out += "</form>";
 		page_out += "<hr/>";
@@ -2149,21 +2149,45 @@ void handleRebuildWorldLODChunks(ServerAllWorldsState& all_worlds_state, const w
 
 			WorldStateLock lock(all_worlds_state.mutex);
 
-			auto res = all_worlds_state.world_states.find(world_name.str());
-
-			if(res != all_worlds_state.world_states.end())
+			if(world_name == "ALL")
 			{
-				ServerWorldState* world_state = res->second.ptr();
-				ServerWorldState::LODChunkMapType& lod_chunks = world_state->getLODChunks(lock);
-				for(auto lod_it = lod_chunks.begin(); lod_it != lod_chunks.end(); ++lod_it)
+				// Mark all chunks in all worlds as dirty
+				for(auto it = all_worlds_state.world_states.begin(); it != all_worlds_state.world_states.end(); ++it)
 				{
-					LODChunk* chunk = lod_it->second.ptr();
-					if(!chunk->needs_rebuild)
-					{
-						chunk->needs_rebuild = true;
+					ServerWorldState* world_state = it->second.ptr();
 
-						world_state->addLODChunkAsDBDirty(chunk, lock);
-						all_worlds_state.markAsChanged();
+					ServerWorldState::LODChunkMapType& lod_chunks = world_state->getLODChunks(lock);
+					for(auto lod_it = lod_chunks.begin(); lod_it != lod_chunks.end(); ++lod_it)
+					{
+						LODChunk* chunk = lod_it->second.ptr();
+						if(!chunk->needs_rebuild)
+						{
+							chunk->needs_rebuild = true;
+
+							world_state->addLODChunkAsDBDirty(chunk, lock);
+							all_worlds_state.markAsChanged();
+						}
+					}
+				}
+			}
+			else
+			{
+				auto res = all_worlds_state.world_states.find(world_name.str());
+
+				if(res != all_worlds_state.world_states.end())
+				{
+					ServerWorldState* world_state = res->second.ptr();
+					ServerWorldState::LODChunkMapType& lod_chunks = world_state->getLODChunks(lock);
+					for(auto lod_it = lod_chunks.begin(); lod_it != lod_chunks.end(); ++lod_it)
+					{
+						LODChunk* chunk = lod_it->second.ptr();
+						if(!chunk->needs_rebuild)
+						{
+							chunk->needs_rebuild = true;
+
+							world_state->addLODChunkAsDBDirty(chunk, lock);
+							all_worlds_state.markAsChanged();
+						}
 					}
 				}
 			}
