@@ -1983,14 +1983,14 @@ std::string TerrainScattering::getDiagnostics() const
 {
 	std::string s;
 	s.reserve(512);
-	s += "Grass textures GPU RAM: " + getNiceByteSize((grass_texture.nonNull() ? grass_texture->getByteSize() : 0) + (grass_normal_map.nonNull() ? grass_normal_map->getByteSize() : 0)) + "\n";
+	s += "Grass textures GPU RAM: " + getNiceByteSize((grass_texture.nonNull() ? grass_texture->getTotalStorageSizeB() : 0) + (grass_normal_map.nonNull() ? grass_normal_map->getTotalStorageSizeB() : 0)) + "\n";
 
 	size_t detail_mask_map_gpu_mem = 0;
 	size_t detail_mask_map_cpu_mem = 0;
 	for(int i=0; i<DETAIL_MASK_MAP_SECTION_RES*DETAIL_MASK_MAP_SECTION_RES; ++i)
 	{
 		if(detail_mask_map_sections[i].mask_map_gl_tex.nonNull())
-			detail_mask_map_gpu_mem += detail_mask_map_sections[i].mask_map_gl_tex->getByteSize();
+			detail_mask_map_gpu_mem += detail_mask_map_sections[i].mask_map_gl_tex->getTotalStorageSizeB();
 
 		detail_mask_map_cpu_mem += detail_mask_map_sections[i].detail_mask_map.getByteSize();
 	}
