@@ -649,8 +649,8 @@ std::string TerrainSystem::getDiagnostics() const
 	size_t detail_heightmap_GPU_mem = 0;
 	for(int i=0; i<4; ++i)
 	{
-		if(opengl_engine->getDetailTexture(i).nonNull())   detail_tex_GPU_mem += opengl_engine->getDetailTexture(i)->getByteSize();
-		if(opengl_engine->getDetailHeightmap(i).nonNull()) detail_heightmap_GPU_mem += opengl_engine->getDetailHeightmap(i)->getByteSize();
+		if(opengl_engine->getDetailTexture(i).nonNull())   detail_tex_GPU_mem += opengl_engine->getDetailTexture(i)->getTotalStorageSizeB();
+		if(opengl_engine->getDetailHeightmap(i).nonNull()) detail_heightmap_GPU_mem += opengl_engine->getDetailHeightmap(i)->getTotalStorageSizeB();
 	}
 
 	s += "detail tex GPU mem:       " + getNiceByteSize(detail_tex_GPU_mem) + "\n";
@@ -668,8 +668,8 @@ std::string TerrainSystem::getDiagnostics() const
 		if(section.heightmap.nonNull()) terrain_section_heightmap_CPU_mem += section.heightmap->getByteSize();
 		if(section.maskmap.nonNull())   terrain_section_maskmap_CPU_mem   += section.maskmap->getByteSize();
 
-		if(section.heightmap_gl_tex.nonNull()) terrain_section_heightmap_GPU_mem += section.heightmap_gl_tex->getByteSize();
-		if(section.mask_gl_tex.nonNull())      terrain_section_maskmap_GPU_mem   += section.mask_gl_tex->getByteSize();
+		if(section.heightmap_gl_tex.nonNull()) terrain_section_heightmap_GPU_mem += section.heightmap_gl_tex->getTotalStorageSizeB();
+		if(section.mask_gl_tex.nonNull())      terrain_section_maskmap_GPU_mem   += section.mask_gl_tex->getTotalStorageSizeB();
 	}
 
 	s += "terrain section heightmap CPU mem: " + getNiceByteSize(terrain_section_heightmap_CPU_mem) + "\n";

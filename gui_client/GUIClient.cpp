@@ -8548,7 +8548,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 					{
 						if(!selected_ob->materials.empty() && selected_ob->materials[i])
 							msg += "mat " + toString(i) + " min lod level: " + toString(selected_ob->materials[i]->minLODLevel()) + "\n";
-						msg += "mat " + toString(i) + " tex: " + toString(mat.albedo_texture->xRes()) + "x" + toString(mat.albedo_texture->yRes()) + " (" + getNiceByteSize(mat.albedo_texture->getByteSize()) + "), " + 
+						msg += "mat " + toString(i) + " tex: " + toString(mat.albedo_texture->xRes()) + "x" + toString(mat.albedo_texture->yRes()) + " (" + getNiceByteSize(mat.albedo_texture->getTotalStorageSizeB()) + "), " + 
 							getStringForGLInternalFormat(mat.albedo_texture->getInternalFormat()) + " \n";
 					}
 					msg += "mat " + toString(i) + " colourTexHasAlpha(): " + toString(selected_ob->materials[i]->colourTexHasAlpha()) + "\n";
@@ -8556,7 +8556,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 					if(mat.lightmap_texture)
 					{
 						msg += "\n";
-						msg += "lightmap: " + toString(mat.lightmap_texture->xRes()) + "x" + toString(mat.lightmap_texture->yRes()) + " (" + getNiceByteSize(mat.lightmap_texture->getByteSize()) + ")\n";
+						msg += "lightmap: " + toString(mat.lightmap_texture->xRes()) + "x" + toString(mat.lightmap_texture->yRes()) + " (" + getNiceByteSize(mat.lightmap_texture->getTotalStorageSizeB()) + ")\n";
 					}
 				}
 			}
