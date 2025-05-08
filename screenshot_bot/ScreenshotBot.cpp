@@ -111,7 +111,18 @@ int main(int argc, char* argv[])
 					throw glare::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
 				// Read server protocol version
-				/*const uint32 server_protocol_version =*/ socket->readUInt32();
+				const uint32 server_protocol_version = socket->readUInt32();
+
+				// Read server capabilities
+				uint32 server_capabilities = 0;
+				if(server_protocol_version >= 41)
+					server_capabilities = socket->readUInt32();
+
+				// Read server_mesh_optimisation_version
+				int server_mesh_optimisation_version = 1;
+				if(server_protocol_version >= 43)
+					server_mesh_optimisation_version = socket->readInt32();
+
 
 				glare::Process* process = NULL;
 				MySocketRef to_gui_socket;
