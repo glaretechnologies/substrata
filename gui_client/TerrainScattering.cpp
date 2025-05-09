@@ -516,6 +516,11 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 	opengl_engine->mask_map_frame_buffer->bindForReading();
 	glReadPixels(0, 0, detail_mask_map_width_px, detail_mask_map_width_px, GL_RED, GL_UNSIGNED_BYTE, temp_detail_mask_map->getData());
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+	// For the web, since we can't use compute shaders, we don't need the GPU-side mask map, which is just used for the grass scatter compute shader.
+	// Delete mask_map_gl_tex, detatch it from mask map framebuffer first.
+	opengl_engine->mask_map_frame_buffer->detachTexture(*section.mask_map_gl_tex, GL_COLOR_ATTACHMENT0);
+	section.mask_map_gl_tex = nullptr; 
 #else
 	section.mask_map_gl_tex->readBackTexture(/*mipmap level=*/0, ArrayRef<uint8>(temp_detail_mask_map->getData(), temp_detail_mask_map->getDataSize()));
 #endif
