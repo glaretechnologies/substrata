@@ -313,9 +313,18 @@ int main(int argc, char** argv)
 #endif
 
 #if EMSCRIPTEN
+		// device_pixel_ratio > 1 is probably a mobile device
+		const bool low_memory_mode = device_pixel_ratio > 1.0;
+#else
+		const bool low_memory_mode = false;
+#endif
+		conPrint("Using low memory mode: " + boolToString(low_memory_mode));
+
+
+#if EMSCRIPTEN
 		// In theory, since we are not doing hi dpi rendering, we can have MSAA on.
 		// However MSAA causes iPad to give context lost errors, so just disable if device_pixel_ratio != 1.
-		const bool use_MSAA = (device_pixel_ratio <= 1.0) ? true : false; // device_pixel_ratio > 1 is probably a mobile device, disable MSAA in that case.
+		const bool use_MSAA = !low_memory_mode;
 #else
 		const bool use_MSAA = settings_store->getBoolValue("setting/MSAA", /*default value=*/true);
 #endif
@@ -460,9 +469,9 @@ int main(int argc, char** argv)
 		settings.compress_textures = true;
 		settings.shadow_mapping = true;
 		settings.depth_fog = true;
-		settings.render_water_caustics = true;
+		settings.render_water_caustics = !low_memory_mode;
 		settings.msaa_samples = use_MSAA ? 4 : 1;
-		settings.render_to_offscreen_renderbuffers = true;
+		settings.render_to_offscreen_renderbuffers = !low_memory_mode;
 
 		if(parsed_args.isArgPresent("--no_MDI"))
 			settings.allow_multi_draw_indirect = false;
@@ -474,10 +483,9 @@ int main(int argc, char** argv)
 
 #if defined(EMSCRIPTEN)
 		settings.max_tex_CPU_mem_usage = 512 * 1024 * 1024ull;
-
-		if(device_pixel_ratio > 1.0)
-			settings.shadow_mapping_detail = OpenGLEngineSettings::ShadowMappingDetail_low;  // This is probably a mobile device:
 #endif
+		if(low_memory_mode)
+			settings.shadow_mapping_detail = OpenGLEngineSettings::ShadowMappingDetail_low;
 
 		opengl_engine = new OpenGLEngine(settings);
 
@@ -506,12 +514,9 @@ int main(int argc, char** argv)
 		gui_client = new GUIClient(base_dir, appdata_path, parsed_args);
 		gui_client->opengl_engine = opengl_engine;
 
-#if EMSCRIPTEN
 		// Don't use lightmaps on mobile devices for now, to reduce RAM usage.
-		if(device_pixel_ratio > 1.0)
+		if(low_memory_mode)
 			gui_client->use_lightmaps = false;
-#endif
-
 
 		std::string cache_dir = appdata_path;
 
@@ -610,7 +615,7 @@ int main(int argc, char** argv)
 
 #if EMSCRIPTEN
 		// Just disable bloom on mobile devices, is not working properly, probably due to lack of floating point buffer formats or something similar.
-		const bool bloom = (device_pixel_ratio == 1.0) ? true : false;
+		const bool bloom = device_pixel_ratio <= 1.0;
 #else
 		const bool bloom = settings_store->getBoolValue("setting/bloom", /*default val=*/true);
 #endif
