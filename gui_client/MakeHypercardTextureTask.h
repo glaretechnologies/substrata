@@ -10,10 +10,8 @@ Copyright Glare Technologies Limited 2022 -
 #include <ThreadMessage.h>
 #include <ThreadSafeQueue.h>
 #include <string>
-#include <vector>
-class MainWindow;
 class OpenGLEngine;
-class TextureData;
+class TextRendererFontFaceSizeSet;
 
 
 /*=====================================================================
@@ -31,6 +29,7 @@ public:
 
 	std::string tex_key;
 	Reference<OpenGLEngine> opengl_engine;
+	Reference<TextRendererFontFaceSizeSet> fonts;
 	std::string hypercard_content;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 	Reference<glare::Allocator> worker_allocator;

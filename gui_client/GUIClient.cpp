@@ -2061,6 +2061,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 						task->result_msg_queue = &this->msg_queue;
 						task->hypercard_content = ob->content;
 						task->opengl_engine = opengl_engine;
+						task->fonts = this->gl_ui->getFonts();
 						task->worker_allocator = worker_allocator;
 						load_item_queue.enqueueItem(/*key=*/tex_key, *ob, task, /*max_dist_for_ob_lod_level=*/200.f);
 					}
@@ -10685,6 +10686,7 @@ void GUIClient::objectEdited()
 									task->result_msg_queue = &this->msg_queue;
 									task->hypercard_content = selected_ob->content;
 									task->opengl_engine = opengl_engine;
+									task->fonts = this->gl_ui->getFonts();
 									task->worker_allocator = worker_allocator;
 									load_item_queue.enqueueItem(/*key=*/tex_key, *this->selected_ob, task, /*max task dist=*/200.f);
 								}

@@ -7,16 +7,12 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "LoadTextureTask.h"
-#include "WinterShaderEvaluator.h"
 #include <graphics/ImageMap.h>
 #include <graphics/TextureProcessing.h>
+#include <graphics/TextRenderer.h>
 #include <opengl/OpenGLEngine.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
-#if USE_QT
-#include "../qt/QtUtils.h"
-#include <QtGui/QPainter>
-#endif
 
 
 MakeHypercardTextureTask::MakeHypercardTextureTask()
@@ -37,26 +33,15 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 		const int W = 512;
 		const int H = 512;
 
-		ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
-#if USE_SDL
-		map->zero();
-		// TEMP HACK REFACTOR TODO
-#else
-		QImage image(W, H, QImage::Format_RGB888);
-		image.fill(QColor(220, 220, 220));
-		QPainter painter(&image);
-		painter.setPen(QPen(QColor(30, 30, 30)));
-		painter.setFont(QFont("helvetica", 30, QFont::Normal));
-		const int padding = 20;
-		painter.drawText(QRect(padding, padding, W - padding*2, H - padding*2), Qt::AlignLeft/* | Qt::AlignVCenter*/, QtUtils::toQString(hypercard_content));
+		ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3, worker_allocator.ptr());
+		map->set(220);
 
-		// Copy to map
-		for(int y=0; y<H; ++y)
-		{
-			const QRgb* line = (const QRgb*)image.scanLine(y);
-			std::memcpy(map->getPixel(0, y), line, 3*W);
-		}
-#endif
+		const int font_size_px = 30;
+		Reference<TextRendererFontFace> font = fonts->getFontFaceForSize(/*font size px=*/font_size_px).ptr();
+		
+		const int padding = 20;
+		font->drawText(*map, hypercard_content, padding, padding + font_size_px, Colour3f(30.f / 255.f), /*render SDF=*/false);
+
 
 		const bool allow_compression = opengl_engine->DXTTextureCompressionSupportedAndEnabled();
 		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), worker_allocator.ptr(), opengl_engine->getMainTaskManager(), allow_compression, /*build mipmaps=*/true);
