@@ -505,8 +505,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		{
 			mesh->addVertex(Indigo::Vec3f(0,0,0));
 			mesh->addVertex(Indigo::Vec3f(0,0,1));
-			mesh->addVertex(Indigo::Vec3f(0,1,1));
-			mesh->addVertex(Indigo::Vec3f(0,1,0));
+			mesh->addVertex(Indigo::Vec3f(1,0,1));
+			mesh->addVertex(Indigo::Vec3f(1,0,0));
 			const unsigned int vertex_indices[]   = {0, 1, 2};
 			mesh->addTriangle(vertex_indices, vertex_indices, 0);
 			const unsigned int vertex_indices_2[] = {0, 2, 3};
@@ -2041,6 +2041,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->materials.resize(1);
 				opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+				opengl_ob->materials[0].simple_double_sided = true;
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 
