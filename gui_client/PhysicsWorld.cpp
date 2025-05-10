@@ -956,6 +956,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 
 
 	const bool pos_is_float = pos_attr->component_type == BatchedMesh::ComponentType_Float;
+	const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
 
 	if(build_dynamic_physics_ob)
 	{
@@ -972,8 +973,8 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 			{
 				uint16 vals[3];
 				std::memcpy(vals, src_vertex_data + pos_offset + i * vert_size_B, sizeof(uint16) * 3);
-				const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
-				vert_pos = mesh.aabb_os.min_ + dequantisation_scale * Vec4f((float)vals[0], (float)vals[1], (float)vals[2], 1);
+				vert_pos = mesh.aabb_os.min_ + dequantisation_scale * Vec4f((float)vals[0], (float)vals[1], (float)vals[2], 0);
+				assert(vert_pos[3] == 1.f);
 			}
 
 			if(use_skin_transforms)
@@ -1001,6 +1002,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		JPH::IndexedTriangleList tri_list(num_tris);
 
 		// Copy Vertices
+		const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
 		const uint8* src_vertex_data = mesh.vertex_data.data();
 		for(size_t i = 0; i < num_verts; ++i)
 		{
@@ -1011,8 +1013,8 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 			{
 				uint16 vals[3];
 				std::memcpy(vals, src_vertex_data + pos_offset + i * vert_size_B, sizeof(uint16) * 3);
-				const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
-				vert_pos = mesh.aabb_os.min_ + dequantisation_scale * Vec4f((float)vals[0], (float)vals[1], (float)vals[2], 1);
+				vert_pos = mesh.aabb_os.min_ + dequantisation_scale * Vec4f((float)vals[0], (float)vals[1], (float)vals[2], 0);
+				assert(vert_pos[3] == 1.f);
 			}
 
 			if(use_skin_transforms)
