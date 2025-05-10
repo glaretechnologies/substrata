@@ -1002,7 +1002,6 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		JPH::IndexedTriangleList tri_list(num_tris);
 
 		// Copy Vertices
-		const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
 		const uint8* src_vertex_data = mesh.vertex_data.data();
 		for(size_t i = 0; i < num_verts; ++i)
 		{
