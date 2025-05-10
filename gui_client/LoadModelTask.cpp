@@ -228,15 +228,20 @@ void LoadModelTask::run(size_t thread_index)
 		catch(glare::Exception& e)
 		{
 			//conPrint("LoadModelTask: excep: " + e.what());
-			result_msg_queue->enqueue(new LogMessage("Error while loading model: " + e.what()));
+			const std::string model_URL = voxel_ob ? "[voxel_ob]" : this->lod_model_url;
+			result_msg_queue->enqueue(new LogMessage("Error while loading model '" + model_URL + "': " + e.what()));
+			return;
 		}
 		catch(std::bad_alloc&)
 		{
 			//conPrint("LoadModelTask: excep: " + e.what());
-			result_msg_queue->enqueue(new LogMessage("Error while loading model: failed to allocate mem (bad_alloc)"));
+			const std::string model_URL = voxel_ob ? "[voxel_ob]" : this->lod_model_url;
+			result_msg_queue->enqueue(new LogMessage("Error while loading model '" + model_URL + "': failed to allocate mem (bad_alloc)"));
+			return;
 		}
 	}
 
 	// We tried N times but each time we got an LimitedAllocatorAllocFailed exception.
-	result_msg_queue->enqueue(new LogMessage("Failed to load model '" + lod_model_url + "': failed after multiple LimitedAllocatorAllocFailed"));
+	const std::string model_URL = voxel_ob ? "[voxel_ob]" : this->lod_model_url;
+	result_msg_queue->enqueue(new LogMessage("Failed to load model '" + model_URL + "': failed after multiple LimitedAllocatorAllocFailed"));
 }
