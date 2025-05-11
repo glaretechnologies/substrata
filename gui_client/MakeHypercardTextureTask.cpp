@@ -33,7 +33,7 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 		const int W = 512;
 		const int H = 512;
 
-		ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3, worker_allocator.ptr());
+		ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 1, worker_allocator.ptr());
 		map->set(220);
 
 		const int font_size_px = 30;
@@ -43,7 +43,8 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 		font->drawText(*map, hypercard_content, padding, padding + font_size_px, Colour3f(30.f / 255.f), /*render SDF=*/false);
 
 
-		const bool allow_compression = opengl_engine->DXTTextureCompressionSupportedAndEnabled();
+		// Don't do compression, as it will avoid compression's block artifacts, plus it allows us to use a 1-channel texture, which saves memory on platforms (mobile) where DXT compression isn't supported anyway.
+		const bool allow_compression = false;
 		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), worker_allocator.ptr(), opengl_engine->getMainTaskManager(), allow_compression, /*build mipmaps=*/true);
 
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
