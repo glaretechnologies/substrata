@@ -2042,6 +2042,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->materials[0].simple_double_sided = true;
+				opengl_ob->materials[0].convert_albedo_from_srgb = true; // Since we use a single-channel texture for hypercards, we can't use a non-linear sRGB format, so need to enable this conversion option.
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 
