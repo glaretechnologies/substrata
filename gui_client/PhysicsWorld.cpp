@@ -361,7 +361,7 @@ public:
 	/// @param inMaxBarriers Max number of barriers that can be allocated at any time
 	SubstrataJoltJobSystem(uint inMaxJobs, uint inMaxBarriers, glare::TaskManager* task_manager_)
 	:	task_manager(task_manager_), 
-		task_allocator(sizeof(JoltJobTask), 16)
+		task_allocator(sizeof(JoltJobTask), 16, /*block capacity=*/256)
 	{
 		JobSystemWithBarrier::Init(inMaxBarriers);
 
