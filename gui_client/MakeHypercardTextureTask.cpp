@@ -45,7 +45,7 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 
 		// Don't do compression, as it will avoid compression's block artifacts, plus it allows us to use a 1-channel texture, which saves memory on platforms (mobile) where DXT compression isn't supported anyway.
 		const bool allow_compression = false;
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), worker_allocator.ptr(), opengl_engine->getMainTaskManager(), allow_compression, /*build mipmaps=*/true);
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), worker_allocator.ptr(), opengl_engine->getMainTaskManager(), allow_compression, /*build mipmaps=*/true, /*convert_float_to_half=*/true);
 
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
 		msg->tex_path = tex_key;
