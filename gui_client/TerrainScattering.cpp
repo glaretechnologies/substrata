@@ -545,10 +545,12 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 
 
 #else
-	if(section.detail_mask_map.isNull())
+	if(section.detail_mask_map)
 	{
-		section.detail_mask_map = new ImageMapUInt8(detail_mask_map_width_px, detail_mask_map_width_px, 3); // GL_RGB
-		section.detail_mask_map->zero();
+		section.detail_mask_map.resizeNoCopy(detail_mask_map_width_px, detail_mask_map_width_px);
+		section.detail_mask_map.zero();
+		//section.detail_mask_map = new ImageMapUInt1(detail_mask_map_width_px, detail_mask_map_width_px, 3); // GL_RGB
+		//section.detail_mask_map->zero();
 	}
 	section.gl_tex_valid = true;
 #endif
