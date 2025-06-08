@@ -292,13 +292,9 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 		for(int i=0; i<4; ++i)
 			opengl_engine->setDetailTexture(i, default_col_tex);
 	}
-	{
-		ImageMapUInt8Ref default_detail_height_map = new ImageMapUInt8(1, 1, 1);
-		default_detail_height_map->getPixel(0, 0)[0] = 0;
-		OpenGLTextureRef default_detail_height_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_detail_height_tex__"), *default_detail_height_map);
-		for(int i=0; i<4; ++i)
-			opengl_engine->setDetailHeightmap(i, default_detail_height_tex);
-	}
+
+	for(int i=0; i<4; ++i)
+		opengl_engine->setDetailHeightmap(i, opengl_engine->dummy_black_tex);
 
 
 	//detail_heightmap = JPEGDecoder::decode(".", "C:\\Users\\nick\\Downloads\\cgaxis_dirt_with_large_rocks_38_46_4K\\dirt_with_large_rocks_38_46_height.jpg");
