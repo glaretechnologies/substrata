@@ -61,7 +61,7 @@ struct CreateVidReaderTask;
 class BiomeManager;
 class ScriptLoadedThreadMessage;
 class ObjectPathController;
-namespace glare { class PoolAllocator; }
+namespace glare { class FastPoolAllocator; }
 class VehiclePhysics;
 class TerrainSystem;
 class TerrainDecalManager;
@@ -522,6 +522,8 @@ public:
 
 	std::deque<Reference<ModelLoadedThreadMessage> > async_model_loaded_messages_to_process;
 	std::deque<Reference<TextureLoadedThreadMessage> > async_texture_loaded_messages_to_process;
+
+	// Reference<VBO> dummy_vbo;
 	
 	bool process_model_loaded_next;
 
@@ -649,7 +651,7 @@ public:
 	Map2DRef cur_loading_terrain_map; // Non-null iff we are currently loading a map used for the terrain system into OpenGL.
 	OpenGLTextureLoadingProgress tex_loading_progress;
 
-	Reference<glare::PoolAllocator> world_ob_pool_allocator;
+	Reference<glare::FastPoolAllocator> world_ob_pool_allocator;
 
 	std::vector<Reference<ObjectPathController>> path_controllers;
 
@@ -778,4 +780,5 @@ public:
 	js::Vector<PBOAsyncUploadedTextureInfo, 16> temp_loaded_texture_infos;
 
 	bool use_lightmaps;
+	Timer retry_connection_timer;
 };

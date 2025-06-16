@@ -73,6 +73,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/FileInStream.h"
 #include "../utils/IncludeXXHash.h"
 #include "../utils/IndigoXMLDoc.h"
+#include "../utils/FastPoolAllocator.h"
 #include "../utils/RuntimeCheck.h"
 #include "../utils/MemAlloc.h"
 #include "../utils/UTF8Utils.h"
@@ -210,7 +211,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	
-	this->world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
+	this->world_ob_pool_allocator = new glare::FastPoolAllocator(sizeof(WorldObject), 64, /*block capacity=*/1024);
 
 	proximity_loader.callbacks = this;
 
@@ -634,7 +635,17 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	// TEMP: make an avatar for testing of animation retargeting etc.
 	if(false)
 	{
-		const int N = 10;
+		//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
+		//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
+		const std::string path = "D:\\models\\generic dude avatar.glb";
+		MemMappedFile model_file(path);
+		ArrayRef<uint8> model_buffer((const uint8*)model_file.fileData(), model_file.fileSize());
+
+		PhysicsShape physics_shape;
+		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path, model_buffer,
+			opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, /*allocator=*/nullptr, physics_shape);
+
+		const int N = 1500;
 		test_avatars.resize(N);
 		for(size_t q=0; q<test_avatars.size(); ++q)
 		{
@@ -649,16 +660,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
 
-			//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
-			//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
-			const std::string path = "D:\\models\\generic dude avatar.glb";
-
-			MemMappedFile model_file(path);
-			ArrayRef<uint8> model_buffer((const uint8*)model_file.fileData(), model_file.fileSize());
-
-			PhysicsShape physics_shape;
-			Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path, model_buffer,
-				opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, /*allocator=*/nullptr, physics_shape);
 
 			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 
 				test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), /*use_basis=*/true, *resource_manager, ob_to_world_matrix);
@@ -676,10 +677,10 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 				test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
 			opengl_engine->objectMaterialsUpdated(*test_avatar->graphics.skinned_gl_ob);
 
-			for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
-			{
-				conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
-			}
+			// for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
+			// {
+			// 	conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
+			// }
 
 			assignLoadedOpenGLTexturesToAvatarMats(test_avatar.ptr(), /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager);
 
@@ -2042,7 +2043,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->materials[0].simple_double_sided = true;
-				opengl_ob->materials[0].convert_albedo_from_srgb = true; // Since we use a single-channel texture for hypercards, we can't use a non-linear sRGB format, so need to enable this conversion option.
+				opengl_ob->materials[0].convert_albedo_from_srgb = true; // Since we use a single-channel texture for hypercards, we can't use a GL sRGB format, so need to enable this conversion option.
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 
@@ -4350,11 +4351,17 @@ void GUIClient::processLoading()
 		Reference<ModelLoadedThreadMessage> message = async_model_loaded_messages_to_process.front();
 		async_model_loaded_messages_to_process.pop_front();
 
+		//message->vbo->flushRange(/*offset=*/0, /*size=*/message->total_geom_size_B);
+
 		// The VBO will have been mapped while it was being written to in a worker thread; unmap it.
 		message->vbo->unmap();
 
+		//if(!dummy_vbo)
+		//	dummy_vbo = new VBO(nullptr, 32 * 1024 * 1024);
+
 		// Start asynchronous load from VBO
-		opengl_engine->async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/message->vbo, /*vert_data_src_offset_B=*/0, message->index_data_src_offset_B, message->vert_data_size_B, message->index_data_size_B);
+		opengl_engine->async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/message->vbo, /*dummy_vbo,*/ /*vert_data_src_offset_B=*/0, message->index_data_src_offset_B, 
+			message->vert_data_size_B, message->index_data_size_B, message->total_geom_size_B);
 
 		AsyncGeometryUploading loading_info;
 		loading_info.lod_model_url = message->lod_model_url;
@@ -4396,11 +4403,13 @@ void GUIClient::processLoading()
 
 	// Check async geometry uploading queue for any completed uploads
 	{
-		opengl_engine->async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), temp_uploaded_geom_infos);
+		opengl_engine->async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), /*loaded_geom_out=*/temp_uploaded_geom_infos);
+
+		// temp_uploaded_geom_infos now contains AsyncUploadedGeometryInfo structs for any just-completed geometry uploads.
 
 		for(size_t i=0; i<temp_uploaded_geom_infos.size(); ++i)
 		{
-			// Return VBO to pool
+			// Return VBO to pool of unused VBOs
 			opengl_engine->vbo_pool.vboBecameUnused(temp_uploaded_geom_infos[i].vbo);
 
 			auto res = async_uploading_geom.find(temp_uploaded_geom_infos[i].meshdata); // Get our stored info about this upload
@@ -4409,7 +4418,7 @@ void GUIClient::processLoading()
 			{
 				AsyncGeometryUploading& loading_info = res->second;
 
-				// Process the finished upload
+				// Process the finished upload (assign mesh to objects etc.)
 				handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, res->first, loading_info.physics_shape, loading_info.voxel_ob_uid, 
 					loading_info.voxel_subsample_factor);
 
@@ -4756,6 +4765,16 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 
 void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
+
+	if((connection_state == ServerConnectionState_NotConnected) && (retry_connection_timer.elapsed() > 10.0))
+	{
+		// Try and connect
+		connectToServer(last_url_parse_results);
+
+		retry_connection_timer.reset();
+	}
+
+
 	if(world_state)
 	{
 		WorldStateLock lock(this->world_state->mutex);
@@ -5877,6 +5896,13 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	updateAvatarGraphics(cur_time, dt, cam_angles, our_move_impulse_zero);
 
+	if(vehicle_controller_inside)
+	{
+		// TEMP HACK set camera to rear-view side camera
+		//Vec4f car_forwards = vehicle_controller_inside->getControlledObject()->opengl_engine_ob->ob_to_world_matrix * Vec4f(1,0,0,0);
+		//cam_controller.setAngles(Vec3d(atan2(car_forwards[1], car_forwards[0]) + 1.9, 1.5, 0));
+	}
+
 	// Set third-person camera position.  NOTE: this goes after updateAvatarGraphics since it depends on where the player's avatar is,
 	// which can depend on interpolated vehicle physics etc.
 	setThirdPersonCameraPosition(dt);
@@ -5932,7 +5958,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		AnimEvents anim_events;
 		//test_avatar_phase += phase_speed * dt;
-		const double r = 20;
+		const double r = 5 + (i % 10);
 		//Vec3d pos(0, 0, 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
 		const double phase = Maths::get2Pi<double>() * i / test_avatars.size() + cur_time * 0.1;
 		Vec3d pos(r * cos(phase), r * sin(phase), 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
@@ -5950,7 +5976,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
 			//footstep_sources[rnd_src_i]->cur_read_i = 0;
 
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
+			//audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
 		}
 	}
 #endif
@@ -11431,6 +11457,8 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 		Lock lock(this->world_state->mutex);
 		this->ui->indigoView->addExistingObjects(*this->world_state, *this->resource_manager);
 	}*/
+
+	this->connection_state = ServerConnectionState_Connecting;
 }
 
 
@@ -13955,16 +13983,12 @@ public:
 		RayTraceResult results;
 		gui_client->physics_world->traceRay(gui_client->cam_controller.getPosition().toVec4fPoint(), trace_dir, 10000.f, JPH::BodyID(), results);
 
-		// Temp: add marker in opengl scene
-		GLObjectRef ob = gui_client->opengl_engine->makeSphereObject(0.02f, Colour4f(1,1,0,1));
-		ob->ob_to_world_matrix = Matrix4f::translationMatrix(gui_client->cam_controller.getPosition().toVec4fPoint() + trace_dir * results.hit_t) *  Matrix4f::uniformScaleMatrix(0.03f);
-		gui_client->opengl_engine->addObject(ob);
-
 
 		return results.hit_t * dot(trace_dir, gui_client->cam_controller.getForwardsVec().toVec4fVector()); // Adjust from distance to depth
 	}
 	
-	virtual Vec3f normalForPosSS(const Vec2f& pos_ss)
+	// Return normal in camera space
+	virtual Vec3f normalCSForPosSS(const Vec2f& pos_ss)
 	{
 		const float sensor_width = ::sensorWidth();
 		const float sensor_height = sensor_width / gui_client->opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
@@ -13984,15 +14008,9 @@ public:
 		const Vec4f trace_dir = normalise(forwards + right * r_x + up * r_y);
 
 		RayTraceResult results;
-		gui_client->physics_world->traceRay(gui_client->cam_controller.getPosition().toVec4fPoint(), gui_client->cam_controller.getForwardsVec().toVec4fVector(), 10000.f, JPH::BodyID(), results);
+		gui_client->physics_world->traceRay(gui_client->cam_controller.getPosition().toVec4fPoint(), trace_dir, 10000.f, JPH::BodyID(), results);
 
-
-		// Temp: add marker in opengl scene
-		GLObjectRef ob = gui_client->opengl_engine->makeSphereObject(0.02f, Colour4f(1,0,0,1));
-		ob->ob_to_world_matrix = Matrix4f::translationMatrix(gui_client->cam_controller.getPosition().toVec4fPoint() + trace_dir * results.hit_t) *  Matrix4f::uniformScaleMatrix(0.03f);
-		gui_client->opengl_engine->addObject(ob);
-
-		return Vec3f(results.hit_normal_ws);
+		return normalise(Vec3f(gui_client->opengl_engine->getCurrentScene()->last_view_matrix * results.hit_normal_ws));
 	}
 	GUIClient* gui_client;
 };

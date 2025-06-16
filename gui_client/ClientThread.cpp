@@ -21,7 +21,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/PlatformUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/Clock.h>
-#include <utils/PoolAllocator.h>
+#include <utils/FastPoolAllocator.h>
 #include <utils/Timer.h>
 #include <utils/BufferViewInStream.h>
 #include <zstd.h>
@@ -35,7 +35,7 @@ static const size_t MAX_STRING_LEN = 10000;
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
-						   const std::string& world_name_, struct tls_config* config_, const Reference<glare::PoolAllocator>& world_ob_pool_allocator_)
+						   const std::string& world_name_, struct tls_config* config_, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
@@ -108,7 +108,7 @@ void ClientThread::killConnection()
 
 WorldObjectRef ClientThread::allocWorldObject()
 {
-	glare::PoolAllocator::AllocResult alloc_res = this->world_ob_pool_allocator->alloc();
+	glare::FastPoolAllocator::AllocResult alloc_res = this->world_ob_pool_allocator->alloc();
 
 	WorldObject* ob_ptr = new (alloc_res.ptr) WorldObject(); // construct with placement new
 	ob_ptr->allocator = this->world_ob_pool_allocator.ptr();
