@@ -39,6 +39,7 @@ public:
 	VBORef vbo;
 	// vert data offset = 0
 	size_t index_data_src_offset_B;
+	size_t total_geom_size_B;
 	size_t vert_data_size_B; // in source VBO
 	size_t index_data_size_B; // in source VBO
 };
