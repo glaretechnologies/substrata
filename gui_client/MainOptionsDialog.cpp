@@ -146,6 +146,7 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox,		settings->value(objectLoadDistanceKey(),	/*default val=*/2000.0).toDouble());
 	SignalBlocker::setChecked(this->shadowsCheckBox,				settings->value(shadowsKey(),				/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
+	SignalBlocker::setChecked(this->SSAOCheckBox,					settings->value(SSAOKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->bloomCheckBox,					settings->value(BloomKey(),					/*default val=*/true).toBool());
 	
 	const bool limit_FPS = settings->value(limitFPSKey(), /*default val=*/false).toBool();
@@ -181,6 +182,7 @@ void MainOptionsDialog::accepted()
 	settings->setValue(objectLoadDistanceKey(),						this->loadDistanceDoubleSpinBox->value());
 	settings->setValue(shadowsKey(),								this->shadowsCheckBox->isChecked());
 	settings->setValue(MSAAKey(),									this->MSAACheckBox->isChecked());
+	settings->setValue(SSAOKey(),									this->SSAOCheckBox->isChecked());
 	settings->setValue(BloomKey(),									this->bloomCheckBox->isChecked());
 	settings->setValue(limitFPSKey(),								this->limitFPSCheckBox->isChecked());
 	settings->setValue(FPSLimitKey(),								this->FPSLimitSpinBox->value());
