@@ -472,6 +472,7 @@ int main(int argc, char** argv)
 		settings.render_water_caustics = !low_memory_mode;
 		settings.msaa_samples = use_MSAA ? 4 : 1;
 		settings.render_to_offscreen_renderbuffers = !low_memory_mode;
+		settings.ssao = false;
 
 		if(parsed_args.isArgPresent("--no_MDI"))
 			settings.allow_multi_draw_indirect = false;

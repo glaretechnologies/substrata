@@ -34,7 +34,7 @@ class PhysicsObject;
 class RandomAccessInStream;
 class RandomAccessOutStream;
 namespace glare { class AudioSource; }
-namespace glare { class PoolAllocator; }
+namespace glare { class FastPoolAllocator; }
 namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
@@ -496,7 +496,7 @@ private:
 	js::Vector<uint8, 16> compressed_voxels;
 
 public:
-	glare::PoolAllocator* allocator; // Non-null if this object was allocated from the allocator
+	glare::FastPoolAllocator* allocator; // Non-null if this object was allocated from the allocator
 	int allocation_index;
 
 	// From ThreadSafeRefCounted.  Manually define this stuff here, so refcount can be defined not at the start of the structure, which wastes space due to alignment issues.

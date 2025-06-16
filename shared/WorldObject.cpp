@@ -30,7 +30,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <utils/FileChecksum.h>
 #include <utils/Sort.h>
 #include <utils/BufferInStream.h>
-#include <utils/PoolAllocator.h>
+#include <utils/FastPoolAllocator.h>
 #include <utils/Base64.h>
 #include <utils/RandomAccessOutStream.h>
 #include <utils/XMLWriteUtils.h>
@@ -1506,7 +1506,7 @@ void doDestroyOb(WorldObject* ob)
 {
 	if(ob->allocator)
 	{
-		glare::PoolAllocator* allocator = ob->allocator;
+		glare::FastPoolAllocator* allocator = ob->allocator;
 		const int allocation_index = ob->allocation_index;
 		ob->~WorldObject(); // Call destructor on object
 		allocator->free(allocation_index);

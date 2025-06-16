@@ -25,7 +25,7 @@ class WorldState;
 class WorldObject;
 class SocketInterface;
 struct tls_config;
-namespace glare { class PoolAllocator; }
+namespace glare { class FastPoolAllocator; }
 struct ZSTD_DCtx_s;
 
 
@@ -238,7 +238,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
-		const std::string& world_name, struct tls_config* config, const Reference<glare::PoolAllocator>& world_ob_pool_allocator);
+		const std::string& world_name, struct tls_config* config, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator);
 	virtual ~ClientThread();
 
 	virtual void doRun() override;
@@ -276,7 +276,7 @@ private:
 
 	BufferInStream msg_buffer;
 
-	Reference<glare::PoolAllocator> world_ob_pool_allocator;
+	Reference<glare::FastPoolAllocator> world_ob_pool_allocator;
 
 	ThreadManager client_sender_thread_manager;
 	Reference<ClientSenderThread> client_sender_thread		GUARDED_BY(data_to_send_mutex);
