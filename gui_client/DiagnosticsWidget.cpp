@@ -23,6 +23,7 @@ DiagnosticsWidget::DiagnosticsWidget(
 	connect(this->showVehiclePhysicsVisCheckBox,	SIGNAL(toggled(bool)),	this, SLOT(settingsChanged()));
 	connect(this->showWireframesCheckBox,			SIGNAL(toggled(bool)),	this, SLOT(settingsChanged()));
 	connect(this->showLodChunkVisCheckBox,			SIGNAL(toggled(bool)),	this, SLOT(settingsChanged()));
+	connect(this->graphicsDiagnosticsCheckBox,		SIGNAL(toggled(bool)),	this, SLOT(settingsChanged()));
 	connect(this->reloadTerrainPushButton,			SIGNAL(clicked()),		this, SIGNAL(reloadTerrainSignal()));
 }
 
@@ -37,6 +38,7 @@ void DiagnosticsWidget::init(QSettings* settings_)
 	settings = settings_;
 	SignalBlocker::setChecked(this->showPhysicsObOwnershipCheckBox, settings->value("diagnostics/show_physics_ob_ownership", false).toBool());
 	SignalBlocker::setChecked(this->showVehiclePhysicsVisCheckBox, settings->value("diagnostics/show_vehicle_physics_vis", false).toBool());
+	SignalBlocker::setChecked(this->graphicsDiagnosticsCheckBox, settings->value("diagnostics/show_graphics_diagnostics", false).toBool());
 }
 
 
@@ -46,6 +48,7 @@ void DiagnosticsWidget::settingsChanged()
 	{
 		settings->setValue("diagnostics/show_physics_ob_ownership", this->showPhysicsObOwnershipCheckBox->isChecked());
 		settings->setValue("diagnostics/show_vehicle_physics_vis", this->showVehiclePhysicsVisCheckBox->isChecked());
+		settings->setValue("diagnostics/show_graphics_diagnostics", this->graphicsDiagnosticsCheckBox->isChecked());
 	}
 
 	emit settingsChangedSignal();
