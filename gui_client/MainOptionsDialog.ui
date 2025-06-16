@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>578</width>
-    <height>462</height>
+    <width>640</width>
+    <height>641</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -71,6 +71,13 @@
        <widget class="QCheckBox" name="MSAACheckBox">
         <property name="text">
          <string>Multisample anti-aliasing (MSAA)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="SSAOCheckBox">
+        <property name="text">
+         <string>Screen-space effects (SSAO, SSGI, SSR)</string>
         </property>
        </widget>
       </item>
