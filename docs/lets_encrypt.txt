@@ -41,3 +41,8 @@ Add:
 
 Should run every day at 5am.
 NOTE: not tested
+
+
+Read more
+==========
+https://eff-certbot.readthedocs.io/en/latest/using.html#certbot-commands
