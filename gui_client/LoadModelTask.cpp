@@ -207,6 +207,7 @@ void LoadModelTask::run(size_t thread_index)
 			msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
 			msg->vbo = vbo;
 			msg->index_data_src_offset_B = index_data_src_offset_B;
+			msg->total_geom_size_B = total_geom_size_B;
 			msg->vert_data_size_B = vert_data.size();
 			msg->index_data_size_B = index_data.size();
 
