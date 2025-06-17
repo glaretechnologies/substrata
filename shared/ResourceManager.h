@@ -76,14 +76,14 @@ public:
 
 	// Used for deserialising resource objects from serialised server state.
 	void addResource(ResourceRef& res);
-	const std::unordered_map<std::string, ResourceRef>& getResourcesForURL() const { return resource_for_url; }
-	std::unordered_map<std::string, ResourceRef>& getResourcesForURL() { return resource_for_url; }
+	const std::unordered_map<std::string, ResourceRef>& getResourcesForURL() const REQUIRES(mutex) { return resource_for_url; }
+	std::unordered_map<std::string, ResourceRef>& getResourcesForURL() REQUIRES(mutex) { return resource_for_url; }
 
 	bool hasChanged() const { return changed != 0; }
 	void clearChangedFlag() { changed = 0; }
 	void markAsChanged(); // Thread-safe
 
-	Mutex& getMutex() { return mutex; }
+	Mutex& getMutex() RETURN_CAPABILITY(mutex) { return mutex; }
 
 	// Just used on client:
 	void loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk);
