@@ -762,8 +762,8 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 	}
 	else // else if !in_process_dist:
 	{
-		// If there is a browser, destroy it.
-		if(state == State_BrowserCreated)
+		// If there is a browser, and it is past the unload distance, destroy it.
+		if((state == State_BrowserCreated) && (ob_dist_from_cam >= unload_dist))
 		{
 			if(browser.nonNull())
 			{
