@@ -251,7 +251,7 @@ void GlWidget::initializeGL()
 		shadows  = settings->value(MainOptionsDialog::shadowsKey(),	/*default val=*/true).toBool();
 		use_MSAA = settings->value(MainOptionsDialog::MSAAKey(),	/*default val=*/true).toBool();
 		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/true).toBool();
-		use_SSAO = settings->value(MainOptionsDialog::SSAOKey(),    /*default val=*/true).toBool();
+		use_SSAO = settings->value(MainOptionsDialog::SSAOKey(),    /*default val=*/false).toBool();
 	}
 
 	// Enable debug output (glDebugMessageCallback) in Debug and RelWithDebugInfo mode, e.g. when BUILD_TESTS is 1.
