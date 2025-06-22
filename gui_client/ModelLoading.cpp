@@ -667,8 +667,6 @@ void ModelLoading::makeGLObjectForModelFile(
 			gl_ob->ob_to_world_matrix = Matrix4f::rotationMatrix(normalise(results_out.axis.toVec4fVector()), results_out.angle) * Matrix4f::scaleMatrix(scale, scale, scale);
 
 			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
-
-			gl_ob->mesh_data->animation_data = batched_mesh->animation_data;// gltf_data.anim_data;
 		}
 
 		const size_t bmesh_num_mats_referenced = batched_mesh->numMaterialsReferenced();
@@ -710,6 +708,7 @@ void ModelLoading::makeGLObjectForModelFile(
 				gl_ob->materials[i].alpha                           = gltf_mat.alpha;
 				gl_ob->materials[i].transparent                     = gltf_mat.alpha < 1.0f;
 				gl_ob->materials[i].metallic_frac                   = gltf_mat.metallic;
+				gl_ob->materials[i].simple_double_sided             = gltf_mat.double_sided;
 			}
 
 			results_out.materials[i]->colour_rgb                = toNonLinearSRGB(gltf_mat.colour_factor);
@@ -724,6 +723,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			results_out.materials[i]->opacity.val               = gltf_mat.alpha;
 			results_out.materials[i]->metallic_fraction.val     = gltf_mat.metallic;
 			results_out.materials[i]->tex_matrix                = Matrix2f(1, 0, 0, -1);
+			results_out.materials[i]->flags                     = gltf_mat.double_sided ? WorldMaterial::DOUBLE_SIDED_FLAG : 0;
 		}
 		results_out.batched_mesh = batched_mesh;
 		results_out.gl_ob = gl_ob;
@@ -842,8 +842,6 @@ void ModelLoading::makeGLObjectForModelFile(
 			gl_ob = gl_engine.allocateObject();
 			gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
 			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
-
-			gl_ob->mesh_data->animation_data = bmesh->animation_data;
 		}
 		const size_t num_mats = bmesh->numMaterialsReferenced();
 		if(do_opengl_stuff)
@@ -1065,10 +1063,6 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 			rotateVRMMesh(*batched_mesh);
 
 	Reference<OpenGLMeshRenderData> gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
-
-	gl_meshdata->animation_data = batched_mesh->animation_data;
-
-	gl_meshdata->num_materials_referenced = batched_mesh->numMaterialsReferenced();
 
 	if(build_physics_ob)
 		physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob, mem_allocator);
