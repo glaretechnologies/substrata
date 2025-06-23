@@ -94,76 +94,75 @@ CarPhysics::CarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, CarPhysi
 	JPH::VehicleConstraintSettings vehicle;
 	vehicle.mUp = toJoltVec3(z_up_to_model_space * Vec4f(0,0,1,0));
 	vehicle.mForward = toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
-	//vehicle.mDrawConstraintSize = 0.1f;
-	//vehicle.mMaxPitchAngle = JPH::DegreesToRadians(60.0f);
-	//vehicle.mMaxRollAngle = JPH::DegreesToRadians(60.f);
-//	vehicle.mMaxPitchRollAngle = JPH::DegreesToRadians(5.0f);
 
 	// Wheels
 
 	const Vec4f steering_axis_z_up = normalise(Vec4f(0, 0, 1, 0)); // = front suspension dir
 
-	const float spring_freq = 2;//0.8f;
-	const float damping = 0.5f;
-
-	// print out animation_data node names
+	// TEMP: print out animation_data node names
 	// for(size_t i=0; i<object->opengl_engine_ob->mesh_data->animation_data.nodes.size(); ++i)
 	// 	conPrint("Node " + toString(i) + ": " + object->opengl_engine_ob->mesh_data->animation_data.nodes[i].name);
 
 
-	const Vec4f front_left_wheel_pos_ms  = object->opengl_engine_ob->mesh_data->animation_data.getNodePositionModelSpace(settings.script_settings->front_left_wheel_joint_name,  false); // 5
+	const Vec4f front_left_wheel_pos_ms  = object->opengl_engine_ob->mesh_data->animation_data.getNodePositionModelSpace(settings.script_settings->front_left_wheel_joint_name,  false);
 	const Vec4f front_right_wheel_pos_ms = object->opengl_engine_ob->mesh_data->animation_data.getNodePositionModelSpace(settings.script_settings->front_right_wheel_joint_name, false);
 	const Vec4f back_left_wheel_pos_ms   = object->opengl_engine_ob->mesh_data->animation_data.getNodePositionModelSpace(settings.script_settings->back_left_wheel_joint_name,   false);
 	const Vec4f back_right_wheel_pos_ms  = object->opengl_engine_ob->mesh_data->animation_data.getNodePositionModelSpace(settings.script_settings->back_right_wheel_joint_name,  false);
 
-	const float handbrake_torque = 10000; // default is 4000.
-	JPH::WheelSettingsWV *w1 = new JPH::WheelSettingsWV;
-	w1->mPosition = toJoltVec3(front_left_wheel_pos_ms + z_up_to_model_space * Vec4f(0, 0, settings.script_settings->front_suspension_min_length + settings.script_settings->front_wheel_attachment_point_raise_dist, 0));//Vec4f(-(half_vehicle_width - wheel_width * 0.5f), half_vehicle_length - 2.0f * wheel_radius, -0.9f * half_vehicle_height - 0.15f, 0));
+	const float max_brake_torque = settings.script_settings->max_brake_torque;
+	const float max_handbrake_torque = settings.script_settings->max_handbrake_torque;
+
+	JPH::WheelSettingsWV* w1 = new JPH::WheelSettingsWV;
+	w1->mPosition = toJoltVec3(front_left_wheel_pos_ms + z_up_to_model_space * Vec4f(0, 0, settings.script_settings->front_suspension_min_length + settings.script_settings->front_wheel_attachment_point_raise_dist, 0));
 	w1->mSuspensionDirection	= toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
 	w1->mSteeringAxis			= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w1->mWheelUp				= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w1->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	w1->mWidth = settings.script_settings->front_wheel_width;
-	w1->mSuspensionSpring.mFrequency = spring_freq;
-	w1->mSuspensionSpring.mDamping = damping;
+	w1->mSuspensionSpring.mFrequency = settings.script_settings->front_suspension_spring_freq;
+	w1->mSuspensionSpring.mDamping   = settings.script_settings->front_suspension_spring_damping;
 	w1->mMaxSteerAngle = settings.script_settings->max_steering_angle;
+	w1->mMaxBrakeTorque = max_brake_torque;
 	w1->mMaxHandBrakeTorque = 0.0f; // Front wheel doesn't have hand brake
 
-	JPH::WheelSettingsWV *w2 = new JPH::WheelSettingsWV;
+	JPH::WheelSettingsWV* w2 = new JPH::WheelSettingsWV;
 	w2->mPosition = toJoltVec3(front_right_wheel_pos_ms + z_up_to_model_space * Vec4f(0, 0, settings.script_settings->front_suspension_min_length + settings.script_settings->front_wheel_attachment_point_raise_dist, 0));
 	w2->mSuspensionDirection	= toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
 	w2->mSteeringAxis			= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w2->mWheelUp				= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w2->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	w2->mWidth = settings.script_settings->front_wheel_width;
-	w2->mSuspensionSpring.mFrequency = spring_freq;
-	w2->mSuspensionSpring.mDamping = damping;
+	w2->mSuspensionSpring.mFrequency = settings.script_settings->front_suspension_spring_freq;
+	w2->mSuspensionSpring.mDamping   = settings.script_settings->front_suspension_spring_damping;
 	w2->mMaxSteerAngle = settings.script_settings->max_steering_angle;
+	w2->mMaxBrakeTorque = max_brake_torque;
 	w2->mMaxHandBrakeTorque = 0.0f; // Front wheel doesn't have hand brake
 
-	JPH::WheelSettingsWV *w3 = new JPH::WheelSettingsWV;
+	JPH::WheelSettingsWV* w3 = new JPH::WheelSettingsWV;
 	w3->mPosition = toJoltVec3(back_left_wheel_pos_ms + z_up_to_model_space * Vec4f(0, 0, settings.script_settings->rear_suspension_min_length + settings.script_settings->rear_wheel_attachment_point_raise_dist, 0));
 	w3->mSuspensionDirection	= toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
 	w3->mSteeringAxis			= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w3->mWheelUp				= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w3->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	w3->mWidth = settings.script_settings->rear_wheel_width;
-	w3->mSuspensionSpring.mFrequency = spring_freq;
-	w3->mSuspensionSpring.mDamping = damping;
+	w3->mSuspensionSpring.mFrequency = settings.script_settings->rear_suspension_spring_freq;
+	w3->mSuspensionSpring.mDamping   = settings.script_settings->rear_suspension_spring_damping;
 	w3->mMaxSteerAngle = 0.0f;
-	w3->mMaxHandBrakeTorque = handbrake_torque;
+	w3->mMaxBrakeTorque = max_brake_torque;
+	w3->mMaxHandBrakeTorque = max_handbrake_torque;
 
-	JPH::WheelSettingsWV *w4 = new JPH::WheelSettingsWV;
+	JPH::WheelSettingsWV* w4 = new JPH::WheelSettingsWV;
 	w4->mPosition = toJoltVec3(back_right_wheel_pos_ms + z_up_to_model_space * Vec4f(0, 0, settings.script_settings->rear_suspension_min_length + settings.script_settings->rear_wheel_attachment_point_raise_dist, 0));
 	w4->mSuspensionDirection	= toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
 	w4->mSteeringAxis			= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w4->mWheelUp				= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	w4->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	w4->mWidth = settings.script_settings->rear_wheel_width;
-	w4->mSuspensionSpring.mFrequency = spring_freq;
-	w4->mSuspensionSpring.mDamping = damping;
+	w4->mSuspensionSpring.mFrequency = settings.script_settings->rear_suspension_spring_freq;
+	w4->mSuspensionSpring.mDamping   = settings.script_settings->rear_suspension_spring_damping;
 	w4->mMaxSteerAngle = 0.0f;
-	w4->mMaxHandBrakeTorque = handbrake_torque;
+	w4->mMaxBrakeTorque = max_brake_torque;
+	w4->mMaxHandBrakeTorque = max_handbrake_torque;
 
 	vehicle.mWheels = { w1, w2, w3, w4 };
 
@@ -208,17 +207,17 @@ CarPhysics::CarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, CarPhysi
 	controller->mDifferentials[0].mLeftWheel = 2;
 	controller->mDifferentials[0].mRightWheel = 3;*/
 
-	controller->mEngine.mMaxTorque = 3000;
-	controller->mEngine.mMaxRPM = 7000;
+	controller->mEngine.mMaxTorque = settings.script_settings->engine_max_torque;
+	controller->mEngine.mMaxRPM = settings.script_settings->engine_max_RPM;
 
 	//controller->mTransmission.mMode = JPH::ETransmissionMode::Manual;
 	//controller->mTransmission.mGearRatios = JPH::Array<float>(1, 2.9f); // Use a single forwards gear
 
-	// Anti rollbars
+	// Anti-roll bars
 	vehicle.mAntiRollBars.resize(2);
-	vehicle.mAntiRollBars[0].mLeftWheel = 0;
+	vehicle.mAntiRollBars[0].mLeftWheel  = 0;
 	vehicle.mAntiRollBars[0].mRightWheel = 1;
-	vehicle.mAntiRollBars[1].mLeftWheel = 2;
+	vehicle.mAntiRollBars[1].mLeftWheel  = 2;
 	vehicle.mAntiRollBars[1].mRightWheel = 3;
 
 	vehicle_constraint = new JPH::VehicleConstraint(*jolt_body, vehicle);
@@ -228,7 +227,6 @@ CarPhysics::CarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, CarPhysi
 
 	// Set the collision tester
 	vehicle_constraint->SetVehicleCollisionTester(m_tester);
-
 
 
 	// Get indices of joint nodes
@@ -303,42 +301,18 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 	assert(this->car_body_id == world_object->physics_object->jolt_body_id);
 
 	// Determine acceleration and brake
-	float forward = 0.0f, right = 0.0f, brake = 0.0f, hand_brake = 0.0f;
+	float forward = 0.0f, brake = 0.0f, hand_brake = 0.0f;
+
 	if (physics_input.W_down || physics_input.up_down)
 		forward = 1.0f;
 	else if(physics_input.S_down || physics_input.down_down)
 		forward = -1.0f;
 
-	// Check if we're reversing direction
-	//if (mPreviousForward * forward < 0.0f)
-	//{
-	//	// Get vehicle velocity in local space to the body of the vehicle
-	//	float velocity = (mCarBody->GetRotation().Conjugated() * mCarBody->GetLinearVelocity()).GetZ();
-	//	if ((forward > 0.0f && velocity < -0.1f) || (forward < 0.0f && velocity > 0.1f))
-	//	{
-	//		// Brake while we've not stopped yet
-	//		forward = 0.0f;
-	//		brake = 1.0f;
-	//	}
-	//	else
-	//	{
-	//		// When we've come to a stop, accept the new direction
-	//		mPreviousForward = forward;
-	//	}
-	//}
-
-	// Hand brake will cancel gas pedal
 	if(physics_input.space_down)
-	{
-		//forward = 0.0f;
-		hand_brake = 1.0f;
-	}
+		brake = 1.f;
 
-	// Steering
-	/*if(physics_input.A_down)
-		right = -1.0f;
-	else if(physics_input.D_down)
-		right = 1.0f;*/
+	if(physics_input.B_down)
+		hand_brake = 1.f;
 
 	const float STEERING_SPEED = 3.f;
 	if(physics_input.A_down && !physics_input.D_down)
@@ -353,8 +327,6 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 			cur_steering_right = myMin(cur_steering_right + STEERING_SPEED * (float)dtime, 0.f); // Relax to neutral steering position
 	}
 
-	right = cur_steering_right;
-
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 
 	const JPH::Mat44 transform = body_interface.GetWorldTransform(car_body_id);
@@ -365,10 +337,15 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 	const Matrix4f to_world(&cols[0].x);
 
 	// On user input, assure that the car is active
-	if (right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
+	if(cur_steering_right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
 		body_interface.ActivateBody(car_body_id);
 
+	// Pass the input on to the constraint
+	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController *>(vehicle_constraint->GetController());
+	controller->SetDriverInput(forward, cur_steering_right, brake, hand_brake);
 
+
+	// Apply righting forces to car if righting it:
 	if(righting_time_remaining > 0) // If currently righting car:
 	{
 		// model/object space to y-forward space = R
@@ -418,10 +395,6 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 	}
 
 
-
-	// Pass the input on to the constraint
-	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController *>(vehicle_constraint->GetController());
-	controller->SetDriverInput(forward, right, brake, hand_brake);
 
 	// Set car joint node transforms
 	GLObject* graphics_ob = world_object->opengl_engine_ob.ptr();
@@ -512,44 +485,13 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 				particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
 				particle_manager->addParticle(particle);
 			}
-
-			//const float skid_volume = myMin(3.f, skid_speed * 1.f);
-
-			//if(wheel_audio_source->nonNull())
-			//{
-			//	wheel_audio_source[i]->pos = contact_point_ws;
-			//	if(wheel_audio_source[i]->volume != skid_volume)
-			//	{
-			//		wheel_audio_source[i]->volume = skid_volume;
-			//		m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
-			//	}
-			//	m_audio_engine->sourcePositionUpdated(*wheel_audio_source[i]);
-			//}
-		}
-		else // Else if wheel is not in contact with ground, set volume to zero.
-		{
-			//if(wheel_audio_source[i].nonNull())
-			//	if(wheel_audio_source[i]->volume != 0.f)
-			//	{
-			//		wheel_audio_source[i]->volume = 0.f;
-			//		m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
-			//	}
 		}
 	}
 
 
-
-	//conPrint("car pos: " + toVec3f(mVehicleConstraint->GetVehicleBody()->GetPosition()).toString());
-
-	//conPrint("RPM: " + doubleToStringNDecimalPlaces(controller->GetEngine().GetCurrentRPM(), 1));
-	//conPrint("engine torque: " + doubleToStringNDecimalPlaces(controller->GetEngine().GetTorque(forward), 1));
-	//conPrint("current gear: " + toString(controller->GetTransmission().GetCurrentGear()));
-
-	//const float speed_km_h = vehicle_constraint->GetVehicleBody()->GetLinearVelocity().Length() * (3600.0f / 1000.f);
-	//conPrint("speed (km/h): " + doubleToStringNDecimalPlaces(speed_km_h, 1));
-
-
-	//campos_in_out = toVec3f(mVehicleConstraint->GetVehicleBody()->GetPosition()).toVec4fPoint() + Vec4f(0,0,2,0);
+	// conPrint("RPM: " + doubleToStringNDecimalPlaces(controller->GetEngine().GetCurrentRPM(), 1));
+	// conPrint("engine torque: " + doubleToStringNDecimalPlaces(controller->GetEngine().GetTorque(forward), 1));
+	// conPrint("current gear: " + toString(controller->GetTransmission().GetCurrentGear()));
 
 	return events;
 }
@@ -643,28 +585,12 @@ void CarPhysics::setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine)
 
 void CarPhysics::updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos)
 {
-	//if(engine_audio_source.nonNull())
-	//	engine_audio_source->updateDopplerEffectFactor(
-	//		getLinearVel(*m_physics_world), // source linear vel,
-	//		listener_linear_vel, listener_pos
-	//	);
 }
 
 
 std::string CarPhysics::getUIInfoMsg()
 {
-	const float speed_km_per_h = getLinearVel(*m_physics_world).length() * (3600.0f / 1000.f);
-
-	//assert(dynamic_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController()));
-	//this->last_desired_up_vec = toVec4fVec(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean);
-
-
-	const float target_lean_angle_deg = 0;//JPH::RadiansToDegrees(std::acos(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean.Normalized().GetZ()));
-
-	const float actual_lean_angle_deg = JPH::RadiansToDegrees(std::acos(normalise(getBodyTransform(*m_physics_world) * Vec4f(0,1,0,0))[2]));
-
-	return doubleToStringMaxNDecimalPlaces(speed_km_per_h, 0) + " km/h, target_lean_angle: " + doubleToStringNDecimalPlaces(target_lean_angle_deg, 1) + 
-		", actual_lean_angle: " + doubleToStringNDecimalPlaces(actual_lean_angle_deg, 1);
+	return std::string();
 }
 
 

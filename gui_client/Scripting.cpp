@@ -285,24 +285,42 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 
 				car_script->settings = car_script_settings;
 
-				car_script_settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(car_elem, "model_to_y_forwards_rot_1", Quatf::identity());
-				car_script_settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(car_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+				car_script_settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(car_elem, "model_to_y_forwards_rot_1", Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()));
+				car_script_settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(car_elem, "model_to_y_forwards_rot_2", Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>()));
 
 				car_script_settings->front_wheel_radius = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "front_wheel_radius", 0.42);
-				car_script_settings->rear_wheel_radius = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_wheel_radius", 0.42);
+				car_script_settings->rear_wheel_radius  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_wheel_radius", 0.42);
+				
 				car_script_settings->front_wheel_width = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "front_wheel_width", 0.16);
-				car_script_settings->rear_wheel_width = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_wheel_width", 0.16);
+				car_script_settings->rear_wheel_width  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_wheel_width",  0.16);
 
 				car_script_settings->front_suspension_min_length = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "front_suspension_min_length", 0.2);
 				car_script_settings->front_suspension_max_length = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "front_suspension_max_length", 0.5);
+				
 				car_script_settings->rear_suspension_min_length = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_suspension_min_length", 0.2);
 				car_script_settings->rear_suspension_max_length = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_suspension_max_length", 0.5);
 
-				car_script_settings->max_steering_angle = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "max_steering_angle", 0.78525);
 				car_script_settings->front_wheel_attachment_point_raise_dist = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "front_wheel_attachment_point_raise_dist", 0.2);
-				car_script_settings->rear_wheel_attachment_point_raise_dist = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_wheel_attachment_point_raise_dist", 0.2);
+				car_script_settings->rear_wheel_attachment_point_raise_dist  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_wheel_attachment_point_raise_dist", 0.2);
+				
+				car_script_settings->front_suspension_spring_freq = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "front_suspension_spring_freq", 2.0);
+				car_script_settings->rear_suspension_spring_freq  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_suspension_spring_freq",  2.0);
+				
+				car_script_settings->front_suspension_spring_damping = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "front_suspension_spring_damping", 0.5);
+				car_script_settings->rear_suspension_spring_damping  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "rear_suspension_spring_damping",  0.5);
+
+
+				car_script_settings->max_steering_angle = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "max_steering_angle", 0.78525);
+
+				car_script_settings->engine_max_torque  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "engine_max_torque",  500.0);
+				car_script_settings->engine_max_RPM  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "engine_max_RPM",  6000.0);
+
+				car_script_settings->max_brake_torque  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "max_brake_torque",  1500.0);
+				car_script_settings->max_handbrake_torque  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "max_brake_torque",  4000.0);
+				
 				car_script_settings->centre_of_mass_offset = XMLParseUtils::parseVec3fWithDefault(car_elem, "centre_of_mass_offset", Vec3f(0,0,0));
 				
+
 				car_script_settings->front_left_wheel_joint_name  = XMLParseUtils::parseStringWithDefault(car_elem, "front_left_wheel_joint_name",  "Wheel.Ft.L");
 				car_script_settings->front_right_wheel_joint_name = XMLParseUtils::parseStringWithDefault(car_elem, "front_right_wheel_joint_name", "Wheel.Ft.R");
 				car_script_settings->back_left_wheel_joint_name   = XMLParseUtils::parseStringWithDefault(car_elem, "back_left_wheel_joint_name",  "Wheel.Bk.L");
@@ -324,9 +342,9 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 				}
 				else
 				{
-					float x_half_w = 0.5f;
-					float y_half_w = 0.2f; // height
-					float z_half_w = 1.0f;
+					float x_half_w = 0.9f;
+					float y_half_w = 0.25f; // +y is up.
+					float z_half_w = 2.0f; // +z is forwards
 					car_script_settings->convex_hull_points.push_back(Vec3f(-x_half_w, -y_half_w, -z_half_w));
 					car_script_settings->convex_hull_points.push_back(Vec3f(-x_half_w, -y_half_w,  z_half_w));
 					car_script_settings->convex_hull_points.push_back(Vec3f(-x_half_w,  y_half_w, -z_half_w));
@@ -335,6 +353,13 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 					car_script_settings->convex_hull_points.push_back(Vec3f( x_half_w, -y_half_w,  z_half_w));
 					car_script_settings->convex_hull_points.push_back(Vec3f( x_half_w,  y_half_w, -z_half_w));
 					car_script_settings->convex_hull_points.push_back(Vec3f( x_half_w,  y_half_w,  z_half_w));
+
+					// Roof
+					car_script_settings->convex_hull_points.push_back(Vec3f( x_half_w,  0.7f, 0.6f));
+					car_script_settings->convex_hull_points.push_back(Vec3f(-x_half_w,  0.7f, 0.6f));
+
+					car_script_settings->convex_hull_points.push_back(Vec3f( x_half_w,  0.7f, -1.2f));
+					car_script_settings->convex_hull_points.push_back(Vec3f(-x_half_w,  0.7f, -1.2f));
 				}
 
 
