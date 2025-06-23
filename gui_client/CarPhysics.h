@@ -37,7 +37,7 @@ struct CarPhysicsSettings
 /*=====================================================================
 CarPhysics
 ----------
-
+Car controller
 =====================================================================*/
 class CarPhysics final : public VehiclePhysics
 {
@@ -54,9 +54,9 @@ public:
 
 	void startRightingVehicle() override;
 
-	void userEnteredVehicle(int seat_index) override; // Should set cur_seat_index
+	void userEnteredVehicle(int seat_index) override;
 
-	void userExitedVehicle(int old_seat_index) override; // Should set cur_seat_index
+	void userExitedVehicle(int old_seat_index) override;
 
 	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) override;
 
@@ -64,7 +64,7 @@ public:
 
 	Vec4f getThirdPersonCamTargetTranslation() const override;
 
-	float getThirdPersonCamTraceSelfAvoidanceDist() const override { return 1.6f; }
+	float getThirdPersonCamTraceSelfAvoidanceDist() const override { return 2.6f; }
 
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 
@@ -96,12 +96,10 @@ private:
 	ParticleManager* particle_manager;
 	PCG32 rng;
 
-#if USE_JOLT
 	JPH::Ref<JPH::VehicleConstraint> vehicle_constraint; // The vehicle constraint
 	JPH::BodyID car_body_id;
 	JPH::Body* jolt_body;
 	JPH::Ref<JPH::VehicleCollisionTester> m_tester; // Collision tester for the wheel
-#endif
 
 	bool user_in_driver_seat;
 	float righting_time_remaining;

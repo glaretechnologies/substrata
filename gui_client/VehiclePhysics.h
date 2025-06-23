@@ -41,9 +41,9 @@ public:
 	
 	virtual void startRightingVehicle() = 0;
 
-	virtual void userEnteredVehicle(int seat_index) = 0; // Should set cur_seat_index
+	virtual void userEnteredVehicle(int seat_index) = 0;
 
-	virtual void userExitedVehicle(int old_seat_index) = 0; // Should set cur_seat_index
+	virtual void userExitedVehicle(int old_seat_index) = 0;
 
 	virtual VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) = 0;
 

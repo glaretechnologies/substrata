@@ -133,10 +133,20 @@ struct CarScriptSettings : public VehicleScriptedSettings
 	float front_suspension_min_length;
 	float front_suspension_max_length;
 	float front_wheel_attachment_point_raise_dist;
+	float front_suspension_spring_freq;
+	float front_suspension_spring_damping;
+
 	float rear_suspension_min_length;
 	float rear_suspension_max_length;
 	float rear_wheel_attachment_point_raise_dist;
+	float rear_suspension_spring_freq;
+	float rear_suspension_spring_damping;
+
 	float max_steering_angle;
+	float engine_max_torque;
+	float engine_max_RPM;
+	float max_brake_torque;
+	float max_handbrake_torque;
 
 	Vec3f centre_of_mass_offset;
 
