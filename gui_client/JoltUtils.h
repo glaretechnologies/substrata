@@ -16,6 +16,11 @@ inline JPH::Vec3 toJoltVec3(const Vec4f& v)
 	return JPH::Vec3(v.v);
 }
 
+inline JPH::Vec3 toJoltVec3(const Vec3f& v)
+{
+	return JPH::Vec3(v.x, v.y, v.z);
+}
+
 inline JPH::Vec3 toJoltVec3(const Vec3d& v)
 {
 	return JPH::Vec3((float)v.x, (float)v.y, (float)v.z);

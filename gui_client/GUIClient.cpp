@@ -633,11 +633,12 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	
 	// TEMP: make an avatar for testing of animation retargeting etc.
-	if(false)
+	if(false) // test_avatars.empty() && extracted_anim_data_loaded)
 	{
 		//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
 		//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
-		const std::string path = "D:\\models\\generic dude avatar.glb";
+		//const std::string path = "D:\\models\\generic dude avatar.glb";
+		const std::string path = resources_dir_path + "/" + DEFAULT_AVATAR_MODEL_URL;
 		MemMappedFile model_file(path);
 		ArrayRef<uint8> model_buffer((const uint8*)model_file.fileData(), model_file.fileSize());
 
@@ -667,7 +668,12 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 				
 			// Load animation data
 			{
+#if EMSCRIPTEN
+				FileInStream file("/extracted_avatar_anim.bin");
+#else
 				FileInStream file(resources_dir_path + "/extracted_avatar_anim.bin");
+#endif
+				
 				test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
 			}
 
@@ -5581,11 +5587,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		}
 
 
-		if(vehicle_controller_inside.nonNull())
-		{
-			const bool should_show = ui_interface->showVehiclePhysicsVisEnabled();
-			vehicle_controller_inside->updateDebugVisObjects(*opengl_engine, should_show);
-		}
+		// Update debug visualisations on vehicle controllers. NOTE: needs to go after physics update or vis will lag behind.
+		for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
+			it->second->updateDebugVisObjects();
 
 		//--------------------------- Car controller and graphics -------------------------------
 		//car_physics.update(*this->physics_world, physics_input, (float)dt, /*campos_out=*/campos);
@@ -8625,6 +8629,12 @@ void GUIClient::diagnosticsSettingsChanged()
 				opengl_engine->removeObject(chunk->diagnostics_gl_ob);
 		}
 	}
+
+	for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
+	{
+		VehiclePhysics* controller = it->second.ptr();
+		controller->setDebugVisEnabled(ui_interface->showVehiclePhysicsVisEnabled(), *opengl_engine);
+	}
 }
 
 
@@ -10908,6 +10918,8 @@ void GUIClient::recreateTextGraphicsAndPhysicsObs(WorldObject* ob)
 
 Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObject* ob)
 {
+	Reference<VehiclePhysics> controller;
+
 	if(ob->vehicle_script.isType<Scripting::HoverCarScript>())
 	{
 		const Scripting::HoverCarScript* hover_car_script = ob->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
@@ -10918,7 +10930,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 
 		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
-		return new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, particle_manager.ptr());
+		controller = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, particle_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::BoatScript>())
 	{
@@ -10930,7 +10942,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 
 		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
-		return new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
+		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::BikeScript>())
 	{
@@ -10940,7 +10952,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		bike_physics_settings.bike_mass = ob->mass;
 		bike_physics_settings.script_settings = bike_script->settings.downcast<Scripting::BikeScriptSettings>();
 
-		return new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
+		controller = new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::CarScript>())
 	{
@@ -10950,10 +10962,13 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		//car_physics_settings.bike_mass = ob->mass;
 		car_physics_settings.script_settings = car_script->settings.downcast<Scripting::CarScriptSettings>();
 
-		return new CarPhysics(ob, ob->physics_object->jolt_body_id, car_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
+		controller = new CarPhysics(ob, ob->physics_object->jolt_body_id, car_physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr());
 	}
 	else
 		throw glare::Exception("invalid vehicle_script type");
+
+	controller->setDebugVisEnabled(ui_interface->showVehiclePhysicsVisEnabled(), *opengl_engine);
+	return controller;
 }
 
 
@@ -14107,13 +14122,15 @@ void GUIClient::keyPressed(KeyEvent& e)
 			deleteSelectedObject();
 		}
 	}
-	else if(e.key == Key::Key_P)
+	else if(e.key == Key::Key_O)
 	{
 		// SSAODebugging debugging;
 		// MySSAODebuggingDepthQuerier depth_querier;
 		// depth_querier.gui_client = this;
 		// debugging.computeReferenceAO(*opengl_engine, depth_querier);
-
+	}
+	else if(e.key == Key::Key_P)
+	{
 		// Spawn particle for testing
 		//for(int i=0; i<1; ++i)
 		//{

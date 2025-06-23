@@ -44,7 +44,8 @@ static const float lean_spring_damping = 500.f; // This seems to cause the insta
 BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world, 
 	glare::AudioEngine* audio_engine, const std::string& base_dir_path, ParticleManager* particle_manager_)
 :	m_opengl_engine(NULL),
-	particle_manager(particle_manager_)
+	particle_manager(particle_manager_),
+	show_debug_vis_obs(false)
 	//last_roll_error(0)
 {
 	world_object = object.ptr();
@@ -896,6 +897,16 @@ Vec4f BikePhysics::getLinearVel(PhysicsWorld& physics_world) const
 }
 
 
+void BikePhysics::setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine)
+{
+	this->show_debug_vis_obs = enabled;
+	this->m_opengl_engine = &opengl_engine;
+
+	if(!enabled)
+		removeVisualisationObs();
+}
+
+
 void BikePhysics::updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos)
 {
 	if(engine_audio_source.nonNull())
@@ -923,11 +934,11 @@ std::string BikePhysics::getUIInfoMsg()
 }
 
 
-void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show)
+void BikePhysics::updateDebugVisObjects()
 {
-	m_opengl_engine = &opengl_engine;
+	OpenGLEngine& opengl_engine = *m_opengl_engine;
 
-	if(should_show)
+	if(show_debug_vis_obs)
 	{
 		const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
 		const Matrix4f z_up_to_model_space = R_inv;
@@ -1114,10 +1125,6 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should
 
 			opengl_engine.updateObjectTransformData(*desired_bike_up_vec_gl_ob);
 		}
-	}
-	else
-	{
-		removeVisualisationObs();
 	}
 }
 

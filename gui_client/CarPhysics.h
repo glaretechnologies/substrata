@@ -1,7 +1,7 @@
 /*=====================================================================
 CarPhysics.h
 ------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #pragma once
 
@@ -32,7 +32,6 @@ struct CarPhysicsSettings
 	Reference<Scripting::CarScriptSettings> script_settings;
 	float car_mass;
 };
-
 
 
 /*=====================================================================
@@ -78,7 +77,8 @@ public:
 
 	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 
-	void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) override;
+	void setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine) override;
+	void updateDebugVisObjects() override;
 
 	void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) override;
 
@@ -90,7 +90,6 @@ private:
 
 	CarPhysicsSettings settings;
 
-	JPH::BodyID car_body_id;
 	WorldObject* world_object;
 	PhysicsWorld* m_physics_world;
 	OpenGLEngine* m_opengl_engine;
@@ -99,10 +98,10 @@ private:
 
 #if USE_JOLT
 	JPH::Ref<JPH::VehicleConstraint> vehicle_constraint; // The vehicle constraint
+	JPH::BodyID car_body_id;
 	JPH::Body* jolt_body;
-	JPH::Ref<JPH::VehicleCollisionTester>	m_tester; // Collision testers for the wheel
+	JPH::Ref<JPH::VehicleCollisionTester> m_tester; // Collision tester for the wheel
 #endif
-
 
 	bool user_in_driver_seat;
 	float righting_time_remaining;
@@ -110,19 +109,11 @@ private:
 
 	JPH::Array<JPH::Vec3> convex_hull_pts; // convex hull points, object space
 
-	// Debug vis:
-	Reference<GLObject> body_gl_ob;
-	Reference<GLObject> wheel_attach_point_gl_ob[2];
-	Reference<GLObject> wheel_gl_ob[2];
-	Reference<GLObject> coll_tester_gl_ob[2];
-	Reference<GLObject> contact_point_gl_ob[2];
-	Reference<GLObject> contact_laterial_force_gl_ob[2];
-	Reference<GLObject> contact_suspension_force_gl_ob[2];
-	Reference<GLObject> righting_force_gl_ob;
-	Reference<GLObject> desired_bike_up_vec_gl_ob;
-	std::vector<Reference<GLObject>> convex_hull_pts_gl_obs;
-
-
 	int wheel_node_indices[4];
 	int wheelbrake_node_indices[4];
+
+	// Debug vis:
+	bool show_debug_vis_obs;
+	Reference<GLObject> coll_tester_gl_ob[4];
+	std::vector<Reference<GLObject>> convex_hull_pts_gl_obs;
 };
