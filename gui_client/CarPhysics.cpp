@@ -301,18 +301,14 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 	assert(this->car_body_id == world_object->physics_object->jolt_body_id);
 
 	// Determine acceleration and brake
-	float forward = 0.0f, brake = 0.0f, hand_brake = 0.0f;
-
-	if (physics_input.W_down || physics_input.up_down)
+	float forward = 0.0f;
+	if(physics_input.W_down || physics_input.up_down)
 		forward = 1.0f;
 	else if(physics_input.S_down || physics_input.down_down)
 		forward = -1.0f;
 
-	if(physics_input.space_down)
-		brake = 1.f;
-
-	if(physics_input.B_down)
-		hand_brake = 1.f;
+	const float brake = physics_input.space_down ? 1.f : 0.f;
+	const float hand_brake = physics_input.B_down ? 1.f : 0.f;
 
 	const float STEERING_SPEED = 3.f;
 	if(physics_input.A_down && !physics_input.D_down)
