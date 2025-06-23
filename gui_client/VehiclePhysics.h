@@ -65,7 +65,8 @@ public:
 
 	virtual const Scripting::VehicleScriptedSettings& getSettings() const = 0;
 
-	virtual void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) {}
+	virtual void setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine) {}
+	virtual void updateDebugVisObjects() {}
 
 	virtual void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) {}
 

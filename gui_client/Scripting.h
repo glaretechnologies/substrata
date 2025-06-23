@@ -125,7 +125,34 @@ public:
 
 struct CarScriptSettings : public VehicleScriptedSettings
 {
+	float front_wheel_radius;
+	float rear_wheel_radius;
+	float front_wheel_width;
+	float rear_wheel_width;
+
+	float front_suspension_min_length;
+	float front_suspension_max_length;
+	float front_wheel_attachment_point_raise_dist;
+	float rear_suspension_min_length;
+	float rear_suspension_max_length;
+	float rear_wheel_attachment_point_raise_dist;
+	float max_steering_angle;
+
+	Vec3f centre_of_mass_offset;
+
+	std::vector<Vec3f> convex_hull_points;
+
+	std::string front_left_wheel_joint_name;
+	std::string front_right_wheel_joint_name;
+	std::string back_left_wheel_joint_name;
+	std::string back_right_wheel_joint_name;
+
+	std::string front_left_wheel_brake_joint_name;
+	std::string front_right_wheel_brake_joint_name;
+	std::string back_left_wheel_brake_joint_name;
+	std::string back_right_wheel_brake_joint_name;
 };
+
 
 class CarScript : public VehicleScript
 {

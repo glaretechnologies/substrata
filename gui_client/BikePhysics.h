@@ -79,7 +79,8 @@ public:
 
 	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 
-	void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) override;
+	void setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine) override;
+	void updateDebugVisObjects() override;
 
 	void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) override;
 
@@ -118,6 +119,7 @@ private:
 	JPH::Array<JPH::Vec3> convex_hull_pts; // convex hull points, object space
 
 	// Debug vis:
+	bool show_debug_vis_obs;
 	Reference<GLObject> body_gl_ob;
 	Reference<GLObject> wheel_attach_point_gl_ob[2];
 	Reference<GLObject> wheel_gl_ob[2];
