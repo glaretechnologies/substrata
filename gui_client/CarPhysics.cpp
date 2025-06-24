@@ -174,13 +174,15 @@ CarPhysics::CarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, CarPhysi
 		w->mSuspensionMinLength = (i < 2) ? settings.script_settings->front_suspension_min_length : settings.script_settings->rear_suspension_min_length;
 		w->mSuspensionMaxLength = (i < 2) ? settings.script_settings->front_suspension_max_length : settings.script_settings->rear_suspension_max_length;
 
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[0].mY *= 15;
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[1].mY *= 8;
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[2].mY *= 3;
+		const float longitudinal_friction_factor = settings.script_settings->longitudinal_friction_factor;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[0].mY *= longitudinal_friction_factor; // 15;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[1].mY *= longitudinal_friction_factor; // 8;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[2].mY *= longitudinal_friction_factor; // 3;
 
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[0].mY *= 3.;
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[1].mY *= 3.;
-		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[2].mY *= 3.;
+		const float lateral_friction_factor = settings.script_settings->lateral_friction_factor;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[0].mY *= lateral_friction_factor; // 3.;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[1].mY *= lateral_friction_factor; // 3.;
+		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLateralFriction.mPoints[2].mY *= lateral_friction_factor; // 3.;
 	}
 
 	JPH::WheeledVehicleControllerSettings *controller = new JPH::WheeledVehicleControllerSettings;
