@@ -317,6 +317,9 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 
 				car_script_settings->max_brake_torque  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "max_brake_torque",  1500.0);
 				car_script_settings->max_handbrake_torque  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "max_brake_torque",  4000.0);
+
+				car_script_settings->longitudinal_friction_factor  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "longitudinal_friction_factor",  1.0);
+				car_script_settings->lateral_friction_factor       = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "lateral_friction_factor",       1.0);
 				
 				car_script_settings->centre_of_mass_offset = XMLParseUtils::parseVec3fWithDefault(car_elem, "centre_of_mass_offset", Vec3f(0,0,0));
 				
