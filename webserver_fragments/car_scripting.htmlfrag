@@ -1,0 +1,170 @@
+
+<h2>Car scripting</h2>
+
+You can use a car script to add a 4-wheeled vehicle to Substrata.
+
+<p>
+<b>model_to_y_forwards_rot_1</b>: axis-angle 3-vector. See <a href="/vehicle_scripting">Vehicle scripting</a> for details.
+</p>
+
+<p>
+<b>model_to_y_forwards_rot_2</b>: axis-angle 3-vector. See <a href="/vehicle_scripting">Vehicle scripting</a> for details.
+</p>
+
+<p>
+<b>seat</b>: Defines a seat.  See <a href="/vehicle_scripting">Vehicle scripting</a> for details.
+</p>
+
+<p><b>front_wheel_radius</b>: radius of the front wheels, in metres.</p>
+
+<p><b>rear_wheel_radius</b>: radius of the rear wheels, in metres.</p>
+
+<p><b>front_wheel_width</b>: width of the front wheels (e.g. width of the tire), in metres.</p>
+<p><b>rear_wheel_width</b>: width of the rear wheels (e.g. width of the tire), in metres.</p>
+
+<p><b>front_suspension_min_length</b>: How long the suspension is in max raised position relative to the attachment point (metres), for front wheels.  Default is 0.2.</p>
+<p><b>rear_suspension_min_length</b>: How long the suspension is in max raised position relative to the attachment point (metres), for rear wheels.  Default is 0.2.</p>
+
+<p><b>front_suspension_max_length</b>: How long the suspension is in max droop position relative to the attachment poin (metres), for front wheels.  Default is 0.5.</p>
+<p><b>rear_suspension_max_length</b>: How long the suspension is in max droop position relative to the attachment point (metres), for rear wheels.  Default is 0.5.</p>
+
+
+<p><b>front_wheel_attachment_point_raise_dist</b>: How far up the car body from the modelled wheel position should the suspension attach, in metres.</p>
+<p><b>rear_wheel_attachment_point_raise_dist</b>: How far up the car body from the modelled wheel position should the suspension attach, in metres.</p>
+
+<p><b>front_suspension_spring_freq</b>: Oscillation frequency of the front wheel suspension springs, in Hertz.  A higher value means stiffer suspension.  Default is 2.</p>
+<p><b>rear_suspension_spring_freq</b>: Oscillation frequency of the rear wheel suspension springs, in Hertz.  A higher value means stiffer suspension.  Default is 2.</p>
+
+<p><b>front_suspension_spring_damping</b>: Damping ration for the front wheel suspension.  0 = no damping, 1 = critical damping.  Default is 0.5.</p>
+<p><b>rear_suspension_spring_damping</b>: Damping ration for the rear wheel suspension.  0 = no damping, 1 = critical damping.  Default is 0.5.</p>
+
+
+<p><b>max_steering_angle</b>: Maximum steering angle for the front wheels, in radians.  Default is 0.78525</p>
+
+<p><b>engine_max_torque</b>: Maximum torque of the engine, in Nm.  Default is 500.</p>
+
+<p><b>engine_max_RPM</b>: Maximum RPM of the engine.  Default is 6000.</p>
+
+<p><b>max_brake_torque</b>: Maximum torque applied by the brake pads to each wheel, in Nm.  Default is 1500.</p>
+
+<p><b>max_handbrake_torque</b>: Maximum torque applied by the handbrake to each rear wheel, in Nm.  Default is 4000.</p>
+
+<p><b>longitudinal_friction_factor</b>: A multiplier for the longitudinal (front-back) friction force between the tire and ground.  Default is 1.</p>
+
+<p><b>lateral_friction_factor</b>: A multiplier for the lateral (sideways) friction force between the tire and ground.  Default is 1.</p>
+
+<p><b>centre_of_mass_offset</b>: A translation vector for the centre of mass.  The used centre of mass will be translated using this offset from the centre of mass computed from the car convex hull.
+This is helpful to lower the centre of mass to account for a high density lower in the car, due to the engine and chassis etc.</p>
+
+<p><b>front_left_wheel_joint_name</b>: Name of the front left wheel joint node.  A transform is applied to this node to animate the wheel.</p>
+<p><b>front_right_wheel_joint_name</b>: Name of the front right wheel joint node.  A transform is applied to this node to animate the wheel.</p>
+<p><b>back_left_wheel_joint_name</b>: Name of the back left wheel joint node.  A transform is applied to this node to animate the wheel.</p>
+<p><b>back_right_wheel_joint_name</b>: Name of the back right wheel joint node.  A transform is applied to this node to animate the wheel.</p>
+
+<p><b>front_left_wheel_brake_joint_name</b>: Name of the front left wheel brake joint node.  A transform is applied to this node to animate the wheel brake.</p>
+<p><b>front_right_wheel_brake_joint_name</b>: Name of the front right wheel brake joint node.  A transform is applied to this node to animate the wheel brake.</p>
+<p><b>back_left_wheel_brake_joint_name</b>: Name of the back left wheel brake joint node.  A transform is applied to this node to animate the wheel brake.</p>
+<p><b>back_right_wheel_brake_joint_name</b>: Name of the back right wheel brake joint node.  A transform is applied to this node to animate the wheel brake.</p>
+
+
+<h3>convex_hull_points</h3>
+
+This XML element has a list of child point XML elements, defining a convex hull that is the geometry of the car body.  This geometry is used for collision.
+You can think of the convex hull as being the result of shrink-wrapping some fabric around the points.
+
+<p><b>point</b>: A space-separated 3-vector definging a convex hull point.</p>
+
+
+
+<h3>Example</h3>
+
+
+<pre class="code-block">
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;script&gt;
+	&lt;car&gt;
+		&lt;model_to_y_forwards_rot_1&gt;1.57079632679 0 0&lt;/model_to_y_forwards_rot_1&gt;
+		&lt;model_to_y_forwards_rot_2&gt;0 0 3.1415926535897932384626433832795&lt;/model_to_y_forwards_rot_2&gt;
+
+		&lt;front_wheel_radius&gt;0.42&lt;/front_wheel_radius&gt;
+		&lt;rear_wheel_radius&gt;0.48&lt;/rear_wheel_radius&gt;
+
+		&lt;front_wheel_width&gt;0.16&lt;/front_wheel_width&gt;
+		&lt;rear_wheel_width&gt;0.16&lt;/rear_wheel_width&gt;
+		
+		&lt;front_suspension_min_length&gt;0.15&lt;/front_suspension_min_length&gt;
+		&lt;rear_suspension_max_length&gt;0.5&lt;/rear_suspension_max_length&gt;
+
+		&lt;front_wheel_attachment_point_raise_dist&gt;0.3&lt;/front_wheel_attachment_point_raise_dist&gt;
+		&lt;rear_wheel_attachment_point_raise_dist&gt;0.24&lt;/rear_wheel_attachment_point_raise_dist&gt;
+
+		&lt;max_steering_angle&gt;0.78&lt;/max_steering_angle&gt;
+
+		&lt;!-- +y is up, +z is forward for this model --&gt;
+
+		&lt;centre_of_mass_offset&gt;0 -0.3 1.0&lt;/centre_of_mass_offset&gt;
+
+		&lt;convex_hull_points&gt;
+			&lt;!-- front top --&gt;
+			&lt;point&gt;1.0 0.3 2.7&lt;/point&gt;
+			&lt;point&gt;-1.0 0.3 2.7&lt;/point&gt;
+
+			&lt;!-- front bottom --&gt;
+			&lt;point&gt;1.0 -0.2 2.7&lt;/point&gt;
+			&lt;point&gt;-1.0 -0.2 2.7&lt;/point&gt;
+
+			&lt;!-- roof top points --&gt;
+			&lt;point&gt;0.8  0.9 -1.2&lt;/point&gt;
+			&lt;point&gt;-0.8 0.9 -1.2&lt;/point&gt;
+			&lt;point&gt;0.8 0.9 -0.2&lt;/point&gt;
+			&lt;point&gt;-0.8 0.9 -0.2&lt;/point&gt;
+
+			&lt;!-- rear top --&gt;
+			&lt;point&gt;-0.8 1.0 -3.0&lt;/point&gt;
+			&lt;point&gt;0.8 1.0 -3.0&lt;/point&gt;
+
+			&lt;!-- rear bottom bumper --&gt;
+			&lt;point&gt;-1.1 0.0 -3.2&lt;/point&gt;
+			&lt;point&gt;1.1  0.0 -3.2&lt;/point&gt;
+
+			&lt;!-- rear side --&gt;
+			&lt;point&gt;-1.2 0.2 -2.2&lt;/point&gt;
+			&lt;point&gt;1.2  0.2 -2.2&lt;/point&gt;
+
+			&lt;!-- underside rear --&gt;
+			&lt;point&gt;-1.0 -0.45 -1.3&lt;/point&gt;
+			&lt;point&gt;1.1  -0.45 -1.3&lt;/point&gt;
+
+			&lt;!-- underside front --&gt;
+			&lt;point&gt;-1.0 -0.43 1.05&lt;/point&gt;
+			&lt;point&gt;1.1  -0.43 1.05&lt;/point&gt;
+
+		&lt;/convex_hull_points&gt;
+
+		&lt;seat&gt;
+			
+			&lt;seat_position&gt;0.5 0.03 -0.15&lt;/seat_position&gt;
+
+			&lt;upper_body_rot_angle&gt;0.4&lt;/upper_body_rot_angle&gt;
+
+			&lt;upper_leg_rot_angle&gt;1.5&lt;/upper_leg_rot_angle&gt;
+			&lt;upper_leg_rot_around_thigh_bone_angle&gt;0.27&lt;/upper_leg_rot_around_thigh_bone_angle&gt;
+			&lt;upper_leg_apart_angle&gt;0.17&lt;/upper_leg_apart_angle&gt;
+
+			&lt;lower_leg_rot_angle&gt;0&lt;/lower_leg_rot_angle&gt;
+			&lt;lower_leg_apart_angle&gt;0.1&lt;/lower_leg_apart_angle&gt;
+			&lt;rotate_foot_out_angle&gt;0.5&lt;/rotate_foot_out_angle&gt;
+
+			&lt;arm_down_angle&gt;1.7&lt;/arm_down_angle&gt;
+			&lt;arm_out_angle&gt;0.1&lt;/arm_out_angle&gt;
+		&lt;/seat&gt;
+	&lt;/car&gt;
+&lt;/script&gt;
+</pre>
+
+<h3>Visualising the car physics</h3>
+
+You can check the 'Show vehicle physics visualisation' checkbox in the Diagnostics widget in the Substrata native client (Window > Diagnostics).
+This will show a visualisation of the convex hull of the vehicle, with small red spheres marking the convex hull points, as well as blue cylinders show the physics engine wheel objects.
+
+<img width="1000px" src="/files/vehicle_physics_vis.jpg" />

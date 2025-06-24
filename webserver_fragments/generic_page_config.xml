@@ -9,4 +9,22 @@
 		<fragment_path>example_luau_scripts.htmlfrag</fragment_path>
 		<page_title>Example Luau scripts</page_title>
 	</page>
+	
+	<page>
+		<url_path>/features</url_path>
+		<fragment_path>features.htmlfrag</fragment_path>
+		<page_title>Substrata Features</page_title>
+	</page>
+	
+	<page>
+		<url_path>/vehicle_scripting</url_path>
+		<fragment_path>vehicle_scripting.htmlfrag</fragment_path>
+		<page_title>Vehicle Scripting</page_title>
+	</page>
+	
+	<page>
+		<url_path>/car_scripting</url_path>
+		<fragment_path>car_scripting.htmlfrag</fragment_path>
+		<page_title>Car Scripting</page_title>
+	</page>
 </pages>

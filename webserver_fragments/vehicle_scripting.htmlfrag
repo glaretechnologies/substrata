@@ -1,0 +1,80 @@
+
+<h2>Vehicle scripting</h2>
+
+<p>Vehicle scripts have a few common elements.</p>
+
+<p>Let's demonstrate with this example hovercar script:</p>
+
+<pre class="code-block">
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;script&gt;
+	&lt;hover_car&gt; 
+		&lt;model_to_y_forwards_rot_1&gt;1.57079632679 0 0&lt;/model_to_y_forwards_rot_1&gt;
+		&lt;model_to_y_forwards_rot_2&gt;0 0 3.141592653&lt;/model_to_y_forwards_rot_2&gt;
+
+		&lt;seat&gt;
+			&lt;seat_position&gt;0.45 0.43 -0.2&lt;/seat_position&gt;
+			&lt;upper_body_rot_angle&gt;0.2&lt;/upper_body_rot_angle&gt;
+			&lt;upper_leg_rot_angle&gt;1.9&lt;/upper_leg_rot_angle&gt;
+			&lt;lower_leg_rot_angle&gt;-0.5&lt;/lower_leg_rot_angle&gt;
+		&lt;/seat&gt;
+
+		&lt;seat&gt;
+			&lt;seat_position&gt;-0.45 0.43 -0.2&lt;/seat_position&gt;
+			&lt;upper_body_rot_angle&gt;0.2&lt;/upper_body_rot_angle&gt;
+			&lt;upper_leg_rot_angle&gt;1.9&lt;/upper_leg_rot_angle&gt;
+			&lt;lower_leg_rot_angle&gt;-0.5&lt;/lower_leg_rot_angle&gt;
+		&lt;/seat&gt;
+	&lt;/hover_car&gt;
+&lt;/script&gt;		
+</pre>
+
+<p>First off we have two rotations that allow transforming from the model to world space.   This is useful in cases like transforming from GLTF coordinates (y-up) to Substrata coordinates (z-up).</p>
+<p><b>model_to_y_forwards_rot_1</b>:  This is an axis-angle rotation, from model coordinates (object space) to world coordinates (y-forwards space). (before overall transformation of hovercar)</p>
+<p>The world coordinates have the following convention: the z-axis is up, the x-axis is right, and the y-axis is forwards.</p>
+<p>The length of the model_to_y_forwards_rot_1 vector is the angle of rotation in radians, counterclockwise around the vector.</p>
+
+<p>In the example above we rotate around the x axis by 90 degrees, to transform from y-up to z-up.</p>
+
+<p><b>model_to_y_forwards_rot_2</b> allows defining a second rotation.  In the example above the second rotation rotates around the z-axis by 180 degrees (pi radians).</p>
+
+<p>The overall rotation is given by model_to_y_forwards_rot_2 * model_to_y_forwards_rot_1.  This means the model_to_y_forwards_rot_1 rotation is applied first, then model_to_y_forwards_rot_2</p>
+
+<h3>Seats</h3>
+
+<p>Each vehicle can have one or more seats.  The first seat is the driver's seat.  Seats are defined with the following XML elements:</p>
+
+<p><b>seat_position</b>:  This is the position in model coordinates where the hip bone of the avatar should be placed.  You can get the position by opening the model in Blender, just
+be aware that the Blender GLTF importer changes the coordinate space from y-up of GLTF to z-up upon import.</p>
+
+<p><b>upper_body_rot_angle</b>: This is the rotation, in radians, of the upper body, from the default vertical orientation.  A positive angle means the avatar will lean back.</p>
+
+<p><b>upper_leg_rot_angle</b>: This is the rotation, in radians, of the leg around the hip joint, from the default vertical orientation.  
+A positive angle means the upper leg will rotate forwards toward the chest.
+</p>
+
+<p><b>lower_leg_rot_angle</b>: This is the rotation, in radians, of the lower leg around the knee joint.
+A negative angle means the lower leg will rotate backwards toward the heel.
+</p>
+
+<h3>Applying a vehicle script</h3>
+
+<p>You can just copy and paste the above example script into the script field of an object, however there are some requirements:</p>
+
+<ul>
+<li>The object will need to be an object you have write permissions for (e.g. that you own).  The easiest way to have an object you own is to create it on a parcel you own, or to create it
+in your personal world.
+</li>
+
+<li>You will need to set an appropriate mass (in kg) of your object in the object editor - too small and wind resistance will slow the object too much, as thrust force is proportional to object mass.
+</li>
+
+<li>You will need to check the <b>dynamic</b> checkbox in the object editor to make the object into a simulated physics object that can move.</li>
+</ul>
+
+
+
+<h2>More vehicle scripting documentation</h2>
+
+<a href="/car_scripting">Car scripting</a>
+
