@@ -66,8 +66,7 @@
 
 		</convex_hull_points>
 
-		<seat>
-			
+		<seat>	
 			<seat_position>0.5 0.2 -0.44</seat_position>
 
 			<upper_body_rot_angle>0.4</upper_body_rot_angle>
@@ -82,6 +81,23 @@
 
 			<arm_down_angle>1.8</arm_down_angle>
 			<arm_out_angle>0.2</arm_out_angle>
+		</seat>
+
+		<seat>	
+			<seat_position>-0.5 0.2 -0.44</seat_position>
+
+			<upper_body_rot_angle>0.4</upper_body_rot_angle>
+
+			<upper_leg_rot_angle>1.7</upper_leg_rot_angle>
+			<upper_leg_rot_around_thigh_bone_angle>0.27</upper_leg_rot_around_thigh_bone_angle>
+			<upper_leg_apart_angle>0.17</upper_leg_apart_angle>
+
+			<lower_leg_rot_angle>0.0</lower_leg_rot_angle>
+			<lower_leg_apart_angle>0.1</lower_leg_apart_angle>
+			<rotate_foot_out_angle>0.5</rotate_foot_out_angle>
+
+			<arm_down_angle>2.6</arm_down_angle>
+			<arm_out_angle>0.3</arm_out_angle>
 		</seat>
 	</car>
 </script>
