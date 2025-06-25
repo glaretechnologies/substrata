@@ -14348,6 +14348,21 @@ void GUIClient::keyPressed(KeyEvent& e)
 			}
 		}
 	}
+	else if(e.key == Key::Key_C)
+	{
+		if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl) && BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Shift))
+		{
+			conPrint("CTRL+SHIFT+C detected, summoning car...");
+			try
+			{
+				summonCar();
+			}
+			catch(glare::Exception& e)
+			{
+				showErrorNotification(e.what());
+			}
+		}
+	}
 	else if(e.key == Key::Key_H)
 	{
 		if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl))
