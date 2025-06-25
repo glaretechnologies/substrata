@@ -139,6 +139,7 @@
     <addaction name="actionSummon_Bike"/>
     <addaction name="actionSummon_Hovercar"/>
     <addaction name="actionSummon_Boat"/>
+    <addaction name="actionSummon_Car"/>
    </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuMovement"/>
@@ -733,6 +734,14 @@
   <action name="actionEnter_Fullscreen">
    <property name="text">
     <string>Enter Fullscreen Mode</string>
+   </property>
+  </action>
+  <action name="actionSummon_Car">
+   <property name="text">
+    <string>Summon Car</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+C</string>
    </property>
   </action>
  </widget>

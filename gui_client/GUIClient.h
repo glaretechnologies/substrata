@@ -187,6 +187,7 @@ public:
 	void summonBike();
 	void summonHovercar();
 	void summonBoat();
+	void summonCar();
 	void objectTransformEdited();
 	void objectEdited();
 	void posAndRot3DControlsToggled(bool enabled);

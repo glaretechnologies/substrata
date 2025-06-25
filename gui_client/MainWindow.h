@@ -93,6 +93,7 @@ private slots:;
 	void on_actionSummon_Bike_triggered();
 	void on_actionSummon_Hovercar_triggered();
 	void on_actionSummon_Boat_triggered();
+	void on_actionSummon_Car_triggered();
 	void on_actionMute_Audio_toggled(bool checked);
 	void on_actionSave_Object_To_Disk_triggered();
 	void on_actionSave_Parcel_Objects_To_Disk_triggered();

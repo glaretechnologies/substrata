@@ -1,0 +1,664 @@
+<?xml version="1.0" encoding="utf-8"?>
+<materials>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>interior5_9026083397368207099_jpg_9026083397368207099.jpg</colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>18</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.3478059 0.3478059 0.3478059</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.8898832</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0 0 0</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.9537015</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>brushed_metal1_2263530287973135674_jpg_2263530287973135674.jpg</colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.26875</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.525</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.55740356 0.55740356 0.55740356</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.6420118</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.9020978</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.90588003 0.8705888 0.027453305</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0.6946159 0.62520814 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.7020756 0.7020756 0.7020756</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.35579416</val>
+		</roughness>
+		<metallic_fraction>
+			<val>1</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.42477873 0.42477873 0.42477873</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>1</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.9666595 0.9666595 0.9666595</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.279221</val>
+		</roughness>
+		<metallic_fraction>
+			<val>1</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.9063317 0.9063317 0.9063317</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.363636</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.655844</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.9063317 0.9063317 0.9063317</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.24026</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.227273</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.05700936 0.33066273 0.4655913</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0.14748648 0.7138872 0.99313134</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>0.44995442</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.31550452 0.3246547 0.36185718</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.0018348694</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>0.33247986</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>consol_1596914509844583438_jpg_1596914509844583438.jpg</colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.07998883 0.07998883 0.07998883</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.768831</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.35677418 0.35677418 0.35677418</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.8</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.33637717 0.33637717 0.33637717</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.41446233</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.6853147</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.49753314 0.5532372 0.6938043</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>plate1_5034245080381776996_png_5034245080381776996.png</colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.82111454</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>lamp_3046391107051635887_png_3046391107051635887.png</colour_texture_url>
+		<emission_rgb>0.99999994 0.99999994 0.99999994</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url>lamp_3046391107051635887_png_3046391107051635887.png</normal_map_url>
+		<roughness>
+			<val>0.13222477</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>0.3967</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+		<flags>18</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.76431364 0 0</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.13761468</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.9063317 0.9063317 0.9063317</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.011009157</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.92781156 0.8240292 0</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.272727</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.1825715 0.1825715 0.1825715</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.3</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.14829254 0.533323 0</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.279221</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.480519</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.08505472 0.4036672 0.7399918</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.487013</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.571429</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.12665671 0.12665671 0.12665671</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.279221</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.980519</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.93332434 0.5470529 0.13513926</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.461039</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.448052</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>Image_2_11331634884901056582_png_11331634884901056582.png</colour_texture_url>
+		<emission_rgb>0.63716805 0.63716805 0.63716805</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url>Image_2_11331634884901056582_png_11331634884901056582.png</normal_map_url>
+		<roughness>
+			<val>1</val>
+		</roughness>
+		<metallic_fraction>
+			<val>1</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.9063317 0.9063317 0.9063317</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0</val>
+		</roughness>
+		<metallic_fraction>
+			<val>1</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.6061947 0.6061947 0.6061947</colour_rgb>
+		<colour_texture_url></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.6937788</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.9020979</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>Tire_04_DM_10289610207764102717_png_10289610207764102717.png</colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.91055727</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>18</flags>
+	</material>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>Texture_6140957691024698585_jpg_6140957691024698585.jpg</colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url></normal_map_url>
+		<roughness>
+			<val>0.74701774</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>16</flags>
+	</material>
+	</materials>
+

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<script>
+	<car>
+		<model_to_y_forwards_rot_1>1.57079632679 0 0</model_to_y_forwards_rot_1>
+		<model_to_y_forwards_rot_2>0 0 3.1415926535897932384626433832795</model_to_y_forwards_rot_2>
+
+		<front_wheel_radius>0.41</front_wheel_radius>
+		<rear_wheel_radius>0.45</rear_wheel_radius>
+
+		<front_wheel_width>0.22</front_wheel_width>
+		<rear_wheel_width>0.27</rear_wheel_width>
+		
+		<front_suspension_min_length>0.15</front_suspension_min_length>
+		<rear_suspension_max_length>0.5</rear_suspension_max_length>
+
+		<front_wheel_attachment_point_raise_dist>0.3</front_wheel_attachment_point_raise_dist>
+		<rear_wheel_attachment_point_raise_dist>0.24</rear_wheel_attachment_point_raise_dist>
+
+		<max_steering_angle>0.78</max_steering_angle>
+
+		<engine_max_torque>1500</engine_max_torque>
+
+		<max_brake_torque>2000</max_brake_torque>
+		<max_handbrake_torque>4000</max_handbrake_torque>
+		<longitudinal_friction_factor>5</longitudinal_friction_factor>
+		<lateral_friction_factor>3</lateral_friction_factor>
+
+		<!-- +y is up, +z is forward -->
+
+		<centre_of_mass_offset>0 -0.3 1.0</centre_of_mass_offset>
+
+		<convex_hull_points>
+			<!-- front top -->
+			<point>0.95 0.5 2.5</point>
+			<point>-0.95 0.5 2.5</point>
+
+			<!-- front bottom -->
+			<point>1.0 0.1 2.5</point>
+			<point>-1.0 0.1 2.5</point>
+
+			<!-- roof top points -->
+			<point>0.7  1.1 -1.2</point>
+			<point>-0.7 1.1 -1.2</point>
+			<point>0.7 1.05 -0.2</point>
+			<point>-0.7 1.05 -0.2</point>
+
+			<!-- rear top -->
+			<point>-0.7 1.15 -2.75</point>
+			<point>0.7 1.15 -2.75</point>
+
+			<!-- rear bottom bumper -->
+			<point>-1.0 0.2 -2.96</point>
+			<point>1.0  0.2 -2.96</point>
+
+			<!-- rear side -->
+			<point>-1.1 0.4 -2.2</point>
+			<point>1.1  0.4 -2.2</point>
+
+			<!-- underside rear -->
+			<point>-1.0 -0.15 -1.2</point>
+			<point>1.0  -0.15 -1.2</point>
+
+			<!-- underside front -->
+			<point>-1.0 -0.17 0.97</point>
+			<point>1.0  -0.17 0.97</point>
+
+		</convex_hull_points>
+
+		<seat>
+			
+			<seat_position>0.5 0.2 -0.44</seat_position>
+
+			<upper_body_rot_angle>0.4</upper_body_rot_angle>
+
+			<upper_leg_rot_angle>1.7</upper_leg_rot_angle>
+			<upper_leg_rot_around_thigh_bone_angle>0.27</upper_leg_rot_around_thigh_bone_angle>
+			<upper_leg_apart_angle>0.17</upper_leg_apart_angle>
+
+			<lower_leg_rot_angle>0.0</lower_leg_rot_angle>
+			<lower_leg_apart_angle>0.1</lower_leg_apart_angle>
+			<rotate_foot_out_angle>0.5</rotate_foot_out_angle>
+
+			<arm_down_angle>1.8</arm_down_angle>
+			<arm_out_angle>0.2</arm_out_angle>
+		</seat>
+	</car>
+</script>
