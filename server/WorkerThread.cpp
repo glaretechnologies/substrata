@@ -784,6 +784,25 @@ static bool userConnectedToTheirPersonalWorldOrGodUser(const UserID& user_id, co
 }
 
 
+// Does the user have permission to create a summoned object (e.g. summoned vehicle)?
+// For now just check the SUMMONED_FLAG and check the model URL is one of the vehicle model URLs from GUIClient.cpp.
+static bool userCanCreateSummonedObject(const WorldObject& ob, const UserID& user_id)
+{
+	if(BitUtils::isBitSet(ob.flags, WorldObject::SUMMONED_FLAG))
+	{
+		if(ob.model_url == "deLorean2_0_glb_5923323464955550713.bmesh" || // car
+			ob.model_url == "optimized_dressed_fix7_offset4_glb_4474648345850208925.bmesh" || // bike
+			ob.model_url == "peugot_closed_glb_2887717763908023194.bmesh" || // hovercar
+			ob.model_url == "poweryacht3_2_glb_17116251394697619807.bmesh") // boat
+			return true;
+		else
+			return false;
+	}
+	else
+		return false;
+}
+
+
 // Does the user have permission to create the given object with its current transformation?
 // NOTE: world state mutex should be locked before calling this method.
 static bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, WorldStateLock& lock)
@@ -792,7 +811,8 @@ static bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID
 	{
 		return isGodUser(user_id) || // if the user is the god user
 			connectedToUsersPersonalWorld(user_name, connected_world_name) || // or if this is the user's personal world
-			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock); // Or this object is in a parcel we have write permissions for.
+			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock) || // Or this object is in a parcel we have write permissions for.
+			userCanCreateSummonedObject(ob, user_id);
 	}
 	else
 		return false;
