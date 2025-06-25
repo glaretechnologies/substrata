@@ -4390,20 +4390,27 @@ void GUIClient::processLoading()
 		// The PBO will have been mapped while it was being written to in a worker thread; unmap it.
 		message->pbo->unmap();
 
-		Reference<OpenGLTexture> opengl_tex = TextureLoading::createUninitialisedOpenGLTexture(*message->texture_data, opengl_engine, message->tex_params);
-		opengl_tex->key = OpenGLTextureKey(message->tex_key);
+		try
+		{
+			Reference<OpenGLTexture> opengl_tex = TextureLoading::createUninitialisedOpenGLTexture(*message->texture_data, opengl_engine, message->tex_params);
+			opengl_tex->key = OpenGLTextureKey(message->tex_key);
 
-		// Start asynchronous load from PBO
-		opengl_engine->pbo_async_tex_loader.startUploadingTexture(message->pbo, message->texture_data, opengl_tex);
+			// Start asynchronous load from PBO
+			opengl_engine->pbo_async_tex_loader.startUploadingTexture(message->pbo, message->texture_data, opengl_tex);
 
-		PBOAsyncTextureUploading uploading_info;
-		uploading_info.path = message->tex_path;
-		uploading_info.tex_data = message->texture_data;
-		uploading_info.opengl_tex = opengl_tex;
-		uploading_info.terrain_map = message->terrain_map;
+			PBOAsyncTextureUploading uploading_info;
+			uploading_info.path = message->tex_path;
+			uploading_info.tex_data = message->texture_data;
+			uploading_info.opengl_tex = opengl_tex;
+			uploading_info.terrain_map = message->terrain_map;
 
-		assert(pbo_async_uploading_textures.count(opengl_tex) == 0);
-		pbo_async_uploading_textures[opengl_tex] = uploading_info;
+			assert(pbo_async_uploading_textures.count(opengl_tex) == 0);
+			pbo_async_uploading_textures[opengl_tex] = uploading_info;
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Excep while creating or starting to upload texture: " + e.what());
+		}
 	}
 
 
@@ -4424,9 +4431,16 @@ void GUIClient::processLoading()
 			{
 				AsyncGeometryUploading& loading_info = res->second;
 
-				// Process the finished upload (assign mesh to objects etc.)
-				handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, res->first, loading_info.physics_shape, loading_info.voxel_ob_uid, 
-					loading_info.voxel_subsample_factor);
+				try
+				{
+					// Process the finished upload (assign mesh to objects etc.)
+					handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, res->first, loading_info.physics_shape, loading_info.voxel_ob_uid, 
+						loading_info.voxel_subsample_factor);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Error while handling uploaded mesh data: " + e.what());
+				}
 
 				async_uploading_geom.erase(res); // Remove from async_uploading_geom map
 			}
@@ -4469,10 +4483,17 @@ void GUIClient::processLoading()
 					loading_info.opengl_tex->texture_data = loading_info.tex_data;
 				}
 			
-				opengl_engine->addOpenGLTexture(loading_info.opengl_tex->key, loading_info.opengl_tex);
+				try
+				{
+					opengl_engine->addOpenGLTexture(loading_info.opengl_tex->key, loading_info.opengl_tex);
 
-				// Process the finished upload
-				handleUploadedTexture(loading_info.path, loading_info.opengl_tex, loading_info.tex_data, loading_info.terrain_map);
+					// Process the finished upload
+					handleUploadedTexture(loading_info.path, loading_info.opengl_tex, loading_info.tex_data, loading_info.terrain_map);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Error while handling uploaded texture: " + e.what());
+				}
 
 				// Now that this texture is loaded, remove from textures_processing set.
 				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
