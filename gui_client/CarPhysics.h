@@ -64,7 +64,7 @@ public:
 
 	Vec4f getThirdPersonCamTargetTranslation() const override;
 
-	float getThirdPersonCamTraceSelfAvoidanceDist() const override { return 2.6f; }
+	float getThirdPersonCamTraceSelfAvoidanceDist() const override { return 3.f; }
 
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 

@@ -321,9 +321,6 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 				car_script_settings->longitudinal_friction_factor  = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "longitudinal_friction_factor",  1.0);
 				car_script_settings->lateral_friction_factor       = (float)XMLParseUtils::parseDoubleWithDefault(car_elem, "lateral_friction_factor",       1.0);
 				
-				car_script_settings->centre_of_mass_offset = XMLParseUtils::parseVec3fWithDefault(car_elem, "centre_of_mass_offset", Vec3f(0,0,0));
-				
-
 				car_script_settings->front_left_wheel_joint_name  = XMLParseUtils::parseStringWithDefault(car_elem, "front_left_wheel_joint_name",  "Wheel.Ft.L");
 				car_script_settings->front_right_wheel_joint_name = XMLParseUtils::parseStringWithDefault(car_elem, "front_right_wheel_joint_name", "Wheel.Ft.R");
 				car_script_settings->back_left_wheel_joint_name   = XMLParseUtils::parseStringWithDefault(car_elem, "back_left_wheel_joint_name",  "Wheel.Bk.L");

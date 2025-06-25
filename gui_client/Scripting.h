@@ -151,8 +151,6 @@ struct CarScriptSettings : public VehicleScriptedSettings
 	float longitudinal_friction_factor;
 	float lateral_friction_factor;
 
-	Vec3f centre_of_mass_offset;
-
 	std::vector<Vec3f> convex_hull_points;
 
 	std::string front_left_wheel_joint_name;

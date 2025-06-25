@@ -71,7 +71,7 @@ CarPhysics::CarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, CarPhysi
 	JPH::Ref<JPH::ConvexHullShapeSettings> hull_shape_settings = new JPH::ConvexHullShapeSettings(convex_hull_pts);
 	JPH::Ref<JPH::Shape> convex_hull_shape = hull_shape_settings->Create().Get();
 
-	JPH::Ref<JPH::Shape> car_body_shape = JPH::OffsetCenterOfMassShapeSettings(toJoltVec3(settings.script_settings->centre_of_mass_offset),
+	JPH::Ref<JPH::Shape> car_body_shape = JPH::OffsetCenterOfMassShapeSettings(toJoltVec3(object->centre_of_mass_offset_os),
 		convex_hull_shape
 	).Create().Get();
 
@@ -343,24 +343,24 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 	controller->SetDriverInput(forward, cur_steering_right, brake, hand_brake);
 
 
+	// model/object space to y-forward/z-up space = R
+	const Quatf R_quat = settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1;
+
+	// Vectors in y-forward/z-up space
+	const Vec4f forwards_y_for(0,1,0,0);
+	const Vec4f right_y_for(1,0,0,0);
+	const Vec4f up_y_for(0,0,1,0);
+
+	const Matrix4f y_forward_to_model_space = (R_quat.conjugate()).toMatrix();
+	const Vec4f forwards_os = y_forward_to_model_space * forwards_y_for;
+	const Vec4f right_os = y_forward_to_model_space * right_y_for;
+
 	// Apply righting forces to car if righting it:
 	if(righting_time_remaining > 0) // If currently righting car:
 	{
-		// model/object space to y-forward space = R
-		const Quatf R_quat = settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1;
-
 		// Get current rotation, compute the desired rotation, which is a rotation with the current yaw but no pitch or roll, 
 		// compute a rotation to get from current to desired
 		const JPH::Quat current_rot = body_interface.GetRotation(car_body_id);
-
-		// Vectors in y-forward space
-		const Vec4f forwards_y_for(0,1,0,0);
-		const Vec4f right_y_for(1,0,0,0);
-
-		const Matrix4f y_forward_to_model_space = (R_quat.conjugate()).toMatrix();
-
-		const Vec4f forwards_os = y_forward_to_model_space * forwards_y_for;
-		const Vec4f right_os = y_forward_to_model_space * right_y_for;
 
 		const Vec4f right_vec_ws   = to_world * right_os;
 		const Vec4f forward_vec_ws = to_world * forwards_os;
@@ -398,9 +398,7 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 	GLObject* graphics_ob = world_object->opengl_engine_ob.ptr();
 	if(graphics_ob)
 	{
-		const Matrix4f z_up_to_model_space = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
-
-		const Vec4f steering_axis = normalise(z_up_to_model_space * Vec4f(0,0,1,0));
+		const Vec4f steering_axis = normalise(y_forward_to_model_space * up_y_for);
 
 		for(int i=0; i<4; ++i)
 		{
@@ -429,8 +427,11 @@ VehiclePhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const
 		
 				if(node_i >= 0 && node_i < (int)graphics_ob->anim_node_data.size())
 				{
+					// Just rotating around y axis rotates in place, so we need to translate to wheel space, rotate, then translate back.
+					const float wheel_brake_axle_dist = 0.18f;
 					const Vec4f translation = suspension_dir * (sus_len - (suspension_min_length + wheel_attachment_point_raise_dist));
-					graphics_ob->anim_node_data[node_i].procedural_transform = Matrix4f::translationMatrix(translation) * Matrix4f::rotationAroundYAxis(wheel->GetSteerAngle());
+					graphics_ob->anim_node_data[node_i].procedural_transform = Matrix4f::translationMatrix(translation) * 
+						Matrix4f::translationMatrix(forwards_os * -wheel_brake_axle_dist) * Matrix4f::rotationAroundYAxis(wheel->GetSteerAngle()) * Matrix4f::translationMatrix(forwards_os * wheel_brake_axle_dist);
 				}
 			}
 		}

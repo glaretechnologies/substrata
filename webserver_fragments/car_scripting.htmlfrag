@@ -53,9 +53,6 @@ You can use a car script to add a 4-wheeled vehicle to Substrata.
 
 <p><b>lateral_friction_factor</b>: A multiplier for the lateral (sideways) friction force between the tire and ground.  Default is 1.</p>
 
-<p><b>centre_of_mass_offset</b>: A translation vector for the centre of mass.  The used centre of mass will be translated using this offset from the centre of mass computed from the car convex hull.
-This is helpful to lower the centre of mass to account for a high density lower in the car, due to the engine and chassis etc.</p>
-
 <p><b>front_left_wheel_joint_name</b>: Name of the front left wheel joint node.  A transform is applied to this node to animate the wheel.</p>
 <p><b>front_right_wheel_joint_name</b>: Name of the front right wheel joint node.  A transform is applied to this node to animate the wheel.</p>
 <p><b>back_left_wheel_joint_name</b>: Name of the back left wheel joint node.  A transform is applied to this node to animate the wheel.</p>
@@ -101,8 +98,6 @@ You can think of the convex hull as being the result of shrink-wrapping some fab
 		&lt;max_steering_angle&gt;0.78&lt;/max_steering_angle&gt;
 
 		&lt;!-- +y is up, +z is forward for this model --&gt;
-
-		&lt;centre_of_mass_offset&gt;0 -0.3 1.0&lt;/centre_of_mass_offset&gt;
 
 		&lt;convex_hull_points&gt;
 			&lt;!-- front top --&gt;
