@@ -30,6 +30,8 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
+	void setVisible(bool visible);
+
 	void showLogInAndSignUpButtons();
 	void showLoggedInButton(const std::string& username);
 

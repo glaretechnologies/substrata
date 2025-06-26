@@ -84,6 +84,31 @@ void MiscInfoUI::destroy()
 }
 
 
+void MiscInfoUI::setVisible(bool visible)
+{
+	if(movement_button) 
+		movement_button->setVisible(visible);
+
+	if(login_button) 
+		login_button->setVisible(visible);
+
+	if(signup_button) 
+		signup_button->setVisible(visible);
+
+	if(logged_in_button) 
+		logged_in_button->setVisible(visible);
+
+	if(admin_msg_text_view) 
+		admin_msg_text_view->setVisible(visible);
+
+	for(size_t i=0; i<prebuilt_digits.size(); ++i)
+		prebuilt_digits[i]->setVisible(visible);
+
+	if(unit_string_view) 
+		unit_string_view->setVisible(visible);
+}
+
+
 void MiscInfoUI::showLogInAndSignUpButtons()
 {
 	if(login_button)
