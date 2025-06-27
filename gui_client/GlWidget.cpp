@@ -275,6 +275,12 @@ void GlWidget::initializeGL()
 	engine_settings.allow_bindless_textures = this->allow_bindless_textures;
 	engine_settings.ssao = use_SSAO;
 
+#ifdef OSX
+	// Force SSAO to false for now on Mac, as when it's enabled, the number of texture units exceeds the max (16) for the terrain shader.
+	engine_settings.ssao_support = false;
+	engine_settings.ssao = false; 
+#endif
+
 
 	opengl_engine = new OpenGLEngine(engine_settings);
 
