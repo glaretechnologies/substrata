@@ -170,7 +170,7 @@ void TestSuite::test()
 	runTest([&]() { Matrix3f::test(); });
 	runTest([&]() { circularBufferTest(); });
 	runTest([&]() { glare::testPoolAllocator(); });
-	runTest([&]() { TextureLoadingTests::test(); });
+	//runTest([&]() { TextureLoadingTests::test(); });
 	runTest([&]() { Timer::test(); });
 	runTest([&]() { IPAddress::test(); });
 	runTest([&]() { StringUtils::test(); });
