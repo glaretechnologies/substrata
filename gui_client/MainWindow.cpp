@@ -3765,7 +3765,7 @@ Vec2i MainWindow::getMouseCursorWidgetPos()
 {
 	const QPoint mouse_point = ui->glWidget->mapFromGlobal(QCursor::pos());
 
-	return Vec2i(mouse_point.x(), mouse_point.y());
+	return Vec2i(mouse_point.x(), mouse_point.y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 }
 
 
