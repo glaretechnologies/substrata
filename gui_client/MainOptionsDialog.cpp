@@ -170,6 +170,11 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 	inputDeviceComboBox->setCurrentIndex(inputDeviceComboBox->findText(settings->value(inputDeviceNameKey(), "Default").toString()));
 
 	inputVolumeScaleHorizontalSlider->setValue(						settings->value(inputScaleFactorNameKey(), 100).toInt());
+
+#ifdef OSX
+	// Force SSAO to false for now on Mac, as when it's enabled, the number of texture units exceeds the max (16) for the terrain shader.
+	this->SSAOCheckBox->hide();
+#endif
 }
 
 
