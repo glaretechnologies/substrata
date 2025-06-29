@@ -125,12 +125,15 @@ void LoadModelTask::run(size_t thread_index)
 				model_buffer = ArrayRef<uint8>((const uint8*)file->fileData(), file->fileSize());
 #endif
 
+				js::Vector<bool> create_tris_for_mat;
+
 				gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(lod_model_path,
 					model_buffer,
 					/*vert_buf_allocator=*/NULL, 
 					true, // skip_opengl_calls - we need to do these on the main thread.
 					build_physics_ob,
 					build_dynamic_physics_ob,
+					create_tris_for_mat,
 					worker_allocator.ptr(),
 					/*physics shape out=*/physics_shape);
 			}
