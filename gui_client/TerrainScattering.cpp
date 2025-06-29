@@ -695,6 +695,8 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::StackAllocator&
 
 	if(centre_i != last_ob_centre_i)
 	{
+		PCG32 rng(1);
+
 		const int x0     = centre_i.x         - TREE_OB_CHUNK_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around new camera position
 		const int y0     = centre_i.y         - TREE_OB_CHUNK_GRID_RES/2;
 		const int old_x0 = last_ob_centre_i.x - TREE_OB_CHUNK_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around old camera position
@@ -761,9 +763,21 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::StackAllocator&
 					{
 						//-------------- Create opengl tree object --------------
 						GLObjectRef gl_ob = new GLObject();
-						gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(tree_info[z].pos) * Matrix4f::uniformScaleMatrix(tree_info[z].scale);// Matrix4f::scaleMatrix(tree_info[z].width, tree_info[z].width, tree_info[z].height);
+						gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(tree_info[z].pos) * Matrix4f::uniformScaleMatrix(tree_info[z].scale) * 
+							Matrix4f::rotationAroundZAxis(rng.unitRandom() * Maths::get2Pi<float>());// Matrix4f::scaleMatrix(tree_info[z].width, tree_info[z].width, tree_info[z].height);
 						gl_ob->mesh_data = biome_manager->elm_tree_mesh_render_data;
 						gl_ob->materials = biome_manager->elm_tree_gl_materials;
+
+						// Randomise leaf colour a little.
+						float r_factor = 0.7f + rng.unitRandom() * 0.3f;
+						float g_factor = 0.7f + rng.unitRandom() * 0.3f;
+						float b_factor = 0.7f + rng.unitRandom() * 0.3f;
+						gl_ob->materials[1].albedo_linear_rgb.r *= r_factor;
+						gl_ob->materials[1].albedo_linear_rgb.g *= g_factor;
+						gl_ob->materials[1].albedo_linear_rgb.b *= b_factor;
+						gl_ob->materials[1].transmission_albedo_linear_rgb.r *= r_factor;
+						gl_ob->materials[1].transmission_albedo_linear_rgb.g *= g_factor;
+						gl_ob->materials[1].transmission_albedo_linear_rgb.b *= b_factor;
 
 						opengl_engine->addObject(gl_ob);
 						chunk.gl_obs.push_back(gl_ob);
