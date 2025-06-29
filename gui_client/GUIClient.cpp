@@ -642,9 +642,11 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		MemMappedFile model_file(path);
 		ArrayRef<uint8> model_buffer((const uint8*)model_file.fileData(), model_file.fileSize());
 
+		js::Vector<bool> create_tris_for_mat;
+
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(path, model_buffer,
-			opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, /*allocator=*/nullptr, physics_shape);
+			opengl_engine->vert_buf_allocator.ptr(), false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, create_tris_for_mat, /*allocator=*/nullptr, physics_shape);
 
 		const int N = 1500;
 		test_avatars.resize(N);

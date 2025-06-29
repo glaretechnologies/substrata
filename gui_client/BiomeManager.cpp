@@ -75,8 +75,14 @@ void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, 
 		ArrayRef<uint8> model_buffer((const uint8*)file.fileData(), file.fileSize());
 
 		PhysicsShape physics_shape;
+
+		js::Vector<bool> create_tris_for_mat(2);
+		create_tris_for_mat[0] = true;
+		create_tris_for_mat[1] = false; // Don't create physics triangles for leaves.
+
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(model_path, model_buffer,
-			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, opengl_engine.mem_allocator.ptr(), physics_shape);
+			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, create_tris_for_mat, 
+			opengl_engine.mem_allocator.ptr(), physics_shape);
 
 		elm_tree_physics_shape = physics_shape;
 		elm_tree_mesh_render_data = gl_meshdata;
@@ -88,14 +94,15 @@ void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, 
 		elm_tree_gl_materials.resize(2);
 
 		// Material 0 - bark
-		elm_tree_gl_materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(162/256.f));
+		elm_tree_gl_materials[0].albedo_linear_rgb = Colour3f(0.6f);
 		elm_tree_gl_materials[0].albedo_texture = elm_bark_tex;
 		elm_tree_gl_materials[0].roughness = 1;
 		elm_tree_gl_materials[0].imposterable = true; // Mark mats as imposterable so they can smoothly blend out
 		elm_tree_gl_materials[0].use_wind_vert_shader = true;
 
 		// Material 1 - leaves
-		elm_tree_gl_materials[1].albedo_linear_rgb = toLinearSRGB(Colour3f(162/256.f));
+		elm_tree_gl_materials[1].albedo_linear_rgb = Colour3f(0.35f); // Leaf reflection texture colour is too bright, reduce values.
+		elm_tree_gl_materials[1].transmission_albedo_linear_rgb = Colour3f(1.1f); // Leaf transmission colour is possibly slightly too weak, increase values.
 		elm_tree_gl_materials[1].roughness = 0.5f;
 		elm_tree_gl_materials[1].fresnel_scale = 0.3f;
 		elm_tree_gl_materials[1].imposterable = true; // Mark mats as imposterable so they can smoothly blend out

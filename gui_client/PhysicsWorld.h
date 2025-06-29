@@ -121,7 +121,8 @@ public:
 	void setObjectLayer(const Reference<PhysicsObject>& object, uint8 new_object_layer);
 
 	static PhysicsShape createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator = nullptr);
-	static PhysicsShape createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator = nullptr);
+	static PhysicsShape createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator = nullptr, 
+		const js::Vector<bool>* create_tris_for_mat = nullptr);
 
 	static PhysicsShape createJoltHeightFieldShape(int vert_res, const Array2D<float>& heightfield, float quad_w);
 

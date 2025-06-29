@@ -876,7 +876,8 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 
 
 
-PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator)
+PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator, 
+		const js::Vector<bool>* create_tris_for_mat) // Should physics triangles be created for this material?  If null, triangles will be created.
 {
 	ZoneScoped; // Tracy profiler
 
@@ -1032,43 +1033,48 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		unsigned int dest_tri_i = 0;
 		for(size_t b = 0; b < mesh.batches.size(); ++b)
 		{
-			const size_t tri_begin = mesh.batches[b].indices_start / 3;
-			const size_t tri_end   = tri_begin + mesh.batches[b].num_indices / 3;
-			const uint32 mat_index = mesh.batches[b].material_index;
-
-			for(size_t t = tri_begin; t < tri_end; ++t)
+			if(!create_tris_for_mat || (mesh.batches[b].material_index >= create_tris_for_mat->size()) || (*create_tris_for_mat)[mesh.batches[b].material_index])
 			{
-				uint32 vertex_indices[3];
-				if(index_type == BatchedMesh::ComponentType_UInt8)
-				{
-					vertex_indices[0] = index_data_uint8[t*3 + 0];
-					vertex_indices[1] = index_data_uint8[t*3 + 1];
-					vertex_indices[2] = index_data_uint8[t*3 + 2];
-				}
-				else if(index_type == BatchedMesh::ComponentType_UInt16)
-				{
-					vertex_indices[0] = index_data_uint16[t*3 + 0];
-					vertex_indices[1] = index_data_uint16[t*3 + 1];
-					vertex_indices[2] = index_data_uint16[t*3 + 2];
-				}
-				else if(index_type == BatchedMesh::ComponentType_UInt32)
-				{
-					vertex_indices[0] = index_data_uint32[t*3 + 0];
-					vertex_indices[1] = index_data_uint32[t*3 + 1];
-					vertex_indices[2] = index_data_uint32[t*3 + 2];
-				}
-				else
-				{
-					throw glare::Exception("Invalid index type.");
-				}
+				const size_t tri_begin = mesh.batches[b].indices_start / 3;
+				const size_t tri_end   = tri_begin + mesh.batches[b].num_indices / 3;
+				const uint32 mat_index = mesh.batches[b].material_index;
 
-				// We store the original material index in the per-triangle user data.
-				// We don't use triangle material index as it's limited to 32 and requires creating PhysicsMaterial objects. 
-				tri_list[dest_tri_i] = JPH::IndexedTriangle(vertex_indices[0], vertex_indices[1], vertex_indices[2], /*inMaterialIndex=*/0, /*inUserData=*/mat_index);
+				for(size_t t = tri_begin; t < tri_end; ++t)
+				{
+					uint32 vertex_indices[3];
+					if(index_type == BatchedMesh::ComponentType_UInt8)
+					{
+						vertex_indices[0] = index_data_uint8[t*3 + 0];
+						vertex_indices[1] = index_data_uint8[t*3 + 1];
+						vertex_indices[2] = index_data_uint8[t*3 + 2];
+					}
+					else if(index_type == BatchedMesh::ComponentType_UInt16)
+					{
+						vertex_indices[0] = index_data_uint16[t*3 + 0];
+						vertex_indices[1] = index_data_uint16[t*3 + 1];
+						vertex_indices[2] = index_data_uint16[t*3 + 2];
+					}
+					else if(index_type == BatchedMesh::ComponentType_UInt32)
+					{
+						vertex_indices[0] = index_data_uint32[t*3 + 0];
+						vertex_indices[1] = index_data_uint32[t*3 + 1];
+						vertex_indices[2] = index_data_uint32[t*3 + 2];
+					}
+					else
+					{
+						throw glare::Exception("Invalid index type.");
+					}
 
-				dest_tri_i++;
+					// We store the original material index in the per-triangle user data.
+					// We don't use triangle material index as it's limited to 32 and requires creating PhysicsMaterial objects. 
+					tri_list[dest_tri_i] = JPH::IndexedTriangle(vertex_indices[0], vertex_indices[1], vertex_indices[2], /*inMaterialIndex=*/0, /*inUserData=*/mat_index);
+
+					dest_tri_i++;
+				}
 			}
 		}
+
+		tri_list.resize(dest_tri_i);
 
 		JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list);
 		mesh_body_settings->mPerTriangleUserData = true; // We store the original material index in the per-triangle user data.
