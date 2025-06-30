@@ -13,7 +13,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/Timer.h>
-#include <utils/HashMapInsertOnly2.h>
+#include <utils/HashMap.h>
 #include <utils/string_view.h>
 #include <utils/RuntimeCheck.h>
 #include <utils/PlatformUtils.h>
@@ -1571,7 +1571,7 @@ std::string PhysicsWorld::getDiagnostics() const
 std::string PhysicsWorld::getLoadedMeshes() const
 {
 	std::string s;
-	HashMapInsertOnly2<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());
+	HashMap<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
 	{
 		//const PhysicsObject* ob = it->getPointer();

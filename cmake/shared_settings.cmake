@@ -293,9 +293,6 @@ ${UTILS_DIR}/HashSetIterators.h
 ${UTILS_DIR}/HashMap.cpp
 ${UTILS_DIR}/HashMap.h
 ${UTILS_DIR}/HashMapIterators.h
-${UTILS_DIR}/HashMapInsertOnly2.cpp
-${UTILS_DIR}/HashMapInsertOnly2.h
-${UTILS_DIR}/HashMapInsertOnly2Iterators.h
 ${UTILS_DIR}/RuntimeCheck.cpp
 ${UTILS_DIR}/RuntimeCheck.h
 ${UTILS_DIR}/GeneralMemAllocator.cpp
@@ -387,6 +384,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4f.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4f.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4i.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4i.h
+#${GLARE_CORE_TRUNK_DIR_ENV}/maths/FresnelApprox.cpp
+#${GLARE_CORE_TRUNK_DIR_ENV}/maths/FresnelApprox.h
 )
 
 set(networking

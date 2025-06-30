@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "OpenGLEngine.h"
-#include <HashMapInsertOnly2.h>
+#include <HashMap.h>
 
 
 static const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in WorkerThread.cpp

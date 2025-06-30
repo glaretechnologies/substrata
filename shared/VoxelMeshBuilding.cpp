@@ -16,7 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/StandardPrintOutput.h"
-#include "../utils/HashMapInsertOnly2.h"
+#include "../utils/HashMap.h"
 #include "../utils/Sort.h"
 #include "../utils/Array2D.h"
 #include "../utils/Array3D.h"
@@ -110,7 +110,7 @@ static void makeVoxelMeshForVertPosKeyType(const VoxelBounds& bounds_, const Vec
 	VertPosKeyType vertpos_empty_key;
 	vertpos_empty_key.v[0] = vertpos_empty_key.v[1] = vertpos_empty_key.v[2] = 0;
 	vertpos_empty_key.misc = 0;
-	HashMapInsertOnly2<VertPosKeyType, int, VertPosKeyHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_orig_voxels / 100, mem_allocator);
+	HashMap<VertPosKeyType, int, VertPosKeyHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_orig_voxels / 100, mem_allocator);
 
 
 	const int dim_mask_val = (int)std::numeric_limits<VertPosIntType>::max();
@@ -715,7 +715,7 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshWithShadingNormalsForVo
 		glare::Allocator* mem_allocator)
 {
 	const glare::AllocatorVector<Voxel, 16>& voxels = voxel_group.voxels;
-	HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/Vec3<int>(1000000));
+	HashMap<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/Vec3<int>(1000000));
 
 	int max_mat_index = 0;
 	for(size_t i=0; i<voxels.size(); ++i)
@@ -733,7 +733,7 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshWithShadingNormalsForVo
 	VoxelVertInfo vertpos_empty_key;
 	vertpos_empty_key.pos = Indigo::Vec3f(std::numeric_limits<float>::max());
 	vertpos_empty_key.normal = Indigo::Vec3f(std::numeric_limits<float>::max());
-	HashMapInsertOnly2<VoxelVertInfo, int, VoxelVertInfoHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/voxels.size());
+	HashMap<VoxelVertInfo, int, VoxelVertInfoHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/voxels.size());
 
 	mesh->vert_positions.reserve(voxels.size());
 	mesh->vert_normals.reserve(voxels.size());
