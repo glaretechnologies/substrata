@@ -28,7 +28,7 @@ Code By Nicholas Chapman.
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/StandardPrintOutput.h"
-#include "../utils/HashMapInsertOnly2.h"
+#include "../utils/HashMap.h"
 #include "../utils/Sort.h"
 #include "../utils/IncludeHalf.h"
 #include "../utils/BitUtils.h"
@@ -1318,8 +1318,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		empty_key.pos = Indigo::Vec3f(std::numeric_limits<float>::infinity());
 		empty_key.uv0 = Indigo::Vec2f(0.f);
 		//empty_key.uv1 = Indigo::Vec2f(0.f);
-		HashMapInsertOnly2<ModelLoadingVertKey, uint32, ModelLoadingVertKeyHash> vert_map(empty_key, // Map from vert data to merged index
-			/*expected_num_items=*/mesh->vert_positions.size()); 
+		HashMap<ModelLoadingVertKey, uint32, ModelLoadingVertKeyHash> vert_map(empty_key, // Map from vert data to merged index
+			/*expected_num_items=*/mesh->vert_positions.size(), mem_allocator);
 
 
 		if(mesh->triangles.size() > 0)
