@@ -51,34 +51,17 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 
 void MiscInfoUI::destroy()
 {
-	if(movement_button)
-		gl_ui->removeWidget(movement_button);
-	movement_button = NULL;
-
-	if(login_button.nonNull())
-		gl_ui->removeWidget(login_button);
-	login_button = NULL;
-
-	if(signup_button.nonNull())
-		gl_ui->removeWidget(signup_button);
-	signup_button = NULL;
-
-	if(logged_in_button.nonNull())
-		gl_ui->removeWidget(logged_in_button);
-	logged_in_button = NULL;
-
-	if(admin_msg_text_view.nonNull())
-		gl_ui->removeWidget(admin_msg_text_view);
-	admin_msg_text_view = NULL;
+	checkRemoveAndDeleteWidget(gl_ui, movement_button);
+	checkRemoveAndDeleteWidget(gl_ui, login_button);
+	checkRemoveAndDeleteWidget(gl_ui, signup_button);
+	checkRemoveAndDeleteWidget(gl_ui, logged_in_button);
+	checkRemoveAndDeleteWidget(gl_ui, admin_msg_text_view);
+	checkRemoveAndDeleteWidget(gl_ui, unit_string_view);
 
 	for(size_t i=0; i<prebuilt_digits.size(); ++i)
 		gl_ui->removeWidget(prebuilt_digits[i]);
 	prebuilt_digits.clear();
 
-	if(unit_string_view.nonNull())
-		gl_ui->removeWidget(unit_string_view);
-	unit_string_view = NULL;
-	
 	gl_ui = NULL;
 	opengl_engine = NULL;
 }

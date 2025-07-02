@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
+#include <opengl/ui/GLUITextButton.h>
 #include <opengl/ui/GLUIImage.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 
@@ -64,6 +65,10 @@ private:
 	GLUIButtonRef expand_button;
 	GLUIButtonRef collapse_button;
 
+	GLUIButtonRef vehicle_button;
+	GLUIButtonRef collapse_vehicle_button;
+
+
 	GLUIButtonRef selfie_button;
 
 	GLUIButtonRef microphone_button; // TODO: move out of GestureUI or rename GestureUI.
@@ -71,6 +76,12 @@ private:
 	GLUIImageRef mic_level_image;
 
 	bool gestures_visible;
+	bool vehicle_buttons_visible;
+
+	GLUITextButtonRef summon_bike_button;
+	GLUITextButtonRef summon_car_button;
+	GLUITextButtonRef summon_boat_button;
+	GLUITextButtonRef summon_hovercar_button;
 
 	GLUIRef gl_ui;
 

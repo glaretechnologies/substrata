@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2021 -
 GestureUI::GestureUI()
 :	gui_client(NULL),
 	gestures_visible(false),
+	vehicle_buttons_visible(false),
 	untoggle_button_time(-1)
 {}
 
@@ -73,7 +74,8 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
-	gestures_visible = gui_client->getSettingsStore()->getBoolValue("GestureUI/gestures_visible", /*default val=*/false);
+	gestures_visible        = gui_client->getSettingsStore()->getBoolValue("GestureUI/gestures_visible",        /*default val=*/false);
+	vehicle_buttons_visible = false;
 
 	const float min_max_y = gl_ui->getViewportMinMaxY();
 
@@ -110,6 +112,59 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	}
 	
 	{
+		{
+			GLUIButton::CreateArgs args;
+			args.tooltip = "Summon vehicle";
+			vehicle_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/bike.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
+			vehicle_button->handler = this;
+			gl_ui->addWidget(vehicle_button);
+		}
+
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Summon bike";
+			summon_bike_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon bike", Vec2f(0), Vec2f(0.1), args);
+			summon_bike_button->setVisible(vehicle_buttons_visible);
+			summon_bike_button->handler = this;
+			gl_ui->addWidget(summon_bike_button);
+		}
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Summon car";
+			summon_car_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon car", Vec2f(0), Vec2f(0.1), args);
+			summon_car_button->setVisible(vehicle_buttons_visible);
+			summon_car_button->handler = this;
+			gl_ui->addWidget(summon_car_button);
+		}
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Summon boat";
+			summon_boat_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon boat", Vec2f(0), Vec2f(0.1), args);
+			summon_boat_button->setVisible(vehicle_buttons_visible);
+			summon_boat_button->handler = this;
+			gl_ui->addWidget(summon_boat_button);
+		}
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Summon hovercar";
+			summon_hovercar_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon hovercar", Vec2f(0), Vec2f(0.1), args);
+			summon_hovercar_button->setVisible(vehicle_buttons_visible);
+			summon_hovercar_button->handler = this;
+			gl_ui->addWidget(summon_hovercar_button);
+		}
+
+		{
+			GLUIButton::CreateArgs args;
+			args.tooltip = "Hide vehicles";
+			collapse_vehicle_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/down_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+			collapse_vehicle_button->handler = this;
+			collapse_vehicle_button->setVisible(vehicle_buttons_visible);
+			gl_ui->addWidget(collapse_vehicle_button);
+		}
+
+	}
+	
+	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Selfie view";
 		selfie_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
@@ -138,32 +193,17 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 
 void GestureUI::destroy()
 {
-	if(expand_button.nonNull())
-	{
-		gl_ui->removeWidget(expand_button);
-		expand_button = NULL;
-	}
-	if(collapse_button.nonNull())
-	{
-		gl_ui->removeWidget(collapse_button);
-		collapse_button = NULL;
-	}
-	if(selfie_button.nonNull())
-	{
-		gl_ui->removeWidget(selfie_button);
-		selfie_button = NULL;
-	}
-	if(microphone_button.nonNull())
-	{
-		gl_ui->removeWidget(microphone_button);
-		microphone_button = NULL;
-	}
-	if(mic_level_image.nonNull())
-	{
-		gl_ui->removeWidget(mic_level_image);
-		mic_level_image = NULL;
-	}
-
+	checkRemoveAndDeleteWidget(gl_ui, expand_button);
+	checkRemoveAndDeleteWidget(gl_ui, collapse_button);
+	checkRemoveAndDeleteWidget(gl_ui, vehicle_button);
+	checkRemoveAndDeleteWidget(gl_ui, selfie_button);
+	checkRemoveAndDeleteWidget(gl_ui, microphone_button);
+	checkRemoveAndDeleteWidget(gl_ui, mic_level_image);
+	checkRemoveAndDeleteWidget(gl_ui, summon_bike_button);
+	checkRemoveAndDeleteWidget(gl_ui, summon_car_button);
+	checkRemoveAndDeleteWidget(gl_ui, summon_boat_button);
+	checkRemoveAndDeleteWidget(gl_ui, summon_hovercar_button);
+	checkRemoveAndDeleteWidget(gl_ui, collapse_vehicle_button);
 
 	for(size_t i=0; i<gesture_buttons.size(); ++i)
 		gl_ui->removeWidget(gesture_buttons[i]);
@@ -171,12 +211,6 @@ void GestureUI::destroy()
 
 	gl_ui = NULL;
 	opengl_engine = NULL;
-
-	/*if(gl_ui.nonNull())
-	{
-		gl_ui->destroy();
-		gl_ui = NULL;
-	}*/
 }
 
 
@@ -239,13 +273,13 @@ void GestureUI::updateWidgetPositions()
 			gesture_buttons[i]->setPosAndDims(Vec2f(x, -min_max_y + y + gestures_bottom_margin), Vec2f(BUTTON_W, BUTTON_H));
 		}
 
-		if(collapse_button.nonNull())
+		if(collapse_button)
 		{
 			const float TAB_BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(40/*35*/);
 
 			static const float collapse_button_w_px = 20;
 			static const float collapse_button_h_px = 50;
-			const float collapse_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_w_px);
+			const float collapse_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_w_px); // for vertical collapse button (left / right)
 			const float collapse_button_h = gl_ui->getUIWidthForDevIndepPixelWidth(collapse_button_h_px);
 
 			const float num_gesture_button_rows = (float)Maths::roundedUpDivide((int)gesture_buttons.size(), NUM_BUTTONS_PER_ROW);
@@ -254,13 +288,27 @@ void GestureUI::updateWidgetPositions()
 			expand_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, TAB_BUTTON_W/*BUTTON_H * 2 + SPACING*/));
 			expand_button->setVisible(!gestures_visible);
 
-			const float selfie_button_x = /*-1 + SPACING*/-0.05f;
+			const float vehicle_button_x = -BUTTON_W * 1.5f - SPACING;
+			vehicle_button->setPosAndDims(Vec2f(vehicle_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+
+			const float selfie_button_x = vehicle_button_x + BUTTON_W + SPACING;
 			selfie_button->setPosAndDims(Vec2f(selfie_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
 			const float mic_button_x = selfie_button_x + BUTTON_W + SPACING;
 			microphone_button->setPosAndDims(Vec2f(mic_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
 			mic_level_image->setPosAndDims(Vec2f(mic_button_x + BUTTON_W * 0.8f, -min_max_y + SPACING + BUTTON_H * 0.2f), Vec2f(BUTTON_H * 0.2f, 0));
+
+
+			if(vehicle_buttons_visible)
+			{
+				summon_boat_button    ->setPos(Vec2f(vehicle_button_x, -min_max_y + BUTTON_W + 2*SPACING));
+				summon_hovercar_button->setPos(Vec2f(vehicle_button_x, summon_boat_button->rect.getMax().y + SPACING));
+				summon_car_button     ->setPos(Vec2f(vehicle_button_x, summon_hovercar_button->rect.getMax().y + SPACING));
+				summon_bike_button    ->setPos(Vec2f(vehicle_button_x, summon_car_button->rect.getMax().y + SPACING));
+
+				collapse_vehicle_button->setPosAndDims(Vec2f(vehicle_button_x, summon_bike_button->rect.getMax().y + SPACING), Vec2f(collapse_button_h, collapse_button_w));
+			}
 		}
 	}
 }
@@ -284,6 +332,7 @@ void GestureUI::setVisible(bool visible)
 
 		collapse_button->setVisible(visible);
 		expand_button->setVisible(visible);
+		vehicle_button->setVisible(visible);
 		selfie_button->setVisible(visible);
 		microphone_button->setVisible(visible);
 		mic_level_image->setVisible(visible);
@@ -295,69 +344,132 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 {
 	if(gui_client)
 	{
-		GLUIButton* button = static_cast<GLUIButton*>(event.widget);
-
-		for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
+		GLUIButton* button = dynamic_cast<GLUIButton*>(event.widget);
+		if(button)
 		{
-			const std::string gesture_name = gestures[i];
-			if(gesture_name == event.widget->client_data)
+			for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
 			{
-				event.accepted = true;
-				const bool animate_head = std::string(gestures[i+1]) == "AnimHead";
-				const bool loop			= std::string(gestures[i+2]) == "Loop";
-
-				if(button->toggleable)
+				const std::string gesture_name = gestures[i];
+				if(gesture_name == event.widget->client_data)
 				{
-					if(button->toggled)
-					{
-						gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/loop);
+					event.accepted = true;
+					const bool animate_head = std::string(gestures[i+1]) == "AnimHead";
+					const bool loop			= std::string(gestures[i+2]) == "Loop";
 
-						if(!loop)
-							untoggle_button_time = timer.elapsed() + ::stringToDouble(gestures[i+3]); // Make button untoggle when gesture has finished.
+					if(button->toggleable)
+					{
+						if(button->toggled)
+						{
+							gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/loop);
+
+							if(!loop)
+								untoggle_button_time = timer.elapsed() + ::stringToDouble(gestures[i+3]); // Make button untoggle when gesture has finished.
+							else
+								untoggle_button_time = -1;
+						}
 						else
-							untoggle_button_time = -1;
+							gui_client->stopGestureClicked(event.widget->client_data);
 					}
 					else
-						gui_client->stopGestureClicked(event.widget->client_data);
-				}
-				else
-					gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/false);
+						gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/false);
 
-				// Untoggle any other toggled buttons.
-				for(size_t z=0; z<gesture_buttons.size(); ++z)
-					if(gesture_buttons[z] != button && gesture_buttons[z]->toggleable)
-						gesture_buttons[z]->setToggled(false);
+					// Untoggle any other toggled buttons.
+					for(size_t z=0; z<gesture_buttons.size(); ++z)
+						if(gesture_buttons[z] != button && gesture_buttons[z]->toggleable)
+							gesture_buttons[z]->setToggled(false);
+				}
+			}
+
+			if(button == expand_button.ptr())
+			{
+				event.accepted = true;
+				gestures_visible = true;
+				updateWidgetPositions();
+				gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
+			}
+			else if(button == collapse_button.ptr())
+			{
+				event.accepted = true;
+				gestures_visible = false;
+				updateWidgetPositions();
+				gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
+			}
+			else if(button == vehicle_button.ptr())
+			{
+				event.accepted = true;
+				vehicle_buttons_visible = !vehicle_buttons_visible;
+				summon_bike_button->setVisible(vehicle_buttons_visible);
+				summon_car_button->setVisible(vehicle_buttons_visible);
+				summon_boat_button->setVisible(vehicle_buttons_visible);
+				summon_hovercar_button->setVisible(vehicle_buttons_visible);
+				collapse_vehicle_button->setVisible(vehicle_buttons_visible);
+
+				updateWidgetPositions();
+			}
+			else if(button == collapse_vehicle_button.ptr())
+			{
+				event.accepted = true;
+				vehicle_buttons_visible = false;
+				summon_bike_button->setVisible(vehicle_buttons_visible);
+				summon_car_button->setVisible(vehicle_buttons_visible);
+				summon_boat_button->setVisible(vehicle_buttons_visible);
+				summon_hovercar_button->setVisible(vehicle_buttons_visible);
+				collapse_vehicle_button->setVisible(vehicle_buttons_visible);
+
+				updateWidgetPositions();
+			}
+			else if(button == selfie_button.ptr())
+			{
+				event.accepted = true;
+				gui_client->setSelfieModeEnabled(selfie_button->toggled);
+			}
+			else if(button == microphone_button.ptr())
+			{
+				event.accepted = true;
+				gui_client->setMicForVoiceChatEnabled(microphone_button->toggled);
+
+				if(microphone_button->toggled)
+					microphone_button->tooltip = "Disable microphone for voice chat";
+				else
+					microphone_button->tooltip = "Enable microphone for voice chat";
 			}
 		}
 
-		if(button == expand_button.ptr())
+		bool hide_vehicle_buttons = false;
+		if(event.widget == summon_bike_button.ptr())
 		{
 			event.accepted = true;
-			gestures_visible = true;
-			updateWidgetPositions();
-			gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
+			gui_client->summonBike();
+			hide_vehicle_buttons = true;
 		}
-		else if(button == collapse_button.ptr())
+		else if(event.widget == summon_car_button.ptr())
 		{
 			event.accepted = true;
-			gestures_visible = false;
-			updateWidgetPositions();
-			gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
+			gui_client->summonCar();
+			hide_vehicle_buttons = true;
 		}
-		else if(button == selfie_button.ptr())
+		else if(event.widget == summon_boat_button.ptr())
 		{
 			event.accepted = true;
-			gui_client->setSelfieModeEnabled(selfie_button->toggled);
+			gui_client->summonBoat();
+			hide_vehicle_buttons = true;
 		}
-		else if(button == microphone_button.ptr())
+		else if(event.widget == summon_hovercar_button.ptr())
 		{
 			event.accepted = true;
-			gui_client->setMicForVoiceChatEnabled(microphone_button->toggled);
+			gui_client->summonHovercar();
+			hide_vehicle_buttons = true;
+		}
 
-			if(microphone_button->toggled)
-				microphone_button->tooltip = "Disable microphone for voice chat";
-			else
-				microphone_button->tooltip = "Enable microphone for voice chat";
+		if(hide_vehicle_buttons)
+		{
+			vehicle_buttons_visible = false;
+			summon_bike_button->setVisible(vehicle_buttons_visible);
+			summon_car_button->setVisible(vehicle_buttons_visible);
+			summon_boat_button->setVisible(vehicle_buttons_visible);
+			summon_hovercar_button->setVisible(vehicle_buttons_visible);
+			collapse_vehicle_button->setVisible(vehicle_buttons_visible);
+			updateWidgetPositions();
 		}
 	}
 }
