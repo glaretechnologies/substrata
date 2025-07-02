@@ -37,11 +37,7 @@ void ObInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cl
 
 void ObInfoUI::destroy()
 {
-	if(info_text_view.nonNull())
-	{
-		gl_ui->removeWidget(info_text_view);
-		info_text_view = NULL;
-	}
+	checkRemoveAndDeleteWidget(gl_ui, info_text_view);
 
 	gl_ui = NULL;
 	opengl_engine = NULL;

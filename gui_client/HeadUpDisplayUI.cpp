@@ -42,8 +42,7 @@ void HeadUpDisplayUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient*
 
 void HeadUpDisplayUI::destroy()
 {
-	gl_ui->removeWidget(crosshair_dot);
-	crosshair_dot = NULL;
+	checkRemoveAndDeleteWidget(gl_ui, crosshair_dot);
 
 	gl_ui = NULL;
 	opengl_engine = NULL;

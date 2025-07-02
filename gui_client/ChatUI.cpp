@@ -125,17 +125,9 @@ void ChatUI::destroy()
 		opengl_engine->removeOverlayObject(background_overlay_ob);
 	background_overlay_ob = NULL;
 
-	if(chat_line_edit.nonNull())
-		gl_ui->removeWidget(chat_line_edit);
-	chat_line_edit = NULL;
-
-	if(collapse_button.nonNull())
-		gl_ui->removeWidget(collapse_button);
-	collapse_button = NULL;
-
-	if(expand_button.nonNull())
-		gl_ui->removeWidget(expand_button);
-	expand_button = NULL;
+	checkRemoveAndDeleteWidget(gl_ui, chat_line_edit);
+	checkRemoveAndDeleteWidget(gl_ui, collapse_button);
+	checkRemoveAndDeleteWidget(gl_ui, expand_button);
 
 	gl_ui = NULL;
 	opengl_engine = NULL;
