@@ -439,25 +439,53 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 		if(event.widget == summon_bike_button.ptr())
 		{
 			event.accepted = true;
-			gui_client->summonBike();
+			try
+			{
+				gui_client->summonBike();
+			}
+			catch(glare::Exception& e)
+			{
+				gui_client->showErrorNotification(e.what());
+			}
 			hide_vehicle_buttons = true;
 		}
 		else if(event.widget == summon_car_button.ptr())
 		{
 			event.accepted = true;
-			gui_client->summonCar();
+			try
+			{
+				gui_client->summonCar();
+			}
+			catch(glare::Exception& e)
+			{
+				gui_client->showErrorNotification(e.what());
+			}
 			hide_vehicle_buttons = true;
 		}
 		else if(event.widget == summon_boat_button.ptr())
 		{
 			event.accepted = true;
-			gui_client->summonBoat();
+			try
+			{
+				gui_client->summonBoat();
+			}
+			catch(glare::Exception& e)
+			{
+				gui_client->showErrorNotification(e.what());
+			}
 			hide_vehicle_buttons = true;
 		}
 		else if(event.widget == summon_hovercar_button.ptr())
 		{
 			event.accepted = true;
-			gui_client->summonHovercar();
+			try
+			{
+				gui_client->summonHovercar();
+			}
+			catch(glare::Exception& e)
+			{
+				gui_client->showErrorNotification(e.what());
+			}
 			hide_vehicle_buttons = true;
 		}
 
