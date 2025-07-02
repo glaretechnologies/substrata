@@ -845,16 +845,19 @@ static const float chunk_w = 128;
 
 static void markLODChunkAsNeedsRebuildForChangedObject(ServerWorldState* world_state, const WorldObject* ob, WorldStateLock& lock)
 {
-	const Vec4f centroid = ob->getCentroidWS();
-	const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
-	const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
-	const Vec3i chunk_coords(chunk_x, chunk_y, 0);
-
-	auto res = world_state->getLODChunks(lock).find(chunk_coords);
-	if(res != world_state->getLODChunks(lock).end())
+	if(!BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH))
 	{
-		conPrint("Marking LODChunk " + chunk_coords.toString() + " as needs_rebuild=true");
-		res->second->needs_rebuild = true;
+		const Vec4f centroid = ob->getCentroidWS();
+		const int chunk_x = Maths::floorToInt(centroid[0] / chunk_w);
+		const int chunk_y = Maths::floorToInt(centroid[1] / chunk_w);
+		const Vec3i chunk_coords(chunk_x, chunk_y, 0);
+
+		auto res = world_state->getLODChunks(lock).find(chunk_coords);
+		if(res != world_state->getLODChunks(lock).end())
+		{
+			conPrint("Marking LODChunk " + chunk_coords.toString() + " as needs_rebuild=true");
+			res->second->needs_rebuild = true;
+		}
 	}
 }
 
