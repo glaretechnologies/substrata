@@ -1,48 +1,52 @@
 /*=====================================================================
 UploadResourceThread.h
--------------------
-Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-16 22:59:23 +1300
+----------------------
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #pragma once
 
 
-#include "WorldState.h"
 #include <MessageableThread.h>
-#include <Platform.h>
-#include <MyThread.h>
-#include <EventFD.h>
-#include <ThreadManager.h>
-#include <MySocket.h>
-#include <set>
+#include <SocketInterface.h>
 #include <string>
-class WorkUnit;
-class PrintOutput;
-class ThreadMessageSink;
-class Server;
 struct tls_config;
+
+
+struct ResourceToUpload : public ThreadSafeRefCounted
+{
+	ResourceToUpload(const std::string& local_path_, const std::string& resource_URL_) : local_path(local_path_), resource_URL(resource_URL_) {}
+	std::string local_path;
+	std::string resource_URL;
+};
 
 
 /*=====================================================================
 UploadResourceThread
--------------------
-Uploads a single file to the server.
+--------------------
+Uploads resources to the server
 =====================================================================*/
 class UploadResourceThread : public MessageableThread
 {
 public:
-	UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& local_path, const std::string& resource_URL, const std::string& hostname, int port,
+	UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, ThreadSafeQueue<Reference<ResourceToUpload>>* upload_queue, const std::string& hostname, int port,
 		const std::string& username, const std::string& password, struct tls_config* config, glare::AtomicInt* num_resources_uploading);
 	virtual ~UploadResourceThread();
 
 	virtual void doRun();
 
+	virtual void kill();
+
+	void killConnection();
+
 private:
-	//ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
-	std::string local_path, resource_URL;
+	ThreadSafeQueue<Reference<ResourceToUpload>>* upload_queue;
 	std::string hostname;
 	std::string username, password;
 	int port;
 	struct tls_config* config;
 	glare::AtomicInt* num_resources_uploading;
+
+	glare::AtomicInt should_die;
+public:
+	SocketInterfaceRef socket;
 };

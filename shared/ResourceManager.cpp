@@ -143,7 +143,7 @@ ResourceRef ResourceManager::getOrCreateResourceForURL(const std::string& URL) /
 		ResourceRef resource = new Resource(
 			URL, 
 			raw_local_path,
-			(!raw_local_path.empty() && FileUtils::fileExists(abs_path)) ? Resource::State_Present : Resource::State_NotPresent,
+			Resource::State_NotPresent,
 			UserID::invalidUserID(),
 			/*external_resource=*/false
 		);
@@ -173,61 +173,39 @@ ResourceRef ResourceManager::getExistingResourceForURL(const std::string& URL) /
 
 void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL) // Threadsafe
 {
-	try
-	{
-		// Copy to destination path in resources dir, if not already present.
-		const std::string dest_path = this->pathForURL(URL);
-		if(!FileUtils::fileExists(dest_path))
-			FileUtils::copyFile(local_path, dest_path);
+	std::string dest_path; // local resource path to copy to if resource is not present locally in resource dir.
 
+	{
 		Lock lock(mutex);
-
-		ResourceRef res = getExistingResourceForURL(URL);
-		const bool already_exists = res.nonNull();
-		if(res.isNull())
-			res = getOrCreateResourceForURL(URL);
-
-		const Resource::State prev_state = res->getState();
-		res->setState(Resource::State_Present);
-
-		if(!already_exists || (prev_state != Resource::State_Present))
-			this->changed = 1;
+		ResourceRef resource = getOrCreateResourceForURL(URL);
+		if(resource->getState() != Resource::State_Present)
+			dest_path = resource->getLocalAbsPath(this->base_resource_dir);
 	}
-	catch(FileUtils::FileUtilsExcep& e)
+
+	if(!dest_path.empty()) // If resource was not present:
 	{
-		throw glare::Exception(e.what());
+		// Do copy without holding lock
+		FileUtils::copyFile(local_path, dest_path);
+
+		// Now mark resource as present and set changed flag.
+		{
+			Lock lock(mutex);
+			ResourceRef resource = getOrCreateResourceForURL(URL);
+			resource->setState(Resource::State_Present);
+			this->changed = 1;
+		}
 	}
 }
 
 
-std::string ResourceManager::copyLocalFileToResourceDirIfNotPresent(const std::string& local_path) // Threadsafe
+std::string ResourceManager::copyLocalFileToResourceDirAndReturnURL(const std::string& local_path) // Threadsafe
 {
-	try
-	{
-		const uint64 hash = FileChecksum::fileChecksum(local_path);
-		const std::string URL = ResourceManager::URLForPathAndHash(local_path, hash);
+	const uint64 hash = FileChecksum::fileChecksum(local_path);
+	const std::string URL = ResourceManager::URLForPathAndHash(local_path, hash);
 
-		const std::string dest_path = this->pathForURL(URL);
-		if(!FileUtils::fileExists(dest_path))
-			FileUtils::copyFile(local_path, dest_path);
+	copyLocalFileToResourceDir(local_path, URL);
 
-		ResourceRef res = getExistingResourceForURL(URL);
-		const bool already_exists = res.nonNull();
-		if(res.isNull())
-			res = getOrCreateResourceForURL(URL);
-
-		const Resource::State prev_state = res->getState();
-		res->setState(Resource::State_Present);
-
-		if(!already_exists || (prev_state != Resource::State_Present))
-			this->changed = 1;
-
-		return URL;
-	}
-	catch(FileUtils::FileUtilsExcep& e)
-	{
-		throw glare::Exception(e.what());
-	}
+	return URL;
 }
 
 

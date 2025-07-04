@@ -24,6 +24,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "URLParser.h"
 #include "WorldState.h"
 #include "EmscriptenResourceDownloader.h"
+#include "UploadResourceThread.h"
 #include "ScriptedObjectProximityChecker.h"
 #include "../shared/WorldSettings.h"
 #include "../audio/AudioEngine.h"
@@ -360,6 +361,8 @@ public:
 	void handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, UID voxel_ob_uid, int voxel_subsample_factor);
 	void handleUploadedTexture(const std::string& path, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
+	void updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials);
+
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
 	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
@@ -417,6 +420,8 @@ public:
 	glare::AtomicInt num_non_net_resources_downloading;
 	glare::AtomicInt num_net_resources_downloading;
 	glare::AtomicInt num_resources_uploading;
+
+	ThreadSafeQueue<Reference<ResourceToUpload>> upload_queue;
 
 	EmscriptenResourceDownloader emscripten_resource_downloader;
 

@@ -1531,85 +1531,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 	{
 		try
 		{
-			if(!gui_client.logged_in_user_id.valid())
-				throw glare::Exception("You must be logged in to set your avatar model");
-
-			std::string mesh_URL;
-			if(dialog.result_path != "")
-			{
-				// If the user selected a mesh that is not a bmesh, convert it to bmesh
-				std::string bmesh_disk_path = dialog.result_path;
-				if(!hasExtension(dialog.result_path, "bmesh"))
-				{
-					// Save as bmesh in temp location
-					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
-
-					BatchedMesh::WriteOptions write_options;
-					write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
-					// TODO: show 'processing...' dialog while it compresses and saves?
-					dialog.loaded_mesh->writeToFile(bmesh_disk_path, write_options);
-				}
-				else
-				{
-					bmesh_disk_path = dialog.result_path;
-				}
-
-				// Compute hash over model
-				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
-
-				const std::string original_filename = FileUtils::getFilename(dialog.result_path); // Use the original filename, not 'temp.igmesh'.
-				mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
-
-				// Copy model to local resources dir.  UploadResourceThread will read from here.
-				gui_client.resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
-			}
-
-			const Vec3d cam_angles = gui_client.cam_controller.getAngles();
-			Avatar avatar;
-			avatar.uid = gui_client.client_avatar_uid;
-			avatar.pos = Vec3d(gui_client.cam_controller.getFirstPersonPosition());
-			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-			avatar.name = gui_client.logged_in_user_name;
-			avatar.avatar_settings.model_url = mesh_URL;
-			avatar.avatar_settings.pre_ob_to_world_matrix = dialog.pre_ob_to_world_matrix;
-			avatar.avatar_settings.materials = dialog.loaded_materials;
-
-
-			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
-			// Don't transform to basis URLs, the server will want the original PNG/JPEGs.
-			Avatar::GetDependencyOptions options;
-			options.get_optimised_mesh = false;
-			options.use_basis = false;
-
-			std::set<DependencyURL> paths;
-			avatar.getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
-			for(auto it = paths.begin(); it != paths.end(); ++it)
-			{
-				const std::string path = it->URL;
-				if(FileUtils::fileExists(path))
-				{
-					const uint64 hash = FileChecksum::fileChecksum(path);
-					const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
-					gui_client.resource_manager->copyLocalFileToResourceDir(path, resource_URL);
-				}
-			}
-
-			// Convert texture paths on the object to URLs
-			avatar.convertLocalPathsToURLS(*gui_client.resource_manager);
-
-			//if(!gui_client.task_manager)
-			//	gui_client.task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
-
-			// Generate LOD textures for materials, if not already present on disk.
-			// LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *gui_client.resource_manager, *gui_client.task_manager);
-
-			// Send AvatarFullUpdate message to server
-			MessageUtils::initPacket(gui_client.scratch_packet, Protocol::AvatarFullUpdate);
-			writeAvatarToNetworkStream(avatar, gui_client.scratch_packet);
-
-			enqueueMessageToSend(*gui_client.client_thread, gui_client.scratch_packet);
-
-			showInfoNotification("Updated avatar.");
+			gui_client.updateOurAvatarModel(dialog.loaded_mesh, dialog.result_path, dialog.pre_ob_to_world_matrix, dialog.loaded_materials);
 		}
 		catch(glare::Exception& e)
 		{
@@ -1928,7 +1850,7 @@ void MainWindow::on_actionAdd_Video_triggered()
 					return;
 
 				// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
-				use_URL = gui_client.resource_manager->copyLocalFileToResourceDirIfNotPresent(dialog.getVideoLocalPath());
+				use_URL = gui_client.resource_manager->copyLocalFileToResourceDirAndReturnURL(dialog.getVideoLocalPath());
 			}
 			else
 			{
@@ -2126,7 +2048,7 @@ void MainWindow::on_actionAdd_Decal_triggered()
 		BatchedMeshRef mesh = BatchedMesh::buildFromIndigoMesh(*indigo_mesh);
 		const std::string bmesh_disk_path = PlatformUtils::getTempDirPath() + "/unit_cube.bmesh";
 		mesh->writeToFile(bmesh_disk_path);
-		unit_cube_mesh_URL = gui_client.resource_manager->copyLocalFileToResourceDirIfNotPresent(bmesh_disk_path);
+		unit_cube_mesh_URL = gui_client.resource_manager->copyLocalFileToResourceDirAndReturnURL(bmesh_disk_path);
 		assert(unit_cube_mesh_URL == "unit_cube_bmesh_7263660735544605926.bmesh");
 	}
 
@@ -3650,6 +3572,12 @@ void MainWindow::startObEditorTimerIfNotActive()
 void MainWindow::startLightmapFlagTimer()
 {
 	lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
+}
+
+
+void MainWindow::showAvatarSettings()
+{
+	on_actionAvatarSettings_triggered();
 }
 
 

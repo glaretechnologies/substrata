@@ -103,7 +103,7 @@ void EmscriptenResourceDownloader::onResourceLoad(Reference<CurrentlyDownloading
 	(*this->num_resources_downloading)--;
 
 	ResourceRef resource = resource_manager->getOrCreateResourceForURL(downloading_resource->URL);
-	//resource->setState(Resource::State_Present);
+	resource->setState(Resource::State_Present);
 
 	resource_manager->total_unused_loaded_buffer_size_B += buffer_size_B;
 

@@ -41,7 +41,7 @@ public:
 
 	static bool isValidURL(const std::string& URL);
 
-	// Will create a new Resource object if not already inserted.
+	// Will create a new Resource object with state NotPresent if not already inserted.
 	ResourceRef getOrCreateResourceForURL(const std::string& URL); // Threadsafe
 
 	// Returns null reference if no resource object for URL inserted.
@@ -53,7 +53,7 @@ public:
 	void copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL); // Threadsafe
 
 	// Returns URL
-	std::string copyLocalFileToResourceDirIfNotPresent(const std::string& local_path); // Threadsafe
+	std::string copyLocalFileToResourceDirAndReturnURL(const std::string& local_path); // Threadsafe
 
 	void setResourceAsLocallyPresentForURL(const std::string& URL); // Threadsafe
 
