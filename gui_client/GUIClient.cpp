@@ -1944,7 +1944,7 @@ void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string&
 // Also called from checkForLODChanges() when the object LOD level changes, and so we may need to load a new model and/or textures.
 void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock)
 {
-	// conPrint("loadModelForObject(): UID: " + ob->uid.toString());
+	conPrint("loadModelForObject(): UID: " + ob->uid.toString());
 	const Vec4f campos = cam_controller.getPosition().toVec4fPoint();
 
 	// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
@@ -2588,6 +2588,8 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
 {
+	// conPrint("GUIClient::loadPresentAvatarModel");
+
 	removeAndDeleteGLObjectForAvatar(*avatar);
 
 	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
@@ -2647,6 +2649,8 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 			avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
 		}
 	}
+
+	// conPrint("GUIClient::loadPresentAvatarModel done");
 }
 
 
@@ -3872,6 +3876,8 @@ struct CloserToCamComparator
 void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
 	UID voxel_ob_uid, int voxel_subsample_factor)
 {
+	// conPrint("handleUploadedMeshData(): lod_model_url: " + lod_model_url);
+
 	if(voxel_ob_uid.valid())
 	{
 		WorldStateLock lock(this->world_state->mutex);
@@ -4065,7 +4071,7 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loa
 					Avatar* av = res2->second.ptr();
 						
 					const bool our_avatar = av->uid == this->client_avatar_uid;
-					if((cam_controller.thirdPersonEnabled() || !our_avatar)) // Don't load graphics for our avatar
+					if(cam_controller.thirdPersonEnabled() || !our_avatar) // Don't load graphics for our avatar if first person perspective
 					{
 						const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
 
@@ -4134,6 +4140,97 @@ void GUIClient::handleUploadedTexture(const std::string& path, const OpenGLTextu
 			loading_texture_abs_path_to_world_ob_UID_map.erase(path); // Now that this texture has been loaded, remove from map TEMP HACK USING PATH
 		}
 	}
+}
+
+
+void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials)
+{
+	conPrint("GUIClient::updateOurAvatarModel()");
+
+	if(!logged_in_user_id.valid())
+		throw glare::Exception("You must be logged in to set your avatar model");
+
+	std::string mesh_URL;
+	if(local_model_path != "")
+	{
+		// If the user selected a mesh that is not a bmesh, convert it to bmesh
+		std::string bmesh_disk_path = local_model_path;
+		if(!hasExtension(local_model_path, "bmesh"))
+		{
+			// Save as bmesh in temp location
+			bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+
+			BatchedMesh::WriteOptions write_options;
+			write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+			// TODO: show 'processing...' dialog while it compresses and saves?
+			loaded_mesh->writeToFile(bmesh_disk_path, write_options);
+		}
+		else
+		{
+			bmesh_disk_path = local_model_path;
+		}
+
+		// Compute hash over model
+		const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+		const std::string original_filename = FileUtils::getFilename(local_model_path); // Use the original filename, not 'temp.igmesh'.
+		mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
+
+		// Copy model to local resources dir.  UploadResourceThread will read from here.
+		conPrint("updateOurAvatarModel(): copying " + bmesh_disk_path + " to local resource dir for URL " + mesh_URL);
+		conPrint("model_hash: " + toString(model_hash));
+		resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+	}
+
+	const Vec3d cam_angles = cam_controller.getAngles();
+	Avatar avatar;
+	avatar.uid = client_avatar_uid;
+	avatar.pos = Vec3d(cam_controller.getFirstPersonPosition());
+	avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+	avatar.name = logged_in_user_name;
+	avatar.avatar_settings.model_url = mesh_URL;
+	avatar.avatar_settings.pre_ob_to_world_matrix = pre_ob_to_world_matrix;
+	avatar.avatar_settings.materials = materials;
+
+
+	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+	// Don't transform to basis URLs, the server will want the original PNG/JPEGs.
+	Avatar::GetDependencyOptions options;
+	options.get_optimised_mesh = false;
+	options.use_basis = false;
+
+	std::set<DependencyURL> paths;
+	avatar.getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
+	for(auto it = paths.begin(); it != paths.end(); ++it)
+	{
+		const std::string path = it->URL;
+		if(FileUtils::fileExists(path))
+		{
+			const uint64 hash = FileChecksum::fileChecksum(path);
+			const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
+			conPrint("updateOurAvatarModel(): copying " + resource_URL + " to local resource dir.");
+			resource_manager->copyLocalFileToResourceDir(path, resource_URL);
+		}
+	}
+
+	// Convert texture paths on the object to URLs
+	avatar.convertLocalPathsToURLS(*resource_manager);
+
+	//if(!gui_client.task_manager)
+	//	gui_client.task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
+
+	// Generate LOD textures for materials, if not already present on disk.
+	// LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *gui_client.resource_manager, *gui_client.task_manager);
+
+	// Send AvatarFullUpdate message to server
+	MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+	writeAvatarToNetworkStream(avatar, scratch_packet);
+
+	enqueueMessageToSend(*client_thread, scratch_packet);
+
+	showInfoNotification("Updated avatar.");
+
+	conPrint("GUIClient::updateOurAvatarModel() done.");
 }
 
 
@@ -8202,8 +8299,20 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname);
 
 					this->num_resources_uploading++;
-					resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password, this->client_tls_config, 
-						&this->num_resources_uploading));
+#if EMSCRIPTEN
+					const size_t max_num_upload_threads = 1;
+#else
+					const size_t max_num_upload_threads = 4;
+#endif
+					if(resource_upload_thread_manager.getNumThreads() == 0)
+					{
+						for(size_t q=0; q<max_num_upload_threads; ++q)
+							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, &upload_queue, server_hostname, server_port, username, password, this->client_tls_config, 
+								&this->num_resources_uploading));
+					}
+
+					upload_queue.enqueue(new ResourceToUpload(path, m->URL));
+
 					print("Received GetFileMessage, Uploading resource with URL '" + m->URL + "' to server.");
 				}
 				else
@@ -8396,6 +8505,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									load_model_task->build_dynamic_physics_ob = info.build_dynamic_physics_ob;
 									load_model_task->loaded_buffer = m->loaded_buffer;
 									load_model_task->worker_allocator = worker_allocator;
+
+									// conPrint("handling ResourceDownloadedMessage: making LoadModelTask for " + URL);
 
 									load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
 										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
@@ -11237,9 +11348,10 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
 
+	upload_queue.clear();
+
 	// Kill any existing threads connected to the server
 	net_resource_download_thread_manager.killThreadsBlocking();
-	resource_upload_thread_manager.killThreadsBlocking();
 	client_udp_handler_thread_manager.killThreadsBlocking();
 	mic_read_thread_manager.killThreadsBlocking();
 
@@ -11249,16 +11361,18 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	this->client_thread_manager.killThreadsNonBlocking(); // Suggests to client_thread to quit, by calling ClientThread::kill(), which sets should_die = 1.
 	resource_download_thread_manager.killThreadsNonBlocking(); // Suggests to DownloadResourcesThreads to quit, by calling DownloadResourcesThread::kill(), which sets should_die = 1.
+	resource_upload_thread_manager.killThreadsNonBlocking(); // Suggests to UploadResourcesThreads to quit, by calling UploadResourcesThread::kill(), which sets should_die = 1.
 
 	// Wait for some period of time to see if client_thread and resource download threads quit.  If not, hard-kill them by calling killConnection().
 	Timer timer;
-	while((this->client_thread_manager.getNumThreads() > 0) || (resource_download_thread_manager.getNumThreads() > 0)) // While client_thread or a resource download thread is still running:
+	while((this->client_thread_manager.getNumThreads() > 0) || (resource_download_thread_manager.getNumThreads() > 0) || (resource_upload_thread_manager.getNumThreads() > 0)) // While client_thread or a resource download thread is still running:
 	{
 		if(timer.elapsed() > 1.0)
 		{
 			logAndConPrintMessage("Reached time limit waiting for client_thread or resource download threads to close.  Hard-killing connection(s)");
 			logAndConPrintMessage("this->client_thread_manager.getNumThreads(): " + toString(this->client_thread_manager.getNumThreads()));
 			logAndConPrintMessage("this->resource_download_thread_manager.getNumThreads(): " + toString(this->resource_download_thread_manager.getNumThreads()));
+			logAndConPrintMessage("this->resource_upload_thread_manager.getNumThreads(): " + toString(this->resource_upload_thread_manager.getNumThreads()));
 
 			if(this->client_thread_manager.getNumThreads() > 0)
 			{
@@ -11281,6 +11395,18 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 				}
 			}
 
+			if(resource_upload_thread_manager.getNumThreads() > 0)
+			{
+				Lock lock(resource_upload_thread_manager.getMutex());
+				for(auto it = resource_upload_thread_manager.getThreads().begin(); it != resource_upload_thread_manager.getThreads().end(); ++it)
+				{
+					Reference<MessageableThread> thread = *it;
+					assert(thread.isType<UploadResourceThread>());
+					if(thread.isType<UploadResourceThread>())
+						thread.downcastToPtr<UploadResourceThread>()->killConnection();
+				}
+			}
+
 			break;
 		}
 
@@ -11288,6 +11414,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	}
 	this->client_thread = NULL; // Need to make sure client_thread is destroyed, since it hangs on to a bunch of references.
 	resource_download_thread_manager.killThreadsBlocking();
+	resource_upload_thread_manager.killThreadsBlocking();
 
 	this->client_avatar_uid = UID::invalidUID();
 	this->server_protocol_version = 0;
