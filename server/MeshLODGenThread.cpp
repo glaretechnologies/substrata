@@ -878,7 +878,7 @@ void MeshLODGenThread::doRun()
 				}
 				catch(glare::Exception& e)
 				{
-					conPrint("\tMeshLODGenThread: glare::Exception while generating LOD model: " + e.what());
+					conPrint("\tMeshLODGenThread: glare::Exception while generating LOD model for URL '" + mesh_to_gen.lod_URL + "': " + e.what());
 				}
 
 				if(should_quit)
