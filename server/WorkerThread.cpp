@@ -39,6 +39,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <FileUtils.h>
 #include <MemMappedFile.h>
 #include <FileOutStream.h>
+#include <FileChecksum.h>
 #include <networking/RecordingSocket.h>
 #include <maths/CheckedMaths.h>
 #include <openssl/err.h>
@@ -139,6 +140,8 @@ void WorkerThread::handleResourceUploadConnection()
 {
 	conPrintIfNotFuzzing("handleResourceUploadConnection()");
 
+	socket->flush();
+
 	try
 	{
 		const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
@@ -163,6 +166,20 @@ void WorkerThread::handleResourceUploadConnection()
 			}
 		}
 
+		// If the client connected via a websocket, they can be logged in with a session cookie.
+		// Note that this may only work if the websocket connects over TLS.
+		{
+			Lock lock(server->world_state->mutex);
+			User* cookie_logged_in_user = LoginHandlers::getLoggedInUser(*server->world_state, this->websocket_request_info);
+			if(cookie_logged_in_user != NULL)
+			{
+				conPrint("handleResourceUploadConnection: logged in via cookie.");
+				client_user_id   = cookie_logged_in_user->id;
+				client_user_name = cookie_logged_in_user->name;
+			}
+		}
+
+
 		if(!client_user_id.valid())
 		{
 			conPrintIfNotFuzzing("\tLogin failed.");
@@ -170,6 +187,7 @@ void WorkerThread::handleResourceUploadConnection()
 			socket->writeStringLengthFirst("Login failed.");
 
 			socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+			socket->flush();
 			return;
 		}
 
@@ -180,6 +198,7 @@ void WorkerThread::handleResourceUploadConnection()
 			socket->writeStringLengthFirst("Server is in read-only mode, can't upload files.");
 
 			socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+			socket->flush();
 			return;
 		}
 
@@ -212,6 +231,7 @@ void WorkerThread::handleResourceUploadConnection()
 			{
 				socket->writeUInt32(Protocol::NoWritePermissions); // Note that this is not a framed message.
 				socket->writeStringLengthFirst("Not allowed to upload resource to URL '" + URL + ", someone else created a resource at this URL already.");
+				socket->flush();
 				return;
 			}
 		}
@@ -221,6 +241,7 @@ void WorkerThread::handleResourceUploadConnection()
 		{
 			socket->writeUInt32(Protocol::InvalidFileType); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("Invalid file extension.");
+			socket->flush();
 			return;
 		}
 		
@@ -233,6 +254,7 @@ void WorkerThread::handleResourceUploadConnection()
 		{
 			socket->writeUInt32(Protocol::InvalidFileSize); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("Invalid file len of zero.");
+			socket->flush();
 			return;
 		}
 
@@ -241,11 +263,13 @@ void WorkerThread::handleResourceUploadConnection()
 		{
 			socket->writeUInt32(Protocol::InvalidFileSize); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("uploaded file too large.");
+			socket->flush();
 			return;
 		}
 
 		// Otherwise upload is allowed:
 		socket->writeUInt32(Protocol::UploadAllowed);
+		socket->flush();
 
 		// Save to disk
 		const std::string local_path = server->world_state->resource_manager->pathForURL(URL);
@@ -276,6 +300,8 @@ void WorkerThread::handleResourceUploadConnection()
 
 
 		conPrintIfNotFuzzing("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
+
+		// conPrintIfNotFuzzing("file checksum: " + toString(FileChecksum::fileChecksum(local_path)));
 
 		resource->owner_id = client_user_id;
 		resource->setState(Resource::State_Present);
