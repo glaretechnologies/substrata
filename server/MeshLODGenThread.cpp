@@ -185,73 +185,77 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 		{
 			if(!ob->model_url.empty())
 			{
-				const std::string model_abs_path = world_state->resource_manager->pathForURL(ob->model_url);
+				ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(ob->model_url);
+				if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
+				{
+					const std::string base_model_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 
-				// Check new_max_lod_level is correct:
-				/*BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_abs_path);
+					// Check new_max_lod_level is correct:
+					/*BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_abs_path);
 				
-				const int new_max_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-				if(new_max_lod_level != ob->max_model_lod_level)
-				{
-					Lock lock(world_state->mutex);
-					world->addWorldObjectAsDBDirty(ob);
-				}
-
-				ob->max_model_lod_level = new_max_lod_level;
-				*/
-
-				if(ob->max_model_lod_level == 2)
-				{
-					for(int lvl = 1; lvl <= 2; ++lvl)
+					const int new_max_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+					if(new_max_lod_level != ob->max_model_lod_level)
 					{
-						WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/false, Protocol::OPTIMISED_MESH_VERSION);
-						const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(model_abs_path, lvl, options);
-						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
+						Lock lock(world_state->mutex);
+						world->addWorldObjectAsDBDirty(ob);
+					}
 
-						if(lod_URLs_considered.count(lod_URL) == 0)
+					ob->max_model_lod_level = new_max_lod_level;
+					*/
+
+					if(ob->max_model_lod_level == 2)
+					{
+						for(int lvl = 1; lvl <= 2; ++lvl)
 						{
-							lod_URLs_considered.insert(lod_URL);
+							WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/false, Protocol::OPTIMISED_MESH_VERSION);
+							const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
+							const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
 
-							if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+							if(lod_URLs_considered.count(lod_URL) == 0)
 							{
-								// Add to list of models to generate
-								LODMeshToGen mesh_to_gen;
-								mesh_to_gen.lod_level = lvl;
-								mesh_to_gen.model_abs_path = model_abs_path;
-								mesh_to_gen.LOD_model_abs_path = lod_abs_path;
-								mesh_to_gen.lod_URL = lod_URL;
-								mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
-								mesh_to_gen.build_optimised_mesh = false;
-								meshes_to_gen.push_back(mesh_to_gen);
+								lod_URLs_considered.insert(lod_URL);
+
+								if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+								{
+									// Add to list of models to generate
+									LODMeshToGen mesh_to_gen;
+									mesh_to_gen.lod_level = lvl;
+									mesh_to_gen.model_abs_path = base_model_abs_path;
+									mesh_to_gen.LOD_model_abs_path = lod_abs_path;
+									mesh_to_gen.lod_URL = lod_URL;
+									mesh_to_gen.owner_id = base_resource->owner_id;
+									mesh_to_gen.build_optimised_mesh = false;
+									meshes_to_gen.push_back(mesh_to_gen);
+								}
+								//else // Else if LOD model is present on disk:
+								//{
+								//	if(lvl == 1)
+								//	{
+								//		try
+								//		{
+								//			BatchedMeshRef lod1_mesh = LODGeneration::loadModel(lod_abs_path);
+								//			if((batched_mesh->numVerts() > 1024) && // If this is a med/large mesh
+								//				((float)lod1_mesh->numVerts() > (batched_mesh->numVerts() / 4.f))) // If we acheived less than a 4x reduction in the number of vertices, try again with sloppy simplification
+								//			{
+								//				conPrint("Mesh '" + lod_URL + "' was not simplified enough, recomputing LOD 1 mesh...");
+								//
+								//				// Generate the model
+								//				LODMeshToGen mesh_to_gen;
+								//				mesh_to_gen.lod_level = lvl;
+								//				mesh_to_gen.model_abs_path = model_abs_path;
+								//				mesh_to_gen.LOD_model_abs_path = lod_abs_path;
+								//				mesh_to_gen.lod_URL = lod_URL;
+								//				mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
+								//				meshes_to_gen.push_back(mesh_to_gen);
+								//			}
+								//		}
+								//		catch(glare::Exception& e)
+								//		{
+								//			conPrint("Error while trying to load LOD 1 mesh: " + e.what());
+								//		}
+								//	}
+								//}
 							}
-							//else // Else if LOD model is present on disk:
-							//{
-							//	if(lvl == 1)
-							//	{
-							//		try
-							//		{
-							//			BatchedMeshRef lod1_mesh = LODGeneration::loadModel(lod_abs_path);
-							//			if((batched_mesh->numVerts() > 1024) && // If this is a med/large mesh
-							//				((float)lod1_mesh->numVerts() > (batched_mesh->numVerts() / 4.f))) // If we acheived less than a 4x reduction in the number of vertices, try again with sloppy simplification
-							//			{
-							//				conPrint("Mesh '" + lod_URL + "' was not simplified enough, recomputing LOD 1 mesh...");
-							//
-							//				// Generate the model
-							//				LODMeshToGen mesh_to_gen;
-							//				mesh_to_gen.lod_level = lvl;
-							//				mesh_to_gen.model_abs_path = model_abs_path;
-							//				mesh_to_gen.LOD_model_abs_path = lod_abs_path;
-							//				mesh_to_gen.lod_URL = lod_URL;
-							//				mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
-							//				meshes_to_gen.push_back(mesh_to_gen);
-							//			}
-							//		}
-							//		catch(glare::Exception& e)
-							//		{
-							//			conPrint("Error while trying to load LOD 1 mesh: " + e.what());
-							//		}
-							//	}
-							//}
 						}
 					}
 				}
@@ -284,41 +288,45 @@ static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state,
 				//if(StringUtils::containsString(ob->model_url, "bad_apple_gds"))
 				//	return; // TEMP HACK DON'T PROCESS SLOW MESH
 
-				const std::string base_model_abs_path = world_state->resource_manager->pathForURL(ob->model_url);
-
-				for(int lvl = 0; lvl <= myMin(2, ob->max_model_lod_level); ++lvl)
+				ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(ob->model_url);
+				if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 				{
-					WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
+					const std::string base_model_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 
-					const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
-					const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
-
-					if(lod_URLs_considered.count(lod_URL) == 0)
+					for(int lvl = 0; lvl <= myMin(2, ob->max_model_lod_level); ++lvl)
 					{
-						lod_URLs_considered.insert(lod_URL);
+						WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
 
-						if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+						const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
+						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
+
+						if(lod_URLs_considered.count(lod_URL) == 0)
 						{
-							// Add to list of models to generate
-							LODMeshToGen mesh_to_gen;
-							mesh_to_gen.lod_level = lvl;
-							mesh_to_gen.model_abs_path = base_model_abs_path;
-							mesh_to_gen.LOD_model_abs_path = lod_abs_path;
-							mesh_to_gen.lod_URL = lod_URL;
-							mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
-							mesh_to_gen.build_optimised_mesh = true;
-							meshes_to_gen.push_back(mesh_to_gen);
-						}
-						else
-						{
-							/*if(FileUtils::fileExists(base_model_abs_path) && FileUtils::fileExists(lod_abs_path))
+							lod_URLs_considered.insert(lod_URL);
+
+							if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
 							{
-								//conPrint("base model size: " + toString(FileUtils::getFileSize(base_model_abs_path)));
-								sum_base_size_B += FileUtils::getFileSize(base_model_abs_path);
+								// Add to list of models to generate
+								LODMeshToGen mesh_to_gen;
+								mesh_to_gen.lod_level = lvl;
+								mesh_to_gen.model_abs_path = base_model_abs_path;
+								mesh_to_gen.LOD_model_abs_path = lod_abs_path;
+								mesh_to_gen.lod_URL = lod_URL;
+								mesh_to_gen.owner_id = base_resource->owner_id;
+								mesh_to_gen.build_optimised_mesh = true;
+								meshes_to_gen.push_back(mesh_to_gen);
+							}
+							else
+							{
+								/*if(FileUtils::fileExists(base_model_abs_path) && FileUtils::fileExists(lod_abs_path))
+								{
+									//conPrint("base model size: " + toString(FileUtils::getFileSize(base_model_abs_path)));
+									sum_base_size_B += FileUtils::getFileSize(base_model_abs_path);
 							
-								//conPrint("optimised model size: " + toString(FileUtils::getFileSize(lod_abs_path)));
-								sum_optimised_size_B += FileUtils::getFileSize(lod_abs_path);
-							}*/
+									//conPrint("optimised model size: " + toString(FileUtils::getFileSize(lod_abs_path)));
+									sum_optimised_size_B += FileUtils::getFileSize(lod_abs_path);
+								}*/
+							}
 						}
 					}
 				}
@@ -342,30 +350,34 @@ static void checkForOptimisedMeshToGenerateForURL(const std::string& URL, Resour
 	{
 		if(hasExtension(URL, "bmesh")) // Just support building optimised meshes for bmeshes for now.  All upload meshes should be bmeshes anyway.
 		{
-			const std::string base_model_abs_path = resource_manager->pathForURL(URL);
-
-			const int lvl = 0;
-
-			WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
-
-			const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
-			const std::string lod_URL      = WorldObject::getLODModelURLForLevel(URL, lvl, options);
-
-			if(lod_URLs_considered.count(lod_URL) == 0)
+			ResourceRef base_resource = resource_manager->getExistingResourceForURL(URL);
+			if(base_resource && base_resource->isPresent())
 			{
-				lod_URLs_considered.insert(lod_URL);
+				const std::string base_model_abs_path = resource_manager->getLocalAbsPathForResource(*base_resource);
 
-				if(!resource_manager->isFileForURLPresent(lod_URL))
+				const int lvl = 0;
+
+				WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
+
+				const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
+				const std::string lod_URL      = WorldObject::getLODModelURLForLevel(URL, lvl, options);
+
+				if(lod_URLs_considered.count(lod_URL) == 0)
 				{
-					// Add to list of models to generate
-					LODMeshToGen mesh_to_gen;
-					mesh_to_gen.lod_level = lvl;
-					mesh_to_gen.model_abs_path = base_model_abs_path;
-					mesh_to_gen.LOD_model_abs_path = lod_abs_path;
-					mesh_to_gen.lod_URL = lod_URL;
-					mesh_to_gen.owner_id = resource_manager->getOrCreateResourceForURL(URL)->owner_id;
-					mesh_to_gen.build_optimised_mesh = true;
-					meshes_to_gen.push_back(mesh_to_gen);
+					lod_URLs_considered.insert(lod_URL);
+
+					if(!resource_manager->isFileForURLPresent(lod_URL))
+					{
+						// Add to list of models to generate
+						LODMeshToGen mesh_to_gen;
+						mesh_to_gen.lod_level = lvl;
+						mesh_to_gen.model_abs_path = base_model_abs_path;
+						mesh_to_gen.LOD_model_abs_path = lod_abs_path;
+						mesh_to_gen.lod_URL = lod_URL;
+						mesh_to_gen.owner_id = base_resource->owner_id;
+						mesh_to_gen.build_optimised_mesh = true;
+						meshes_to_gen.push_back(mesh_to_gen);
+					}
 				}
 			}
 		}
