@@ -249,6 +249,7 @@ int main(int argc, char *argv[])
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["--save_sanitised_database"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
 		syntax["--db_path"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg: path to database file on disk
+		syntax["--do_not_load_resources"] = std::vector<ArgumentParser::ArgumentType>();
 
 		std::vector<std::string> args;
 		for(int i=0; i<argc; ++i)
@@ -368,6 +369,11 @@ int main(int argc, char *argv[])
 			server.world_state->readFromDisk(server_state_path);
 		else
 			server.world_state->createNewDatabase(server_state_path);
+
+		if(parsed_args.isArgPresent("--do_not_load_resources"))
+		{
+			server.world_state->resource_manager->getResourcesForURL().clear();
+		}
 
 
 		WorldCreation::createParcelsAndRoads(server.world_state);
@@ -627,7 +633,7 @@ int main(int argc, char *argv[])
 			
 			// Handle any queued messages from worker threads
 			{
-				server.message_queue.dequeueAllItems(temp_thread_messages);
+				server.message_queue.dequeueAnyQueuedItems(temp_thread_messages);
 
 				for(size_t msg_i=0; msg_i<temp_thread_messages.size(); ++msg_i)
 				{
