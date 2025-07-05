@@ -1944,7 +1944,7 @@ void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string&
 // Also called from checkForLODChanges() when the object LOD level changes, and so we may need to load a new model and/or textures.
 void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock)
 {
-	conPrint("loadModelForObject(): UID: " + ob->uid.toString());
+	// conPrint("loadModelForObject(): UID: " + ob->uid.toString());
 	const Vec4f campos = cam_controller.getPosition().toVec4fPoint();
 
 	// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
