@@ -1052,9 +1052,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::GetFile:
 		{
-			conPrint("Received GetFile message from server.");
 			const std::string model_url = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-			conPrint("model_url: '" + model_url + "'");
+			conPrint("Received GetFile message from server, model_url: '" + model_url + "'");
 
 			out_msg_queue->enqueue(new GetFileMessage(model_url));
 			break;
