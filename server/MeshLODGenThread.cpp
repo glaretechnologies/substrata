@@ -712,33 +712,40 @@ void MeshLODGenThread::doRun()
 
 	try
 	{
+		js::Vector<ThreadMessageRef> messages;
+
 		while(1)
 		{
-			UID ob_to_scan_UID = UID::invalidUID();
-			std::string URL_to_check;
+			std::set<UID> obs_to_scan_UIDs;
+			std::set<std::string> URLs_to_check;
 			if(!do_initial_full_scan)
 			{
-				// Block until we have a message
-				ThreadMessageRef msg;
-				getMessageQueue().dequeue(msg);
+				// Block until we have one or more messages.
+				// Dequeue as many messages as we can, since we want to generate meshes before textures (so we can show something asap).
+				getMessageQueue().dequeueAllQueuedItemsBlocking(messages);
 
-				if(dynamic_cast<CheckGenResourcesForObject*>(msg.ptr()))
+				for(size_t i=0; i<messages.size(); ++i)
 				{
-					const CheckGenResourcesForObject* check_gen_msg = static_cast<CheckGenResourcesForObject*>(msg.ptr());
-					ob_to_scan_UID = check_gen_msg->ob_uid;
+					ThreadMessageRef msg = messages[i];
 
-					conPrint("MeshLODGenThread: Received message to scan object with UID " + ob_to_scan_UID.toString());
-				}
-				else if(CheckGenLodResourcesForURL* check_gen_msg = dynamic_cast<CheckGenLodResourcesForURL*>(msg.ptr()))
-				{
-					// Textures used by e.g. an avatar need to have .basis versions generated.
-					URL_to_check = check_gen_msg->URL;
+					if(dynamic_cast<CheckGenResourcesForObject*>(msg.ptr()))
+					{
+						const CheckGenResourcesForObject* check_gen_msg = static_cast<CheckGenResourcesForObject*>(msg.ptr());
+						obs_to_scan_UIDs.insert(check_gen_msg->ob_uid);
 
-					conPrint("MeshLODGenThread: Received message to scan URL " + check_gen_msg->URL);
-				}
-				else if(dynamic_cast<KillThreadMessage*>(msg.ptr()))
-				{
-					return;
+						conPrint("MeshLODGenThread: Received message to scan object with UID " + check_gen_msg->ob_uid.toString());
+					}
+					else if(CheckGenLodResourcesForURL* check_gen_msg = dynamic_cast<CheckGenLodResourcesForURL*>(msg.ptr()))
+					{
+						// Textures used by e.g. an avatar need to have .basis versions generated.
+						URLs_to_check.insert(check_gen_msg->URL);
+
+						conPrint("MeshLODGenThread: Received message to scan URL " + check_gen_msg->URL);
+					}
+					else if(dynamic_cast<KillThreadMessage*>(msg.ptr()))
+					{
+						return;
+					}
 				}
 			}
 
@@ -752,7 +759,7 @@ void MeshLODGenThread::doRun()
 			std::unordered_set<std::string> lod_URLs_considered;
 			std::map<std::string, MeshLODGenThreadTexInfo> tex_info; // Cached info about textures
 
-			conPrint("MeshLODGenThread: Iterating over world object(s)...");
+			// conPrint("MeshLODGenThread: Iterating over world object(s)...");
 			Timer timer;
 			
 			{
@@ -810,187 +817,203 @@ void MeshLODGenThread::doRun()
 
 					do_initial_full_scan = false;
 				}
-				else if(ob_to_scan_UID.valid())
+				else
 				{
-					// Look up object for UID
-					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
+					for(auto it = obs_to_scan_UIDs.begin(); it != obs_to_scan_UIDs.end(); ++it)
 					{
-						ServerWorldState* world = world_it->second.ptr();
-						auto res = world->getObjects(lock).find(ob_to_scan_UID);
-						if(res != world->getObjects(lock).end())
+						const UID ob_to_scan_UID = *it;
+						// Look up object for UID
+						for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
 						{
-							WorldObject* ob = res->second.ptr();
-							try
+							ServerWorldState* world = world_it->second.ptr();
+							auto res = world->getObjects(lock).find(ob_to_scan_UID);
+							if(res != world->getObjects(lock).end())
 							{
-								checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
-								checkForOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
-								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-								checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
-							}
-							catch(glare::Exception& e)
-							{
-								conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
+								WorldObject* ob = res->second.ptr();
+								try
+								{
+									checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
+									checkForOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
+									checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
+									checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
+								}
+								catch(glare::Exception& e)
+								{
+									conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
+								}
 							}
 						}
 					}
-				}
-				else if(!URL_to_check.empty())
-				{
-					checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
-					checkForOptimisedMeshToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+
+					for(auto it = URLs_to_check.begin(); it != URLs_to_check.end(); ++it)
+					{
+						const std::string URL_to_check = *it;
+						checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+					}
 				}
 			} // End lock scope
 
-			conPrint("MeshLODGenThread: Iterating over objects took " + timer.elapsedStringNSigFigs(4) + ", meshes_to_gen: " + toString(meshes_to_gen.size()) + ", lod_textures_to_gen: " + toString(lod_textures_to_gen.size()) + 
-				", basis_textures_to_gen: " + toString(basis_textures_to_gen.size()));
+			if(!meshes_to_gen.empty() || !lod_textures_to_gen.empty() || !basis_textures_to_gen.empty())
+				conPrint("MeshLODGenThread: Iterating over objects took " + timer.elapsedStringNSigFigs(4) + ", meshes_to_gen: " + toString(meshes_to_gen.size()) + ", lod_textures_to_gen: " + toString(lod_textures_to_gen.size()) + 
+					", basis_textures_to_gen: " + toString(basis_textures_to_gen.size()));
 
 
 			//-------------------------------------------  Generate each mesh, without holding the world lock -------------------------------------------
-			conPrint("MeshLODGenThread: Generating LOD meshes...");
-			timer.reset();
-
-			for(size_t i=0; i<meshes_to_gen.size(); ++i)
+			if(!meshes_to_gen.empty())
 			{
-				const LODMeshToGen& mesh_to_gen = meshes_to_gen[i];
-				try
+				conPrint("MeshLODGenThread: Generating LOD meshes...");
+				timer.reset();
+
+				for(size_t i=0; i<meshes_to_gen.size(); ++i)
 				{
-					conPrint("MeshLODGenThread: (mesh " + toString(i) + " / " + toString(meshes_to_gen.size()) + "): Generating " + (mesh_to_gen.build_optimised_mesh ? "optimised" : "LOD") + " mesh with URL " + mesh_to_gen.lod_URL);
-
-					if(mesh_to_gen.build_optimised_mesh) // If building optimised mesh (may be LOD mesh also):
+					const LODMeshToGen& mesh_to_gen = meshes_to_gen[i];
+					try
 					{
-						LODGeneration::generateOptimisedMesh(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
+						conPrint("MeshLODGenThread: (mesh " + toString(i) + " / " + toString(meshes_to_gen.size()) + "): Generating " + (mesh_to_gen.build_optimised_mesh ? "optimised" : "LOD") + " mesh with URL " + mesh_to_gen.lod_URL);
 
-						conPrint("\tMeshLODGenThread: done generating mesh.");
-					}
-					else // Else if building (unoptimised) LOD mesh:
-					{
-						LODGeneration::generateLODModel(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
-					}
+						if(mesh_to_gen.build_optimised_mesh) // If building optimised mesh (may be LOD mesh also):
+						{
+							LODGeneration::generateOptimisedMesh(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
 
-					// Now that we have generated the LOD model, add it to resources.
-					{ // lock scope
-						Lock lock(world_state->mutex);
+							conPrint("\tMeshLODGenThread: done generating mesh.");
+						}
+						else // Else if building (unoptimised) LOD mesh:
+						{
+							LODGeneration::generateLODModel(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
+						}
 
-						const std::string raw_path = FileUtils::getFilename(mesh_to_gen.LOD_model_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
+						// Now that we have generated the LOD model, add it to resources.
+						{ // lock scope
+							Lock lock(world_state->mutex);
 
-						ResourceRef resource = new Resource(
-							mesh_to_gen.lod_URL, // URL
-							raw_path, // raw local path
-							Resource::State_Present, // state
-							mesh_to_gen.owner_id,
-							/*external_resource=*/false
-						);
+							const std::string raw_path = FileUtils::getFilename(mesh_to_gen.LOD_model_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
 
-						world_state->addResourcesAsDBDirty(resource);
-						world_state->resource_manager->addResource(resource);
+							ResourceRef resource = new Resource(
+								mesh_to_gen.lod_URL, // URL
+								raw_path, // raw local path
+								Resource::State_Present, // state
+								mesh_to_gen.owner_id,
+								/*external_resource=*/false
+							);
+
+							world_state->addResourcesAsDBDirty(resource);
+							world_state->resource_manager->addResource(resource);
 						
-					} // End lock scope
+						} // End lock scope
 
-					server->enqueueMsg(new NewResourceGenerated(mesh_to_gen.lod_URL));
-				}
-				catch(glare::Exception& e)
-				{
-					conPrint("\tMeshLODGenThread: glare::Exception while generating LOD model for URL '" + mesh_to_gen.lod_URL + "': " + e.what());
+						server->enqueueMsg(new NewResourceGenerated(mesh_to_gen.lod_URL));
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("\tMeshLODGenThread: glare::Exception while generating LOD model for URL '" + mesh_to_gen.lod_URL + "': " + e.what());
+					}
+
+					if(should_quit)
+						return;
 				}
 
-				if(should_quit)
-					return;
+				conPrint("MeshLODGenThread: Done generating LOD meshes. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 			}
-
-			conPrint("MeshLODGenThread: Done generating LOD meshes. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 
 
 			//------------------------------------------- Generate each texture, without holding the world lock -------------------------------------------
-			conPrint("MeshLODGenThread: Generating LOD textures...");
-			timer.reset();
-
-			for(size_t i=0; i<lod_textures_to_gen.size(); ++i)
+			if(!lod_textures_to_gen.empty())
 			{
-				const LODTextureToGen& tex_to_gen = lod_textures_to_gen[i];
-				try
+				conPrint("MeshLODGenThread: Generating LOD textures...");
+				timer.reset();
+
+				for(size_t i=0; i<lod_textures_to_gen.size(); ++i)
 				{
-					conPrint("MeshLODGenThread:  (LOD tex " + toString(i) + " / " + toString(lod_textures_to_gen.size()) + "): Generating LOD texture with URL " + tex_to_gen.lod_URL);
+					const LODTextureToGen& tex_to_gen = lod_textures_to_gen[i];
+					try
+					{
+						conPrint("MeshLODGenThread:  (LOD tex " + toString(i) + " / " + toString(lod_textures_to_gen.size()) + "): Generating LOD texture with URL " + tex_to_gen.lod_URL);
 
-					LODGeneration::generateLODTexture(tex_to_gen.source_tex_abs_path, tex_to_gen.lod_level, tex_to_gen.LOD_tex_abs_path, task_manager);
+						LODGeneration::generateLODTexture(tex_to_gen.source_tex_abs_path, tex_to_gen.lod_level, tex_to_gen.LOD_tex_abs_path, task_manager);
 
-					// Now that we have generated the LOD model, add it to resources.
-					{ // lock scope
-						Lock lock(world_state->mutex);
+						// Now that we have generated the LOD model, add it to resources.
+						{ // lock scope
+							Lock lock(world_state->mutex);
 
-						const std::string raw_path = FileUtils::getFilename(tex_to_gen.LOD_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
+							const std::string raw_path = FileUtils::getFilename(tex_to_gen.LOD_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
 
-						ResourceRef resource = new Resource(
-							tex_to_gen.lod_URL, // URL
-							raw_path, // raw local path
-							Resource::State_Present, // state
-							tex_to_gen.owner_id,
-							/*external_resource=*/false
-						);
+							ResourceRef resource = new Resource(
+								tex_to_gen.lod_URL, // URL
+								raw_path, // raw local path
+								Resource::State_Present, // state
+								tex_to_gen.owner_id,
+								/*external_resource=*/false
+							);
 
-						world_state->addResourcesAsDBDirty(resource);
-						world_state->resource_manager->addResource(resource);
+							world_state->addResourcesAsDBDirty(resource);
+							world_state->resource_manager->addResource(resource);
 
-					} // End lock scope
+						} // End lock scope
 
-					server->enqueueMsg(new NewResourceGenerated(tex_to_gen.lod_URL));
+						server->enqueueMsg(new NewResourceGenerated(tex_to_gen.lod_URL));
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("\tMeshLODGenThread: excep while generating LOD texture: " + e.what());
+					}
+
+					if(should_quit)
+						return;
 				}
-				catch(glare::Exception& e)
-				{
-					conPrint("\tMeshLODGenThread: excep while generating LOD texture: " + e.what());
-				}
 
-				if(should_quit)
-					return;
+				conPrint("MeshLODGenThread: Done generating LOD textures. (Elapsed: " + timer.elapsedStringNSigFigs(4));
 			}
-
-			conPrint("MeshLODGenThread: Done generating LOD textures. (Elapsed: " + timer.elapsedStringNSigFigs(4));
 
 			//------------------------------------------- Generate each Basis texture, without holding the world lock -------------------------------------------
-			conPrint("MeshLODGenThread: Generating Basis textures...");
-			timer.reset();
-
-			for(size_t i=0; i<basis_textures_to_gen.size(); ++i)
+			if(!basis_textures_to_gen.empty())
 			{
-				const BasisTextureToGen& tex_to_gen = basis_textures_to_gen[i];
-				try
+				conPrint("MeshLODGenThread: Generating Basis textures...");
+				timer.reset();
+
+				for(size_t i=0; i<basis_textures_to_gen.size(); ++i)
 				{
-					conPrint("MeshLODGenThread: (basis " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating basis texture with URL " + tex_to_gen.basis_URL);
+					const BasisTextureToGen& tex_to_gen = basis_textures_to_gen[i];
+					try
+					{
+						conPrint("MeshLODGenThread: (basis " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating basis texture with URL " + tex_to_gen.basis_URL);
 
-					LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, 
-						tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, 
-						task_manager);
+						LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, 
+							tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, 
+							task_manager);
 
-					// Now that we have generated the LOD model, add it to resources.
-					{ // lock scope
-						Lock lock(world_state->mutex);
+						// Now that we have generated the LOD model, add it to resources.
+						{ // lock scope
+							Lock lock(world_state->mutex);
 
-						const std::string raw_path = FileUtils::getFilename(tex_to_gen.basis_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
+							const std::string raw_path = FileUtils::getFilename(tex_to_gen.basis_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
 
-						ResourceRef resource = new Resource(
-							tex_to_gen.basis_URL, // URL
-							raw_path, // raw local path
-							Resource::State_Present, // state
-							tex_to_gen.owner_id,
-							/*external resource=*/false
-						);
+							ResourceRef resource = new Resource(
+								tex_to_gen.basis_URL, // URL
+								raw_path, // raw local path
+								Resource::State_Present, // state
+								tex_to_gen.owner_id,
+								/*external resource=*/false
+							);
 
-						world_state->addResourcesAsDBDirty(resource);
-						world_state->resource_manager->addResource(resource);
+							world_state->addResourcesAsDBDirty(resource);
+							world_state->resource_manager->addResource(resource);
 
-					} // End lock scope
+						} // End lock scope
 
-					server->enqueueMsg(new NewResourceGenerated(tex_to_gen.basis_URL));
+						server->enqueueMsg(new NewResourceGenerated(tex_to_gen.basis_URL));
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("\tMeshLODGenThread: excep while generating Basis texture: " + e.what());
+					}
+
+					if(should_quit)
+						return;
 				}
-				catch(glare::Exception& e)
-				{
-					conPrint("\tMeshLODGenThread: excep while generating Basis texture: " + e.what());
-				}
 
-				if(should_quit)
-					return;
+				conPrint("MeshLODGenThread: Done generating Basis textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 			}
-
-			conPrint("MeshLODGenThread: Done generating Basis textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 			//------------------------------------------- End Generate each KTX texture  -------------------------------------------
 		}
 	}
