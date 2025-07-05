@@ -138,7 +138,7 @@ static void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer,
 
 void WorkerThread::handleResourceUploadConnection()
 {
-	conPrintIfNotFuzzing("handleResourceUploadConnection()");
+	//conPrintIfNotFuzzing("handleResourceUploadConnection()");
 
 	socket->flush();
 
@@ -147,7 +147,7 @@ void WorkerThread::handleResourceUploadConnection()
 		const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
 		const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-		conPrintIfNotFuzzing("\tusername: '" + username + "'");
+		//conPrintIfNotFuzzing("\tusername: '" + username + "'");
 
 		UserID client_user_id = UserID::invalidUserID();
 		std::string client_user_name;
@@ -205,7 +205,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 		const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-		conPrintIfNotFuzzing("\tURL: '" + URL + "'");
+		//conPrintIfNotFuzzing("\tURL: '" + URL + "'");
 
 		/*if(!ResourceManager::isValidURL(URL))
 		{
@@ -249,7 +249,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 
 		const uint64 file_len = socket->readUInt64();
-		conPrintIfNotFuzzing("\tfile_len: " + toString(file_len) + " B");
+		//conPrintIfNotFuzzing("\tfile_len: " + toString(file_len) + " B");
 		if(file_len == 0)
 		{
 			socket->writeUInt32(Protocol::InvalidFileSize); // Note that this is not a framed message.
@@ -274,7 +274,8 @@ void WorkerThread::handleResourceUploadConnection()
 		// Save to disk
 		const std::string local_path = server->world_state->resource_manager->pathForURL(URL);
 
-		conPrintIfNotFuzzing("\tStreaming to disk at '" + local_path + "'...");
+		//conPrintIfNotFuzzing("\tStreaming to disk at '" + local_path + "'...");
+		conPrintIfNotFuzzing("\tStreaming upload to disk at '" + local_path + "' (" + toString(file_len) + " B)...");
 
 		{
 			FileOutStream file(local_path, std::ios::binary | std::ios::trunc); // Remove any existing data in the file
@@ -300,8 +301,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 
 		conPrintIfNotFuzzing("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
-
-		// conPrintIfNotFuzzing("file checksum: " + toString(FileChecksum::fileChecksum(local_path)));
+		// conPrintIfNotFuzzing("\t!!! file checksum: " + toString(FileChecksum::fileChecksum(local_path)));
 
 		resource->owner_id = client_user_id;
 		resource->setState(Resource::State_Present);
