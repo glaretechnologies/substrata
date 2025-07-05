@@ -4206,10 +4206,8 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 		const std::string path = it->URL;
 		if(FileUtils::fileExists(path))
 		{
-			const uint64 hash = FileChecksum::fileChecksum(path);
-			const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
-			conPrint("updateOurAvatarModel(): copying " + resource_URL + " to local resource dir.");
-			resource_manager->copyLocalFileToResourceDir(path, resource_URL);
+			const std::string resource_URL = resource_manager->copyLocalFileToResourceDirAndReturnURL(path);
+			// conPrint("updateOurAvatarModel(): copied " + path + " to local resource dir for URL '" + resource_URL + "'.");
 		}
 	}
 
@@ -7657,7 +7655,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 	ZoneScopedN("handle msgs"); // Tracy profiler
 
 	// Remove any messages from the message queue, store in temp_msgs.
-	this->msg_queue.dequeueAllItems(temp_msgs);
+	this->msg_queue.dequeueAnyQueuedItems(temp_msgs);
 
 	for(size_t msg_i=0; msg_i<temp_msgs.size(); ++msg_i)
 	{
