@@ -235,6 +235,8 @@ public:
 	virtual void startObEditorTimerIfNotActive() override;
 	virtual void startLightmapFlagTimer() override;
 
+	virtual void showAvatarSettings() override;
+
 	virtual void setCamRotationOnMouseDragEnabled(bool enabled) override;
 	virtual bool isCursorHidden() override;
 	virtual void hideCursor() override;

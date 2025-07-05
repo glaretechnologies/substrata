@@ -475,6 +475,7 @@ void ModelLoading::makeGLObjectForModelFile(
 	results_out.scale = Vec3f(1.f);
 	results_out.axis = Vec3f(0,0,1);
 	results_out.angle = 0;
+	results_out.ob_to_world = Matrix4f::identity();
 
 
 	if(hasExtension(model_path, "vox"))
@@ -524,6 +525,8 @@ void ModelLoading::makeGLObjectForModelFile(
 		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/do_opengl_stuff, 
 			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, allocator, physics_shape);
 
+		results_out.ob_to_world = ob_to_world_matrix;
+
 		GLObjectRef ob;
 		if(do_opengl_stuff)
 		{
@@ -572,6 +575,8 @@ void ModelLoading::makeGLObjectForModelFile(
 
 		// Move object so that it lies on the z=0 (ground) plane
 		const Matrix4f use_matrix = Matrix4f::identity(); // Matrix4f::translationMatrix(0, 0, -min_z)* ob_to_world_matrix;
+
+		results_out.ob_to_world = use_matrix;
 
 		GLObjectRef ob;
 		if(do_opengl_stuff)
@@ -660,11 +665,13 @@ void ModelLoading::makeGLObjectForModelFile(
 		results_out.axis = Vec3f(1,0,0);
 		results_out.angle = Maths::pi_2<float>();
 
+		results_out.ob_to_world = Matrix4f::rotationMatrix(normalise(results_out.axis.toVec4fVector()), results_out.angle) * Matrix4f::scaleMatrix(scale, scale, scale);
+
 		GLObjectRef gl_ob;
 		if(do_opengl_stuff)
 		{
 			gl_ob = gl_engine.allocateObject();
-			gl_ob->ob_to_world_matrix = Matrix4f::rotationMatrix(normalise(results_out.axis.toVec4fVector()), results_out.angle) * Matrix4f::scaleMatrix(scale, scale, scale);
+			gl_ob->ob_to_world_matrix = results_out.ob_to_world;
 
 			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 		}
@@ -750,6 +757,8 @@ void ModelLoading::makeGLObjectForModelFile(
 			// Move object so that it lies on the z=0 (ground) plane
 			const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z);// *ob_to_world_matrix;
 
+			results_out.ob_to_world = use_matrix;
+
 			GLObjectRef ob;
 			if(do_opengl_stuff)
 			{
@@ -792,6 +801,8 @@ void ModelLoading::makeGLObjectForModelFile(
 			// Automatically scale object down until it is < x m across
 			scaleMesh(*mesh);
 			
+			results_out.ob_to_world = Matrix4f::identity();
+
 			GLObjectRef ob;
 			if(do_opengl_stuff)
 			{
@@ -835,6 +846,8 @@ void ModelLoading::makeGLObjectForModelFile(
 
 		// Automatically scale object down until it is < x m across
 		//scaleMesh(*bmesh);
+
+		results_out.ob_to_world = Matrix4f::identity();
 
 		GLObjectRef gl_ob;
 		if(do_opengl_stuff)

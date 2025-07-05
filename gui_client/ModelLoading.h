@@ -53,8 +53,12 @@ public:
 	// May compute a user-friendly scale and rotation for the object as well (For example rotating y-up to z-up)
 	//
 	// Throws glare::Exception on invalid mesh.
-	struct MakeGLObjectResults
+	SSE_CLASS_ALIGN MakeGLObjectResults
 	{
+	public:
+		GLARE_ALIGNED_16_NEW_DELETE
+
+		Matrix4f ob_to_world;
 		GLObjectRef gl_ob;
 		BatchedMeshRef batched_mesh; // Not set if we loaded a .vox model.
 		//js::Vector<Voxel, 16> voxels; // Set if we loaded a .vox model.

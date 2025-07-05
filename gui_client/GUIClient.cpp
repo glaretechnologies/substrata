@@ -4143,6 +4143,7 @@ void GUIClient::handleUploadedTexture(const std::string& path, const OpenGLTextu
 }
 
 
+// loaded_mesh may be null for the default xbot model.
 void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials)
 {
 	conPrint("GUIClient::updateOurAvatarModel()");

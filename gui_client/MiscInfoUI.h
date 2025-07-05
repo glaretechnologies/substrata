@@ -55,6 +55,8 @@ private:
 	GLUITextButtonRef login_button;
 	GLUITextButtonRef signup_button;
 	GLUITextButtonRef logged_in_button; // shows 'logged in as USERNAME'
+	GLUIButtonRef avatar_button;
+
 public:
 	GLUIButtonRef movement_button;
 private:
