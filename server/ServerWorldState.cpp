@@ -244,7 +244,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					if(res_version < 3)
 						resource->setState(Resource::State_Present);
 
-					//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
+					//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getRawLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
 					resource->database_key = database_key;
 					this->resource_manager->addResource(resource);
