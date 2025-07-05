@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2024 -
 #endif
 #include "TestSuite.h"
 #include "URLParser.h"
+#include "ModelLoading.h"
 #include <maths/GeometrySampling.h>
 #include <graphics/FormatDecoderGLTF.h>
 #include <graphics/MeshSimplification.h>
@@ -31,8 +32,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/FileUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
-#include <utils/StringUtils.h>
 #include <utils/LimitedAllocator.h>
+#include <utils/FileInStream.h>
 #include <networking/URL.h>
 #include <webserver/Escaping.h>
 #include <GL/gl3w.h>
@@ -1217,3 +1218,111 @@ static void doOneMainLoopIter()
 	num_frames++;
 }
 
+
+static std::string sanitiseString(const std::string& s)
+{
+	std::string res = s;
+	for(size_t i=0; i<s.size(); ++i)
+		if(!::isAlphaNumeric(s[i]))
+			res[i] = '_';
+	return res;
+}
+
+
+// processAvatarModelFile is called from JS code in webclient.html.
+extern "C" 
+#if EMSCRIPTEN
+EMSCRIPTEN_KEEPALIVE
+#endif
+void processAvatarModelFile(unsigned char* data, int length, const char* filename_)
+{
+	const std::string filename(filename_);
+
+	// conPrint("In C++ processAvatarModelFile: " + toString(length) + ", filename: '" + filename + "'");
+
+	// conPrint("--Content--");
+	// conPrint(std::string(data, data + length));
+	// conPrint("--end Content--");
+
+	std::string model_path;
+	if(!filename.empty())
+	{
+		model_path = "/tmp/" + sanitiseString(removeDotAndExtension(filename)) + "_2." + getExtension(filename);
+		FileUtils::writeEntireFile(model_path, (const char*)data, length);
+	}
+
+	// Try and load model
+	try
+	{
+		ModelLoading::MakeGLObjectResults results;
+		if(!model_path.empty())
+		{
+			ModelLoading::makeGLObjectForModelFile(*gui_client->opengl_engine, *gui_client->opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, model_path, /*do_opengl_stuff=*/false,
+				results
+			);
+		}
+		else
+		{
+			// We will be using the default Xbot model
+			results.ob_to_world = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()); // If we used the default xbot bmesh we need to rotate it upright.
+			
+			results.materials.resize(2);
+			results.materials[0] = new WorldMaterial();
+			results.materials[0]->colour_rgb = Avatar::defaultMat0Col();
+			results.materials[0]->metallic_fraction.val = Avatar::default_mat0_metallic_frac;
+			results.materials[0]->roughness.val = Avatar::default_mat0_roughness;
+
+			results.materials[1] = new WorldMaterial();
+			results.materials[1]->colour_rgb = Avatar::defaultMat1Col();
+			results.materials[1]->metallic_fraction.val = Avatar::default_mat1_metallic_frac;
+		}
+
+		// NOTE: a bunch of this code is duplicated from AvatarSettingsDialog.
+
+		Vec4f original_toe_pos = results.batched_mesh ? results.batched_mesh->animation_data.getNodePositionModelSpace("LeftToe_End", /*use_retarget_adjustment=*/false) : Vec4f(0,0.0362269469f,0,1);
+
+		// TEMP: Load animation data for ready-player-me type avatars
+		float foot_bottom_height = original_toe_pos[1] - 0.0362269469f; // Should be ~= 0
+
+		bool do_retargetting = true;
+#if EMSCRIPTEN
+		do_retargetting = gui_client->extracted_anim_data_loaded;
+#endif
+
+		if(do_retargetting && results.batched_mesh)
+		{
+#if EMSCRIPTEN
+			FileInStream file("/extracted_avatar_anim.bin");
+#else
+			FileInStream file(gui_client->resources_dir_path + "/extracted_avatar_anim.bin");
+#endif
+			// Do retargetting on a copy as we don't want to send the animation data with all animations from extracted_avatar_anim.bin to the server when uploading the mesh.
+			AnimationData animation_data_copy = results.batched_mesh->animation_data;
+			animation_data_copy.loadAndRetargetAnim(file);
+
+			Vec4f new_toe_pos = animation_data_copy.getNodePositionModelSpace("LeftToe_End", /*use_retarget_adjustment=*/true);
+			conPrint("new_toe_pos: " + new_toe_pos.toStringNSigFigs(4));
+
+			foot_bottom_height = new_toe_pos[1] - 0.03f; // Height of foot bottom for avatar with retargetted animation, off ground.
+
+			conPrint("foot_bottom_height: " + doubleToStringNSigFigs(foot_bottom_height, 4));
+		}
+
+
+		// Construct transformation to bring ready-player-me avatars to z-up and standing on the ground.
+		// We want to translate the avatar down from 1.67 metres in the sky (which is the default substrata eye height), to the ground
+		const Matrix4f pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -1.67f - foot_bottom_height) * results.ob_to_world;
+
+		// conPrint("processAvatarModelFile(): pre_ob_to_world_matrix: " + pre_ob_to_world_matrix.toString());
+
+		gui_client->updateOurAvatarModel(results.batched_mesh, model_path, pre_ob_to_world_matrix, results.materials);
+
+		// conPrint("processAvatarModelFile() done.");
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Excep: " + e.what());
+
+		gui_client->showErrorNotification(e.what());
+	}
+}

@@ -85,6 +85,8 @@ public:
 	virtual bool posAndRot3DControlsEnabled() = 0;
 	virtual void startObEditorTimerIfNotActive() = 0;
 	virtual void startLightmapFlagTimer() = 0;
+
+	virtual void showAvatarSettings() = 0; // Show avatar settings dialog.
 	
 	virtual void setUIForSelectedObject() = 0; // Enable/disable delete object action etc. based on if there is a selected object or not.
 

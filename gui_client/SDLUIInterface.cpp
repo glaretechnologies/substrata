@@ -240,6 +240,15 @@ void SDLUIInterface::startLightmapFlagTimer()
 {
 }
 
+void SDLUIInterface::showAvatarSettings() // Show avatar settings dialog.
+{
+#if EMSCRIPTEN
+	EM_ASM({
+		showAvatarSettingsWidget();
+	});
+#endif
+}
+
 void SDLUIInterface::setCamRotationOnMouseDragEnabled(bool enabled)
 {
 

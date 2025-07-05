@@ -43,6 +43,15 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	movement_button = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/dir_pad.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
 	movement_button->handler = this;
 	gl_ui->addWidget(movement_button);
+
+
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Avatar settings";
+		avatar_button = new GLUIButton(*gl_ui_, opengl_engine_, gui_client->resources_dir_path + "/buttons/avatar.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), args);
+		avatar_button->handler = this;
+		gl_ui->addWidget(avatar_button);
+	}
 #endif
 
 	updateWidgetPositions();
@@ -55,6 +64,7 @@ void MiscInfoUI::destroy()
 	checkRemoveAndDeleteWidget(gl_ui, login_button);
 	checkRemoveAndDeleteWidget(gl_ui, signup_button);
 	checkRemoveAndDeleteWidget(gl_ui, logged_in_button);
+	checkRemoveAndDeleteWidget(gl_ui, avatar_button);
 	checkRemoveAndDeleteWidget(gl_ui, admin_msg_text_view);
 	checkRemoveAndDeleteWidget(gl_ui, unit_string_view);
 
@@ -80,6 +90,9 @@ void MiscInfoUI::setVisible(bool visible)
 
 	if(logged_in_button) 
 		logged_in_button->setVisible(visible);
+	
+	if(avatar_button) 
+		avatar_button->setVisible(visible);
 
 	if(admin_msg_text_view) 
 		admin_msg_text_view->setVisible(visible);
@@ -102,6 +115,8 @@ void MiscInfoUI::showLogInAndSignUpButtons()
 	
 	if(logged_in_button)
 		logged_in_button->setVisible(false);
+
+	updateWidgetPositions();
 }
 
 
@@ -257,6 +272,7 @@ void MiscInfoUI::updateWidgetPositions()
 		const float min_max_y = gl_ui->getViewportMinMaxY();
 		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(18);
 
+		float cur_x = -1 + margin;
 		if(login_button && signup_button)
 		{
 			const Vec2f login_button_dims  = login_button->rect.getWidths();
@@ -265,15 +281,35 @@ void MiscInfoUI::updateWidgetPositions()
 			const float x_spacing = margin;//gl_ui->getUIWidthForDevIndepPixelWidth(10);
 			//const float total_w = login_button_dims.x + x_spacing + signup_button_dims.x;
 
-			login_button ->setPos(/*botleft=*/Vec2f(-1 + margin                                  , min_max_y - login_button_dims.y  - margin));
-			signup_button->setPos(/*botleft=*/Vec2f(-1 + margin + login_button_dims.x + x_spacing, min_max_y - signup_button_dims.y - margin));
+			if(login_button->isVisible())
+			{
+				login_button ->setPos(/*botleft=*/Vec2f(cur_x                                  , min_max_y - login_button_dims.y  - margin));
+				signup_button->setPos(/*botleft=*/Vec2f(cur_x + login_button_dims.x + x_spacing, min_max_y - signup_button_dims.y - margin));
+
+				cur_x = cur_x + login_button_dims.x + x_spacing + signup_button_dims.x + x_spacing;
+			}
 		}
 
 		if(logged_in_button)
 		{
 			const Vec2f button_dims = logged_in_button->rect.getWidths();
 
-			logged_in_button->setPos(/*botleft=*/Vec2f(-1 + margin, min_max_y - button_dims.y + - margin));
+			if(logged_in_button->isVisible())
+			{
+				logged_in_button->setPos(/*botleft=*/Vec2f(/*-1 + margin*/cur_x, min_max_y - button_dims.y + - margin));
+				cur_x = cur_x + button_dims.x + margin;
+			}
+		}
+
+		if(avatar_button)
+		{
+			const float avatar_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(40);
+
+			// Adjust position slightly differently depending on if we have login/logged-in buttons or not.
+			if(login_button || logged_in_button)
+				avatar_button->setPosAndDims(/*botleft=*/Vec2f(cur_x - margin * 0.4f, min_max_y - avatar_button_w * 0.82f - margin), Vec2f(avatar_button_w, avatar_button_w));
+			else
+				avatar_button->setPosAndDims(/*botleft=*/Vec2f(cur_x - margin * 0.1f, min_max_y - avatar_button_w * 0.82f - margin), Vec2f(avatar_button_w, avatar_button_w));
 		}
 
 
@@ -360,6 +396,10 @@ void MiscInfoUI::eventOccurred(GLUICallbackEvent& event)
 		else if(event.widget == movement_button.ptr())
 		{
 			event.accepted = true;
+		}
+		else if(event.widget == avatar_button.ptr())
+		{
+			gui_client->ui_interface->showAvatarSettings();
 		}
 	}
 }

@@ -83,6 +83,43 @@
 			height:100dvh; /* percentage of viewport height.  See https://www.frontend.fyi/tutorials/finally-a-fix-for-100vh-on-mobile */
 		}
 
+		#avatar-settings {
+			visibility: hidden;
+			position: absolute;
+			z-index: -2;
+			margin-left: 100px;
+			margin-top: 100px;
+			background-color: white;
+			padding: 20px;
+		}
+		
+		#avatar-settings-form {
+			margin-top: 0;
+			margin-bottom: 40px;
+			margin-left: auto;
+			margin-right: auto;
+			max-width: 1000px;
+			line-height: 1.6;
+			font-size: 18px;
+			color: #222;
+			/*padding: 0 10px;*/
+			padding: 0;
+			font-family: Helvetica;
+		}
+		
+		#avatar-settings-close-button {
+			float: right;
+			cursor: pointer;
+			border-color: #959595;
+			border-width: 1px;
+			border-style: solid;
+			width: 26px;
+			height: 26px;
+			align-items: center;
+			justify-content: center;
+			display: flex;
+		}
+
 		</style>
 	</head>
 	<body>
@@ -94,6 +131,19 @@
 		</div>
 
 		<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+
+		<div class="avatar-settings" id="avatar-settings">
+			<div id="avatar-settings-close-button">&times;</div>
+			<h3>Avatar settings</h3>
+			<form action="/set_avatar_model_post" id="avatar-settings-form" method="post">
+				<label for="avatar">Choose a 3d model for your avatar:</label>
+				<br/>
+				<input type="file" id="avatar-model" name="avatar-model" accept=".gltf,.glb,.vrm,.bmesh"/>
+				<br/>
+				<button type="submit">Submit</button>
+			</form>
+
+		</div>
 
 	<script type='text/javascript'>
 
@@ -169,6 +219,58 @@
 			console.log("background mousedown event, moving background back to background...");
 			background_div.style.zIndex = -1; 
 		});
+
+		function showAvatarSettingsWidget() {
+			let avatar_settings_div = document.getElementById('avatar-settings');
+			avatar_settings_div.style.visibility = "visible";
+			avatar_settings_div.style.zIndex = 200; 
+		}
+
+		function hideAvatarSettingsWidget() {
+			let avatar_settings_div = document.getElementById('avatar-settings');
+			avatar_settings_div.style.visibility = "hidden";
+			avatar_settings_div.style.zIndex = -2; 
+		}
+
+		const avatar_settings_form = document.getElementById('avatar-settings-form');
+
+		avatar_settings_form.addEventListener('submit', async (e) => {
+			e.preventDefault(); // Prevent default form submission
+			
+			const formData = new FormData(avatar_settings_form);
+			
+			for (let [key, value] of formData.entries()) {
+				if(key === "avatar-model") {
+					console.assert(value instanceof File);
+					const array_buffer = await value.arrayBuffer();
+					const uint8Array = new Uint8Array(array_buffer);
+
+					// Allocate memory in Emscripten heap
+					const dataPtr = Module._malloc(uint8Array.length);
+					Module.HEAPU8.set(uint8Array, dataPtr);
+
+					// Call C++ function with pointer
+					Module.ccall('processAvatarModelFile', 
+						'null', // return type
+						['number', 'number', 'string'],   // argument types
+						[dataPtr, uint8Array.length, value.name]);// arguments
+				
+					// Clean up memory
+					Module._free(dataPtr);
+				}
+			}
+			
+			hideAvatarSettingsWidget();
+		});
+		
+		const avatar_settings_close_button = document.getElementById('avatar-settings-close-button');
+		
+		avatar_settings_close_button.addEventListener('click', function(e) {
+			hideAvatarSettingsWidget();
+		});
+		
+		// showAvatarSettingsWidget();
+		
 	</script>
 
 	<script async type="text/javascript" src="/webclient/gui_client.js?hash=GUI_CLIENT_JS_HASH"></script>
