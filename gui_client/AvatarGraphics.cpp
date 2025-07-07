@@ -78,6 +78,9 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 	bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override, 
 	const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, const PoseConstraint& pose_constraint, AnimEvents& anim_events_out)
 {
+	if(dt == 0.0) // May happen in web client, avoid dividing by zero below.
+		return;
+
 	if(false) // debug_avatar_basis_ob.isNull())
 	{
 		debug_avatar_basis_ob = engine.allocateObject();
@@ -288,6 +291,13 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				cur_sideweays_lean = cur_sideweays_lean * (1 - blend_frac) + clamped_sideways_accel * blend_frac;
 				cur_forwards_lean  = cur_forwards_lean  * (1 - blend_frac) + clamped_forwards_accel * blend_frac;
 
+				// We had some problems with these values becoming NaN due to dt being zero in the webclient.
+				// Just reset to zero if they end up NaN
+				if(!isFinite(cur_sideweays_lean))
+					cur_sideweays_lean = 0;
+				if(!isFinite(cur_forwards_lean))
+					cur_forwards_lean = 0;
+
 				//const float forwards_vel = dot(forwards_vec, vel.toVec4fVector());
 				const bool moving_forwards = dot(forwards_vec, normalise(dpos.toVec4fVector())) > -0.1f;
 
@@ -420,7 +430,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 					}
 				}
 			}
-			else
+			else // else if not on ground:
 			{
 				this->avatar_rotation = cam_rotation;
 
@@ -449,7 +459,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 					new_anim_i = floating_anim_i;
 
 				lean_matrix = Matrix4f::rotationAroundXAxis(cur_sideweays_lean * -0.02f) * Matrix4f::rotationAroundYAxis(cur_forwards_lean * 0.01f);
-			}
+			} // end if not on ground
 
 			// Adjust position of avatar upwards if needed, so that the feet and hips are above 'ground' level.  ('Ground' level is 1.67 m below the camera position)
 			// Fixes issues like meebits being partially below ground in some poses.
@@ -471,11 +481,15 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			if(lowest_node_height_above_ground < 0)
 				vertical_adjustment = -lowest_node_height_above_ground;
 
+			assert(isFinite(vertical_adjustment));
+			assert(isFinite(avatar_rotation.x));
+			assert(isFinite(avatar_rotation.y));
+			assert(isFinite(avatar_rotation.z));
 
 			// pre_ob_to_world_matrix will rotate avatars from y-up and z-forwards to z-up and -y forwards.  Rotate around z axis to change to +x-forwards
 			skinned_gl_ob->ob_to_world_matrix = /*Matrix4f::translationMatrix(forwards_vec * turn_forwards_nudge) * */rotateThenTranslateMatrix(pos, avatar_rotation) * lean_matrix * Matrix4f::translationMatrix(0,0,vertical_adjustment) *
 				Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * pre_ob_to_world_matrix;
-		}
+		} // end if not sitting
 
 		engine.updateObjectTransformData(*skinned_gl_ob);
 
