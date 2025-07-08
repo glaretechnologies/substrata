@@ -94,6 +94,58 @@ static bool areMatsDefaultBoatMats(WorldObject* object)
 }
 
 
+static const Colour3f car_default_cols[] = {
+	Colour3f(0.99999994,0.99999994,0.99999994),
+	Colour3f(0.3478059,0.3478059,0.3478059),
+	Colour3f(0,0,0),
+	Colour3f(0.99999994,0.99999994,0.99999994),
+	Colour3f(0.55740356,0.55740356,0.55740356),
+	Colour3f(0.90588003,0.8705888,0.027453305),
+	Colour3f(0.7020756,0.7020756,0.7020756),
+	Colour3f(0.42477873,0.42477873,0.42477873),
+	Colour3f(0.9666595,0.9666595,0.9666595),
+	Colour3f(0.9063317,0.9063317,0.9063317),
+	Colour3f(0.9063317,0.9063317,0.9063317),
+	Colour3f(0.05700936,0.33066273,0.4655913),
+	Colour3f(0.31550452,0.3246547,0.36185718),
+	Colour3f(0.99999994,0.99999994,0.99999994),
+	Colour3f(0.07998883,0.07998883,0.07998883),
+	Colour3f(0.35677418,0.35677418,0.35677418),
+	Colour3f(0.33637717,0.33637717,0.33637717),
+	Colour3f(0.49753314,0.5532372,0.6938043),
+	Colour3f(0.99999994,0.99999994,0.99999994),
+	Colour3f(0.99999994,0.99999994,0.99999994),
+	Colour3f(0.76431364,0,0),
+	Colour3f(0.9063317,0.9063317,0.9063317),
+	Colour3f(0.92781156,0.8240292,0),
+	Colour3f(0.1825715,0.1825715,0.1825715),
+	Colour3f(0.14829254,0.533323,0),
+	Colour3f(0.08505472,0.4036672,0.7399918),
+	Colour3f(0.12665671,0.12665671,0.12665671),
+	Colour3f(0.93332434,0.5470529,0.13513926),
+	Colour3f(0.99999994,0.99999994,0.99999994),
+	Colour3f(0.9063317,0.9063317,0.9063317),
+	Colour3f(0.6061947,0.6061947,0.6061947),
+	Colour3f(0.99999994,0.99999994,0.99999994),
+	Colour3f(0.99999994,0.99999994,0.99999994)
+};
+
+
+static bool areMatsDefaultCarMats(WorldObject* object)
+{
+	static_assert(staticArrayNumElems(car_default_cols) == 33);
+
+	if(object->materials.size() != 33)
+		return false;
+
+	for(size_t i=0; i<2; ++i)
+		if(object->materials[i]->colour_rgb != car_default_cols[i])
+			return false;
+	
+	return true;
+}
+
+
 // Delete all vehicles that haven't been used for a while, and that use the default mesh and materials.
 void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_worlds_state)
 {
@@ -104,6 +156,7 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 	int num_bikes_deleted = 0;
 	int num_hovercars_deleted = 0;
 	int num_boats_deleted = 0;
+	int num_cars_deleted = 0;
 
 	for(auto it = all_worlds_state->world_states.begin(); it != all_worlds_state->world_states.end(); ++it)
 	{
@@ -139,6 +192,13 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 					delete_ob = true;
 				}
 
+				if((object->model_url == "deLorean2_0_glb_5923323464955550713.bmesh") && areMatsDefaultCarMats(object)) // From GUIClient::summonCar()
+				{
+					conPrint("WorldMaintenance::removeOldVehicles(): Removing car with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
+					num_cars_deleted++;
+					delete_ob = true;
+				}
+
 				if(delete_ob)
 				{
 					// Mark object as dead
@@ -152,6 +212,7 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 		}
 	}
 
-	if((num_bikes_deleted > 0) || (num_hovercars_deleted > 0) || (num_boats_deleted > 0))
-		conPrint("WorldMaintenance::removeOldVehicles(): removed " + toString(num_bikes_deleted) + " bike(s), " + toString(num_hovercars_deleted) + " hovercar(s) and " + toString(num_boats_deleted) + " boat(s).");
+	if((num_bikes_deleted > 0) || (num_hovercars_deleted > 0) || (num_boats_deleted > 0) || (num_cars_deleted > 0))
+		conPrint("WorldMaintenance::removeOldVehicles(): removed " + toString(num_bikes_deleted) + " bike(s), " + toString(num_hovercars_deleted) + " hovercar(s), " + 
+			toString(num_cars_deleted) + " car(s) and " + toString(num_boats_deleted) + " boat(s).");
 }
