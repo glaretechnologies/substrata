@@ -288,7 +288,7 @@ public:
 
 	Reference<ServerWorldState> getRootWorldState(); // Guaranteed to return a non-null reference
 
-	void addResourcesAsDBDirty(const ResourceRef resource)					REQUIRES(mutex) { db_dirty_resources.insert(resource); changed = 1; }
+	void addResourceAsDBDirty(const ResourceRef resource)					REQUIRES(mutex) { db_dirty_resources.insert(resource); changed = 1; }
 	void addSubEthTransactionAsDBDirty(const SubEthTransactionRef trans)	REQUIRES(mutex) { db_dirty_sub_eth_transactions.insert(trans); changed = 1; }
 	void addOrderAsDBDirty(const OrderRef order)							REQUIRES(mutex) { db_dirty_orders.insert(order); changed = 1; }
 	void addParcelAuctionAsDBDirty(const ParcelAuctionRef parcel_auction)	REQUIRES(mutex) { db_dirty_parcel_auctions.insert(parcel_auction); changed = 1; }

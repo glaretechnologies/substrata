@@ -218,7 +218,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 		{
 			Lock lock(server->world_state->mutex);
-			server->world_state->addResourcesAsDBDirty(resource);
+			server->world_state->addResourceAsDBDirty(resource);
 		}
 
 		if(resource->owner_id == UserID::invalidUserID())
@@ -308,7 +308,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 		{
 			Lock lock(server->world_state->mutex);
-			server->world_state->addResourcesAsDBDirty(resource);
+			server->world_state->addResourceAsDBDirty(resource);
 		}
 
 		// Send NewResourceOnServer message to connected clients
@@ -591,7 +591,7 @@ void WorkerThread::handleScreenshotBotConnection()
 
 						{
 							Lock lock(server->world_state->mutex);
-							server->world_state->addResourcesAsDBDirty(resource);
+							server->world_state->addResourceAsDBDirty(resource);
 						}
 
 						screenshot->URL = URL;

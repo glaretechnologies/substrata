@@ -153,7 +153,7 @@ static std::string fetchFileForURLAndAddAsResource(const std::string& base_URL, 
 				world_state->resource_manager->setResourceAsLocallyPresentForURL(URL);
 
 				ResourceRef resource = world_state->resource_manager->getExistingResourceForURL(URL);
-				world_state->addResourcesAsDBDirty(resource);
+				world_state->addResourceAsDBDirty(resource);
 			}
 			else
 			{
