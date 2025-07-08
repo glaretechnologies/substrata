@@ -897,7 +897,7 @@ void MeshLODGenThread::doRun()
 								/*external_resource=*/false
 							);
 
-							world_state->addResourcesAsDBDirty(resource);
+							world_state->addResourceAsDBDirty(resource);
 							world_state->resource_manager->addResource(resource);
 						
 						} // End lock scope
@@ -946,7 +946,7 @@ void MeshLODGenThread::doRun()
 								/*external_resource=*/false
 							);
 
-							world_state->addResourcesAsDBDirty(resource);
+							world_state->addResourceAsDBDirty(resource);
 							world_state->resource_manager->addResource(resource);
 
 						} // End lock scope
@@ -996,7 +996,7 @@ void MeshLODGenThread::doRun()
 								/*external resource=*/false
 							);
 
-							world_state->addResourcesAsDBDirty(resource);
+							world_state->addResourceAsDBDirty(resource);
 							world_state->resource_manager->addResource(resource);
 
 						} // End lock scope
