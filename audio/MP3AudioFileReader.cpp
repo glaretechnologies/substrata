@@ -54,8 +54,6 @@ bool glare::MP3AudioStreamer::decodeFrame(js::Vector<float, 16>& samples_out, in
 	mp3dec_frame_info_t frame_info;
 	const int num_samples_decoded = mp3dec_decode_frame(&decoder, /*input buf=*/(const uint8*)in_stream.currentReadPtr(), /*input buf size=*/(int)input_bytes_avail, /*pcm data out=*/samples_out.data(), &frame_info);
 
-	samples_out.resize(num_samples_decoded * 2);
-
 	in_stream.advanceReadIndex(frame_info.frame_bytes);
 
 	if(num_samples_decoded > 0 && frame_info.frame_bytes > 0)
@@ -63,6 +61,7 @@ bool glare::MP3AudioStreamer::decodeFrame(js::Vector<float, 16>& samples_out, in
 		// Successful decode, we have some new decoded samples
 		num_channels_out = frame_info.channels;
 		sample_freq_hz_out = frame_info.hz;
+		samples_out.resize(num_samples_decoded * frame_info.channels);
 		return false; // not EOF
 	}
 	else if(num_samples_decoded == 0 && frame_info.frame_bytes > 0)
@@ -70,6 +69,7 @@ bool glare::MP3AudioStreamer::decodeFrame(js::Vector<float, 16>& samples_out, in
 		// The decoder skipped ID3 or invalid data
 		num_channels_out = 0;
 		sample_freq_hz_out = 0;
+		samples_out.resize(0);
 		return false; // not EOF
 	}
 	else
@@ -77,6 +77,7 @@ bool glare::MP3AudioStreamer::decodeFrame(js::Vector<float, 16>& samples_out, in
 		// Insufficient data
 		num_channels_out = 0;
 		sample_freq_hz_out = 0;
+		samples_out.resize(0);
 		return true; // EOF
 	}
 }
