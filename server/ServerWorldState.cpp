@@ -25,6 +25,8 @@ Generated at 2016-01-12 12:22:34 +1300
 ServerAllWorldsState::ServerAllWorldsState()
 :	lua_vms(/*empty key=*/UserID::invalidUserID())
 {
+	migration_version_info.migration_version = 0;
+
 	next_avatar_uid = UID(0);
 	next_object_uid = UID(0);
 	next_order_uid = 0;
@@ -98,6 +100,7 @@ static const uint32 OBJECT_STORAGE_ITEM_CHUNK = 114;
 static const uint32 USER_SECRET_CHUNK = 115;
 static const uint32 LOD_CHUNK_CHUNK = 116;
 static const uint32 SUB_EVENT_CHUNK = 117;
+static const uint32 MIGRATION_VERSION_CHUNK = 118;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -107,6 +110,7 @@ static const uint32 ETH_INFO_CHUNK_VERSION = 1;
 static const uint32 FEATURE_FLAG_CHUNK_VERSION = 1;
 static const uint32 OBJECT_STORAGE_ITEM_VERSION = 1;
 static const uint32 USER_SECRET_VERSION = 1;
+static const uint32 MIGRATION_VERSION_CHUNK_VERSION = 1;
 
 
 void ServerAllWorldsState::readFromDisk(const std::string& path)
@@ -450,6 +454,16 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					events[event->id] = event;
 					num_events++;
 				}
+				else if(chunk == MIGRATION_VERSION_CHUNK)
+				{
+					const uint32 chunk_version = stream.readInt32();
+					if(chunk_version != MIGRATION_VERSION_CHUNK_VERSION)
+						throw glare::Exception("invalid migration version chunk version: " + toString(chunk_version));
+
+					this->migration_version_info.migration_version = stream.readUInt32();
+
+					this->migration_version_info.database_key = database_key;
+				}
 				else if(chunk == EOS_CHUNK)
 				{
 					break;
@@ -640,6 +654,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				throw glare::Exception("Unknown chunk type '" + toString(chunk) + "'");
 			}
 		}
+
+		this->migration_version_info.migration_version = 0;
 	}
 
 
@@ -653,22 +669,24 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	}
 
 
+	doMigrations(lock);
+
 	denormaliseData();
 
 	// Compress voxel data if needed.
-	for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
-	{
-		Reference<ServerWorldState> world_state = world_it->second;
-		for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
-		{
-			/*WorldObject* ob = it->second.ptr();
-			if(!ob->voxel_group.voxels.empty() && ob->compressed_voxels.empty())
-			{
-				WorldObject::compressVoxelGroup(ob->voxel_group, ob->compressed_voxels);
-			}*/
-			//ob->compressVoxels();
-		}
-	}
+	// for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
+	// {
+	// 	Reference<ServerWorldState> world_state = world_it->second;
+	// 	for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
+	// 	{
+	// 		/*WorldObject* ob = it->second.ptr();
+	// 		if(!ob->voxel_group.voxels.empty() && ob->compressed_voxels.empty())
+	// 		{
+	// 			WorldObject::compressVoxelGroup(ob->voxel_group, ob->compressed_voxels);
+	// 		}*/
+	// 		//ob->compressVoxels();
+	// 	}
+	// }
 
 	//conPrint("min_next_nonce: " + toString(eth_info.min_next_nonce));
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
@@ -790,6 +808,45 @@ void ServerAllWorldsState::denormaliseData()
 				}
 			}
 		}
+	}
+}
+
+
+/*
+
+Migration version history
+-------------------------
+1: Set AUDIO_AUTOPLAY and AUDIO_LOOP flags on all WorldObjects with non-empty audio_source_url, since that was the behaviour before the flags were introduced.
+
+
+*/
+void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
+{
+	if(this->migration_version_info.migration_version < 1)
+	{
+		conPrint("Doing DB migration from version " + toString(migration_version_info.migration_version) + ": Setting AUDIO_AUTOPLAY and AUDIO_LOOP flags.");
+
+		for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
+		{
+			ServerWorldState* world_state = world_it->second.ptr();
+			for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
+			{
+				WorldObject* ob = it->second.ptr();
+				if(!ob->audio_source_url.empty())
+				{
+					ob->flags |= (WorldObject::AUDIO_AUTOPLAY | WorldObject::AUDIO_LOOP);
+					world_state->addWorldObjectAsDBDirty(ob, lock);
+				}
+			}
+		}
+	}
+
+
+	if(this->migration_version_info.migration_version < 1)
+	{
+		this->migration_version_info.migration_version = 1;
+		this->migration_version_info.db_dirty = true;
+		this->changed = 1;
 	}
 }
 
@@ -1368,6 +1425,24 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 			database.updateRecord(feature_flag_info.database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
 
 			feature_flag_info.db_dirty = false;
+		}
+		
+		// Write MIGRATION_VERSION_CHUNK
+		if(migration_version_info.db_dirty)
+		{
+			temp_buf.clear();
+			temp_buf.writeUInt32(MIGRATION_VERSION_CHUNK);
+			temp_buf.writeUInt32(MIGRATION_VERSION_CHUNK_VERSION);
+			temp_buf.writeUInt32(migration_version_info.migration_version);
+
+			if(!migration_version_info.database_key.valid())
+				migration_version_info.database_key = database.allocUnusedKey(); // Get a new key
+
+			database.updateRecord(migration_version_info.database_key, ArrayRef<uint8>(temp_buf.buf));
+
+			migration_version_info.db_dirty = false;
+
+			conPrint("Saved new DB migration version: " + toString(migration_version_info.migration_version));
 		}
 
 		database.flush();
