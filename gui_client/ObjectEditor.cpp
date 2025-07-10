@@ -100,12 +100,16 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 
 	connect(this->linkScaleCheckBox,		SIGNAL(toggled(bool)),				this, SLOT(linkScaleCheckBoxToggled(bool)));
 
-	connect(this->autoplayCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
-	connect(this->loopCheckBox,				SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
-	connect(this->mutedCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->videoAutoplayCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->videoLoopCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->videoMutedCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
 	connect(this->videoURLFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->videoVolumeDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+
+	connect(this->audioAutoplayCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->audioLoopCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+
 
 	this->volumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VOLUME);
 	this->volumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
@@ -240,9 +244,12 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	SignalBlocker::setValue(COMOffsetZDoubleSpinBox, ob.centre_of_mass_offset_os.z);
 
 	
-	SignalBlocker::setChecked(this->autoplayCheckBox, BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_AUTOPLAY));
-	SignalBlocker::setChecked(this->loopCheckBox,     BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_LOOP));
-	SignalBlocker::setChecked(this->mutedCheckBox,    BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_MUTED));
+	SignalBlocker::setChecked(this->videoAutoplayCheckBox, BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_AUTOPLAY));
+	SignalBlocker::setChecked(this->videoLoopCheckBox,     BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_LOOP));
+	SignalBlocker::setChecked(this->videoMutedCheckBox,    BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_MUTED));
+
+	SignalBlocker::setChecked(this->audioAutoplayCheckBox, BitUtils::isBitSet(ob.flags, WorldObject::AUDIO_AUTOPLAY));
+	SignalBlocker::setChecked(this->audioLoopCheckBox,     BitUtils::isBitSet(ob.flags, WorldObject::AUDIO_LOOP));
 
 	this->videoURLFileSelectWidget->setFilename(QtUtils::toQString((!ob.materials.empty()) ? ob.materials[0]->emission_texture_url : ""));
 
@@ -466,9 +473,12 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.centre_of_mass_offset_os = new_COM_offset;
 
 
-	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_AUTOPLAY, this->autoplayCheckBox->isChecked());
-	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_LOOP,     this->loopCheckBox    ->isChecked());
-	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_MUTED,    this->mutedCheckBox   ->isChecked());
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_AUTOPLAY, this->videoAutoplayCheckBox->isChecked());
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_LOOP,     this->videoLoopCheckBox    ->isChecked());
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_MUTED,    this->videoMutedCheckBox   ->isChecked());
+
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::AUDIO_AUTOPLAY, this->audioAutoplayCheckBox->isChecked());
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::AUDIO_LOOP,     this->audioLoopCheckBox    ->isChecked());
 
 	if(ob_out.object_type != WorldObject::ObjectType_Hypercard) // Don't store materials for hypercards. (doesn't use them, and matEditor may have old/invalid data)
 	{

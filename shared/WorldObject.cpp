@@ -58,7 +58,7 @@ WorldObject::WorldObject() noexcept
 #endif
 
 	creator_id = UserID::invalidUserID();
-	flags = COLLIDABLE_FLAG;
+	flags = COLLIDABLE_FLAG | AUDIO_AUTOPLAY | AUDIO_LOOP;
 	
 	object_type = ObjectType_Generic;
 	from_remote_transform_dirty = false;

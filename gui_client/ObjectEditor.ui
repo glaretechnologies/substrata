@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>622</width>
-    <height>1367</height>
+    <width>618</width>
+    <height>1422</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -678,21 +678,21 @@
           <number>0</number>
          </property>
          <item row="0" column="0">
-          <widget class="QCheckBox" name="autoplayCheckBox">
+          <widget class="QCheckBox" name="videoAutoplayCheckBox">
            <property name="text">
             <string>Autoplay</string>
            </property>
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QCheckBox" name="loopCheckBox">
+          <widget class="QCheckBox" name="videoLoopCheckBox">
            <property name="text">
             <string>Loop</string>
            </property>
           </widget>
          </item>
          <item row="0" column="2">
-          <widget class="QCheckBox" name="mutedCheckBox">
+          <widget class="QCheckBox" name="videoMutedCheckBox">
            <property name="text">
             <string>Muted</string>
            </property>
@@ -924,33 +924,73 @@
      <property name="title">
       <string>Audio</string>
      </property>
-     <layout class="QGridLayout" name="gridLayout_2">
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_8">
-        <property name="text">
-         <string>Volume</string>
+     <layout class="QVBoxLayout" name="verticalLayout_6">
+      <item>
+       <layout class="QGridLayout" name="gridLayout_2">
+        <property name="topMargin">
+         <number>0</number>
         </property>
-       </widget>
+        <item row="0" column="1">
+         <widget class="FileSelectWidget" name="audioFileWidget"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="RealControl" name="volumeDoubleSpinBox">
+          <property name="maximum">
+           <double>2.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_8">
+          <property name="minimumSize">
+           <size>
+            <width>90</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Volume</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_14">
+          <property name="minimumSize">
+           <size>
+            <width>90</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Audio File</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
-      <item row="0" column="1">
-       <widget class="FileSelectWidget" name="audioFileWidget"/>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_14">
-        <property name="text">
-         <string>Audio File</string>
+      <item>
+       <layout class="QGridLayout" name="gridLayout_3">
+        <property name="topMargin">
+         <number>0</number>
         </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="RealControl" name="volumeDoubleSpinBox">
-        <property name="maximum">
-         <double>2.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>1.000000000000000</double>
-        </property>
-       </widget>
+        <item row="0" column="1">
+         <widget class="QCheckBox" name="audioLoopCheckBox">
+          <property name="text">
+           <string>Loop</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QCheckBox" name="audioAutoplayCheckBox">
+          <property name="text">
+           <string>Autoplay</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </widget>

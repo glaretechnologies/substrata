@@ -312,6 +312,8 @@ public:
 	static const uint32 VIDEO_MUTED                             = 128; // For video objects, should the video be initially muted?
 	static const uint32 IS_SENSOR_FLAG                          = 256; // Is this a physics sensor?
 	static const uint32 EXCLUDE_FROM_LOD_CHUNK_MESH             = 512; // Should this object be excluded from LOD Chunk meshes? (for e.g. moving objects)
+	static const uint32 AUDIO_AUTOPLAY                          = 1024; // For objects that play audio, should the audio auto-play?
+	static const uint32 AUDIO_LOOP                              = 2048; // For objects that play audio, should the audio loop?
 	uint32 flags;
 
 	TimeStamp created_time;
