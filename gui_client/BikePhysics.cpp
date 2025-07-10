@@ -272,14 +272,14 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 		glare::SoundFileRef tire_squeal_sound = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/tires_squeal_loop_44100.mp3");
 
 		wheel_audio_source[0] = new glare::AudioSource();
-		wheel_audio_source[0]->type = glare::AudioSource::SourceType_Looping;
+		wheel_audio_source[0]->type = glare::AudioSource::SourceType_NonStreaming;
 		wheel_audio_source[0]->pos = object->getCentroidWS();
 		wheel_audio_source[0]->debugname = "front wheel";
 		wheel_audio_source[0]->volume = 0.f;
 		wheel_audio_source[0]->shared_buffer = tire_squeal_sound->buf;
 	
 		wheel_audio_source[1] = new glare::AudioSource();
-		wheel_audio_source[1]->type = glare::AudioSource::SourceType_Looping;
+		wheel_audio_source[1]->type = glare::AudioSource::SourceType_NonStreaming;
 		wheel_audio_source[1]->pos = object->getCentroidWS();
 		wheel_audio_source[1]->debugname = "rear wheel";
 		wheel_audio_source[1]->volume = 0.f;
