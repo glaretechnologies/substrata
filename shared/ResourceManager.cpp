@@ -249,7 +249,7 @@ bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws glar
 }
 
 
-void ResourceManager::addResource(ResourceRef& res)
+void ResourceManager::addResource(const ResourceRef& res)
 {
 	Lock lock(mutex);
 

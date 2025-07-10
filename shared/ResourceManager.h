@@ -75,7 +75,7 @@ public:
 	bool isInDownloadFailedURLs(const std::string& URL) const;
 
 	// Used for deserialising resource objects from serialised server state.
-	void addResource(ResourceRef& res);
+	void addResource(const ResourceRef& res);
 	const std::unordered_map<std::string, ResourceRef>& getResourcesForURL() const REQUIRES(mutex) { return resource_for_url; }
 	std::unordered_map<std::string, ResourceRef>& getResourcesForURL() REQUIRES(mutex) { return resource_for_url; }
 
