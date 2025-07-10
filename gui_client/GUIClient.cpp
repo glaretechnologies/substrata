@@ -344,6 +344,15 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 	}
 
 
+	// Add capsule mesh resource (used for audio objects)
+	const std::string capsule_model_URL = "Capsule_obj_7611321750126528672.bmesh";
+	if(!resource_manager->isFileForURLPresent(capsule_model_URL))
+	{
+		const std::string capsule_local_model_path = resources_dir_path + "/" + capsule_model_URL;
+		resource_manager->addResource(new Resource(capsule_model_URL, capsule_local_model_path, Resource::State_Present, UserID(), /*external resource=*/true));
+	}
+
+
 #if !defined(EMSCRIPTEN)
 	// Create and init TLS client config
 	client_tls_config = tls_config_new();
@@ -372,7 +381,7 @@ void GUIClient::initAudioEngine()
 		//conPrint("Loading wind sound took " + timer.elapsedString());
 
 		wind_audio_source = new glare::AudioSource();
-		wind_audio_source->type = glare::AudioSource::SourceType_Looping;
+		wind_audio_source->type = glare::AudioSource::SourceType_NonStreaming;
 		wind_audio_source->spatial_type = glare::AudioSource::SourceSpatialType_NonSpatial;
 		wind_audio_source->shared_buffer = sound->buf;
 		wind_audio_source->sampling_rate = sound->sample_rate;
@@ -3119,7 +3128,15 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 					if(hasExtensionStringView(ob->audio_source_url, "mp3"))
 					{
 						// Make a new audio source
-						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(resource_manager->pathForURL(ob->audio_source_url), data_source, ob->pos.toVec4fPoint(), ob->audio_volume, this->world_state->getCurrentGlobalTime());
+						glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+						params.sound_file_path = resource_manager->pathForURL(ob->audio_source_url);
+						params.sound_data_source = data_source;
+						params.source_volume = ob->audio_volume;
+						params.global_time = this->world_state->getCurrentGlobalTime();
+						params.looping =  BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
+						params.paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
+
+						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(params, ob->pos.toVec4fPoint());
 
 						Lock lock(world_state->mutex);
 						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
@@ -3140,7 +3157,8 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 								mute_outside_audio = true;
 						}
 
-						if((source->type != glare::AudioSource::SourceType_OneShot) && // Only mute looping/streaming sounds: (We won't be muting footsteps etc.)
+						const bool source_is_one_shot = (source->type == glare::AudioSource::SourceType_NonStreaming) && !source->looping;
+						if(!source_is_one_shot && // Only mute looping/streaming sounds: (We won't be muting footsteps etc.)
 							mute_outside_audio && // If we are in a parcel, which has the mute-outside-audio option enabled:
 							(source->userdata_1 != in_parcel_id.value())) // And the source is in another parcel (or not in any parcel):
 						{
@@ -5990,7 +6008,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				//conPrint("source: " + toString((uint64)source) + ", hit_object: " + boolToString(hit_object) + ", source parcel: " + toString(source->userdata_1));
 
 				
-				if(source->type != glare::AudioSource::SourceType_OneShot) // We won't be muting footsteps etc.
+				const bool source_is_one_shot = (source->type == glare::AudioSource::SourceType_NonStreaming) && !source->looping;
+				if(!source_is_one_shot) // We won't be muting footsteps etc.
 				{
 					const float old_mute_volume_factor = source->getMuteVolumeFactor();
 					if(mute_outside_audio) // If we are in a parcel, which has the mute-outside-audio option enabled:
@@ -7726,8 +7745,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							if(loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
 							{
 								// Timer timer;
-								// Add a looping audio source
+								// Add a non-streaming audio source
 								ob->audio_source = new glare::AudioSource();
+								ob->audio_source->type = glare::AudioSource::SourceType_NonStreaming;
+								ob->audio_source->looping = BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
+								ob->audio_source->paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
 								ob->audio_source->shared_buffer = loaded_msg->sound_file->buf;
 								ob->audio_source->sampling_rate = loaded_msg->sound_file->sample_rate;
 								ob->audio_source->pos = ob->getCentroidWS();
@@ -10515,6 +10537,7 @@ void GUIClient::summonCar()
 	for(pugi::xml_node n = root.child("material"); n; n = n.next_sibling("material"))
 	{
 		materials.push_back(WorldMaterial::loadFromXMLElem("car_mats.xml", /*convert_rel_paths_to_abs_disk_paths=*/false, n));
+		// conPrint("Colour3f" + materials.back()->colour_rgb.toString() + ","); // Print out colours
 	}
 
 

@@ -1952,9 +1952,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			// Copy audio file to local resources dir.  UploadResourceThread will read from here.
 			gui_client.resource_manager->copyLocalFileToResourceDir(path, audio_file_URL);
 
-			const std::string model_obj_path = base_dir_path + "/data/resources/models/Capsule.obj";
-			const std::string model_URL = "Capsule_obj_7611321750126528672.bmesh"; // NOTE: Assuming server already has capsule mesh as a resource
-
+			const std::string model_URL = "Capsule_obj_7611321750126528672.bmesh"; // This file is in the client distribution.
 		
 			WorldObjectRef new_world_object = new WorldObject();
 			new_world_object->uid = UID(0); // Will be set by server
