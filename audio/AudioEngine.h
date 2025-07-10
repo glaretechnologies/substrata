@@ -86,9 +86,8 @@ public:
 
 	enum SourceType
 	{
-		SourceType_Looping,
-		SourceType_OneShot,
-		SourceType_Streaming // Audio data is streamed from e.g. a video, into the circular buffer.
+		SourceType_NonStreaming, // Audio is played from an audio buffer fully present in RAM (shared_buffer).
+		SourceType_Streaming // Audio data is streamed from a streaming source like a video or mp3, into the circular buffer.
 	};
 
 	enum SourceSpatialType
@@ -109,21 +108,26 @@ public:
 
 	void updateDopplerEffectFactor(const Vec4f& source_linear_vel, const Vec4f& listener_linear_vel, const Vec4f& listener_pos);
 
+	bool isPlaying();
+
 	int resonance_handle; // Set in AudioEngine::addSource().
 
 	int sampling_rate;
 	
 	// Audio data can either be in buffer or shared_buffer.
 	CircularBuffer<float> buffer; // Read from front, enqueue to back.  Used for type SourceType_Streaming only.
+	int64 EOF_marker_position; // Number of samples still to play in buffer before EOF is reached.  Set by StreamerThread.
 
-	AudioBufferRef shared_buffer; // Used for SourceType_Looping and SourceType_OneShot types only.
+	AudioBufferRef shared_buffer; // Used for SourceType_NonStreaming type only.
 	size_t cur_read_i; // Current read index in shared_buffer.
 
 	std::vector<MixSource> mix_sources; // If this is non-empty, this audio source mixes pitch-shifted and volume-scaled sounds together.  Used for type SourceType_Streaming.
 
 	SourceType type;
 	SourceSpatialType spatial_type; // Default is SourceSpatialType_Spatial
-	bool remove_on_finish; // for SourceType_OneShot
+	bool paused;
+	bool looping;
+	bool remove_on_finish; // for SourceType_NonStreaming
 
 	float volume; // 1 = default
 
@@ -186,7 +190,19 @@ public:
 	//AudioSourceRef addSourceFromSoundFile(const std::string& sound_file_path);
 
 	// sound_data_source may be null.  If non-null, read from it, otherwise read from disk from sound_file_path
-	AudioSourceRef addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Reference<MP3AudioStreamerDataSource>& sound_data_source, const Vec4f& pos, float source_volume, double global_time);
+	struct AddSourceFromStreamingSoundFileParams
+	{
+		AddSourceFromStreamingSoundFileParams() : source_volume(1.f), global_time(0.0), looping(true), paused(false) {}
+
+		std::string sound_file_path;
+		Reference<MP3AudioStreamerDataSource> sound_data_source;
+		float source_volume;
+		double global_time;
+		bool looping;
+		bool paused;
+	};
+		
+	AudioSourceRef addSourceFromStreamingSoundFile(AddSourceFromStreamingSoundFileParams& params, const Vec4f& pos);
 
 	void sourcePositionUpdated(AudioSource& source);
 
@@ -202,6 +218,8 @@ public:
 	void setCurentRoomDimensions(const js::AABBox& room_aabb);
 
 	uint32 getSampleRate() const { return sample_rate; }
+
+	void seekToStartAndUnpauseAudio(AudioSource& source);
 	
 	void setMasterVolume(float volume);
 
@@ -209,6 +227,7 @@ public:
 
 	static void test();
 private:
+	void createResonanceObAndResamplerForSource(AudioSource& source);
 	SoundFileRef loadSoundFile(const std::string& sound_file_path);
 
 	RtAudio* audio;
@@ -221,15 +240,16 @@ private:
 
 public:
 	Mutex mutex; // Guards access to audio_sources, and resonance
+	std::set<AudioSourceRef> active_audio_sources	GUARDED_BY(mutex); // active audio sources
 	std::set<AudioSourceRef> audio_sources			GUARDED_BY(mutex);
 
 	ThreadManager thread_manager; // Manages: ResonanceThread, StreamerThread
 
 	std::map<std::string, SoundFileRef> sound_files;
 
-	std::map<std::string, Reference<MP3AudioStreamer>> streams; // Map from mp3 file path to MP3AudioStreamer for that mp3.
+	std::map<std::string, Reference<MP3AudioStreamer>> unpaused_streams; // Map from mp3 file path to MP3AudioStreamer for that mp3.
 
-	std::map<Reference<MP3AudioStreamer>, std::set<AudioSourceRef>> sources_playing_streams; // Map from MP3AudioStreamer to audio sources playing that stream.
+	std::map<Reference<MP3AudioStreamer>, std::set<AudioSourceRef>> stream_to_source_map; // Map from MP3AudioStreamer to audio sources playing that stream.
 
 private:
 	uint32 sample_rate;

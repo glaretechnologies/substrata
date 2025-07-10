@@ -19,6 +19,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/RuntimeCheck.h>
 #include <resonance_audio/api/resonance_audio_api.h>
 #include <tracy/Tracy.hpp>
+#include <limits>
+
 
 #define USE_MINIAUDIO 1
 
@@ -60,8 +62,8 @@ namespace glare
 
 
 AudioSource::AudioSource()
-:	resonance_handle(0), cur_read_i(0), type(SourceType_Looping), spatial_type(SourceSpatialType_Spatial), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
-	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1), smoothed_cur_level(0), sampling_rate(44100)
+:	resonance_handle(0), cur_read_i(0), type(SourceType_NonStreaming), spatial_type(SourceSpatialType_Spatial), paused(false), looping(true), remove_on_finish(false), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
+	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1), smoothed_cur_level(0), sampling_rate(44100), EOF_marker_position(std::numeric_limits<int64>::max())
 {}
 
 
@@ -136,6 +138,12 @@ void AudioSource::updateDopplerEffectFactor(const Vec4f& source_linear_vel, cons
 	const float c = 343.f; // Speed of sound in air.
 
 	this->doppler_factor = (c - v_l) / (c - v_s);
+}
+
+
+bool AudioSource::isPlaying()
+{
+	return !paused && (looping || (EOF_marker_position > 0)); // !stream_reached_EOF;
 }
 
 
@@ -354,7 +362,7 @@ public:
 						Lock lock(engine->mutex);
 
 						// Set resonance audio buffers for all audio sources
-						for(auto it = engine->audio_sources.begin(); it != engine->audio_sources.end(); )
+						for(auto it = engine->active_audio_sources.begin(); it != engine->active_audio_sources.end(); )
 						{
 							AudioSource* source = it->ptr();
 							bool remove_source = false;
@@ -373,40 +381,7 @@ public:
 							const float* contiguous_data_ptr = temp_buf.data(); // Pointer to a buffer of contiguous source samples.
 							// Will either point into an existing shared buffer, or at the start of temp_buf if we need to use it.
 
-							if(source->type == AudioSource::SourceType_Looping)
-							{
-								if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
-								{
-									if(source->cur_read_i + src_samples_needed <= source->shared_buffer->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
-									{
-										contiguous_data_ptr = &source->shared_buffer->buffer[source->cur_read_i];
-
-										source->cur_read_i += src_samples_needed;
-										if(source->cur_read_i == source->shared_buffer->buffer.size()) // If reached end of buf:
-											source->cur_read_i = 0; // wrap
-									}
-									else
-									{
-										// The data range we want to read from the shared buffer wraps.  So copy data to a temporary contiguous buffer first.
-										size_t cur_i = source->cur_read_i;
-
-										for(size_t i=0; i<src_samples_needed; ++i)
-										{
-											temp_buf[i] = source->shared_buffer->buffer[cur_i++];
-											if(cur_i == source->shared_buffer->buffer.size()) // If reach end of buf:
-												cur_i = 0; // wrap.  TODO: optimise: do simple copy in 2 sections.
-										}
-
-										source->cur_read_i = cur_i;
-									}
-								}
-								else // Else if we are reading from a circular buffer:
-								{
-									assert(0); // SourceType_Looping sources should only read from shared buffers.
-									zeroBuffer(temp_buf); // Just pass zeroes to resonance so as to not blow up the listener's ears.
-								}
-							}
-							else if(source->type == AudioSource::SourceType_OneShot)
+							if(source->type == AudioSource::SourceType_NonStreaming)
 							{
 								if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
 								{
@@ -415,22 +390,33 @@ public:
 										contiguous_data_ptr = &source->shared_buffer->buffer[source->cur_read_i];
 										
 										source->cur_read_i += src_samples_needed;
+										if(source->looping && (source->cur_read_i == source->shared_buffer->buffer.size())) // If reached end of buf, and this is a looping audio source:
+											source->cur_read_i = 0; // wrap
 									}
 									else
 									{
-										// The data range we want to read from the shared buffer exceeds the shared buffer length.  Just read as much data as we can and then pad with zeroes.
+										// The data range we want to read from the shared buffer exceeds the shared buffer length.  Just read as much data as we can and then pad with zeroes, or wrap the source index.
 										// Copy data to a temporary contiguous buffer
 										size_t cur_i = source->cur_read_i;
 
+										const size_t source_buffer_size = source->shared_buffer->buffer.size();
 										for(size_t i=0; i<src_samples_needed; ++i)
 										{
-											if(cur_i < source->shared_buffer->buffer.size())
+											// TODO: optimise: do simple copy in 2 sections.
+											if(cur_i < source_buffer_size)
+											{
 												temp_buf[i] = source->shared_buffer->buffer[cur_i++];
+
+												if(source->looping && (cur_i == source_buffer_size)) // If reached end of buf, and this is a looping audio source:
+													cur_i = 0; // Reset read index back to start of buffer.
+											}
 											else
+											{
 												temp_buf[i] = 0;
+											}
 										}
 										source->cur_read_i = cur_i;
-										remove_source = source->remove_on_finish && (cur_i >= source->shared_buffer->buffer.size()); // Remove the source if we reached the end of the buffer.
+										remove_source = source->remove_on_finish && (cur_i >= source_buffer_size); // Remove the source if we reached the end of the buffer.
 									}
 								}
 								else // Else if we are reading from a circular buffer:
@@ -482,6 +468,8 @@ public:
 									}
 								}
 							}
+							else
+								runtimeCheckFailed("Invalid source->type");
 
 							runtimeCheck(contiguous_data_ptr != NULL);
 							if(source_sampling_rate == resonance_sampling_rate)
@@ -500,11 +488,25 @@ public:
 								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
 
+							source->EOF_marker_position -= (int64)src_samples_needed;
+							const bool stream_reached_EOF = source->EOF_marker_position <= 0;
+
+							const bool stop_source_playing = remove_source || (!source->looping && stream_reached_EOF);
 
 							if(remove_source)
 							{
+								// conPrint("ResonanceThread: removing audio source.");
+								engine->audio_sources.erase(*it);
+							}
+
+							if(stop_source_playing)
+							{
+								// Remove the audio source from Resonance and remove from active_audio_sources.
+								// conPrint("ResonanceThread: stopping source playing: removing from resonance and active_audio_sources.");
 								resonance->DestroySource(source->resonance_handle);
-								it = engine->audio_sources.erase(it); // Remove currently iterated to source, advance iterator.
+								source->resonance_handle = 0;
+								
+								it = engine->active_audio_sources.erase(it);  // Remove currently iterated to source, advance iterator.
 							}
 							else
 								++it;
@@ -759,6 +761,40 @@ void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 }
 
 
+void AudioEngine::seekToStartAndUnpauseAudio(AudioSource& source)
+{
+	if(!initialised)
+		return;
+
+	Lock lock(mutex);
+
+	source.cur_read_i = 0;
+	source.paused = false;
+	//source.stream_reached_EOF = false;
+	source.EOF_marker_position = std::numeric_limits<int64>::max();
+	source.buffer.clear();
+
+	if(source.resonance_handle == 0)
+	{
+		createResonanceObAndResamplerForSource(source);
+	}
+
+	AudioSourceRef ref(&source);
+
+	// If there is a streamer for this source, then restart the stream.
+	// TODO: handle the case where the stream is streaming for other sources as well. (make new streamer?)
+	for(auto it = stream_to_source_map.begin(); it != stream_to_source_map.end(); ++it)
+	{
+		const std::set<AudioSourceRef>& source_set = it->second;
+		if(source_set.count(ref) != 0)
+			it->first->seekToBeginningOfFile();
+	}
+	
+	if(active_audio_sources.count(ref) == 0)
+		active_audio_sources.insert(ref);
+}
+
+
 void AudioEngine::setMasterVolume(float volume)
 {
 	if(!initialised)
@@ -802,13 +838,12 @@ void AudioEngine::shutdown()
 }
 
 
-void AudioEngine::addSource(AudioSourceRef source)
+void AudioEngine::createResonanceObAndResamplerForSource(AudioSource& source_)
 {
 	if(!initialised)
 		return;
 
-	if(source->sampling_rate < 8000 || source->sampling_rate > 48000)
-		throw glare::Exception("Unsupported sampling rate for audio source: " + toString(source->sampling_rate));
+	AudioSource* source = &source_;
 
 	if(source->spatial_type == AudioSource::SourceSpatialType_Spatial)
 	{
@@ -825,11 +860,33 @@ void AudioEngine::addSource(AudioSourceRef source)
 		source->resonance_handle = resonance->CreateStereoSource(/*num channels=*/2);
 		resonance->SetSourceVolume(source->resonance_handle, source->volume * source->getMuteVolumeFactor());
 	}
+	else
+	{
+		assert(0);
+	}
 
 	source->resampler.init(/*src rate=*/source->sampling_rate, this->sample_rate);
+}
+
+
+void AudioEngine::addSource(AudioSourceRef source)
+{
+	if(!initialised)
+		return;
+
+	if(source->sampling_rate < 8000 || source->sampling_rate > 48000)
+		throw glare::Exception("Unsupported sampling rate for audio source: " + toString(source->sampling_rate));
+
+	if(!source->paused)
+	{
+		createResonanceObAndResamplerForSource(*source);
+	}
 
 	Lock lock(mutex);
 	audio_sources.insert(source);
+
+	if(!source->paused)
+		active_audio_sources.insert(source);
 }
 
 
@@ -837,15 +894,19 @@ void AudioEngine::removeSource(AudioSourceRef source)
 {
 	if(!initialised)
 		return;
-	resonance->DestroySource(source->resonance_handle);
+
+	if(source->resonance_handle != 0)
+		resonance->DestroySource(source->resonance_handle);
+
 	{
 		Lock lock(mutex);
 		audio_sources.erase(source);
+		active_audio_sources.erase(source);
 
 		// Remove audio source from sources_playing_streams (MP3AudioStreamer -> set<AudioSourceRef>) map.
 		Reference<MP3AudioStreamer> streamer_to_remove;
 
-		for(auto it = sources_playing_streams.begin(); it != sources_playing_streams.end(); ++it)
+		for(auto it = stream_to_source_map.begin(); it != stream_to_source_map.end(); ++it)
 		{
 			std::set<AudioSourceRef>& source_set = it->second;
 
@@ -856,18 +917,18 @@ void AudioEngine::removeSource(AudioSourceRef source)
 		}
 
 		// We removed the last audio source playing a stream, so remove the streamer.
-		if(streamer_to_remove.nonNull())
+		if(streamer_to_remove)
 		{
-			// Remove from streams map
-			for(auto it = streams.begin(); it != streams.end(); ++it)
+			// Remove from unpaused_streams map if present
+			for(auto it = unpaused_streams.begin(); it != unpaused_streams.end(); ++it)
 				if(it->second == streamer_to_remove)
 				{
-					streams.erase(it);
+					unpaused_streams.erase(it);
 					break;
 				}
 
-			// Remove from sources_playing_streams map
-			sources_playing_streams.erase(streamer_to_remove);
+			// Remove from stream_to_source_map map
+			stream_to_source_map.erase(streamer_to_remove);
 		}
 	} // End lock scope
 }
@@ -880,7 +941,9 @@ void AudioEngine::sourcePositionUpdated(AudioSource& source)
 
 	if(!source.pos.isFinite())
 		return; // Avoid crash in Resonance with NaN or Inf position coords.
-	resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
+
+	if(source.resonance_handle != 0)
+		resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
 }
 
 
@@ -889,7 +952,8 @@ void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 	if(!initialised)
 		return;
 	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
-	resonance->SetSourceVolume(source.resonance_handle, source.volume * source.getMuteVolumeFactor());
+	if(source.resonance_handle != 0)
+		resonance->SetSourceVolume(source.resonance_handle, source.volume * source.getMuteVolumeFactor());
 }
 
 
@@ -897,7 +961,8 @@ void AudioEngine::sourceNumOcclusionsUpdated(AudioSource& source)
 {
 	if(!initialised)
 		return;
-	resonance->SetSoundObjectOcclusionIntensity(source.resonance_handle, source.num_occlusions);
+	if(source.resonance_handle != 0)
+		resonance->SetSoundObjectOcclusionIntensity(source.resonance_handle, source.num_occlusions);
 }
 
 
@@ -955,9 +1020,11 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 
 		// Make a new audio source
 		AudioSourceRef source = new AudioSource();
-		source->type = AudioSource::SourceType_OneShot;
+		source->type = AudioSource::SourceType_NonStreaming;
 		source->sampling_rate = sound->sample_rate;
 		source->shared_buffer = sound->buf;
+		source->paused = false;
+		source->looping = false;
 		source->remove_on_finish = true;
 		source->pos = pos;
 
@@ -996,7 +1063,7 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 //}
 
 
-AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Reference<MP3AudioStreamerDataSource>& sound_data_source, const Vec4f& pos, float source_volume, double global_time)
+AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(AddSourceFromStreamingSoundFileParams& params, const Vec4f& pos)
 {
 	Lock lock(mutex);
 
@@ -1005,23 +1072,32 @@ AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& s
 	source->type = AudioSource::SourceType_Streaming;
 	source->remove_on_finish = false;
 	source->pos = pos;
-	source->volume = source_volume;
+	source->volume = params.source_volume;
+	source->looping = params.looping;
+	source->paused = params.paused;
 
-	auto res = streams.find(sound_file_path);
-	if(res == streams.end())
+	// We want to use a new MP3AudioStreamer if either
+	// a) The source is paused, since it may be unpaused by a script at any time independently of other sources, so shouldn't use the same stream as other sources
+	// b) No MP3AudioStreamer for the given sound file path exists yet.
+
+	auto res = unpaused_streams.find(params.sound_file_path);
+	if((res == unpaused_streams.end()) || params.paused)
 	{
-		// Load the sound
+		// Create a new MP3AudioStreamer from the given data source
 		Reference<MP3AudioStreamer> streamer;
-		if(sound_data_source)
-			streamer = new MP3AudioStreamer(sound_data_source);
+		if(params.sound_data_source)
+			streamer = new MP3AudioStreamer(params.sound_data_source);
 		else
-			streamer = new MP3AudioStreamer(sound_file_path);
+			streamer = new MP3AudioStreamer(params.sound_file_path);
 
-		streamer->seekToApproxTimeWrapped(global_time);
+		if(!params.paused) // if not paused, we can use the same stream as other sources.
+		{
+			streamer->seekToApproxTimeWrapped(params.global_time);
 
-		streams.insert(std::make_pair(sound_file_path, streamer));
+			unpaused_streams.insert(std::make_pair(params.sound_file_path, streamer));
+		}
 
-		sources_playing_streams[streamer].insert(source); // Add this audio source as a user of this stream.
+		stream_to_source_map[streamer].insert(source); // Add this audio source as a user of this stream.
 	}
 	else
 	{
@@ -1029,15 +1105,15 @@ AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& s
 		Reference<MP3AudioStreamer> streamer = res->second;
 
 		// If there is another source playing this stream, copy the other source's buffer in order to synchronise the audio sources in the audio stream.
-		auto first_source_it = sources_playing_streams[streamer].begin();
-		if(first_source_it != sources_playing_streams[streamer].end())
+		auto first_source_it = stream_to_source_map[streamer].begin();
+		if(first_source_it != stream_to_source_map[streamer].end())
 		{
 			AudioSourceRef first_source = *first_source_it;
 
 			source->buffer = first_source->buffer;
 		}
 
-		sources_playing_streams[streamer].insert(source); // Add this audio source as a user of this stream.
+		stream_to_source_map[streamer].insert(source); // Add this audio source as a user of this stream.
 	}
 
 	addSource(source);
@@ -1065,6 +1141,223 @@ void glare::AudioEngine::test()
 	{
 		AudioEngine engine;
 		engine.init();
+
+		PlatformUtils::Sleep(1000); // We mute the first second or so of output from Resonance due to a Resonance bug.
+
+		//------------------------------- Test playOneShotSound(), loads sound completely as a non-streaming source. ------------------------------------
+		// Play a single non-looping WAV sound, check it gets removed properly at the end
+		{
+			conPrint("playOneShotSound 1_second_chirp.wav");
+			engine.playOneShotSound(TestUtils::getTestReposDir() + "/testfiles/WAVs/1_second_chirp.wav", Vec4f(1,0,0,1));
+
+			testAssert(engine.audio_sources.size() == 1);
+			testAssert(engine.active_audio_sources.size() == 1);
+
+			for(int i=0; i<100; ++i)
+				PlatformUtils::Sleep(2000 / 100);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+		
+
+		// Play a single non-looping mp3 sound, check it gets removed properly at the end
+		{
+			conPrint("playOneShotSound 1_second_chirp.mp3");
+			engine.playOneShotSound(TestUtils::getTestReposDir() + "/testfiles/mp3s/1_second_chirp.mp3", Vec4f(1,0,0,1));
+
+			testAssert(engine.audio_sources.size() == 1);
+			testAssert(engine.active_audio_sources.size() == 1);
+
+			for(int i=0; i<100; ++i)
+				PlatformUtils::Sleep(2000 / 100);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+
+		//------------------------------------ Test looping WAV -----------------------
+		{
+			conPrint("Test looping WAV");
+			
+			/*glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/WAVs/1_second_chirp.wav";
+			params.sound_data_source = nullptr;
+			params.source_volume = 1.f;
+			params.global_time = 0.0;
+			params.looping = true;
+			AudioSourceRef source1 = new AudioSource();
+			source1->
+			source1 = engine.addSource(source1);*/
+
+			SoundFileRef sound = engine.getOrLoadSoundFile(TestUtils::getTestReposDir() + "/testfiles/WAVs/1_second_chirp.wav");
+
+			// Make a new audio source
+			AudioSourceRef source = new AudioSource();
+			source->type = AudioSource::SourceType_NonStreaming;
+			source->sampling_rate = sound->sample_rate;
+			source->shared_buffer = sound->buf;
+			source->paused = false;
+			source->looping = true;
+			source->remove_on_finish = false;
+			//source->pos = pos;
+
+			engine.addSource(source);
+
+			PlatformUtils::Sleep(2000);
+
+			engine.removeSource(source);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+
+		//------------------------------------ Test looping MP3 -----------------------
+		{
+			conPrint("Test looping MP3");
+			
+			/*glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/WAVs/1_second_chirp.wav";
+			params.sound_data_source = nullptr;
+			params.source_volume = 1.f;
+			params.global_time = 0.0;
+			params.looping = true;
+			AudioSourceRef source1 = new AudioSource();
+			source1->
+			source1 = engine.addSource(source1);*/
+
+			SoundFileRef sound = engine.getOrLoadSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/1_second_chirp.mp3");
+
+			// Make a new audio source
+			AudioSourceRef source = new AudioSource();
+			source->type = AudioSource::SourceType_NonStreaming;
+			source->sampling_rate = sound->sample_rate;
+			source->shared_buffer = sound->buf;
+			source->paused = false;
+			source->looping = true;
+			source->remove_on_finish = false;
+			//source->pos = pos;
+
+			engine.addSource(source);
+
+			PlatformUtils::Sleep(2000);
+
+			engine.removeSource(source);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+
+		//------------------------------------ Test addSourceFromStreamingSoundFile() -----------------------
+		{
+			conPrint("Test addSourceFromStreamingSoundFile() with no looping");
+			
+			glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/mp3s/1_second_chirp.mp3";
+			params.looping = false;
+
+			AudioSourceRef source = engine.addSourceFromStreamingSoundFile(params, Vec4f(1,0,0,1));
+
+			PlatformUtils::Sleep(2000);
+
+			// Source should have finished playing by now.
+			testAssert(!source->isPlaying());
+			testAssert(engine.active_audio_sources.empty()); // Should have been removed from active_audio_sources
+			engine.removeSource(source);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+		return;
+		// Test with looping
+		{
+			conPrint("Test addSourceFromStreamingSoundFile() with looping");
+			
+			glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/mp3s/1_second_chirp.mp3";
+			params.looping = true;
+
+			AudioSourceRef source = engine.addSourceFromStreamingSoundFile(params, Vec4f(1,0,0,1));
+
+			PlatformUtils::Sleep(2000);
+
+			testAssert(source->isPlaying());
+			engine.removeSource(source);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+
+		//------------------------------------ Test seekToStartAndUnpauseAudio() -----------------------
+		// Test inserting a paused, non-looping file, then calling seekToStartAndUnpauseAudio on it
+		{
+			conPrint("Test seekToStartAndUnpauseAudio() with no looping");
+			
+			glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/mp3s/1_second_chirp.mp3";
+			params.paused = true;
+			params.looping = false;
+
+			AudioSourceRef source = engine.addSourceFromStreamingSoundFile(params, Vec4f(1,0,0,1));
+
+			engine.seekToStartAndUnpauseAudio(*source);
+
+			PlatformUtils::Sleep(2000);
+
+			// Source should have finished playing by now.
+			testAssert(!source->isPlaying());
+			testAssert(engine.active_audio_sources.empty()); // Should have been removed from active_audio_sources
+
+			engine.removeSource(source);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+
+		// Test inserting a paused, non-looping file
+		{
+			conPrint("Test seekToStartAndUnpauseAudio() with looping");
+			
+			glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/mp3s/1_second_chirp.mp3";
+			params.paused = true;
+			params.looping = true;
+
+			AudioSourceRef source = engine.addSourceFromStreamingSoundFile(params, Vec4f(1,0,0,1));
+
+			engine.seekToStartAndUnpauseAudio(*source);
+
+			PlatformUtils::Sleep(2000);
+
+			testAssert(source->isPlaying());
+			engine.removeSource(source);
+
+			testAssert(engine.audio_sources.empty());
+			testAssert(engine.active_audio_sources.empty());
+			testAssert(engine.unpaused_streams.empty());
+			testAssert(engine.stream_to_source_map.empty());
+		}
+
+		//return;
+
+
+
+
 		
 		// Make a new audio source
 		//AudioSourceRef source = new AudioSource();
@@ -1076,14 +1369,29 @@ void glare::AudioEngine::test()
 		//engine.addSource(source);
 
 		//AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile("D:\\files\\Good_Gas___Live_A_Lil_ft__MadeinTYO__UnoTheActivist___FKi_1st__Lyrics__mp3_3425190382177260630.mp3", Vec4f(1, 0, 0, 1), /*global time=*/0.0);
-		AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", nullptr, Vec4f(1, 0, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
+		AudioSourceRef source1, source2;
+		{
+			glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3";
+			params.sound_data_source = nullptr;
+			params.source_volume = 1.f;
+			params.global_time = 0.0;
+			source1 = engine.addSourceFromStreamingSoundFile(params, Vec4f(1, 0, 0, 1));
+		}
 		PlatformUtils::Sleep(1);
-		AudioSourceRef source2 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", nullptr, Vec4f(1, 1, 0, 1), /*source_volume=*/1.f, /*global time=*/0.0);
+		{
+			glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+			params.sound_file_path = TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3";
+			params.sound_data_source = nullptr;
+			params.source_volume = 1.f;
+			params.global_time = 0.0;
+			source2 = engine.addSourceFromStreamingSoundFile(params, Vec4f(1, 0, 0, 1));
+		}
 
-		testAssert(engine.streams.size() == 1);
-		testAssert(engine.sources_playing_streams.size() == 1);
-		testAssert(engine.sources_playing_streams.begin()->second.count(source1) == 1);
-		testAssert(engine.sources_playing_streams.begin()->second.count(source2) == 1);
+		testAssert(engine.unpaused_streams.size() == 1);
+		testAssert(engine.stream_to_source_map.size() == 1);
+		testAssert(engine.stream_to_source_map.begin()->second.count(source1) == 1);
+		testAssert(engine.stream_to_source_map.begin()->second.count(source2) == 1);
 
 		for(int i=0; i<3000; ++i)
 		{
@@ -1093,8 +1401,8 @@ void glare::AudioEngine::test()
 		engine.removeSource(source1);
 		engine.removeSource(source2);
 
-		testAssert(engine.streams.empty());
-		testAssert(engine.sources_playing_streams.empty());
+		testAssert(engine.unpaused_streams.empty());
+		testAssert(engine.stream_to_source_map.empty());
 	}
 	catch(glare::Exception& e)
 	{
