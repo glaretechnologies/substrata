@@ -135,6 +135,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_user_secrets = 0;
 	size_t num_lod_chunks = 0;
 	size_t num_events = 0;
+	size_t num_resources = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -252,6 +253,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					resource->database_key = database_key;
 					this->resource_manager->addResource(resource);
+
+					num_resources++;
 				}
 				else if(chunk == ORDER_CHUNK)
 				{
@@ -547,6 +550,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
 				this->resource_manager->addResource(resource);
+
+				num_resources++;
 			}
 			else if(chunk == ORDER_CHUNK)
 			{
@@ -690,7 +695,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 	//conPrint("min_next_nonce: " + toString(eth_info.min_next_nonce));
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
-		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
+		toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
 		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " + 
@@ -702,8 +707,11 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 {
 	WorldStateLock lock(mutex);
 
-	for(auto it = resource_manager->getResourcesForURL().begin(); it != resource_manager->getResourcesForURL().end(); ++it)
-		db_dirty_resources.insert(it->second);
+	{
+		Lock lock(resource_manager->getMutex());
+		for(auto it = resource_manager->getResourcesForURL().begin(); it != resource_manager->getResourcesForURL().end(); ++it)
+			db_dirty_resources.insert(it->second);
+	}
 
 	for(auto it = user_id_to_users.begin(); it != user_id_to_users.end(); ++it)
 		db_dirty_users.insert(it->second);
