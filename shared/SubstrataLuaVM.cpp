@@ -68,6 +68,9 @@ enum StringAtomEnum
 	Atom_getMaterial,
 	Atom_script,
 	Atom_materials,
+	Atom_audio_loop,
+	Atom_playAudio, // resets cur read index to start of audio, starts playing the audio (unpauses if paused)
+	Atom_isPlayingAudio, //
 
 	// WorldMaterial
 	Atom_colour,
@@ -130,6 +133,9 @@ static StringAtom string_atoms[] =
 	StringAtom({"getMaterial",				Atom_getMaterial,				}),
 	StringAtom({"script",					Atom_script,					}),
 	StringAtom({"materials",				Atom_materials,					}),
+	StringAtom({"audio_loop",				Atom_audio_loop,				}),
+	StringAtom({"playAudio",				Atom_playAudio,					}),
+	StringAtom({"isPlayingAudio",			Atom_isPlayingAudio,			}),
 
 	// WorldMaterial
 	StringAtom({"colour",					Atom_colour,					}),
@@ -1069,6 +1075,58 @@ static int getMaterial(lua_State* state)
 }
 
 
+static int playAudio(lua_State* state)
+{
+	// arg 1: ob : WorldObject
+
+	checkNumArgs(state, /*num_args_required*/1);
+
+#if GUI_CLIENT
+	
+	// Get object UID
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
+
+	if(ob->audio_source)
+		sub_lua_vm->gui_client->audio_engine.seekToStartAndUnpauseAudio(*ob->audio_source);
+#endif
+
+	return 0; // Count of returned values
+}
+
+
+static int isPlayingAudio(lua_State* state)
+{
+	// arg 1: ob : WorldObject
+
+	checkNumArgs(state, /*num_args_required*/1);
+
+	bool is_playing = false;
+#if GUI_CLIENT
+	
+	// Get object UID
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
+
+	if(ob->audio_source)
+		is_playing = ob->audio_source->isPlaying();
+#endif
+
+	lua_pushboolean(state, is_playing ? 1 : 0);
+	return 1; // Count of returned values
+}
+
+
 // C++ implementation of __index for WorldObject class. Used when a WorldObject table field is read from.
 static int worldObjectClassIndexMetaMethod(lua_State* state)
 {
@@ -1174,6 +1232,19 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "getMaterial"));
 		lua_pushcfunction(state, getMaterial, "getMaterial");
 		break;
+	case Atom_playAudio:
+		assert(stringEqual(key_str, "playAudio"));
+		lua_pushcfunction(state, playAudio, "playAudio");
+		break;
+	case Atom_isPlayingAudio:
+		assert(stringEqual(key_str, "isPlayingAudio"));
+		lua_pushcfunction(state, isPlayingAudio, "isPlayingAudio");
+		break;
+	case Atom_audio_loop:
+		assert(stringEqual(key_str, "audio_loop"));
+		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP));
+		break;
+
 	default:
 		throw glare::Exception("Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
 	}
@@ -1345,6 +1416,11 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	case Atom_audio_volume:
 		assert(stringEqual(key_str, "audio_volume"));
 		ob->audio_volume = LuaUtils::getFloat(state, /*index=*/3);
+		other_changed = true;
+		break;
+	case Atom_audio_loop:
+		assert(stringEqual(key_str, "audio_loop"));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::AUDIO_LOOP, LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	default:
