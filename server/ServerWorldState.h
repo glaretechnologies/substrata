@@ -91,6 +91,16 @@ struct FeatureFlagInfo
 };
 
 
+struct MigrationVersionInfo
+{
+	MigrationVersionInfo() : db_dirty(false) {}
+
+	uint32 migration_version;
+	DatabaseKey database_key;
+	bool db_dirty; // If true, there is a change that has not been saved to the DB.
+};
+
+
 struct ServerCredentials
 {
 	std::map<std::string, std::string> creds;
@@ -261,6 +271,7 @@ public:
 	void createNewDatabase(const std::string& path);
 	void serialiseToDisk(WorldStateLock& lock) REQUIRES(mutex); // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
 	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.
+	void doMigrations(WorldStateLock& lock);
 
 	// Removes sensitive information from the database, such as user passwords, email addresses, billing information, web sessions etc.
 	// Then saves the updates to disk.
@@ -338,6 +349,8 @@ public:
 	LastParcelUpdateInfo last_parcel_update_info;
 
 	EthInfo eth_info;
+
+	MigrationVersionInfo migration_version_info;
 
 	static const uint64 SERVER_SCRIPT_EXEC_FEATURE_FLAG                   = 1; // Is server-side script execution enabled?
 	static const uint64 LUA_HTTP_REQUESTS_FEATURE_FLAG                    = 2; // Are Lua-initiated HTTP requests enabled?
