@@ -33,7 +33,7 @@ void StreamerThread::doRun()
 		{
 			Lock lock(audio_engine->mutex);
 
-			for(auto it = audio_engine->sources_playing_streams.begin(); it != audio_engine->sources_playing_streams.end(); ++it)
+			for(auto it = audio_engine->stream_to_source_map.begin(); it != audio_engine->stream_to_source_map.end(); ++it)
 			{
 				MP3AudioStreamer* streamer = it->first.ptr();
 
@@ -77,7 +77,10 @@ void StreamerThread::doRun()
 							mono_samples.resize(0);
 
 						if(is_EOF)
+						{
+							//conPrint("seekToBeginningOfFile()");
 							streamer->seekToBeginningOfFile();
+						}
 
 						// If the source file is not a valid mp3 file, then we won't get samples from it.  Avoid looping forever in that case.
 						iter++;
@@ -88,7 +91,8 @@ void StreamerThread::doRun()
 						for(auto src_it = sources_playing_stream.begin(); src_it != sources_playing_stream.end(); ++src_it)
 						{
 							AudioSource* source = src_it->ptr();
-							source->buffer.pushBackNItems(mono_samples.data(), mono_samples.size());
+							if(source->buffer.size() < 48000) // Avoid filling the buffer too much for paused sources.
+								source->buffer.pushBackNItems(mono_samples.data(), mono_samples.size());
 							if(sample_freq_hz != 0)
 							{
 								// If we have read a sample rate from the mp3 file and it differs from the default, re-init the resampler.
@@ -98,6 +102,9 @@ void StreamerThread::doRun()
 									source->resampler.init(/*src rate=*/sample_freq_hz, /*dest rate*/audio_engine->getSampleRate());
 								}
 							}
+
+							if(is_EOF)
+								source->EOF_marker_position = source->buffer.size(); // Set EOF marker position after any samples we just enqueued.
 						}
 
 						min_src_buffer_size += mono_samples.size();
