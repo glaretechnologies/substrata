@@ -271,7 +271,7 @@ public:
 	void createNewDatabase(const std::string& path);
 	void serialiseToDisk(WorldStateLock& lock) REQUIRES(mutex); // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
 	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.
-	void doMigrations(WorldStateLock& lock);
+	void doMigrations(WorldStateLock& lock) REQUIRES(mutex);
 
 	// Removes sensitive information from the database, such as user passwords, email addresses, billing information, web sessions etc.
 	// Then saves the updates to disk.

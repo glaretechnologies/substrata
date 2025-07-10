@@ -372,6 +372,7 @@ int main(int argc, char *argv[])
 
 		if(parsed_args.isArgPresent("--do_not_load_resources"))
 		{
+			Lock lock(server.world_state->resource_manager->getMutex());
 			server.world_state->resource_manager->getResourcesForURL().clear();
 		}
 
