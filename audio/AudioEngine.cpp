@@ -990,6 +990,12 @@ SoundFileRef AudioEngine::loadSoundFile(const std::string& sound_file_path)
 }
 
 
+void AudioEngine::insertSoundFile(const std::string& sound_file_path, SoundFileRef sound)
+{
+	sound_files.insert(std::make_pair(sound_file_path, sound));
+}
+
+
 SoundFileRef AudioEngine::getOrLoadSoundFile(const std::string& sound_file_path)
 {
 	auto res = sound_files.find(sound_file_path);
