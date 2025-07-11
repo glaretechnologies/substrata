@@ -57,12 +57,15 @@ Copyright Glare Technologies Limited 2024 -
 #endif
 
 
+static const int INVALID_RESONANCE_HANDLE = std::numeric_limits<int>::max();
+
+
 namespace glare
 {
 
 
 AudioSource::AudioSource()
-:	resonance_handle(0), cur_read_i(0), type(SourceType_NonStreaming), spatial_type(SourceSpatialType_Spatial), paused(false), looping(true), remove_on_finish(false), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
+:	resonance_handle(INVALID_RESONANCE_HANDLE), cur_read_i(0), type(SourceType_NonStreaming), spatial_type(SourceSpatialType_Spatial), paused(false), looping(true), remove_on_finish(false), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
 	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1), smoothed_cur_level(0), sampling_rate(44100), EOF_marker_position(std::numeric_limits<int64>::max())
 {}
 
@@ -504,7 +507,7 @@ public:
 								// Remove the audio source from Resonance and remove from active_audio_sources.
 								// conPrint("ResonanceThread: stopping source playing: removing from resonance and active_audio_sources.");
 								resonance->DestroySource(source->resonance_handle);
-								source->resonance_handle = 0;
+								source->resonance_handle = INVALID_RESONANCE_HANDLE;
 								
 								it = engine->active_audio_sources.erase(it);  // Remove currently iterated to source, advance iterator.
 							}
@@ -774,7 +777,7 @@ void AudioEngine::seekToStartAndUnpauseAudio(AudioSource& source)
 	source.EOF_marker_position = std::numeric_limits<int64>::max();
 	source.buffer.clear();
 
-	if(source.resonance_handle == 0)
+	if(source.resonance_handle == INVALID_RESONANCE_HANDLE)
 	{
 		createResonanceObAndResamplerForSource(source);
 	}
@@ -895,7 +898,7 @@ void AudioEngine::removeSource(AudioSourceRef source)
 	if(!initialised)
 		return;
 
-	if(source->resonance_handle != 0)
+	if(source->resonance_handle != INVALID_RESONANCE_HANDLE)
 		resonance->DestroySource(source->resonance_handle);
 
 	{
@@ -942,7 +945,7 @@ void AudioEngine::sourcePositionUpdated(AudioSource& source)
 	if(!source.pos.isFinite())
 		return; // Avoid crash in Resonance with NaN or Inf position coords.
 
-	if(source.resonance_handle != 0)
+	if(source.resonance_handle != INVALID_RESONANCE_HANDLE)
 		resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
 }
 
@@ -952,7 +955,7 @@ void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 	if(!initialised)
 		return;
 	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
-	if(source.resonance_handle != 0)
+	if(source.resonance_handle != INVALID_RESONANCE_HANDLE)
 		resonance->SetSourceVolume(source.resonance_handle, source.volume * source.getMuteVolumeFactor());
 }
 
@@ -961,7 +964,7 @@ void AudioEngine::sourceNumOcclusionsUpdated(AudioSource& source)
 {
 	if(!initialised)
 		return;
-	if(source.resonance_handle != 0)
+	if(source.resonance_handle != INVALID_RESONANCE_HANDLE)
 		resonance->SetSoundObjectOcclusionIntensity(source.resonance_handle, source.num_occlusions);
 }
 
