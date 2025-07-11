@@ -89,6 +89,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <indigo/TextureServer.h>
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/SSAODebugging.h>
+#include "../audio/AudioFileReader.h"
 #include <Escaping.h>
 #if !defined(EMSCRIPTEN)
 #include <VirtualMachine.h>
@@ -368,26 +369,40 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 }
 
 
+class WindNoiseLoaded : public ThreadMessage
+{
+public:
+	WindNoiseLoaded(glare::SoundFileRef sound_) : sound(sound_) {}
+	glare::SoundFileRef sound;
+};
+
+
+class LoadWindNoiseTask : public glare::Task
+{
+public:
+	virtual void run(size_t /*thread_index*/)
+	{
+		glare::SoundFileRef sound = glare::AudioFileReader::readAudioFile(resources_dir_path + "/sounds/wind_noise_48000_hz_mono.mp3");
+		result_msg_queue->enqueue(new WindNoiseLoaded(sound));
+	}
+	std::string resources_dir_path;
+	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
+};
+
+
 void GUIClient::initAudioEngine()
 {
 	try
 	{
 		audio_engine.init();
 
+
 		// Load a wind sound and create a non-spatial audio source, to use for a rushing effect when the player moves fast.
-		// TODO: Load wind noise off main thread. (Take about 11ms to load on my 5950x).
-		//Timer timer;
-		glare::SoundFileRef sound = audio_engine.getOrLoadSoundFile(resources_dir_path + "/sounds/wind_noise_48000_hz_mono.mp3");
-		//conPrint("Loading wind sound took " + timer.elapsedString());
-
-		wind_audio_source = new glare::AudioSource();
-		wind_audio_source->type = glare::AudioSource::SourceType_NonStreaming;
-		wind_audio_source->spatial_type = glare::AudioSource::SourceSpatialType_NonSpatial;
-		wind_audio_source->shared_buffer = sound->buf;
-		wind_audio_source->sampling_rate = sound->sample_rate;
-		wind_audio_source->volume = 0;
-
-		audio_engine.addSource(wind_audio_source);
+		// Do off main thread since it takes about 8ms to load on my 5900x.
+		Reference<LoadWindNoiseTask> t = new LoadWindNoiseTask();
+		t->resources_dir_path = resources_dir_path;
+		t->result_msg_queue = &this->msg_queue;
+		model_and_texture_loader_task_manager.addTask(t);
 	}
 	catch(glare::Exception& e) 
 	{
@@ -743,7 +758,7 @@ GUIClient::~GUIClient()
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 	
 
-	if(wind_audio_source.nonNull())
+	if(wind_audio_source)
 		audio_engine.removeSource(wind_audio_source);
 	wind_audio_source = NULL;
 
@@ -5477,7 +5492,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			controller->updateDopplerEffect(/*listener linear vel=*/listener_linear_vel, /*listener pos=*/cam_controller.getFirstPersonPosition().toVec4fPoint());
 		}
 
-		if(wind_audio_source.nonNull())
+		if(wind_audio_source)
 		{
 			const float old_volume = wind_audio_source->volume;
 
@@ -8561,6 +8576,20 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			const TerrainChunkGeneratedMsg* m = static_cast<const TerrainChunkGeneratedMsg*>(msg);
 			if(terrain_system.nonNull())
 				terrain_system->handleCompletedMakeChunkTask(*m);
+		}
+		else if(dynamic_cast<WindNoiseLoaded*>(msg))
+		{
+			const WindNoiseLoaded* m = static_cast<const WindNoiseLoaded*>(msg);
+
+			assert(!wind_audio_source);
+			wind_audio_source = new glare::AudioSource();
+			wind_audio_source->type = glare::AudioSource::SourceType_NonStreaming;
+			wind_audio_source->spatial_type = glare::AudioSource::SourceSpatialType_NonSpatial;
+			wind_audio_source->shared_buffer = m->sound->buf;
+			wind_audio_source->sampling_rate = m->sound->sample_rate;
+			wind_audio_source->volume = 0;
+			
+			audio_engine.addSource(wind_audio_source);
 		}
 	}
 

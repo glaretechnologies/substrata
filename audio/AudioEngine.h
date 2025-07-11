@@ -223,6 +223,7 @@ public:
 	
 	void setMasterVolume(float volume);
 
+	void insertSoundFile(const std::string& sound_file_path, SoundFileRef sound);
 	SoundFileRef getOrLoadSoundFile(const std::string& sound_file_path);
 
 	static void test();
