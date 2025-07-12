@@ -114,6 +114,8 @@ struct ShaderChunkInfo
 	int chunk_x_index;
 	int chunk_y_index;
 	float chunk_w_m;
+	int section_x; // unoffset
+	int section_y; // unoffset
 	float base_scale;
 	float imposter_width_over_height;
 	float terrain_scale_factor;
@@ -1738,7 +1740,9 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 			for(int i=0; i<=query_w_px; ++i)
 			{
 				const float nx = corner_nx + (float)i * step_n;
-				const float ny = corner_ny + (float)i * step_n;
+				const float ny = corner_ny + (float)j * step_n;
+				assert(nx >= 0.f && nx <= 1.01f);
+				assert(ny >= 0.f && ny <= 1.01f);
 				const Colour4f mask_val = section->maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false);
 				max_vegetation_val = myMax(max_vegetation_val, mask_val[2]);
 			}
@@ -1806,6 +1810,8 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 		chunk_info.chunk_x_index = chunk_x_index;
 		chunk_info.chunk_y_index = chunk_y_index;
 		chunk_info.chunk_w_m = grid_scatter.chunk_width;
+		chunk_info.section_x = section_x - TerrainSystem::TERRAIN_SECTION_OFFSET; // Set unoffset section_x
+		chunk_info.section_y = section_y - TerrainSystem::TERRAIN_SECTION_OFFSET;
 		chunk_info.base_scale = grid_scatter.base_scale;
 		chunk_info.imposter_width_over_height = grid_scatter.imposter_width_over_height;
 		chunk_info.terrain_scale_factor = terrain_scale_factor;
