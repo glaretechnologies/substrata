@@ -774,6 +774,9 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 	if(section.heightmap.isNull())
 		return spec.default_terrain_z;
 
+	const float section_nx = nx - Maths::floorToInt(nx);
+	const float section_ny = ny - Maths::floorToInt(ny);
+
 
 	//const float dist_from_origin = Vec2f(p_x, p_y).length();
 	//const float centre_flatten_factor = Maths::smoothStep(700.f, 1000.f, dist_from_origin); // Start the hills only x metres from origin
@@ -787,10 +790,10 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 //	const float seaside_factor = Maths::smoothStep(-1000.f, -300.f, p_y);
 
 
-	const Colour4f mask_val = section.maskmap.nonNull() ? section.maskmap->vec3Sample(nx, 1.f - ny, /*wrap=*/false) : Colour4f(0.f);
+	const Colour4f mask_val = section.maskmap.nonNull() ? section.maskmap->vec3Sample(section_nx, 1.f - section_ny, /*wrap=*/false) : Colour4f(0.f);
 			
-	// NOTE: textures are effecively flipped upside down in OpenGL, negate y to compensate.
-	const float heightmap_terrain_z = section.heightmap->sampleSingleChannelHighQual(nx, 1.f - ny, /*channel=*/0, /*wrap=*/false);
+	// NOTE: textures are effectively flipped upside down in OpenGL, negate y to compensate.
+	const float heightmap_terrain_z = section.heightmap->sampleSingleChannelHighQual(section_nx, 1.f - section_ny, /*channel=*/0, /*wrap=*/false);
 	//terrain_h = -300 + seaside_factor * 300 + non_flatten_factor * myMax(MIN_TERRAIN_Z, heightmap_terrain_z);// + detail_h;
 
 	//terrain_h = myMax(MIN_TERRAIN_Z, -300 + seaside_factor * 300 + non_flatten_factor * heightmap_terrain_z);// + detail_h;

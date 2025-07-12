@@ -10797,7 +10797,8 @@ void GUIClient::objectEdited()
 
 		// Scripted objects (e.g. objects being path controlled), need to be kinematic.  If we enabled a script, but the existing physics object is not kinematic, reload the physics object.
 		const bool physics_rebuild_needed_for_script_enabling = BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED) &&
-			selected_ob->physics_object && !selected_ob->physics_object->kinematic && !selected_ob->script.empty();
+			selected_ob->physics_object && !selected_ob->physics_object->kinematic && !selected_ob->script.empty() &&
+			(selected_ob->object_type == WorldObject::ObjectType_Generic ||selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
 		
 		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
 			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)) ||
@@ -13648,6 +13649,7 @@ void GUIClient::updateGroundPlane()
 		TextureParams maskmap_tex_params;
 		maskmap_tex_params.use_sRGB = false;
 		maskmap_tex_params.allow_compression = false;
+		maskmap_tex_params.wrapping = OpenGLTexture::Wrapping::Wrapping_Clamp;
 
 		TextureParams detail_colourmap_tex_params;
 
