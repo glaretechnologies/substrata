@@ -94,7 +94,8 @@ void FileSelectWidget::openFileDialog()
 {
 	QString previous_file = "";
 
-	if(!this->filePath->text().isEmpty() && !force_use_last_dir_setting)
+	// Check file exists when using as last path.  Fixes not opening to last dir for URLs. (that are not valid files)
+	if(!this->filePath->text().isEmpty() && FileUtils::fileExists(QtUtils::toStdString(this->filePath->text())) && !force_use_last_dir_setting)
 		previous_file = this->filePath->text();
 	else //"mainwindow/lastEnvMapOpenedDir"
 		previous_file = settings.value(settings_key, QVariant(default_path)).toString();
@@ -118,7 +119,7 @@ void FileSelectWidget::openFileDialog()
 
 			internal_filename = file;
 
-			// Make sure the QLineEdit doen't fire as well.
+			// Make sure the QLineEdit doesn't fire as well.
 			this->filePath->blockSignals(true);
 			this->filePath->setText(internal_filename);
 			this->filePath->blockSignals(false);
