@@ -389,7 +389,13 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 			water_gl_obs.push_back(gl_ob);
 		}
 
+		opengl_engine->getCurrentScene()->draw_water = true;
 		opengl_engine->getCurrentScene()->water_level_z = spec.water_z; // Controls caustic drawing
+	}
+	else
+	{
+		opengl_engine->getCurrentScene()->draw_water = false;
+		opengl_engine->getCurrentScene()->water_level_z = 0.0; // Controls caustic drawing
 	}
 #endif
 
