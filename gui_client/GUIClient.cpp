@@ -11351,7 +11351,7 @@ void GUIClient::sendLightmapNeededFlagsSlot()
 
 void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 {
-	URLParseResults parse_res = URLParser::parseURL(URL);
+	URLParseResults parse_res = URLParser::parseURL(::stripHeadAndTailWhitespace(URL));
 
 	const std::string hostname = parse_res.hostname;
 	const std::string worldname = parse_res.userpath;
