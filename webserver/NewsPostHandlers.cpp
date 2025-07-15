@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "RequestInfo.h"
+#include "WebDataStore.h"
 #include "Response.h"
 #include "WebsiteExcep.h"
 #include "Escaping.h"
@@ -22,6 +23,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <PlatformUtils.h>
 #include <Parser.h>
 #include <ContainerUtils.h>
+#include <FileUtils.h>
 
 
 namespace NewsPostHandlers
@@ -83,6 +85,13 @@ void renderNewsPostPage(ServerAllWorldsState& world_state, const web::RequestInf
 					// If the logged-in user created this post, show it
 					page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/post->title, "");
 					page += "<div class=\"main\">   \n";
+
+					if(logged_in_user) // Show any messages for the user
+					{
+						const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+						if(!msg.empty())
+							page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+					}
 					
 					page += "<b>State: " + NewsPost::stateString(post->state) + "</b>\n";
 					page += "<div class=\"news-post-timestamp\">" + post->created_time.dayString() + "</div>";
@@ -204,14 +213,24 @@ void renderEditNewsPostPage(ServerAllWorldsState& world_state, const web::Reques
 				const NewsPost* news_post = res->second.ptr();
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+
+				if(logged_in_user)
+				{
+					const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+					if(!msg.empty())
+						page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+				}
+
+
 				const bool logged_in_user_is_post_owner = logged_in_user && (news_post->creator_id == logged_in_user->id); // If the user is logged in and created this post:
 				if(logged_in_user_is_post_owner)
 				{
-					page += "<form action=\"/edit_news_post_post\" method=\"post\" id=\"usrform\">";
+					page += "<form action=\"/edit_news_post_post\" method=\"post\" id=\"usrform\" enctype=\"multipart/form-data\">";
 					page += "<input type=\"hidden\" name=\"post_id\" value=\"" + toString(post_id) + "\"><br>";
 					page += "Title: <textarea rows=\"1\" cols=\"80\" name=\"title\" form=\"usrform\">"    + web::Escaping::HTMLEscape(news_post->title) +   "</textarea><br>";
 					page += "Content: <textarea rows=\"30\" cols=\"80\" name=\"content\" form=\"usrform\">" + web::Escaping::HTMLEscape(news_post->content) + "</textarea><br>";
 					page += "Thumbnail URL: <textarea rows=\"1\" cols=\"80\" name=\"thumbnail-url\" form=\"usrform\">"    + web::Escaping::HTMLEscape(news_post->thumbnail_URL) +   "</textarea><br>";
+					page += "Attach image: <input type=\"file\" name=\"file\" value=\"\"><br>";
 					page += std::string("Published: <input type=\"checkbox\" name=\"published\" value=\"checked\" ") + ((news_post->state == NewsPost::State_published) ? "checked" : "") + "><br/>\n";
 					page += "<input type=\"submit\" value=\"Update news post\">";
 					page += "</form>";
@@ -230,6 +249,29 @@ void renderEditNewsPostPage(ServerAllWorldsState& world_state, const web::Reques
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
+}
+
+
+static std::string sanitiseString(const std::string& s)
+{
+	std::string res = s;
+	for(size_t i=0; i<s.size(); ++i)
+	{
+		if(!(::isAlphaNumeric(s[i]) || (s[i] == '_')))
+			res[i] = '_';
+	}
+	return res;
+}
+
+
+static std::string sanitiseFilename(const std::string& s)
+{
+	const std::string::size_type dot_index = s.find_last_of('.');
+
+	if(dot_index == std::string::npos)
+		return sanitiseString(s);
+	else
+		return sanitiseString(s.substr(0, dot_index)) + "." + sanitiseString(getTailSubString(s, dot_index + 1));
 }
 
 
@@ -268,7 +310,24 @@ void handleEditNewsPostPost(ServerAllWorldsState& world_state, const web::Reques
 
 					world_state.markAsChanged();
 
-					world_state.setUserWebMessage(logged_in_user->id, "Updated news post contents.");
+
+					std::string msg_to_user;
+
+					// Save any posted images to disk
+					Reference<web::FormField> file_field = request.getPostFieldForNameIfPresent("file");
+					if(file_field && !file_field->filename.empty() && !file_field->content.empty())
+					{
+						const std::string sanitised_filename = sanitiseFilename(file_field->filename.str());
+						const std::string write_path = world_state.web_data_store->public_files_dir + "/" + sanitised_filename;
+						if(FileUtils::fileExists(write_path))
+							throw glare::Exception("File already exists at location '" + write_path + "', not overwriting.");
+						FileUtils::writeEntireFile(write_path, (const char*)file_field->content.data(), file_field->content.size());
+
+						msg_to_user += "Saved attachment to '" + write_path + "'.";
+					}
+
+
+					world_state.setUserWebMessage(logged_in_user->id, "Updated news post contents. " + msg_to_user);
 				}
 			}
 		} // End lock scope
