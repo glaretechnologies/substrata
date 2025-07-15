@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<script>
+    <seat_object>
+        <seat>
+            <seat_position>0 0.5 0</seat_position>
+            <upper_body_rot_angle>0.0</upper_body_rot_angle>
+            <upper_leg_rot_angle>0.0</upper_leg_rot_angle>
+            <lower_leg_rot_angle>0.0</lower_leg_rot_angle>
+            <arm_out_angle>0.0</arm_out_angle>
+        </seat>
+    </seat_object>
+</script>
