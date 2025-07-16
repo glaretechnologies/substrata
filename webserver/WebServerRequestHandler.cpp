@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "WebsiteExcep.h"
 #include "Escaping.h"
 #include "LoginHandlers.h"
+#include "WorldHandlers.h"
 #include "AccountHandlers.h"
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
@@ -298,6 +299,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			SubEventHandlers::handleDeleteEventPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/create_world_post")
+		{
+			WorldHandlers::handleCreateWorldPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/edit_world_post")
+		{
+			WorldHandlers::handleEditWorldPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
@@ -552,6 +561,18 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/edit_event")
 		{
 			SubEventHandlers::renderEditEventPage(*world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/world/")) // world name follows
+		{
+			WorldHandlers::renderWorldPage(*world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/edit_world/")) // world name follows
+		{
+			WorldHandlers::renderEditWorldPage(*world_state, request, reply_info);
+		}
+		else if(request.path == "/create_world")
+		{
+			WorldHandlers::renderCreateWorldPage(*world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{
