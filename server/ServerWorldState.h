@@ -220,11 +220,28 @@ members private and having accessor methods that take a WorldStateLock argument.
 class ServerWorldState : public ThreadSafeRefCounted
 {
 public:
+	ServerWorldState() : db_dirty(false) {}
+
 	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }
 	void addWorldObjectAsDBDirty(const WorldObjectRef ob, WorldStateLock& /*world_state_lock*/) { db_dirty_world_objects.insert(ob); }
 	void addLODChunkAsDBDirty   (const LODChunkRef ob,    WorldStateLock& /*world_state_lock*/) { db_dirty_lod_chunks.insert(ob); }
 
+	void writeToStream(RandomAccessOutStream& stream) const;
+
 	WorldSettings world_settings;
+
+	UserID owner_id;
+	TimeStamp created_time;
+	std::string name;
+	std::string description;
+	// NOTE: if adding new fields, add to copied fields in ServerAllWorldsState::readFromDisk() WORLD_CHUNK handling.
+
+	static const size_t MAX_NAME_SIZE               = 1000;
+	static const size_t MAX_DESCRIPTION_SIZE        = 10000;
+	
+	DatabaseKey database_key;
+	bool db_dirty; // If true, there is a change that has not been saved to the DB.
+
 
 	typedef std::map<UID, Reference<Avatar>> AvatarMapType;
 	typedef std::map<UID, WorldObjectRef> ObjectMapType;
@@ -254,6 +271,18 @@ private:
 	std::unordered_set<ParcelRef, ParcelRefHash>			db_dirty_parcels;
 	std::unordered_set<LODChunkRef, LODChunkRefHash>		db_dirty_lod_chunks;
 };
+
+typedef Reference<ServerWorldState> ServerWorldStateRef;
+
+struct ServerWorldStateRefHash
+{
+	size_t operator() (const ServerWorldStateRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};
+
+void readServerWorldStateFromStream(RandomAccessInStream& stream, ServerWorldState& world);
 
 
 /*=====================================================================

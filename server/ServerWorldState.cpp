@@ -22,6 +22,53 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/LODChunk.h"
 
 
+static const uint32 SERVER_SINGLE_WORLD_STATE_SERIALISATON_VERSION = 1;
+
+
+void ServerWorldState::writeToStream(RandomAccessOutStream& stream) const
+{
+	// Write to stream with a length prefix.  Do this by writing to the stream, them going back and writing the length of the data we wrote.
+	// Writing a length prefix allows for adding more fields later, while retaining backwards compatibility with older code that can just skip over the new fields.
+
+	const size_t initial_write_index = stream.getWriteIndex();
+
+	stream.writeUInt32(SERVER_SINGLE_WORLD_STATE_SERIALISATON_VERSION);
+	stream.writeUInt32(0); // Size of buffer will be written here later
+
+	::writeToStream(owner_id, stream);
+	created_time.writeToStream(stream);
+	stream.writeStringLengthFirst(name);
+	stream.writeStringLengthFirst(description);
+
+	// Go back and write size of buffer to buffer size field
+	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
+
+	std::memcpy(stream.getWritePtrAtIndex(initial_write_index + sizeof(uint32)), &buffer_size, sizeof(uint32));
+}
+
+
+void readServerWorldStateFromStream(RandomAccessInStream& stream, ServerWorldState& world)
+{
+	const size_t initial_read_index = stream.getReadIndex();
+
+	/*const uint32 version =*/ stream.readUInt32();
+	const size_t buffer_size = stream.readUInt32();
+
+	checkProperty(buffer_size >= 8ul, "readSubEventFromStream: buffer_size was too small");
+	checkProperty(buffer_size <= 1000000ul, "readSubEventFromStream: buffer_size was too large");
+
+	world.owner_id = readUserIDFromStream(stream);
+	world.created_time.readFromStream(stream);
+	world.name = stream.readStringLengthFirst(ServerWorldState::MAX_NAME_SIZE);
+	world.description = stream.readStringLengthFirst(ServerWorldState::MAX_DESCRIPTION_SIZE);
+
+	// Discard any remaining unread data
+	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
+	if(read_B < buffer_size)
+		stream.advanceReadIndex(buffer_size - read_B);
+}
+
+
 ServerAllWorldsState::ServerAllWorldsState()
 :	lua_vms(/*empty key=*/UserID::invalidUserID())
 {
@@ -136,6 +183,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_lod_chunks = 0;
 	size_t num_events = 0;
 	size_t num_resources = 0;
+	size_t num_worlds = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -164,7 +212,34 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				const uint32 chunk = stream.readUInt32();
 				if(chunk == WORLD_CHUNK)
 				{
-					// Not doing anything wtih this chunk.  Instead the world name is saved with each object and parcel.
+					ServerWorldStateRef world = new ServerWorldState();
+					readServerWorldStateFromStream(stream, *world);
+
+					// See if we have already created this world while reading a WORLD_OBJECT_CHUNK, PARCEL_CHUNK etc. below
+					auto res = world_states.find(world->name);
+					if(res == world_states.end())
+					{
+						// not created and inserted yet:
+						
+						world->database_key = database_key;
+
+						world_states[world->name] = world;
+					}
+					else
+					{
+						// already created:
+						ServerWorldStateRef existing_world = res->second;
+						existing_world->owner_id = world->owner_id;
+						existing_world->created_time = world->created_time;
+						existing_world->name = world->name;
+						existing_world->description = world->description;
+						
+						existing_world->database_key = database_key;
+
+						world_states[existing_world->name] = world;
+					}
+					
+					num_worlds++;
 				}
 				else if(chunk == WORLD_OBJECT_CHUNK)
 				{
@@ -708,7 +783,7 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 	WorldStateLock lock(mutex);
 
 	{
-		Lock lock(resource_manager->getMutex());
+		Lock resource_manager_lock(resource_manager->getMutex());
 		for(auto it = resource_manager->getResourcesForURL().begin(); it != resource_manager->getResourcesForURL().end(); ++it)
 			db_dirty_resources.insert(it->second);
 	}
@@ -825,7 +900,7 @@ void ServerAllWorldsState::denormaliseData()
 Migration version history
 -------------------------
 1: Set AUDIO_AUTOPLAY and AUDIO_LOOP flags on all WorldObjects with non-empty audio_source_url, since that was the behaviour before the flags were introduced.
-
+3: Make main world and personal world ServerWorldState objects for all users.
 
 */
 void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
@@ -849,10 +924,46 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 		}
 	}
 
-
-	if(this->migration_version_info.migration_version < 1)
+	if(this->migration_version_info.migration_version < 3)
 	{
-		this->migration_version_info.migration_version = 1;
+		conPrint("Doing DB migration from version " + toString(migration_version_info.migration_version) + ": Make main world and personal world ServerWorldState objects for all users.");
+
+		// Create main world if not already present.
+		if(world_states.count("") == 0)
+		{
+			ServerWorldStateRef world = new ServerWorldState();
+			world->created_time = TimeStamp::currentTime();
+			world->owner_id = UserID(0);
+			world->name = "";
+			world->description = "Main world";
+			world->db_dirty = true;
+
+			world_states[""] = world;
+		}
+
+		// Create personal worlds for all users if not already present.
+		for(auto it = user_id_to_users.begin(); it != user_id_to_users.end(); ++it)
+		{
+			const User* user = it->second.ptr();
+			const std::string world_name = user->name;
+			if(world_states.count(world_name) == 0)
+			{
+				ServerWorldStateRef world = new ServerWorldState();
+				world->created_time = TimeStamp::currentTime();
+				world->owner_id = user->id;
+				world->name = world_name;
+				world->description = user->name + "'s personal world";
+				world->db_dirty = true;
+
+				world_states[world_name] = world;
+			}
+		}
+	}
+
+
+	if(this->migration_version_info.migration_version < 3)
+	{
+		this->migration_version_info.migration_version = 3;
 		this->migration_version_info.db_dirty = true;
 		this->changed = 1;
 	}
@@ -1015,6 +1126,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_user_secrets = 0;
 		size_t num_lod_chunks = 0;
 		size_t num_events = 0;
+		size_t num_worlds = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -1032,8 +1144,25 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		// For each world
 		for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
 		{
-			const std::string world_name = world_it->first;
-			Reference<ServerWorldState> world_state = world_it->second;
+			const std::string& world_name = world_it->first;
+			ServerWorldState* world_state = world_it->second.ptr();
+
+			// Write world (if dirty)
+			if(world_state->db_dirty)
+			{
+				temp_buf.clear();
+				temp_buf.writeUInt32(WORLD_CHUNK);
+				world_state->writeToStream(temp_buf); // Write world
+
+				if(!world_state->database_key.valid())
+					world_state->database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(world_state->database_key, temp_buf.buf);
+
+				world_state->db_dirty = false;
+
+				num_worlds++;
+			}
 
 			// Write objects
 			{
@@ -1456,6 +1585,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		database.flush();
 
 		std::string msg = "Saved ";
+		if(num_worlds > 0)                msg += toString(num_worlds) + " world(s), ";
 		if(num_obs > 0)                   msg += toString(num_obs) +   " object(s), ";
 		if(num_users > 0)                 msg += toString(num_users) + " user(s), ";
 		if(num_parcels > 0)               msg += toString(num_parcels) + " parcels(s), ";
