@@ -2605,7 +2605,7 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 	{
 		URLParseResults parse_results;
 		parse_results.hostname = gui_client.server_hostname;
-		parse_results.userpath = gui_client.logged_in_user_name;
+		parse_results.worldname = gui_client.logged_in_user_name;
 
 		gui_client.connectToServer(parse_results);
 	}
@@ -2623,7 +2623,7 @@ void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
 {
 	URLParseResults parse_results;
 	parse_results.hostname = gui_client.server_hostname;
-	parse_results.userpath = "cryptovoxels";
+	parse_results.worldname = "cryptovoxels";
 
 	gui_client.connectToServer(parse_results);
 }

@@ -11354,7 +11354,7 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 	URLParseResults parse_res = URLParser::parseURL(::stripHeadAndTailWhitespace(URL));
 
 	const std::string hostname = parse_res.hostname;
-	const std::string worldname = parse_res.userpath;
+	const std::string worldname = parse_res.worldname;
 
 	if(parse_res.parsed_parcel_uid)
 		this->url_parcel_uid = parse_res.parcel_uid;
@@ -11651,7 +11651,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), PlayerPhysics::getEyeHeight());
 
 	this->server_hostname = parse_res.hostname;
-	this->server_worldname = parse_res.userpath;
+	this->server_worldname = parse_res.worldname;
 
 	if(parse_res.parsed_parcel_uid)
 		this->url_parcel_uid = parse_res.parcel_uid;
@@ -14624,7 +14624,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 	{
 		URLParseResults url_parse_results;
 		url_parse_results.hostname = this->server_hostname;
-		url_parse_results.userpath = this->server_worldname;
+		url_parse_results.worldname = this->server_worldname;
 		url_parse_results.x = this->cam_controller.getPosition().x;
 		url_parse_results.y = this->cam_controller.getPosition().y;
 		url_parse_results.z = this->cam_controller.getPosition().z;
