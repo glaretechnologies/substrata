@@ -104,7 +104,8 @@ void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/world->name, "");
 			page += "<div class=\"main\">   \n";
 
-			if(logged_in_user) // Show any messages for the user
+			// Show any messages for the user
+			if(logged_in_user) 
 			{
 				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
 				if(!msg.empty())
@@ -161,6 +162,14 @@ void renderCreateWorldPage(ServerAllWorldsState& world_state, const web::Request
 
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 
+			// Show any messages for the user
+			if(logged_in_user) 
+			{
+				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+				if(!msg.empty())
+					page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+			}
+
 			if(!logged_in_user)
 			{
 				page += "You must be logged in to create a world.";
@@ -168,7 +177,7 @@ void renderCreateWorldPage(ServerAllWorldsState& world_state, const web::Request
 			else
 			{
 				page += "<form action=\"/create_world_post\" method=\"post\" id=\"usrform\">";
-				page += "World name: <textarea rows=\"1\" cols=\"80\" name=\"world_name\" form=\"usrform\"></textarea><br/>";
+				page += "<label for=\"world_name\">World name:</label> <br/> <textarea rows=\"1\" cols=\"80\" name=\"world_name\" id=\"world_name\" form=\"usrform\"></textarea><br/>";
 				page += "<input type=\"submit\" value=\"Create world\">";
 				page += "</form>";
 			}
@@ -213,13 +222,22 @@ void renderEditWorldPage(ServerAllWorldsState& world_state, const web::RequestIn
 			const ServerWorldState* world = res->second.ptr();
 
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+
+			// Show any messages for the user
+			if(logged_in_user) 
+			{
+				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+				if(!msg.empty())
+					page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+			}
+
 			const bool logged_in_user_is_world_owner = logged_in_user && (world->owner_id == logged_in_user->id); // If the user is logged in and owns this world:
 			if(logged_in_user_is_world_owner)
 			{
 
 				page += "<form action=\"/edit_world_post\" method=\"post\" id=\"usrform\">";
 				page += "<input type=\"hidden\" name=\"world_name\" value=\"" + web::Escaping::HTMLEscape(world->name) + "\"><br>";
-				page += "Description: <textarea rows=\"30\" cols=\"80\" name=\"description\" form=\"usrform\">" + web::Escaping::HTMLEscape(world->description) + "</textarea><br>";
+				page += "Description: <br/><textarea rows=\"30\" cols=\"80\" name=\"description\" form=\"usrform\">" + web::Escaping::HTMLEscape(world->description) + "</textarea><br>";
 				page += "<input type=\"submit\" value=\"Edit world\">";
 				page += "</form>";
 			}
@@ -254,12 +272,9 @@ void handleCreateWorldPost(ServerAllWorldsState& world_state, const web::Request
 
 		const std::string world_name_field   = request.getPostField("world_name").str();
 
-		if(world_name_field.empty())
-			throw glare::Exception("world name cannot be empty");
-
 		std::string new_world_name;
-
 		bool redirect_to_login = false;
+		bool redirect_back_to_create_page = false;
 
 		{ // Lock scope
 			Lock lock(world_state.mutex);
@@ -273,28 +288,42 @@ void handleCreateWorldPost(ServerAllWorldsState& world_state, const web::Request
 			{
 				new_world_name = logged_in_user->name + "/" + world_name_field;
 
-				if(world_state.world_states.count(new_world_name) > 0)
-					throw glare::Exception("Can not create world, a world with that name already exists.");
+				if(world_name_field.empty())
+				{
+					redirect_back_to_create_page = true;
+					world_state.setUserWebMessage(logged_in_user->id, "world name cannot be empty.");
+				}
+				else if(world_state.world_states.count(new_world_name) > 0)
+				{
+					redirect_back_to_create_page = true;
+					world_state.setUserWebMessage(logged_in_user->id, "Can not create world '" + new_world_name + "', a world with that name already exists.");
+				}
+				else if(new_world_name.size() > ServerWorldState::MAX_NAME_SIZE)
+				{
+					redirect_back_to_create_page = true;
+					world_state.setUserWebMessage(logged_in_user->id, "invalid world name - too long.");
+				}
+				else
+				{
+					Reference<ServerWorldState> world = new ServerWorldState();
+					world->name = new_world_name;
+					world->owner_id = logged_in_user->id;
+					world->created_time = TimeStamp::currentTime();
 
-				if(new_world_name.size() > ServerWorldState::MAX_NAME_SIZE)
-					throw glare::Exception("invalid world name - too long");
-
-				Reference<ServerWorldState> world = new ServerWorldState();
-				world->name = new_world_name;
-				world->owner_id = logged_in_user->id;
-				world->created_time = TimeStamp::currentTime();
-
-				world_state.world_states.insert(std::make_pair(new_world_name, world)); // Add to world_states
+					world_state.world_states.insert(std::make_pair(new_world_name, world)); // Add to world_states
 			
-				world->db_dirty = true;
-				world_state.markAsChanged();
+					world->db_dirty = true;
+					world_state.markAsChanged();
 
-				world_state.setUserWebMessage(logged_in_user->id, "Created world.");
+					world_state.setUserWebMessage(logged_in_user->id, "Created world.");
+				}
 			}
 		} // End lock scope
 
 		if(redirect_to_login)
 			web::ResponseUtils::writeRedirectTo(reply_info, "/login");
+		else if(redirect_back_to_create_page)
+			web::ResponseUtils::writeRedirectTo(reply_info, "/create_world");
 		else
 			web::ResponseUtils::writeRedirectTo(reply_info, "/world/" + URLEscapeWorldName(new_world_name));
 	}

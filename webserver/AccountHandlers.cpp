@@ -107,6 +107,8 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 			}
 		}
 
+		page += "<p><a href=\"/create_world\">Create a new world</a></p>\n";
+
 		//-------------------------------- List events created by user --------------------------------
 		page += "<h2>Events</h2>\n";
 		for(auto it = world_state.events.begin(); it != world_state.events.end(); ++it)
