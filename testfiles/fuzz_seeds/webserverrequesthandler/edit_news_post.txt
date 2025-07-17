@@ -1,0 +1,1 @@
+GET /edit_news_post/0
