@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/Parser.h>
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
+#include <webserver/Escaping.h>
 
 
 URLParseResults::URLParseResults()
@@ -44,10 +45,10 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 			throw glare::Exception("Expected '://' after protocol scheme.");
 	}
 
-	// Parse hostname and userpath, parcel number
+	// Parse hostname and worldname, parcel number
 	while(!parser.eof())
 	{
-		if(parser.current() == '/') // End of hostname, start of userpath if there is one.
+		if(parser.current() == '/') // End of hostname, start of worldname if there is one.
 		{
 			parser.consume('/');
 
@@ -58,17 +59,14 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 				res.parsed_parcel_uid = true;
 			}
 
-			// Parse userpath, if present
-			while(!parser.eof())
+			// Parse worldname, if present
+			while(parser.notEOF() && parser.current() != '?')
 			{
-				if(parser.current() == '?')
-					break;
-				else
-				{
-					res.userpath += parser.current();
-					parser.advance();
-				}
+				res.worldname.push_back(parser.current());
+				parser.advance();
 			}
+
+			res.worldname = web::Escaping::URLUnescape(res.worldname);
 
 			break;
 		}
@@ -112,7 +110,7 @@ void URLParser::processQueryKeyValues(const std::map<std::string, std::string>& 
 	}
 	
 	if(query_keyvalues.count("world"))
-		res.userpath = query_keyvalues.find("world")->second; // An alternative way of specifying the world/user name
+		res.worldname = query_keyvalues.find("world")->second; // An alternative way of specifying the world/user name
 
 	if(query_keyvalues.count("heading"))
 		res.heading = stringToDouble(query_keyvalues.find("heading")->second);
@@ -184,7 +182,7 @@ void URLParser::test()
 	{
 		URLParseResults res = parseURL("sub://substrata.info");
 		testAssert(res.hostname == "substrata.info");
-		testAssert(res.userpath == "");
+		testAssert(res.worldname == "");
 		testAssert(res.x == 0);
 		testAssert(res.y == 0);
 		testAssert(res.z == 0);
@@ -197,7 +195,7 @@ void URLParser::test()
 	{
 		URLParseResults res = parseURL("sub://substrata.info/");
 		testAssert(res.hostname == "substrata.info");
-		testAssert(res.userpath == "");
+		testAssert(res.worldname == "");
 		testAssert(res.x == 0);
 		testAssert(res.y == 0);
 		testAssert(res.z == 0);
@@ -210,7 +208,7 @@ void URLParser::test()
 	{
 		URLParseResults res = parseURL("sub://substrata.info/bleh");
 		testAssert(res.hostname == "substrata.info");
-		testAssert(res.userpath == "bleh");
+		testAssert(res.worldname == "bleh");
 		testAssert(res.x == 0);
 		testAssert(res.y == 0);
 		testAssert(res.z == 0);
@@ -220,10 +218,52 @@ void URLParser::test()
 		testAssert(!res.parsed_parcel_uid);
 	}
 
+	// Test URL unescaping with escape sequence in world name
+	{
+		URLParseResults res = parseURL("sub://substrata.info/nick/my+cool+world");
+		testAssert(res.hostname == "substrata.info");
+		testAssert(res.worldname == "nick/my cool world");
+		testAssert(res.x == 0);
+		testAssert(res.y == 0);
+		testAssert(res.z == 0);
+		testAssert(!res.parsed_x);
+		testAssert(!res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
+	}
+
+	// Test URL unescaping with escape sequence in world name
+	{
+		URLParseResults res = parseURL("sub://substrata.info/nick/my%3Fcool%3Fworld");
+		testAssert(res.hostname == "substrata.info");
+		testAssert(res.worldname == "nick/my?cool?world");
+		testAssert(res.x == 0);
+		testAssert(res.y == 0);
+		testAssert(res.z == 0);
+		testAssert(!res.parsed_x);
+		testAssert(!res.parsed_y);
+		testAssert(!res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
+	}
+
+	// Test URL unescaping with escape sequence in world name and position params
+	{
+		URLParseResults res = parseURL("sub://substrata.info/nick/my%3Fcool%3Fworld?x=1.0&y=2.0&z=3.0");
+		testAssert(res.hostname == "substrata.info");
+		testAssert(res.worldname == "nick/my?cool?world");
+		testAssert(res.x == 1.0);
+		testAssert(res.y == 2.0);
+		testAssert(res.z == 3.0);
+		testAssert(res.parsed_x);
+		testAssert(res.parsed_y);
+		testAssert(res.parsed_z);
+		testAssert(!res.parsed_parcel_uid);
+	}
+
 	{
 		URLParseResults res = parseURL("sub://substrata.info/bleh?x=1.0&y=2.0&z=3.0");
 		testAssert(res.hostname == "substrata.info");
-		testAssert(res.userpath == "bleh");
+		testAssert(res.worldname == "bleh");
 		testAssert(res.x == 1.0);
 		testAssert(res.y == 2.0);
 		testAssert(res.z == 3.0);
@@ -236,7 +276,7 @@ void URLParser::test()
 	{
 		URLParseResults res = parseURL("sub://substrata.info/bleh?x=-1.0&y=-2.0");
 		testAssert(res.hostname == "substrata.info");
-		testAssert(res.userpath == "bleh");
+		testAssert(res.worldname == "bleh");
 		testAssert(res.x == -1.0);
 		testAssert(res.y == -2.0);
 		testAssert(res.z == 0);
@@ -249,7 +289,7 @@ void URLParser::test()
 	{
 		URLParseResults res = parseURL("sub://substrata.info/bleh?x=-1.0&y=-2.0");
 		testAssert(res.hostname == "substrata.info");
-		testAssert(res.userpath == "bleh");
+		testAssert(res.worldname == "bleh");
 		testAssert(res.x == -1.0);
 		testAssert(res.y == -2.0);
 		testAssert(res.z == 0);
