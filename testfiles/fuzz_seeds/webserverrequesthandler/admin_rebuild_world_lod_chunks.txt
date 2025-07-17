@@ -1,0 +1,1 @@
+POST /admin_rebuild_world_lod_chunks?world_name=ALL
