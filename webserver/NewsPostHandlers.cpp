@@ -314,18 +314,20 @@ void handleEditNewsPostPost(ServerAllWorldsState& world_state, const web::Reques
 					std::string msg_to_user;
 
 					// Save any posted images to disk
-					Reference<web::FormField> file_field = request.getPostFieldForNameIfPresent("file");
-					if(file_field && !file_field->filename.empty() && !file_field->content.empty())
+					if(!request.fuzzing)
 					{
-						const std::string sanitised_filename = sanitiseFilename(file_field->filename.str());
-						const std::string write_path = world_state.web_data_store->public_files_dir + "/" + sanitised_filename;
-						if(FileUtils::fileExists(write_path))
-							throw glare::Exception("File already exists at location '" + write_path + "', not overwriting.");
-						FileUtils::writeEntireFile(write_path, (const char*)file_field->content.data(), file_field->content.size());
+						Reference<web::FormField> file_field = request.getPostFieldForNameIfPresent("file");
+						if(file_field && !file_field->filename.empty() && !file_field->content.empty())
+						{
+							const std::string sanitised_filename = sanitiseFilename(file_field->filename.str());
+							const std::string write_path = world_state.web_data_store->public_files_dir + "/" + sanitised_filename;
+							if(FileUtils::fileExists(write_path))
+								throw glare::Exception("File already exists at location '" + write_path + "', not overwriting.");
+							FileUtils::writeEntireFile(write_path, (const char*)file_field->content.data(), file_field->content.size());
 
-						msg_to_user += "Saved attachment to '" + write_path + "'.";
+							msg_to_user += "Saved attachment to '" + write_path + "'.";
+						}
 					}
-
 
 					world_state.setUserWebMessage(logged_in_user->id, "Updated news post contents. " + msg_to_user);
 				}

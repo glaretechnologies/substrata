@@ -616,6 +616,9 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 		return;
 	}
 
+	// Don't do an Infura API call if fuzzing.
+	if(request_info.fuzzing)
+		return;
 
 	// Do infura lookup
 	bool succeeded = false;
