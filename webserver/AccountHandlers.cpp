@@ -22,12 +22,12 @@ Copyright Glare Technologies Limited 2022 -
 #include <Keccak256.h>
 #include <CryptoRNG.h>
 #include <MemMappedFile.h>
-#include "RequestInfo.h"
 #include "Response.h"
 #include "WebsiteExcep.h"
 #include "Escaping.h"
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
+#include "WorldHandlers.h"
 #include "LoginHandlers.h"
 #include "../server/ServerWorldState.h"
 #include "../server/UserWebSession.h"
@@ -88,6 +88,22 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 					page += "<br/><a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
 				page += "</p>\n";
 				//page += "<br/>  \n";
+			}
+		}
+
+		//-------------------------------- List worlds owned by user --------------------------------
+
+		page += "<h2>Worlds</h2>\n";
+
+		for(auto it = world_state.world_states.begin(); it != world_state.world_states.end(); ++it)
+		{
+			const ServerWorldState* world = it->second.ptr();
+
+			if(world->owner_id == logged_in_user->id)
+			{
+				page += "<div>\n";
+				page += "<a href=\"/world/" + WorldHandlers::URLEscapeWorldName(world->name) + "\">" + web::Escaping::HTMLEscape(world->name) + "</a>";
+				page += "</div>\n";
 			}
 		}
 
