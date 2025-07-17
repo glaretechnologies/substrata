@@ -31,7 +31,7 @@ Copyright Glare Technologies Limited 2022 -
 #if 0
 
 // Command line:
-// C:\fuzz_corpus\webserverrequesthandler N:\substrata\trunk\testfiles\fuzz_seeds\webserverrequesthandler
+// C:\fuzz_corpus\webserverrequesthandler c:\code\substrata\testfiles\fuzz_seeds\webserverrequesthandler
 
 
 static Reference<ServerAllWorldsState> test_world_state;
@@ -74,6 +74,8 @@ extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv)
 		test_web_data_store->webclient_dir = test_server_state_dir + "/webclient";
 		test_web_data_store->screenshot_dir = test_server_state_dir + "/screenshots";
 		test_web_data_store->loadAndCompressFiles();
+
+		test_world_state->web_data_store = test_web_data_store.ptr();
 	}
 	catch(glare::Exception& )
 	{
@@ -185,20 +187,20 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 				// Parse form data
 				while(!parser.eof())
 				{
-					request_info.post_fields.resize(request_info.post_fields.size() + 1);
+					request_info.post_fields.push_back(new web::FormField());
 
 					// Parse key
 					string_view escaped_key;
 					if(!parser.parseToChar('=', escaped_key))
 						throw glare::Exception("Parser error while parsing URL params");
-					request_info.post_fields.back().key = std::string(escaped_key);
+					request_info.post_fields.back()->key = std::string(escaped_key);
 
 					parser.consume('=');
 
 					// Parse value
 					string_view escaped_value;
 					parser.parseToCharOrEOF('&', escaped_value);
-					request_info.post_fields.back().value = std::string(escaped_value);
+					request_info.post_fields.back()->content = std::vector<uint8>(escaped_value.data(), escaped_value.data() + escaped_value.size());  //std::string(escaped_value);
 
 					if(parser.currentIsChar('&'))
 						parser.consume('&');
@@ -206,7 +208,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 						break; // Finish parsing URL params.
 				}
 
-				request_info.post_content = std::string((const char*)data + post_content_start, (const char*)data + parser.currentPos());
+				request_info.post_content = std::vector<uint8>((const uint8*)data + post_content_start, (const uint8*)data + parser.currentPos());
 			}
 		}
 		
@@ -239,7 +241,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 				conPrint("Header: " + toString(request_info.headers[i].key) + ": " + toString(request_info.headers[i].value));
 
 			for(size_t i=0; i<request_info.post_fields.size(); ++i)
-				conPrint("Post field: " + toString(request_info.post_fields[i].key) + ": " + request_info.post_fields[i].value.str());
+				conPrint("Post field: " + request_info.post_fields[i]->key.str() + ": " + request_info.post_fields[i]->getContentAsString().str());
 			conPrint("--------------------------");
 		}
 
