@@ -15,7 +15,7 @@ struct URLParseResults
 	URLParseResults();
 
 	std::string hostname;
-	std::string userpath; // = worldname
+	std::string worldname;
 	double x, y, z;
 	double heading; // [0, 360].  0 = looking along x axis.  90 = looking along y axis
 	int parcel_uid;
