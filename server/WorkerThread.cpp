@@ -991,17 +991,10 @@ void WorkerThread::doRun()
 
 			{
 				Lock lock(world_state->mutex);
-				// Create world if didn't exist before.
-				// For now only the main world ("") and personal worlds are allowed
-				if(world_name == "")
-				{}
-				else if(world_state->name_to_users.find(world_name) != world_state->name_to_users.end()) // Else if world_name is a user name, it's valid
-				{}
-				else
+
+				if(world_state->world_states.count(world_name) == 0)
 					throw glare::Exception("Invalid world name '" + world_name + "'.");
 
-				if(world_state->world_states[world_name].isNull())
-					world_state->world_states[world_name] = new ServerWorldState();
 				cur_world_state = world_state->world_states[world_name];
 			}
 
