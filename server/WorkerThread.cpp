@@ -277,6 +277,22 @@ void WorkerThread::handleResourceUploadConnection()
 		//conPrintIfNotFuzzing("\tStreaming to disk at '" + local_path + "'...");
 		conPrintIfNotFuzzing("\tStreaming upload to disk at '" + local_path + "' (" + toString(file_len) + " B)...");
 
+		if(fuzzing)
+		{
+			// Don't write to disk while fuzzing.
+			uint64 offset = 0;
+			const uint64 MAX_CHUNK_SIZE = 1ull << 14;
+			js::Vector<uint8, 16> temp_buf(MAX_CHUNK_SIZE);
+			while(offset < file_len)
+			{
+				const uint64 chunk_size = myMin(file_len - offset, MAX_CHUNK_SIZE);
+				runtimeCheck(offset + chunk_size <= file_len);
+				runtimeCheck(chunk_size <= temp_buf.size());
+				socket->readData(temp_buf.data(), chunk_size);
+				offset += chunk_size;
+			}
+		}
+		else
 		{
 			FileOutStream file(local_path, std::ios::binary | std::ios::trunc); // Remove any existing data in the file
 
@@ -290,8 +306,7 @@ void WorkerThread::handleResourceUploadConnection()
 				runtimeCheck(chunk_size <= temp_buf.size());
 				socket->readData(temp_buf.data(), chunk_size);
 
-				if(!fuzzing) // Don't write to disk while fuzzing.
-					file.writeData(temp_buf.data(), chunk_size);
+				file.writeData(temp_buf.data(), chunk_size);
 
 				offset += chunk_size;
 			}
