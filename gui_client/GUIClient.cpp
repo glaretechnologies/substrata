@@ -7372,23 +7372,23 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 					}
 
 					
+					// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
+					Vec4f use_nametag_pos = pos.toVec4fPoint(); // Also used for red dot in HeadUpDisplay
+					if(avatar->entered_vehicle)
+					{
+						const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
+						if(controller_res != vehicle_controllers.end())
+						{
+							VehiclePhysics* controller = controller_res->second.ptr();
+							const Matrix4f seat_to_world = controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
+
+							use_nametag_pos = seat_to_world * Vec4f(0,0,1.0f,1);
+						}
+					}
+
 					// Update nametag transform also
 					if(avatar->nametag_gl_ob.nonNull())
 					{
-						// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
-						Vec4f use_nametag_pos = pos.toVec4fPoint();
-						if(avatar->entered_vehicle.nonNull())
-						{
-							const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
-							if(controller_res != vehicle_controllers.end())
-							{
-								VehiclePhysics* controller = controller_res->second.ptr();
-								const Matrix4f seat_to_world = controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
-
-								use_nametag_pos = seat_to_world * Vec4f(0,0,1.0f,1);
-							}
-						}
-
 						// We want to rotate the nametag towards the camera.
 						Vec4f to_cam = normalise(use_nametag_pos - this->cam_controller.getPosition().toVec4fPoint());
 						if(!isFinite(to_cam[0]))
@@ -7574,8 +7574,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 
 					if(!our_avatar)
 					{
-						hud_ui.updateMarkerForAvatar(avatar, pos); // Update marker on HUD
-						minimap.updateMarkerForAvatar(avatar, pos); // Update marker on minimap
+						hud_ui.updateMarkerForAvatar(avatar, Vec3d(use_nametag_pos)); // Update marker on HUD
+						minimap.updateMarkerForAvatar(avatar, Vec3d(use_nametag_pos)); // Update marker on minimap
 					}
 
 
