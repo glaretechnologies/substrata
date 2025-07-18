@@ -3,7 +3,7 @@ WorldHandlers.cpp
 -----------------
 Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
-#include "SubEventHandlers.h"
+#include "WorldHandlers.h"
 
 
 #include "RequestInfo.h"
@@ -14,7 +14,6 @@ Copyright Glare Technologies Limited 2025 -
 #include "WebServerResponseUtils.h"
 #include "LoginHandlers.h"
 #include "../server/ServerWorldState.h"
-#include "../server/Order.h"
 #include <ConPrint.h>
 #include <Exception.h>
 #include <Lock.h>
@@ -76,7 +75,7 @@ std::string URLEscapeWorldName(const std::string& world_name)
 	}
 }
 
-void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info) // Shows a single event
+void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info) // Shows a single world
 {
 	try
 	{
@@ -99,7 +98,7 @@ void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			const ServerWorldState* world = res->second.ptr();
 
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-			const bool logged_in_user_is_event_owner = logged_in_user && (world->details.owner_id == logged_in_user->id); // If the user is logged in and created this world:
+			const bool logged_in_user_is_world_owner = logged_in_user && (world->details.owner_id == logged_in_user->id); // If the user is logged in and created this world:
 
 			page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/world->details.name, "");
 			page += "<div class=\"main\">   \n";
@@ -132,7 +131,7 @@ void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			const std::string native_URL = "sub://" + hostname + "/" + world_name;
 			page += "<p>Visit in native app: <a href=\"" + native_URL + "\">" + web::Escaping::HTMLEscape(native_URL) + "</a></p>";
 
-			if(logged_in_user_is_event_owner) // Show edit link If the user is logged in and owns this world
+			if(logged_in_user_is_world_owner) // Show edit link If the user is logged in and owns this world
 				page += "<br/><br/><div><a href=\"/edit_world/" + URLEscapeWorldName(world_name) + "\">Edit world</a></div>";
 			
 		} // end lock scope
