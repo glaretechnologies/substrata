@@ -66,7 +66,7 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 		new_section_widget->maskMapURLFileSelectWidget->setFilename(QtUtils::toQString(section_spec.mask_map_URL));
 		new_section_widget->treeMaskMapURLFileSelectWidget->setFilename(QtUtils::toQString(section_spec.tree_mask_map_URL));
 
-		const bool editable = main_window->connectedToUsersPersonalWorldOrGodUser();
+		const bool editable = main_window->connectedToUsersWorldOrGodUser();
 		new_section_widget->updateControlsEditable(editable);
 
 		terrainSectionScrollAreaWidgetContents->layout()->addWidget(new_section_widget);
@@ -145,7 +145,7 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 
 void WorldSettingsWidget::updateControlsEditable()
 {
-	const bool editable = main_window->connectedToUsersPersonalWorldOrGodUser();
+	const bool editable = main_window->connectedToUsersWorldOrGodUser();
 
 	for(int i=0; i<terrainSectionScrollAreaWidgetContents->layout()->count(); ++i)
 	{

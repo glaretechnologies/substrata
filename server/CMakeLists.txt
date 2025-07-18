@@ -59,6 +59,8 @@ SET(shared_files
 ../shared/RateLimiter.h
 ../shared/LODChunk.cpp
 ../shared/LODChunk.h
+../shared/WorldDetails.cpp
+../shared/WorldDetails.h
 )
 
 

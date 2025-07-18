@@ -111,6 +111,8 @@ const uint32 AllObjectsSent			= 3601; // Server has sent all objects
 const uint32 WorldSettingsInitialSendMessage	= 3700;
 const uint32 WorldSettingsUpdate	= 3701;
 
+const uint32 WorldDetailsInitialSendMessage	= 3750; // Server is sending ServerWorldState to client.
+
 const uint32 QueryMapTiles			= 3800; // Client wants to query map tile image URLs
 const uint32 MapTilesResult			= 3801; // Server is sending back a list of tile image URLs to the client.
 

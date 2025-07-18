@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
 #include "../shared/WorldSettings.h"
+#include "../shared/WorldDetails.h"
 #include "../shared/WorldStateLock.h"
 #include "../shared/LODChunk.h"
 #include "../shared/SubstrataLuaVM.h"
@@ -230,14 +231,7 @@ public:
 
 	WorldSettings world_settings;
 
-	UserID owner_id;
-	TimeStamp created_time;
-	std::string name;
-	std::string description;
-	// NOTE: if adding new fields, add to copied fields in ServerAllWorldsState::readFromDisk() WORLD_CHUNK handling.
-
-	static const size_t MAX_NAME_SIZE               = 1000;
-	static const size_t MAX_DESCRIPTION_SIZE        = 10000;
+	WorldDetails details; // owner ID, name, description etc.
 	
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.

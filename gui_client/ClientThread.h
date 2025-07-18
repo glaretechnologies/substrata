@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
 #include "../shared/Avatar.h"
+#include "../shared/WorldDetails.h"
 #include <networking/IPAddress.h>
 #include <utils/MessageableThread.h>
 #include <utils/Platform.h>
@@ -217,6 +218,14 @@ public:
 	WorldSettingsReceivedMessage(bool is_initial_send_) : is_initial_send(is_initial_send_) {}
 	WorldSettings world_settings;
 	bool is_initial_send;
+};
+
+
+class WorldDetailsReceivedMessage : public ThreadMessage
+{
+public:
+	WorldDetailsReceivedMessage() {}
+	WorldDetails world_details;
 };
 
 

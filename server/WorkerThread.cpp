@@ -791,18 +791,17 @@ static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject&
 }
 
 
-// Is the client connected to their personal world?
-// Precondition: user_name is valid
-static bool connectedToUsersPersonalWorld(const std::string& user_name, const std::string& connected_world_name)
+// Is the client connected to a world that the user is the owner of?
+static bool connectedToUsersWorld(const UserID& user_id, ServerWorldState& connected_world)
 {
-	assert(!user_name.empty());
+	assert(user_id.valid());
 
-	return !connected_world_name.empty() && (user_name == connected_world_name);
+	return connected_world.details.owner_id == user_id;
 }
 
 
 // NOTE: world state mutex should be locked before calling this method.
-static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, bool allow_light_mapper_bot_full_perms,
+static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, ServerWorldState& world_state, bool allow_light_mapper_bot_full_perms,
 	WorldStateLock& lock)
 {
 	if(user_id.valid())
@@ -810,7 +809,7 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& u
 		return (user_id == ob.creator_id) || // If the user created/owns the object
 			isGodUser(user_id) || // or if the user is the god user (id 0)
 			(allow_light_mapper_bot_full_perms && (user_name == "lightmapperbot")) || // lightmapper bot has full write permissions for now.
-			connectedToUsersPersonalWorld(user_name, connected_world_name) || // or if this is the user's personal world
+			connectedToUsersWorld(user_id, world_state) || // or if the user owns this world
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 	}
 	else
@@ -818,10 +817,10 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& u
 }
 
 
-static bool userConnectedToTheirPersonalWorldOrGodUser(const UserID& user_id, const std::string& user_name, const std::string& connected_world_name)
+static bool userConnectedToTheirWorldOrGodUser(const UserID& user_id, ServerWorldState& connected_world)
 {
 	return isGodUser(user_id) || // if the user is the god user (id 0)
-		connectedToUsersPersonalWorld(user_name, connected_world_name); // or if this is the user's personal world
+		connectedToUsersWorld(user_id, connected_world); // or if this is the user's world
 }
 
 
@@ -846,12 +845,12 @@ static bool userCanCreateSummonedObject(const WorldObject& ob, const UserID& use
 
 // Does the user have permission to create the given object with its current transformation?
 // NOTE: world state mutex should be locked before calling this method.
-static bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, WorldStateLock& lock)
+static bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock)
 {
 	if(user_id.valid())
 	{
 		return isGodUser(user_id) || // if the user is the god user
-			connectedToUsersPersonalWorld(user_name, connected_world_name) || // or if this is the user's personal world
+			connectedToUsersWorld(user_id, world_state) || // or if this is the user's world
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock) || // Or this object is in a parcel we have write permissions for.
 			userCanCreateSummonedObject(ob, user_id);
 	}
@@ -862,7 +861,7 @@ static bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID
 
 // This is for editing the parcel itself.
 // NOTE: world state mutex should be locked before calling this method.
-static bool userHasParcelWritePermissions(const Parcel& parcel, const UserID& user_id, const std::string& connected_world_name, ServerWorldState& world_state)
+static bool userHasParcelWritePermissions(const Parcel& parcel, const UserID& user_id, ServerWorldState& world_state)
 {
 	if(user_id.valid())
 	{
@@ -875,9 +874,9 @@ static bool userHasParcelWritePermissions(const Parcel& parcel, const UserID& us
 }
 
 
-static float maxAudioVolumeForObject(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name)
+static float maxAudioVolumeForObject(const WorldObject& ob, const UserID& user_id, ServerWorldState& connected_world)
 {
-	return userConnectedToTheirPersonalWorldOrGodUser(user_id, user_name, connected_world_name) ? 1000.f : 4.f;
+	return userConnectedToTheirWorldOrGodUser(user_id, connected_world) ? 1000.f : 4.f;
 }
 
 
@@ -1079,6 +1078,19 @@ void WorkerThread::doRun()
 				{
 					Lock lock(world_state->mutex);
 					cur_world_state->world_settings.writeToStream(scratch_packet);
+				}
+
+				MessageUtils::updatePacketLengthField(scratch_packet);
+				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+			}
+
+			// Send the current world details (contains world name, owner, description etc. to client)
+			{
+				MessageUtils::initPacket(scratch_packet, Protocol::WorldDetailsInitialSendMessage);
+
+				{
+					Lock lock(world_state->mutex);
+					cur_world_state->details.writeToNetworkStream(scratch_packet);
 				}
 
 				MessageUtils::updatePacketLengthField(scratch_packet);
@@ -1648,7 +1660,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
 											err_msg_to_client = "You must be the owner of this object to change it.";
 										else
 										{
@@ -1846,7 +1858,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
 										{
 											send_must_be_owner_msg = true;
 										}
@@ -1855,7 +1867,7 @@ void WorkerThread::doRun()
 											ob->copyNetworkStateFrom(temp_ob);
 											
 											// Clamp volume to the max allowed level
-											ob->audio_volume = myClamp(ob->audio_volume, 0.f, maxAudioVolumeForObject(*ob, client_user_id, client_user_name, this->connected_world_name));
+											ob->audio_volume = myClamp(ob->audio_volume, 0.f, maxAudioVolumeForObject(*ob, client_user_id, *cur_world_state));
 
 											ob->last_modified_time = TimeStamp::currentTime();
 
@@ -2081,7 +2093,7 @@ void WorkerThread::doRun()
 								bool have_permissions = false;
 								{
 									::WorldStateLock lock(world_state->mutex);
-									have_permissions = userHasObjectCreationPermissions(*new_ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, lock);
+									have_permissions = userHasObjectCreationPermissions(*new_ob, client_user_id, *cur_world_state, lock);
 								}
 
 								if(have_permissions)
@@ -2148,7 +2160,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock);
+										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock);
 										if(!have_delete_perms)
 											send_must_be_owner_msg = true;
 										else
@@ -2475,7 +2487,7 @@ void WorkerThread::doRun()
 										Parcel* parcel = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasParcelWritePermissions(*parcel, client_user_id, this->connected_world_name, *cur_world_state))
+										if(!userHasParcelWritePermissions(*parcel, client_user_id, *cur_world_state))
 										{
 											error_msg = "You must be the owner of this parcel (or have write permissions) to modify it";
 										}
@@ -2919,7 +2931,7 @@ void WorkerThread::doRun()
 							WorldSettings world_settings;
 							readWorldSettingsFromStream(msg_buffer, world_settings);
 
-							if(userConnectedToTheirPersonalWorldOrGodUser(client_user_id, client_user_name, this->connected_world_name))
+							if(userConnectedToTheirWorldOrGodUser(client_user_id, *cur_world_state))
 							{
 								{
 									Lock lock(server->world_state->mutex);

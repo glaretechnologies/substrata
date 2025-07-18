@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/Protocol.h"
 #include "../shared/ProtocolStructs.h"
 #include "../shared/Parcel.h"
+#include "../shared/WorldDetails.h"
 #include <networking/MySocket.h>
 #include <networking/TLSSocket.h>
 #include <networking/Networking.h>
@@ -1161,6 +1162,14 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			Reference<WorldSettingsReceivedMessage> msg = new WorldSettingsReceivedMessage(/*is_initial_send=*/false);
 			readWorldSettingsFromStream(msg_buffer, msg->world_settings); // Read from msg_buffer, write to msg->world_settings
+			out_msg_queue->enqueue(msg);
+			break;
+		}
+	case Protocol::WorldDetailsInitialSendMessage:
+		{
+			Reference<WorldDetailsReceivedMessage> msg = new WorldDetailsReceivedMessage();
+
+			readWorldDetailsFromNetworkStream(msg_buffer, msg->world_details); // Read from msg_buffer, write to msg->world_details
 			out_msg_queue->enqueue(msg);
 			break;
 		}

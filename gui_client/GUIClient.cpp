@@ -3439,13 +3439,13 @@ bool GUIClient::objectModificationAllowed(const WorldObject& ob)
 	{
 		return (this->logged_in_user_id == ob.creator_id) || // If the logged in user created the object,
 			isGodUser(this->logged_in_user_id) || // Or the user is the 'god' (superadmin) user,
-			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)) || // If this is the personal world of the user:
+			(this->connected_world_details.owner_id == this->logged_in_user_id) || // If this is the world of the user:
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob);
 	}
 }
 
 
-bool GUIClient::connectedToUsersPersonalWorldOrGodUser()
+bool GUIClient::connectedToUsersWorldOrGodUser()
 {
 	if(!this->logged_in_user_id.valid())
 	{
@@ -3454,7 +3454,7 @@ bool GUIClient::connectedToUsersPersonalWorldOrGodUser()
 	else
 	{
 		return isGodUser(this->logged_in_user_id) || // The logged in user is the 'god' (superadmin) user,
-			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)); // or if this is the personal world of the user:
+			(this->connected_world_details.owner_id == this->logged_in_user_id); // or if this is the world of the user:
 	}
 }
 
@@ -3478,7 +3478,7 @@ bool GUIClient::objectModificationAllowedWithMsg(const WorldObject& ob, const st
 	{
 		const bool logged_in_user_can_modify = (this->logged_in_user_id == ob.creator_id) || // If the logged in user created the object
 			isGodUser(this->logged_in_user_id) || // Or the user is the 'god' (superadmin) user,
-			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)) || // If this is the personal world of the user:
+			(this->connected_world_details.owner_id == this->logged_in_user_id) || // If this is the world of the user:
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 		
 		if(!logged_in_user_can_modify)
@@ -8287,6 +8287,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				physics_world->setWaterZ(use_water_z);
 			}
 		}
+		else if(dynamic_cast<const WorldDetailsReceivedMessage*>(msg))
+		{
+			const WorldDetailsReceivedMessage* m = static_cast<const WorldDetailsReceivedMessage*>(msg);
+
+			this->connected_world_details = m->world_details;
+		}
 		else if(dynamic_cast<const MapTilesResultReceivedMessage*>(msg))
 		{
 			const MapTilesResultReceivedMessage* m = static_cast<const MapTilesResultReceivedMessage*>(msg);
@@ -9165,8 +9171,8 @@ bool GUIClient::haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool&
 		return true;
 	}
 
-	// If this is the personal world of the user:
-	if(server_worldname != "" && server_worldname == this->logged_in_user_name)
+	// If this is the world of the user:
+	if(this->connected_world_details.owner_id == this->logged_in_user_id)
 	{
 		ob_pos_in_parcel_out = true; // Just treat as in parcel.
 		return true;
@@ -9223,8 +9229,8 @@ bool GUIClient::haveObjectWritePermissions(const WorldObject& ob, const js::AABB
 		return true;
 	}
 
-	// If this is the personal world of the user:
-	if(server_worldname != "" && server_worldname == this->logged_in_user_name)
+	// If this is the world of the user:
+	if(this->connected_world_details.owner_id == this->logged_in_user_id)
 	{
 		ob_pos_in_parcel_out = true; // Just treat as in parcel.
 		return true;
@@ -9274,7 +9280,7 @@ bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob
 	Vec3d parcel_aabb_min;
 	Vec3d parcel_aabb_max;
 
-	if(isGodUser(this->logged_in_user_id) || (server_worldname != "" && server_worldname == this->logged_in_user_name) || // If god user, or if this is the personal world of the user:
+	if(isGodUser(this->logged_in_user_id) || (this->connected_world_details.owner_id == this->logged_in_user_id) || // If god user, or if this is the world of the user:
 		(BitUtils::isBitSet(logged_in_user_flags, User::WORLD_GARDENER_FLAG) && (ob.creator_id == this->logged_in_user_id)) || // Or if the user is a world-gardener, and they created this object
 		((ob.creator_id == this->logged_in_user_id) && BitUtils::isBitSet(ob.flags, WorldObject::SUMMONED_FLAG))) // Or if the user created this object by summoning it (e.g. this is their bike or hovercar).
 	{
@@ -9928,7 +9934,7 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 
 					// Update object values in editor
 					//ui->objectEditor->setFromObject(*in_world_ob, ui->objectEditor->getSelectedMatIndex(), /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser());
-					ui_interface->setObjectEditorFromOb(*in_world_ob, ui_interface->getSelectedMatIndex(), /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser());
+					ui_interface->setObjectEditorFromOb(*in_world_ob, ui_interface->getSelectedMatIndex(), /*ob in editing user's world=*/connectedToUsersWorldOrGodUser());
 
 					// updateInstancedCopiesOfObject(ob); // TODO: enable + test this
 					in_world_ob->transformChanged();
@@ -13297,7 +13303,7 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 
 
 	// Show object editor, hide parcel editor.
-	ui_interface->setObjectEditorFromOb(*selected_ob, selected_mat_index, /*ob in editing user's world=*/connectedToUsersPersonalWorldOrGodUser()); // Update the editor widget with values from the selected object
+	ui_interface->setObjectEditorFromOb(*selected_ob, selected_mat_index, /*ob in editing user's world=*/connectedToUsersWorldOrGodUser()); // Update the editor widget with values from the selected object
 	ui_interface->setObjectEditorEnabled(true);
 	ui_interface->showObjectEditor();
 
