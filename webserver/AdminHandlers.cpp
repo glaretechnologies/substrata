@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
 #include "LoginHandlers.h"
+#include "WorldHandlers.h"
 #include "../server/ServerWorldState.h"
 #include <ConPrint.h>
 #include <Exception.h>
@@ -31,7 +32,7 @@ std::string sharedAdminHeader(ServerAllWorldsState& world_state, const web::Requ
 
 	page_out += "<p><a href=\"/admin\">Main admin page</a> | <a href=\"/admin_users\">Users</a> | <a href=\"/admin_parcels\">Parcels</a> | ";
 	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a> | <a href=\"/admin_map\">Map</a> | ";
-	page_out += "<a href=\"/admin_news_posts\">News Posts</a> | <a href=\"/admin_lod_chunks\">LOD Chunks</a>  </p>";
+	page_out += "<a href=\"/admin_news_posts\">News Posts</a> | <a href=\"/admin_lod_chunks\">LOD Chunks</a> | <a href=\"/admin_worlds\">Worlds</a> </p>";
 
 	return page_out;
 }
@@ -887,6 +888,37 @@ void renderAdminLODChunksPage(ServerAllWorldsState& all_worlds_state, const web:
 						"<br/> compressed_mat_info: " + toString(chunk->compressed_mat_info.size()) + " B, <br/> needs_rebuild: " + boolToString(chunk->needs_rebuild) + "</div><br/>";
 				}
 			}
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminWorldsPage(ServerAllWorldsState& all_worlds_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(all_worlds_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(all_worlds_state, request);
+
+	{ // Lock scope
+		WorldStateLock lock(all_worlds_state.mutex);
+
+		page_out += "<h2>Worlds</h2>\n";
+
+		for(auto it = all_worlds_state.world_states.begin(); it != all_worlds_state.world_states.end(); ++it)
+		{
+			ServerWorldState* world_state = it->second.ptr();
+
+			page_out += "<div><a href=\"/world/" + WorldHandlers::URLEscapeWorldName(world_state->details.name) + "\">" + web::Escaping::HTMLEscape(world_state->details.name) + "</a>";
+			page_out += " &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Created: " + world_state->details.created_time.dayAndTimeStringUTC();
+			if(!world_state->details.description.empty())
+				page_out += " &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  description: <i>" + web::Escaping::HTMLEscape(world_state->details.description.substr(0, 200)) + "</i>";
+			page_out += "</div>\n";
 		}
 	} // End Lock scope
 

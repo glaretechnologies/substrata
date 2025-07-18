@@ -438,6 +438,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::renderAdminLODChunksPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_worlds")
+		{
+			AdminHandlers::renderAdminWorldsPage(*this->world_state, request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/admin_sub_eth_transaction/"))
 		{
 			AdminHandlers::renderAdminSubEthTransactionPage(*this->world_state, request, reply_info);

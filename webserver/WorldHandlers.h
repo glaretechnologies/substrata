@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2025 -
 #pragma once
 
 
+#include <string>
+
+
 class ServerAllWorldsState;
 namespace web
 {
