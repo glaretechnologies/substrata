@@ -99,10 +99,10 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		{
 			const ServerWorldState* world = it->second.ptr();
 
-			if(world->owner_id == logged_in_user->id)
+			if(world->details.owner_id == logged_in_user->id)
 			{
 				page += "<div>\n";
-				page += "<a href=\"/world/" + WorldHandlers::URLEscapeWorldName(world->name) + "\">" + web::Escaping::HTMLEscape(world->name) + "</a>";
+				page += "<a href=\"/world/" + WorldHandlers::URLEscapeWorldName(world->details.name) + "\">" + web::Escaping::HTMLEscape(world->details.name) + "</a>";
 				page += "</div>\n";
 			}
 		}

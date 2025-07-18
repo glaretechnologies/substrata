@@ -99,9 +99,9 @@ void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			const ServerWorldState* world = res->second.ptr();
 
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-			const bool logged_in_user_is_event_owner = logged_in_user && (world->owner_id == logged_in_user->id); // If the user is logged in and created this world:
+			const bool logged_in_user_is_event_owner = logged_in_user && (world->details.owner_id == logged_in_user->id); // If the user is logged in and created this world:
 
-			page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/world->name, "");
+			page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/world->details.name, "");
 			page += "<div class=\"main\">   \n";
 
 			// Show any messages for the user
@@ -114,7 +114,7 @@ void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 
 			std::string owner_username;
 			{
-				auto res2 = world_state.user_id_to_users.find(world->owner_id);
+				auto res2 = world_state.user_id_to_users.find(world->details.owner_id);
 				if(res2 != world_state.user_id_to_users.end())
 					owner_username = res2->second->name;
 			}
@@ -122,7 +122,7 @@ void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			page += "<p>A world created by " + web::Escaping::HTMLEscape(owner_username) + "</p>\n";
 
 			page += "<p>Description:</p>\n";
-			page += "<p>" + web::Escaping::HTMLEscape(world->description) + "</p>";
+			page += "<p>" + web::Escaping::HTMLEscape(world->details.description) + "</p>";
 
 			//page += "<p>Access</p>\n";
 			const std::string hostname = request.getHostHeader(); // Find the hostname the request was sent to
@@ -231,13 +231,13 @@ void renderEditWorldPage(ServerAllWorldsState& world_state, const web::RequestIn
 					page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 			}
 
-			const bool logged_in_user_is_world_owner = logged_in_user && (world->owner_id == logged_in_user->id); // If the user is logged in and owns this world:
+			const bool logged_in_user_is_world_owner = logged_in_user && (world->details.owner_id == logged_in_user->id); // If the user is logged in and owns this world:
 			if(logged_in_user_is_world_owner)
 			{
 
 				page += "<form action=\"/edit_world_post\" method=\"post\" id=\"usrform\">";
-				page += "<input type=\"hidden\" name=\"world_name\" value=\"" + web::Escaping::HTMLEscape(world->name) + "\"><br>";
-				page += "Description: <br/><textarea rows=\"30\" cols=\"80\" name=\"description\" form=\"usrform\">" + web::Escaping::HTMLEscape(world->description) + "</textarea><br>";
+				page += "<input type=\"hidden\" name=\"world_name\" value=\"" + web::Escaping::HTMLEscape(world->details.name) + "\"><br>";
+				page += "Description: <br/><textarea rows=\"30\" cols=\"80\" name=\"description\" form=\"usrform\">" + web::Escaping::HTMLEscape(world->details.description) + "</textarea><br>";
 				page += "<input type=\"submit\" value=\"Edit world\">";
 				page += "</form>";
 			}
@@ -298,7 +298,7 @@ void handleCreateWorldPost(ServerAllWorldsState& world_state, const web::Request
 					redirect_back_to_create_page = true;
 					world_state.setUserWebMessage(logged_in_user->id, "Can not create world '" + new_world_name + "', a world with that name already exists.");
 				}
-				else if(new_world_name.size() > ServerWorldState::MAX_NAME_SIZE)
+				else if(new_world_name.size() > WorldDetails::MAX_NAME_SIZE)
 				{
 					redirect_back_to_create_page = true;
 					world_state.setUserWebMessage(logged_in_user->id, "invalid world name - too long.");
@@ -306,9 +306,9 @@ void handleCreateWorldPost(ServerAllWorldsState& world_state, const web::Request
 				else
 				{
 					Reference<ServerWorldState> world = new ServerWorldState();
-					world->name = new_world_name;
-					world->owner_id = logged_in_user->id;
-					world->created_time = TimeStamp::currentTime();
+					world->details.name = new_world_name;
+					world->details.owner_id = logged_in_user->id;
+					world->details.created_time = TimeStamp::currentTime();
 
 					world_state.world_states.insert(std::make_pair(new_world_name, world)); // Add to world_states
 			
@@ -346,7 +346,7 @@ void handleEditWorldPost(ServerAllWorldsState& world_state, const web::RequestIn
 		const std::string world_name   = request.getPostField("world_name").str();
 		const std::string description   = request.getPostField("description").str();
 
-		if(description.size() > ServerWorldState::MAX_DESCRIPTION_SIZE)
+		if(description.size() > WorldDetails::MAX_DESCRIPTION_SIZE)
 			throw glare::Exception("invalid world description - too long");
 
 		{ // Lock scope
@@ -360,9 +360,9 @@ void handleEditWorldPost(ServerAllWorldsState& world_state, const web::RequestIn
 			ServerWorldState* world = res->second.ptr();
 
 			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-			if(logged_in_user && (world->owner_id == logged_in_user->id)) // If the user is logged in and owns this world:
+			if(logged_in_user && (world->details.owner_id == logged_in_user->id)) // If the user is logged in and owns this world:
 			{
-				world->description = description;
+				world->details.description = description;
 
 				world->db_dirty = true;
 				world_state.markAsChanged();

@@ -507,6 +507,8 @@ SET(shared_files
 ../shared/ObjectEventHandlers.h
 ../shared/LODChunk.cpp
 ../shared/LODChunk.h
+../shared/WorldDetails.cpp
+../shared/WorldDetails.h
 )
 
 SET(client_indigo_files

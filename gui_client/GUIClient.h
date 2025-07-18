@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "UploadResourceThread.h"
 #include "ScriptedObjectProximityChecker.h"
 #include "../shared/WorldSettings.h"
+#include "../shared/WorldDetails.h"
 #include "../audio/AudioEngine.h"
 #include "../audio/MicReadThread.h" // For MicReadStatus
 #include "../opengl/TextureLoading.h"
@@ -255,7 +256,7 @@ public:
 	bool isDownloadingResourceCurrentlyNeeded(const std::string& url) const;
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
-	bool connectedToUsersPersonalWorldOrGodUser();
+	bool connectedToUsersWorldOrGodUser();
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
 	// Action will be printed in error message, could be "modify" or "delete"
 	bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob) const;
@@ -454,6 +455,7 @@ public:
 	std::set<WorldObjectRef> obs_with_diagnostic_vis;
 
 
+	WorldDetails connected_world_details;
 	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
 	
 

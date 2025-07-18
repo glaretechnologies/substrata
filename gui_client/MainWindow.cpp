@@ -4007,9 +4007,9 @@ void MainWindow::setGLWidgetContextAsCurrent()
 }
 
 
-bool MainWindow::connectedToUsersPersonalWorldOrGodUser()
+bool MainWindow::connectedToUsersWorldOrGodUser()
 {
-	return gui_client.connectedToUsersPersonalWorldOrGodUser();
+	return gui_client.connectedToUsersWorldOrGodUser();
 }
 
 

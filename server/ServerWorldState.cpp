@@ -35,10 +35,10 @@ void ServerWorldState::writeToStream(RandomAccessOutStream& stream) const
 	stream.writeUInt32(SERVER_SINGLE_WORLD_STATE_SERIALISATON_VERSION);
 	stream.writeUInt32(0); // Size of buffer will be written here later
 
-	::writeToStream(owner_id, stream);
-	created_time.writeToStream(stream);
-	stream.writeStringLengthFirst(name);
-	stream.writeStringLengthFirst(description);
+	::writeToStream(details.owner_id, stream);
+	details.created_time.writeToStream(stream);
+	stream.writeStringLengthFirst(details.name);
+	stream.writeStringLengthFirst(details.description);
 
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
@@ -54,13 +54,13 @@ void readServerWorldStateFromStream(RandomAccessInStream& stream, ServerWorldSta
 	/*const uint32 version =*/ stream.readUInt32();
 	const size_t buffer_size = stream.readUInt32();
 
-	checkProperty(buffer_size >= 8ul, "readSubEventFromStream: buffer_size was too small");
-	checkProperty(buffer_size <= 1000000ul, "readSubEventFromStream: buffer_size was too large");
+	checkProperty(buffer_size >= 8ul, "readServerWorldStateFromStream: buffer_size was too small");
+	checkProperty(buffer_size <= 1000000ul, "readServerWorldStateFromStream: buffer_size was too large");
 
-	world.owner_id = readUserIDFromStream(stream);
-	world.created_time.readFromStream(stream);
-	world.name = stream.readStringLengthFirst(ServerWorldState::MAX_NAME_SIZE);
-	world.description = stream.readStringLengthFirst(ServerWorldState::MAX_DESCRIPTION_SIZE);
+	world.details.owner_id = readUserIDFromStream(stream);
+	world.details.created_time.readFromStream(stream);
+	world.details.name = stream.readStringLengthFirst(WorldDetails::MAX_NAME_SIZE);
+	world.details.description = stream.readStringLengthFirst(WorldDetails::MAX_DESCRIPTION_SIZE);
 
 	// Discard any remaining unread data
 	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
@@ -216,27 +216,24 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					readServerWorldStateFromStream(stream, *world);
 
 					// See if we have already created this world while reading a WORLD_OBJECT_CHUNK, PARCEL_CHUNK etc. below
-					auto res = world_states.find(world->name);
+					auto res = world_states.find(world->details.name);
 					if(res == world_states.end())
 					{
 						// not created and inserted yet:
 						
 						world->database_key = database_key;
 
-						world_states[world->name] = world;
+						world_states[world->details.name] = world;
 					}
 					else
 					{
 						// already created:
 						ServerWorldStateRef existing_world = res->second;
-						existing_world->owner_id = world->owner_id;
-						existing_world->created_time = world->created_time;
-						existing_world->name = world->name;
-						existing_world->description = world->description;
+						existing_world->details = world->details;
 						
 						existing_world->database_key = database_key;
 
-						world_states[existing_world->name] = world;
+						world_states[existing_world->details.name] = world;
 					}
 					
 					num_worlds++;
@@ -932,10 +929,10 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 		if(world_states.count("") == 0)
 		{
 			ServerWorldStateRef world = new ServerWorldState();
-			world->created_time = TimeStamp::currentTime();
-			world->owner_id = UserID(0);
-			world->name = "";
-			world->description = "Main world";
+			world->details.created_time = TimeStamp::currentTime();
+			world->details.owner_id = UserID(0);
+			world->details.name = "";
+			world->details.description = "Main world";
 			world->db_dirty = true;
 
 			world_states[""] = world;
@@ -949,10 +946,10 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 			if(world_states.count(world_name) == 0)
 			{
 				ServerWorldStateRef world = new ServerWorldState();
-				world->created_time = TimeStamp::currentTime();
-				world->owner_id = user->id;
-				world->name = world_name;
-				world->description = user->name + "'s personal world";
+				world->details.created_time = TimeStamp::currentTime();
+				world->details.owner_id = user->id;
+				world->details.name = world_name;
+				world->details.description = user->name + "'s personal world";
 				world->db_dirty = true;
 
 				world_states[world_name] = world;
