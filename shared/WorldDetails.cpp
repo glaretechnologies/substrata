@@ -8,9 +8,10 @@ Copyright Glare Technologies Limited 2025 -
 
 #include <utils/RandomAccessInStream.h>
 #include <utils/RandomAccessOutStream.h>
+#include <utils/RuntimeCheck.h>
 
 
-static const uint32 WORLD_DETAILS_SERIALISATON_VERSION = 1;
+static const uint32 WORLD_DETAILS_SERIALISATION_VERSION = 1;
 
 
 void WorldDetails::writeToNetworkStream(RandomAccessOutStream& stream) const
@@ -20,7 +21,7 @@ void WorldDetails::writeToNetworkStream(RandomAccessOutStream& stream) const
 
 	const size_t initial_write_index = stream.getWriteIndex();
 
-	stream.writeUInt32(WORLD_DETAILS_SERIALISATON_VERSION);
+	stream.writeUInt32(WORLD_DETAILS_SERIALISATION_VERSION);
 	stream.writeUInt32(0); // Size of buffer will be written here later
 
 	::writeToStream(owner_id, stream);
@@ -42,8 +43,8 @@ void readWorldDetailsFromNetworkStream(RandomAccessInStream& stream, WorldDetail
 	/*const uint32 version =*/ stream.readUInt32();
 	const size_t buffer_size = stream.readUInt32();
 
-	checkProperty(buffer_size >= 8ul, "readWorldDetailsFromStream: buffer_size was too small");
-	checkProperty(buffer_size <= 1000000ul, "readWorldDetailsFromStream: buffer_size was too large");
+	checkProperty(buffer_size >= 8ul, "readWorldDetailsFromNetworkStream: buffer_size was too small");
+	checkProperty(buffer_size <= 1000000ul, "readWorldDetailsFromNetworkStream: buffer_size was too large");
 
 	details.owner_id = readUserIDFromStream(stream);
 	details.created_time.readFromStream(stream);
