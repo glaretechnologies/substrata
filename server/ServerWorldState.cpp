@@ -215,11 +215,11 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					ServerWorldStateRef world = new ServerWorldState();
 					readServerWorldStateFromStream(stream, *world);
 
-					// See if we have already created this world while reading a WORLD_OBJECT_CHUNK, PARCEL_CHUNK etc. below
+					// See if we have already created this world object while reading a WORLD_OBJECT_CHUNK, PARCEL_CHUNK etc. below
 					auto res = world_states.find(world->details.name);
 					if(res == world_states.end())
 					{
-						// not created and inserted yet:
+						// World is not created and inserted into world_states yet:
 						
 						world->database_key = database_key;
 
@@ -227,13 +227,11 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					}
 					else
 					{
-						// already created:
+						// World object has already been created and inserted into world_states.
+						// In this case just copy over the properties we read from disk and the database key.
 						ServerWorldStateRef existing_world = res->second;
 						existing_world->details = world->details;
-						
 						existing_world->database_key = database_key;
-
-						world_states[existing_world->details.name] = world;
 					}
 					
 					num_worlds++;
@@ -924,6 +922,7 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 	if(this->migration_version_info.migration_version < 3)
 	{
 		conPrint("Doing DB migration from version " + toString(migration_version_info.migration_version) + ": Make main world and personal world ServerWorldState objects for all users.");
+		size_t num_worlds_added = 0;
 
 		// Create main world if not already present.
 		if(world_states.count("") == 0)
@@ -936,6 +935,7 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 			world->db_dirty = true;
 
 			world_states[""] = world;
+			num_worlds_added++;
 		}
 
 		// Create personal worlds for all users if not already present.
@@ -953,14 +953,89 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 				world->db_dirty = true;
 
 				world_states[world_name] = world;
+				num_worlds_added++;
 			}
 		}
+
+		conPrint("Added " + toString(num_worlds_added) + " worlds.");
+	}
+
+	if(this->migration_version_info.migration_version < 4)
+	{
+		conPrint("Doing DB migration from version " + toString(migration_version_info.migration_version) + ": Make main world and personal world ServerWorldState objects for all users (round 2).");
+		size_t num_worlds_added = 0;
+		size_t num_worlds_updated = 0;
+
+		// Create main world if not already present, If the main world is present in world_states but not initialised properly with owner_id etc.., update the world in world_states.
+		{
+			auto res = world_states.find("");
+			if(res == world_states.end())
+			{
+				ServerWorldStateRef world = new ServerWorldState();
+				world->details.created_time = TimeStamp::currentTime();
+				world->details.owner_id = UserID(0);
+				world->details.name = "";
+				world->details.description = "Main world";
+				world->db_dirty = true;
+
+				world_states[""] = world;
+				num_worlds_added++;
+			}
+			else
+			{
+				ServerWorldStateRef world = res->second;
+				if(!world->details.owner_id.valid())
+				{
+					world->details.created_time = TimeStamp::currentTime();
+					world->details.owner_id = UserID(0);
+					world->details.name = "";
+					world->details.description = "Main world";
+					world->db_dirty = true;
+					num_worlds_updated++;
+				}
+			}
+		}
+
+		// Create personal worlds for all users if not already present.
+		for(auto it = user_id_to_users.begin(); it != user_id_to_users.end(); ++it)
+		{
+			const User* user = it->second.ptr();
+			const std::string world_name = user->name;
+			auto res = world_states.find(world_name);
+			if(res == world_states.end())
+			{
+				ServerWorldStateRef world = new ServerWorldState();
+				world->details.created_time = TimeStamp::currentTime();
+				world->details.owner_id = user->id;
+				world->details.name = world_name;
+				world->details.description = user->name + "'s personal world";
+				world->db_dirty = true;
+
+				world_states[world_name] = world;
+				num_worlds_added++;
+			}
+			else
+			{
+				ServerWorldStateRef world = res->second;
+				if(!world->details.owner_id.valid())
+				{
+					world->details.created_time = TimeStamp::currentTime();
+					world->details.owner_id = user->id;
+					world->details.name = world_name;
+					world->details.description = user->name + "'s personal world";
+					world->db_dirty = true;
+					num_worlds_updated++;
+				}
+			}
+		}
+
+		conPrint("Added " + toString(num_worlds_added) + " worlds, updated " + toString(num_worlds_updated) + " worlds.");
 	}
 
 
-	if(this->migration_version_info.migration_version < 3)
+	if(this->migration_version_info.migration_version < 4)
 	{
-		this->migration_version_info.migration_version = 3;
+		this->migration_version_info.migration_version = 4;
 		this->migration_version_info.db_dirty = true;
 		this->changed = 1;
 	}
