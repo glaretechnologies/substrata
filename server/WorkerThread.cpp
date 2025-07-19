@@ -2787,7 +2787,7 @@ void WorkerThread::doRun()
 											msg_to_client = "Password is too short, must have at least 6 characters";
 										else
 										{
-											Lock lock(world_state->mutex);
+											WorldStateLock lock(world_state->mutex);
 											auto res = world_state->name_to_users.find(username);
 											if(res == world_state->name_to_users.end())
 											{
@@ -2810,6 +2810,8 @@ void WorkerThread::doRun()
 												client_user_name = new_user->name;
 												client_user_avatar_settings = new_user->avatar_settings;
 												client_user_flags = new_user->flags;
+
+												world_state->addPersonalWorldForUser(new_user, lock);
 
 												signed_up = true;
 											}

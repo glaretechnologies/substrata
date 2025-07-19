@@ -835,6 +835,19 @@ void ServerAllWorldsState::clearAndReset() // Just for fuzzing
 }
 
 
+void ServerAllWorldsState::addPersonalWorldForUser(const UserRef user, WorldStateLock& /*lock*/)
+{
+	ServerWorldStateRef personal_world = new ServerWorldState();
+	personal_world->details.owner_id = user->id;
+	personal_world->details.created_time = user->created_time;
+	personal_world->details.name = user->name;
+	personal_world->details.description = user->name + "'s personal world";
+	personal_world->db_dirty = true;
+
+	world_states[personal_world->details.name] = personal_world;
+}
+
+
 void ServerAllWorldsState::denormaliseData()
 {
 	WorldStateLock lock(mutex);
