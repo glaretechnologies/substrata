@@ -194,7 +194,7 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 
 // May return null mesh if there were no voxels or mesh was simplified away.
 // May also return mesh with zero indices.
-BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::string, BatchedMeshRef>& mesh_cache, size_t& mesh_cache_total_mem_usage, Matrix4f& voxel_scale_matrix_out)
+BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::string, BatchedMeshRef>& mesh_cache, Matrix4f& voxel_scale_matrix_out)
 {
 	float voxel_scale = 1.f;
 	voxel_scale_matrix_out = Matrix4f::identity();
@@ -210,26 +210,12 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 				conPrint("Loading '" + ob_info.model_path + "'...");
 				mesh = LODGeneration::loadModel(ob_info.model_path);
 
-				mesh_cache.insert(std::make_pair(ob_info.model_path, mesh));
-				mesh_cache_total_mem_usage += mesh->getTotalMemUsage();
+				mesh_cache.insert(std::make_pair(ob_info.model_path, mesh), mesh->getTotalMemUsage());
 
-				// conPrint("New cache total size: " + toString(mesh_cache_total_mem_usage) + " B");
+				// conPrint("New cache total size: " + toString(mesh_cache.totalValueSizeB()) + " B");
 
-				// Clear out old items from cache if needed
-				while(mesh_cache_total_mem_usage >= 256 * 1024 * 1024)
-				{
-					std::string removed_URL;
-					BatchedMeshRef removed_mesh;
-					bool removed_item = mesh_cache.removeLRUItem(removed_URL, removed_mesh);
-					if(removed_item)
-					{
-						// conPrint("evicting " + removed_URL + " from cache.");
-						assert(removed_mesh->getTotalMemUsage() >= mesh_cache_total_mem_usage);
-						mesh_cache_total_mem_usage -= removed_mesh->getTotalMemUsage();
-					}
-					else
-						break;
-				}
+				// Clear out old items from cache if needed, so that total cache size is < 256 MB.
+				mesh_cache.removeLRUItemsUntilSizeLessEqualN(256 * 1024 * 1024);
 			}
 			else
 			{
@@ -429,7 +415,6 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 	results.ob_batch_ranges.resize(ob_infos.size());
 
 	LRUCache<std::string, BatchedMeshRef> mesh_cache;
-	size_t mesh_cache_total_mem_usage = 0;
 
 	//-------------------------- Create combined mesh -----------------------------
 	BatchedMeshRef combined_mesh = new BatchedMesh();
@@ -474,7 +459,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 		try
 		{
 			Matrix4f voxel_scale_matrix;
-			BatchedMeshRef mesh = loadAndSimplifyGeometry(ob_info, mesh_cache, mesh_cache_total_mem_usage, /*voxel_scale_matrix_out=*/voxel_scale_matrix);
+			BatchedMeshRef mesh = loadAndSimplifyGeometry(ob_info, mesh_cache, /*voxel_scale_matrix_out=*/voxel_scale_matrix);
 			
 			if(mesh.nonNull() && (mesh->numIndices() > 0))
 			{
