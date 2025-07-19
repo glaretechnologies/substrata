@@ -338,6 +338,8 @@ public:
 
 	void clearAndReset(); // Just for fuzzing
 
+	void addPersonalWorldForUser(const UserRef user, WorldStateLock& lock) REQUIRES(mutex);
+
 	Reference<ResourceManager> resource_manager;
 
 	std::map<UserID, Reference<User>> user_id_to_users GUARDED_BY(mutex);  // User id to user

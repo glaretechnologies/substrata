@@ -346,7 +346,7 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 		std::string reply;
 
 		{ // Lock scope
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 			auto res = world_state.name_to_users.find(username.str()); // Find existing user with username
 			if(res != world_state.name_to_users.end())
 				throw InvalidCredentialsExcep("That username is not available."); // Username already used.
@@ -373,6 +373,7 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			world_state.addUserAsDBDirty(new_user);
 
+			world_state.addPersonalWorldForUser(new_user, lock);
 
 			UserWebSessionRef session = new UserWebSession();
 			session->id = UserWebSession::generateRandomKey();
