@@ -123,7 +123,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon bike";
-			summon_bike_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon bike", Vec2f(0), Vec2f(0.1), args);
+			summon_bike_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon bike", Vec2f(0), args);
 			summon_bike_button->setVisible(vehicle_buttons_visible);
 			summon_bike_button->handler = this;
 			gl_ui->addWidget(summon_bike_button);
@@ -131,7 +131,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon car";
-			summon_car_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon car", Vec2f(0), Vec2f(0.1), args);
+			summon_car_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon car", Vec2f(0), args);
 			summon_car_button->setVisible(vehicle_buttons_visible);
 			summon_car_button->handler = this;
 			gl_ui->addWidget(summon_car_button);
@@ -139,7 +139,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon boat";
-			summon_boat_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon boat", Vec2f(0), Vec2f(0.1), args);
+			summon_boat_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon boat", Vec2f(0), args);
 			summon_boat_button->setVisible(vehicle_buttons_visible);
 			summon_boat_button->handler = this;
 			gl_ui->addWidget(summon_boat_button);
@@ -147,7 +147,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon hovercar";
-			summon_hovercar_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon hovercar", Vec2f(0), Vec2f(0.1), args);
+			summon_hovercar_button = new GLUITextButton(*gl_ui, opengl_engine_, "Summon hovercar", Vec2f(0), args);
 			summon_hovercar_button->setVisible(vehicle_buttons_visible);
 			summon_hovercar_button->handler = this;
 			gl_ui->addWidget(summon_hovercar_button);
@@ -166,11 +166,11 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	
 	{
 		GLUIButton::CreateArgs args;
-		args.tooltip = "Selfie view";
-		selfie_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
-		selfie_button->toggleable = true;
-		selfie_button->handler = this;
-		gl_ui->addWidget(selfie_button);
+		args.tooltip = "Photo mode";
+		photo_mode_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
+		photo_mode_button->toggleable = true;
+		photo_mode_button->handler = this;
+		gl_ui->addWidget(photo_mode_button);
 	}
 	
 	{	
@@ -196,7 +196,7 @@ void GestureUI::destroy()
 	checkRemoveAndDeleteWidget(gl_ui, expand_button);
 	checkRemoveAndDeleteWidget(gl_ui, collapse_button);
 	checkRemoveAndDeleteWidget(gl_ui, vehicle_button);
-	checkRemoveAndDeleteWidget(gl_ui, selfie_button);
+	checkRemoveAndDeleteWidget(gl_ui, photo_mode_button);
 	checkRemoveAndDeleteWidget(gl_ui, microphone_button);
 	checkRemoveAndDeleteWidget(gl_ui, mic_level_image);
 	checkRemoveAndDeleteWidget(gl_ui, summon_bike_button);
@@ -292,7 +292,7 @@ void GestureUI::updateWidgetPositions()
 			vehicle_button->setPosAndDims(Vec2f(vehicle_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
 			const float selfie_button_x = vehicle_button_x + BUTTON_W + SPACING;
-			selfie_button->setPosAndDims(Vec2f(selfie_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+			photo_mode_button->setPosAndDims(Vec2f(selfie_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 
 			const float mic_button_x = selfie_button_x + BUTTON_W + SPACING;
 			microphone_button->setPosAndDims(Vec2f(mic_button_x, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
@@ -333,7 +333,7 @@ void GestureUI::setVisible(bool visible)
 		collapse_button->setVisible(visible);
 		expand_button->setVisible(visible);
 		vehicle_button->setVisible(visible);
-		selfie_button->setVisible(visible);
+		photo_mode_button->setVisible(visible);
 		microphone_button->setVisible(visible);
 		mic_level_image->setVisible(visible);
 	}
@@ -418,10 +418,11 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 
 				updateWidgetPositions();
 			}
-			else if(button == selfie_button.ptr())
+			else if(button == photo_mode_button.ptr())
 			{
 				event.accepted = true;
-				gui_client->setSelfieModeEnabled(selfie_button->toggled);
+				//gui_client->setSelfieModeEnabled(photo_mode_button->toggled);
+				gui_client->setPhotoModeEnabled(photo_mode_button->toggled);
 			}
 			else if(button == microphone_button.ptr())
 			{
@@ -543,11 +544,11 @@ void GestureUI::stopAnyGesturePlaying()
 }
 
 
-void GestureUI::turnOffSelfieMode()
-{
-	selfie_button->setToggled(false);
-	gui_client->setSelfieModeEnabled(selfie_button->toggled);
-}
+//void GestureUI::turnOffSelfieMode()
+//{
+//	selfie_button->setToggled(false);
+//	gui_client->setSelfieModeEnabled(selfie_button->toggled);
+//}
 
 
 void GestureUI::untoggleMicButton()

@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "ObInfoUI.h"
 #include "MiscInfoUI.h"
 #include "HeadUpDisplayUI.h"
+#include "PhotoModeUI.h"
 #include "ChatUI.h"
 #include "MiniMap.h"
 #include "DownloadingResourceQueue.h"
@@ -164,6 +165,7 @@ public:
 	void stopGestureClicked(const std::string& gesture_name);
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
+	void setPhotoModeEnabled(bool enabled);
 	void setMicForVoiceChatEnabled(bool enabled);
 
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
@@ -614,6 +616,7 @@ public:
 	MiscInfoUI misc_info_ui; // For showing messages from the server, vehicle speed etc.
 	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
+	PhotoModeUI photo_mode_ui;
 	MiniMap minimap; // Draws minimap
 
 	bool running_destructor;
