@@ -1,11 +1,12 @@
 /*=====================================================================
 CameraController.h
 ------------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #pragma once
 
 
+#include <maths/Matrix4f.h>
 #include <maths/vec3.h>
 #include <maths/vec2.h>
 
@@ -13,33 +14,44 @@ Copyright Glare Technologies Limited 2022 -
 /*=====================================================================
 CameraController
 ----------------
-Branched from Indigo before Yves' refactor made it a qt object with indigo stuff.
 =====================================================================*/
-class CameraController
+SSE_CLASS_ALIGN CameraController
 {
 public:
+	//GLARE_ALIGNED_16_NEW_DELETE
+
 	CameraController();
 	~CameraController();
 
 	void initialise(const Vec3d& cam_pos, const Vec3d& cam_forwards, const Vec3d& cam_up, double lens_sensor_dist, double lens_shift_up, double lens_shift_right);
 
-	void update(const Vec3d& pos_delta, const Vec2d& rot_delta);
+	void updateRotation(double pitch_delta, double heading_delta);
+
+	// For CameraMode_FixedAngle and CameraMode_TrackingCamera
+	void setTargetObjectTransform(const Matrix4f& ob_to_world_matrix, bool target_is_vehicle);
 
 	Vec3d getFirstPersonPosition() const;
 	Vec3d getPosition() const; // Has third person offset if third person camera is enabled.
-	void setFirstAndThirdPersonPositions(const Vec3d& pos); // Set first person position to pos, Set a suitable third-person target and camera position set back from pos.
+	
 	void setFirstPersonPosition(const Vec3d& pos); // Set just the first-person position, leave the third-person position unchanged.
+	void setThirdPersonCamPosition(const Vec3d& pos);
+	void setFirstAndThirdPersonPositions(const Vec3d& pos); // Set first person position to pos, Set a suitable third-person target and camera position set back from pos.
 
 	void setMouseSensitivity(double sensitivity);
 	void setMoveScale(double move_scale); // Adjust camera movement speed based on world scale
 
-	void getBasis(Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out) const;
+	void getWorldToCameraMatrix(Matrix4f& world_to_camera_matrix_out);
 
 	Vec4f vectorToCamSpace(const Vec4f& v) const;
 
+	
 	Vec3d getAngles() const; // Specified as (heading, pitch, roll).
-	void resetRotation();
+	Vec3d getAvatarAngles(); // For modes like CameraMode_FreeCamera, the camera angles change but the avatar angles remain as they were.
+
 	void setAngles(const Vec3d& newangles);
+
+	Vec3d getForwardsMoveVec() const; // The direction to move the avatar or the free camera.
+	Vec3d getRightMoveVec() const;
 
 	Vec3d getForwardsVec() const;
 	Vec3d getRightVec() const;
@@ -59,38 +71,69 @@ public:
 	void setSelfieModeEnabled(double cur_time, bool enabled);
 	bool selfieModeEnabled() const { return selfie_mode; }
 
+	void standardCameraModeSelected();
+	void fixedAngleCameraModeSelected();
+	void freeCameraModeSelected();
+	void trackingCameraModeSelected();
 
-	bool invert_mouse;
-	bool invert_sideways_movement;
+	void setFreeCamMovementDesiredVel(const Vec3f& vel);
+	
+	void think(double dt);
+
+
+	enum CameraMode
+	{
+		CameraMode_Standard,
+		CameraMode_FixedAngle, // rotation defines a direction in target ob space, camera position displaced from target object backwards along that vector.
+		CameraMode_FreeCamera, // Camera position is third_person_cam_position, cam rotation given by rotation.
+		CameraMode_TrackingCamera // Camera position is third_person_cam_position, cam rotation given by vector to tracking target.
+	};
 
 	static void test();
 
 private:
+	static Vec3d getRotationAnglesFromCameraBasis(const Vec3d& camera_forward, const Vec3d& camera_right);
+	void setStateBeforeCameraModeChange();
+	Matrix4f getFixedAngleWorldToCamRotationMatrix() const;
+	Vec3d fixedAngleCameraDir() const;
+
+	Matrix4f target_ob_to_world_matrix;
+
 	Vec3d position;
 	Vec3d rotation; // Specified as (heading, pitch, roll).
 					// heading is phi: rotation angle in x-y plane, from x-axis towards y-axis.
 					// pitch is theta. 0 = looking straight up, pi = looking straight down.
+	Vec3d last_avatar_rotation; // With a non-standard camera mode that sets rotation, we want the avatar rotation to remain unchanged.
+
+	Vec3d free_cam_desired_vel;
+	Vec3d free_cam_vel; // Current free camera velocity
 
 	Vec3d initialised_up;
-
-	Vec3d initial_rotation;
 
 	double base_move_speed, base_rotate_speed;
 	double move_speed_scale, mouse_sensitivity_scale;
 	double lens_sensor_dist, lens_shift_up, lens_shift_right;
 
 	bool third_person;
-
 	bool selfie_mode;
+	bool target_is_vehicle;
+
 	// For 3rd person/selfie cam:
 	//float start_cam_rot_z;
 	//float end_cam_rot_z;
 	//double start_transition_time;
 	//double end_transition_time;
 
-	float third_person_cam_dist;
 public:
-	Vec3d third_person_cam_position;
+	CameraMode current_cam_mode;
+private:
 
+	float third_person_cam_dist;
+	
+	Vec3d third_person_cam_position;
+public:
 	Vec3d current_third_person_target_pos; // Blended position
+
+	bool invert_mouse;
+	bool invert_sideways_movement;
 };

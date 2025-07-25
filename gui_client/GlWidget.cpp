@@ -363,14 +363,9 @@ void GlWidget::paintGL()
 	if(cam_controller)
 	{
 		// Work out current camera transform
-		Vec3d cam_pos, up, forwards, right;
-		cam_pos = cam_controller->getPosition();
-		cam_controller->getBasis(right, up, forwards);
-
-		const Matrix4f rot = Matrix4f(right.toVec4fVector(), forwards.toVec4fVector(), up.toVec4fVector(), Vec4f(0,0,0,1)).getTranspose();
-
+		const Vec3d cam_pos = cam_controller->getPosition();
 		Matrix4f world_to_camera_space_matrix;
-		rot.rightMultiplyWithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_space_matrix);
+		cam_controller->getWorldToCameraMatrix(world_to_camera_space_matrix);
 
 		const float sensor_width = sensorWidth();
 		const float lens_sensor_dist = lensSensorDist();
@@ -487,7 +482,7 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		// QCursor::setPos() seems to generate mouse move events, which we don't want to affect the camera.  Only rotate camera based on actual mouse movements.
 		if(e->source() == Qt::MouseEventNotSynthesized)
 		{
-			if(mb & Qt::LeftButton)  cam_controller->update(Vec3d(0, 0, 0), Vec2d(delta.y(), delta.x())/* * shift_scale*/);
+			if(mb & Qt::LeftButton)  cam_controller->updateRotation(/*pitch_delta=*/delta.y(), /*heading_delta=*/delta.x()/* * shift_scale*/);
 			//if(mb & Qt::MidButton)   cam_controller->update(Vec3d(delta.x(), 0, delta.y()) * shift_scale, Vec2d(0, 0));
 			//if(mb & Qt::RightButton) cam_controller->update(Vec3d(0, delta.y(), 0) * shift_scale, Vec2d(0, 0));
 		}

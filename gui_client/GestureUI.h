@@ -46,7 +46,7 @@ public:
 
 	void stopAnyGesturePlaying();
 
-	void turnOffSelfieMode();
+	//void turnOffSelfieMode();
 
 	void untoggleMicButton();
 
@@ -69,7 +69,7 @@ private:
 	GLUIButtonRef collapse_vehicle_button;
 
 
-	GLUIButtonRef selfie_button;
+	GLUIButtonRef photo_mode_button;
 
 	GLUIButtonRef microphone_button; // TODO: move out of GestureUI or rename GestureUI.
 

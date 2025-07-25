@@ -442,6 +442,9 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
+	photo_mode_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	photo_mode_ui.setVisible(false);
+
 	minimap.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
 	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
@@ -854,6 +857,8 @@ void GUIClient::shutdown()
 	hud_ui.destroy();
 
 	chat_ui.destroy();
+
+	photo_mode_ui.destroy();
 
 	minimap.destroy();
 
@@ -4216,7 +4221,7 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 		resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
 	}
 
-	const Vec3d cam_angles = cam_controller.getAngles();
+	const Vec3d cam_angles = cam_controller.getAvatarAngles();
 	Avatar avatar;
 	avatar.uid = client_avatar_uid;
 	avatar.pos = Vec3d(cam_controller.getFirstPersonPosition());
@@ -4828,9 +4833,9 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		// Turn left or right
 		const float base_rotate_speed = 200;
 		if(left_down)
-		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); }
+		{	this->cam_controller.updateRotation(/*pitch_delta=*/0, /*heading_delta=*/dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0)); }
 		if(right_down)
-		{	this->cam_controller.update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); }
+		{	this->cam_controller.updateRotation(/*pitch_delta=*/0, /*heading_delta=*/dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0)); }
 
 		if(misc_info_ui.movement_button && misc_info_ui.movement_button->pressed)
 		{
@@ -4895,7 +4900,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		const float axis_right_x = ui_interface->gamepadAxisRightX();
 		if(axis_right_x != 0)
 		{
-			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(0, dt * gamepad_rotate_speed * pow(axis_right_x, 3.0f)));
+			this->cam_controller.updateRotation(/*pitch_delta=*/0, /*heading_delta=*/dt * gamepad_rotate_speed * pow(axis_right_x, 3.0f));
 			
 			if(std::fabs(axis_right_x) > 0.5f) // If definitely a player-initiated command (as opposed to stick drift)
 				last_cursor_movement_was_from_mouse = false; // then last cursor movement is from gamepad
@@ -4904,13 +4909,20 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		const float axis_right_y = ui_interface->gamepadAxisRightY();
 		if(axis_right_y != 0)
 		{
-			this->cam_controller.update(/*pos delta=*/Vec3d(0.0), /*rot delta=*/Vec2d(dt *  gamepad_rotate_speed * -pow(axis_right_y, 3.f), 0));
+			this->cam_controller.updateRotation(/*pitch_delta=*/dt *  gamepad_rotate_speed * -pow(axis_right_y, 3.f), /*heading_delta=*/0);
 		
 			if(std::fabs(axis_right_y) > 0.5f) // If definitely a player-initiated command (as opposed to stick drift)
 				last_cursor_movement_was_from_mouse = false; // then last cursor movement is from gamepad
 		}
 
 		hud_ui.setCrosshairDotVisible(!last_cursor_movement_was_from_mouse);
+	}
+
+	if(cam_controller.current_cam_mode == CameraController::CameraMode_FreeCamera)
+	{
+		this->cam_controller.setFreeCamMovementDesiredVel(player_physics.getMoveDesiredVel());
+		player_physics.zeroMoveDesiredVel();
+		input_out.clear();
 	}
 
 	if(move_key_pressed)
@@ -5743,101 +5755,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
 			it->second->updateDebugVisObjects();
 
-		//--------------------------- Car controller and graphics -------------------------------
-		//car_physics.update(*this->physics_world, physics_input, (float)dt, /*campos_out=*/campos);
-		//this->cam_controller.setPosition(toVec3d(campos));
-
-		// Update car visualisation
-#if 0
-		if(false)
-		{
-			wheel_gl_objects.resize(4);
-
-			for(size_t i=0; i<wheel_gl_objects.size(); ++i)
-			{
-				if(wheel_gl_objects[i].isNull())
-				{
-					wheel_gl_objects[i] = opengl_engine->allocateObject();
-					wheel_gl_objects[i]->ob_to_world_matrix = Matrix4f::identity();
-					//wheel_gl_objects[i]->mesh_data = opengl_engine->getCylinderMesh();
-
-					GLTFLoadedData gltf_data;
-					BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_wheel.glb", gltf_data);
-					wheel_gl_objects[i]->mesh_data = GLMeshBuilding::buildBatchedMesh(opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
-					wheel_gl_objects[i]->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
-
-
-					OpenGLMaterial material;
-					material.albedo_linear_rgb = Colour3f(0.2f, 0.2f, 0.2f);
-					//material.tex_path = "resources/obstacle.png";
-
-					
-				//	wheel_gl_objects[i]->materials = SmallArray<OpenGLMaterial, 2>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
-
-					wheel_gl_objects[i]->materials[2].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
-					wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
-					wheel_gl_objects[i]->materials[2].roughness = 0.2f;
-					wheel_gl_objects[i]->materials[4].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
-					wheel_gl_objects[i]->materials[4].metallic_frac = 1.f; // spokes
-					wheel_gl_objects[i]->materials[4].roughness = 0.2f;
-
-
-					opengl_engine->addObjectAndLoadTexturesImmediately(wheel_gl_objects[i]);
-				}
-
-				//wheel_gl_objects[i]->ob_to_world_matrix = bike_physics.getWheelTransform((int)i) *
-				//	Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::scaleMatrix(0.3f, 0.3f, 0.1f) * Matrix4f::translationMatrix(0, 0, -0.5f);
-
-				wheel_gl_objects[i]->ob_to_world_matrix = car_physics.getWheelTransform((int)i) * Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * ((i == 0 || i == 2) ?  Matrix4f::rotationAroundZAxis(Maths::pi<float>()) : Matrix4f::identity());
-
-				opengl_engine->updateObjectTransformData(*wheel_gl_objects[i]);
-			}
-
-			if(car_body_gl_object.isNull())
-			{
-				car_body_gl_object = opengl_engine->allocateObject();
-				car_body_gl_object->ob_to_world_matrix = Matrix4f::identity();
-				//car_body_gl_object->mesh_data = opengl_engine->getCubeMeshData();
-
-				GLTFLoadedData gltf_data;
-				BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_body.glb", gltf_data);
-				car_body_gl_object->mesh_data = GLMeshBuilding::buildBatchedMesh(opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
-				car_body_gl_object->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
-				car_body_gl_object->mesh_data->animation_data = batched_mesh->animation_data;
-
-				OpenGLMaterial material;
-				material.albedo_linear_rgb = Colour3f(115 / 255.f, 187 / 255.f, 202 / 255.f);
-				material.roughness = 0.6;
-				material.metallic_frac = 0.0;
-					
-				//car_body_gl_object->materials = SmallArray<OpenGLMaterial, 2>(car_body_gl_object->mesh_data->num_materials_referenced, material);
-
-				car_body_gl_object->materials[12].alpha = 0.5f;
-				car_body_gl_object->materials[12].transparent = true;
-
-				opengl_engine->addObjectAndLoadTexturesImmediately(car_body_gl_object);
-			}
-
-
-			car_body_gl_object->ob_to_world_matrix = car_physics.getBodyTransform() * Matrix4f::translationMatrix(0, 0.2f, -0.2f) * Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
-			
-			//const float half_vehicle_length = 2.0f;
-			//const float half_vehicle_width = 0.9f;
-			//const float half_vehicle_height = 0.2f;
-			// 
-			// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-			//car_body_gl_object->ob_to_world_matrix = bike_physics.getBodyTransform();// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-
-			opengl_engine->updateObjectTransformData(*car_body_gl_object);
-		}
-		//--------------------------- END Car controller and graphics -------------------------------
-#endif
 
 		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
 		if(false)
 		{
 			const Vec3d cam_back_dir = cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2;
-			this->cam_controller.third_person_cam_position = toVec3d(campos) + Vec3d(cam_back_dir);
+			this->cam_controller.setThirdPersonCamPosition(toVec3d(campos) + Vec3d(cam_back_dir));
 		}
 
 
@@ -5885,7 +5808,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	
 
-	const Vec3d cam_angles = this->cam_controller.getAngles();
+	const Vec3d avatar_cam_angles = this->cam_controller.getAvatarAngles();
 
 	// Find out which parcel we are in, if any.
 	ParcelID new_in_parcel_id = ParcelID::invalidParcelID();
@@ -6051,14 +5974,23 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 
-	updateAvatarGraphics(cur_time, dt, cam_angles, our_move_impulse_zero);
+	updateAvatarGraphics(cur_time, dt, avatar_cam_angles, our_move_impulse_zero);
 
+
+	// Set camera controller target transform (used for tracking and fixed-angle camera modes)
 	if(vehicle_controller_inside)
 	{
-		// TEMP HACK set camera to rear-view side camera
-		//Vec4f car_forwards = vehicle_controller_inside->getControlledObject()->opengl_engine_ob->ob_to_world_matrix * Vec4f(1,0,0,0);
-		//cam_controller.setAngles(Vec3d(atan2(car_forwards[1], car_forwards[0]) + 1.9, 1.5, 0));
+		cam_controller.setTargetObjectTransform(vehicle_controller_inside->getControlledObject()->opengl_engine_ob->ob_to_world_matrix, /*target_is_vehicle=*/true);
 	}
+	else
+	{
+		cam_controller.setTargetObjectTransform(Matrix4f::translationMatrix(cam_controller.getFirstPersonPosition().toVec4fVector()), /*target_is_vehicle=*/false);
+	}
+
+
+
+	cam_controller.think(dt);
+
 
 	// Set third-person camera position.  NOTE: this goes after updateAvatarGraphics since it depends on where the player's avatar is,
 	// which can depend on interpolated vehicle physics etc.
@@ -6070,10 +6002,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// Resonance seems to want a to-world transformation
 	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
 
+	const Vec3d cam_angles = this->cam_controller.getAngles();
 	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)cam_angles.x - Maths::pi_2<float>());
 	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
 	const Quatf q = z_axis_rot_q * x_axis_rot_q;
-	audio_engine.setHeadTransform(cam_controller.thirdPersonEnabled() ? this->cam_controller.third_person_cam_position.toVec4fPoint() : this->cam_controller.getFirstPersonPosition().toVec4fPoint(), q);
+	audio_engine.setHeadTransform(this->cam_controller.getPosition().toVec4fPoint(), q);
 
 
 	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
@@ -6579,7 +6512,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_avatar_uid, scratch_packet);
 			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
-			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), scratch_packet);
+			writeToStream(Vec3f(0, (float)avatar_cam_angles.y, (float)avatar_cam_angles.x), scratch_packet);
 			scratch_packet.writeUInt32(anim_state | (input_bitmask << 16));
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -7082,8 +7015,8 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 }
 
 
-
-void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero)
+// Update avatar graphics (transform, animation pose etc.) for all avatars.
+void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& our_cam_angles, bool our_move_impulse_zero)
 {
 #if EMSCRIPTEN
 	// Wait until we have done the async load of extracted_anim_data.bin before we start loading avatars.
@@ -7220,7 +7153,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ca
 					if(our_avatar)
 					{
 						pos = cam_controller.getFirstPersonPosition();
-						rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+						rotation = Vec3f(0, (float)our_cam_angles.y, (float)our_cam_angles.x);
 
 						use_xyplane_speed_rel_ground_override = true;
 						xyplane_speed_rel_ground_override = player_physics.getLastXYPlaneVelRelativeToGround().length();
@@ -7622,7 +7555,7 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 		Vec4f use_target_pos;
 		if(selfie_mode)
 		{
-			// Searh avatars for our avatar, get its last head position, which will be our target position.
+			// Search avatars for our avatar, get its last head position, which will be our target position.
 			// This differs from the cam controller first person position due to animations, like sitting animations, which move the head a lot.
 
 			use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint(); // default
@@ -7678,7 +7611,8 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 		}
 		
 		//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
-		cam_controller.third_person_cam_position = cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir);
+		if(cam_controller.current_cam_mode != CameraController::CameraMode_FreeCamera && cam_controller.current_cam_mode != CameraController::CameraMode_TrackingCamera)
+			cam_controller.setThirdPersonCamPosition(cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir));
 	}
 }
 
@@ -7908,7 +7842,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
 
-				const Vec3d cam_angles = this->cam_controller.getAngles();
+				const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
 				Avatar avatar;
 				avatar.uid = this->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
@@ -8191,7 +8125,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			misc_info_ui.showLoggedInButton(m->username);
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
-			const Vec3d cam_angles = this->cam_controller.getAngles();
+			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
 			Avatar avatar;
 			avatar.uid = this->client_avatar_uid;
 			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
@@ -8217,7 +8151,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			misc_info_ui.showLogInAndSignUpButtons();
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
-			const Vec3d cam_angles = this->cam_controller.getAngles();
+			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
 			Avatar avatar;
 			avatar.uid = this->client_avatar_uid;
 			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
@@ -8243,7 +8177,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			misc_info_ui.showLoggedInButton(m->username);
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
-			const Vec3d cam_angles = this->cam_controller.getAngles();
+			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
 			Avatar avatar;
 			avatar.uid = this->client_avatar_uid;
 			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
@@ -9855,7 +9789,7 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 		}
 
 		// Turn off selfie mode if it was enabled.
-		gesture_ui.turnOffSelfieMode(); // calls setSelfieModeEnabled(false);
+		//gesture_ui.turnOffSelfieMode(); // calls setSelfieModeEnabled(false);
 	}
 }
 
@@ -10190,7 +10124,7 @@ void GUIClient::summonBike()
 
 	// Get desired rotation
 	const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // NOTE: from bike script
-	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x);
+	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAvatarAngles().x);
 	Vec4f axis;
 	float angle;
 	(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
@@ -10318,7 +10252,7 @@ void GUIClient::summonHovercar()
 	// Get desired rotation from script.
 	const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>()) * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // NOTE: from hovercar script
 
-	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x);
+	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAvatarAngles().x);
 
 	Vec4f axis;
 	float angle;
@@ -10419,7 +10353,7 @@ void GUIClient::summonBoat()
 	// Get desired rotation from script.
 	const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>()) * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // NOTE: from boat script (model_to_y_forwards_rot_1 etc.)
 
-	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x);
+	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAvatarAngles().x);
 
 	Vec4f axis;
 	float angle;
@@ -10521,7 +10455,7 @@ void GUIClient::summonCar()
 	// Get desired rotation from script.
 	const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>()) * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // NOTE: from car script (model_to_y_forwards_rot_1 etc.)
 
-	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x);
+	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAvatarAngles().x);
 
 	Vec4f axis;
 	float angle;
@@ -13524,6 +13458,7 @@ void GUIClient::viewportResized(int w, int h)
 	misc_info_ui.viewportResized(w, h);
 	hud_ui.viewportResized(w, h);
 	chat_ui.viewportResized(w, h);
+	photo_mode_ui.viewportResized(w, h);
 	minimap.viewportResized(w, h);
 }
 
@@ -13872,6 +13807,17 @@ void GUIClient::setSelfieModeEnabled(bool enabled)
 	{
 		// Enable third-person camera view if not already enabled.
 		ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
+	}
+}
+
+
+void GUIClient::setPhotoModeEnabled(bool enabled)
+{
+	this->photo_mode_ui.setVisible(enabled);
+	if(!enabled)
+	{
+		this->photo_mode_ui.standardCameraModeSelected();
+		this->cam_controller.standardCameraModeSelected();
 	}
 }
 
@@ -14357,7 +14303,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 		if(e.key == Key::Key_Space)
 		{
 			//if(cam_move_on_key_input_enabled)
-			if(ui_interface->isKeyboardCameraMoveEnabled())
+			if(ui_interface->isKeyboardCameraMoveEnabled() && !(cam_controller.current_cam_mode == CameraController::CameraMode_FreeCamera))
 				player_physics.processJump(this->cam_controller, /*cur time=*/Clock::getTimeSinceInit());
 			space_down = true;
 		}

@@ -67,6 +67,7 @@ public:
 	void updateForInVehicle(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, JPH::BodyID vehicle_body_id);
 
 	bool isMoveDesiredVelNonZero();
+	Vec3f getMoveDesiredVel() const { return move_desired_vel; }
 	void zeroMoveDesiredVel();
 
 	void setFlyModeEnabled(bool enabled);

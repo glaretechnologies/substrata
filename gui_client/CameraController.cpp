@@ -1,7 +1,7 @@
 /*=====================================================================
 CameraController.cpp
 --------------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #include "CameraController.h"
 
@@ -11,7 +11,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <maths/matrix3.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
-#include <algorithm>
 #include <math.h>
 
 
@@ -34,12 +33,21 @@ CameraController::CameraController()
 	current_third_person_target_pos = Vec3d(0,0,2);
 	selfie_mode = false;
 
+	current_cam_mode = CameraMode_Standard;
+
+	target_ob_to_world_matrix = Matrix4f::identity();
+
 	//start_cam_rot_z = 0;
 	//end_cam_rot_z = 0;
 	//start_transition_time = -2;
 	//end_transition_time = -1;
 
+	target_is_vehicle = false;
+
 	third_person_cam_dist = 3.f;
+
+	free_cam_desired_vel = Vec3d(0.0);
+	free_cam_vel = Vec3d(0.0);
 
 
 	// NOTE: Call initialise after the member variables above have been initialised.
@@ -49,6 +57,28 @@ CameraController::CameraController()
 
 CameraController::~CameraController()
 {}
+
+
+Vec3d CameraController::getRotationAnglesFromCameraBasis(const Vec3d& cam_forward, const Vec3d& camera_right)
+{
+	assert(cam_forward.isUnitLength());
+	assert(camera_right.isUnitLength());
+
+	Vec3d rotation;
+	rotation.x = atan2(cam_forward.y, cam_forward.x);
+	rotation.y = acos(cam_forward.z / cam_forward.length());
+
+	const Vec3d up(0,0,1);
+
+	const Vec3d rollplane_x_basis = crossProduct(cam_forward, /*initialised_up*/up);
+	const Vec3d rollplane_y_basis = crossProduct(rollplane_x_basis, cam_forward);
+	const double rollplane_x = dot(camera_right, rollplane_x_basis);
+	const double rollplane_y = dot(camera_right, rollplane_y_basis);
+
+	rotation.z = atan2(rollplane_y, rollplane_x);
+
+	return rotation;
+}
 
 
 void CameraController::initialise(const Vec3d& cam_pos, const Vec3d& cam_forward, const Vec3d& cam_up, double lens_sensor_dist_, double lens_shift_up_, double lens_shift_right_)
@@ -68,45 +98,31 @@ void CameraController::initialise(const Vec3d& cam_pos, const Vec3d& cam_forward
 	camera_up = getUpForForwards(cam_forward, initialised_up);
 	camera_right = crossProduct(camera_forward, camera_up);
 
-	rotation.x = atan2(cam_forward.y, cam_forward.x);
-	rotation.y = acos(cam_forward.z / cam_forward.length());
+	rotation = getRotationAnglesFromCameraBasis(camera_forward, camera_right);
 
-	const Vec3d rollplane_x_basis = crossProduct(camera_forward, initialised_up);
-	const Vec3d rollplane_y_basis = crossProduct(rollplane_x_basis, camera_forward);
-	const double rollplane_x = dot(camera_right, rollplane_x_basis);
-	const double rollplane_y = dot(camera_right, rollplane_y_basis);
-
-	rotation.z = atan2(rollplane_y, rollplane_x);
-
-	initial_rotation = rotation;
+	last_avatar_rotation = rotation;
 }
 
 
-void CameraController::update(const Vec3d& pos_delta, const Vec2d& rot_delta)
+void CameraController::updateRotation(double pitch_delta, double heading_delta)
 {
 	const double rotate_speed        = base_rotate_speed * mouse_sensitivity_scale;
-	const double move_speed          = base_move_speed * mouse_sensitivity_scale * move_speed_scale;
-	const double sideways_dir_factor = invert_sideways_movement ? -1.0 : 1.0;
 
-	if(rot_delta.x != 0 || rot_delta.y != 0)
+	if(pitch_delta != 0 || heading_delta != 0)
 	{
 		// Accumulate rotation angles, taking into account mouse speed and invertedness.
-		rotation.x += rot_delta.y * -rotate_speed;
-		rotation.y += rot_delta.x * -rotate_speed * (invert_mouse ? -1 : 1) * (selfie_mode ? -1 : 1);
+		rotation.x += heading_delta * -rotate_speed;
 
-		rotation.y = std::max(cap, std::min(Maths::pi<double>() - cap, rotation.y));
+		const double new_unclamped_rot_y = rotation.y + pitch_delta * -rotate_speed * (invert_mouse ? -1 : 1) * (selfie_mode ? -1 : 1);
+		rotation.y = myClamp(new_unclamped_rot_y, cap, Maths::pi<double>() - cap);
 	}
+}
 
-	// Construct camera basis.
-	const Vec3d forwards(sin(rotation.y) * cos(rotation.x),
-		sin(rotation.y) * sin(rotation.x),
-		cos(rotation.y));
-	const Vec3d up = getUpForForwards(forwards, initialised_up);
-	const Vec3d right = ::crossProduct(forwards, up);
 
-	position += right		* pos_delta.x * move_speed * sideways_dir_factor +
-				forwards	* pos_delta.y * move_speed +
-				up			* pos_delta.z * move_speed * sideways_dir_factor;
+void CameraController::setTargetObjectTransform(const Matrix4f& ob_to_world_matrix, bool target_is_vehicle_)
+{
+	this->target_ob_to_world_matrix = ob_to_world_matrix;
+	this->target_is_vehicle = target_is_vehicle_;
 }
 
 
@@ -116,9 +132,65 @@ Vec3d CameraController::getFirstPersonPosition() const
 }
 
 
+static Vec3d dirForAngles(double phi, double theta)
+{
+	return Vec3d(
+		sin(theta) * cos(phi),
+		sin(theta) * sin(phi),
+		cos(theta)
+	);
+}
+
+
+Matrix4f CameraController::getFixedAngleWorldToCamRotationMatrix() const
+{
+	// Bit of a hack: vehicle object coordinates are usually y-up, z-forwards and x-right, whereas avatar coords are
+	// z-up and x-right.
+	const Matrix4f cam_to_ob = target_is_vehicle ? 
+		Matrix4f::rotationAroundYAxis((float)rotation.x) * Matrix4f::rotationAroundXAxis((float)-rotation.y) :
+		Matrix4f::rotationAroundZAxis((float)rotation.x + Maths::pi_2<float>()) * Matrix4f::rotationAroundXAxis(-(float)rotation.y + Maths::pi_2<float>());
+
+	Matrix4f cam_to_world = target_ob_to_world_matrix * cam_to_ob;
+
+	cam_to_world.setColumn(3, Vec4f(0,0,0,1));
+
+	Matrix4f cam_to_world_rot, rest;
+	if(!cam_to_world.polarDecomposition(cam_to_world_rot, rest))
+		return Matrix4f::identity();
+
+	return cam_to_world_rot.getTranspose();
+}
+
+
+Vec3d CameraController::fixedAngleCameraDir() const
+{
+	const Matrix4f world_to_cam_rot = getFixedAngleWorldToCamRotationMatrix();
+
+	return Vec3d(normalise(world_to_cam_rot.getRow(1)));
+}
+
+
 Vec3d CameraController::getPosition() const
 {
-	return third_person ? third_person_cam_position : position;
+	if(current_cam_mode == CameraMode_Standard)
+	{
+		return third_person ? third_person_cam_position : position;
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle)
+	{
+		const Vec3d target_position = toVec3d(target_ob_to_world_matrix * Vec4f(0,0,0,1));
+		const Vec3d dir = fixedAngleCameraDir();
+		return target_position - dir * third_person_cam_dist;
+	}
+	else if(current_cam_mode == CameraMode_FreeCamera || current_cam_mode == CameraMode_TrackingCamera)
+	{
+		return third_person_cam_position;
+	}
+	else
+	{
+		assert(0);
+		return Vec3d(0.0);
+	}
 }
 
 
@@ -126,7 +198,6 @@ Vec3d CameraController::getPosition() const
 void CameraController::setFirstAndThirdPersonPositions(const Vec3d& pos)
 {
 	position = pos;
-
 
 	current_third_person_target_pos = pos;
 
@@ -143,6 +214,12 @@ void CameraController::setFirstPersonPosition(const Vec3d& pos)
 }
 
 
+void CameraController::setThirdPersonCamPosition(const Vec3d& pos)
+{
+	third_person_cam_position = pos;
+}
+
+
 void CameraController::setMouseSensitivity(double sensitivity)
 {
 	const double speed_base = (1 + std::sqrt(5.0)) * 0.5;
@@ -156,16 +233,43 @@ void CameraController::setMoveScale(double move_scale)
 }
 
 
-void CameraController::getBasis(Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out) const
+void CameraController::getWorldToCameraMatrix(Matrix4f& world_to_camera_matrix_out)
 {
-	Vec3d use_rotation = rotation;
-	if(selfie_mode)
-	{
-		use_rotation.x += Maths::pi<double>();
-		use_rotation.y = Maths::pi<double>() - rotation.y;
-	}
+	const Vec3d cam_pos = getPosition();
 
-	getBasisForAngles(use_rotation, initialised_up, right_out, up_out, forward_out);
+	if(current_cam_mode == CameraMode_Standard || current_cam_mode == CameraMode_FreeCamera)
+	{
+		Vec3d use_rotation = rotation;
+		if(selfie_mode)
+		{
+			use_rotation.x += Maths::pi<double>();
+			use_rotation.y = Maths::pi<double>() - rotation.y;
+		}
+
+		Vec3d right, up, forwards;
+		getBasisForAngles(use_rotation, initialised_up, right, up, forwards);
+
+		const Matrix4f to_camera_rot = Matrix4f::fromRows(right.toVec4fVector(), forwards.toVec4fVector(), up.toVec4fVector(), Vec4f(0,0,0,1));
+		to_camera_rot.rightMultiplyWithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_matrix_out);
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle)
+	{
+		const Matrix4f world_to_cam_rot = getFixedAngleWorldToCamRotationMatrix();
+
+		world_to_cam_rot.rightMultiplyWithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_matrix_out);
+	}
+	else if(current_cam_mode == CameraMode_TrackingCamera)
+	{
+		const Vec4f target_pos = target_ob_to_world_matrix * Vec4f(0,0,0,1);
+		const Vec4f cam_to_target = target_pos - third_person_cam_position.toVec4fPoint();
+
+		const Vec4f forward = normalise(cam_to_target);
+		const Vec4f up      = normalise(removeComponentInDir(Vec4f(0,0,1,0), normalise(cam_to_target)));
+		const Vec4f right   = crossProduct(forward, up);
+
+		const Matrix4f to_camera_rot = Matrix4f::fromRows(right, forward, up, Vec4f(0,0,0,1));
+		to_camera_rot.rightMultiplyWithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_matrix_out);
+	}
 }
 
 
@@ -179,9 +283,50 @@ Vec4f CameraController::vectorToCamSpace(const Vec4f& v) const
 }
 
 
+Vec3d CameraController::getAvatarAngles()
+{
+	if(current_cam_mode == CameraMode_Standard)
+	{
+		return rotation;
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle || current_cam_mode == CameraMode_FreeCamera || current_cam_mode == CameraMode_TrackingCamera)
+	{
+		return last_avatar_rotation;
+	}
+	else
+	{
+		assert(0);
+		return Vec3d(0.0);
+	}
+}
+
+
 Vec3d CameraController::getAngles() const
 {
-	return rotation;
+	if(current_cam_mode == CameraMode_TrackingCamera)
+	{
+		const Vec4f target_pos = target_ob_to_world_matrix * Vec4f(0,0,0,1);
+		const Vec4f cam_to_target = normalise(target_pos - third_person_cam_position.toVec4fPoint());
+		Vec3d rot;
+		rot.x = atan2(cam_to_target[1], cam_to_target[0]);
+		rot.y = acos(cam_to_target[2]);
+		rot.z = 0;
+		return rot;
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle)
+	{
+		const Matrix4f cam_to_world = getFixedAngleWorldToCamRotationMatrix().getTranspose();
+		const Vec4f forwards = cam_to_world * Vec4f(0,1,0,0);
+		const Vec4f right = cam_to_world * Vec4f(1,0,0,0);
+		
+		Vec3d rot;
+		rot = getRotationAnglesFromCameraBasis(toVec3d(forwards), toVec3d(right));
+		return rot;
+	}
+	else
+	{
+		return rotation;
+	}
 }
 
 
@@ -191,19 +336,46 @@ void CameraController::setAngles(const Vec3d& newangles)
 }
 
 
-void CameraController::resetRotation()
+Vec3d CameraController::getForwardsMoveVec() const
 {
-	rotation = initial_rotation;
+	if(current_cam_mode == CameraMode_Standard || current_cam_mode == CameraMode_FreeCamera)
+	{
+		return dirForAngles(rotation.x, rotation.y);
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle || current_cam_mode == CameraMode_TrackingCamera)
+	{
+		return dirForAngles(last_avatar_rotation.x, last_avatar_rotation.y);
+	}
+	else
+	{
+		assert(0);
+		return Vec3d(0.0);
+	}
+}
+
+
+Vec3d CameraController::getRightMoveVec() const
+{
+	return normalise(crossProduct(getForwardsMoveVec(), Vec3d(0,0,1)));
 }
 
 
 Vec3d CameraController::getForwardsVec() const
 {
-	return Vec3d(
-		sin(rotation.y) * cos(rotation.x),
-		sin(rotation.y) * sin(rotation.x),
-		cos(rotation.y)
-	);
+	if(current_cam_mode == CameraMode_Standard || current_cam_mode == CameraMode_FreeCamera)
+	{
+		return dirForAngles(rotation.x, rotation.y);
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle)
+	{
+		return fixedAngleCameraDir();
+	}
+	else
+	{
+		const Vec4f target_pos = target_ob_to_world_matrix * Vec4f(0,0,0,1);
+		const Vec4f cam_to_target = target_pos - third_person_cam_position.toVec4fPoint();
+		return Vec3d(normalise(cam_to_target));
+	}
 }
 
 
@@ -241,10 +413,7 @@ Vec3d CameraController::getUpForForwards(const Vec3d& forwards, const Vec3d& sin
 void CameraController::getBasisForAngles(const Vec3d& angles_in, const Vec3d& singular_up, Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out)
 {
 	// Get un-rolled basis
-	forward_out = Vec3d(
-		sin(angles_in.y) * cos(angles_in.x),
-		sin(angles_in.y) * sin(angles_in.x),
-		cos(angles_in.y));
+	forward_out = dirForAngles(angles_in.x, angles_in.y);
 	up_out = getUpForForwards(forward_out, singular_up);
 	right_out = ::crossProduct(forward_out, up_out);
 
@@ -283,6 +452,86 @@ void CameraController::setSelfieModeEnabled(double cur_time, bool enabled)
 }
 
 
+void CameraController::standardCameraModeSelected()
+{
+	setStateBeforeCameraModeChange();
+
+	current_cam_mode = CameraMode_Standard;
+}
+
+
+void CameraController::fixedAngleCameraModeSelected()
+{
+	setStateBeforeCameraModeChange();
+
+	current_cam_mode = CameraMode_FixedAngle;
+}
+
+
+void CameraController::freeCameraModeSelected()
+{
+	setStateBeforeCameraModeChange();
+
+	current_cam_mode = CameraMode_FreeCamera;
+}
+
+
+void CameraController::trackingCameraModeSelected()
+{
+	setStateBeforeCameraModeChange();
+
+	current_cam_mode = CameraMode_TrackingCamera;
+}
+
+
+void CameraController::setStateBeforeCameraModeChange()
+{
+	if(current_cam_mode == CameraMode_TrackingCamera)
+	{
+		// Update rotation
+		const Vec4f target_pos = target_ob_to_world_matrix * Vec4f(0,0,0,1);
+		const Vec4f cam_to_target = normalise(target_pos - third_person_cam_position.toVec4fPoint());
+		rotation.x = atan2(cam_to_target[1], cam_to_target[0]);
+		rotation.y = acos(cam_to_target[2]);
+		rotation.z = 0;
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle)
+	{
+		third_person_cam_position = getPosition();
+
+		const Matrix4f cam_to_world = getFixedAngleWorldToCamRotationMatrix().getTranspose();
+		const Vec4f forwards = cam_to_world * Vec4f(0,1,0,0);
+		const Vec4f right = cam_to_world * Vec4f(1,0,0,0);
+		
+		rotation = getRotationAnglesFromCameraBasis(toVec3d(forwards), toVec3d(right));
+		rotation.z = 0; // We don't really handle non-zero rolls in most camera modes.
+	}
+
+	if(current_cam_mode == CameraMode_Standard)
+	{
+		this->last_avatar_rotation = rotation;
+	}
+}
+
+
+void CameraController::setFreeCamMovementDesiredVel(const Vec3f& vel)
+{
+	free_cam_desired_vel = toVec3d(vel);
+}
+
+
+void CameraController::think(double dt)
+{
+	const double damping_factor = (free_cam_desired_vel.length() > 0) ? 0.0 : 2.0;
+	free_cam_vel = free_cam_vel * myMax(0.0, (1.0 - dt * damping_factor)) + free_cam_desired_vel * dt * 5.0;
+
+	if(current_cam_mode == CameraMode_FreeCamera)
+	{
+		third_person_cam_position += free_cam_vel * dt;
+	}
+}
+
+
 #if BUILD_TESTS
 
 #include "../maths/mathstypes.h"
@@ -296,19 +545,19 @@ void CameraController::test()
 
 
 	// Initialise canonical viewing system - camera at origin, looking along y+ with z+ up
-	cc.initialise(Vec3d(0.0), Vec3d(0, 1, 0), Vec3d(0, 0, 1), 0.03, 0, 0);
-	cc.getBasis(r, u, f);
-	testAssert(::epsEqual(r.x, 1.0)); testAssert(::epsEqual(r.y, 0.0)); testAssert(::epsEqual(r.z, 0.0));
-	testAssert(::epsEqual(f.x, 0.0)); testAssert(::epsEqual(f.y, 1.0)); testAssert(::epsEqual(f.z, 0.0));
-	testAssert(::epsEqual(u.x, 0.0)); testAssert(::epsEqual(u.y, 0.0)); testAssert(::epsEqual(u.z, 1.0));
-
-
-	// Initialise camera to look down along z-, with y+ up
-	cc.initialise(Vec3d(0.0), Vec3d(0, 0, -1), Vec3d(0, 1, 0), 0.03, 0, 0);
-	cc.getBasis(r, u, f);
-	testAssert(::epsEqual(r.x, 1.0)); testAssert(::epsEqual(r.y, 0.0)); testAssert(::epsEqual(r.z,  0.0));
-	testAssert(::epsEqual(f.x, 0.0)); testAssert(::epsEqual(f.y, 0.0)); testAssert(::epsEqual(f.z, -1.0));
-	testAssert(::epsEqual(u.x, 0.0)); testAssert(::epsEqual(u.y, 1.0)); testAssert(::epsEqual(u.z,  0.0));
+//	cc.initialise(Vec3d(0.0), Vec3d(0, 1, 0), Vec3d(0, 0, 1), 0.03, 0, 0);
+//	cc.getBasis(r, u, f);
+//	testAssert(::epsEqual(r.x, 1.0)); testAssert(::epsEqual(r.y, 0.0)); testAssert(::epsEqual(r.z, 0.0));
+//	testAssert(::epsEqual(f.x, 0.0)); testAssert(::epsEqual(f.y, 1.0)); testAssert(::epsEqual(f.z, 0.0));
+//	testAssert(::epsEqual(u.x, 0.0)); testAssert(::epsEqual(u.y, 0.0)); testAssert(::epsEqual(u.z, 1.0));
+//
+//
+//	// Initialise camera to look down along z-, with y+ up
+//	cc.initialise(Vec3d(0.0), Vec3d(0, 0, -1), Vec3d(0, 1, 0), 0.03, 0, 0);
+//	cc.getBasis(r, u, f);
+//	testAssert(::epsEqual(r.x, 1.0)); testAssert(::epsEqual(r.y, 0.0)); testAssert(::epsEqual(r.z,  0.0));
+//	testAssert(::epsEqual(f.x, 0.0)); testAssert(::epsEqual(f.y, 0.0)); testAssert(::epsEqual(f.z, -1.0));
+//	testAssert(::epsEqual(u.x, 0.0)); testAssert(::epsEqual(u.y, 1.0)); testAssert(::epsEqual(u.z,  0.0));
 
 
 	// Initialise canonical viewing system and test that the viewing angles are correct
