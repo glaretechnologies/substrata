@@ -545,8 +545,8 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 
 	const double ob_dist_from_cam = ob->pos.getDist(gui_client->cam_controller.getPosition());
 	const double max_play_dist = maxBrowserDist();
-	const double unload_dist = maxBrowserDist() * 1.5;
-	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
+	[[maybe_unused]] const double unload_dist = maxBrowserDist() * 1.5;
+	[[maybe_unused]] const bool in_process_dist = ob_dist_from_cam < max_play_dist;
 
 	
 #if EMSCRIPTEN
