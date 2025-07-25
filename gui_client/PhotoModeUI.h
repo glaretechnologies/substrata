@@ -31,6 +31,7 @@ public:
 	void destroy();
 
 	void setVisible(bool visible);
+	bool isVisible() const;
 
 	void standardCameraModeSelected();
 

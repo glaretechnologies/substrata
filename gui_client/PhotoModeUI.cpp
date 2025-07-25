@@ -83,6 +83,15 @@ void PhotoModeUI::setVisible(bool visible)
 }
 
 
+bool PhotoModeUI::isVisible() const
+{
+	if(standard_cam_button) 
+		return standard_cam_button->isVisible();
+	else
+		return false;
+}
+
+
 void PhotoModeUI::standardCameraModeSelected()
 {
 	untoggleAllCamModeButtons();
