@@ -2807,6 +2807,8 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 	gui_client.minimap.setVisible(false); // Hide minimap
 	gui_client.chat_ui.setVisible(false);
 	gui_client.misc_info_ui.setVisible(false);
+	const bool photo_mode_was_visible = gui_client.photo_mode_ui.isVisible();
+	gui_client.photo_mode_ui.setVisible(false);
 	gui_client.setNotificationsVisible(false);
 
 	 // Remove any avatar markers from the HUD UI
@@ -2858,6 +2860,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 	gui_client.gesture_ui.setVisible(true); // Restore showing gesture UI
 	gui_client.minimap.setVisible(true); // Restore showing minimap
 	gui_client.chat_ui.setVisible(true);
+	gui_client.photo_mode_ui.setVisible(photo_mode_was_visible);
 	gui_client.setNotificationsVisible(true);
 }
 
