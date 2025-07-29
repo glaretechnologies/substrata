@@ -17,6 +17,17 @@ Copyright Glare Technologies Limited 2025 -
 class GUIClient;
 
 
+struct PhotoModeSlider
+{
+	void setVisible(bool visible);
+	void setValue(double value, GLUIRef gl_ui);
+
+	GLUITextViewRef label;
+	GLUISliderRef slider;
+	GLUITextViewRef value_view;
+};
+
+
 /*=====================================================================
 PhotoModeUI
 -----------
@@ -34,6 +45,9 @@ public:
 	void setVisible(bool visible);
 	bool isVisible() const;
 
+	void enablePhotoModeUI();
+	void disablePhotoModeUI();
+
 	void standardCameraModeSelected();
 
 	void think();
@@ -46,6 +60,8 @@ public:
 private:
 	void untoggleAllCamModeButtons();
 	void updateWidgetPositions();
+	void updateSliderPosition(PhotoModeSlider& slider, float margin, float& cur_y);
+	void makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed);
 
 	GUIClient* gui_client;
 
@@ -54,11 +70,13 @@ private:
 	GLUITextButtonRef free_cam_button;
 	GLUITextButtonRef tracking_cam_button;
 
-	GLUISliderRef dof_blur_slider;
-	GLUISliderRef dof_focus_distance_slider;
-	GLUISliderRef ev_adjust_slider;
-	GLUISliderRef zoom_slider;
-	GLUISliderRef roll_slider;
+	OverlayObjectRef background_overlay_ob;
+
+	PhotoModeSlider dof_blur_slider;
+	PhotoModeSlider dof_focus_distance_slider;
+	PhotoModeSlider ev_adjust_slider;
+	PhotoModeSlider focal_length_slider;
+	PhotoModeSlider roll_slider;
 
 	GLUIRef gl_ui;
 
