@@ -163,6 +163,17 @@ Vec3d CameraController::fixedAngleCameraDir() const
 }
 
 
+// Rotation angles that will allow e.g. a free camera to match the orientation of the fixed-angle camera.
+Vec3d CameraController::standardAnglesForFixedAngleCam() const
+{
+	const Matrix4f cam_to_world = getFixedAngleWorldToCamRotationMatrix().getTranspose();
+	const Vec4f forwards = cam_to_world * Vec4f(0,1,0,0);
+	const Vec4f right = cam_to_world * Vec4f(1,0,0,0);
+
+	return getRotationAnglesFromCameraBasis(toVec3d(forwards), toVec3d(right));
+}
+
+
 Vec3d CameraController::getPosition() const
 {
 	if(current_cam_mode == CameraMode_Standard)
@@ -467,11 +478,17 @@ void CameraController::trackingCameraModeSelected()
 }
 
 
+// Set rotation, third_person_cam_position etc. so that e.g. changing to free camera won't change the camera position or orientation.
 void CameraController::setStateBeforeCameraModeChange()
 {
 	if(current_cam_mode == CameraMode_TrackingCamera)
 	{
 		rotation = getAngles();
+	}
+	else if(current_cam_mode == CameraMode_FixedAngle)
+	{
+		third_person_cam_position = getPosition();
+		rotation = standardAnglesForFixedAngleCam();
 	}
 
 	if(current_cam_mode == CameraMode_Standard)
