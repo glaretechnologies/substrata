@@ -13810,12 +13810,10 @@ void GUIClient::setSelfieModeEnabled(bool enabled)
 
 void GUIClient::setPhotoModeEnabled(bool enabled)
 {
-	this->photo_mode_ui.setVisible(enabled);
-	if(!enabled)
-	{
-		this->photo_mode_ui.standardCameraModeSelected();
-		this->cam_controller.standardCameraModeSelected();
-	}
+	if(enabled)
+		this->photo_mode_ui.enablePhotoModeUI();
+	else
+		this->photo_mode_ui.disablePhotoModeUI();
 }
 
 
