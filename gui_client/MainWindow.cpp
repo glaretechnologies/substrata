@@ -3973,7 +3973,7 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 	MouseWheelEvent mouse_event;
 	mouse_event.cursor_pos = Vec2i(e->pos().x(), e->pos().y()) * ui->glWidget->devicePixelRatio(); // Use devicePixelRatio to convert from logical to physical pixel coords.
 	mouse_event.gl_coords = gl_coords;
-	mouse_event.angle_delta = Vec2i(e->angleDelta().x(), e->angleDelta().y());
+	mouse_event.angle_delta = Vec2f((float)e->angleDelta().x() / 8.f, (float)e->angleDelta().y() / 8.f); // angleDelta() returns "the relative amount that the wheel was rotated, in eighths of a degree".
 	mouse_event.modifiers = fromQtModifiers(e->modifiers());
 
 	gui_client.onMouseWheelEvent(mouse_event);

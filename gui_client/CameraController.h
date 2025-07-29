@@ -28,7 +28,7 @@ public:
 	void updateRotation(double pitch_delta, double heading_delta);
 
 	// For CameraMode_FixedAngle and CameraMode_TrackingCamera
-	void setTargetObjectTransform(const Matrix4f& ob_to_world_matrix, bool target_is_vehicle);
+	void setTargetObjectTransform(const Matrix4f& ob_to_world_matrix, const Matrix4f& y_forward_to_model_space_rot);
 
 	Vec3d getFirstPersonPosition() const;
 	Vec3d getPosition() const; // Has third person offset if third person camera is enabled.
@@ -77,7 +77,7 @@ public:
 	void trackingCameraModeSelected();
 
 	void setFreeCamMovementDesiredVel(const Vec3f& vel);
-	
+
 	void think(double dt);
 
 
@@ -98,6 +98,7 @@ private:
 	Vec3d fixedAngleCameraDir() const;
 
 	Matrix4f target_ob_to_world_matrix;
+	Matrix4f y_forward_to_model_space_rot;
 
 	Vec3d position;
 	Vec3d rotation; // Specified as (heading, pitch, roll).
@@ -112,11 +113,13 @@ private:
 
 	double base_move_speed, base_rotate_speed;
 	double move_speed_scale, mouse_sensitivity_scale;
+
+public:
 	double lens_sensor_dist, lens_shift_up, lens_shift_right;
+private:
 
 	bool third_person;
 	bool selfie_mode;
-	bool target_is_vehicle;
 
 	// For 3rd person/selfie cam:
 	//float start_cam_rot_z;

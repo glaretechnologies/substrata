@@ -110,7 +110,6 @@ GlWidget::GlWidget(QWidget *parent)
 	setFormat(makeFormat());
 #endif
 
-	viewport_aspect_ratio = 1;
 	viewport_w = viewport_h = 100;
 
 	// Needed to get keyboard events.
@@ -219,8 +218,6 @@ void GlWidget::resizeGL(int width_, int height_)
 
 	viewport_w = width_;
 	viewport_h = height_;
-
-	viewport_aspect_ratio = (double)width_ / (double)height_;
 
 	if(this->opengl_engine)
 	{
@@ -367,9 +364,9 @@ void GlWidget::paintGL()
 		Matrix4f world_to_camera_space_matrix;
 		cam_controller->getWorldToCameraMatrix(world_to_camera_space_matrix);
 
-		const float sensor_width = sensorWidth();
-		const float lens_sensor_dist = lensSensorDist();
-		const float render_aspect_ratio = viewport_aspect_ratio;
+		const float sensor_width = defaultSensorWidth();
+		const float lens_sensor_dist = (float)cam_controller->lens_sensor_dist;
+		const float render_aspect_ratio = (float)viewport_w / (float)viewport_h;
 		opengl_engine->setViewportDims(viewport_w, viewport_h);
 		opengl_engine->setNearDrawDistance(near_draw_dist);
 		opengl_engine->setMaxDrawDistance(max_draw_dist);
