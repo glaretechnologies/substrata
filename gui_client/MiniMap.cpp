@@ -953,7 +953,7 @@ void MiniMap::mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event)
 
 	const int last_tile_z = getTileZForMapWidthWS(map_width_ws);
 
-	map_width_ws = myClamp(map_width_ws * (1.0f - event.wheel_event->angle_delta_y * 0.002f), 80.f, 10000.f);
+	map_width_ws = myClamp(map_width_ws * (1.0f - event.wheel_event->angle_delta.y * 0.016f), 80.f, 10000.f);
 
 	const int new_tile_z = getTileZForMapWidthWS(map_width_ws);
 	if(new_tile_z != last_tile_z)

@@ -5980,11 +5980,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// Set camera controller target transform (used for tracking and fixed-angle camera modes)
 	if(vehicle_controller_inside)
 	{
-		cam_controller.setTargetObjectTransform(vehicle_controller_inside->getControlledObject()->opengl_engine_ob->ob_to_world_matrix, /*target_is_vehicle=*/true);
+		const Quatf model_to_y_forward_quat = vehicle_controller_inside->getSettings().model_to_y_forwards_rot_2 * vehicle_controller_inside->getSettings().model_to_y_forwards_rot_1;
+		const Matrix4f y_forward_to_model_space_rot = (model_to_y_forward_quat.conjugate()).toMatrix();
+
+		cam_controller.setTargetObjectTransform(vehicle_controller_inside->getControlledObject()->opengl_engine_ob->ob_to_world_matrix, y_forward_to_model_space_rot);
 	}
 	else
 	{
-		cam_controller.setTargetObjectTransform(Matrix4f::translationMatrix(cam_controller.getFirstPersonPosition().toVec4fVector()), /*target_is_vehicle=*/false);
+		cam_controller.setTargetObjectTransform(Matrix4f::translationMatrix(cam_controller.getFirstPersonPosition().toVec4fVector()), /*y_forward_to_model_space_rot=*/Matrix4f::identity());
 	}
 
 
@@ -13365,17 +13368,11 @@ void GUIClient::deselectParcel()
 
 void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 {
-	if(gl_ui.nonNull())
+	if(gl_ui)
 	{
-		GLUIMouseWheelEvent wheel_event;
-		wheel_event.angle_delta_y = e.angle_delta.y;
-
-		const bool accepted = gl_ui->handleMouseWheelEvent(e.gl_coords, wheel_event);
-		if(accepted)
-		{
-			e.accepted = true;
+		gl_ui->handleMouseWheelEvent(e);
+		if(e.accepted)
 			return;
-		}
 	}
 
 	// Trace through scene to see if the mouse is over a web-view
@@ -13415,7 +13412,7 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 
 	if(this->selected_ob.nonNull() && selected_ob_picked_up)
 	{
-		this->selection_vec_cs[1] *= (1.0f + e.angle_delta.y * 0.0005f);
+		this->selection_vec_cs[1] *= (1.0f + e.angle_delta.y * 0.004f);
 	}
 	else
 	{

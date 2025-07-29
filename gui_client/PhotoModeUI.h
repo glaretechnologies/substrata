@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <opengl/ui/GLUITextButton.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 #include <opengl/ui/GLUITextView.h>
+#include <opengl/ui/GLUISlider.h>
 
 
 class GUIClient;
@@ -40,6 +41,7 @@ public:
 	void viewportResized(int w, int h);
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
+	virtual void sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& event) override; // From GLUICallbackHandler
 
 private:
 	void untoggleAllCamModeButtons();
@@ -51,6 +53,12 @@ private:
 	GLUITextButtonRef fixed_angle_cam_button;
 	GLUITextButtonRef free_cam_button;
 	GLUITextButtonRef tracking_cam_button;
+
+	GLUISliderRef dof_blur_slider;
+	GLUISliderRef dof_focus_distance_slider;
+	GLUISliderRef ev_adjust_slider;
+	GLUISliderRef zoom_slider;
+	GLUISliderRef roll_slider;
 
 	GLUIRef gl_ui;
 

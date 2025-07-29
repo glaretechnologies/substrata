@@ -6,7 +6,6 @@ Copyright Glare Technologies Limited 2025 -
 #include "CameraController.h"
 
 
-#include <maths/mathstypes.h>
 #include <maths/GeometrySampling.h>
 #include <maths/matrix3.h>
 #include <utils/ConPrint.h>
@@ -36,22 +35,23 @@ CameraController::CameraController()
 	current_cam_mode = CameraMode_Standard;
 
 	target_ob_to_world_matrix = Matrix4f::identity();
+	y_forward_to_model_space_rot = Matrix4f::identity();
 
 	//start_cam_rot_z = 0;
 	//end_cam_rot_z = 0;
 	//start_transition_time = -2;
 	//end_transition_time = -1;
 
-	target_is_vehicle = false;
-
 	third_person_cam_dist = 3.f;
 
 	free_cam_desired_vel = Vec3d(0.0);
 	free_cam_vel = Vec3d(0.0);
 
+	lens_sensor_dist = 0.025;
+
 
 	// NOTE: Call initialise after the member variables above have been initialised.
-	initialise(Vec3d(0.0), Vec3d(0, 1, 0), Vec3d(0, 0, 1), 0.03, 0, 0);
+	initialise(Vec3d(0.0), Vec3d(0, 1, 0), Vec3d(0, 0, 1), /*lens_sensor_dist=*/0.025, 0, 0);
 }
 
 
@@ -70,8 +70,8 @@ Vec3d CameraController::getRotationAnglesFromCameraBasis(const Vec3d& cam_forwar
 
 	const Vec3d up(0,0,1);
 
-	const Vec3d rollplane_x_basis = crossProduct(cam_forward, /*initialised_up*/up);
-	const Vec3d rollplane_y_basis = crossProduct(rollplane_x_basis, cam_forward);
+	const Vec3d rollplane_x_basis = crossProduct(cam_forward, /*initialised_up*/up); // right without roll
+	const Vec3d rollplane_y_basis = crossProduct(rollplane_x_basis, cam_forward); // up without roll
 	const double rollplane_x = dot(camera_right, rollplane_x_basis);
 	const double rollplane_y = dot(camera_right, rollplane_y_basis);
 
@@ -108,21 +108,18 @@ void CameraController::updateRotation(double pitch_delta, double heading_delta)
 {
 	const double rotate_speed        = base_rotate_speed * mouse_sensitivity_scale;
 
-	if(pitch_delta != 0 || heading_delta != 0)
-	{
-		// Accumulate rotation angles, taking into account mouse speed and invertedness.
-		rotation.x += heading_delta * -rotate_speed;
+	// Accumulate rotation angles, taking into account mouse speed and invertedness.
+	rotation.x += heading_delta * -rotate_speed;
 
-		const double new_unclamped_rot_y = rotation.y + pitch_delta * -rotate_speed * (invert_mouse ? -1 : 1) * (selfie_mode ? -1 : 1);
-		rotation.y = myClamp(new_unclamped_rot_y, cap, Maths::pi<double>() - cap);
-	}
+	const double new_unclamped_rot_y = rotation.y + pitch_delta * -rotate_speed * (invert_mouse ? -1 : 1) * (selfie_mode ? -1 : 1);
+	rotation.y = myClamp(new_unclamped_rot_y, cap, Maths::pi<double>() - cap);
 }
 
 
-void CameraController::setTargetObjectTransform(const Matrix4f& ob_to_world_matrix, bool target_is_vehicle_)
+void CameraController::setTargetObjectTransform(const Matrix4f& ob_to_world_matrix, const Matrix4f& y_forward_to_model_space_rot_)
 {
 	this->target_ob_to_world_matrix = ob_to_world_matrix;
-	this->target_is_vehicle = target_is_vehicle_;
+	this->y_forward_to_model_space_rot = y_forward_to_model_space_rot_;
 }
 
 
@@ -144,15 +141,11 @@ static Vec3d dirForAngles(double phi, double theta)
 
 Matrix4f CameraController::getFixedAngleWorldToCamRotationMatrix() const
 {
-	// Bit of a hack: vehicle object coordinates are usually y-up, z-forwards and x-right, whereas avatar coords are
-	// z-up and x-right.
-	const Matrix4f cam_to_ob = target_is_vehicle ? 
-		Matrix4f::rotationAroundYAxis((float)rotation.x) * Matrix4f::rotationAroundXAxis((float)-rotation.y) :
-		Matrix4f::rotationAroundZAxis((float)rotation.x + Maths::pi_2<float>()) * Matrix4f::rotationAroundXAxis(-(float)rotation.y + Maths::pi_2<float>());
+	const Matrix4f cam_to_ob = Matrix4f::rotationAroundZAxis((float)rotation.x - Maths::pi_2<float>()) * Matrix4f::rotationAroundXAxis(-(float)rotation.y + Maths::pi_2<float>()) * Matrix4f::rotationAroundYAxis(-(float)rotation.z);
 
-	Matrix4f cam_to_world = target_ob_to_world_matrix * cam_to_ob;
+	Matrix4f cam_to_world = target_ob_to_world_matrix * y_forward_to_model_space_rot * cam_to_ob;
 
-	cam_to_world.setColumn(3, Vec4f(0,0,0,1));
+	cam_to_world.setColumn(3, Vec4f(0,0,0,1)); // Zero translation, needed for polarDecomposition.
 
 	Matrix4f cam_to_world_rot, rest;
 	if(!cam_to_world.polarDecomposition(cam_to_world_rot, rest))
@@ -267,7 +260,7 @@ void CameraController::getWorldToCameraMatrix(Matrix4f& world_to_camera_matrix_o
 		const Vec4f up      = normalise(removeComponentInDir(Vec4f(0,0,1,0), normalise(cam_to_target)));
 		const Vec4f right   = crossProduct(forward, up);
 
-		const Matrix4f to_camera_rot = Matrix4f::fromRows(right, forward, up, Vec4f(0,0,0,1));
+		const Matrix4f to_camera_rot = Matrix4f::rotationAroundYAxis((float)rotation.z) * Matrix4f::fromRows(right, forward, up, Vec4f(0,0,0,1));
 		to_camera_rot.rightMultiplyWithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_matrix_out);
 	}
 }
@@ -307,21 +300,11 @@ Vec3d CameraController::getAngles() const
 	{
 		const Vec4f target_pos = target_ob_to_world_matrix * Vec4f(0,0,0,1);
 		const Vec4f cam_to_target = normalise(target_pos - third_person_cam_position.toVec4fPoint());
-		Vec3d rot;
-		rot.x = atan2(cam_to_target[1], cam_to_target[0]);
-		rot.y = acos(cam_to_target[2]);
-		rot.z = 0;
-		return rot;
-	}
-	else if(current_cam_mode == CameraMode_FixedAngle)
-	{
-		const Matrix4f cam_to_world = getFixedAngleWorldToCamRotationMatrix().getTranspose();
-		const Vec4f forwards = cam_to_world * Vec4f(0,1,0,0);
-		const Vec4f right = cam_to_world * Vec4f(1,0,0,0);
-		
-		Vec3d rot;
-		rot = getRotationAnglesFromCameraBasis(toVec3d(forwards), toVec3d(right));
-		return rot;
+		return Vec3d(
+			atan2(cam_to_target[1], cam_to_target[0]),
+			acos(cam_to_target[2]),
+			rotation.z
+		);
 	}
 	else
 	{
@@ -418,7 +401,7 @@ void CameraController::getBasisForAngles(const Vec3d& angles_in, const Vec3d& si
 	right_out = ::crossProduct(forward_out, up_out);
 
 	// Apply camera roll
-	const Matrix3d roll_basis = Matrix3d::rotationMatrix(forward_out, angles_in.z) * Matrix3d(right_out, forward_out, up_out);
+	const Matrix3d roll_basis = Matrix3d::rotationMatrix(forward_out, -angles_in.z) * Matrix3d(right_out, forward_out, up_out);
 	right_out	= roll_basis.getColumn0();
 	forward_out	= roll_basis.getColumn1();
 	up_out		= roll_basis.getColumn2();
@@ -434,7 +417,7 @@ bool CameraController::handleScrollWheelEvent(float delta_y)
 
 		// Make change proportional to distance value.
 		// Mouse wheel scroll up reduces distance.
-		third_person_cam_dist = myClamp<float>(third_person_cam_dist - (third_person_cam_dist * delta_y * 0.002f), MIN_CAM_DIST, 20.f);
+		third_person_cam_dist = myClamp<float>(third_person_cam_dist - (third_person_cam_dist * delta_y * 0.016f), MIN_CAM_DIST, 20.f);
 
 		return third_person_cam_dist == MIN_CAM_DIST; // We have zoomed in all the way.
 	}
@@ -488,29 +471,16 @@ void CameraController::setStateBeforeCameraModeChange()
 {
 	if(current_cam_mode == CameraMode_TrackingCamera)
 	{
-		// Update rotation
-		const Vec4f target_pos = target_ob_to_world_matrix * Vec4f(0,0,0,1);
-		const Vec4f cam_to_target = normalise(target_pos - third_person_cam_position.toVec4fPoint());
-		rotation.x = atan2(cam_to_target[1], cam_to_target[0]);
-		rotation.y = acos(cam_to_target[2]);
-		rotation.z = 0;
-	}
-	else if(current_cam_mode == CameraMode_FixedAngle)
-	{
-		third_person_cam_position = getPosition();
-
-		const Matrix4f cam_to_world = getFixedAngleWorldToCamRotationMatrix().getTranspose();
-		const Vec4f forwards = cam_to_world * Vec4f(0,1,0,0);
-		const Vec4f right = cam_to_world * Vec4f(1,0,0,0);
-		
-		rotation = getRotationAnglesFromCameraBasis(toVec3d(forwards), toVec3d(right));
-		rotation.z = 0; // We don't really handle non-zero rolls in most camera modes.
+		rotation = getAngles();
 	}
 
 	if(current_cam_mode == CameraMode_Standard)
 	{
 		this->last_avatar_rotation = rotation;
 	}
+
+	this->free_cam_vel = Vec3d(0.0);
+	this->free_cam_desired_vel = Vec3d(0.0);
 }
 
 
@@ -522,7 +492,7 @@ void CameraController::setFreeCamMovementDesiredVel(const Vec3f& vel)
 
 void CameraController::think(double dt)
 {
-	const double damping_factor = (free_cam_desired_vel.length() > 0) ? 0.0 : 2.0;
+	const double damping_factor = (free_cam_desired_vel.length() > 0) ? 1.0 : 3.0;
 	free_cam_vel = free_cam_vel * myMax(0.0, (1.0 - dt * damping_factor)) + free_cam_desired_vel * dt * 5.0;
 
 	if(current_cam_mode == CameraMode_FreeCamera)

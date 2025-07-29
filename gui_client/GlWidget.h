@@ -60,8 +60,8 @@ public:
 
 	void setCursorIfNotHidden(Qt::CursorShape new_shape);
 
-	static float sensorWidth() { return 0.035f; }
-	static float lensSensorDist() { return 0.025f; }
+	static float defaultSensorWidth() { return 0.035f; }
+	static float defaultLensSensorDist() { return 0.025f; }
 protected:
 
 	virtual void initializeGL();
@@ -118,7 +118,6 @@ private:
 	std::string initialisation_error_msg;
 public:
 	QGamepad* gamepad;
-	float viewport_aspect_ratio;
 	Reference<OpenGLEngine> opengl_engine;
 	float near_draw_dist;
 	float max_draw_dist;
