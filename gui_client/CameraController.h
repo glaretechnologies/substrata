@@ -96,6 +96,7 @@ private:
 	void setStateBeforeCameraModeChange();
 	Matrix4f getFixedAngleWorldToCamRotationMatrix() const;
 	Vec3d fixedAngleCameraDir() const;
+	Vec3d standardAnglesForFixedAngleCam() const;
 
 	Matrix4f target_ob_to_world_matrix;
 	Matrix4f y_forward_to_model_space_rot;
