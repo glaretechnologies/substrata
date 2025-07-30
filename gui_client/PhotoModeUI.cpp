@@ -1,12 +1,13 @@
 /*=====================================================================
 PhotoModeUI.cpp
 ---------------
-Copyright Glare Technologies Limited 2022 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #include "PhotoModeUI.h"
 
 
 #include "GUIClient.h"
+#include <utils/StringUtils.h>
 
 
 PhotoModeUI::PhotoModeUI()
@@ -23,7 +24,10 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	GLUITextView::CreateArgs text_view_args;
 	text_view_args.background_alpha = 0;
 	text_view_args.text_colour = Colour3f(0.9f);
+	text_view_args.tooltip = tooltip;
+
 	slider.label = new GLUITextView(*gl_ui, opengl_engine, label, Vec2f(0), text_view_args);
+	gl_ui->addWidget(slider.label);
 
 	GLUISlider::CreateArgs args;
 	args.tooltip = tooltip;
@@ -36,6 +40,30 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	gl_ui->addWidget(slider.slider);
 
 	slider.value_view = new GLUITextView(*gl_ui, opengl_engine, doubleToStringMaxNDecimalPlaces(args.initial_value, 2), Vec2f(0), text_view_args);
+	gl_ui->addWidget(slider.value_view);
+}
+
+
+static double focusDistForSliderVal(double slider_val)
+{
+	return 1.0 / (1.0 - slider_val) - 1.0;
+}
+
+static double sliderValForFocusDist(double d)
+{
+	/*
+	d = 1 / (1 - v) - 1
+	d + 1 = 1 / (1 - v)
+	(d + 1) (1 - v) = 1
+	(d + 1) - v(d + 1) = 1
+	- v(d + 1) = 1 - (d + 1)
+	-v = (1 - (d + 1)) / (d + 1)
+	v = -(1 - (d + 1)) / (d + 1)
+	v = (-1 + (d + 1)) / (d + 1)
+	v = ((d + 1) - 1) / (d + 1)
+	v = d / (d + 1)
+	*/
+	return d / (d + 1.0);
 }
 
 
@@ -88,8 +116,8 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		/*min val=*/0.0, /*max val=*/1.0, /*initial val=*/opengl_engine->getCurrentScene()->dof_blur_strength, /*scroll speed=*/1.0);
 
 	makePhotoModeSlider(dof_focus_distance_slider, /*label=*/"Focus Distance", /*tooltip=*/"Focus Distance", 
-		/*min val=*/0.001, /*max val=*/1.0, /*initial val=*/0.7, /*scroll speed=*/1.0);
-	
+		/*min val=*/0.001, /*max val=*/1.0, /*initial val=*/sliderValForFocusDist(opengl_engine->getCurrentScene()->dof_blur_focus_distance), /*scroll speed=*/1.0);
+
 	makePhotoModeSlider(ev_adjust_slider, /*label=*/"EV adjust", /*tooltip=*/"EV adjust", 
 		/*min val=*/-8, /*max val=*/8, /*initial val=*/0, /*scroll speed=*/1.0);
 
@@ -98,6 +126,9 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 
 	makePhotoModeSlider(roll_slider, /*label=*/"Roll", /*tooltip=*/"Camera roll angle", 
 		/*min val=*/-90, /*max val=*/90, /*initial val=*/0, /*scroll speed=*/1.0);
+
+	updateFocusDistValueString();
+	updateFocalLengthValueString();
 
 	updateWidgetPositions();
 }
@@ -128,6 +159,7 @@ void PhotoModeUI::destroy()
 	checkRemove(gl_ui, roll_slider);
 	
 	gl_ui = NULL;
+	gui_client = NULL;
 	opengl_engine = NULL;
 }
 
@@ -169,28 +201,22 @@ void PhotoModeUI::enablePhotoModeUI()
 
 void PhotoModeUI::disablePhotoModeUI()
 {
-	setVisible(false);
-
-	// Set camera params to the standard ones
-	opengl_engine->getCurrentScene()->dof_blur_strength = 0.0f;
-	opengl_engine->getCurrentScene()->dof_blur_focus_distance = 1.f;
-	opengl_engine->getCurrentScene()->exposure_factor = 1.f;
-	gui_client->cam_controller.lens_sensor_dist = 0.025f;
+	// Restore camera settings to the defaults
 
 	gui_client->cam_controller.standardCameraModeSelected();
+	standardCameraModeSelected();
 
-	// Remove roll
-	Vec3d angles = gui_client->cam_controller.getAngles();
-	angles.z = 0;
-	gui_client->cam_controller.setAngles(angles);
-
-
-	// Reset sliders
-	dof_blur_slider.setValue(opengl_engine->getCurrentScene()->dof_blur_strength, gl_ui);
-	dof_focus_distance_slider.setValue(0.7, gl_ui);
+	// Reset sliders, will reset actual values in OpenGLEngine as well via sliderValueChangedEventOccurred().
+	dof_blur_slider.setValue(0.0, gl_ui);
+	dof_focus_distance_slider.setValue(sliderValForFocusDist(1.0), gl_ui);
 	ev_adjust_slider.setValue(0.0, gl_ui);
 	focal_length_slider.setValue(0.025, gl_ui);
 	roll_slider.setValue(0.0, gl_ui);
+
+	opengl_engine->getCurrentScene()->dof_blur_strength = 0.0f; // Should already be set to zero but make sure.
+
+	// Hide Photo mode UI
+	setVisible(false);
 }
 
 
@@ -346,11 +372,9 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 	}
 	else if(event.widget == dof_focus_distance_slider.slider.ptr())
 	{
-		const float focus_dist = 1.f / (1.f - (float)event.value) - 1.f;
+		updateFocusDistValueString();
 
-		dof_focus_distance_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(focus_dist, 2) + " m"); // Update value text view
-
-		opengl_engine->getCurrentScene()->dof_blur_focus_distance = focus_dist;
+		opengl_engine->getCurrentScene()->dof_blur_focus_distance = (float)focusDistForSliderVal(dof_focus_distance_slider.slider->getValue());
 	}
 	else if(event.widget == ev_adjust_slider.slider.ptr())
 	{
@@ -360,7 +384,7 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 	}
 	else if(event.widget == focal_length_slider.slider.ptr())
 	{
-		focal_length_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value * 1000, 0) + " mm"); // Update value text view
+		updateFocalLengthValueString();
 
 		gui_client->cam_controller.lens_sensor_dist = (float)event.value;
 	}
@@ -375,6 +399,19 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 }
 
 
+void PhotoModeUI::updateFocusDistValueString()
+{
+	const double focus_dist = focusDistForSliderVal(dof_focus_distance_slider.slider->getValue());
+	dof_focus_distance_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(focus_dist, 2) + " m"); // Update value text view
+}
+
+
+void PhotoModeUI::updateFocalLengthValueString()
+{
+	focal_length_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(focal_length_slider.slider->getValue() * 1000, 0) + " mm"); // Update value text view
+}
+
+
 void PhotoModeSlider::setVisible(bool visible)
 {
 	label->setVisible(visible);
@@ -386,6 +423,4 @@ void PhotoModeSlider::setVisible(bool visible)
 void PhotoModeSlider::setValue(double value, GLUIRef gl_ui)
 {
 	slider->setValue(value);
-
-	value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(value, 2)); // Update value text view
 }

@@ -62,6 +62,8 @@ private:
 	void updateWidgetPositions();
 	void updateSliderPosition(PhotoModeSlider& slider, float margin, float& cur_y);
 	void makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed);
+	void updateFocusDistValueString();
+	void updateFocalLengthValueString();
 
 	GUIClient* gui_client;
 
