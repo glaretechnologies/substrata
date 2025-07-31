@@ -121,6 +121,9 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	makePhotoModeSlider(ev_adjust_slider, /*label=*/"EV adjust", /*tooltip=*/"EV adjust", 
 		/*min val=*/-8, /*max val=*/8, /*initial val=*/0, /*scroll speed=*/1.0);
 
+	makePhotoModeSlider(saturation_slider, /*label=*/"Saturation", /*tooltip=*/"Colour saturation", 
+		/*min val=*/0, /*max val=*/2, /*initial val=*/1, /*scroll speed=*/1.0);
+
 	makePhotoModeSlider(focal_length_slider, /*label=*/"Focal length", /*tooltip=*/"Camera focal length", 
 		/*min val=*/0.010, /*max val=*/1.0, /*initial val=*/0.025, /*scroll speed=*/0.05);
 
@@ -155,6 +158,7 @@ void PhotoModeUI::destroy()
 	checkRemove(gl_ui, dof_blur_slider);
 	checkRemove(gl_ui, dof_focus_distance_slider);
 	checkRemove(gl_ui, ev_adjust_slider);
+	checkRemove(gl_ui, saturation_slider);
 	checkRemove(gl_ui, focal_length_slider);
 	checkRemove(gl_ui, roll_slider);
 	
@@ -178,6 +182,7 @@ void PhotoModeUI::setVisible(bool visible)
 		dof_blur_slider.setVisible(visible);
 		dof_focus_distance_slider.setVisible(visible);
 		ev_adjust_slider.setVisible(visible);
+		saturation_slider.setVisible(visible);
 		focal_length_slider.setVisible(visible);
 		roll_slider.setVisible(visible);
 	}
@@ -210,6 +215,7 @@ void PhotoModeUI::disablePhotoModeUI()
 	dof_blur_slider.setValue(0.0, gl_ui);
 	dof_focus_distance_slider.setValue(sliderValForFocusDist(1.0), gl_ui);
 	ev_adjust_slider.setValue(0.0, gl_ui);
+	saturation_slider.setValue(1.0, gl_ui);
 	focal_length_slider.setValue(0.025, gl_ui);
 	roll_slider.setValue(0.0, gl_ui);
 
@@ -255,6 +261,7 @@ void PhotoModeUI::updateWidgetPositions()
 		updateSliderPosition(dof_blur_slider, margin, cur_y);
 		updateSliderPosition(dof_focus_distance_slider, margin, cur_y);
 		updateSliderPosition(ev_adjust_slider, margin, cur_y);
+		updateSliderPosition(saturation_slider, margin, cur_y);
 		updateSliderPosition(focal_length_slider, margin, cur_y);
 		updateSliderPosition(roll_slider, margin, cur_y);
 
@@ -381,6 +388,12 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 		ev_adjust_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
 
 		opengl_engine->getCurrentScene()->exposure_factor = (float)std::exp2(event.value);
+	}
+	else if(event.widget == saturation_slider.slider.ptr())
+	{
+		saturation_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
+
+		opengl_engine->getCurrentScene()->saturation_multiplier = (float)event.value;
 	}
 	else if(event.widget == focal_length_slider.slider.ptr())
 	{

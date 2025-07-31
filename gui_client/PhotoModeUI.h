@@ -77,6 +77,7 @@ private:
 	PhotoModeSlider dof_blur_slider;
 	PhotoModeSlider dof_focus_distance_slider;
 	PhotoModeSlider ev_adjust_slider;
+	PhotoModeSlider saturation_slider;
 	PhotoModeSlider focal_length_slider;
 	PhotoModeSlider roll_slider;
 
