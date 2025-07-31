@@ -985,7 +985,7 @@ static void doOneMainLoopIter()
 #else
 					const double speed_factor = 0.35; // To make delta similar to what Qt gives.
 #endif
-					gui_client->cam_controller.update(Vec3d(0, 0, 0), Vec2d(delta.y, delta.x) * speed_factor);
+					gui_client->cam_controller.updateRotation(/*pitch_delta=*/delta.y * speed_factor, /*heading_delta=*/delta.x * speed_factor);
 
 					// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.
 					// QCursor::setPos() does not work on mac, and also gives a message about Substrata trying to control the computer, which we want to avoid.
@@ -1065,8 +1065,7 @@ static void doOneMainLoopIter()
 				MouseWheelEvent wheel_event;
 				wheel_event.cursor_pos = Vec2i(e.wheel.mouseX, e.wheel.mouseY);
 				wheel_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.wheel.mouseX, (float)e.wheel.mouseY), canvas_drawable_pixels_per_css_pixels);
-				const float scale_factor = 100; // To bring in line with what we get from Qt's angleDelta().
-				wheel_event.angle_delta = Vec2i((int)(e.wheel.preciseX * scale_factor), (int)(e.wheel.preciseY * scale_factor));
+				wheel_event.angle_delta = Vec2f(e.wheel.preciseX, e.wheel.preciseY) * 15.f; // Most mouse wheels have 15 degree increments, preciseY seems to be -1 or 1.
 				wheel_event.modifiers = convertSDLModifiers(SDL_GetModState());
 				gui_client->onMouseWheelEvent(wheel_event);
 			}
@@ -1119,14 +1118,8 @@ static void doOneMainLoopIter()
 	if(gl_w > 0 && gl_h > 0)
 	{
 		// Work out current camera transform
-		Vec3d cam_pos, up, forwards, right;
-		cam_pos = gui_client->cam_controller.getPosition();
-		gui_client->cam_controller.getBasis(right, up, forwards);
-
-		const Matrix4f rot = Matrix4f::fromRows(right.toVec4fVector(), forwards.toVec4fVector(), up.toVec4fVector(), Vec4f(0,0,0,1));
-
 		Matrix4f world_to_camera_space_matrix;
-		rot.rightMultiplyWithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_space_matrix);
+		gui_client->cam_controller.getWorldToCameraMatrix(world_to_camera_space_matrix);
 
 		const float near_draw_dist = 0.22f;
 		const float max_draw_dist = 100000.f;
