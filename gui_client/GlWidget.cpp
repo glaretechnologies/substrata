@@ -360,7 +360,6 @@ void GlWidget::paintGL()
 	if(cam_controller)
 	{
 		// Work out current camera transform
-		const Vec3d cam_pos = cam_controller->getPosition();
 		Matrix4f world_to_camera_space_matrix;
 		cam_controller->getWorldToCameraMatrix(world_to_camera_space_matrix);
 
