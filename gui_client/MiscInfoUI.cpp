@@ -139,7 +139,7 @@ void MiscInfoUI::showLoggedInButton(const std::string& username)
 	GLUITextButton::CreateArgs logged_in_button_args;
 	logged_in_button_args.tooltip = "View user account";
 	logged_in_button_args.font_size_px = 12;
-	logged_in_button = new GLUITextButton(*gl_ui, opengl_engine, "Logged in as " + username, Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), logged_in_button_args);
+	logged_in_button = new GLUITextButton(*gl_ui, opengl_engine, "Logged in as " + username, Vec2f(0.f), logged_in_button_args);
 	logged_in_button->handler = this;
 	gl_ui->addWidget(logged_in_button);
 #endif
