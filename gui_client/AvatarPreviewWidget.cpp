@@ -133,8 +133,20 @@ void AvatarPreviewWidget::initializeGL()
 {
 	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
 
+	std::string data_dir = base_dir_path + "/data";
+#if BUILD_TESTS
+	try
+	{
+		// For development, allow loading opengl engine data, particularly shaders, straight from the repo dir.
+		data_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_USE_OPENGL_DATA_DIR"); // SUBSTRATA_USE_OPENGL_DATA_DIR can be set to e.g. n:/glare-core/opengl
+		conPrint("Using OpenGL data dir from Env var: '" + data_dir + "'");
+	}
+	catch(glare::Exception&)
+	{}
+#endif
+
 	opengl_engine->initialise(
-		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
+		data_dir, // data dir (should contain 'shaders' and 'gl_data')
 		texture_server,
 		NULL, // print output
 		main_task_manager, high_priority_task_manager, mem_allocator
