@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "Screenshot.h"
 #include "SubEthTransaction.h"
 #include "MeshLODGenThread.h"
+#include "WorkerThreadUploadPhotoHandling.h"
 #include "../webserver/LoginHandlers.h"
 #include "../shared/Protocol.h"
 #include "../shared/ProtocolStructs.h"
@@ -992,6 +993,10 @@ void WorkerThread::doRun()
 		else if(connection_type == Protocol::ConnectionTypeEthBot)
 		{
 			handleEthBotConnection();
+		}
+		else if(connection_type == Protocol::ConnectionTypeUploadPhoto)
+		{
+			WorkerThreadUploadPhotoHandling::handlePhotoUploadConnection(socket, server, websocket_request_info, fuzzing);
 		}
 		else if(connection_type == Protocol::ConnectionTypeUpdates)
 		{

@@ -148,6 +148,7 @@ static const uint32 USER_SECRET_CHUNK = 115;
 static const uint32 LOD_CHUNK_CHUNK = 116;
 static const uint32 SUB_EVENT_CHUNK = 117;
 static const uint32 MIGRATION_VERSION_CHUNK = 118;
+static const uint32 PHOTO_CHUNK = 119;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -184,6 +185,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_events = 0;
 	size_t num_resources = 0;
 	size_t num_worlds = 0;
+	size_t num_photos = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -368,9 +370,19 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					screenshots[shot->id] = shot;
 					num_screenshots++;
 				}
+				else if(chunk == PHOTO_CHUNK)
+				{
+					// Deserialise Photo
+					PhotoRef photo = new Photo();
+					readPhotoFromStream(stream, *photo);
+
+					photo->database_key = database_key;
+					photos[photo->id] = photo;
+					num_photos++;
+				}
 				else if(chunk == SUB_ETH_TRANSACTIONS_CHUNK)
 				{
-					// Deserialise Screenshot
+					// Deserialise SubEthTransaction
 					SubEthTransactionRef trans = new SubEthTransaction();
 					readFromStream(stream, *trans);
 
@@ -663,7 +675,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			}
 			else if(chunk == SUB_ETH_TRANSACTIONS_CHUNK)
 			{
-				// Deserialise Screenshot
+				// Deserialise SubEthTransaction
 				SubEthTransactionRef trans = new SubEthTransaction();
 				readFromStream(stream, *trans);
 
@@ -769,7 +781,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
 		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " + 
-		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s) in " + timer.elapsedStringNSigFigs(4));
+		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s), " + toString(num_photos) + " photo(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -1212,6 +1224,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_lod_chunks = 0;
 		size_t num_events = 0;
 		size_t num_worlds = 0;
+		size_t num_photos = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -1451,6 +1464,26 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 			db_dirty_screenshots.clear();
 		}
 
+		// Write Photos
+		{
+			for(auto it=db_dirty_photos.begin(); it != db_dirty_photos.end(); ++it)
+			{
+				Photo* photo = it->ptr();
+				temp_buf.clear();
+				temp_buf.writeUInt32(PHOTO_CHUNK);
+				photo->writeToStream(temp_buf);
+
+				if(!photo->database_key.valid())
+					photo->database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(photo->database_key, ArrayRef<uint8>(temp_buf.buf));
+
+				num_photos++;
+			}
+
+			db_dirty_photos.clear();
+		}
+
 		// Write SubEthTransactions
 		{
 			for(auto i=db_dirty_sub_eth_transactions.begin(); i != db_dirty_sub_eth_transactions.end(); ++i)
@@ -1687,6 +1720,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		if(num_user_secrets > 0)          msg += toString(num_user_secrets) + " user secret(s), ";
 		if(num_lod_chunks > 0)            msg += toString(num_lod_chunks) + " LOD chunk(s), ";
 		if(num_events > 0)                msg += toString(num_events) + " event(s), ";
+		if(num_photos > 0)                msg += toString(num_photos) + " photo(s), ";
 		removeSuffixInPlace(msg, ", ");
 		msg += " in " + timer.elapsedStringNSigFigs(4);
 		conPrint(msg);
@@ -1789,6 +1823,19 @@ uint64 ServerAllWorldsState::getNextEventUID()
 	uint64 highest_id = 0;
 
 	for(auto it = events.begin(); it != events.end(); ++it)
+		highest_id = myMax(highest_id, it->first);
+
+	return highest_id + 1;
+}
+
+
+uint64 ServerAllWorldsState::getNextPhotoUID()
+{
+	Lock lock(mutex);
+
+	uint64 highest_id = 0;
+
+	for(auto it = photos.begin(); it != photos.end(); ++it)
 		highest_id = myMax(highest_id, it->first);
 
 	return highest_id + 1;

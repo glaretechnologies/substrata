@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
 #include "ResourceHandlers.h"
+#include "PhotoHandlers.h"
 #include "SubEventHandlers.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include <webserver/PayPalHandlers.h>
@@ -533,6 +534,22 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/screenshot/")) // Screenshot ID follows
 		{
 			ScreenshotHandlers::handleScreenshotRequest(*world_state, *data_store, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/photo/")) // Photo ID follows
+		{
+			PhotoHandlers::handlePhotoPageRequest(*world_state, *data_store, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/photo_image/")) // Photo ID follows
+		{
+			PhotoHandlers::handlePhotoImageRequest(*world_state, *data_store, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/photo_midsize_image/")) // Photo ID follows
+		{
+			PhotoHandlers::handlePhotoMidSizeImageRequest(*world_state, *data_store, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/photo_thumb_image/")) // Photo ID follows
+		{
+			PhotoHandlers::handlePhotoThumbnailImageRequest(*world_state, *data_store, request, reply_info);
 		}
 		else if(request.path == "/tile")
 		{

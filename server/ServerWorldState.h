@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "UserWebSession.h"
 #include "ParcelAuction.h"
 #include "Screenshot.h"
+#include "Photo.h"
 #include "SubEthTransaction.h"
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
@@ -309,6 +310,7 @@ public:
 	uint64 getNextScreenshotUID();
 	uint64 getNextNewsPostUID();
 	uint64 getNextEventUID();
+	uint64 getNextPhotoUID();
 
 	ObjectStorageItemRef getOrCreateObjectStorageItem(const ObjectStorageKey& key) REQUIRES(mutex); // Throws exception if too many items for object already created.
 	void clearObjectStorageItems() REQUIRES(mutex); // Just for tests
@@ -328,6 +330,7 @@ public:
 	void addParcelAuctionAsDBDirty(const ParcelAuctionRef parcel_auction)	REQUIRES(mutex) { db_dirty_parcel_auctions.insert(parcel_auction); changed = 1; }
 	void addUserWebSessionAsDBDirty(const UserWebSessionRef screenshot)		REQUIRES(mutex) { db_dirty_userwebsessions.insert(screenshot); changed = 1; }
 	void addScreenshotAsDBDirty(const ScreenshotRef screenshot)				REQUIRES(mutex) { db_dirty_screenshots.insert(screenshot); changed = 1; }
+	void addPhotoAsDBDirty(const PhotoRef photo)							REQUIRES(mutex) { db_dirty_photos.insert(photo); changed = 1; }
 	void addUserAsDBDirty(const UserRef user)								REQUIRES(mutex) { db_dirty_users.insert(user); changed = 1; }
 	void addNewsPostAsDBDirty(const NewsPostRef post)						REQUIRES(mutex) { db_dirty_news_posts.insert(post); changed = 1; }
 	void addEventAsDBDirty(const SubEventRef event)							REQUIRES(mutex) { db_dirty_events.insert(event); changed = 1; }
@@ -353,7 +356,9 @@ public:
 	
 	std::map<uint32, ParcelAuctionRef> parcel_auctions GUARDED_BY(mutex); // ParcelAuction id to ParcelAuction
 
-	std::map<uint64, ScreenshotRef> screenshots GUARDED_BY(mutex);// Screenshot id to ScreenshotRef
+	std::map<uint64, ScreenshotRef> screenshots GUARDED_BY(mutex); // Screenshot id to ScreenshotRef
+
+	std::map<uint64, PhotoRef> photos GUARDED_BY(mutex); // Photo id to PhotoRef
 
 	std::map<uint64, SubEthTransactionRef> sub_eth_transactions GUARDED_BY(mutex); // SubEthTransaction id to SubEthTransaction
 
@@ -418,6 +423,7 @@ public:
 	std::unordered_set<ParcelAuctionRef, ParcelAuctionRefHash>			db_dirty_parcel_auctions		GUARDED_BY(mutex);
 	std::unordered_set<UserWebSessionRef, UserWebSessionRefHash>		db_dirty_userwebsessions		GUARDED_BY(mutex);
 	std::unordered_set<ScreenshotRef, ScreenshotRefHash>				db_dirty_screenshots			GUARDED_BY(mutex);
+	std::unordered_set<PhotoRef, PhotoRefHash>							db_dirty_photos					GUARDED_BY(mutex);
 	std::unordered_set<UserRef, UserRefHash>							db_dirty_users					GUARDED_BY(mutex);
 	std::unordered_set<ObjectStorageItemRef, ObjectStorageItemRefHash>	db_dirty_object_storage_items	GUARDED_BY(mutex);
 	std::unordered_set<UserSecretRef, UserSecretRefHash>				db_dirty_user_secrets			GUARDED_BY(mutex);

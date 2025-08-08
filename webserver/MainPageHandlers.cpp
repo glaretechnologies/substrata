@@ -62,7 +62,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	//page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" class=\"logo-root-page\" />";
 
 
-	std::string auction_html, latest_news_html, events_html;
+	std::string auction_html, latest_news_html, events_html, photos_html;
 	{ // lock scope
 		WorldStateLock lock(world_state.mutex);
 
@@ -202,6 +202,20 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 			events_html += "There are no upcoming events.  Create one!";
 		events_html += "</div>\n";
 
+
+		//------------------------------- Build photos grid view HTML --------------------------
+		photos_html += "<div class=\"photo-container\">\n";		const int max_num_photos_to_display = 32;
+		int num_photos_displayed = 0;
+		for(auto it = world_state.photos.rbegin(); (it != world_state.photos.rend()) && (num_photos_displayed < max_num_photos_to_display); ++it)
+		{
+			const Photo* photo = it->second.ptr();
+
+			const std::string thumb_URL = "/photo_thumb_image/" + toString(photo->id);
+			photos_html += "<a href=\"/photo/" + toString(photo->id) + "\"><img src=\"" + thumb_URL + "\" class=\"root-photo-img\"/></a>";
+		}
+
+		photos_html += "</div>\n";
+
 	} // end lock scope
 
 
@@ -216,6 +230,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	StringUtils::replaceFirstInPlace(page_out, "LAND_PARCELS_FOR_SALE_HTML", auction_html);
 
 	StringUtils::replaceFirstInPlace(page_out, "EVENTS_HTML", events_html);
+
+	StringUtils::replaceFirstInPlace(page_out, "PHOTOS_HTML", photos_html);
 
 	page_out += "<script src=\"/files/root-page.js\"></script>";
 	
