@@ -60,6 +60,7 @@ const uint32 ConnectionTypeDownloadResources	= 502;
 //const uint32 ConnectionTypeWebsite				= 503; // A connection from the webserver.
 const uint32 ConnectionTypeScreenshotBot		= 504; // A connection from the screenshot bot.
 const uint32 ConnectionTypeEthBot				= 505; // A connection from the Ethereum bot.
+const uint32 ConnectionTypeUploadPhoto			= 506;
 
 
 const uint32 AvatarCreated			= 1000;
@@ -175,6 +176,9 @@ const uint32 EthTransactionSubmitted			= 12002;
 const uint32 EthTransactionSubmissionFailed		= 12003;
 
 const uint32 KeepAlive				= 13000; // A message that doesn't do anything apart from provide a means for the client or server to check a connection is still working by making a socket call.
+
+const uint32 PhotoUploadSucceeded	= 14000;
+const uint32 PhotoUploadFailed		= 14001;
 
 
 

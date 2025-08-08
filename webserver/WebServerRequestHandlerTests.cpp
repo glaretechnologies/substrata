@@ -73,6 +73,7 @@ extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv)
 		test_web_data_store->public_files_dir = test_server_state_dir + "/webserver_public_files";
 		test_web_data_store->webclient_dir = test_server_state_dir + "/webclient";
 		test_web_data_store->screenshot_dir = test_server_state_dir + "/screenshots";
+		test_web_data_store->photo_dir = test_server_state_dir + "/photos";
 		test_web_data_store->loadAndCompressFiles();
 
 		test_world_state->web_data_store = test_web_data_store.ptr();

@@ -359,6 +359,13 @@ int main(int argc, char *argv[])
 #endif
 		FileUtils::createDirIfDoesNotExist(server.screenshot_dir);
 
+#if defined(_WIN32) || defined(OSX)
+		server.photo_dir = server_state_dir + "/photos"; // Dir uploaded photos will be saved to.
+#else
+		server.photo_dir = "/var/www/cyberspace/photos";
+#endif
+		FileUtils::createDirIfDoesNotExist(server.photo_dir);
+
 		std::string server_state_path;
 		if(parsed_args.isArgPresent("--db_path"))
 			server_state_path = parsed_args.getArgStringValue("--db_path");
@@ -456,6 +463,9 @@ int main(int argc, char *argv[])
 			web_data_store->webclient_dir = server_config.webclient_dir;
 		else
 			web_data_store->webclient_dir = default_webclient_dir;
+
+		web_data_store->screenshot_dir = server.screenshot_dir;
+		web_data_store->photo_dir = server.photo_dir;
 
 		conPrint("webserver fragments_dir: " + web_data_store->fragments_dir);
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);

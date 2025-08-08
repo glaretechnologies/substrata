@@ -56,6 +56,7 @@ public:
 	std::string public_files_dir;
 	std::string webclient_dir; // Dir that webclient files are in - client.html, webclient.js etc..
 	std::string screenshot_dir;
+	std::string photo_dir;
 
 	std::map<std::string, Reference<WebDataStoreFile>> fragment_files		GUARDED_BY(mutex);
 

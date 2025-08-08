@@ -155,6 +155,7 @@ public:
 	ThreadSafeQueue<Reference<ThreadMessage> > message_queue; // Contains messages from worker threads to the main server thread.
 
 	std::string screenshot_dir;
+	std::string photo_dir;
 
 	ServerConfig config;
 
