@@ -171,19 +171,6 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		// Save photo to path
 		if(!fuzzing) // Don't write to disk while fuzzing
 		{
-			try
-			{
-				FileUtils::writeEntireFile(screenshot_path, data);
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("handlePhotoUploadConnection: glare::Exception while saving photo to disk: " + e.what());
-
-				socket->writeUInt32(Protocol::PhotoUploadFailed);
-				socket->writeStringLengthFirst("Server error: failed to save photo.");
-				return;
-			}
-
 			// Make other photo sizes
 			try
 			{
@@ -196,6 +183,20 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 
 				socket->writeUInt32(Protocol::PhotoUploadFailed);
 				socket->writeStringLengthFirst("Server error: failed to make thumbnail for photo.");
+				return;
+			}
+
+			try
+			{
+				// Save original/full resolution photo to disk.  Do this after making other photo sizes, which will check it's a valid JPEG file.
+				FileUtils::writeEntireFile(screenshot_path, data);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("handlePhotoUploadConnection: glare::Exception while saving photo to disk: " + e.what());
+
+				socket->writeUInt32(Protocol::PhotoUploadFailed);
+				socket->writeStringLengthFirst("Server error: failed to save photo.");
 				return;
 			}
 		}
@@ -239,10 +240,13 @@ void saveMidSizeAndThumbnailImages(const std::string& src_full_res_screenshot_fi
 {
 	conPrint("WorkerThreadUploadPhotoHandling::saveMidSizeAndThumbnailImages()");
 
-	const std::string base_dir_path = ".";
+	const std::string base_dir_path = "."; // not used
 	Map2DRef im = JPEGDecoder::decodeFromBuffer(src_image_data.data(), src_image_data.size(), base_dir_path);
 	if(!im.isType<ImageMapUInt8>())
 		throw glare::Exception("decoded image was not ImageMapUInt8");
+
+	if((im->getMapWidth() < 8) || (im->getMapHeight() < 8))
+		throw glare::Exception("image too small.");
 
 
 	//------------------------ Save midsize image (if needed) --------------------------
