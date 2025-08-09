@@ -23,26 +23,34 @@ Copyright Glare Technologies Limited 2025 -
 #include <PlatformUtils.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
+#include <functional>
 
 
 namespace PhotoHandlers
 {
 
 
-void handlePhotoImageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info) // Shows order details
+const std::string& get_local_filename(const Photo& p)           { return p.local_filename; }
+const std::string& get_local_thumbnail_filename(const Photo& p) { return p.local_thumbnail_filename; }
+const std::string& get_local_midsize_filename(const Photo& p)   { return p.local_midsize_filename; }
+
+
+void doHandlePhotoImageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info, 
+	const std::string& path_prefix, // e.g. "/photo_midsize_image/"
+	const std::function<const std::string& (const Photo&)>& get_field_func) // Get local_filename or local_thumbnail_filename or whatever from a Photo.
 {
 	try
 	{
 		// Parse photo id from request path
 		Parser parser(request.path);
-		if(!parser.parseString("/photo_image/"))
-			throw glare::Exception("Failed to parse /photo_image/");
+		if(!parser.parseString(path_prefix)) // parse e.g. "/photo_midsize_image/"
+			throw glare::Exception("Failed to parse '" + path_prefix + "'");
 
-		uint32 photo_id;
-		if(!parser.parseUnsignedInt(photo_id))
+		uint64 photo_id;
+		if(!parser.parseUInt64(photo_id))
 			throw glare::Exception("Failed to parse photo_id");
 
-		// Get photo local_filename
+		// Get photo local_filename or local_midsize_filename or whatever
 		std::string local_filename;
 		{ // lock scope
 			Lock lock(world_state.mutex);
@@ -51,7 +59,7 @@ void handlePhotoImageRequest(ServerAllWorldsState& world_state, WebDataStore& da
 			if(res == world_state.photos.end())
 				throw glare::Exception("Couldn't find photo");
 
-			local_filename = res->second->local_filename;
+			local_filename = get_field_func(*res->second);
 		} // end lock scope
 
 		const std::string local_path = datastore.photo_dir + "/" + local_filename;
@@ -60,116 +68,40 @@ void handlePhotoImageRequest(ServerAllWorldsState& world_state, WebDataStore& da
 		{
 			MemMappedFile file(local_path);
 			
-			const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path);
+			assert(web::ResponseUtils::getContentTypeForPath(local_path) == "image/jpeg");
+			const std::string content_type = "image/jpeg";
 
 			// Send it to client
-			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14); // cache max age = 2 weeks
+			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*52); // cache max age = 1 year
 		}
-		catch(glare::Exception&)
+		catch(glare::Exception& e)
 		{
-			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load file '" + local_path + "'.");
+			conPrint("handlePhotoImageRequest() exception:" + e.what());
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load photo.");
 		}
 	}
 	catch(glare::Exception& e)
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
+}
+
+
+void handlePhotoImageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	doHandlePhotoImageRequest(world_state, datastore, request, reply_info, "/photo_image/", get_local_filename);
 }
 
 
 void handlePhotoMidSizeImageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
-	try
-	{
-		// Parse photo id from request path
-		Parser parser(request.path);
-		if(!parser.parseString("/photo_midsize_image/"))
-			throw glare::Exception("Failed to parse /photo_midsize_image/");
-
-		uint32 photo_id;
-		if(!parser.parseUnsignedInt(photo_id))
-			throw glare::Exception("Failed to parse photo_id");
-
-		// Get photo local_midsize_filename
-		std::string local_midsize_filename;
-		{ // lock scope
-			Lock lock(world_state.mutex);
-
-			auto res = world_state.photos.find(photo_id);
-			if(res == world_state.photos.end())
-				throw glare::Exception("Couldn't find photo");
-
-			local_midsize_filename = res->second->local_midsize_filename;
-		} // end lock scope
-
-		const std::string local_path = datastore.photo_dir + "/" + local_midsize_filename;
-
-		try
-		{
-			MemMappedFile file(local_path);
-			
-			const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path);
-
-			// Send it to client
-			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14); // cache max age = 2 weeks
-		}
-		catch(glare::Exception&)
-		{
-			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load file '" + local_path + "'.");
-		}
-	}
-	catch(glare::Exception& e)
-	{
-		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
-	}
+	doHandlePhotoImageRequest(world_state, datastore, request, reply_info, "/photo_midsize_image/", get_local_midsize_filename);
 }
 
 
 void handlePhotoThumbnailImageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
-	try
-	{
-		// Parse photo id from request path
-		Parser parser(request.path);
-		if(!parser.parseString("/photo_thumb_image/"))
-			throw glare::Exception("Failed to parse /photo_thumb_image/");
-
-		uint32 photo_id;
-		if(!parser.parseUnsignedInt(photo_id))
-			throw glare::Exception("Failed to parse photo_id");
-
-		// Get photo local_thumb_filename
-		std::string local_thumb_filename;
-		{ // lock scope
-			Lock lock(world_state.mutex);
-
-			auto res = world_state.photos.find(photo_id);
-			if(res == world_state.photos.end())
-				throw glare::Exception("Couldn't find photo");
-
-			local_thumb_filename = res->second->local_thumbnail_filename;
-		} // end lock scope
-
-		const std::string local_path = datastore.photo_dir + "/" + local_thumb_filename;
-
-		try
-		{
-			MemMappedFile file(local_path);
-			
-			const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path);
-
-			// Send it to client
-			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14); // cache max age = 2 weeks
-		}
-		catch(glare::Exception&)
-		{
-			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load file '" + local_path + "'.");
-		}
-	}
-	catch(glare::Exception& e)
-	{
-		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
-	}
+	doHandlePhotoImageRequest(world_state, datastore, request, reply_info, "/photo_thumb_image/", get_local_thumbnail_filename);
 }
 
 
@@ -182,8 +114,8 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 		if(!parser.parseString("/photo/"))
 			throw glare::Exception("Failed to parse /photo/");
 
-		uint32 photo_id;
-		if(!parser.parseUnsignedInt(photo_id))
+		uint64 photo_id;
+		if(!parser.parseUInt64(photo_id))
 			throw glare::Exception("Failed to parse photo_id");
 
 
@@ -237,15 +169,19 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 			page += "<p>Location: <a href=\"/world/" + WorldHandlers::URLEscapeWorldName(photo->world_name) + "\">" + (photo->world_name.empty() ? "Main world" : web::Escaping::HTMLEscape(photo->world_name)) + "</a>, x: " + 
 				toString((int)photo->cam_pos.x) + ", y: " + toString((int)photo->cam_pos.y) + "</p>  \n";
 
+
+			// See GUIClient::getCurrentWebClientURLPath()
 			const Vec3d pos = photo->cam_pos;
-
 			const std::string hostname = request.getHostHeader(); // Find the hostname the request was sent to
+			const double heading_deg = Maths::doubleMod(::radToDegree(photo->cam_angles.x), 360.0);
 
-			// TODO: heading
-			const std::string sub_URL = "sub://" + hostname + "/" + WorldHandlers::URLEscapeWorldName(photo->world_name) + "?x=" + doubleToStringMaxNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringMaxNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringMaxNDecimalPlaces(pos.z, 1);
-			
+			const std::string pos_and_heading_part = "x=" + doubleToStringMaxNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringMaxNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringMaxNDecimalPlaces(pos.z, 2) + 
+				"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1);
+
+			const std::string sub_URL = "sub://" + hostname + "/" + WorldHandlers::URLEscapeWorldName(photo->world_name) + "?" + pos_and_heading_part;
+				
 			const std::string webclient_URL = (request.tls_connection ? std::string("https") : std::string("http")) + "://" + hostname + "/webclient?world=" + WorldHandlers::URLEscapeWorldName(photo->world_name) + 
-				"?x=" + doubleToStringMaxNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringMaxNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringMaxNDecimalPlaces(pos.z, 1);
+				"&" + pos_and_heading_part;
 
 			page += "<p><a href=\"" + webclient_URL + "\">Visit location in web browser</a></p>";
 			page += "<p><a href=\"" + sub_URL + "\">Visit location in native app</a></p>";

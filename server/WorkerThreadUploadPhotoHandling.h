@@ -7,26 +7,18 @@ Copyright Glare Technologies Limited 2025 -
 
 
 #include <RequestInfo.h>
-#include <MessageableThread.h>
 #include <Platform.h>
-#include <MyThread.h>
-#include <EventFD.h>
-#include <MySocket.h>
-#include <SocketBufferOutStream.h>
-#include <Vector.h>
-#include <BufferInStream.h>
-#include <AtomicInt.h>
 #include <string>
 #include <vector>
+class SocketInterface;
 class Server;
 
 
 /*=====================================================================
 WorkerThreadUploadPhotoHandling
 -------------------------------
+Handles photo uploads on the server side.
 =====================================================================*/
-
-
 namespace WorkerThreadUploadPhotoHandling
 {
 
