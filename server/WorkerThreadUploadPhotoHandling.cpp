@@ -8,46 +8,25 @@ Copyright Glare Technologies Limited 2025 -
 
 #include "ServerWorldState.h"
 #include "Server.h"
-#include "Screenshot.h"
-#include "SubEthTransaction.h"
-#include "MeshLODGenThread.h"
 #include "../webserver/LoginHandlers.h"
 #include "../shared/Protocol.h"
-#include "../shared/ProtocolStructs.h"
-#include "../shared/UID.h"
-#include "../shared/WorldObject.h"
-#include "../shared/MessageUtils.h"
-#include "../shared/FileTypes.h"
-#include "../shared/LuaScriptEvaluator.h"
-#include "../shared/ObjectEventHandlers.h"
 #include <graphics/jpegdecoder.h>
 #include <vec3.h>
 #include <ConPrint.h>
-#include <Clock.h>
-#include <AESEncryption.h>
-#include <SHA256.h>
-#include <Base64.h>
 #include <Exception.h>
-#include <MySocket.h>
+#include <SocketInterface.h>
 #include <URL.h>
 #include <Lock.h>
 #include <StringUtils.h>
 #include <CryptoRNG.h>
 #include <SocketBufferOutStream.h>
 #include <PlatformUtils.h>
-#include <KillThreadMessage.h>
-#include <Parser.h>
 #include <FileUtils.h>
 #include <MemMappedFile.h>
-#include <FileOutStream.h>
 #include <FileChecksum.h>
-#include <networking/RecordingSocket.h>
 #include <maths/CheckedMaths.h>
-#include <openssl/err.h>
-#include <algorithm>
 #include <RuntimeCheck.h>
 #include <Timer.h>
-#include <zstd.h>
 #include <utils/TestUtils.h>
 
 
@@ -147,8 +126,8 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		uint8 pathdata[NUM_BYTES];
 		CryptoRNG::getRandomBytes(pathdata, NUM_BYTES);
 		const std::string random_path_hex_str = StringUtils::convertByteArrayToHexString(pathdata, NUM_BYTES);
-		const std::string screenshot_filename = "photo_" + random_path_hex_str + ".jpg";
-		const std::string screenshot_path = server->photo_dir + "/" + screenshot_filename;
+		const std::string photo_filename = "photo_" + random_path_hex_str + ".jpg";
+		const std::string photo_path = server->photo_dir + "/" + photo_filename;
 
 
 		// Read photo data
@@ -174,7 +153,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 			// Make other photo sizes
 			try
 			{
-				saveMidSizeAndThumbnailImages(/*src_full_res_screenshot_filename=*/screenshot_filename, random_path_hex_str, server->photo_dir, data, 
+				saveMidSizeAndThumbnailImages(/*src_full_res_screenshot_filename=*/photo_filename, random_path_hex_str, server->photo_dir, data, 
 					/*midsize_filename_out=*/midsize_filename, /*thumbnail_filename_out=*/thumbnail_filename);
 			}
 			catch(glare::Exception& e)
@@ -189,7 +168,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 			try
 			{
 				// Save original/full resolution photo to disk.  Do this after making other photo sizes, which will check it's a valid JPEG file.
-				FileUtils::writeEntireFile(screenshot_path, data);
+				FileUtils::writeEntireFile(photo_path, data);
 			}
 			catch(glare::Exception& e)
 			{
@@ -201,7 +180,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 			}
 		}
 
-		conPrint("Saved to disk at " + screenshot_path);
+		conPrint("Saved to disk at " + photo_path);
 
 		PhotoRef photo = new Photo();
 		photo->id = server->world_state->getNextPhotoUID();
@@ -212,7 +191,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		photo->cam_angles = cam_angles;
 		photo->caption = caption;
 		photo->world_name = world_name;
-		photo->local_filename = screenshot_filename;
+		photo->local_filename = photo_filename;
 		photo->local_thumbnail_filename = thumbnail_filename;
 		photo->local_midsize_filename = midsize_filename;
 
