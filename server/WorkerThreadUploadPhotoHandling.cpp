@@ -265,12 +265,12 @@ void saveMidSizeAndThumbnailImages(const std::string& src_full_res_screenshot_fi
 
 
 	//------------------------ Save thumbnail --------------------------
-	// Thumbnail is 200 px wide with a fixed aspect ratio of 4/3.
+	// Thumbnail is 230 px wide with a fixed aspect ratio of 4/3.
 	// The source image will be cropped to get the desired aspect ratio.
 	{
 		// Crop to a certain ratio
-		const int thumb_width = 200;
-		const int thumb_height = 150; // 4/3 ratio
+		const int thumb_width = 230;
+		const int thumb_height = 230 * 3 / 4; // 4/3 ratio
 
 		int cropped_w, cropped_h;
 		if((double)im->getMapWidth() / (double)im->getMapHeight()  > ((double)thumb_width / (double)thumb_height))
