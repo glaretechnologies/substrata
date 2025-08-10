@@ -69,9 +69,10 @@ public:
 	bool handleScrollWheelEvent(float delta_y);
 
 	void setSelfieModeEnabled(double cur_time, bool enabled);
-	bool selfieModeEnabled() const { return selfie_mode; }
+	bool selfieModeEnabled() const { return current_cam_mode == CameraMode_Selfie; }
 
 	void standardCameraModeSelected();
+	void selfieCameraModeSelected();
 	void fixedAngleCameraModeSelected();
 	void freeCameraModeSelected();
 	void trackingCameraModeSelected();
@@ -84,10 +85,19 @@ public:
 	enum CameraMode
 	{
 		CameraMode_Standard,
+		CameraMode_Selfie,
 		CameraMode_FixedAngle, // rotation defines a direction in target ob space, camera position displaced from target object backwards along that vector.
 		CameraMode_FreeCamera, // Camera position is third_person_cam_position, cam rotation given by rotation.
 		CameraMode_TrackingCamera // Camera position is third_person_cam_position, cam rotation given by vector to tracking target.
 	};
+
+	enum AutofocusMode
+	{
+		AutofocusMode_Off,
+		AutofocusMode_Eye
+	};
+
+	void setAutofocusMode(AutofocusMode mode) { autofocus_mode = mode; }
 
 	static void test();
 
@@ -120,7 +130,6 @@ public:
 private:
 
 	bool third_person;
-	bool selfie_mode;
 
 	// For 3rd person/selfie cam:
 	//float start_cam_rot_z;
@@ -140,4 +149,6 @@ public:
 
 	bool invert_mouse;
 	bool invert_sideways_movement;
+
+	AutofocusMode autofocus_mode;
 };

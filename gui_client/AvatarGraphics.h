@@ -116,6 +116,8 @@ public:
 	static float runCyclePeriod() { return  0.7f; }
 
 	Vec4f getLastHeadPosition() const;
+	Vec4f getLastLeftEyePosition() const;
+	Vec4f getLastRightEyePosition() const;
 
 	void performGesture(double cur_time, const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGesture(double cur_time/*, const std::string& gesture_name*/);

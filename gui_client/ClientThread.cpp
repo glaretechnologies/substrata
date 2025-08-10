@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2024 -
 
 #include "ClientSenderThread.h"
 #include "WorldState.h"
+#include "ThreadMessages.h"
 #include "../shared/Protocol.h"
 #include "../shared/ProtocolStructs.h"
 #include "../shared/Parcel.h"

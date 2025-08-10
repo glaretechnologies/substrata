@@ -121,6 +121,8 @@ public:
 	virtual std::string getDecryptedPasswordForDomain(const std::string& domain) = 0; // Returns empty string if no stored password for domain
 
 	virtual bool inScreenshotTakingMode() = 0;
+	virtual void takeScreenshot() = 0;
+	virtual void showScreenshots() = 0;
 
 	virtual void setGLWidgetContextAsCurrent() = 0;
 

@@ -442,7 +442,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
-	photo_mode_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	photo_mode_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui, this->settings);
 	photo_mode_ui.setVisible(false);
 
 	minimap.create(opengl_engine, /*gui_client_=*/this, gl_ui);
@@ -7554,6 +7554,25 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 	if(cam_controller.thirdPersonEnabled())
 	{
 		const bool selfie_mode = this->cam_controller.selfieModeEnabled();
+
+		Vec4f head_pos;
+		Vec4f left_eye_pos, right_eye_pos;
+		head_pos = cam_controller.getFirstPersonPosition().toVec4fPoint(); // default
+		if(world_state.nonNull())
+		{
+			Lock lock(this->world_state->mutex);
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+			{
+				const Avatar* avatar = it->second.getPointer();
+				if(avatar->isOurAvatar())
+				{
+
+					head_pos = avatar->graphics.getLastHeadPosition();
+					left_eye_pos = avatar->graphics.getLastLeftEyePosition();
+					right_eye_pos = avatar->graphics.getLastRightEyePosition();
+				}
+			}
+		}
 		
 		Vec4f use_target_pos;
 		if(selfie_mode)
@@ -7561,17 +7580,7 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 			// Search avatars for our avatar, get its last head position, which will be our target position.
 			// This differs from the cam controller first person position due to animations, like sitting animations, which move the head a lot.
 
-			use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint(); // default
-			if(world_state.nonNull())
-			{
-				Lock lock(this->world_state->mutex);
-				for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-				{
-					const Avatar* avatar = it->second.getPointer();
-					if(avatar->isOurAvatar())
-						use_target_pos = avatar->graphics.getLastHeadPosition();
-				}
-			}
+			use_target_pos = head_pos;
 		}
 		else
 		{
@@ -7586,7 +7595,7 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 			const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
 			cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
 		
-			cam_back_dir = (cam_controller.getForwardsVec() * cam_controller.getThirdPersonCamDist()).toVec4fVector();
+			cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist()).toVec4fVector();
 		}
 		else
 		{
@@ -7609,13 +7618,26 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 		
 		if(trace_results.hit_object)
 		{
-			const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, cam_back_dir.length());
+			const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, myMax(0.5f, cam_back_dir.length()));
 			cam_back_dir = normalise(cam_back_dir) * use_dist;
 		}
 		
 		//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
 		if(cam_controller.current_cam_mode != CameraController::CameraMode_FreeCamera && cam_controller.current_cam_mode != CameraController::CameraMode_TrackingCamera)
 			cam_controller.setThirdPersonCamPosition(cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir));
+
+
+		if(cam_controller.autofocus_mode == CameraController::AutofocusMode_Eye)
+		{
+			const float cam_eye_dist = myMin(
+				cam_controller.getPosition().toVec4fPoint().getDist(left_eye_pos),
+				cam_controller.getPosition().toVec4fPoint().getDist(right_eye_pos)
+			);
+
+			opengl_engine->getCurrentScene()->dof_blur_focus_distance = myMax(0.01f, cam_eye_dist - 0.015f);
+
+			photo_mode_ui.autofocusDistSet(cam_eye_dist);
+		}
 	}
 }
 
@@ -13422,7 +13444,8 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 		}
 		else if(cam_controller.thirdPersonEnabled())
 		{
-			const bool change_to_first_person = cam_controller.handleScrollWheelEvent((float)e.angle_delta.y);
+			const bool scrolled_all_way_in = cam_controller.handleScrollWheelEvent((float)e.angle_delta.y);
+			const bool change_to_first_person = scrolled_all_way_in && !photo_mode_ui.isPhotoModeEnabled();
 			if(change_to_first_person)
 			{
 				ui_interface->enableFirstPersonCamera();

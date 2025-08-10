@@ -161,22 +161,6 @@ public:
 };
 
 
-class InfoMessage : public ThreadMessage
-{
-public:
-	InfoMessage(const std::string& msg_) : msg(msg_) {}
-	std::string msg;
-};
-
-
-class ErrorMessage : public ThreadMessage
-{
-public:
-	ErrorMessage(const std::string& msg_) : msg(msg_) {}
-	std::string msg;
-};
-
-
 class LoggedInMessage : public ThreadMessage
 {
 public:
