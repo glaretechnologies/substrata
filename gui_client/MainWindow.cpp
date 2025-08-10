@@ -2803,27 +2803,9 @@ void MainWindow::on_actionExport_view_to_Indigo_triggered()
 
 void MainWindow::on_actionTake_Screenshot_triggered()
 {
-	gui_client.gesture_ui.setVisible(false); // Hide gesture UI
-	gui_client.minimap.setVisible(false); // Hide minimap
-	gui_client.chat_ui.setVisible(false);
-	gui_client.misc_info_ui.setVisible(false);
-	const bool photo_mode_was_visible = gui_client.photo_mode_ui.isVisible();
-	gui_client.photo_mode_ui.setVisible(false);
-	gui_client.setNotificationsVisible(false);
+	ui->glWidget->opengl_engine->getCurrentScene()->draw_overlay_objects = false; // Hide UI
 
-	 // Remove any avatar markers from the HUD UI
-	if(gui_client.world_state.nonNull())
-	{
-		Lock lock(gui_client.world_state->mutex);
-		for(auto it = gui_client.world_state->avatars.begin(); it != gui_client.world_state->avatars.end(); ++it)
-		{
-			Avatar* avatar = it->second.ptr();
-			gui_client.hud_ui.removeMarkerForAvatar(avatar);
-		}
-	}
-
-
-	ui->glWidget->updateGL(); // Draw again now that the gesture UI and minimap are hidden.
+	ui->glWidget->updateGL(); // Draw again now that the UI is hidden
 
 #if QT_VERSION_MAJOR >= 6
 	QImage framebuffer = ui->glWidget->grabFramebuffer();
@@ -2847,6 +2829,8 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 		PNGDecoder::write(*map, path);
 	
 		showInfoNotification("Saved screenshot to " + path);
+
+		settings_store->setStringValue("photo/last_saved_photo_path", path);
 	}
 	catch(glare::Exception& e)
 	{
@@ -2856,12 +2840,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 		msgBox.exec();
 	}
 
-	gui_client.misc_info_ui.setVisible(true); // Restore showing misc info UI.
-	gui_client.gesture_ui.setVisible(true); // Restore showing gesture UI
-	gui_client.minimap.setVisible(true); // Restore showing minimap
-	gui_client.chat_ui.setVisible(true);
-	gui_client.photo_mode_ui.setVisible(photo_mode_was_visible);
-	gui_client.setNotificationsVisible(true);
+	ui->glWidget->opengl_engine->getCurrentScene()->draw_overlay_objects = true; // Unhide UI.
 }
 
 
@@ -3713,6 +3692,18 @@ std::string MainWindow::getDecryptedPasswordForDomain(const std::string& domain)
 bool MainWindow::inScreenshotTakingMode()
 {
 	return !screenshot_output_path.empty();
+}
+
+
+void MainWindow::takeScreenshot()
+{
+	on_actionTake_Screenshot_triggered();
+}
+
+
+void MainWindow::showScreenshots()
+{
+	on_actionShow_Screenshot_Folder_triggered();
 }
 
 
