@@ -265,6 +265,8 @@ public:
 	virtual std::string getDecryptedPasswordForDomain(const std::string& domain) override; // Returns empty string if no stored password for domain
 
 	virtual bool inScreenshotTakingMode() override;
+	virtual void takeScreenshot() override;
+	virtual void showScreenshots() override;
 
 	virtual void setGLWidgetContextAsCurrent() override;
 
