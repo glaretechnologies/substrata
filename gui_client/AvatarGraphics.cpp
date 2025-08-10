@@ -976,10 +976,38 @@ void AvatarGraphics::hideSelectedObBeam(OpenGLEngine& engine)
 
 Vec4f AvatarGraphics::getLastHeadPosition() const
 {
-	if(skinned_gl_ob.nonNull())
+	if(skinned_gl_ob)
 	{
 		if(head_node_i >= 0 && head_node_i < (int)skinned_gl_ob->anim_node_data.size())
 			return skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[head_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1) + Vec4f(0,0,0.076f,0); // eyes are roughly 7.6 cm above head node in RPM models.
+		else
+			return skinned_gl_ob->ob_to_world_matrix * Vec4f(0,0,0,1);
+	}
+	else
+		return Vec4f(0,0,0,1);
+}
+
+
+Vec4f AvatarGraphics::getLastLeftEyePosition() const
+{
+	if(skinned_gl_ob)
+	{
+		if(left_eye_node_i >= 0 && left_eye_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			return skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[left_eye_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1);
+		else
+			return skinned_gl_ob->ob_to_world_matrix * Vec4f(0,0,0,1);
+	}
+	else
+		return Vec4f(0,0,0,1);
+}
+
+
+Vec4f AvatarGraphics::getLastRightEyePosition() const
+{
+	if(skinned_gl_ob)
+	{
+		if(right_eye_node_i >= 0 && right_eye_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			return skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[right_eye_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1);
 		else
 			return skinned_gl_ob->ob_to_world_matrix * Vec4f(0,0,0,1);
 	}

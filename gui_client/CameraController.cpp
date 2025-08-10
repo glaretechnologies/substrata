@@ -30,7 +30,6 @@ CameraController::CameraController()
 	third_person = true;
 	third_person_cam_position = Vec3d(0,0,2);
 	current_third_person_target_pos = Vec3d(0,0,2);
-	selfie_mode = false;
 
 	current_cam_mode = CameraMode_Standard;
 
@@ -48,6 +47,8 @@ CameraController::CameraController()
 	free_cam_vel = Vec3d(0.0);
 
 	lens_sensor_dist = 0.025;
+
+	autofocus_mode = AutofocusMode_Off;
 
 
 	// NOTE: Call initialise after the member variables above have been initialised.
@@ -111,7 +112,7 @@ void CameraController::updateRotation(double pitch_delta, double heading_delta)
 	// Accumulate rotation angles, taking into account mouse speed and invertedness.
 	rotation.x += heading_delta * -rotate_speed;
 
-	const double new_unclamped_rot_y = rotation.y + pitch_delta * -rotate_speed * (invert_mouse ? -1 : 1) * (selfie_mode ? -1 : 1);
+	const double new_unclamped_rot_y = rotation.y + pitch_delta * -rotate_speed * (invert_mouse ? -1 : 1);
 	rotation.y = myClamp(new_unclamped_rot_y, cap, Maths::pi<double>() - cap);
 }
 
@@ -180,6 +181,10 @@ Vec3d CameraController::getPosition() const
 	{
 		return third_person ? third_person_cam_position : position;
 	}
+	else if(current_cam_mode == CameraMode_Selfie)
+	{
+		return third_person_cam_position;
+	}
 	else if(current_cam_mode == CameraMode_FixedAngle)
 	{
 		const Vec3d target_position = toVec3d(target_ob_to_world_matrix * Vec4f(0,0,0,1));
@@ -241,14 +246,9 @@ void CameraController::getWorldToCameraMatrix(Matrix4f& world_to_camera_matrix_o
 {
 	const Vec3d cam_pos = getPosition();
 
-	if(current_cam_mode == CameraMode_Standard || current_cam_mode == CameraMode_FreeCamera)
+	if(current_cam_mode == CameraMode_Standard || current_cam_mode == CameraMode_FreeCamera || current_cam_mode == CameraMode_Selfie)
 	{
 		Vec3d use_rotation = rotation;
-		if(selfie_mode)
-		{
-			use_rotation.x += Maths::pi<double>();
-			use_rotation.y = Maths::pi<double>() - rotation.y;
-		}
 
 		Vec3d right, up, forwards;
 		getBasisForAngles(use_rotation, initialised_up, right, up, forwards);
@@ -287,13 +287,28 @@ Vec4f CameraController::vectorToCamSpace(const Vec4f& v) const
 }
 
 
+static Vec3d oppositeDirAngles(const Vec3d& rotation)
+{
+	Vec3d use_rot = rotation;
+	// Make camera point in opposite direction
+	use_rot.x += Maths::pi<double>();
+	use_rot.y = Maths::pi<double>() - use_rot.y;
+	return use_rot;
+}
+
+
 Vec3d CameraController::getAvatarAngles()
 {
 	if(current_cam_mode == CameraMode_Standard)
 	{
 		return rotation;
 	}
-	else if(current_cam_mode == CameraMode_FixedAngle || current_cam_mode == CameraMode_FreeCamera || current_cam_mode == CameraMode_TrackingCamera)
+	else if(current_cam_mode == CameraMode_Selfie)
+	{
+		// Make camera point in opposite direction
+		return oppositeDirAngles(rotation);
+	}
+	else if(current_cam_mode == CameraMode_Selfie || current_cam_mode == CameraMode_FixedAngle || current_cam_mode == CameraMode_FreeCamera || current_cam_mode == CameraMode_TrackingCamera)
 	{
 		return last_avatar_rotation;
 	}
@@ -336,6 +351,12 @@ Vec3d CameraController::getForwardsMoveVec() const
 	{
 		return dirForAngles(rotation.x, rotation.y);
 	}
+	else if(current_cam_mode == CameraMode_Selfie)
+	{
+		// Make camera point in opposite direction
+		const Vec3d use_rot = oppositeDirAngles(rotation);
+		return dirForAngles(use_rot.x, use_rot.y);
+	}
 	else if(current_cam_mode == CameraMode_FixedAngle || current_cam_mode == CameraMode_TrackingCamera)
 	{
 		return dirForAngles(last_avatar_rotation.x, last_avatar_rotation.y);
@@ -356,7 +377,7 @@ Vec3d CameraController::getRightMoveVec() const
 
 Vec3d CameraController::getForwardsVec() const
 {
-	if(current_cam_mode == CameraMode_Standard || current_cam_mode == CameraMode_FreeCamera)
+	if(current_cam_mode == CameraMode_Standard || current_cam_mode == CameraMode_Selfie || current_cam_mode == CameraMode_FreeCamera)
 	{
 		return dirForAngles(rotation.x, rotation.y);
 	}
@@ -424,7 +445,7 @@ bool CameraController::handleScrollWheelEvent(float delta_y)
 {
 	if(thirdPersonEnabled())
 	{
-		const float MIN_CAM_DIST = 0.5f;
+		const float MIN_CAM_DIST = (current_cam_mode == CameraMode_Standard) ? 0.5f : 0.4f;
 
 		// Make change proportional to distance value.
 		// Mouse wheel scroll up reduces distance.
@@ -439,7 +460,7 @@ bool CameraController::handleScrollWheelEvent(float delta_y)
 
 void CameraController::setSelfieModeEnabled(double cur_time, bool enabled)
 {
-	selfie_mode = enabled;
+	//selfie_mode = enabled;
 
 	//start_transition_time = cur_time;
 	//end_transition_time = cur_time + 1;
@@ -451,6 +472,17 @@ void CameraController::standardCameraModeSelected()
 	setStateBeforeCameraModeChange();
 
 	current_cam_mode = CameraMode_Standard;
+}
+
+
+void CameraController::selfieCameraModeSelected()
+{
+	setStateBeforeCameraModeChange();
+
+	// Make camera point in opposite direction
+	rotation = oppositeDirAngles(rotation);
+
+	current_cam_mode = CameraMode_Selfie;
 }
 
 
@@ -481,7 +513,13 @@ void CameraController::trackingCameraModeSelected()
 // Set rotation, third_person_cam_position etc. so that e.g. changing to free camera won't change the camera position or orientation.
 void CameraController::setStateBeforeCameraModeChange()
 {
-	if(current_cam_mode == CameraMode_TrackingCamera)
+	if(current_cam_mode == CameraMode_Selfie)
+	{
+		// In selfie mode, avatar looks in the opposite direction to the direction given by the current camera angles (rotation), e.g. in oppositeDirAngles(rotation).
+		// When changing to something like free camera, we want the avatar to keep looking in the same direction, so save in last_avatar_rotation.
+		last_avatar_rotation = oppositeDirAngles(rotation);
+	}
+	else if(current_cam_mode == CameraMode_TrackingCamera)
 	{
 		rotation = getAngles();
 	}

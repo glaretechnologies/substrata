@@ -70,7 +70,7 @@ void readPhotoFromStream(RandomAccessInStream& stream, Photo& photo)
 {
 	const size_t initial_read_index = stream.getReadIndex();
 
-	const uint32 version = stream.readUInt32();
+	[[maybe_unused]] const uint32 version = stream.readUInt32();
 	const size_t buffer_size = stream.readUInt32();
 
 	checkProperty(buffer_size >= 8ul, "readPhotoFromStream: buffer_size was too small");
