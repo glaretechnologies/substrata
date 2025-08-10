@@ -72,7 +72,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		const TimeStamp now = TimeStamp::currentTime();
 		auction_html += "<div class=\"root-auction-list-container\">\n";
 		const ServerWorldState::ParcelMapType& parcels = root_world->getParcels(lock);
-		for(auto it = parcels.begin(); (it != parcels.end()) && (num_auctions_shown < 3); ++it)
+		for(auto it = parcels.begin(); (it != parcels.end()) && (num_auctions_shown < 4); ++it)
 		{
 			Parcel* parcel = it->second.ptr();
 
