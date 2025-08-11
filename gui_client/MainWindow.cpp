@@ -2803,15 +2803,18 @@ void MainWindow::on_actionExport_view_to_Indigo_triggered()
 
 void MainWindow::on_actionTake_Screenshot_triggered()
 {
-	ui->glWidget->opengl_engine->getCurrentScene()->draw_overlay_objects = false; // Hide UI
+	opengl_engine->getCurrentScene()->draw_overlay_objects = false; // Hide UI
 
 	ui->glWidget->updateGL(); // Draw again now that the UI is hidden
 
 #if QT_VERSION_MAJOR >= 6
 	QImage framebuffer = ui->glWidget->grabFramebuffer();
 #else
-	if(opengl_engine.nonNull())
-		opengl_engine->setReadFrameBufferToDefault();// Make sure we are reading from the default framebuffer.  Get an OpenGL error if we don't call this.
+
+	ui->glWidget->makeCurrent();
+	glFinish(); // May or may not be needed, testing
+	opengl_engine->setReadFrameBufferToDefault(); // Make sure we are reading from the default framebuffer.  Get an OpenGL error if we don't call this.
+	glReadBuffer(GL_BACK); // May or may not be needed, testing
 
 	QImage framebuffer = ui->glWidget->grabFrameBuffer();
 #endif
@@ -2840,7 +2843,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 		msgBox.exec();
 	}
 
-	ui->glWidget->opengl_engine->getCurrentScene()->draw_overlay_objects = true; // Unhide UI.
+	opengl_engine->getCurrentScene()->draw_overlay_objects = true; // Unhide UI.
 }
 
 
