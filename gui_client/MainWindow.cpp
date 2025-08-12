@@ -2805,23 +2805,26 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 {
 	opengl_engine->getCurrentScene()->draw_overlay_objects = false; // Hide UI
 
-	ui->glWidget->updateGL(); // Draw again now that the UI is hidden
-
-#if QT_VERSION_MAJOR >= 6
-	QImage framebuffer = ui->glWidget->grabFramebuffer();
-#else
+//	ui->glWidget->updateGL(); // Draw again now that the UI is hidden
+//
+//#if QT_VERSION_MAJOR >= 6
+//	QImage framebuffer = ui->glWidget->grabFramebuffer();
+//#else
+//
+//	ui->glWidget->makeCurrent();
+//	glFinish(); // May or may not be needed, testing
+//	opengl_engine->setReadFrameBufferToDefault(); // Make sure we are reading from the default framebuffer.  Get an OpenGL error if we don't call this.
+//	glReadBuffer(GL_BACK); // May or may not be needed, testing
+//
+//	QImage framebuffer = ui->glWidget->grabFrameBuffer();
+//#endif
+//	
+//	// NOTE: Qt-saved images were doing weird things with parcel border alpha.  Just copy to an ImageMapUInt8 and do the image saving ourselves.
+//
+//	ImageMapUInt8Ref map = convertQImageToImageMapUInt8(framebuffer);
 
 	ui->glWidget->makeCurrent();
-	glFinish(); // May or may not be needed, testing
-	opengl_engine->setReadFrameBufferToDefault(); // Make sure we are reading from the default framebuffer.  Get an OpenGL error if we don't call this.
-	glReadBuffer(GL_BACK); // May or may not be needed, testing
-
-	QImage framebuffer = ui->glWidget->grabFrameBuffer();
-#endif
-	
-	// NOTE: Qt-saved images were doing weird things with parcel border alpha.  Just copy to an ImageMapUInt8 and do the image saving ourselves.
-
-	ImageMapUInt8Ref map = convertQImageToImageMapUInt8(framebuffer);
+	ImageMapUInt8Ref map = opengl_engine->drawToBufferAndReturnImageMap();
 
 
 	const std::string path = this->appdata_path + "/screenshots/screenshot_" + toString((uint64)Clock::getSecsSince1970()) + ".png";
