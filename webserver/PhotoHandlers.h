@@ -27,4 +27,6 @@ namespace PhotoHandlers
 	void handlePhotoThumbnailImageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Get thumbnail photo image
 
 	void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Show photo page
+
+	void handleDeletePhotoPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Show photo page
 } 

@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2025 -
 Photo::Photo()
 {
 	flags = 0;
+	state = State_published;
 }
 
 
@@ -22,7 +23,8 @@ Photo::~Photo()
 {}
 
 
-static const uint32 PHOTO_SERIALISATION_VERSION = 1;
+static const uint32 PHOTO_SERIALISATION_VERSION = 2;
+// v2: added state
 
 
 void Photo::writeToStream(RandomAccessOutStream& stream) const
@@ -58,6 +60,8 @@ void Photo::writeToStream(RandomAccessOutStream& stream) const
 	runtimeCheck(local_midsize_filename.size() <= 10000);
 	stream.writeStringLengthFirst(local_midsize_filename);
 
+	stream.writeUInt32((uint32)state);
+
 	
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
@@ -70,7 +74,7 @@ void readPhotoFromStream(RandomAccessInStream& stream, Photo& photo)
 {
 	const size_t initial_read_index = stream.getReadIndex();
 
-	[[maybe_unused]] const uint32 version = stream.readUInt32();
+	const uint32 version = stream.readUInt32();
 	const size_t buffer_size = stream.readUInt32();
 
 	checkProperty(buffer_size >= 8ul, "readPhotoFromStream: buffer_size was too small");
@@ -90,6 +94,13 @@ void readPhotoFromStream(RandomAccessInStream& stream, Photo& photo)
 	photo.local_thumbnail_filename = stream.readStringLengthFirst(10000);
 	photo.local_midsize_filename = stream.readStringLengthFirst(10000);
 
+	if(version >= 2)
+	{
+		const uint32 s = stream.readUInt32();
+		if(s > Photo::State_deleted)
+			throw glare::Exception("Invalid state");
+		photo.state = (Photo::State)s;
+	}
 
 	// Discard any remaining unread data
 	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far

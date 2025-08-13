@@ -48,6 +48,13 @@ public:
 	std::string local_thumbnail_filename; // file name on disk of thumbnail (200 px wide)
 	std::string local_midsize_filename; // file name on disk of mid-size image (max 1000px wide)
 
+	enum State
+	{
+		State_published = 0,
+		State_deleted = 1
+	};
+	State state;
+
 	DatabaseKey database_key;
 };
 
