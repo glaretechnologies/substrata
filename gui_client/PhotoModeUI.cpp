@@ -18,7 +18,9 @@ Copyright Glare Technologies Limited 2025 -
 #include <utils/FileChecksum.h>
 #include <utils/MemMappedFile.h>
 #include <utils/MessageableThread.h>
-
+#if EMSCRIPTEN
+#include <networking/EmscriptenWebSocket.h>
+#endif
 
 PhotoModeUI::PhotoModeUI()
 :	gui_client(NULL)
@@ -299,6 +301,8 @@ void PhotoModeUI::enablePhotoModeUI()
 {
 	setVisible(true);
 
+	updateWidgetPositions();
+
 	resetControlsToPhotoModeDefaults();
 }
 
@@ -342,7 +346,7 @@ void PhotoModeUI::updateWidgetPositions()
 {
 	if(gl_ui && standard_cam_button)
 	{
-		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(18);
+		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(12);
 
 		float cur_y = gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(100);
 
@@ -364,9 +368,8 @@ void PhotoModeUI::updateWidgetPositions()
 		// Autofocus label and buttons
 		cur_y -= autofocus_off_button->rect.getWidths().y + margin;
 
-		const float label_w  = gl_ui->getUIWidthForDevIndepPixelWidth(160);
-
-		autofocus_label->setPos(*gl_ui, Vec2f(1 - 0.3f - label_w, cur_y + gl_ui->getUIWidthForDevIndepPixelWidth(8)));
+		const float label_w  = autofocus_label->rect.getWidths().x;
+		autofocus_label->setPos(*gl_ui, Vec2f(1 - 0.3f - label_w - margin, cur_y + gl_ui->getUIWidthForDevIndepPixelWidth(8)));
 
 		autofocus_off_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
 
@@ -593,7 +596,14 @@ void PhotoModeUI::eventOccurred(GLUICallbackEvent& event)
 		}
 		else if(event.widget == upload_photo_button.ptr())
 		{
-			showUploadPhotoWidget();
+			if(!gui_client->logged_in_user_id.valid())
+			{
+				gui_client->showErrorNotification("You must be logged in to upload a photo.");
+			}
+			else
+			{
+				showUploadPhotoWidget();
+			}
 
 			event.accepted = true;
 		}
