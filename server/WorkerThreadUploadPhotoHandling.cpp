@@ -109,8 +109,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		const std::string world_name = socket->readStringLengthFirst(Photo::MAX_WORLD_NAME_SIZE);
 
 		// Read parcel id
-		ParcelID parcel_id;
-		readParcelIDFromStream(*socket);
+		const ParcelID parcel_id = readParcelIDFromStream(*socket);
 
 		// Read cam_pos, cam_angles
 		Vec3d cam_pos, cam_angles;

@@ -48,7 +48,7 @@ inline void writeToStream(const ParcelID& uid, OutStream& stream)
 }
 
 
-inline ParcelID readParcelIDFromStream(InStream& stream)
+[[nodiscard]] inline ParcelID readParcelIDFromStream(InStream& stream)
 {
 	ParcelID uid;
 	stream.readData(&uid.v, sizeof(uid.v));

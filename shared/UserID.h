@@ -61,7 +61,7 @@ inline void writeToStream(const UserID& uid, OutStream& stream)
 }
 
 
-inline UserID readUserIDFromStream(InStream& stream)
+[[nodiscard]] inline UserID readUserIDFromStream(InStream& stream)
 {
 	UserID uid;
 	stream.readData(&uid.v, sizeof(uid.v));
