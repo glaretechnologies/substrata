@@ -620,7 +620,7 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 
 	if(v >= 4 && v < 10)
 	{
-		stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE); // read and discard script URL
+		static_cast<void>(stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE)); // read and discard script URL.  static_cast<void> to suppress nodiscard warning.
 	}
 	else if(v >= 10)
 	{
