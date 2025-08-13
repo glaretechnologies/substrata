@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "UIInterface.h"
+#include <settings/SettingsStore.h>
 #include <SDL.h>
 struct SDL_Window;
 class GUIClient;
@@ -104,6 +105,8 @@ public:
 	virtual std::string getDecryptedPasswordForDomain(const std::string& domain) override; // Returns empty string if no stored password for domain
 
 	virtual bool inScreenshotTakingMode() override;
+	virtual void takeScreenshot() override;
+	virtual void showScreenshots() override;
 
 	virtual void setGLWidgetContextAsCurrent() override;
 
@@ -127,6 +130,9 @@ public:
 	GUIClient* gui_client;
 	//SDL_Joystick* joystick;
 	SDL_GameController* game_controller;
+	std::string appdata_path;
+
+	Reference<SettingsStore> settings_store;
 
 	//Reference<TextRendererFontFace> font;
 };

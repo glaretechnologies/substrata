@@ -8,8 +8,12 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "GUIClient.h"
 #include <utils/ConPrint.h>
+#include <utils/Base64.h>
+#include <utils/BufferOutStream.h>
+#include <utils/FileUtils.h>
 #include <graphics/ImageMap.h>
 #include <graphics/TextRenderer.h>
+#include <graphics/jpegdecoder.h>
 #include <webserver/Escaping.h>
 #include <SDL.h>
 #include <iostream>
@@ -30,6 +34,31 @@ EM_JS(void, openURLInNewBrowserTab, (const char* URL), {
 // Define navigateToURL(const char* URL) function
 EM_JS(void, navigateToURL, (const char* URL), {
 	window.location = UTF8ToString(URL);
+});
+
+
+EM_JS(void, downloadFile, (const char* dataUrl_cstr, const char* fileName_cstr), {
+
+	let dataUrl  = UTF8ToString(dataUrl_cstr);
+	let fileName = UTF8ToString(fileName_cstr);
+
+	// Create a temporary anchor element
+	const link = document.createElement('a');
+
+	// Set the href to the data URL
+	link.href = dataUrl;
+
+	// Set the download attribute with filename
+	link.download = fileName;
+
+	// Append to body (necessary for Firefox)
+	document.body.appendChild(link);
+
+	// Simulate click
+	link.click();
+	
+	// Clean up
+	document.body.removeChild(link);
 });
 
 #endif
@@ -343,6 +372,68 @@ bool SDLUIInterface::inScreenshotTakingMode()
 {
 	return false;
 }
+
+void SDLUIInterface::takeScreenshot()
+{
+	gui_client->opengl_engine->getCurrentScene()->draw_overlay_objects = false; // Hide UI
+
+	try
+	{
+		if(SDL_GL_MakeCurrent(window, gl_context) != 0)
+			conPrint("SDL_GL_MakeCurrent failed.");
+
+		ImageMapUInt8Ref map = gui_client->opengl_engine->drawToBufferAndReturnImageMap();
+		if(map->hasAlphaChannel())
+			map = map->extract3ChannelImage();
+
+		// Write the JPEG to an in-mem buffer, since we will need it as a data URL for the web client.
+		BufferOutStream buffer;
+		JPEGDecoder::saveToStream(map, JPEGDecoder::SaveOptions(), buffer);
+
+		const std::string filename = "substrata_screenshot_" + toString((uint64)Clock::getSecsSince1970()) + ".jpg";
+
+#if EMSCRIPTEN
+		std::string encoded;
+		Base64::encode(buffer.buf.data(), buffer.buf.size(), encoded);
+		const std::string image_data_url = "data:image/jpeg;base64," + encoded;
+
+		downloadFile(image_data_url.c_str(), filename.c_str()); // Make the browser trigger a file download for the image.
+
+		const std::string path = "/tmp/" + filename;
+#else
+		const std::string path = this->appdata_path + "/screenshots/" + filename;
+		FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
+#endif
+
+		// Write it to disk (so can be used for photo upload)
+		FileUtils::writeEntireFile(path, (const char*)buffer.buf.data(), buffer.buf.size());
+		settings_store->setStringValue("photo/last_saved_photo_path", path);
+
+#if !EMSCRIPTEN
+		gui_client->showInfoNotification("Saved screenshot to " + path);
+#endif
+	}
+	catch(glare::Exception& e)
+	{
+#if EMSCRIPTEN
+		gui_client->showErrorNotification("Error saving photo: " + e.what());
+#else
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error saving photo", e.what().c_str(), window);
+#endif
+	}
+
+	gui_client->opengl_engine->getCurrentScene()->draw_overlay_objects = true; // Unhide UI.
+}
+
+
+void SDLUIInterface::showScreenshots()
+{
+#if EMSCRIPTEN
+#else
+	SDL_OpenURL(("file:///" + this->appdata_path + "/screenshots/").c_str());
+#endif
+}
+
 
 void SDLUIInterface::setGLWidgetContextAsCurrent()
 {
