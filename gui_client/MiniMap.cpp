@@ -38,10 +38,10 @@ static const float arrow_width_px = 22;
 static const int TILE_GRID_RES = 7; // There will be a TILE_GRID_RES x TILE_GRID_RES grid of tiles centered on the camera
 
 // -1 is near clip plane, +1 is the far clip plane.
-static const float MINIMAP_Z = -0.9f;
-static const float ARROW_IMAGE_Z = -0.95f;
-static const float AVATAR_MARKER_IMAGE_Z = -0.93f;
-static const float AVATAR_MARKER_ARROW_IMAGE_Z = -0.94f; // Slightly behind the marker dot
+static const float MINIMAP_Z = 0.3f;
+static const float ARROW_IMAGE_Z               = MINIMAP_Z - 0.03f; // -0.95f;
+static const float AVATAR_MARKER_IMAGE_Z       = MINIMAP_Z - 0.01f; // -0.93f;
+static const float AVATAR_MARKER_ARROW_IMAGE_Z = MINIMAP_Z - 0.02f; //-0.94f; // Slightly behind the marker dot
 
 
 static int getTileZForMapWidthWS(float map_width_ws)
