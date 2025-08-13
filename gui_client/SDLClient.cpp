@@ -529,6 +529,8 @@ int main(int argc, char** argv)
 		sdl_ui_interface->gl_context = gl_context;
 		sdl_ui_interface->gui_client = gui_client;
 		sdl_ui_interface->game_controller = game_controller;
+		sdl_ui_interface->appdata_path = appdata_path;
+		sdl_ui_interface->settings_store = settings_store;
 
 		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager, worker_allocator);
 
@@ -1125,7 +1127,7 @@ static void doOneMainLoopIter()
 		const float max_draw_dist = 100000.f;
 
 		const float sensor_width = sensorWidth();
-		const float lens_sensor_dist = lensSensorDist();
+		const float lens_sensor_dist = (float)gui_client->cam_controller.lens_sensor_dist;
 		const float viewport_aspect_ratio = (float)gl_w / (float)gl_h;
 		const float render_aspect_ratio = viewport_aspect_ratio;
 		opengl_engine->setViewportDims(gl_w, gl_h);

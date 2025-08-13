@@ -162,6 +162,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 
 				socket->writeUInt32(Protocol::PhotoUploadFailed);
 				socket->writeStringLengthFirst("Server error: failed to make thumbnail for photo.");
+				socket->flush();
 				return;
 			}
 
@@ -176,6 +177,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 
 				socket->writeUInt32(Protocol::PhotoUploadFailed);
 				socket->writeStringLengthFirst("Server error: failed to save photo.");
+				socket->flush();
 				return;
 			}
 		}
@@ -203,6 +205,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		}
 
 		socket->writeUInt32(Protocol::PhotoUploadSucceeded);
+		socket->flush();
 	}
 	catch(glare::Exception& e)
 	{

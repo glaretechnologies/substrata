@@ -8121,7 +8121,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		else if(dynamic_cast<const InfoMessage*>(msg))
 		{
 			const InfoMessage* m = static_cast<const InfoMessage*>(msg);
-			ui_interface->showPlainTextMessageBox("Message from server", m->msg);
+			showInfoNotification(m->msg);
 		}
 		else if(dynamic_cast<const ErrorMessage*>(msg))
 		{
