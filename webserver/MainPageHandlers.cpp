@@ -204,14 +204,18 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 
 		//------------------------------- Build photos grid view HTML --------------------------
-		photos_html += "<div class=\"photo-container\">\n";		const int max_num_photos_to_display = 32;
+		photos_html += "<div class=\"photo-container\">\n";		const int max_num_photos_to_display = 20;
 		int num_photos_displayed = 0;
 		for(auto it = world_state.photos.rbegin(); (it != world_state.photos.rend()) && (num_photos_displayed < max_num_photos_to_display); ++it)
 		{
 			const Photo* photo = it->second.ptr();
+			if(photo->state == Photo::State_published)
+			{
+				const std::string thumb_URL = "/photo_thumb_image/" + toString(photo->id);
+				photos_html += "<a href=\"/photo/" + toString(photo->id) + "\"><img src=\"" + thumb_URL + "\" class=\"root-photo-img\"/></a>";
 
-			const std::string thumb_URL = "/photo_thumb_image/" + toString(photo->id);
-			photos_html += "<a href=\"/photo/" + toString(photo->id) + "\"><img src=\"" + thumb_URL + "\" class=\"root-photo-img\"/></a>";
+				num_photos_displayed++;
+			}
 		}
 
 		photos_html += "</div>\n";
