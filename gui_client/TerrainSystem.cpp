@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/FileUtils.h>
 #include <utils/ContainerUtils.h>
 #include <utils/RuntimeCheck.h>
+#include <utils/PlatformUtils.h>
 #include "graphics/Voronoi.h"
 #include "graphics/FormatDecoderGLTF.h"
 #include "graphics/PNGDecoder.h"
@@ -32,6 +33,7 @@ Copyright Glare Technologies Limited 2023 -
 
 TerrainSystem::TerrainSystem()
 {
+	num_uncompleted_tasks = 0;
 }
 
 
@@ -536,6 +538,20 @@ void TerrainSystem::removeAllNodeDataForSubtree(TerrainNode* node)
 
 void TerrainSystem::shutdown()
 {
+	// Wait for any MakeTerrainChunkTasks to finish, since they have pointers to this object
+	const int max_num_wait_iters = 10000;
+	int i = 0;
+	while(num_uncompleted_tasks != 0)
+	{
+		PlatformUtils::Sleep(1);
+		i++;
+		if(i > max_num_wait_iters)
+		{
+			conPrint("Internal error: failed to wait for all MakeTerrainChunkTasks: num_uncompleted_tasks=" + toString(num_uncompleted_tasks));
+			break;
+		}
+	}
+
 	terrain_scattering.shutdown();
 
 	if(root_node.nonNull())
@@ -1414,6 +1430,8 @@ void TerrainSystem::createSubtree(TerrainNode* node, const Vec3d& campos)
 		assert(desired_depth <= node->depth);
 		// This node should be a leaf node
 
+		num_uncompleted_tasks++;
+
 		// Create geometry for it
 		MakeTerrainChunkTask* task = new MakeTerrainChunkTask();
 		task->node_id = node->id;
@@ -1424,6 +1442,7 @@ void TerrainSystem::createSubtree(TerrainNode* node, const Vec3d& campos)
 		//task->build_physics_ob = (max_depth - node->depth) < 3;
 		task->terrain = this;
 		task->out_msg_queue = out_msg_queue;
+		task->num_uncompleted_tasks_ptr = &num_uncompleted_tasks;
 		task_manager->addTask(task);
 
 		node->building = true;
@@ -1486,6 +1505,8 @@ void TerrainSystem::updateSubtree(TerrainNode* cur, const Vec3d& campos)
 			if(!cur->building)
 			{
 				// No chunk at this location, make one
+				num_uncompleted_tasks++;
+
 				MakeTerrainChunkTask* task = new MakeTerrainChunkTask();
 				task->node_id = cur->id;
 				task->chunk_x = cur->aabb.min_[0];
@@ -1495,6 +1516,7 @@ void TerrainSystem::updateSubtree(TerrainNode* cur, const Vec3d& campos)
 				//task->build_physics_ob = (max_depth - cur->depth) < 3;
 				task->terrain = this;
 				task->out_msg_queue = out_msg_queue;
+				task->num_uncompleted_tasks_ptr = &num_uncompleted_tasks;
 				task_manager->addTask(task);
 
 				//conPrint("Making new node chunk");
@@ -1794,4 +1816,6 @@ void MakeTerrainChunkTask::run(size_t thread_index)
 	{
 		conPrint(e.what());
 	}
+
+	(*num_uncompleted_tasks_ptr)--;
 }
