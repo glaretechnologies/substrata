@@ -99,6 +99,8 @@ public:
 	TerrainChunkData chunk_data; // Result of building chunk
 
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
+
+	glare::AtomicInt* num_uncompleted_tasks_ptr;
 };
 
 
@@ -228,4 +230,6 @@ private:
 	float terrain_scale_factor;
 
 	std::vector<GLObjectRef> water_gl_obs;
+
+	glare::AtomicInt num_uncompleted_tasks;
 };
