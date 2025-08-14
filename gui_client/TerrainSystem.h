@@ -87,7 +87,9 @@ struct TerrainChunkData
 class MakeTerrainChunkTask : public glare::Task
 {
 public:
-	virtual void run(size_t thread_index);
+	virtual void run(size_t thread_index) override;
+
+	virtual void removedFromQueue() override;
 
 	uint64 node_id;
 	float chunk_x, chunk_y; // world-space coords of lower left corner of chunk.
