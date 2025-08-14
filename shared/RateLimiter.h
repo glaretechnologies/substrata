@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 #pragma once
 
 
-#include <utils/RefCounted.h>
+#include <utils/ThreadSafeRefCounted.h>
 #include <utils/CircularBuffer.h>
 
 
@@ -15,7 +15,7 @@ RateLimiter
 -----------
 Sliding window rate-limiting code
 =====================================================================*/
-class RateLimiter : public RefCounted
+class RateLimiter : public ThreadSafeRefCounted
 {
 public:
 	RateLimiter(double period, size_t max_num_in_period);
