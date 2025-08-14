@@ -540,12 +540,14 @@ void TerrainSystem::shutdown()
 {
 	// Wait for any MakeTerrainChunkTasks to finish, since they have pointers to this object
 	const int max_num_wait_iters = 10000;
-	int i = 0;
+	int z = 0;
+	assert(num_uncompleted_tasks >= 0);
 	while(num_uncompleted_tasks != 0)
 	{
+		assert(num_uncompleted_tasks >= 0);
 		PlatformUtils::Sleep(1);
-		i++;
-		if(i > max_num_wait_iters)
+		z++;
+		if(z > max_num_wait_iters)
 		{
 			conPrint("Internal error: failed to wait for all MakeTerrainChunkTasks: num_uncompleted_tasks=" + toString(num_uncompleted_tasks));
 			break;
@@ -1430,6 +1432,7 @@ void TerrainSystem::createSubtree(TerrainNode* node, const Vec3d& campos)
 		assert(desired_depth <= node->depth);
 		// This node should be a leaf node
 
+		assert(num_uncompleted_tasks >= 0);
 		num_uncompleted_tasks++;
 
 		// Create geometry for it
@@ -1505,6 +1508,7 @@ void TerrainSystem::updateSubtree(TerrainNode* cur, const Vec3d& campos)
 			if(!cur->building)
 			{
 				// No chunk at this location, make one
+				assert(num_uncompleted_tasks >= 0);
 				num_uncompleted_tasks++;
 
 				MakeTerrainChunkTask* task = new MakeTerrainChunkTask();
@@ -1796,6 +1800,8 @@ void MakeTerrainChunkTask::run(size_t thread_index)
 {
 	try
 	{
+		assert((*num_uncompleted_tasks_ptr) >= 0);
+
 		// Make terrain
 		terrain->makeTerrainChunkMesh(chunk_x, chunk_y, chunk_w, build_physics_ob, /*chunk data out=*/chunk_data);
 
@@ -1817,5 +1823,13 @@ void MakeTerrainChunkTask::run(size_t thread_index)
 		conPrint(e.what());
 	}
 
+	assert((*num_uncompleted_tasks_ptr) >= 0);
+	(*num_uncompleted_tasks_ptr)--;
+}
+
+
+void MakeTerrainChunkTask::removedFromQueue()
+{
+	assert((*num_uncompleted_tasks_ptr) >= 0);
 	(*num_uncompleted_tasks_ptr)--;
 }
