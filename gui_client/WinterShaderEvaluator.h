@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2017 -
 
 
 #include <maths/Vec4f.h>
-#include <utils/RefCounted.h>
+#include <utils/ThreadSafeRefCounted.h>
 #if !defined(EMSCRIPTEN)
 #include <VirtualMachine.h>
 #include <wnt_FunctionSignature.h>
@@ -28,7 +28,7 @@ WinterShaderEvaluator
 ---------------------
 
 =====================================================================*/
-class WinterShaderEvaluator : public RefCounted
+class WinterShaderEvaluator : public ThreadSafeRefCounted
 {
 public:
 	WinterShaderEvaluator(const std::string& base_cyberspace_path, const std::string& shader);

@@ -13,7 +13,7 @@ namespace ServerSideScripting
 {
 
 
-class ServerSideScript : public RefCounted
+class ServerSideScript : public ThreadSafeRefCounted
 {
 public:
 	virtual ~ServerSideScript() {}

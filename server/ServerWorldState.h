@@ -152,7 +152,7 @@ struct ObjectStorageKey
 };
 
 
-struct ObjectStorageItem : public RefCounted
+struct ObjectStorageItem : public ThreadSafeRefCounted
 {
 	ObjectStorageKey key;
 	glare::AllocatorVector<unsigned char, 16> data;
@@ -190,7 +190,7 @@ struct UserSecretKey
 };
 
 
-struct UserSecret : public RefCounted
+struct UserSecret : public ThreadSafeRefCounted
 {
 	UserSecretKey key;
 	std::string value;

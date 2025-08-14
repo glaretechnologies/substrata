@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include <maths/Vec4f.h>
-#include <utils/RefCounted.h>
+#include <utils/ThreadSafeRefCounted.h>
 #include <utils/UniqueRef.h>
 #include <utils/HashMap.h>
 #include <string>
@@ -67,7 +67,7 @@ ________________    |         _____________
   |----------------------------------
 
 =====================================================================*/
-class SubstrataLuaVM : public RefCounted
+class SubstrataLuaVM : public ThreadSafeRefCounted
 {
 public:
 #if GUI_CLIENT
