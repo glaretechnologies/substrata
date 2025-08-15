@@ -2170,6 +2170,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				light->gpu_data.cone_cos_angle_end = 0.95f;
 				float scale;
 				light->gpu_data.col = computeSpotlightColour(*ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
+				light->max_light_dist = myMin(15.f, 4.f * myMax(light->gpu_data.col[0], light->gpu_data.col[1], light->gpu_data.col[2]));
 				
 				// Apply a light emitting material to the light surface material in the spotlight model.
 				if(ob->materials.size() >= 1)
