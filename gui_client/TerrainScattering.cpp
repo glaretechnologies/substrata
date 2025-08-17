@@ -764,7 +764,7 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::StackAllocator&
 					if(chunk_aabb_ws.contains(tree_info[z].pos))
 					{
 						//-------------- Create opengl tree object --------------
-						GLObjectRef gl_ob = new GLObject();
+						GLObjectRef gl_ob = opengl_engine->allocateObject();
 						gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(tree_info[z].pos) * Matrix4f::uniformScaleMatrix(tree_info[z].scale) * 
 							Matrix4f::rotationAroundZAxis(rng.unitRandom() * Maths::get2Pi<float>());// Matrix4f::scaleMatrix(tree_info[z].width, tree_info[z].width, tree_info[z].height);
 						gl_ob->mesh_data = biome_manager->elm_tree_mesh_render_data;
@@ -1486,7 +1486,7 @@ GLObjectRef TerrainScattering::buildVegLocationsAndImposterGLOb(int chunk_x_inde
 	meshdata.aabb_os = aabb_os;
 
 
-	GLObjectRef gl_ob = new GLObject();
+	GLObjectRef gl_ob = opengl_engine->allocateObject();
 	gl_ob->ob_to_world_matrix = Matrix4f::identity();
 	gl_ob->mesh_data = mesh_data;
 
@@ -1613,7 +1613,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::StackAllocat
 
 	opengl_engine->vert_buf_allocator->getOrCreateAndAssignVAOForMesh(meshdata, meshdata.vertex_spec);
 
-	GLObjectRef gl_ob = new GLObject();
+	GLObjectRef gl_ob = opengl_engine->allocateObject();
 	gl_ob->ob_to_world_matrix = Matrix4f::identity();
 	gl_ob->mesh_data = mesh_data;
 
@@ -1983,7 +1983,7 @@ void TerrainScattering::makeNearGrassChunk(int chunk_x_index, int chunk_y_index,
 		meshdata->aabb_os = aabb_os;
 
 
-		GLObjectRef gl_ob = new GLObject();
+		GLObjectRef gl_ob = opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = Matrix4f::identity();// /*Matrix4f::translationMatrix(temp_locations[0].pos) **/ Matrix4f::uniformScaleMatrix(temp_locations[0].scale * 0.5f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
 		gl_ob->mesh_data = meshdata;
 

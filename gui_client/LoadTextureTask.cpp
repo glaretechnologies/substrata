@@ -171,6 +171,7 @@ void LoadTextureTask::run(size_t thread_index)
 			// Send a message to MainWindow with the loaded texture data.
 			Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
 			msg->tex_path = path;
+			msg->tex_URL = resource->URL;
 			msg->tex_key = key;
 			msg->tex_params = tex_params;
 			msg->pbo = pbo;

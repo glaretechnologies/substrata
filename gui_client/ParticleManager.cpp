@@ -101,7 +101,7 @@ void ParticleManager::addParticle(const Particle& particle_)
 
 
 	// Add gl ob
-	GLObjectRef ob = new GLObject();
+	GLObjectRef ob = opengl_engine->allocateObject();
 	ob->mesh_data = opengl_engine->getSpriteQuadMeshData();
 	ob->materials.resize(1);
 	ob->materials[0].albedo_linear_rgb = particle_.colour;

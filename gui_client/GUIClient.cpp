@@ -127,6 +127,7 @@ static const Colour3f axis_arrows_mouseover_cols[] = { Colour3f(1,0.45f,0.3f),  
 
 static const float DECAL_EDGE_AABB_WIDTH = 0.02f;
 
+static const bool LOD_CHUNK_SUPPORT = true;
 static const float chunk_w = 128.f;
 
 static const std::string DEFAULT_AVATAR_MODEL_URL = "xbot.bmesh"; // This file should be in the resources directory in the distribution.
@@ -1047,7 +1048,7 @@ static inline bool isValidLightMapURL(OpenGLEngine& opengl_engine, const std::st
 
 
 // Start loading texture, if present
-void GUIClient::startLoadingTextureIfPresent(const UID& ob_uid, const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+void GUIClient::startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 	const TextureParams& tex_params)
 {
 	if(isValidImageTextureURL(tex_url))
@@ -1057,20 +1058,18 @@ void GUIClient::startLoadingTextureIfPresent(const UID& ob_uid, const std::strin
 		{
 			const std::string local_abs_tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			startLoadingTextureForLocalPath(ob_uid, local_abs_tex_path, resource, centroid_ws, aabb_ws_longest_len, max_task_dist, importance_factor, tex_params);
+			startLoadingTextureForLocalPath(local_abs_tex_path, resource, centroid_ws, aabb_ws_longest_len, max_task_dist, importance_factor, tex_params);
 		}
 	}
 }
 
 
-void GUIClient::startLoadingTextureForLocalPath(const UID& ob_uid, const std::string& local_abs_tex_path, const ResourceRef& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const ResourceRef& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params)
 {
 	//assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
 	if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(local_abs_tex_path))) // If texture is not uploaded to GPU already:
 	{
-		this->loading_texture_abs_path_to_world_ob_UID_map[local_abs_tex_path].insert(ob_uid);
-
 		const bool just_added = checkAddTextureToProcessingSet(local_abs_tex_path); // If not being loaded already:
 		if(just_added)
 		{
@@ -1098,7 +1097,7 @@ void GUIClient::startLoadingTextureForLocalPath(const UID& ob_uid, const std::st
 
 // max_dist_for_ob_lod_level: maximum distance from camera at which the object will still be at ob_lod_level.
 // max_dist_for_ob_lod_level_clamped_0: maximum distance from camera at which the object will still be at max(0, ob_lod_level).   [e.g. treats level -1 as 0]
-void GUIClient::startLoadingTextureForObject(const UID& ob_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, 
+void GUIClient::startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, 
 	const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression)
 {
 	const std::string lod_tex_url = world_mat.getLODTextureURLForLevel(texture_url, ob_lod_level, tex_has_alpha, /*use basis=*/server_has_basis_textures);
@@ -1110,10 +1109,17 @@ void GUIClient::startLoadingTextureForObject(const UID& ob_uid, const Vec4f& cen
 	else
 		use_max_dist_for_ob_lod_level = max_dist_for_ob_lod_level;
 
+
+	if(ob_uid.valid())
+		this->loading_texture_URL_to_world_ob_UID_map[lod_tex_url].insert(ob_uid);
+	else if(avatar_uid.valid())
+		this->loading_texture_URL_to_avatar_UID_map[lod_tex_url].insert(avatar_uid);
+
+
 	TextureParams tex_params;
 	tex_params.use_sRGB = use_sRGB;
 	tex_params.allow_compression = allow_compression;
-	startLoadingTextureIfPresent(ob_uid, lod_tex_url, centroid_ws, aabb_ws_longest_len, use_max_dist_for_ob_lod_level, importance_factor, tex_params);
+	startLoadingTextureIfPresent(lod_tex_url, centroid_ws, aabb_ws_longest_len, use_max_dist_for_ob_lod_level, importance_factor, tex_params);
 }
 
 
@@ -1124,13 +1130,13 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 	{
 		const WorldMaterial* mat = ob.materials[i].ptr();
 		if(!mat->colour_texture_url.empty())
-			startLoadingTextureForObject(ob.uid, ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
 		if(!mat->emission_texture_url.empty())
-			startLoadingTextureForObject(ob.uid, ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
 		if(!mat->roughness.texture_url.empty())
-			startLoadingTextureForObject(ob.uid, ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
 		if(!mat->normal_map_url.empty())
-			startLoadingTextureForObject(ob.uid, ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
 	}
 
 	// Start loading lightmap
@@ -1168,7 +1174,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 
 void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar)
 {
-	// Prioritise laoding our avatar first.
+	// Prioritise loading our avatar first.
 	const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
@@ -1176,13 +1182,13 @@ void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level
 	{
 		const WorldMaterial* mat = av.avatar_settings.materials[i].ptr();
 		if(!mat->colour_texture_url.empty())
-			startLoadingTextureForObject(/*ob uid=*/UID::invalidUID(), av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
 		if(!mat->emission_texture_url.empty())
-			startLoadingTextureForObject(/*ob uid=*/UID::invalidUID(), av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
 		if(!mat->roughness.texture_url.empty())
-			startLoadingTextureForObject(/*ob uid=*/UID::invalidUID(), av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
 		if(!mat->normal_map_url.empty())
-			startLoadingTextureForObject(/*ob uid=*/UID::invalidUID(), av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
 	}
 }
 
@@ -1580,6 +1586,9 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 {
 	assigned_animated_tex_out = false;
 
+	if(!ob->opengl_engine_ob)
+		return;
+
 	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
 	{
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
@@ -1590,17 +1599,19 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 			try
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.albedo_texture.ptr();
-				
-				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
-				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
-					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, use_basis, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
-				
-				if(opengl_mat.albedo_texture.ptr() != prev_tex)
+				if(!prev_tex || (prev_tex->key.path != opengl_mat.tex_path)) // If the desired texture it not loaded:
 				{
-					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+					opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
+					if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
+						opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, use_basis, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
+				
+					if(opengl_mat.albedo_texture.ptr() != prev_tex)
+					{
+						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
 
-					if(opengl_mat.albedo_texture && opengl_mat.albedo_texture->texture_data && opengl_mat.albedo_texture->texture_data->isMultiFrame())
-						assigned_animated_tex_out = true;
+						if(opengl_mat.albedo_texture && opengl_mat.albedo_texture->texture_data && opengl_mat.albedo_texture->texture_data->isMultiFrame())
+							assigned_animated_tex_out = true;
+					}
 				}
 			}
 			catch(glare::Exception& e)
@@ -1614,17 +1625,19 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 			try
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.emission_texture.ptr();
-
-				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path));
-				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, use_basis, opengl_engine);
-
-				if(opengl_mat.emission_texture.ptr() != prev_tex)
+				if(!prev_tex || (prev_tex->key.path != opengl_mat.emission_tex_path)) // If the desired texture it not loaded:
 				{
-					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+					opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path));
+					if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+						opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, use_basis, opengl_engine);
 
-					if(opengl_mat.emission_texture && opengl_mat.emission_texture->texture_data && opengl_mat.emission_texture->texture_data->isMultiFrame())
-						assigned_animated_tex_out = true;
+					if(opengl_mat.emission_texture.ptr() != prev_tex)
+					{
+						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+
+						if(opengl_mat.emission_texture && opengl_mat.emission_texture->texture_data && opengl_mat.emission_texture->texture_data->isMultiFrame())
+							assigned_animated_tex_out = true;
+					}
 				}
 			}
 			catch(glare::Exception& e)
@@ -1638,17 +1651,19 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 			try
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.metallic_roughness_texture.ptr();
-
-				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
-				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
-
-				if(opengl_mat.metallic_roughness_texture.ptr() != prev_tex)
+				if(!prev_tex || (prev_tex->key.path != opengl_mat.metallic_roughness_tex_path)) // If the desired texture it not loaded:
 				{
-					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+					opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
+					if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+						opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
 
-					if(opengl_mat.metallic_roughness_texture && opengl_mat.metallic_roughness_texture->texture_data && opengl_mat.metallic_roughness_texture->texture_data->isMultiFrame())
-						assigned_animated_tex_out = true;
+					if(opengl_mat.metallic_roughness_texture.ptr() != prev_tex)
+					{
+						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+
+						if(opengl_mat.metallic_roughness_texture && opengl_mat.metallic_roughness_texture->texture_data && opengl_mat.metallic_roughness_texture->texture_data->isMultiFrame())
+							assigned_animated_tex_out = true;
+					}
 				}
 			}
 			catch(glare::Exception& e)
@@ -1662,17 +1677,19 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 			try
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.normal_map.ptr();
-
-				opengl_mat.normal_map = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.normal_map_path));
-				if(opengl_mat.normal_map.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-					opengl_mat.normal_map = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->normal_map_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
-
-				if(opengl_mat.normal_map.ptr() != prev_tex)
+				if(!prev_tex || (prev_tex->key.path != opengl_mat.normal_map_path)) // If the desired texture it not loaded:
 				{
-					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+					opengl_mat.normal_map = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.normal_map_path));
+					if(opengl_mat.normal_map.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+						opengl_mat.normal_map = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->normal_map_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
 
-					if(opengl_mat.normal_map && opengl_mat.normal_map->texture_data && opengl_mat.normal_map->texture_data->isMultiFrame())
-						assigned_animated_tex_out = true;
+					if(opengl_mat.normal_map.ptr() != prev_tex)
+					{
+						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+
+						if(opengl_mat.normal_map && opengl_mat.normal_map->texture_data && opengl_mat.normal_map->texture_data->isMultiFrame())
+							assigned_animated_tex_out = true;
+					}
 				}
 			}
 			catch(glare::Exception& e)
@@ -1686,13 +1703,15 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 			try
 			{
 				const OpenGLTexture* prev_tex = opengl_mat.lightmap_texture.ptr();
+				if(!prev_tex || (prev_tex->key.path != opengl_mat.lightmap_path)) // If the desired texture it not loaded:
+				{
+					opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
+					if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+						opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
 
-				opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
-				if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
-					opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
-
-				if(opengl_mat.lightmap_texture.ptr() != prev_tex)
-					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+					if(opengl_mat.lightmap_texture.ptr() != prev_tex)
+						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+				}
 			}
 			catch(glare::Exception& e)
 			{
@@ -2446,7 +2465,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 							if(batch0_valid && batch1_valid)
 							{
-								ob->opengl_engine_ob = new GLObject();
+								ob->opengl_engine_ob = opengl_engine->allocateObject();
 								ob->opengl_engine_ob->mesh_data = chunk->graphics_ob->mesh_data; // Share the chunk's mesh data
 								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::identity();
 						
@@ -3754,7 +3773,7 @@ void GUIClient::checkForLODChanges()
 		WorldStateLock lock(this->world_state->mutex);
 
 		// Make sure server_using_lod_chunks is up-to-date.
-		if(!this->world_state->lod_chunks.empty())
+		if(!this->world_state->lod_chunks.empty() && LOD_CHUNK_SUPPORT)
 			this->server_using_lod_chunks = true;
 		const bool use_server_using_lod_chunks = this->server_using_lod_chunks;
 
@@ -4141,42 +4160,55 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loa
 }
 
 
-void GUIClient::handleUploadedTexture(const std::string& path, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map)
+void GUIClient::handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map)
 {
 	if(terrain_map && terrain_system)
 		terrain_system->handleTextureLoaded(path, terrain_map);
 
 	handleLODChunkTextureLoaded(path, opengl_tex);
 
-	// If we just loaded an animated texture (e.g. gif or animated basis file), look up any objects using this texture, and add them to the
-	// obs_with_animated_tex set.
-	if(tex_data && tex_data->isMultiFrame())
+	// Look up any objects or avatars using this texture, and assign the newly loaded texture to them
 	{
 		WorldStateLock lock(this->world_state->mutex);
 
-		auto res = this->loading_texture_abs_path_to_world_ob_UID_map.find(path);
-		if(res != this->loading_texture_abs_path_to_world_ob_UID_map.end())
+		// Assign to objects
 		{
-			const std::set<UID>& waiting_obs = res->second;
-			for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
+			auto res = this->loading_texture_URL_to_world_ob_UID_map.find(URL);
+			if(res != this->loading_texture_URL_to_world_ob_UID_map.end())
 			{
-				const UID waiting_uid = *it;
-				auto res2 = this->world_state->objects.find(waiting_uid);
-				if(res2 != this->world_state->objects.end())
+				const std::set<UID>& waiting_obs = res->second;
+				for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
 				{
-					WorldObject* ob = res2.getValue().ptr();
-
-					if(ob->animated_tex_data.isNull())
+					const UID waiting_uid = *it;
+					auto res2 = this->world_state->objects.find(waiting_uid);
+					if(res2 != this->world_state->objects.end())
 					{
-						ob->animated_tex_data = new AnimatedTexObData();
-						this->obs_with_animated_tex.insert(ob);
+						WorldObject* ob = res2.getValue().ptr();
+						assignLoadedOpenGLTexturesToMats(ob);
 					}
-
-					ob->animated_tex_data->rescanObjectForAnimatedTextures(ob);
 				}
+				loading_texture_URL_to_world_ob_UID_map.erase(res); // Now that this texture has been loaded, remove from map
 			}
+		}
 
-			loading_texture_abs_path_to_world_ob_UID_map.erase(path); // Now that this texture has been loaded, remove from map TEMP HACK USING PATH
+		// Assign to avatars
+		{
+			auto res = this->loading_texture_URL_to_avatar_UID_map.find(URL);
+			if(res != this->loading_texture_URL_to_avatar_UID_map.end())
+			{
+				const std::set<UID>& waiting_avs = res->second;
+				for(auto it = waiting_avs.begin(); it != waiting_avs.end(); ++it)
+				{
+					const UID waiting_uid = *it;
+					auto res2 = this->world_state->avatars.find(waiting_uid);
+					if(res2 != this->world_state->avatars.end())
+					{
+						Avatar* av = res2->second.ptr();
+						assignLoadedOpenGLTexturesToAvatarMats(av, /*use basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager);
+					}
+				}
+				loading_texture_URL_to_avatar_UID_map.erase(res); // Now that this texture has been loaded, remove from map
+			}
 		}
 	}
 }
@@ -4352,7 +4384,7 @@ void GUIClient::processLoading()
 				{
 					// conPrint("Finished loading texture '" + tex_loading_progress.path + "' into OpenGL.  Was terrain: " + toString(cur_loading_terrain_map.nonNull()));
 
-					handleUploadedTexture(tex_loading_progress.path, tex_loading_progress.opengl_tex, tex_loading_progress.tex_data, cur_loading_terrain_map);
+					handleUploadedTexture(tex_loading_progress.path, tex_loading_progress.URL, tex_loading_progress.opengl_tex, tex_loading_progress.tex_data, cur_loading_terrain_map);
 
 					tex_loading_progress.tex_data = NULL;
 					tex_loading_progress.opengl_tex = NULL;
@@ -4458,6 +4490,7 @@ void GUIClient::processLoading()
 					{
 						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, opengl_engine, OpenGLTextureKey(message->tex_key), message->tex_params,
 							message->texture_data, this->tex_loading_progress);
+						tex_loading_progress.URL = message->tex_URL;
 					}
 					catch(glare::Exception& e)
 					{
@@ -4537,6 +4570,7 @@ void GUIClient::processLoading()
 
 			PBOAsyncTextureUploading uploading_info;
 			uploading_info.path = message->tex_path;
+			uploading_info.URL = message->tex_URL;
 			uploading_info.tex_data = message->texture_data;
 			uploading_info.opengl_tex = opengl_tex;
 			uploading_info.terrain_map = message->terrain_map;
@@ -4625,7 +4659,7 @@ void GUIClient::processLoading()
 					opengl_engine->addOpenGLTexture(loading_info.opengl_tex->key, loading_info.opengl_tex);
 
 					// Process the finished upload
-					handleUploadedTexture(loading_info.path, loading_info.opengl_tex, loading_info.tex_data, loading_info.terrain_map);
+					handleUploadedTexture(loading_info.path, loading_info.URL, loading_info.opengl_tex, loading_info.tex_data, loading_info.terrain_map);
 				}
 				catch(glare::Exception& e)
 				{
@@ -6089,7 +6123,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			WorldStateLock lock(this->world_state->mutex);
 
 			// Make sure server_using_lod_chunks is set before we start calling shouldDisplayLODChunk() below
-			if(!this->world_state->lod_chunks.empty())
+			if(!this->world_state->lod_chunks.empty() && LOD_CHUNK_SUPPORT)
 				this->server_using_lod_chunks = true;
 
 			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
@@ -6873,7 +6907,8 @@ void GUIClient::updateLODChunkGraphics()
 				}
 			}
 
-			this->server_using_lod_chunks = true;
+			if(LOD_CHUNK_SUPPORT)
+				this->server_using_lod_chunks = true;
 		}
 
 		this->world_state->dirty_from_remote_lod_chunks.clear();
@@ -6936,7 +6971,7 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 					mesh_data->meshDataBecameUsed();
 					chunk->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
-					chunk->graphics_ob = new GLObject();
+					chunk->graphics_ob = opengl_engine->allocateObject();
 					chunk->graphics_ob->mesh_data = mesh_data->gl_meshdata;
 					chunk->graphics_ob->ob_to_world_matrix = Matrix4f::identity();
 		
@@ -12468,7 +12503,8 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		physics_ob->scale = useScaleForWorldOb(ob->scale);
 
 		ob->opengl_engine_ob = gl_ob;
-		opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
+		//opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
+		assignLoadedOpenGLTexturesToMats(ob.ptr()); // TEMP TEST
 
 		// Update in Indigo view
 		//ui->indigoView->objectAdded(*ob, *this->resource_manager);

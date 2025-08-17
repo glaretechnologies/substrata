@@ -87,7 +87,7 @@ void TerrainDecalManager::addFoamDecal(const Vec4f& foam_pos, float ob_width, fl
 	decal.dopacity_dt = opacity * -0.1f; // last 10 seconds
 
 	// Add decal
-	GLObjectRef ob = new GLObject();
+	GLObjectRef ob = opengl_engine->allocateObject();
 	ob->mesh_data = opengl_engine->getCubeMeshData();
 	ob->materials.resize(1);
 	ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
