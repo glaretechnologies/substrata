@@ -289,11 +289,11 @@ public:
 	bool checkAddAudioToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
-	void startLoadingTextureIfPresent(const UID& ob_uid, const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureIfPresent(const std::string& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
-	void startLoadingTextureForLocalPath(const UID& ob_uid, const std::string& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureForLocalPath(const std::string& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
-	void startLoadingTextureForObject(const UID& ob_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
+	void startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
 		int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
@@ -362,7 +362,7 @@ public:
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
 	void handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, UID voxel_ob_uid, int voxel_subsample_factor);
-	void handleUploadedTexture(const std::string& path, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
+	void handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
 	void updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials);
 
@@ -633,14 +633,15 @@ public:
 
 	js::Vector<Vec4f, 16> temp_av_positions;
 
-	std::map<std::string, DownloadingResourceInfo> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
+	std::unordered_map<std::string, DownloadingResourceInfo> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
 
 	std::map<ModelProcessingKey, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
-	std::map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
+	std::unordered_map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
 
-	std::map<std::string, std::set<UID>> loading_texture_abs_path_to_world_ob_UID_map;
+	std::unordered_map<std::string, std::set<UID>> loading_texture_URL_to_world_ob_UID_map;
+	std::unordered_map<std::string, std::set<UID>> loading_texture_URL_to_avatar_UID_map;
 
-	std::map<std::string, Vec3i> loading_mesh_URL_to_chunk_coords_map;
+	std::unordered_map<std::string, Vec3i> loading_mesh_URL_to_chunk_coords_map;
 
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 
@@ -767,6 +768,7 @@ public:
 	struct PBOAsyncTextureUploading
 	{
 		std::string path;
+		std::string URL;
 		Reference<TextureData> tex_data;
 		Reference<OpenGLTexture> opengl_tex;
 		Map2DRef terrain_map;

@@ -24,6 +24,7 @@ class TextureLoadedThreadMessage : public ThreadMessage
 {
 public:
 	std::string tex_path;
+	std::string tex_URL;
 	std::string tex_key;
 	TextureParams tex_params;
 	Reference<TextureData> texture_data;

@@ -349,7 +349,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 			if(!(offset_x == 0 && offset_y == 0))
 			{
 				// Tessellate ground mesh, to avoid texture shimmer due to large quads.
-				GLObjectRef gl_ob = new GLObject();
+				GLObjectRef gl_ob = opengl_engine->allocateObject();
 				gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, spec.water_z) * Matrix4f::uniformScaleMatrix(large_water_quad_w) * Matrix4f::translationMatrix(-0.5f + offset_x, -0.5f + offset_y, 0);
 				gl_ob->mesh_data = quad_meshdata;
 
@@ -363,7 +363,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 
 		{
 			// Tessellate ground mesh, to avoid texture shimmer due to large quads.
-			GLObjectRef gl_ob = new GLObject();
+			GLObjectRef gl_ob = opengl_engine->allocateObject();
 			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, spec.water_z) * Matrix4f::uniformScaleMatrix(large_water_quad_w) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
 			gl_ob->mesh_data = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/64);
 
@@ -378,7 +378,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 
 		// Create cylinder for water boundary
 		{
-			GLObjectRef gl_ob = new GLObject();
+			GLObjectRef gl_ob = opengl_engine->allocateObject();
 			const float wall_h = 1000.0f;
 			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -wall_h) * Matrix4f::scaleMatrix(25000, 25000, wall_h);
 			gl_ob->mesh_data = MeshPrimitiveBuilding::makeCylinderMesh(*opengl_engine->vert_buf_allocator.ptr(), /*end_caps=*/false);
@@ -1683,7 +1683,7 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 			mesh_data->vert_index_buffer_uint8.clearAndFreeMem();
 		}
 
-		GLObjectRef gl_ob = new GLObject();
+		GLObjectRef gl_ob = opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(msg.chunk_x, msg.chunk_y, 0);
 		gl_ob->mesh_data = mesh_data;
 
