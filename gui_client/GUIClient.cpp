@@ -4162,16 +4162,49 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loa
 
 void GUIClient::handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map)
 {
+	// Assign to terrain
 	if(terrain_map && terrain_system)
 		terrain_system->handleTextureLoaded(path, terrain_map);
 
-	handleLODChunkTextureLoaded(path, opengl_tex);
+	// Assign to minimap tiles
+	minimap.handleUploadedTexture(path, URL, opengl_tex);
 
-	// Look up any objects or avatars using this texture, and assign the newly loaded texture to them
+	// Look up any LODChunks, objects or avatars using this texture, and assign the newly loaded texture to them.
 	{
 		WorldStateLock lock(this->world_state->mutex);
 
-		// Assign to objects
+		//---------------------------- Assign to LOD chunks ----------------------------
+		{ 
+			auto res = loading_texture_URL_to_chunk_coords_map.find(URL);
+			if(res != loading_texture_URL_to_chunk_coords_map.end())
+			{
+				const Vec3i coords = res->second;
+				auto res2 = world_state->lod_chunks.find(coords);
+				if(res2 != world_state->lod_chunks.end())
+				{
+					LODChunk* chunk = res2->second.ptr();
+					if(path == chunk->combined_array_texture_path)
+					{
+						if(chunk->graphics_ob)
+						{
+							conPrint("handleLODChunkTextureLoaded(): Loading combined_array_texture " + path);
+
+							if(opengl_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
+								conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + path + ")");
+
+							chunk->graphics_ob->materials[0].combined_array_texture = opengl_tex;
+
+							if(chunk->graphics_ob_in_engine)
+								opengl_engine->materialTextureChanged(*chunk->graphics_ob, chunk->graphics_ob->materials[0]);
+						}
+					}
+				}
+				loading_texture_URL_to_chunk_coords_map.erase(res); // Now that this texture has been loaded, remove from map
+			}
+		}
+
+
+		//---------------------------- Assign to objects ----------------------------
 		{
 			auto res = this->loading_texture_URL_to_world_ob_UID_map.find(URL);
 			if(res != this->loading_texture_URL_to_world_ob_UID_map.end())
@@ -4191,7 +4224,7 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 			}
 		}
 
-		// Assign to avatars
+		//---------------------------- Assign to avatars ----------------------------
 		{
 			auto res = this->loading_texture_URL_to_avatar_UID_map.find(URL);
 			if(res != this->loading_texture_URL_to_avatar_UID_map.end())
@@ -6885,14 +6918,14 @@ void GUIClient::updateLODChunkGraphics()
 					load_item_queue.enqueueItem(use_mesh_url, centroid_ws, chunk_w, 
 						load_model_task, 
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
-
-					this->loading_mesh_URL_to_chunk_coords_map[use_mesh_url] = chunk->coords;
 				}
 			}
 
 
 			if(!chunk->combined_array_texture_url.empty())
 			{
+				this->loading_texture_URL_to_chunk_coords_map[chunk->combined_array_texture_url] = chunk->coords;
+
 				ResourceRef resource = this->resource_manager->getOrCreateResourceForURL(chunk->combined_array_texture_url);
 				
 				const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
@@ -6916,33 +6949,6 @@ void GUIClient::updateLODChunkGraphics()
 	catch(glare::Exception& e)
 	{
 		print("Error while updating LODChunk graphics: " + e.what());
-	}
-}
-
-
-// TODO; do we need this at all?  should be auto-assigned in glengine
-void GUIClient::handleLODChunkTextureLoaded(const std::string& tex_path, OpenGLTextureRef opengl_tex)
-{
-	WorldStateLock lock(this->world_state->mutex);
-	
-	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
-	{
-		LODChunk* chunk = it->second.ptr();
-		if(tex_path == chunk->combined_array_texture_path)
-		{
-			if(chunk->graphics_ob)
-			{
-				// conPrint("handleLODChunkTextureLoaded(): Loading combined_array_texture " + tex_path);
-
-				if(opengl_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
-					conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + tex_path + ")");
-
-				chunk->graphics_ob->materials[0].combined_array_texture = opengl_tex;
-
-				if(chunk->graphics_ob_in_engine)
-					opengl_engine->materialTextureChanged(*chunk->graphics_ob, chunk->graphics_ob->materials[0]);
-			}
-		}
 	}
 }
 
