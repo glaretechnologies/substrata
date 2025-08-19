@@ -30,6 +30,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <QtCore/QSettings>
 #include <QtWidgets/QShortcut>
 #include <QtGamepad/QGamepad>
+#include <tracy/Tracy.hpp>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -376,6 +377,8 @@ void GlWidget::paintGL()
 
 	//conPrint("FPS: " + doubleToStringNSigFigs(1 / fps_timer.elapsed(), 1));
 	//fps_timer.reset();
+
+	FrameMark; // Tracy profiler
 }
 
 
