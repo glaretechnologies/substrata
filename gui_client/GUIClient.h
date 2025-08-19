@@ -356,7 +356,6 @@ public:
 	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
 	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
 
-	void handleLODChunkTextureLoaded(const std::string& tex_URL, OpenGLTextureRef opengl_tex);
 	void handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data);
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
@@ -642,6 +641,7 @@ public:
 	std::unordered_map<std::string, std::set<UID>> loading_texture_URL_to_avatar_UID_map;
 
 	std::unordered_map<std::string, Vec3i> loading_mesh_URL_to_chunk_coords_map;
+	std::unordered_map<std::string, Vec3i> loading_texture_URL_to_chunk_coords_map;
 
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 

@@ -494,6 +494,8 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 
 									if(resource->getState() == Resource::State_Present)
 										gui_client->startLoadingTextureForLocalPath(local_path, resource, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params);
+
+									loading_texture_URL_to_tile_indices_map[info.image_URL] = Vec3i(tile_x, tile_y, z);
 								}
 							}
 
@@ -666,6 +668,8 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 
 				// Start loading the texture (if not already loaded)
 				gui_client->startLoadingTextureIfPresent(URL, tile_pos.toVec4fPoint(), tile_w_ws, /*max task dist=*/1.0e10f, /*importance factor=*/1.f, tex_params);
+
+				loading_texture_URL_to_tile_indices_map[URL] = indices;
 			}
 		}
 		else
@@ -678,6 +682,41 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 	last_centre_x = -10000;
 	last_centre_y = -10000;
 	checkUpdateTilesForCurCamPosition();
+}
+
+
+void MiniMap::handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex)
+{
+	auto res = loading_texture_URL_to_tile_indices_map.find(URL);
+	if(res != loading_texture_URL_to_tile_indices_map.end())
+	{
+		const Vec3i indices = res->second;
+
+		const int x0     = last_centre_x  - TILE_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around new camera position
+		const int y0     = last_centre_y  - TILE_GRID_RES/2;
+		const int wrapped_x0     = Maths::intMod(x0,     TILE_GRID_RES); // x0 mod TILE_GRID_RES                        [Using euclidean modulo]
+		const int wrapped_y0     = Maths::intMod(y0,     TILE_GRID_RES); // y0 mod TILE_GRID_RES                        [Using euclidean modulo]
+	
+		const int tile_z = getTileZForMapWidthWS(map_width_ws);
+
+		// Iterate over wrapped coordinates
+		MapTile* const tiles_data = tiles.getData();
+		for(int j=0; j<TILE_GRID_RES; ++j)
+		for(int i=0; i<TILE_GRID_RES; ++i)
+		{
+			MapTile& tile = tiles_data[i + j * TILE_GRID_RES];
+
+			// Get unwrapped coords
+			const int x = x0 + i - wrapped_x0 + ((i >= wrapped_x0) ? 0 : TILE_GRID_RES);
+			const int y = y0 + j - wrapped_y0 + ((j >= wrapped_y0) ? 0 : TILE_GRID_RES);
+			assert(x >= x0 && x < x0 + TILE_GRID_RES);
+			assert(y >= y0 && y < y0 + TILE_GRID_RES);
+
+			const Vec3i tile_indices(x, y, tile_z);
+			if((tile_indices == indices) && tile.ob)
+				tile.ob->material.albedo_texture = opengl_tex;
+		}
+	}
 }
 
 

@@ -68,6 +68,8 @@ public:
 	void mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event) override;
 
 	void handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMessage& msg);
+
+	void handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex);
 private:
 	void setWidgetVisibilityForExpanded();
 	void checkUpdateTilesForCurCamPosition();
@@ -108,4 +110,6 @@ private:
 	SocketBufferOutStream scratch_packet;
 
 	OpenGLTextureRef tile_placeholder_tex;
+
+	std::unordered_map<std::string, Vec3i> loading_texture_URL_to_tile_indices_map;
 };
