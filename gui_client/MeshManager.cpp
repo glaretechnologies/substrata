@@ -271,33 +271,33 @@ std::string MeshManager::getDiagnostics() const
 	//Timer timer;
 
 	// Get total size of used (active) gl meshes.
-	GLMemUsage used_gl_mesh_usage;
+	GLMemUsage active_gl_mesh_usage;
 	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
 		if(model_URL_to_mesh_map.isItemUsed(it->second))
-			used_gl_mesh_usage += it->second.value->gl_meshdata->getTotalMemUsage();
+			active_gl_mesh_usage += it->second.value->gl_meshdata->getTotalMemUsage();
 
 	// Get total size of used (active) physics shapes
-	size_t used_shape_mem = 0;
+	size_t active_shape_mem = 0;
 	for(auto it = physics_shape_map.begin(); it != physics_shape_map.end(); ++it)
 		if(physics_shape_map.isItemUsed(it->second))
-			used_shape_mem += it->second.value->physics_shape.size_B;
+			active_shape_mem += it->second.value->physics_shape.size_B;
 
-	const size_t mesh_usage_unused_CPU = this->mesh_CPU_mem_usage - used_gl_mesh_usage.geom_cpu_usage; // CPU Mem usage for unused textures = total mem usage - used mem usage
-	const size_t mesh_usage_unused_GPU = this->mesh_GPU_mem_usage - used_gl_mesh_usage.geom_gpu_usage; // GPU Mem usage for unused textures = total mem usage - used mem usage
+	const size_t mesh_usage_unused_CPU = this->mesh_CPU_mem_usage - active_gl_mesh_usage.geom_cpu_usage; // CPU Mem usage for unused textures = total mem usage - used mem usage
+	const size_t mesh_usage_unused_GPU = this->mesh_GPU_mem_usage - active_gl_mesh_usage.geom_gpu_usage; // GPU Mem usage for unused textures = total mem usage - used mem usage
 	
-	const size_t shape_usage_unused = this->shape_mem_usage - used_shape_mem; // GPU Mem usage for unused textures = total mem usage - used/active mem usage
+	const size_t shape_usage_unused = this->shape_mem_usage - active_shape_mem; // GPU Mem usage for unused textures = total mem usage - used/active mem usage
 
 	std::string msg;
 	msg += "---Mesh Manager---\n";
-	msg += "gl meshes:              " + toString(model_URL_to_mesh_map.size()) + " / " + toString(model_URL_to_mesh_map.numUsedItems()) + " / " + toString(model_URL_to_mesh_map.numUnusedItems()) + "    (total/active/cached)\n";
+	msg += "gl meshes:              " + toString(model_URL_to_mesh_map.numUsedItems()) + " / " + toString(model_URL_to_mesh_map.numUnusedItems()) + " / " + toString(model_URL_to_mesh_map.size()) + "    (active/cached/total)\n";
 
-	msg += "gl meshes CPU mem:      " + getMBSizeString(this->mesh_CPU_mem_usage) + " / " + getMBSizeString(used_gl_mesh_usage.geom_cpu_usage) + " / " + getMBSizeString(mesh_usage_unused_CPU) + "    (total/active/cached)\n";
+	msg += "gl meshes CPU mem:      " + getMBSizeString(active_gl_mesh_usage.geom_cpu_usage) + " / " + getMBSizeString(mesh_usage_unused_CPU) + " / " + getMBSizeString(this->mesh_CPU_mem_usage) + "    (active/cached/total)\n";
 
-	msg += "gl meshes GPU mem:      " + getMBSizeString(this->mesh_GPU_mem_usage) + " / " + getMBSizeString(used_gl_mesh_usage.geom_gpu_usage) + " / " + getMBSizeString(mesh_usage_unused_GPU) + "    (total/active/cached)\n";
+	msg += "gl meshes GPU mem:      " + getMBSizeString(active_gl_mesh_usage.geom_gpu_usage) +  + " / " + getMBSizeString(mesh_usage_unused_GPU) + " / " + getMBSizeString(this->mesh_GPU_mem_usage) + "    (active/cached/total)\n";
 
-	msg += "physics shapes:         " + toString(physics_shape_map.size()) + " / " + toString(physics_shape_map.numUsedItems()) + " / " + toString(physics_shape_map.numUnusedItems()) + "    (total/active/cached)\n";
+	msg += "physics shapes:         " + toString(physics_shape_map.numUsedItems()) + " / " + toString(physics_shape_map.numUnusedItems()) + " / " + toString(physics_shape_map.size()) + "    (active/cached/total)\n";
 
-	msg += "physics shapes CPU mem: " + getMBSizeString(this->shape_mem_usage) + " / " + getMBSizeString(used_shape_mem) + " / " + getMBSizeString(shape_usage_unused) + "    (total/active/cached)\n";
+	msg += "physics shapes CPU mem: " + getMBSizeString(active_shape_mem) + " / " + getMBSizeString(shape_usage_unused) + " / " + getMBSizeString(this->shape_mem_usage) + "    (active/cached/total)\n";
 	msg += "-----------------\n";
 
 	//conPrint("MeshManager::getDiagnostics took " + timer.elapsedStringNSigFigs(4));
