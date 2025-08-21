@@ -1,21 +1,20 @@
 /*=====================================================================
 LoadModelTask.h
 ---------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #pragma once
 
 
-#include "../shared/WorldObject.h"
-#include "../shared/Resource.h"
 #include "PhysicsObject.h"
+#include "../shared/Resource.h"
 #include <opengl/OpenGLEngine.h>
-#include <Task.h>
-#include <ThreadMessage.h>
-#include <ThreadSafeQueue.h>
+#include <utils/Task.h>
+#include <utils/ThreadMessage.h>
+#include <utils/ThreadSafeQueue.h>
+#include <utils/SharedImmutableArray.h>
 #include <string>
 class OpenGLEngine;
-class MeshManager;
 class ResourceManager;
 
 
@@ -48,8 +47,7 @@ public:
 /*=====================================================================
 LoadModelTask
 -------------
-For the WorldObject ob, 
-Builds the OpenGL mesh and Physics mesh for it.
+Builds the OpenGL mesh and Physics mesh for a particular mesh or voxel group.
 
 Once it's done, sends a ModelLoadedThreadMessage back to the main window
 via result_msg_queue.
