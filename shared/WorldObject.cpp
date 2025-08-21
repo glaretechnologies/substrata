@@ -564,9 +564,14 @@ void WorldObject::writeToStream(RandomAccessOutStream& stream) const
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		// Write compressed voxel data
-		stream.writeUInt32((uint32)compressed_voxels.size());
-		if(compressed_voxels.size() > 0)
-			stream.writeData(compressed_voxels.data(), compressed_voxels.dataSizeBytes());
+		if(compressed_voxels)
+		{
+			stream.writeUInt32((uint32)compressed_voxels->size());
+			if(compressed_voxels->size() > 0)
+				stream.writeData(compressed_voxels->data(), compressed_voxels->dataSizeBytes());
+		}
+		else
+			stream.writeUInt32(0);
 	}
 
 	// New in v17:
@@ -741,9 +746,12 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 				throw glare::Exception("Invalid voxel_data_size: " + toString(voxel_data_size));
 
 			// Read voxel data
-			ob.getCompressedVoxels().resize(voxel_data_size);
+			Reference<glare::SharedImmutableArray<uint8> > compressed_voxels = new glare::SharedImmutableArray<uint8>();
+			compressed_voxels->resizeNoCopy(voxel_data_size);
 			if(voxel_data_size > 0)
-				stream.readData(ob.getCompressedVoxels().data(), voxel_data_size);
+				stream.readData(compressed_voxels->data(), voxel_data_size);
+
+			ob.setCompressedVoxels(compressed_voxels);
 		}
 	}
 
@@ -811,9 +819,14 @@ void WorldObject::writeToNetworkStream(RandomAccessOutStream& stream) const // W
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		// Write compressed voxel data
-		stream.writeUInt32((uint32)compressed_voxels.size());
-		if(compressed_voxels.size() > 0)
-			stream.writeData(compressed_voxels.data(), compressed_voxels.dataSizeBytes());
+		if(compressed_voxels)
+		{
+			stream.writeUInt32((uint32)compressed_voxels->size());
+			if(compressed_voxels->size() > 0)
+				stream.writeData(compressed_voxels->data(), compressed_voxels->dataSizeBytes());
+		}
+		else
+			stream.writeUInt32(0);
 	}
 
 	// New in v17:
@@ -935,7 +948,8 @@ std::string WorldObject::serialiseToXML(int tab_depth) const
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		std::string encoded;
-		Base64::encode(compressed_voxels.data(), compressed_voxels.size(), encoded);
+		if(compressed_voxels)
+			Base64::encode(compressed_voxels->data(), compressed_voxels->size(), encoded);
 
 		XMLWriteUtils::writeStringElemToXML(s, "compressed_voxels_base64", encoded, tab_depth + 1);
 	}
@@ -1009,8 +1023,11 @@ Reference<WorldObject> WorldObject::loadFromXMLElem(const std::string& object_fi
 
 		if(decoded_data.size() > 0)
 		{
-			ob->compressed_voxels.resize(decoded_data.size());
-			std::memcpy(ob->compressed_voxels.data(), decoded_data.data(), decoded_data.size());
+			Reference<glare::SharedImmutableArray<uint8> > compressed_voxels = new glare::SharedImmutableArray<uint8>();
+			compressed_voxels->resizeNoCopy(decoded_data.size());
+			std::memcpy(compressed_voxels->data(), decoded_data.data(), decoded_data.size());
+
+			ob->setCompressedVoxels(compressed_voxels);
 		}
 	}
 
@@ -1121,9 +1138,12 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 			throw glare::Exception("Invalid voxel_data_size (too large): " + toString(voxel_data_size));
 
 		// Read voxel data
-		ob.getCompressedVoxels().resize(voxel_data_size);
+		Reference<glare::SharedImmutableArray<uint8> > compressed_voxels = new glare::SharedImmutableArray<uint8>();
+
+		compressed_voxels->resizeNoCopy(voxel_data_size);
 		if(voxel_data_size > 0)
-			stream.readData(ob.getCompressedVoxels().data(), voxel_data_size);
+			stream.readData(compressed_voxels->data(), voxel_data_size);
+		ob.setCompressedVoxels(compressed_voxels);
 	}
 
 	// New in v17:
@@ -1211,7 +1231,8 @@ const Matrix4f worldToObMatrix(const WorldObject& ob)
 size_t WorldObject::getTotalMemUsage() const
 {
 	return sizeof(WorldObject) + 
-		compressed_voxels.capacitySizeBytes() + (voxel_group.voxels.capacitySizeBytes());
+		(compressed_voxels ? compressed_voxels->dataSizeBytes() : 0) + 
+		(voxel_group.voxels.capacitySizeBytes());
 }
 
 
@@ -1252,7 +1273,7 @@ struct GetMatIndex
 };
 
 
-void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 16>& compressed_data_out)
+Reference<glare::SharedImmutableArray<uint8> > WorldObject::compressVoxelGroup(const VoxelGroup& group)
 {
 	size_t max_bucket = 0;
 	for(size_t i=0; i<group.voxels.size(); ++i)
@@ -1305,13 +1326,15 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 
 	const size_t compressed_bound = ZSTD_compressBound(data.size() * sizeof(int));
 
-	compressed_data_out.resizeNoCopy(compressed_bound);
+	js::Vector<uint8> compressed_data(compressed_bound);
 	
-	const size_t compressed_size = ZSTD_compress(compressed_data_out.data(), compressed_data_out.size(), data.data(), data.dataSizeBytes(),
+	const size_t compressed_size = ZSTD_compress(compressed_data.data(), compressed_data.size(), data.data(), data.dataSizeBytes(),
 		ZSTD_CLEVEL_DEFAULT // compression level
 	);
 
-	compressed_data_out.resize(compressed_size);
+	compressed_data.resize(compressed_size);
+
+	Reference<glare::SharedImmutableArray<uint8> > compressed_immutable_data = new glare::SharedImmutableArray<uint8>(compressed_data.begin(), compressed_data.end());
 
 	// conPrint("uncompressed size:      " + toString(group.voxels.size() * sizeof(Voxel)) + " B");
 	// conPrint("compressed_size:        " + toString(compressed_size) + " B");
@@ -1321,9 +1344,11 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 	//TEMP: decompress and check we get the same value
 #ifndef NDEBUG
 	VoxelGroup group2;
-	decompressVoxelGroup(compressed_data_out.data(), compressed_data_out.size(), NULL, group2);
+	decompressVoxelGroup(compressed_immutable_data->data(), compressed_immutable_data->size(), NULL, group2);
 	assert(group2.voxels == sorted_voxels);
 #endif
+
+	return compressed_immutable_data;
 }
 
 
@@ -1400,17 +1425,17 @@ void WorldObject::compressVoxels()
 {
 	if(!this->voxel_group.voxels.empty())
 	{
-		compressVoxelGroup(this->voxel_group, this->compressed_voxels);
+		this->compressed_voxels = compressVoxelGroup(this->voxel_group);
 	}
 	else
-		this->compressed_voxels.clear();
+		this->compressed_voxels = NULL;
 }
 
 
 void WorldObject::decompressVoxels()
 { 
-	if(!this->compressed_voxels.empty()) // If there are compressed voxels:
-		decompressVoxelGroup(this->compressed_voxels.data(), this->compressed_voxels.size(), /*mem allocator=*/NULL, this->voxel_group); // Decompress to voxel_group.
+	if(this->compressed_voxels && !this->compressed_voxels->empty()) // If there are compressed voxels:
+		decompressVoxelGroup(this->compressed_voxels->data(), this->compressed_voxels->size(), /*mem allocator=*/NULL, this->voxel_group); // Decompress to voxel_group.
 	else
 		this->voxel_group.voxels.clear(); // Else there are no compressed voxels, so effectively decompress to zero voxels.
 
@@ -1731,9 +1756,9 @@ void WorldObject::test()
 			ob.angle = 0;
 			ob.materials.push_back(new WorldMaterial());
 			ob.object_type = WorldObject::ObjectType_VoxelGroup;
-			ob.compressed_voxels.resize(100);
+			ob.compressed_voxels->resizeNoCopy(100);
 			for(size_t i=0; i<100; ++i)
-				ob.compressed_voxels[i] = (uint8)i;
+				(*ob.compressed_voxels)[i] = (uint8)i;
 
 			BufferOutStream buf;
 			ob.writeToStream(buf);

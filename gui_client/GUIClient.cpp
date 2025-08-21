@@ -168,6 +168,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	biome_manager(NULL),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	frame_num(0),
+	next_lod_changes_begin_i(0),
 	axis_and_rot_obs_enabled(false),
 	last_vehicle_renewal_msg_time(-1),
 	stack_allocator(/*size (B)=*/22 * 1024 * 1024), // Used for the Jolt physics temp allocator also.
@@ -582,6 +583,24 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	// Make unit-cube raymesh (used for placeholder model)
 	unit_cube_shape = image_cube_shape;
 
+
+	// Create single-voxel mesh for fast special-case adding of single voxel models, which are used a lot.
+	{
+		const js::Vector<bool, 16> mat_transparent(1, false);
+		const bool need_lightmap_uvs = true;
+		VoxelGroup voxel_group;
+		voxel_group.voxels.push_back(Voxel(Vec3i(0,0,0), /*mat index=*/0));
+
+		PhysicsShape single_voxel_shape;
+		Reference<OpenGLMeshRenderData> single_voxel_mesh_opengl_data = ModelLoading::makeModelForVoxelGroup(voxel_group, /*subsample_factor=*/1, /*ob_to_world_matrix=*/Matrix4f::identity(), /*vert_buf_allocator=*/opengl_engine->vert_buf_allocator.ptr(), 
+			/*do_opengl_stuff=*/true, need_lightmap_uvs, mat_transparent, /*build_dynamic_physics_ob=*/false, worker_allocator.ptr(), /*physics shape out=*/single_voxel_shape);
+
+		single_voxel_meshdata = new MeshData(/*url=*/"single voxel meshdata", single_voxel_mesh_opengl_data, &mesh_manager);
+
+		single_voxel_shapedata = new PhysicsShapeData(/*url=*/"single voxel shapedata", /*dynamic=*/false, single_voxel_shape, &mesh_manager);
+	}
+
+
 	// Make object-placement beam model
 	{
 		ob_placement_beam = opengl_engine->allocateObject();
@@ -804,8 +823,6 @@ void GUIClient::shutdown()
 
 	texture_loaded_messages_to_process.clear();
 
-	cur_loading_voxel_ob_uid = UID();
-
 
 	// Clear web_view_obs - will close QWebEngineViews
 	for(auto entry : web_view_obs)
@@ -875,6 +892,8 @@ void GUIClient::shutdown()
 	image_cube_opengl_mesh = NULL;
 	spotlight_opengl_mesh = NULL;
 	cur_loading_mesh_data = NULL;
+	single_voxel_meshdata = NULL;
+	single_voxel_shapedata = NULL;
 
 	ob_placement_beam = NULL;
 	ob_placement_marker = NULL;
@@ -2297,23 +2316,78 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 			{
 				ob->loading_or_loaded_model_lod_level = ob_model_lod_level;
 
-				// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
-				Reference<LoadModelTask> load_model_task = new LoadModelTask();
+				if(!ob->getCompressedVoxels() || ob->getCompressedVoxels()->size() == 0)
+					throw glare::Exception("zero voxels");
 
-				load_model_task->model_lod_level = ob_model_lod_level;
-				load_model_task->opengl_engine = opengl_engine;
-				load_model_task->result_msg_queue = &this->msg_queue;
-				load_model_task->resource_manager = resource_manager;
-				load_model_task->voxel_ob = ob;
-				load_model_task->build_dynamic_physics_ob = ob->isDynamic();
-				load_model_task->worker_allocator = worker_allocator;
+				//Timer timer;
+				const uint64 hash = XXH64(ob->getCompressedVoxels()->data(), ob->getCompressedVoxels()->dataSizeBytes(), 1);
+				//if(timer.elapsed() > 0.0001)
+				//	conPrint("voxel hash for " + toString(ob->getCompressedVoxels()->dataSizeBytes()) + " B took " + timer.elapsedStringMSWIthNSigFigs(4));
 
-				if(ob->getCompressedVoxels().size() == 0)
-					throw glare::Exception("zero voxels");	
+				bool added_opengl_ob = false;
+				if(hash == 1933977005784225319ull)
+				{
+					//conPrint("Using single voxel meshdata");
+				
+					// If this is a single voxel at (0,0,0) with mat index 0:
+					loadPresentObjectGraphicsAndPhysicsModels(ob, single_voxel_meshdata, single_voxel_shapedata, ob_lod_level, ob_model_lod_level, /*voxel_subsample_factor=*/1, world_state_lock);
+					added_opengl_ob = true;
+				}
+				else
+				{
+					const std::string pseudo_lod_model_url = "__voxel__" + toString(hash) + "_" + toString(ob_model_lod_level);
 
-				load_item_queue.enqueueItem(/*key=*/"voxelob_" + ob->uid.toString(), *ob, load_model_task, max_dist_for_ob_model_lod_level);
+					Reference<MeshData>         mesh_data          = mesh_manager.getMeshData(pseudo_lod_model_url);
+					Reference<PhysicsShapeData> physics_shape_data = mesh_manager.getPhysicsShapeData(MeshManagerPhysicsShapeKey(pseudo_lod_model_url, ob->isDynamic()));
+				
+					if(mesh_data && physics_shape_data)
+					{
+						//conPrint("Meshdata for voxel " + pseudo_lod_model_url + " already in mesh manager");
+						const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
+						assert(is_meshdata_loaded_into_opengl);
+						if(is_meshdata_loaded_into_opengl)
+						{
+							loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level, mesh_data->voxel_subsample_factor, world_state_lock);
+							added_opengl_ob = true;
+						}
+					}
+					else // else if mesh data is not in mesh manager:
+					{
+						const bool just_added = this->checkAddModelToProcessingSet(pseudo_lod_model_url, /*dynamic_physics_shape=*/ob->isDynamic()); // Avoid making multiple LoadModelTasks for this mesh.
+						if(just_added)
+						{
+							//conPrint("Making LoadModelTask for voxel " + pseudo_lod_model_url);
 
-				load_placeholder = ob->getCompressedVoxels().size() != 0;
+							js::Vector<bool, 16> mat_transparent(ob->materials.size());
+							for(size_t i=0; i<ob->materials.size(); ++i)
+								mat_transparent[i] = ob->materials[i]->opacity.val < 1.f;
+
+							// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
+							Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+							load_model_task->lod_model_url = pseudo_lod_model_url;
+							load_model_task->model_lod_level = ob_model_lod_level;
+							load_model_task->opengl_engine = opengl_engine;
+							load_model_task->result_msg_queue = &this->msg_queue;
+							load_model_task->resource_manager = resource_manager;
+							load_model_task->compressed_voxels = ob->getCompressedVoxels();
+							load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
+							load_model_task->voxel_hash = hash;
+							load_model_task->mat_transparent = mat_transparent;
+							load_model_task->need_lightmap_uvs = !ob->lightmap_url.empty();
+							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
+							load_model_task->worker_allocator = worker_allocator;
+
+							load_item_queue.enqueueItem(/*key=*/pseudo_lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
+						}
+
+						load_placeholder = !added_opengl_ob;
+					}
+
+					// If the mesh wasn't loaded onto the GPU yet, add this object to the wait list, for when the mesh is loaded.
+					if(!added_opengl_ob)
+						this->loading_model_URL_to_world_ob_UID_map[ModelProcessingKey(pseudo_lod_model_url, ob->isDynamic())].insert(ob->uid);
+				}
 			}
 			else
 			{
@@ -2378,7 +2452,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					assert(is_meshdata_loaded_into_opengl);
 					if(is_meshdata_loaded_into_opengl)
 					{
-						loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level, world_state_lock);
+						loadPresentObjectGraphicsAndPhysicsModels(ob, mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level, /*voxel_subsample_factor=*/1, world_state_lock);
 						added_opengl_ob = true;
 					}
 				}
@@ -2523,7 +2597,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 
 // Create OpenGL and Physics objects for the WorldObject, given that the OpenGL and physics meshes are present in memory.
-void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, WorldStateLock& world_state_lock)
+void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, 
+	int voxel_subsample_factor, WorldStateLock& world_state_lock)
 {
 	removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
 
@@ -2536,8 +2611,16 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 	}
 
 	// Create gl and physics object now
-	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+	Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+
+	if(voxel_subsample_factor != 1)
+		ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)voxel_subsample_factor);
+
 	ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, ob_to_world_matrix);
+
+	if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+		for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+			ob->opengl_engine_ob->materials[z].gen_planar_uvs = true;
 						
 	mesh_data->meshDataBecameUsed();
 	ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
@@ -2550,11 +2633,13 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 
 	assignLoadedOpenGLTexturesToMats(ob);
-	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-	{
-		ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
-		ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
-	}
+
+	if(use_materialise_effect)
+		for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+		{
+			ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
+			ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
+		}
 
 
 	ob->loading_or_loaded_model_lod_level = ob_model_lod_level; // NOTE: probably not needed as should have been set when loading started
@@ -3790,12 +3875,14 @@ void GUIClient::checkForLODChanges()
 
 		// Process just some of the objects each frame, to reduce CPU time and ease pressure on the cache.
 		const size_t num_slices = 4;
-		const size_t slice = frame_num % num_slices;
-		const size_t begin_i = myMin(objects_size, Maths::roundedUpDivide(objects_size, num_slices) * slice      );
-		const size_t end_i   = myMin(objects_size, Maths::roundedUpDivide(objects_size, num_slices) * (slice + 1));
+		const size_t max_num = Maths::roundedUpDivide(objects_size, num_slices);
+		const size_t begin_i = myMin(objects_size, this->next_lod_changes_begin_i);
+		const size_t end_i   = myMin(objects_size, begin_i + max_num);
 
 		//conPrint("checking slice from " + toString(begin_i) + " to " + toString(end_i));
-		for(size_t i=begin_i; i<end_i; ++i)
+		size_t num_object_changes = 0;
+		size_t i;
+		for(i = begin_i; i<end_i; ++i)
 		{
 			if(i + 16 < end_i)
 				_mm_prefetch((const char*)(&objects_data[i + 16].value->centroid_ws), _MM_HINT_T0);
@@ -3830,6 +3917,7 @@ void GUIClient::checkForLODChanges()
 				{
 					unloadObject(ob);
 					ob->in_proximity = false;
+					num_object_changes++;
 				}
 			}
 			else // Else if object is within load distance:
@@ -3840,6 +3928,7 @@ void GUIClient::checkForLODChanges()
 				{
 					loadModelForObject(ob, lock);
 					ob->current_lod_level = lod_level;
+					num_object_changes++;
 					// conPrint("Changing LOD level for object " + ob->uid.toString() + " to " + toString(lod_level));
 				}
 
@@ -3848,11 +3937,22 @@ void GUIClient::checkForLODChanges()
 					ob->in_proximity = true;
 					loadModelForObject(ob, lock);
 					ob->current_lod_level = lod_level;
+					num_object_changes++;
 				}
 			}
+
+			if(num_object_changes >= 200)
+				break;
 		}
+
+		this->next_lod_changes_begin_i = i;
+		if(this->next_lod_changes_begin_i >= objects_size)
+			this->next_lod_changes_begin_i = 0;
+
+		//conPrint("checkForLODChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + ", " + toString(num_object_changes) + " changes, " + toString(world_state->objects.size()) + " obs, begin: " + toString(begin_i) + 
+		//	", end i: " + toString(i));
+
 	} // End lock scope
-	//conPrint("checkForLODChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + " (" + toString(world_state->objects.size()) + " obs)");
 }
 
 
@@ -3932,231 +4032,112 @@ struct CloserToCamComparator
 
 
 void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
-	UID voxel_ob_uid, int voxel_subsample_factor)
+	int voxel_subsample_factor, uint64 voxel_hash)
 {
 	// conPrint("handleUploadedMeshData(): lod_model_url: " + lod_model_url);
 
-	if(voxel_ob_uid.valid())
+	// Now that this model is loaded, remove from models_processing set.
+	// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
+	ModelProcessingKey key(lod_model_url, dynamic_physics_shape);
+	models_processing.erase(key);
+
+
+	// Add meshes to mesh manager
+	Reference<MeshData> the_mesh_data					= mesh_manager.insertMesh(lod_model_url, mesh_data);
+	Reference<PhysicsShapeData> physics_shape_data		= mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(lod_model_url, /*is dynamic=*/dynamic_physics_shape), physics_shape);
+
+	the_mesh_data->voxel_subsample_factor = voxel_subsample_factor;
+
+
+	// Data is uploaded - assign the loaded model for any objects using waiting for this model:
+	WorldStateLock lock(this->world_state->mutex);
+
+	const ModelProcessingKey model_loading_key(lod_model_url, dynamic_physics_shape);
+	auto res = this->loading_model_URL_to_world_ob_UID_map.find(model_loading_key);
+	if(res != this->loading_model_URL_to_world_ob_UID_map.end())
 	{
-		WorldStateLock lock(this->world_state->mutex);
-
-		auto res = world_state->objects.find(voxel_ob_uid);
-		if(res != world_state->objects.end())
+		std::set<UID>& waiting_obs = res->second;
+		for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
 		{
-			WorldObjectRef voxel_ob = res.getValue();
+			const UID waiting_uid = *it;
 
-			if(voxel_ob->in_proximity)
+			auto res2 = this->world_state->objects.find(waiting_uid);
+			if(res2 != this->world_state->objects.end())
 			{
-				const int ob_lod_level = voxel_ob->getLODLevel(cam_controller.getPosition());
-				const int ob_model_lod_level = myClamp(ob_lod_level, 0, voxel_ob->max_model_lod_level);
+				WorldObject* ob = res2.getValue().ptr();
 
-				// Check the object wants this particular LOD level model right now:
-				if(ob_model_lod_level == loaded_model_lod_level)
+				//ob->aabb_os = mesh_data->aabb_os;
+
+				if(ob->in_proximity)
 				{
-					removeAndDeleteGLObjectsForOb(*voxel_ob); // Remove any existing OpenGL model
-
-					// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
-					if(voxel_ob->physics_object.nonNull() && (voxel_ob->using_placeholder_model || !(voxel_ob->physics_object->dynamic || voxel_ob->physics_object->kinematic)))
-					{
-						destroyVehiclePhysicsControllingObject(voxel_ob.ptr()); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
-						physics_world->removeObject(voxel_ob->physics_object);
-						voxel_ob->physics_object = NULL;
-					}
-
-					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
-					const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)voxel_subsample_factor/*message->subsample_factor*/);
-
-					if(voxel_ob->physics_object.isNull())
-					{
-						PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
-
-						PhysicsShape use_shape = physics_shape;
-						if(voxel_ob->centre_of_mass_offset_os != Vec3f(0.f))
-							use_shape = PhysicsWorld::createCOMOffsetShapeForShape(physics_shape, voxel_ob->centre_of_mass_offset_os.toVec4fVector());
-
-						physics_ob->shape = use_shape;
-						physics_ob->is_sensor = voxel_ob->isSensor();
-						physics_ob->userdata = voxel_ob.ptr();
-						physics_ob->userdata_type = 0;
-						physics_ob->ob_uid = voxel_ob->uid;
-						physics_ob->pos = voxel_ob->pos.toVec4fPoint();
-						physics_ob->rot = Quatf::fromAxisAndAngle(normalise(voxel_ob->axis), voxel_ob->angle);
-						physics_ob->scale = useScaleForWorldOb(voxel_ob->scale);
-						physics_ob->kinematic = !voxel_ob->script.empty();
-						physics_ob->dynamic = voxel_ob->isDynamic();
-
-						physics_ob->mass = voxel_ob->mass;
-						physics_ob->friction = voxel_ob->friction;
-						physics_ob->restitution = voxel_ob->restitution;
-
-						voxel_ob->physics_object = physics_ob;
-
-						physics_world->addObject(physics_ob);
-
-						if(voxel_ob->was_just_created && voxel_ob->isDynamic())
-							physics_world->activateObject(voxel_ob->physics_object);
-					}
-
-					const float current_time = (float)Clock::getTimeSinceInit();
-					const bool use_materialise_effect = voxel_ob->use_materialise_effect_on_load && (current_time - voxel_ob->materialise_effect_start_time < 2.0f);
-
-					GLObjectRef opengl_ob = opengl_engine->allocateObject();
-					opengl_ob->mesh_data = mesh_data;
-					opengl_ob->materials.resize(voxel_ob->materials.size());
-					for(uint32 i=0; i<voxel_ob->materials.size(); ++i)
-					{
-						ModelLoading::setGLMaterialFromWorldMaterial(*voxel_ob->materials[i], ob_lod_level, voxel_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, opengl_ob->materials[i]);
-						opengl_ob->materials[i].gen_planar_uvs = true;
-
-						opengl_ob->materials[i].materialise_effect = use_materialise_effect;
-						opengl_ob->materials[i].materialise_start_time = voxel_ob->materialise_effect_start_time;
-					}
-					opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
-
-					voxel_ob->opengl_engine_ob = opengl_ob;
-							
-
-					assert(opengl_ob->mesh_data->vbo_handle.valid());
-					//if(!opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-					//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(opengl_engine->vert_buf_allocator, *opengl_ob->mesh_data); // Load mesh data into OpenGL
-
-					//loaded_size_B = opengl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
-
-							
-
-					// Add this object to the GL engine and physics engine.
-					if(!opengl_engine->isObjectAdded(opengl_ob))
-					{
-						assignLoadedOpenGLTexturesToMats(voxel_ob.ptr());
-
-						if(hasPrefix(voxel_ob->content, "biome: park"))
-						{
-							voxel_ob->opengl_engine_ob->draw_to_mask_map = true;
-
-							if(this->terrain_system.nonNull())
-								this->terrain_system->invalidateVegetationMap(voxel_ob->getAABBWS());
-						}
-
-						opengl_engine->addObject(opengl_ob);
-
-						// ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
-
-						//WorldStateLock lock(this->world_state->mutex);
-
-						loadScriptForObject(voxel_ob.ptr(), lock); // Load any script for the object.
-					}
-
-					voxel_ob->loading_or_loaded_model_lod_level = loaded_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
-
-					// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-					if(this->selected_ob == voxel_ob)
-						opengl_engine->selectObject(voxel_ob->opengl_engine_ob);
-				}
-			}
-		}
-	}
-	else // Else if not loading a voxel ob:
-	{
-		// Now that this model is loaded, remove from models_processing set.
-		// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
-		ModelProcessingKey key(lod_model_url, dynamic_physics_shape);
-		models_processing.erase(key);
-
-
-		// Add meshes to mesh manager
-		Reference<MeshData> the_mesh_data					= mesh_manager.insertMesh(lod_model_url, mesh_data);
-		Reference<PhysicsShapeData> physics_shape_data		= mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(lod_model_url, /*is dynamic=*/dynamic_physics_shape), physics_shape);
-
-		// Data is uploaded - assign the loaded model for any objects using waiting for this model:
-		WorldStateLock lock(this->world_state->mutex);
-
-		const ModelProcessingKey model_loading_key(lod_model_url, dynamic_physics_shape);
-		auto res = this->loading_model_URL_to_world_ob_UID_map.find(model_loading_key);
-		if(res != this->loading_model_URL_to_world_ob_UID_map.end())
-		{
-			std::set<UID>& waiting_obs = res->second;
-			for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
-			{
-				const UID waiting_uid = *it;
-
-				auto res2 = this->world_state->objects.find(waiting_uid);
-				if(res2 != this->world_state->objects.end())
-				{
-					WorldObject* ob = res2.getValue().ptr();
-
-					//ob->aabb_os = mesh_data->aabb_os;
-
-					if(ob->in_proximity)
-					{
-						const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-						const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
+					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+					const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 								
-						// Check the object wants this particular LOD level model right now:
-						//const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
-						if(/*(current_desired_model_LOD_URL == lod_model_url)*/(ob_model_lod_level == loaded_model_lod_level) && (ob->isDynamic() == dynamic_physics_shape))
-						{
-							try
-							{
-								if(!isFinite(ob->angle) || !ob->axis.isFinite())
-									throw glare::Exception("Invalid angle or axis");
-
-								loadPresentObjectGraphicsAndPhysicsModels(ob, the_mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level, lock);
-							}
-							catch(glare::Exception& e)
-							{
-								print("Error while loading model: " + e.what());
-							}
-						}
-					}
-				}
-			}
-
-			loading_model_URL_to_world_ob_UID_map.erase(model_loading_key); // Now that this model has been downloaded, remove from map
-		}
-
-		// Assign the loaded model to any avatars waiting for this model:
-		auto waiting_av_res = this->loading_model_URL_to_avatar_UID_map.find(lod_model_url);
-		if(waiting_av_res != this->loading_model_URL_to_avatar_UID_map.end())
-		{
-			const std::set<UID>& waiting_avatars = waiting_av_res->second;
-			for(auto it = waiting_avatars.begin(); it != waiting_avatars.end(); ++it)
-			{
-				const UID waiting_uid = *it;
-
-				auto res2 = this->world_state->avatars.find(waiting_uid);
-				if(res2 != this->world_state->avatars.end())
-				{
-					Avatar* av = res2->second.ptr();
-						
-					const bool our_avatar = av->uid == this->client_avatar_uid;
-					if(cam_controller.thirdPersonEnabled() || !our_avatar) // Don't load graphics for our avatar if first person perspective
+					// Check the object wants this particular LOD level model right now:
+					//const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
+					if(/*(current_desired_model_LOD_URL == lod_model_url)*/(ob_model_lod_level == loaded_model_lod_level) && (ob->isDynamic() == dynamic_physics_shape))
 					{
-						const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
-
-						// Check the avatar wants this particular LOD level model right now:
-						// If we are using the default avatar, make sure this check doesn't fail due to getLODModelURLForLevel() appending "_optX" suffix.
-						Avatar::GetLODModelURLOptions options(this->server_has_optimised_meshes, this->server_opt_mesh_version);
-						const std::string current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level, options);
-						if((current_desired_model_LOD_URL == lod_model_url) || (av->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL))
+						try
 						{
-							try
-							{
-								loadPresentAvatarModel(av, av_lod_level, the_mesh_data);
-							}
-							catch(glare::Exception& e)
-							{
-								print("Error while loading avatar model: " + e.what());
-							}
+							if(!isFinite(ob->angle) || !ob->axis.isFinite())
+								throw glare::Exception("Invalid angle or axis");
+
+							loadPresentObjectGraphicsAndPhysicsModels(ob, the_mesh_data, physics_shape_data, ob_lod_level, ob_model_lod_level, voxel_subsample_factor, lock);
+						}
+						catch(glare::Exception& e)
+						{
+							print("Error while loading model: " + e.what());
 						}
 					}
 				}
 			}
 		}
 
-		// Assign to any LOD chunks using this model
-		if(hasPrefix(lod_model_url, "chunk_")) // Bit of a hack to distinguish chunk mesh URLs.  Could do this by passing around a 'bool loading_chunk' instead.
-			handleLODChunkMeshLoaded(lod_model_url, the_mesh_data);
+		loading_model_URL_to_world_ob_UID_map.erase(model_loading_key); // Now that this model has been downloaded, remove from map
 	}
+
+	// Assign the loaded model to any avatars waiting for this model:
+	auto waiting_av_res = this->loading_model_URL_to_avatar_UID_map.find(lod_model_url);
+	if(waiting_av_res != this->loading_model_URL_to_avatar_UID_map.end())
+	{
+		const std::set<UID>& waiting_avatars = waiting_av_res->second;
+		for(auto it = waiting_avatars.begin(); it != waiting_avatars.end(); ++it)
+		{
+			const UID waiting_uid = *it;
+
+			auto res2 = this->world_state->avatars.find(waiting_uid);
+			if(res2 != this->world_state->avatars.end())
+			{
+				Avatar* av = res2->second.ptr();
+						
+				const bool our_avatar = av->uid == this->client_avatar_uid;
+				if(cam_controller.thirdPersonEnabled() || !our_avatar) // Don't load graphics for our avatar if first person perspective
+				{
+					const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
+
+					// Check the avatar wants this particular LOD level model right now:
+					// If we are using the default avatar, make sure this check doesn't fail due to getLODModelURLForLevel() appending "_optX" suffix.
+					Avatar::GetLODModelURLOptions options(this->server_has_optimised_meshes, this->server_opt_mesh_version);
+					const std::string current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level, options);
+					if((current_desired_model_LOD_URL == lod_model_url) || (av->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL))
+					{
+						try
+						{
+							loadPresentAvatarModel(av, av_lod_level, the_mesh_data);
+						}
+						catch(glare::Exception& e)
+						{
+							print("Error while loading avatar model: " + e.what());
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Assign to any LOD chunks using this model
+	if(hasPrefix(lod_model_url, "chunk_")) // Bit of a hack to distinguish chunk mesh URLs.  Could do this by passing around a 'bool loading_chunk' instead.
+		handleLODChunkMeshLoaded(lod_model_url, the_mesh_data, lock);
 }
 
 
@@ -4187,7 +4168,7 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 					{
 						if(chunk->graphics_ob)
 						{
-							conPrint("handleLODChunkTextureLoaded(): Loading combined_array_texture " + path);
+							// conPrint("handleLODChunkTextureLoaded(): Loading combined_array_texture " + path);
 
 							if(opengl_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
 								conPrint("Error, loaded chunk combined texture is not a GL_TEXTURE_2D_ARRAY (path: " + path + ")");
@@ -4386,13 +4367,12 @@ void GUIClient::processLoading()
 
 				if(mesh_data_loading_progress.done())
 				{
-					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape, cur_loading_voxel_ob_uid, 
-						cur_loading_voxel_subsample_factor);
+					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape, 
+						cur_loading_voxel_subsample_factor, cur_loading_voxel_hash);
 
 					cur_loading_mesh_data = NULL;
 					cur_loading_lod_model_url.clear();
 					cur_loading_model_lod_level = -1;
-					cur_loading_voxel_ob_uid = UID::invalidUID();
 					cur_loading_physics_shape = PhysicsShape();
 				}
 			}
@@ -4445,55 +4425,23 @@ void GUIClient::processLoading()
 
 					try
 					{
-						if(message->voxel_ob_uid.valid()) // If we loaded a voxel object:
+						// Start loading mesh data into OpenGL.
+						if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
 						{
-							Lock lock(this->world_state->mutex);
+							this->cur_loading_mesh_data              = message->gl_meshdata;
+							this->cur_loading_voxel_hash             = message->voxel_hash;
+							this->cur_loading_voxel_subsample_factor = message->subsample_factor;
+							this->cur_loading_physics_shape          = message->physics_shape;
+							this->cur_loading_lod_model_url          = message->lod_model_url;
+							this->cur_loading_model_lod_level        = message->model_lod_level;
+							this->cur_loading_dynamic_physics_shape  = message->built_dynamic_physics_ob;
+							opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
-							// Handle loading a voxel group
-							auto res = world_state->objects.find(message->voxel_ob_uid);
-							if(res != world_state->objects.end())
-							{
-								WorldObjectRef voxel_ob = res.getValue().ptr();
-
-								if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
-								{
-									if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
-									{
-										this->cur_loading_mesh_data = message->gl_meshdata;
-										this->cur_loading_voxel_ob_uid = message->voxel_ob_uid;
-										this->cur_loading_voxel_subsample_factor = message->subsample_factor;
-										this->cur_loading_physics_shape = message->physics_shape;
-										this->cur_loading_model_lod_level = message->model_lod_level;
-										opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
-
-										//logMessage("Initialised loading of voxel mesh: " + mesh_data_loading_progress.summaryString());
-									}
-									else
-									{
-										//logMessage("Voxel mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
-									}
-
-								} // End proximity_loader.isObjectInLoadProximity()
-							}
+							//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
 						}
-						else // Else didn't load voxels, loaded a model:
+						else
 						{
-							// Start loading mesh data into OpenGL.
-							if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
-							{
-								this->cur_loading_mesh_data = message->gl_meshdata;
-								this->cur_loading_physics_shape = message->physics_shape;
-								this->cur_loading_lod_model_url = message->lod_model_url;
-								this->cur_loading_model_lod_level = message->model_lod_level;;
-								this->cur_loading_dynamic_physics_shape = message->built_dynamic_physics_ob;
-								opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
-
-								//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
-							}
-							else
-							{
-								//logMessage("Mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
-							}
+							//logMessage("Mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
 						}
 					}
 					catch(glare::Exception& e)
@@ -4577,8 +4525,8 @@ void GUIClient::processLoading()
 		loading_info.ob_model_lod_level = message->model_lod_level;
 		loading_info.dynamic_physics_shape = message->built_dynamic_physics_ob;
 		loading_info.physics_shape = message->physics_shape;
-		loading_info.voxel_ob_uid = message->voxel_ob_uid;
 		loading_info.voxel_subsample_factor = message->subsample_factor;
+		loading_info.voxel_hash = message->voxel_hash;
 
 		assert(async_uploading_geom.count(message->gl_meshdata) == 0);
 		async_uploading_geom[message->gl_meshdata] = loading_info;
@@ -4638,8 +4586,8 @@ void GUIClient::processLoading()
 				try
 				{
 					// Process the finished upload (assign mesh to objects etc.)
-					handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, res->first, loading_info.physics_shape, loading_info.voxel_ob_uid, 
-						loading_info.voxel_subsample_factor);
+					handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, res->first, loading_info.physics_shape,
+						loading_info.voxel_subsample_factor, loading_info.voxel_hash);
 				}
 				catch(glare::Exception& e)
 				{
@@ -6953,10 +6901,8 @@ void GUIClient::updateLODChunkGraphics()
 }
 
 
-void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data)
+void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data, WorldStateLock& lock)
 {
-	WorldStateLock lock(this->world_state->mutex);
-
 	auto loading_res = loading_mesh_URL_to_chunk_coords_map.find(mesh_URL);
 	if(loading_res != loading_mesh_URL_to_chunk_coords_map.end())
 	{
@@ -9638,7 +9584,10 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 				}
 				else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 				{
-					if(transformsEqual(*ob, *new_world_object) && (ob->getCompressedVoxels() == new_world_object->getCompressedVoxels()))
+					if(transformsEqual(*ob, *new_world_object) && 
+						ob->getCompressedVoxels() &&
+						new_world_object->getCompressedVoxels() && 
+						(*ob->getCompressedVoxels() == *new_world_object->getCompressedVoxels()))
 					{
 						use_print_output.print("An object with this voxel group and position " + new_world_object->pos.toStringMaxNDecimalPlaces(2) + " is already present in world, not adding.");
 						return;
@@ -9886,7 +9835,12 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 			{
 				in_world_ob = res.getValue().ptr();
 
-				voxels_different = in_world_ob->getCompressedVoxels() != restored_ob->getCompressedVoxels();
+				const bool voxels_same = 
+					in_world_ob->getCompressedVoxels() &&
+					restored_ob->getCompressedVoxels() && 
+					(*in_world_ob->getCompressedVoxels() == *restored_ob->getCompressedVoxels());
+
+				voxels_different = !voxels_same;
 
 				in_world_ob->copyNetworkStateFrom(*restored_ob);
 
@@ -11602,7 +11556,6 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	proximity_loader.clearAllObjects();
 
-	cur_loading_voxel_ob_uid = UID();
 	cur_loading_mesh_data = NULL;
 
 

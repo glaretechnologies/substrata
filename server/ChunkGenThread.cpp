@@ -72,7 +72,7 @@ struct ObInfo
 	Matrix4f ob_to_world;
 	js::AABBox aabb_ws;
 	std::string model_path;
-	js::Vector<uint8, 16> compressed_voxels;
+	Reference<glare::SharedImmutableArray<uint8> > compressed_voxels;
 	uint32 object_type;
 	std::vector<MatInfo> mat_info;
 	float ob_to_world_scale;
@@ -229,14 +229,14 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 	}
 	else if(ob_info.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
-		if(ob_info.compressed_voxels.size() > 0)
+		if(ob_info.compressed_voxels && (ob_info.compressed_voxels->size() > 0))
 		{
 			js::Vector<bool, 16> mat_transparent(ob_info.mat_info.size());
 			for(size_t i=0; i<mat_transparent.size(); ++i)
 				mat_transparent[i] = ob_info.mat_info[i].opacity < 1.f;
 
 			VoxelGroup voxel_group;
-			WorldObject::decompressVoxelGroup(ob_info.compressed_voxels.data(), ob_info.compressed_voxels.size(), /*mem_allocator=*/NULL, voxel_group); // TEMP use mem allocator
+			WorldObject::decompressVoxelGroup(ob_info.compressed_voxels->data(), ob_info.compressed_voxels->size(), /*mem_allocator=*/NULL, voxel_group); // TEMP use mem allocator
 
 			assert(voxel_group.voxels.size() > 0);
 
@@ -1076,7 +1076,7 @@ static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference
 				}
 				else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 				{
-					if(ob->getCompressedVoxels().size() > 0)
+					if(ob->getCompressedVoxels() && ob->getCompressedVoxels()->size() > 0)
 						have_mesh = true;
 				}
 
