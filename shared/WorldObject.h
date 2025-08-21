@@ -6,16 +6,17 @@ Copyright Glare Technologies Limited 2016 -
 #pragma once
 
 
-#include "TimeStamp.h"
 #include "DependencyURL.h"
 #include "WorldMaterial.h"
-#include <ThreadSafeRefCounted.h>
-#include <Reference.h>
-#include <Vector.h>
-#include <AllocatorVector.h>
-#include <DatabaseKey.h>
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
+#include <utils/TimeStamp.h>
+#include <utils/ThreadSafeRefCounted.h>
+#include <utils/Reference.h>
+#include <utils/Vector.h>
+#include <utils/SharedImmutableArray.h>
+#include <utils/AllocatorVector.h>
+#include <utils/DatabaseKey.h>
 #include <maths/vec3.h>
 #include <maths/Quat.h>
 #include <physics/jscol_aabbox.h>
@@ -206,7 +207,7 @@ public:
 
 	static int getLightMapSideResForAABBWS(const js::AABBox& aabb_ws);
 
-	static void compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 16>& compressed_data_out);
+	static Reference<glare::SharedImmutableArray<uint8> > compressVoxelGroup(const VoxelGroup& group);
 	static void decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, glare::Allocator* mem_allocator, VoxelGroup& group_out);
 	void compressVoxels();
 	void decompressVoxels();
@@ -214,11 +215,13 @@ public:
 
 	//VoxelGroup& getDecompressedVoxelGroup() { return voxel_group; }
 	const VoxelGroup& getDecompressedVoxelGroup() const { return voxel_group; }
-	glare::AllocatorVector<Voxel, 16>& getDecompressedVoxels() { return voxel_group.voxels; }
+	      glare::AllocatorVector<Voxel, 16>& getDecompressedVoxels()       { return voxel_group.voxels; }
 	const glare::AllocatorVector<Voxel, 16>& getDecompressedVoxels() const { return voxel_group.voxels; }
-	js::Vector<uint8, 16>& getCompressedVoxels() { return compressed_voxels; }
-	const js::Vector<uint8, 16>& getCompressedVoxels() const { return compressed_voxels; }
-	//void getCompressedVoxels() const { return compressed_voxels; }
+
+	      Reference<glare::SharedImmutableArray<uint8> > getCompressedVoxels()       { return compressed_voxels; }
+	const Reference<glare::SharedImmutableArray<uint8> > getCompressedVoxels() const { return compressed_voxels; }
+
+	void setCompressedVoxels(Reference<glare::SharedImmutableArray<uint8> > v) { compressed_voxels = v; }
 
 
 	void writeToStream(RandomAccessOutStream& stream) const;
@@ -495,7 +498,7 @@ public:
 
 private:
 	VoxelGroup voxel_group;
-	js::Vector<uint8, 16> compressed_voxels;
+	Reference<glare::SharedImmutableArray<uint8> > compressed_voxels;
 
 public:
 	glare::FastPoolAllocator* allocator; // Non-null if this object was allocated from the allocator

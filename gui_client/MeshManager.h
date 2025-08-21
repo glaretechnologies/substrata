@@ -17,7 +17,7 @@ class MeshManager;
 
 struct MeshData
 {
-	MeshData(const std::string& model_URL_, Reference<OpenGLMeshRenderData> gl_meshdata_, MeshManager* mesh_manager_) : model_url(model_URL_), gl_meshdata(gl_meshdata_), refcount(0), mesh_manager(mesh_manager_) {}
+	MeshData(const std::string& model_URL_, Reference<OpenGLMeshRenderData> gl_meshdata_, MeshManager* mesh_manager_) : model_url(model_URL_), gl_meshdata(gl_meshdata_), voxel_subsample_factor(1), refcount(0), mesh_manager(mesh_manager_) {}
 
 	//------------------- Custom ReferenceCounted stuff, so we can call meshDataBecameUnused() ---------------------
 	/// Increment reference count
@@ -55,6 +55,8 @@ struct MeshData
 	std::string model_url;
 
 	Reference<OpenGLMeshRenderData> gl_meshdata;
+
+	int voxel_subsample_factor;
 
 	mutable glare::AtomicInt refcount;
 

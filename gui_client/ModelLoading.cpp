@@ -1177,6 +1177,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	mesh_data->has_shading_normals = false;
 	mesh_data->has_uvs = mesh_has_uvs;
 
+	mesh_data->num_materials_referenced = mesh->num_materials_referenced;
+
 	size_t num_bytes_per_vert = 0;
 	size_t uv0_offset = 0;
 

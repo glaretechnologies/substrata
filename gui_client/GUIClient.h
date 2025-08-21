@@ -223,7 +223,7 @@ public:
 	GLObjectRef makeSpeakerGLObject();
 public:
 	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock);
-	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, WorldStateLock& world_state_lock);
+	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, int voxel_subsample_factor, WorldStateLock& world_state_lock);
 	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
 	void loadModelForAvatar(Avatar* avatar);
 	void loadScriptForObject(WorldObject* ob, WorldStateLock& world_state_lock);
@@ -356,11 +356,12 @@ public:
 	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
 	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
 
-	void handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data);
+	void handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<MeshData> mesh_data, WorldStateLock& lock);
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
-	void handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, UID voxel_ob_uid, int voxel_subsample_factor);
+	void handleUploadedMeshData(const std::string& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
+		int voxel_subsample_factor, uint64 voxel_hash);
 	void handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
 	void updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials);
@@ -477,6 +478,9 @@ public:
 	PhysicsShape spotlight_shape;
 
 	PhysicsShape unit_cube_shape;
+
+	Reference<MeshData> single_voxel_meshdata;
+	Reference<PhysicsShapeData> single_voxel_shapedata;
 
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
@@ -655,7 +659,7 @@ public:
 	std::string cur_loading_lod_model_url;
 	int cur_loading_model_lod_level;
 	bool cur_loading_dynamic_physics_shape;
-	UID cur_loading_voxel_ob_uid;
+	uint64 cur_loading_voxel_hash;
 	int cur_loading_voxel_subsample_factor;
 	PhysicsShape cur_loading_physics_shape;
 
@@ -672,6 +676,7 @@ public:
 	uint32 server_capabilities;
 
 	uint64 frame_num;
+	size_t next_lod_changes_begin_i;
 
 	MicReadStatus mic_read_status;
 
@@ -783,8 +788,8 @@ public:
 		int ob_model_lod_level;
 		bool dynamic_physics_shape;
 		PhysicsShape physics_shape;
-		UID voxel_ob_uid;
 		int voxel_subsample_factor;
+		uint64 voxel_hash;
 	};
 	
 	std::map<OpenGLMeshRenderDataRef, AsyncGeometryUploading> async_uploading_geom;

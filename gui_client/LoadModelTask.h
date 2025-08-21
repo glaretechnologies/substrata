@@ -33,8 +33,8 @@ public:
 	int model_lod_level; // LOD level of the model we loaded.
 	bool built_dynamic_physics_ob;
 
-	UID voxel_ob_uid; // Valid if we are loading voxel for an object, invalid otherwise.  Avoid storing WorldObjectRef to avoid dangling refs
 	int subsample_factor; // Computed when loading voxels.
+	uint64 voxel_hash;
 
 	VBORef vbo;
 	// vert data offset = 0
@@ -57,9 +57,15 @@ via result_msg_queue.
 Note for making the OpenGL Mesh, data isn't actually loaded into OpenGL in this task,
 since that needs to be done on the main thread.
 =====================================================================*/
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable:4324) // Disable 'structure was padded due to __declspec(align())' warning.
+#endif
 class LoadModelTask : public glare::Task
 {
 public:
+	GLARE_ALIGNED_16_NEW_DELETE
+
 	LoadModelTask();
 	virtual ~LoadModelTask();
 
@@ -71,7 +77,11 @@ public:
 	bool build_physics_ob;
 	bool build_dynamic_physics_ob; // If true, build a convex hull shape instead of a mesh physics shape.
 	
-	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
+	Reference<glare::SharedImmutableArray<uint8> > compressed_voxels;
+	uint64 voxel_hash;
+	js::Vector<bool> mat_transparent;
+	bool need_lightmap_uvs;
+	Matrix4f ob_to_world_matrix; // Used for generating lightmap coords for voxel meshes.
 
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
 
@@ -81,3 +91,6 @@ public:
 
 	Reference<glare::Allocator> worker_allocator;
 };
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
