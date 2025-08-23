@@ -1,7 +1,7 @@
 /*=====================================================================
 LoadModelTask.cpp
 -----------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #include "LoadModelTask.h"
 
@@ -10,7 +10,6 @@ Copyright Glare Technologies Limited 2021 -
 #include "ThreadMessages.h"
 #include "ModelLoading.h"
 #include "../shared/ResourceManager.h"
-#include <indigo/TextureServer.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/OpenGLMeshRenderData.h>
 #include <utils/LimitedAllocator.h>
@@ -142,7 +141,7 @@ void LoadModelTask::run(size_t thread_index)
 #if !EMSCRIPTEN
 			for(int i=0; i<100; ++i)
 			{
-				vbo = opengl_engine->vbo_pool.getMappedVBO(total_geom_size_B);
+				vbo = opengl_engine->vbo_pool.getMappedAndUnusedVBO(total_geom_size_B);
 				if(vbo)
 				{
 					// Copy mesh data to mapped VBO
