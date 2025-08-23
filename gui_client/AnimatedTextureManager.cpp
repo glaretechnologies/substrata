@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/PlatformUtils.h>
 #include <utils/FileInStream.h>
 #include <xxhash.h>
+#include <tracy/Tracy.hpp>
 
 
 AnimatedTexData::AnimatedTexData(bool is_mp4_)
@@ -240,6 +241,8 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 
 AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
+	ZoneScoped; // Tracy profiler
+
 	AnimatedTexObDataProcessStats stats;
 	stats.num_gif_textures_processed = 0;
 	stats.num_mp4_textures_processed = 0;

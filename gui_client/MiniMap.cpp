@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/ImageDecoding.h"
 #include <graphics/SRGBUtils.h>
 #include <utils/RuntimeCheck.h>
+#include <tracy/Tracy.hpp>
 
 
 MiniMap::MiniMap()
@@ -286,6 +287,8 @@ void MiniMap::setMapAndMarkersVisible(bool visible)
 
 void MiniMap::think()
 {
+	ZoneScoped; // Tracy profiler
+
 	if(gl_ui.isNull())
 		return;
 
@@ -609,6 +612,8 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 
 void MiniMap::renderTilesToTexture()
 {
+	ZoneScoped; // Tracy profiler
+
 	const Vec3d campos = gui_client->cam_controller.getFirstPersonPosition();
 
 	opengl_engine->setIdentityCameraTransform(); // Since we are just rendering overlays, camera transformation doesn't really matter
@@ -687,6 +692,8 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 
 void MiniMap::handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex)
 {
+	ZoneScoped; // Tracy profiler
+
 	auto res = loading_texture_URL_to_tile_indices_map.find(URL);
 	if(res != loading_texture_URL_to_tile_indices_map.end())
 	{
