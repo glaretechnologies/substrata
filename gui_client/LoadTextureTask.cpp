@@ -139,7 +139,7 @@ void LoadTextureTask::run(size_t thread_index)
 					const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 50;
 					for(int i=0; i<max_num_attempts; ++i)
 					{
-						pbo = opengl_engine->pbo_pool.getMappedPBO(source_data.size());
+						pbo = opengl_engine->pbo_pool.getMappedAndUnusedVBO(source_data.size());
 						if(pbo)
 						{
 							//conPrint("LoadTextureTask: Memcpying to PBO mem: " + toString(source_data.size()) + " B");

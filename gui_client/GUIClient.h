@@ -84,6 +84,7 @@ class SubstrataLuaVM;
 struct LoadedBuffer;
 struct AsyncUploadedGeometryInfo;
 struct PBOAsyncUploadedTextureInfo;
+class RenderStatsWidget;
 
 
 struct ResourceUserList
@@ -273,7 +274,7 @@ public:
 	void pickUpSelectedObject();
 	void dropSelectedObject();
 
-	void checkForLODChanges();
+	void checkForLODChanges(Timer& timer_event_timer);
 	void checkForAudioRangeChanges();
 
 	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
@@ -330,7 +331,7 @@ public:
 
 	void connectToServer(const URLParseResults& url_results);
 
-	void processLoading();
+	void processLoading(Timer& timer_event_timer);
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
 	void createPathControlledPathVisObjects(const WorldObject& ob);
 	Reference<VehiclePhysics> createVehicleControllerForScript(WorldObject* ob);
@@ -536,7 +537,7 @@ public:
 	std::deque<Reference<ModelLoadedThreadMessage> > async_model_loaded_messages_to_process;
 	std::deque<Reference<TextureLoadedThreadMessage> > async_texture_loaded_messages_to_process;
 
-	// Reference<VBO> dummy_vbo;
+	Reference<VBO> dummy_vbo;
 	
 	bool process_model_loaded_next;
 
@@ -621,6 +622,7 @@ public:
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
 	PhotoModeUI photo_mode_ui;
 	MiniMap minimap; // Draws minimap
+	Reference<RenderStatsWidget> render_stats_widget;
 
 	bool running_destructor;
 

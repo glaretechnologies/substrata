@@ -86,7 +86,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../indigo/TextureServer.h"
 #include "../opengl/OpenGLShader.h"
 #include "../opengl/MeshPrimitiveBuilding.h"
-#include <indigo/TextureServer.h>
+#include "../opengl/RenderStatsWidget.h"
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/SSAODebugging.h>
 #include "../audio/AudioFileReader.h"
@@ -757,6 +757,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		results.gl_ob->ob_to_world_matrix = Matrix4f::rotationMatrix(Vec4f(1,0,0,0), Maths::pi_2<float>()) * Matrix4f::uniformScaleMatrix(1);
 		opengl_engine->addObject(results.gl_ob);
 	}
+
+	render_stats_widget = new RenderStatsWidget(opengl_engine, gl_ui);
 }
 
 
@@ -809,6 +811,8 @@ GUIClient::~GUIClient()
 void GUIClient::shutdown()
 {
 	// Destroy/close all OpenGL stuff, because once glWidget is destroyed, the OpenGL context is destroyed, so we can't free stuff properly.
+
+	render_stats_widget = NULL;
 
 	pbo_async_uploading_textures.clear();
 	async_uploading_geom.clear();
@@ -1475,6 +1479,8 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const std::string& URL) con
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it, if we are not already downloading it.
 void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
+	ZoneScoped; // Tracy profiler
+
 	// conPrint("startDownloadingResourcesForObject: ob_lod_level: " + toString(ob_lod_level));
 
 	WorldObject::GetDependencyOptions options;
@@ -2319,9 +2325,9 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				if(!ob->getCompressedVoxels() || ob->getCompressedVoxels()->size() == 0)
 					throw glare::Exception("zero voxels");
 
-				//Timer timer;
+				//Timer hash_timer;
 				const uint64 hash = XXH64(ob->getCompressedVoxels()->data(), ob->getCompressedVoxels()->dataSizeBytes(), 1);
-				//if(timer.elapsed() > 0.0001)
+				//if(hash_timer.elapsed() > 0.0001)
 				//	conPrint("voxel hash for " + toString(ob->getCompressedVoxels()->dataSizeBytes()) + " B took " + timer.elapsedStringMSWIthNSigFigs(4));
 
 				bool added_opengl_ob = false;
@@ -3193,6 +3199,8 @@ public:
 // loaded_buffer is for emscripten, when resource is loaded directly from memory instead of disk.   may be null.
 void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer>& loaded_buffer)
 {
+	ZoneScoped; // Tracy profiler
+
 	// conPrint("GUIClient::loadAudioForObject(), audio_source_url: " + ob->audio_source_url);
 
 	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
@@ -3846,14 +3854,14 @@ static inline bool shouldDisplayLODChunk(const Vec3i& chunk_coords, const Vec4f&
 }
 
 
-void GUIClient::checkForLODChanges()
+void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 {
 	ZoneScoped; // Tracy profiler
 
 	if(world_state.isNull())
 		return;
 		
-	//Timer timer;
+	Timer timer;
 	{
 		WorldStateLock lock(this->world_state->mutex);
 
@@ -3911,13 +3919,14 @@ void GUIClient::checkForLODChanges()
 
 			assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
+			bool object_changed = false;
 			if(!in_proximity) // If object is out of load distance:
 			{
 				if(ob->in_proximity) // If an object was in proximity to the camera, and moved out of load distance:
 				{
 					unloadObject(ob);
 					ob->in_proximity = false;
-					num_object_changes++;
+					object_changed = true;
 				}
 			}
 			else // Else if object is within load distance:
@@ -3928,7 +3937,7 @@ void GUIClient::checkForLODChanges()
 				{
 					loadModelForObject(ob, lock);
 					ob->current_lod_level = lod_level;
-					num_object_changes++;
+					object_changed = true;
 					// conPrint("Changing LOD level for object " + ob->uid.toString() + " to " + toString(lod_level));
 				}
 
@@ -3937,12 +3946,20 @@ void GUIClient::checkForLODChanges()
 					ob->in_proximity = true;
 					loadModelForObject(ob, lock);
 					ob->current_lod_level = lod_level;
-					num_object_changes++;
+					object_changed = true;
 				}
 			}
 
-			if(num_object_changes >= 200)
-				break;
+			if(object_changed)
+			{
+				num_object_changes++;
+				const double elapsed = /*timer*/timer_event_timer.elapsed();
+				if(elapsed > 0.0035f)
+				{
+					//conPrint("checkForLODChanges(): breaking after " + toString(num_object_changes) + " changes, timer_event_timer: " + doubleToStringNDecimalPlaces(elapsed * 1.0e3, 2) + " ms");
+					break;
+				}
+			}
 		}
 
 		this->next_lod_changes_begin_i = i;
@@ -4035,6 +4052,7 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loa
 	int voxel_subsample_factor, uint64 voxel_hash)
 {
 	// conPrint("handleUploadedMeshData(): lod_model_url: " + lod_model_url);
+	ZoneScoped; // Tracy profiler
 
 	// Now that this model is loaded, remove from models_processing set.
 	// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
@@ -4143,6 +4161,8 @@ void GUIClient::handleUploadedMeshData(const std::string& lod_model_url, int loa
 
 void GUIClient::handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map)
 {
+	ZoneScoped; // Tracy profiler
+
 	// Assign to terrain
 	if(terrain_map && terrain_system)
 		terrain_system->handleTextureLoaded(path, terrain_map);
@@ -4318,8 +4338,10 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 }
 
 
-void GUIClient::processLoading()
+void GUIClient::processLoading(Timer& timer_event_timer)
 {
+	ZoneScoped; // Tracy profiler
+
 	if(!opengl_engine)
 		return;
 
@@ -4327,13 +4349,13 @@ void GUIClient::processLoading()
 	//std::vector<std::string> loading_times; // TEMP just for profiling/debugging
 	if(world_state.nonNull())
 	{
-		PERFORMANCEAPI_INSTRUMENT("process loading msgs");
+		ZoneScopedN("Process loaded messages"); // Tracy profiler
 
 		// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
 		// We don't want to do too much at one time or it will cause hitches.
 		// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
 		// We alternate for fairness.
-		const double MAX_LOADING_TIME = 0.005;// 5 ms
+		const double MAX_LOADING_TIME = 0.002;
 		Timer loading_timer;
 		//int max_items_to_process = 10;
 		//int num_items_processed = 0;
@@ -4347,7 +4369,7 @@ void GUIClient::processLoading()
 		//while((cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
 		while((tex_loading_progress.loadingInProgress() || cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && 
 			(total_bytes_uploaded < max_total_upload_bytes) && 
-			(loading_timer.elapsed() < MAX_LOADING_TIME) //&&
+			(/*loading_timer*/timer_event_timer.elapsed() < MAX_LOADING_TIME) //&&
 			/*(num_items_processed < max_items_to_process)*/)
 		{
 			//num_items_processed++;
@@ -4505,19 +4527,18 @@ void GUIClient::processLoading()
 
 	while(!async_model_loaded_messages_to_process.empty())
 	{
+		ZoneScopedN("Process async_model_loaded_messages_to_process"); // Tracy profiler
+
 		Reference<ModelLoadedThreadMessage> message = async_model_loaded_messages_to_process.front();
 		async_model_loaded_messages_to_process.pop_front();
 
 		//message->vbo->flushRange(/*offset=*/0, /*size=*/message->total_geom_size_B);
 
-		// The VBO will have been mapped while it was being written to in a worker thread; unmap it.
-		message->vbo->unmap();
-
-		//if(!dummy_vbo)
-		//	dummy_vbo = new VBO(nullptr, 32 * 1024 * 1024);
+		if(!dummy_vbo)
+			dummy_vbo = new VBO(nullptr, 32 * 1024 * 1024);
 
 		// Start asynchronous load from VBO
-		opengl_engine->async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/message->vbo, /*dummy_vbo,*/ /*vert_data_src_offset_B=*/0, message->index_data_src_offset_B, 
+		opengl_engine->async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/message->vbo, dummy_vbo, /*vert_data_src_offset_B=*/0, message->index_data_src_offset_B, 
 			message->vert_data_size_B, message->index_data_size_B, message->total_geom_size_B);
 
 		AsyncGeometryUploading loading_info;
@@ -4532,14 +4553,14 @@ void GUIClient::processLoading()
 		async_uploading_geom[message->gl_meshdata] = loading_info;
 	}
 
+	const double MAX_LOADING_TIME = 0.002;
 
-	while(!async_texture_loaded_messages_to_process.empty())
+	while(!async_texture_loaded_messages_to_process.empty() && (timer_event_timer.elapsed() < MAX_LOADING_TIME))
 	{
+		ZoneScopedN("Process async_texture_loaded_messages_to_process"); // Tracy profiler
+
 		Reference<TextureLoadedThreadMessage> message = async_texture_loaded_messages_to_process.front();
 		async_texture_loaded_messages_to_process.pop_front();
-
-		// The PBO will have been mapped while it was being written to in a worker thread; unmap it.
-		message->pbo->unmap();
 
 		try
 		{
@@ -4567,7 +4588,11 @@ void GUIClient::processLoading()
 
 
 	// Check async geometry uploading queue for any completed uploads
+	while(timer_event_timer.elapsed() < MAX_LOADING_TIME)
 	{
+		ZoneScopedN("checking for uploaded geom"); // Tracy profiler
+
+		bool geom_or_tex_uploaded = false;
 		opengl_engine->async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), /*loaded_geom_out=*/temp_uploaded_geom_infos);
 
 		// temp_uploaded_geom_infos now contains AsyncUploadedGeometryInfo structs for any just-completed geometry uploads.
@@ -4596,14 +4621,14 @@ void GUIClient::processLoading()
 
 				async_uploading_geom.erase(res); // Remove from async_uploading_geom map
 			}
+
+			geom_or_tex_uploaded = true;
 		}
 
 		temp_uploaded_geom_infos.clear();
-	}
 
 
-	// Check async texture uploading queue for any completed uploads
-	{
+		// Check async texture uploading queue for any completed uploads
 		opengl_engine->pbo_async_tex_loader.checkForUploadedTextures(temp_loaded_texture_infos);
 
 		for(size_t i=0; i<temp_loaded_texture_infos.size(); ++i)
@@ -4654,9 +4679,14 @@ void GUIClient::processLoading()
 
 				pbo_async_uploading_textures.erase(res);
 			}
+
+			geom_or_tex_uploaded = true;
 		}
 
 		temp_loaded_texture_infos.clear();
+
+		if(!geom_or_tex_uploaded)
+			break;
 	}
 }
 
@@ -4951,6 +4981,8 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 
 void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
+	ZoneScoped; // Tracy profiler
+	Timer timer_event_timer;
 
 	if((connection_state == ServerConnectionState_NotConnected) && (retry_connection_timer.elapsed() > 10.0))
 	{
@@ -5054,7 +5086,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 
 
-	processLoading();
+	processLoading(timer_event_timer);
 
 	
 	
@@ -5180,7 +5212,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	if(connection_state == ServerConnectionState_Connected)
-		checkForLODChanges();
+		checkForLODChanges(timer_event_timer);
 
 
 	
@@ -5236,8 +5268,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	//double animated_tex_time = 0;
 	if(world_state.nonNull())
 	{
-		PERFORMANCEAPI_INSTRUMENT("set anim data");
-		ZoneScopedN("set anim data"); // Tracy profiler
+		ZoneScopedN("process animated textures"); // Tracy profiler
 		Timer timer;
 		//Timer tex_upload_timer;
 		//tex_upload_timer.pause();
@@ -6096,8 +6127,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// Only do this once connected, to avoid a race condition where we start adding objects without first receiving the server capabilities in the ClientConnectedToServerMessage.
 	if(world_state && (connection_state == ServerConnectionState_Connected))
 	{
-		PERFORMANCEAPI_INSTRUMENT("object graphics");
-		ZoneScopedN("object graphics"); // Tracy profiler
+		ZoneScopedN("processing dirty_from_remote_objects"); // Tracy profiler
 
 		try
 		{
@@ -6641,6 +6671,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
 	}
 
+	if(render_stats_widget)
+		render_stats_widget->addFrameTime((float)timer_event_timer.elapsed());
 
 	frame_num++;
 }
