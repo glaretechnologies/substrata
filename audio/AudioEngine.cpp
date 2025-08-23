@@ -895,6 +895,8 @@ void AudioEngine::addSource(AudioSourceRef source)
 
 void AudioEngine::removeSource(AudioSourceRef source)
 {
+	ZoneScoped; // Tracy profiler
+
 	if(!initialised)
 		return;
 
@@ -1074,6 +1076,8 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 
 AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(AddSourceFromStreamingSoundFileParams& params, const Vec4f& pos)
 {
+	ZoneScoped; // Tracy profiler
+
 	Lock lock(mutex);
 
 	// Make a new audio source

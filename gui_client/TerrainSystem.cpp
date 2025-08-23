@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "opengl/MeshPrimitiveBuilding.h"
 #include "meshoptimizer/src/meshoptimizer.h"
 #include "../dll/include/IndigoMesh.h"
+#include <tracy/Tracy.hpp>
 
 
 TerrainSystem::TerrainSystem()
@@ -416,6 +417,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef& map)
 {
 	// conPrint("TerrainSystem::handleTextureLoaded(): path: '" + path + "'");
+	ZoneScoped; // Tracy profiler
 
 	assert(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(path)));
 

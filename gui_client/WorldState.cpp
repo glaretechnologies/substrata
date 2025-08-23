@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <StringUtils.h>
 #include <Clock.h>
 #include <Lock.h>
+#include <tracy/Tracy.hpp>
 
 
 WorldState::WorldState()
@@ -126,6 +127,8 @@ size_t WorldState::getTotalMemUsage() const
 
 Parcel* WorldState::getParcelPointIsIn(const Vec3d& p_)
 {
+	ZoneScoped; // Tracy profiler
+
 	const Vec4f p = p_.toVec4fPoint();
 
 	for(auto& it : parcels) // NOTE: fixme, crappy linear scan
