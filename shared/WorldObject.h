@@ -221,7 +221,7 @@ public:
 	      Reference<glare::SharedImmutableArray<uint8> > getCompressedVoxels()       { return compressed_voxels; }
 	const Reference<glare::SharedImmutableArray<uint8> > getCompressedVoxels() const { return compressed_voxels; }
 
-	void setCompressedVoxels(Reference<glare::SharedImmutableArray<uint8> > v) { compressed_voxels = v; }
+	void setCompressedVoxels(Reference<glare::SharedImmutableArray<uint8> > v);
 
 
 	void writeToStream(RandomAccessOutStream& stream) const;
@@ -499,8 +499,9 @@ public:
 private:
 	VoxelGroup voxel_group;
 	Reference<glare::SharedImmutableArray<uint8> > compressed_voxels;
-
 public:
+	uint64 compressed_voxels_hash;
+
 	glare::FastPoolAllocator* allocator; // Non-null if this object was allocated from the allocator
 	int allocation_index;
 

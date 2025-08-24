@@ -35,6 +35,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <utils/RandomAccessOutStream.h>
 #include <utils/XMLWriteUtils.h>
 #include <utils/XMLParseUtils.h>
+#include <utils/IncludeXXHash.h>
 #include <zstd.h>
 #include <pugixml.hpp>
 #if INDIGO_SUPPORT
@@ -126,6 +127,7 @@ WorldObject::WorldObject() noexcept
 
 	chunk_batch0_start = chunk_batch0_end = chunk_batch1_start = chunk_batch1_end = 0;
 
+	compressed_voxels_hash = 0;
 }
 
 
@@ -1447,6 +1449,18 @@ void WorldObject::clearDecompressedVoxels()
 {
 	this->voxel_group.voxels.clearAndFreeMem();
 	//this->voxel_group.voxels = std::vector<Voxel>();
+}
+
+
+void WorldObject::setCompressedVoxels(Reference<glare::SharedImmutableArray<uint8>> v)
+{
+	compressed_voxels = v;
+
+	// Compute compressed_voxels_hash
+	if(compressed_voxels)
+		compressed_voxels_hash = XXH64(compressed_voxels->data(), compressed_voxels->size(), /*seed=*/1);
+	else
+		compressed_voxels_hash = 0;
 }
 
 
