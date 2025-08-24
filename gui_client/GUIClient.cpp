@@ -1480,6 +1480,7 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const std::string& URL) con
 void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
 	ZoneScoped; // Tracy profiler
+	ZoneText(ob->uid.toString().c_str(), ob->uid.toString().size());
 
 	// conPrint("startDownloadingResourcesForObject: ob_lod_level: " + toString(ob_lod_level));
 
@@ -1609,6 +1610,8 @@ static inline bool isNonEmptyAndNotMp4(const std::string& path)
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
 static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, bool& assigned_animated_tex_out)
 {
+	ZoneScoped; // Tracy profiler
+
 	assigned_animated_tex_out = false;
 
 	if(!ob->opengl_engine_ob)
@@ -1751,6 +1754,8 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 
 void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 {
+	ZoneScoped; // Tracy profiler
+
 	bool assigned_animated_tex = false;
 	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, assigned_animated_tex);
 	if(assigned_animated_tex)
@@ -1769,6 +1774,8 @@ void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 // For avatars
 static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
+	ZoneScoped; // Tracy profiler
+
 	GLObject* gl_ob = av->graphics.skinned_gl_ob.ptr();
 	if(!gl_ob)
 		return;
@@ -2325,10 +2332,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				if(!ob->getCompressedVoxels() || ob->getCompressedVoxels()->size() == 0)
 					throw glare::Exception("zero voxels");
 
-				//Timer hash_timer;
-				const uint64 hash = XXH64(ob->getCompressedVoxels()->data(), ob->getCompressedVoxels()->dataSizeBytes(), 1);
-				//if(hash_timer.elapsed() > 0.0001)
-				//	conPrint("voxel hash for " + toString(ob->getCompressedVoxels()->dataSizeBytes()) + " B took " + timer.elapsedStringMSWIthNSigFigs(4));
+				const uint64 hash = ob->compressed_voxels_hash;
+				assert(hash == XXH64(ob->getCompressedVoxels()->data(), ob->getCompressedVoxels()->dataSizeBytes(), 1));
 
 				bool added_opengl_ob = false;
 				if(hash == 1933977005784225319ull)
@@ -4176,6 +4181,8 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 
 		//---------------------------- Assign to LOD chunks ----------------------------
 		{ 
+			ZoneScopedN("Assign to LOD chunks");
+
 			auto res = loading_texture_URL_to_chunk_coords_map.find(URL);
 			if(res != loading_texture_URL_to_chunk_coords_map.end())
 			{
@@ -4207,6 +4214,8 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 
 		//---------------------------- Assign to objects ----------------------------
 		{
+			ZoneScopedN("Assign to objects");
+
 			auto res = this->loading_texture_URL_to_world_ob_UID_map.find(URL);
 			if(res != this->loading_texture_URL_to_world_ob_UID_map.end())
 			{
@@ -4227,6 +4236,8 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 
 		//---------------------------- Assign to avatars ----------------------------
 		{
+			ZoneScopedN("Assign to avatars");
+
 			auto res = this->loading_texture_URL_to_avatar_UID_map.find(URL);
 			if(res != this->loading_texture_URL_to_avatar_UID_map.end())
 			{
@@ -4532,8 +4543,6 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 		Reference<ModelLoadedThreadMessage> message = async_model_loaded_messages_to_process.front();
 		async_model_loaded_messages_to_process.pop_front();
 
-		//message->vbo->flushRange(/*offset=*/0, /*size=*/message->total_geom_size_B);
-
 		if(!dummy_vbo)
 			dummy_vbo = new VBO(nullptr, 32 * 1024 * 1024);
 
@@ -4629,7 +4638,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 
 		// Check async texture uploading queue for any completed uploads
-		opengl_engine->pbo_async_tex_loader.checkForUploadedTextures(temp_loaded_texture_infos);
+		opengl_engine->pbo_async_tex_loader.checkForUploadedTexture(temp_loaded_texture_infos);
 
 		for(size_t i=0; i<temp_loaded_texture_infos.size(); ++i)
 		{

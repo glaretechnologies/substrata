@@ -1213,8 +1213,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	//Timer timer;
 	{
 		Timer timer2;
-		PERFORMANCEAPI_INSTRUMENT("updateGL()");
-		ZoneScopedN("updateGL"); // Tracy profiler
+		ZoneScopedNC("updateGL", 0x33FF33); // Tracy profiler
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 		ui->glWidget->update();
 #else
