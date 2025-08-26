@@ -979,10 +979,10 @@ void TerrainScattering::updateCamposForGridScatter(const Vec3d& campos, glare::S
 				assert(x >= x0 && x < x0 + grid_scatter.grid_res);
 				assert(y >= y0 && y < y0 + grid_scatter.grid_res);
 
-				if(chunk.imposters_gl_ob.isNull())
+				if(!chunk.imposters_gl_ob)
 				{
 					makeGridScatterChunk(x, y, bump_allocator, grid_scatter, chunk); // Sets and chunk.imposters_gl_ob.
-					if(chunk.imposters_gl_ob.nonNull())
+					if(chunk.imposters_gl_ob)
 						opengl_engine->addObject(chunk.imposters_gl_ob);
 				}
 
@@ -1518,6 +1518,10 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::StackAllocat
 	OpenGLMeshRenderDataRef mesh_data = new OpenGLMeshRenderData();
 	OpenGLMeshRenderData& meshdata = *mesh_data;
 
+	// Set dummy AABB for now.
+	// object aabb_ws will be set later in updateGridScatterChunkWithComputeShader().
+	meshdata.aabb_os = js::AABBox(Vec4f(-100000.0f,0,0,1), Vec4f(-100000.0f,0,0,1));
+
 	meshdata.setIndexType(GL_UNSIGNED_SHORT);
 
 	meshdata.has_uvs = true;
@@ -1581,7 +1585,7 @@ GLObjectRef TerrainScattering::makeUninitialisedImposterGLOb(glare::StackAllocat
 
 	const size_t total_vert_data_size_B = N * 4 * vert_size_B;
 	
-	mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocateVertexDataSpace(vert_size_B, NULL, total_vert_data_size_B);
+	mesh_data->vbo_handle = opengl_engine->vert_buf_allocator->allocateVertexDataSpace(vert_size_B, /*vert data=*/NULL, total_vert_data_size_B);
 
 	// Build index data
 	glare::StackAllocation temp_index_data(sizeof(uint16) * N * 6, /*alignment=*/8, bump_allocator);
@@ -1868,6 +1872,10 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 		aabb_ws.max_ += Vec4f(padding, padding, grid_scatter.chunk_width * 0.2f, 0);
 	
 		chunk.imposters_gl_ob->aabb_ws = aabb_ws;
+
+		chunk.imposters_gl_ob->mesh_data->aabb_os = aabb_ws; // Since we use identity transform
+
+		// TODO: call objectTransformDataChanged() or something if we want to apply local lights to imposters.
 
 
 		/*glQueryCounter(timer_query_ids[1], GL_TIMESTAMP);
