@@ -17,12 +17,13 @@ class OpenGLEngine;
 class OpenGLMaterial;
 class TextureData;
 class OpenGLTexture;
+class PCG32;
 
 
 // Each material can potentially have its own animation.  This is thus per-material data.
 struct AnimatedTexData : public RefCounted
 { 
-	AnimatedTexData(bool is_mp4);
+	AnimatedTexData(bool is_mp4, double time_offset_);
 	~AnimatedTexData();
 
 	static double maxVidPlayDist() { return 20.0; }
@@ -33,6 +34,8 @@ struct AnimatedTexData : public RefCounted
 	Reference<EmbeddedBrowser> browser;
 
 	bool is_mp4;
+
+	double time_offset;
 };
 
 
@@ -47,6 +50,7 @@ struct AnimatedTexObDataProcessStats
 {
 	int num_gif_textures_processed;
 	int num_mp4_textures_processed;
+	int num_gif_frames_advanced;
 };
 
 struct AnimatedTexObData : public RefCounted
@@ -55,11 +59,11 @@ struct AnimatedTexObData : public RefCounted
 
 	AnimatedTexObDataProcessStats process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
-	void rescanObjectForAnimatedTextures(WorldObject* ob);
+	void rescanObjectForAnimatedTextures(WorldObject* ob, PCG32& rng);
 
 private:
 	void processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-		OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
+		OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex, int& nun_gif_frames_advanced_in_out);
 
 	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);

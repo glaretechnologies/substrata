@@ -116,63 +116,43 @@ void LoadModelTask::run(size_t thread_index)
 			}
 
 
-			ArrayRef<uint8> vert_data;
-			ArrayRef<uint8> index_data;
-			if(gl_meshdata->batched_mesh)
-			{
-				vert_data = ArrayRef<uint8>(gl_meshdata->batched_mesh->vertex_data.data(), gl_meshdata->batched_mesh->vertex_data.dataSizeBytes());
-				index_data = ArrayRef<uint8>(gl_meshdata->batched_mesh->index_data.data(), gl_meshdata->batched_mesh->index_data.dataSizeBytes());
-			}
-			else
-			{
-				vert_data = ArrayRef<uint8>(gl_meshdata->vert_data.data(), gl_meshdata->vert_data.dataSizeBytes());
-				if(!gl_meshdata->vert_index_buffer.empty())
-					index_data = ArrayRef<uint8>((const uint8*)gl_meshdata->vert_index_buffer.data(), gl_meshdata->vert_index_buffer.dataSizeBytes());
-				else if(!gl_meshdata->vert_index_buffer_uint16.empty())
-					index_data = ArrayRef<uint8>((const uint8*)gl_meshdata->vert_index_buffer_uint16.data(), gl_meshdata->vert_index_buffer_uint16.dataSizeBytes());
-				else if(!gl_meshdata->vert_index_buffer_uint8.empty())
-					index_data = ArrayRef<uint8>((const uint8*)gl_meshdata->vert_index_buffer_uint8.data(), gl_meshdata->vert_index_buffer_uint8.dataSizeBytes());
-			}
+			ArrayRef<uint8> vert_data, index_data;
+			gl_meshdata->getVertAndIndexArrayRefs(vert_data, index_data);
 			
 			const size_t index_data_src_offset_B = Maths::roundUpToMultipleOfPowerOf2<size_t>(vert_data.size(), 16); // Offset in VBO
 			const size_t total_geom_size_B = index_data_src_offset_B + index_data.size();
 
 			VBORef vbo;
 #if !EMSCRIPTEN
-			for(int i=0; i<100; ++i)
+			if(USE_MEM_MAPPING_FOR_GEOM_UPLOAD)
 			{
-				vbo = opengl_engine->vbo_pool.getMappedAndUnusedVBO(total_geom_size_B);
-				if(vbo)
+				if(total_geom_size_B <= opengl_engine->vbo_pool.getLargestVBOSize()) // Don't try if can't fit in largest VBO
 				{
-					// Copy mesh data to mapped VBO
-
-					// Copy vertex data first
-					std::memcpy(vbo->getMappedPtr(), vert_data.data(), vert_data.size());
-
-					// Copy index data
-					std::memcpy((uint8*)vbo->getMappedPtr() + index_data_src_offset_B, index_data.data(), index_data.size());
-
-					// Free geometry memory now it has been copied to the PBO.
-					if(gl_meshdata->batched_mesh)
+					for(int i=0; i<100; ++i)
 					{
-						gl_meshdata->batched_mesh->vertex_data.clearAndFreeMem();
-						gl_meshdata->batched_mesh->index_data.clearAndFreeMem();
-					}
-					else
-					{
-						gl_meshdata->vert_data.clearAndFreeMem();
-						gl_meshdata->vert_index_buffer.clearAndFreeMem();
-						gl_meshdata->vert_index_buffer_uint16.clearAndFreeMem();
-						gl_meshdata->vert_index_buffer_uint8.clearAndFreeMem();
-					}
+						vbo = opengl_engine->vbo_pool.getUnusedVBO(total_geom_size_B);
+						if(vbo)
+						{
+							// Copy mesh data to mapped VBO
 
-					break;
+							// Copy vertex data first
+							std::memcpy(vbo->getMappedPtr(), vert_data.data(), vert_data.size());
+
+							// Copy index data
+							std::memcpy((uint8*)vbo->getMappedPtr() + index_data_src_offset_B, index_data.data(), index_data.size());
+
+							// Free geometry memory now it has been copied to the PBO.
+							gl_meshdata->clearAndFreeGeometryMem();
+
+							break;
+						}
+						PlatformUtils::Sleep(1);
+					}
 				}
-				PlatformUtils::Sleep(1);
-			}
 
-			if(!vbo)
-				conPrint("LoadModelTask: Failed to get mapped VBO for " + uInt32ToStringCommaSeparated((uint32)total_geom_size_B) + " B");
+				if(!vbo)
+					conPrint("LoadModelTask: Failed to get mapped VBO for " + uInt32ToStringCommaSeparated((uint32)total_geom_size_B) + " B");
+			}
 #endif
 
 

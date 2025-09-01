@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <string>
 class OpenGLEngine;
 class TextRendererFontFaceSizeSet;
+namespace glare { class FastPoolAllocator; }
 
 
 /*=====================================================================
@@ -29,6 +30,7 @@ public:
 
 	std::string tex_key;
 	Reference<OpenGLEngine> opengl_engine;
+	Reference<glare::FastPoolAllocator> texture_loaded_msg_allocator;
 	Reference<TextRendererFontFaceSizeSet> fonts;
 	std::string hypercard_content;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
