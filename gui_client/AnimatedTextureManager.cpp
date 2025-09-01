@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "GUIClient.h"
 #include "EmbeddedBrowser.h"
+#include "LoadTextureTask.h"
 #include "CEF.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
@@ -19,14 +20,16 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
 #include <utils/FileInStream.h>
+#include <utils/IncludeHalf.h>
 #include <xxhash.h>
 #include <tracy/Tracy.hpp>
 
 
-AnimatedTexData::AnimatedTexData(bool is_mp4_)
+AnimatedTexData::AnimatedTexData(bool is_mp4_, double time_offset_)
 :	last_loaded_frame_i(-1),
 	cur_frame_i(0),
-	is_mp4(is_mp4_)
+	is_mp4(is_mp4_),
+	time_offset(time_offset_)
 {}
 
 AnimatedTexData::~AnimatedTexData()
@@ -45,7 +48,7 @@ AnimatedTexData::~AnimatedTexData()
 
 
 void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-	OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
+	OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex, int& nun_gif_frames_advanced_in_out)
 {
 	if(!texture)
 		return;
@@ -56,7 +59,7 @@ void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngin
 		const double total_anim_time = texdata->last_frame_end_time;
 		if((num_frames > 0) && (total_anim_time > 0)) // Check !frames.empty() for back() calls below.
 		{
-			const double in_anim_time = Maths::doubleMod(anim_time, total_anim_time);
+			const double in_anim_time = Maths::doubleMod(anim_time + animtexdata.time_offset, total_anim_time);
 			assert(in_anim_time >= 0);
 
 			// Search for the current frame, setting animtexdata.cur_frame_i, for in_anim_time.
@@ -139,19 +142,55 @@ void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngin
 			{
 				if(animtexdata.cur_frame_i != animtexdata.last_loaded_frame_i) // If cur frame changed: (Avoid uploading the same frame multiple times in a row)
 				{
-					/*printVar(animtexdata.cur_frame_i);*/
-
 					// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
 					// Don't try and upload the wrong size or we will get an OpenGL error or crash.
+					if(texture->xRes() == texdata->W && texture->yRes() == texdata->H)
+					{
+						// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner
+						Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
+						//msg->tex_path = tex_path; // Don't set tex_path as isn't used.
+						msg->texture_data = texdata;
+						msg->existing_opengl_tex = texture;
+						msg->load_into_frame_i = animtexdata.cur_frame_i;
+						msg->ob_uid = ob->uid;
+						// TODO: set msg->tex_params
+					
+						// Copy to PBO in mem-mapping case
+						if(USE_MEM_MAPPING_FOR_TEXTURE_UPLOAD)
+						{
+							ArrayRef<uint8> source_data = texdata->getDataArrayRef();
+							assert(source_data.data());
 
-					OpenGLTextureRef tex = is_refl_tex ? mat.albedo_texture : mat.emission_texture;
+							// Just upload a single frame
+							assert(texdata->isMultiFrame());
+							runtimeCheck(texdata->frame_size_B * animtexdata.cur_frame_i + texdata->frame_size_B <= source_data.size());
+							source_data = source_data.getSlice(/*offset=*/texdata->frame_size_B * animtexdata.cur_frame_i, /*slice len=*/texdata->frame_size_B);
+							
+							if(source_data.data())
+							{
+								PBORef pbo = opengl_engine->pbo_pool.getUnusedVBO(source_data.size());
+								if(pbo)
+								{
+									std::memcpy(pbo->getMappedPtr(), source_data.data(), source_data.size());
 
-					if(tex.nonNull() && tex->xRes() == texdata->W && tex->yRes() == texdata->H)
-						TextureLoading::loadIntoExistingOpenGLTexture(tex, *texdata, animtexdata.cur_frame_i);
+									msg->pbo = pbo;
+									gui_client->async_texture_loaded_messages_to_process.push_back(msg);
+								}
+								else
+									conPrint("AnimatedTexManager: Failed to get mapped PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
+							}
+						}
+						else
+						{
+							gui_client->async_texture_loaded_messages_to_process.push_back(msg);
+						}
+					}
 					//else
 					//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
 
 					animtexdata.last_loaded_frame_i = animtexdata.cur_frame_i;
+
+					nun_gif_frames_advanced_in_out++;
 				}
 			}
 		}
@@ -246,6 +285,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 	AnimatedTexObDataProcessStats stats;
 	stats.num_gif_textures_processed = 0;
 	stats.num_mp4_textures_processed = 0;
+	stats.num_gif_frames_advanced = 0;
 
 	if(ob->opengl_engine_ob.isNull())
 		return stats;
@@ -294,7 +334,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 				}
 				else
 				{
-					processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.albedo_texture, *refl_data, mat.tex_path, /*is refl tex=*/true);
+					processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.albedo_texture, *refl_data, mat.tex_path, /*is refl tex=*/true, stats.num_gif_frames_advanced);
 					stats.num_gif_textures_processed++;
 				}
 			}
@@ -313,7 +353,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 				}
 				else
 				{
-					processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.emission_texture, *emission_data, mat.emission_tex_path, /*is refl tex=*/false);
+					processGIFAnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, mat.emission_texture, *emission_data, mat.emission_tex_path, /*is refl tex=*/false, stats.num_gif_frames_advanced);
 					stats.num_gif_textures_processed++;
 				}
 			}
@@ -372,13 +412,16 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 }
 
 
-void AnimatedTexObData::rescanObjectForAnimatedTextures(WorldObject* ob)
+void AnimatedTexObData::rescanObjectForAnimatedTextures(WorldObject* ob, PCG32& rng)
 {
 	if(ob->opengl_engine_ob.isNull())
 		return;
 
 	AnimatedTexObData& animation_data = *this;
 	animation_data.mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
+
+
+	// Randomise texture animation offsets to avoid bunching of frame updates.
 
 	for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
 	{
@@ -387,12 +430,12 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(WorldObject* ob)
 		if(mat.albedo_texture && mat.albedo_texture->texture_data && mat.albedo_texture->texture_data->isMultiFrame())
 		{
 			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/false);
+				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/false, rng.unitRandom() * 0.2);
 		}
 		else if(hasExtensionStringView(mat.tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);
+				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true, rng.unitRandom() * 0.2);
 		}
 		//else
 		//	animation_data.mat_animtexdata[m].refl_col_animated_tex_data = nullptr;
@@ -401,12 +444,12 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(WorldObject* ob)
 		if(mat.emission_texture && mat.emission_texture->texture_data && mat.emission_texture->texture_data->isMultiFrame())
 		{
 			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/false);
+				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/false, rng.unitRandom() * 0.2);
 		}
 		else if(hasExtensionStringView(mat.emission_tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);
+				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true, rng.unitRandom() * 0.2);
 		}
 		//else
 		//	animation_data.mat_animtexdata[m].emission_col_animated_tex_data = nullptr;

@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2019 -
 
 
 #include "../shared/Resource.h"
+#include "../shared/UID.h"
 #include <opengl/OpenGLTexture.h>
 #include <opengl/PBO.h>
 #include <Task.h>
@@ -18,21 +19,33 @@ class TextureServer;
 class TextureData;
 class Map2D;
 class ResourceManager;
+namespace glare { class FastPoolAllocator; }
 
 
 class TextureLoadedThreadMessage : public ThreadMessage
 {
 public:
+	TextureLoadedThreadMessage() : load_into_frame_i(0), texture_loaded_msg_allocator(nullptr) {}
+
 	std::string tex_path;
 	std::string tex_URL;
-	std::string tex_key;
 	TextureParams tex_params;
 	Reference<TextureData> texture_data;
+	Reference<OpenGLTexture> existing_opengl_tex; // When uploading a frame of an animated texture, upload into this already existing texture.
+	int load_into_frame_i;
+	UID ob_uid;
 
 	PBORef pbo; // Non-null if we wrote the texture mipmap data into the mapped memory region of a PBO.
 
 	Reference<Map2D> terrain_map; // Non-null iff we are loading a terrain map (e.g. is_terrain_map is true)
+
+	glare::FastPoolAllocator* texture_loaded_msg_allocator;
+	int allocation_index;
 };
+
+// Template specialisation of destroyAndFreeOb for TextureLoadedThreadMessage.  This is called when being freed by a Reference.
+template <>
+void destroyAndFreeOb<TextureLoadedThreadMessage>(TextureLoadedThreadMessage* ob);
 
 
 /*=====================================================================
@@ -44,12 +57,13 @@ class LoadTextureTask : public glare::Task
 {
 public:
 	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource,
-		const TextureParams& tex_params, bool is_terrain_map, const Reference<glare::Allocator>& worker_allocator);
+		const TextureParams& tex_params, bool is_terrain_map, const Reference<glare::Allocator>& worker_allocator, Reference<glare::FastPoolAllocator>& texture_loaded_msg_allocator);
 
 	virtual void run(size_t thread_index);
 
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<ResourceManager> resource_manager;
+	Reference<glare::FastPoolAllocator> texture_loaded_msg_allocator;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 	std::string path;
 	ResourceRef resource;

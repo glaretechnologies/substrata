@@ -22,12 +22,14 @@ Copyright Glare Technologies Limited 2019 -
 #include <utils/PlatformUtils.h>
 #include <utils/IncludeHalf.h>
 #include <utils/MemMappedFile.h>
+#include <utils/FastPoolAllocator.h>
 #include <tracy/Tracy.hpp>
 
 
 LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource_,
-	const TextureParams& tex_params_, bool is_terrain_map_, const Reference<glare::Allocator>& worker_allocator_)
-:	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource(resource_), tex_params(tex_params_), is_terrain_map(is_terrain_map_), worker_allocator(worker_allocator_)
+	const TextureParams& tex_params_, bool is_terrain_map_, const Reference<glare::Allocator>& worker_allocator_, Reference<glare::FastPoolAllocator>& texture_loaded_msg_allocator_)
+:	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource(resource_), tex_params(tex_params_), is_terrain_map(is_terrain_map_), 
+	worker_allocator(worker_allocator_), texture_loaded_msg_allocator(texture_loaded_msg_allocator_)
 {}
 
 
@@ -110,49 +112,37 @@ void LoadTextureTask::run(size_t thread_index)
 				texture_data = TextureProcessing::buildTextureData(map.ptr(), worker_allocator.ptr(), opengl_engine->getMainTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps, /*convert_float_to_half=*/true);
 			}
 
-
 			PBORef pbo;
 #if !EMSCRIPTEN
-			if(!texture_data->isMultiFrame())
+			if(USE_MEM_MAPPING_FOR_TEXTURE_UPLOAD)
 			{
-				ArrayRef<uint8> source_data;
-				if(!texture_data->mipmap_data.empty())
-					source_data = ArrayRef<uint8>(texture_data->mipmap_data.data(), texture_data->mipmap_data.size());
-				else
-				{
-					runtimeCheck(texture_data->converted_image.nonNull());
-					if(dynamic_cast<const ImageMapUInt8*>(texture_data->converted_image.ptr()))
-					{
-						const ImageMapUInt8* uint8_map = static_cast<const ImageMapUInt8*>(texture_data->converted_image.ptr());
-						source_data = ArrayRef<uint8>(uint8_map->getData(), uint8_map->getDataSizeB());
-					}
-					else if(dynamic_cast<const ImageMap<half, HalfComponentValueTraits>*>(texture_data->converted_image.ptr()))
-					{
-						const ImageMap<half, HalfComponentValueTraits>* half_map = static_cast<const ImageMap<half, HalfComponentValueTraits>*>(texture_data->converted_image.ptr());
-						source_data = ArrayRef<uint8>((const uint8*)half_map->getData(), half_map->getDataSizeB());
-					}
-				}
-
+				const ArrayRef<uint8> source_data = texture_data->getDataArrayRef();
 				assert(source_data.data());
 				if(source_data.data())
 				{
-					const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 50;
-					for(int i=0; i<max_num_attempts; ++i)
+					if(source_data.size() <= opengl_engine->pbo_pool.getLargestPBOSize()) // Don't try if can't fit in largest PBO
 					{
-						pbo = opengl_engine->pbo_pool.getMappedAndUnusedVBO(source_data.size());
-						if(pbo)
+						const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 50;
+						for(int i=0; i<max_num_attempts; ++i)
 						{
-							//conPrint("LoadTextureTask: Memcpying to PBO mem: " + toString(source_data.size()) + " B");
-							std::memcpy(pbo->getMappedPtr(), source_data.data(), source_data.size()); // TODO: remove memcpy and build texture data directly into PBO
+							pbo = opengl_engine->pbo_pool.getUnusedVBO(source_data.size());
+							if(pbo)
+							{
+								//conPrint("LoadTextureTask: Memcpying to PBO mem: " + toString(source_data.size()) + " B");
+								std::memcpy(pbo->getMappedPtr(), source_data.data(), source_data.size()); // TODO: remove memcpy and build texture data directly into PBO
 
-							// Free image texture memory now it has been copied to the PBO.
-							texture_data->mipmap_data.clearAndFreeMem();
-							if(texture_data->converted_image)
-								texture_data->converted_image = nullptr;
+								// Free image texture memory now it has been copied to the PBO.
+								if(!texture_data->isMultiFrame())
+								{
+									texture_data->mipmap_data.clearAndFreeMem();
+									if(texture_data->converted_image)
+										texture_data->converted_image = nullptr;
+								}
 
-							break;
+								break;
+							}
+							PlatformUtils::Sleep(1);
 						}
-						PlatformUtils::Sleep(1);
 					}
 				}
 			
@@ -169,10 +159,13 @@ void LoadTextureTask::run(size_t thread_index)
 
 
 			// Send a message to MainWindow with the loaded texture data.
-			Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
+			glare::FastPoolAllocator::AllocResult res = this->texture_loaded_msg_allocator->alloc();
+			Reference<TextureLoadedThreadMessage> msg = new (res.ptr) TextureLoadedThreadMessage();
+			msg->texture_loaded_msg_allocator = texture_loaded_msg_allocator.ptr();
+			msg->allocation_index = res.index;
+
 			msg->tex_path = path;
 			msg->tex_URL = resource->URL;
-			msg->tex_key = key;
 			msg->tex_params = tex_params;
 			msg->pbo = pbo;
 			if(is_terrain_map)
@@ -211,3 +204,21 @@ void LoadTextureTask::run(size_t thread_index)
 	// We tried N times but each time we got an LimitedAllocatorAllocFailed exception.
 	result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': failed after multiple LimitedAllocatorAllocFailed"));
 }
+
+
+template <>
+void destroyAndFreeOb<TextureLoadedThreadMessage>(TextureLoadedThreadMessage* ob)
+{
+	glare::FastPoolAllocator* allocator = ob->texture_loaded_msg_allocator;
+	const int allocation_index = ob->allocation_index;
+
+	assert(allocator);
+	if(allocator)
+	{
+		ob->~TextureLoadedThreadMessage(); // Destroy ob
+		allocator->free(allocation_index); // Free mem
+	}
+	else
+		delete ob;
+}
+

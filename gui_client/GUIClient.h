@@ -384,6 +384,8 @@ public:
 	//----------------------- end PhysicsWorldEventListener interface -----------------------
 	
 
+	Reference<TextureLoadedThreadMessage> allocTextureLoadedThreadMessage();
+
 public:
 	Reference<OpenGLEngine> opengl_engine;
 
@@ -534,10 +536,13 @@ public:
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
 	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
 
-	std::deque<Reference<ModelLoadedThreadMessage> > async_model_loaded_messages_to_process;
-	std::deque<Reference<TextureLoadedThreadMessage> > async_texture_loaded_messages_to_process;
+	CircularBuffer<Reference<ModelLoadedThreadMessage> > async_model_loaded_messages_to_process;
+	CircularBuffer<Reference<TextureLoadedThreadMessage> > async_texture_loaded_messages_to_process;
 
 	Reference<VBO> dummy_vbo;
+	Reference<PBO> dummy_pbo;
+	Reference<PBO> temp_pbo;
+	Reference<OpenGLTexture> dummy_opengl_tex;
 	
 	bool process_model_loaded_next;
 
@@ -772,19 +777,20 @@ public:
 
 	bool sent_perform_gesture_without_stop_gesture;
 
-	struct PBOAsyncTextureUploading
+	// Info stored about an upload to the GPU using a PBO while it is taking place
+	struct PBOAsyncTextureUploading : public UploadingTextureUserInfo
 	{
 		std::string path;
 		std::string URL;
 		Reference<TextureData> tex_data;
 		Reference<OpenGLTexture> opengl_tex;
 		Map2DRef terrain_map;
+		bool loading_into_existing_opengl_tex;
+		UID ob_uid;
 	};
-	
-	std::map<Reference<OpenGLTexture>, PBOAsyncTextureUploading> pbo_async_uploading_textures;
 
 
-	struct AsyncGeometryUploading
+	struct AsyncGeometryUploading : public UploadingGeometryUserInfo
 	{
 		std::string lod_model_url;
 		int ob_model_lod_level;
@@ -794,10 +800,11 @@ public:
 		uint64 voxel_hash;
 	};
 	
-	std::map<OpenGLMeshRenderDataRef, AsyncGeometryUploading> async_uploading_geom;
 
 	js::Vector<AsyncUploadedGeometryInfo, 16> temp_uploaded_geom_infos;
 	js::Vector<PBOAsyncUploadedTextureInfo, 16> temp_loaded_texture_infos;
+
+	Reference<glare::FastPoolAllocator> texture_loaded_msg_allocator; // For TextureLoadedThreadMessage
 
 	bool use_lightmaps;
 	Timer retry_connection_timer;
