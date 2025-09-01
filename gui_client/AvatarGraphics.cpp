@@ -34,6 +34,8 @@ AvatarGraphics::AvatarGraphics()
 	eye_end_transition_time = -1;
 	saccade_gap = 0.5;
 
+	last_cam_rotation_time = 0;
+
 	cur_head_rot_z = 0;
 	//cur_head_rot_quat = Quatf::identity();
 
