@@ -539,7 +539,8 @@ public:
 	CircularBuffer<Reference<ModelLoadedThreadMessage> > async_model_loaded_messages_to_process;
 	CircularBuffer<Reference<TextureLoadedThreadMessage> > async_texture_loaded_messages_to_process;
 
-	Reference<VBO> dummy_vbo;
+	Reference<VBO> dummy_vert_vbo;
+	Reference<VBO> dummy_index_vbo;
 	Reference<PBO> dummy_pbo;
 	Reference<PBO> temp_pbo;
 	Reference<OpenGLTexture> dummy_opengl_tex;
