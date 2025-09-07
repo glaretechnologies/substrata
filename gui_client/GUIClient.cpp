@@ -790,6 +790,17 @@ GUIClient::~GUIClient()
 	garbage_deleter_thread_manager.killThreadsBlocking();
 
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
+
+	// Bit of a hack to clear msg_queue while calling the correct custom destroy method for TextureLoadedThreadMessage.
+	// To do this we need to make sure the last reference to the message has type Reference<TextureLoadedThreadMessage> and not Reference<ThreadMessage>.
+	this->msg_queue.dequeueAnyQueuedItems(temp_msgs);
+	for(size_t msg_i=0; msg_i<temp_msgs.size(); ++msg_i)
+		if(temp_msgs[msg_i].isType<TextureLoadedThreadMessage>())
+		{
+			Reference<TextureLoadedThreadMessage> tex_loaded_msg = temp_msgs[msg_i].downcast<TextureLoadedThreadMessage>();
+			temp_msgs[msg_i] = nullptr;
+		}
+
 	
 
 	if(wind_audio_source)
