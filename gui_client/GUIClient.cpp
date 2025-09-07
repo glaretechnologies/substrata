@@ -30,6 +30,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../audio/MicReadThread.h"
 #include "MakeHypercardTextureTask.h"
 #include "SaveResourcesDBThread.h"
+#include "GarbageDeleterThread.h"
 #include "BiomeManager.h"
 #include "WebViewData.h"
 #include "BrowserVidPlayer.h"
@@ -342,6 +343,8 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 	// With Emscripten we use an ephemeral virtual file system, so no point in saving resource manager state to it.
 	save_resources_db_thread_manager.addThread(new SaveResourcesDBThread(resource_manager, resources_db_path));
 #endif
+
+	garbage_deleter_thread_manager.addThread(new GarbageDeleterThread());
 
 
 	// Add default avatar mesh as an external resource.
@@ -784,6 +787,7 @@ GUIClient::~GUIClient()
 	resource_download_thread_manager.killThreadsBlocking();
 	net_resource_download_thread_manager.killThreadsBlocking();
 	save_resources_db_thread_manager.killThreadsBlocking();
+	garbage_deleter_thread_manager.killThreadsBlocking();
 
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 	
@@ -2954,8 +2958,9 @@ void GUIClient::removeInstancesOfObject(WorldObject* prototype_ob)
 void GUIClient::removeObScriptingInfo(WorldObject* ob)
 {
 	removeInstancesOfObject(ob);
-	if(ob->script_evaluator.nonNull())
+	if(ob->script_evaluator)
 	{
+		sendWinterShaderEvaluatorToGarbageDeleterThread(ob->script_evaluator);
 		ob->script_evaluator = NULL;
 		this->obs_with_scripts.erase(ob);
 	}
@@ -3072,6 +3077,12 @@ void GUIClient::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* lo
 
 	try
 	{
+		if(ob->script_evaluator)
+		{
+			sendWinterShaderEvaluatorToGarbageDeleterThread(ob->script_evaluator);
+			ob->script_evaluator = nullptr;
+		}
+
 		ob->script_evaluator = loaded_msg->script_evaluator;
 
 		const std::string script_content = loaded_msg->script;
@@ -4714,8 +4725,8 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				index_vbo->updateData(/*offset=*/0, index_data.data(), index_data.size());
 				index_vbo->unbind();
 
-				// Free geometry memory now it has been copied to the VBO. TODO: do in another thread if this is going to waste CPU time zeroing it out?
-				message->gl_meshdata->clearAndFreeGeometryMem();
+				// Free geometry memory in another thread to avoid blocking while memory is zeroed.
+				sendGeometryDataToGarbageDeleterThread(message->gl_meshdata);
 
 
 				Reference<AsyncGeometryUploading> uploading_info = new AsyncGeometryUploading();
@@ -4867,6 +4878,47 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 			conPrint("Excep while creating or starting to upload texture: " + e.what());
 		}
 	}
+}
+
+
+void GUIClient::sendGeometryDataToGarbageDeleterThread(const Reference<OpenGLMeshRenderData>& gl_meshdata)
+{
+	if(gl_meshdata->batched_mesh)
+	{
+		Reference<DeleteGarbageMessage> msg = new DeleteGarbageMessage();
+		msg->garbage.uint8_data. takeFrom(gl_meshdata->batched_mesh->vertex_data);
+		msg->garbage.uint8_data2.takeFrom(gl_meshdata->batched_mesh->index_data);
+
+		assert(gl_meshdata->batched_mesh->vertex_data.empty());
+		assert(gl_meshdata->batched_mesh->index_data .empty());
+
+		this->garbage_deleter_thread_manager.enqueueMessage(msg);
+	}
+	else
+	{
+		Reference<DeleteGarbageMessage> msg = new DeleteGarbageMessage();
+		msg->garbage.uint8_data.takeFrom(gl_meshdata->vert_data);
+		msg->garbage.uint8_data2.takeFrom(gl_meshdata->vert_index_buffer_uint8);
+		msg->garbage.uint16_data.takeFrom(gl_meshdata->vert_index_buffer_uint16);
+		msg->garbage.uint32_data.takeFrom(gl_meshdata->vert_index_buffer);
+
+		assert(gl_meshdata->vert_data.empty());
+		assert(gl_meshdata->vert_index_buffer_uint8.empty());
+		assert(gl_meshdata->vert_index_buffer_uint16.empty());
+		assert(gl_meshdata->vert_index_buffer.empty());
+
+		this->garbage_deleter_thread_manager.enqueueMessage(msg);
+	}
+}
+
+
+void GUIClient::sendWinterShaderEvaluatorToGarbageDeleterThread(const Reference<WinterShaderEvaluator>& script_evaluator)
+{
+	Reference<DeleteGarbageMessage> msg = new DeleteGarbageMessage();
+
+	msg->garbage.winter_shader_evaluator = script_evaluator;
+
+	this->garbage_deleter_thread_manager.enqueueMessage(msg);
 }
 
 

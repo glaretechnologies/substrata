@@ -332,6 +332,8 @@ public:
 	void connectToServer(const URLParseResults& url_results);
 
 	void processLoading(Timer& timer_event_timer);
+	void sendGeometryDataToGarbageDeleterThread(const Reference<OpenGLMeshRenderData>& gl_meshdata);
+	void sendWinterShaderEvaluatorToGarbageDeleterThread(const Reference<WinterShaderEvaluator>& script_evaluator);
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
 	void createPathControlledPathVisObjects(const WorldObject& ob);
 	Reference<VehiclePhysics> createVehicleControllerForScript(WorldObject* ob);
@@ -422,6 +424,7 @@ public:
 	ThreadManager resource_download_thread_manager;
 	ThreadManager net_resource_download_thread_manager;
 	ThreadManager save_resources_db_thread_manager;
+	ThreadManager garbage_deleter_thread_manager;
 
 	glare::AtomicInt num_non_net_resources_downloading;
 	glare::AtomicInt num_net_resources_downloading;
