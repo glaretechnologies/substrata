@@ -186,7 +186,7 @@ void TerrainScattering::init(const std::string& base_dir_path, TerrainSystem* te
 	//{
 	//	GLTFLoadedData gltf_data;
 	//	Reference<BatchedMesh> batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\grass_clump1.glb", gltf_data);
-	//	grass_clump_meshdata = GLMeshBuilding::buildBatchedMesh(opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip_opengl_calls=*/true, /*instancing_matrix_data=*/NULL);
+	//	grass_clump_meshdata = GLMeshBuilding::buildBatchedMesh(opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip_opengl_calls=*/true);
 	//	//	
 	//}
 

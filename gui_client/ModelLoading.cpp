@@ -673,7 +673,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			gl_ob = gl_engine.allocateObject();
 			gl_ob->ob_to_world_matrix = results_out.ob_to_world;
 
-			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false);
 		}
 
 		const size_t bmesh_num_mats_referenced = batched_mesh->numMaterialsReferenced();
@@ -854,7 +854,7 @@ void ModelLoading::makeGLObjectForModelFile(
 		{
 			gl_ob = gl_engine.allocateObject();
 			gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+			gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, bmesh, /*skip_opengl_calls=*/false);
 		}
 		const size_t num_mats = bmesh->numMaterialsReferenced();
 		if(do_opengl_stuff)
@@ -1075,7 +1075,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 		if(batched_mesh->animation_data.vrm_data.nonNull())
 			rotateVRMMesh(*batched_mesh);
 
-	Reference<OpenGLMeshRenderData> gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+	Reference<OpenGLMeshRenderData> gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls);
 
 	if(build_physics_ob)
 		physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob, mem_allocator, &create_physics_tris_for_mat);
