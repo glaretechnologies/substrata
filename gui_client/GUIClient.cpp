@@ -1108,7 +1108,7 @@ void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex
 		const TextureParams& tex_params)
 {
 	//assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
-	if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(local_abs_tex_path))) // If texture is not uploaded to GPU already:
+	if(!opengl_engine->isOpenGLTextureInsertedForKey(local_abs_tex_path)) // If texture is not uploaded to GPU already:
 	{
 		const bool just_added = checkAddTextureToProcessingSet(local_abs_tex_path); // If not being loaded already:
 		if(just_added)
@@ -1189,7 +1189,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 		{
 			const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(tex_path))) // If texture is not uploaded to GPU already:
+			if(!opengl_engine->isOpenGLTextureInsertedForKey(tex_path)) // If texture is not uploaded to GPU already:
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
@@ -1363,7 +1363,7 @@ bool GUIClient::isResourceCurrentlyNeededForObjectGivenIsDependency(const std::s
 		// If it's already loaded into the opengl engine, don't download it.
 		ResourceRef resource = resource_manager->getOrCreateResourceForURL(url); // NOTE: don't want to add resource here ideally.
 		const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
-		if(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(local_path)))
+		if(opengl_engine->isOpenGLTextureInsertedForKey(local_path))
 			return false;
 	}
 	else
@@ -1592,7 +1592,7 @@ static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat
 	for(int lvl=world_mat.minLODLevel(); lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = world_mat.getLODTextureURLForLevel(base_tex_path, lvl, tex_has_alpha, use_basis);
-		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(tex_lod_path);
 		if(tex.nonNull())
 			return tex;
 	}
@@ -1606,7 +1606,7 @@ static Reference<OpenGLTexture> getBestLightmapLOD(const std::string& base_light
 	for(int lvl=0; lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = WorldObject::getLODLightmapURL(base_lightmap_path, lvl);
-		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(tex_lod_path);
 		if(tex.nonNull())
 			return tex;
 	}
@@ -1629,9 +1629,9 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 	{
 		try
 		{
-			if(!opengl_texture || (opengl_texture->key.path != desired_tex_path)) // If the desired texture is not loaded:
+			if(!opengl_texture || (opengl_texture->key != desired_tex_path)) // If the desired texture is not loaded:
 			{
-				OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(desired_tex_path)); // Try and load desired texture
+				OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(desired_tex_path); // Try and load desired texture
 				if(!new_tex && world_mat)
 					new_tex = getBestTextureLOD(*world_mat, resource_manager.pathForURL(texture_URL), tex_has_alpha, /*use_sRGB=*/use_sRGB, use_basis, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
 
@@ -1688,9 +1688,9 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 		{
 			try
 			{
-				if(!opengl_mat.lightmap_texture || (opengl_mat.lightmap_texture->key.path != opengl_mat.lightmap_path)) // If the desired texture it not loaded:
+				if(!opengl_mat.lightmap_texture || (opengl_mat.lightmap_texture->key != opengl_mat.lightmap_path)) // If the desired texture it not loaded:
 				{
-					OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
+					OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(opengl_mat.lightmap_path);
 					if(!new_tex) // If this texture is not loaded into the OpenGL engine:
 						new_tex = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
 
@@ -2044,7 +2044,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				const std::string tex_key = "hypercard_" + ob->content;
 
 				// If the hypercard texture is already loaded, use it
-				opengl_ob->materials[0].albedo_texture = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key));
+				opengl_ob->materials[0].albedo_texture = opengl_engine->getTextureIfLoaded(tex_key);
 				opengl_ob->materials[0].tex_path = tex_key;
 
 				if(opengl_ob->materials[0].albedo_texture.isNull())
@@ -4416,7 +4416,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 					try
 					{
-						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, opengl_engine, OpenGLTextureKey(message->tex_path), message->tex_params,
+						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, opengl_engine, message->tex_path, message->tex_params,
 							message->texture_data, this->tex_loading_progress);
 						tex_loading_progress.URL = message->tex_URL;
 					}
@@ -4688,7 +4688,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				//const double elapsed = timer2.elapsed();
 				//if(elapsed > 0.0001)
 				//		conPrint("    createUninitialisedOpenGLTexture() took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms");
-				opengl_tex->key = OpenGLTextureKey(message->/*tex_key*/tex_path);
+				opengl_tex->key = message->/*tex_key*/tex_path;
 			}
 
 
@@ -7098,7 +7098,7 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 					chunk->graphics_ob->materials[0].combined_array_texture = this->default_array_tex;
 					if(!chunk->combined_array_texture_path.empty())
 					{
-						OpenGLTextureRef combined_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(chunk->combined_array_texture_path));
+						OpenGLTextureRef combined_tex = opengl_engine->getTextureIfLoaded(chunk->combined_array_texture_path);
 						if(combined_tex)
 						{
 							if(combined_tex->getTextureTarget() != GL_TEXTURE_2D_ARRAY)
@@ -7144,7 +7144,7 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 					const uint64 hash = XXH64(decompressed.data(), decompressed.size(), /*seed=*/1);
 
 					const std::string use_mat_info_path = "mat_info_" + toString(hash);
-					chunk->graphics_ob->materials[0].backface_albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey(use_mat_info_path), *map, mat_info_tex_params);
+					chunk->graphics_ob->materials[0].backface_albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(use_mat_info_path, *map, mat_info_tex_params);
 					chunk->graphics_ob->materials[0].backface_albedo_texture->setDebugName(use_mat_info_path);
 
 					if(chunk->graphics_ob->materials.size() >= 2)
@@ -8632,7 +8632,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						
 								const std::string tex_path = local_path;
 
-								if(!opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(tex_path))) // If texture is not uploaded to GPU already:
+								if(!opengl_engine->isOpenGLTextureInsertedForKey(tex_path)) // If texture is not uploaded to GPU already:
 								{
 									const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 									if(just_added)
@@ -11157,7 +11157,7 @@ void GUIClient::objectEdited()
 							const std::string tex_key = "hypercard_" + selected_ob->content;
 
 							// If the hypercard texture is already loaded, use it
-							opengl_ob->materials[0].albedo_texture = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key));
+							opengl_ob->materials[0].albedo_texture = opengl_engine->getTextureIfLoaded(tex_key);
 							opengl_ob->materials[0].tex_path = tex_key;
 
 							if(opengl_ob->materials[0].albedo_texture.isNull())
@@ -13704,7 +13704,7 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
 	TextureParams tex_params;
 	tex_params.allow_compression = false;
-	gl_ob->materials[0].albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map, tex_params);
+	gl_ob->materials[0].albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D("nametag_" + nametag, *map, tex_params);
 	gl_ob->materials[0].cast_shadows = false;
 	gl_ob->materials[0].tex_matrix = Matrix2f(1,0,0,-1); // Compensate for OpenGL loading textures upside down (row 0 in OpenGL is considered to be at the bottom of texture)
 	gl_ob->materials[0].tex_translation = Vec2f(0, 1);

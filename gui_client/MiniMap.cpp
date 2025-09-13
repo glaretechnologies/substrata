@@ -475,7 +475,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 
 								const std::string local_path = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
 
-								OpenGLTextureRef tile_tex = opengl_engine->getTextureIfLoaded(OpenGLTextureKey(local_path));
+								OpenGLTextureRef tile_tex = opengl_engine->getTextureIfLoaded(local_path);
 								if(tile_tex.nonNull())
 								{
 									tile.ob->material.albedo_texture = tile_tex;
