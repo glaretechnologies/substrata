@@ -1589,7 +1589,7 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level,
 // Prefer lower LOD levels (more detail).
 static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const std::string& base_tex_path, bool tex_has_alpha, bool use_sRGB, bool use_basis, OpenGLEngine& opengl_engine)
 {
-	for(int lvl=-1; lvl<=2; ++lvl)
+	for(int lvl=world_mat.minLODLevel(); lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = world_mat.getLODTextureURLForLevel(base_tex_path, lvl, tex_has_alpha, use_basis);
 		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
@@ -1622,6 +1622,37 @@ static inline bool isNonEmptyAndNotMp4(const std::string& path)
 }
 
 
+static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const std::string& texture_URL, const std::string& desired_tex_path, OpenGLEngine& opengl_engine, 
+	ResourceManager& resource_manager, bool use_basis, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out, bool& assigned_animated_tex_out)
+{
+	if(isNonEmptyAndNotMp4(desired_tex_path))
+	{
+		try
+		{
+			if(!opengl_texture || (opengl_texture->key.path != desired_tex_path)) // If the desired texture is not loaded:
+			{
+				OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(desired_tex_path)); // Try and load desired texture
+				if(!new_tex && world_mat)
+					new_tex = getBestTextureLOD(*world_mat, resource_manager.pathForURL(texture_URL), tex_has_alpha, /*use_sRGB=*/use_sRGB, use_basis, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
+
+				if(new_tex != opengl_texture)
+				{
+					opengl_texture = new_tex;
+
+					mat_changed_out = true;
+					if(opengl_texture && opengl_texture->texture_data && opengl_texture->texture_data->isMultiFrame())
+						assigned_animated_tex_out = true;
+				}
+			}
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("error loading texture: " + e.what());
+		}
+	}
+}
+
+
 // Update textures to correct LOD-level textures.
 // Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
@@ -1639,123 +1670,35 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
 		const WorldMaterial* world_mat = (z < ob->materials.size()) ? ob->materials[z].ptr() : NULL;
 
-		if(isNonEmptyAndNotMp4(opengl_mat.tex_path)) // We won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.albedo_texture.ptr();
-				if(!prev_tex || (prev_tex->key.path != opengl_mat.tex_path)) // If the desired texture it not loaded:
-				{
-					opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
-					if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
-						opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, use_basis, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
-				
-					if(opengl_mat.albedo_texture.ptr() != prev_tex)
-					{
-						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+		bool mat_changed = false;
 
-						if(opengl_mat.albedo_texture && opengl_mat.albedo_texture->texture_data && opengl_mat.albedo_texture->texture_data->isMultiFrame())
-							assigned_animated_tex_out = true;
-					}
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
+		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : std::string(), opengl_mat.tex_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
 
-		if(isNonEmptyAndNotMp4(opengl_mat.emission_tex_path))
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.emission_texture.ptr();
-				if(!prev_tex || (prev_tex->key.path != opengl_mat.emission_tex_path)) // If the desired texture it not loaded:
-				{
-					opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path));
-					if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-						opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, use_basis, opengl_engine);
+		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : std::string(), opengl_mat.emission_tex_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
 
-					if(opengl_mat.emission_texture.ptr() != prev_tex)
-					{
-						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : std::string(), opengl_mat.metallic_roughness_tex_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed, assigned_animated_tex_out);
 
-						if(opengl_mat.emission_texture && opengl_mat.emission_texture->texture_data && opengl_mat.emission_texture->texture_data->isMultiFrame())
-							assigned_animated_tex_out = true;
-					}
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
-
-		if(isNonEmptyAndNotMp4(opengl_mat.metallic_roughness_tex_path))
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.metallic_roughness_texture.ptr();
-				if(!prev_tex || (prev_tex->key.path != opengl_mat.metallic_roughness_tex_path)) // If the desired texture it not loaded:
-				{
-					opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
-					if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-						opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
-
-					if(opengl_mat.metallic_roughness_texture.ptr() != prev_tex)
-					{
-						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
-
-						if(opengl_mat.metallic_roughness_texture && opengl_mat.metallic_roughness_texture->texture_data && opengl_mat.metallic_roughness_texture->texture_data->isMultiFrame())
-							assigned_animated_tex_out = true;
-					}
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
-
-		if(isNonEmptyAndNotMp4(opengl_mat.normal_map_path))
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.normal_map.ptr();
-				if(!prev_tex || (prev_tex->key.path != opengl_mat.normal_map_path)) // If the desired texture it not loaded:
-				{
-					opengl_mat.normal_map = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.normal_map_path));
-					if(opengl_mat.normal_map.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-						opengl_mat.normal_map = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->normal_map_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
-
-					if(opengl_mat.normal_map.ptr() != prev_tex)
-					{
-						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
-
-						if(opengl_mat.normal_map && opengl_mat.normal_map->texture_data && opengl_mat.normal_map->texture_data->isMultiFrame())
-							assigned_animated_tex_out = true;
-					}
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
+		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : std::string(), opengl_mat.normal_map_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed, assigned_animated_tex_out);
 
 		if(use_lightmaps && isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
 		{
 			try
 			{
-				const OpenGLTexture* prev_tex = opengl_mat.lightmap_texture.ptr();
-				if(!prev_tex || (prev_tex->key.path != opengl_mat.lightmap_path)) // If the desired texture it not loaded:
+				if(!opengl_mat.lightmap_texture || (opengl_mat.lightmap_texture->key.path != opengl_mat.lightmap_path)) // If the desired texture it not loaded:
 				{
-					opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
-					if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
-						opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
+					OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
+					if(!new_tex) // If this texture is not loaded into the OpenGL engine:
+						new_tex = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
 
-					if(opengl_mat.lightmap_texture.ptr() != prev_tex)
-						opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+					if(new_tex != opengl_mat.lightmap_texture)
+					{
+						opengl_mat.lightmap_texture = new_tex;
+						mat_changed = true;
+					}
 				}
 			}
 			catch(glare::Exception& e)
@@ -1765,6 +1708,9 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 		}
 		else
 			opengl_mat.lightmap_texture = NULL;
+
+		if(mat_changed)
+			opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
 	}
 }
 
@@ -1802,83 +1748,26 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 		OpenGLMaterial& opengl_mat = gl_ob->materials[z];
 		const WorldMaterial* world_mat = (z < av->avatar_settings.materials.size()) ? av->avatar_settings.materials[z].ptr() : NULL;
 
-		if(isNonEmptyAndNotMp4(opengl_mat.tex_path))
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.albedo_texture.ptr();
+		bool mat_changed = false;
+		bool assigned_animated_tex_out = false;
 
-				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
-				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
-					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, use_basis, opengl_engine);
+		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : std::string(), opengl_mat.tex_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
 
-				if(opengl_mat.albedo_texture.ptr() != prev_tex)
-					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
+		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : std::string(), opengl_mat.emission_tex_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
 
-		if(isNonEmptyAndNotMp4(opengl_mat.emission_tex_path))
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.emission_texture.ptr();
+		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : std::string(), opengl_mat.metallic_roughness_tex_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed, assigned_animated_tex_out);
 
-				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path));
-				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, use_basis, opengl_engine);
-
-				if(opengl_mat.emission_texture.ptr() != prev_tex)
-					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
-
-		if(isNonEmptyAndNotMp4(opengl_mat.metallic_roughness_tex_path))
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.metallic_roughness_texture.ptr();
-
-				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
-				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
-
-				if(opengl_mat.metallic_roughness_texture.ptr() != prev_tex)
-					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
-
-		if(isNonEmptyAndNotMp4(opengl_mat.normal_map_path))
-		{
-			try
-			{
-				const OpenGLTexture* prev_tex = opengl_mat.normal_map.ptr();
-
-				opengl_mat.normal_map = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.normal_map_path));
-				if(opengl_mat.normal_map.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
-					opengl_mat.normal_map = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->normal_map_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, use_basis, opengl_engine);
-
-				if(opengl_mat.normal_map.ptr() != prev_tex)
-					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
-			}
-			catch(glare::Exception& e)
-			{
-				conPrint("error loading texture: " + e.what());
-			}
-		}
+		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : std::string(), opengl_mat.normal_map_path, opengl_engine, resource_manager, use_basis, 
+			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed, assigned_animated_tex_out);
+		
+		if(mat_changed)
+			opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 	}
 }
+
 
 // Compute approximate spectral radiance of the emitter, from the given luminous flux, multiplied by 1.0e-9 (to avoid precision issues in shaders)
 static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_angle_start, float cone_cos_angle_end, float& scale_out)
