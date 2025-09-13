@@ -149,7 +149,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 
 	batched_mesh->checkValidAndSanitiseMesh();
 
-	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildBatchedMesh(&allocator, batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL); // Build OpenGLMeshRenderData
+	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildBatchedMesh(&allocator, batched_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = spotlight_opengl_mesh;
