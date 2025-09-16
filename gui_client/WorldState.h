@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/LODChunk.h"
 #include <ThreadSafeRefCounted.h>
 #include <FastIterMap.h>
+#include <FastIterMap.h>
 #include <Mutex.h>
 #include <map>
 #include <unordered_set>
@@ -37,7 +38,7 @@ public:
 
 	size_t getTotalMemUsage() const;
 
-	Parcel* getParcelPointIsIn(const Vec3d& p) REQUIRES(mutex); // Returns NULL if not in any parcel.  A lock on mutex must be held by the caller.
+	Parcel* getParcelPointIsIn(const Vec3d& p, ParcelID guess_parcel_id = ParcelID::invalidParcelID()) REQUIRES(mutex); // Returns NULL if not in any parcel.  A lock on mutex must be held by the caller.
 
 	std::map<UID, Reference<Avatar>> avatars GUARDED_BY(mutex);
 

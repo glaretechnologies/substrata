@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <StringUtils.h>
 #include <Clock.h>
 #include <Lock.h>
+#include <Timer.h>
 #include <tracy/Tracy.hpp>
 
 
@@ -125,19 +126,38 @@ size_t WorldState::getTotalMemUsage() const
 }
 
 
-Parcel* WorldState::getParcelPointIsIn(const Vec3d& p_)
+Parcel* WorldState::getParcelPointIsIn(const Vec3d& p_, ParcelID guess_parcel_id)
 {
 	ZoneScoped; // Tracy profiler
+	//Timer timer;
 
 	const Vec4f p = p_.toVec4fPoint();
+
+	if(guess_parcel_id.valid())
+	{
+		auto res = parcels.find(guess_parcel_id);
+		if(res != parcels.end())
+		{
+			Parcel* parcel = res->second.ptr();
+			if(parcel->aabb.contains(p))
+			{
+				//conPrint("getParcelPointIsIn using guess_parcel_id took " + timer.elapsedStringMS());
+				return parcel;
+			}
+		}
+	}
 
 	for(auto& it : parcels) // NOTE: fixme, crappy linear scan
 	{
 		Parcel* parcel = it.second.ptr();
 
 		if(parcel->aabb.contains(p))
+		{
+			//conPrint("getParcelPointIsIn took " + timer.elapsedStringMS());
 			return parcel;
+		}
 	}
 
+	//conPrint("getParcelPointIsIn (finding nothing) took " + timer.elapsedStringMS());
 	return NULL;
 }

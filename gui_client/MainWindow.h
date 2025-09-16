@@ -282,6 +282,9 @@ public:
 	virtual float gamepadAxisLeftY();
 	virtual float gamepadAxisRightX();
 	virtual float gamepadAxisRightY();
+
+	virtual void* makeNewSharedGLContext();
+	virtual void makeGLContextCurrent(void* context);
 	//------------------------------------------------- End UIInterface -----------------------------------------------------------
 
 public:

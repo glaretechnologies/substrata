@@ -139,4 +139,8 @@ public:
 	virtual float gamepadAxisRightX() = 0;
 	virtual float gamepadAxisRightY() = 0;
 	
+
+	// OpenGL
+	virtual void* makeNewSharedGLContext() = 0;
+	virtual void makeGLContextCurrent(void* context) = 0;
 };

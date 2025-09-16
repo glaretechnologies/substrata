@@ -62,6 +62,9 @@ public:
 
 	static float defaultSensorWidth() { return 0.035f; }
 	static float defaultLensSensorDist() { return 0.025f; }
+
+	void* makeNewSharedGLContext();
+
 protected:
 
 	virtual void initializeGL();
