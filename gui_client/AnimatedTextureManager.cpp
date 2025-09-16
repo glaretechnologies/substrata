@@ -146,6 +146,14 @@ void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngin
 					// Don't try and upload the wrong size or we will get an OpenGL error or crash.
 					if(texture->xRes() == texdata->W && texture->yRes() == texdata->H)
 					{
+#if 1
+						UploadTextureMessage* msg = new UploadTextureMessage();
+						msg->texture_data = texdata;
+						msg->existing_opengl_tex = texture;
+						msg->frame_i = animtexdata.cur_frame_i;
+
+						gui_client->opengl_upload_thread->getMessageQueue().enqueue(msg);
+#else
 						// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner
 						Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
 						//msg->tex_path = tex_path; // Don't set tex_path as isn't used.
@@ -176,14 +184,15 @@ void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngin
 									msg->pbo = pbo;
 									gui_client->async_texture_loaded_messages_to_process.push_back(msg);
 								}
-								else
-									conPrint("AnimatedTexManager: Failed to get mapped PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
+								//else
+								//	conPrint("AnimatedTexManager: Failed to get mapped PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
 							}
 						}
 						else
 						{
 							gui_client->async_texture_loaded_messages_to_process.push_back(msg);
 						}
+#endif
 					}
 					//else
 					//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
