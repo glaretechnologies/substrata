@@ -4131,6 +4131,23 @@ float MainWindow::gamepadAxisRightY()
 
 
 
+void* MainWindow::makeNewSharedGLContext()
+{
+	return (void*)ui->glWidget->makeNewSharedGLContext();
+}
+
+
+void MainWindow::makeGLContextCurrent(void* context_)
+{
+	HWND hwnd = reinterpret_cast<HWND>(ui->glWidget->winId());
+	HDC hdc = GetDC(hwnd);
+
+	HGLRC handle = (HGLRC)context_;
+	BOOL res = wglMakeCurrent(hdc, handle);
+	assert(res != 0);
+}
+
+
 // The mouse was double-clicked on a web-view object
 void MainWindow::webViewMouseDoubleClicked(QMouseEvent* e)
 {
@@ -4309,7 +4326,7 @@ int main(int argc, char *argv[])
 	QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
 
 	//QtWebEngine::initialize();
-//	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 //	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 //	QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 //	QtWebEngineQuick::initialize();

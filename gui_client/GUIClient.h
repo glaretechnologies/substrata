@@ -85,6 +85,7 @@ struct LoadedBuffer;
 struct AsyncUploadedGeometryInfo;
 struct PBOAsyncUploadedTextureInfo;
 class RenderStatsWidget;
+class OpenGLUploadThread;
 
 
 struct ResourceUserList
@@ -812,4 +813,9 @@ public:
 
 	bool use_lightmaps;
 	Timer retry_connection_timer;
+
+
+	ThreadManager opengl_worker_thread_manager;
+
+	Reference<OpenGLUploadThread> opengl_upload_thread;
 };

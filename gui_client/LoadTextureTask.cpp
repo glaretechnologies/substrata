@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <graphics/TextureProcessing.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/TextureAllocator.h>
+#include <opengl/OpenGLUploadThread.h>
 #include <utils/LimitedAllocator.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
@@ -27,9 +28,9 @@ Copyright Glare Technologies Limited 2019 -
 
 
 LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource_,
-	const TextureParams& tex_params_, bool is_terrain_map_, const Reference<glare::Allocator>& worker_allocator_, Reference<glare::FastPoolAllocator>& texture_loaded_msg_allocator_)
+	const TextureParams& tex_params_, bool is_terrain_map_, const Reference<glare::Allocator>& worker_allocator_, Reference<glare::FastPoolAllocator>& texture_loaded_msg_allocator_, const Reference<OpenGLUploadThread>& upload_thread_)
 :	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource(resource_), tex_params(tex_params_), is_terrain_map(is_terrain_map_), 
-	worker_allocator(worker_allocator_), texture_loaded_msg_allocator(texture_loaded_msg_allocator_)
+	worker_allocator(worker_allocator_), texture_loaded_msg_allocator(texture_loaded_msg_allocator_), upload_thread(upload_thread_)
 {}
 
 
@@ -122,7 +123,7 @@ void LoadTextureTask::run(size_t thread_index)
 				{
 					if(source_data.size() <= opengl_engine->pbo_pool.getLargestPBOSize()) // Don't try if can't fit in largest PBO
 					{
-						const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 50;
+						const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 500;
 						for(int i=0; i<max_num_attempts; ++i)
 						{
 							pbo = opengl_engine->pbo_pool.getUnusedVBO(source_data.size());
@@ -157,24 +158,45 @@ void LoadTextureTask::run(size_t thread_index)
 				conPrint("Large gif texture data: " + toString(texture_data->totalCPUMemUsage()) + " B, " + key);
 			}
 
+			if(upload_thread)
+			{
+				UploadTextureMessage* upload_msg = new UploadTextureMessage();
+				upload_msg->tex_path = path;
+				upload_msg->tex_params = tex_params;
+				upload_msg->texture_data = texture_data;
+				upload_msg->existing_opengl_tex = nullptr;
+				upload_msg->load_into_frame_i = 0;
 
-			// Send a message to MainWindow with the loaded texture data.
-			glare::FastPoolAllocator::AllocResult res = this->texture_loaded_msg_allocator->alloc();
-			Reference<TextureLoadedThreadMessage> msg = new (res.ptr) TextureLoadedThreadMessage();
-			msg->texture_loaded_msg_allocator = texture_loaded_msg_allocator.ptr();
-			msg->allocation_index = res.index;
+				LoadTextureTaskUploadingUserInfo* user_info = new LoadTextureTaskUploadingUserInfo();
+				user_info->terrain_map = map;
+				user_info->tex_URL = resource->URL;
+				upload_msg->user_info = user_info;
 
-			msg->tex_path = path;
-			msg->tex_URL = resource->URL;
-			msg->tex_params = tex_params;
-			msg->pbo = pbo;
-			if(is_terrain_map)
-				msg->terrain_map = map;
-			msg->texture_data = texture_data;
+				texture_data = NULL;
 
-			texture_data = NULL;
+				upload_thread->getMessageQueue().enqueue(upload_msg);
+			}
+			else
+			{
+				// Send a message to MainWindow with the loaded texture data.
+				glare::FastPoolAllocator::AllocResult res = this->texture_loaded_msg_allocator->alloc();
+				Reference<TextureLoadedThreadMessage> msg = new (res.ptr) TextureLoadedThreadMessage();
+				msg->texture_loaded_msg_allocator = texture_loaded_msg_allocator.ptr();
+				msg->allocation_index = res.index;
 
-			result_msg_queue->enqueue(msg);
+				msg->tex_path = path;
+				msg->tex_URL = resource->URL;
+				msg->tex_params = tex_params;
+				msg->pbo = pbo;
+				if(is_terrain_map)
+					msg->terrain_map = map;
+				msg->texture_data = texture_data;
+
+				texture_data = NULL;
+
+				result_msg_queue->enqueue(msg);
+			}
+			
 			return;
 		}
 		catch(glare::LimitedAllocatorAllocFailed& e)

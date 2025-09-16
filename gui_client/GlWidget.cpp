@@ -30,6 +30,8 @@ Copyright Glare Technologies Limited 2023 -
 #include <QtCore/QSettings>
 #include <QtWidgets/QShortcut>
 #include <QtGamepad/QGamepad>
+#include <QtGui/QOpenGLContext>
+#include <QtPlatformHeaders/QWGLNativeContext>
 #include <tracy/Tracy.hpp>
 #include <set>
 #include <stack>
@@ -333,6 +335,27 @@ void GlWidget::initializeGL()
 
 		opengl_engine->getCurrentScene()->draw_aurora = true;
 	}
+}
+
+
+void* GlWidget::makeNewSharedGLContext()
+{
+	QOpenGLContext* window_context = this->context()->contextHandle();
+	
+	QOpenGLContext* new_window_context = new QOpenGLContext();
+	new_window_context->setFormat(window_context->format());
+	new_window_context->setShareContext(window_context);
+	new_window_context->create();
+	assert(new_window_context->isValid());
+
+
+	QVariant nativeHandle = new_window_context->nativeHandle();
+	assert(!nativeHandle.isNull() && nativeHandle.canConvert<QWGLNativeContext>());
+	
+	QWGLNativeContext nativeContext = nativeHandle.value<QWGLNativeContext>();
+	HGLRC hglrc = nativeContext.context();
+
+	return hglrc;
 }
 
 

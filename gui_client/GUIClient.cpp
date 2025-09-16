@@ -89,6 +89,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../opengl/OpenGLShader.h"
 #include "../opengl/MeshPrimitiveBuilding.h"
 #include "../opengl/RenderStatsWidget.h"
+#include "../opengl/OpenGLUploadThread.h"
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/SSAODebugging.h>
 #include "../audio/AudioFileReader.h"
@@ -767,6 +768,14 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	}
 
 	render_stats_widget = new RenderStatsWidget(opengl_engine, gl_ui);
+
+	opengl_upload_thread = new OpenGLUploadThread();
+	opengl_upload_thread->gl_context = ui_interface->makeNewSharedGLContext();
+	opengl_upload_thread->make_gl_context_current_func = [&](void* gl_context) { ui_interface->makeGLContextCurrent(gl_context); };
+	opengl_upload_thread->opengl_engine = opengl_engine.ptr();
+	opengl_upload_thread->out_msg_queue = &this->msg_queue;
+
+	opengl_worker_thread_manager.addThread(opengl_upload_thread);
 }
 
 
@@ -838,6 +847,8 @@ void GUIClient::shutdown()
 
 	model_and_texture_loader_task_manager.removeQueuedTasks();
 	model_and_texture_loader_task_manager.waitForTasksToComplete();
+
+	opengl_worker_thread_manager.killThreadsBlocking();
 
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
@@ -1116,7 +1127,8 @@ void GUIClient::startLoadingTextureForLocalPath(const std::string& local_abs_tex
 			// conPrint("Adding LoadTextureTask for texture '" + local_abs_tex_path + "'...");
 			const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_abs_tex_path);
 
-			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource, tex_params, used_by_terrain, worker_allocator, texture_loaded_msg_allocator);
+			Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, local_abs_tex_path, resource, tex_params, used_by_terrain, worker_allocator, texture_loaded_msg_allocator,
+				opengl_upload_thread);
 
 			load_item_queue.enqueueItem(
 				resource->URL, // key
@@ -1202,7 +1214,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 					tex_params.use_mipmaps = false;
 					load_item_queue.enqueueItem(/*key=*/lod_tex_url, ob, 
-						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false, worker_allocator, texture_loaded_msg_allocator), 
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 						max_dist_for_ob_lod_level_clamped_0); // Lightmaps don't have LOD level -1 so used max dist for LOD level >= 0.
 				}
 				// Lightmaps are only used by a single object, so there should be no other uses of the lightmap, so don't need to call load_item_queue.checkUpdateItemPosition()
@@ -2295,6 +2307,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->need_lightmap_uvs = !ob->lightmap_url.empty();
 							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
 							load_model_task->worker_allocator = worker_allocator;
+							load_model_task->upload_thread = opengl_upload_thread;
 
 							load_item_queue.enqueueItem(/*key=*/pseudo_lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
@@ -2392,6 +2405,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
 							load_model_task->worker_allocator = worker_allocator;
+							load_model_task->upload_thread = opengl_upload_thread;
 
 							load_item_queue.enqueueItem(/*key=*/lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
@@ -2807,6 +2821,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
 					load_model_task->worker_allocator = worker_allocator;
+					load_model_task->upload_thread = opengl_upload_thread;
 
 					load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
 				}
@@ -4331,7 +4346,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				// Upload a chunk of data to the GPU
 				try
 				{
-					TextureLoading::partialLoadTextureIntoOpenGL(opengl_engine, tex_loading_progress, total_bytes_uploaded, max_total_upload_bytes);
+					TextureLoading::partialLoadTextureIntoOpenGL(tex_loading_progress, total_bytes_uploaded, max_total_upload_bytes);
 				}
 				catch(glare::Exception& e)
 				{
@@ -5998,7 +6013,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		//Timer timer;
 		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
 		WorldStateLock lock(world_state->mutex);
-		const Parcel* parcel = world_state->getParcelPointIsIn(campos_vec3d);
+		const Parcel* parcel = world_state->getParcelPointIsIn(campos_vec3d, /*guess parcel id=*/this->cur_in_parcel_id);
 		if(parcel)
 		{
 			// Set audio source room effects
@@ -7027,6 +7042,7 @@ void GUIClient::updateLODChunkGraphics()
 					load_model_task->build_physics_ob = false;
 					load_model_task->build_dynamic_physics_ob = false;
 					load_model_task->worker_allocator = worker_allocator;
+					load_model_task->upload_thread = opengl_upload_thread;
 
 					load_item_queue.enqueueItem(use_mesh_url, centroid_ws, chunk_w, 
 						load_model_task, 
@@ -7048,7 +7064,7 @@ void GUIClient::updateLODChunkGraphics()
 				{
 					TextureParams tex_params;
 					load_item_queue.enqueueItem(chunk->combined_array_texture_url, centroid_ws, chunk_w, 
-						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false, worker_allocator, texture_loaded_msg_allocator), 
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 				}
 			}
@@ -7829,21 +7845,69 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		}
 		else if(dynamic_cast<TextureLoadedThreadMessage*>(msg))
 		{
-			TextureLoadedThreadMessage* loaded_msg = static_cast<TextureLoadedThreadMessage*>(msg);
+			Reference<TextureLoadedThreadMessage> loaded_msg = temp_msgs[msg_i].downcast<TextureLoadedThreadMessage>();
+			temp_msgs[msg_i] = nullptr;
 
-			if(USE_MEM_MAPPING_FOR_TEXTURE_UPLOAD)
+			UploadTextureMessage* upload_msg = new UploadTextureMessage();
+			upload_msg->tex_path = loaded_msg->tex_path;
+			upload_msg->tex_params = loaded_msg->tex_params;
+			upload_msg->texture_data = loaded_msg->texture_data;
+			upload_msg->existing_opengl_tex = loaded_msg->existing_opengl_tex;
+			upload_msg->load_into_frame_i = loaded_msg->load_into_frame_i;
+
+			LoadTextureTaskUploadingUserInfo* user_info = new LoadTextureTaskUploadingUserInfo();
+			user_info->terrain_map = loaded_msg->terrain_map;
+			user_info->tex_URL = loaded_msg->tex_URL;
+			upload_msg->user_info = user_info;
+
+			opengl_worker_thread_manager.enqueueMessage(upload_msg);
+
+			//TEMP if(USE_MEM_MAPPING_FOR_TEXTURE_UPLOAD)
+			//TEMP {
+			//TEMP 	if(loaded_msg->pbo) // pbo is null when LoadTextureTask failed to find a free PBO.  In the null case fall back to non-async upload.
+			//TEMP 		async_texture_loaded_messages_to_process.push_back(loaded_msg);
+			//TEMP 	else
+			//TEMP 		texture_loaded_messages_to_process.push_back(loaded_msg);
+			//TEMP }
+			//TEMP else
+			//TEMP {
+			//TEMP 	if(loaded_msg->texture_data->frame_size_B <= opengl_engine->pbo_pool.getLargestPBOSize())
+			//TEMP 		async_texture_loaded_messages_to_process.push_back(loaded_msg);
+			//TEMP 	else
+			//TEMP 		texture_loaded_messages_to_process.push_back(loaded_msg);
+			//TEMP }
+		}
+		else if(dynamic_cast<TextureUploadedMessage*>(msg))
+		{
+			const TextureUploadedMessage* m = static_cast<const TextureUploadedMessage*>(msg);
+
+			LoadTextureTaskUploadingUserInfo* user_info = m->user_info.downcastToPtr<LoadTextureTaskUploadingUserInfo>();
+
+			opengl_engine->addOpenGLTexture(m->opengl_tex->key, m->opengl_tex);
+
+			this->handleUploadedTexture(m->tex_path, user_info->tex_URL, m->opengl_tex, m->texture_data, user_info->terrain_map);
+
+			// Now that this texture is loaded, remove from textures_processing set.
+			// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+			//assert(textures_processing.count(tex_loading_progress.path) >= 1);
+			textures_processing.erase(tex_loading_progress.path);
+		}
+		else if(dynamic_cast<GeometryUploadedMessage*>(msg))
+		{
+			const GeometryUploadedMessage* m = static_cast<const GeometryUploadedMessage*>(msg);
+
+			LoadModelTaskUploadingUserInfo* user_info = m->user_info.downcastToPtr<LoadModelTaskUploadingUserInfo>();
+			try
 			{
-				if(loaded_msg->pbo) // pbo is null when LoadTextureTask failed to find a free PBO.  In the null case fall back to non-async upload.
-					async_texture_loaded_messages_to_process.push_back(loaded_msg);
-				else
-					texture_loaded_messages_to_process.push_back(loaded_msg);
+				opengl_engine->vert_buf_allocator->getOrCreateAndAssignVAOForMesh(*m->meshdata, m->meshdata->vertex_spec);
+
+				// Process the finished upload (assign mesh to objects etc.)
+				handleUploadedMeshData(user_info->lod_model_url, user_info->model_lod_level, user_info->built_dynamic_physics_ob, m->meshdata, user_info->physics_shape,
+					user_info->voxel_subsample_factor, user_info->voxel_hash);
 			}
-			else
+			catch(glare::Exception& e)
 			{
-				if(loaded_msg->texture_data->frame_size_B <= opengl_engine->pbo_pool.getLargestPBOSize())
-					async_texture_loaded_messages_to_process.push_back(loaded_msg);
-				else
-					texture_loaded_messages_to_process.push_back(loaded_msg);
+				logMessage("Error while handling uploaded mesh data: " + e.what());
 			}
 		}
 		/*else if(dynamic_cast<BuildScatteringInfoDoneThreadMessage*>(msg))
@@ -8639,7 +8703,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									{
 										const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(local_path);
 
-										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, used_by_terrain, worker_allocator, texture_loaded_msg_allocator);
+										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, used_by_terrain, worker_allocator, 
+											texture_loaded_msg_allocator, opengl_upload_thread);
 										task->loaded_buffer = m->loaded_buffer;
 										load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, task, /*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 									}
@@ -8679,6 +8744,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									load_model_task->build_dynamic_physics_ob = info.build_dynamic_physics_ob;
 									load_model_task->loaded_buffer = m->loaded_buffer;
 									load_model_task->worker_allocator = worker_allocator;
+									load_model_task->upload_thread = opengl_upload_thread;
 
 									// conPrint("handling ResourceDownloadedMessage: making LoadModelTask for " + URL);
 
@@ -13880,17 +13946,20 @@ void GUIClient::updateGroundPlane()
 			
 			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
 				load_item_queue.enqueueItem(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, this->resource_manager->getOrCreateResourceForURL(section_spec.heightmap_URL), heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, this->resource_manager->getOrCreateResourceForURL(section_spec.heightmap_URL),
+						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.mask_map_URL))
 				load_item_queue.enqueueItem(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL), maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL),
+						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.tree_mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.tree_mask_map_URL))
 				load_item_queue.enqueueItem(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL), maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL), 
+						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 
@@ -13901,12 +13970,14 @@ void GUIClient::updateGroundPlane()
 
 			if(!use_detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_col_map_URLs[i]))
 				load_item_queue.enqueueItem(use_detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]), detail_colourmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]), 
+						detail_colourmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!use_detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_height_map_URLs[i]))
 				load_item_queue.enqueueItem(use_detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator), 
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), 
+						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------

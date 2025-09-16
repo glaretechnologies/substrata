@@ -156,27 +156,57 @@ void LoadModelTask::run(size_t thread_index)
 #endif
 
 
-			// Send a ModelLoadedThreadMessage back to main window.
-			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
-			msg->gl_meshdata = gl_meshdata;
-			msg->physics_shape = physics_shape;
-			msg->lod_model_url = lod_model_url;
-			msg->model_lod_level = model_lod_level;
-			msg->voxel_hash = voxel_hash;
-			msg->subsample_factor = subsample_factor;
-			msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
-			msg->vbo = vbo;
-			msg->index_data_src_offset_B = index_data_src_offset_B;
-			msg->total_geom_size_B = total_geom_size_B;
-			msg->vert_data_size_B = vert_data.size();
-			msg->index_data_size_B = index_data.size();
+			if(upload_thread)
+			{
+				UploadGeometryMessage* upload_msg = new UploadGeometryMessage();
+				upload_msg->meshdata = gl_meshdata;
+				upload_msg->index_data_src_offset_B = index_data_src_offset_B;
+				upload_msg->total_geom_size_B = total_geom_size_B;
+				upload_msg->vert_data_size_B = vert_data.size();
+				upload_msg->index_data_size_B = index_data.size();
 
-			// Null out references to gl_meshdata and jolt shape here, before we pass to another thread.
-			// This is important for gl_meshdata, since the main thread may set gl_meshdata->individual_vao, which could then be destroyed on this thread, which is invalid.
-			gl_meshdata = NULL;
-			physics_shape.jolt_shape = NULL;
+				LoadModelTaskUploadingUserInfo* user_info = new LoadModelTaskUploadingUserInfo();
+				user_info->physics_shape = physics_shape;
+				user_info->lod_model_url = lod_model_url;
+				user_info->model_lod_level = model_lod_level;
+				user_info->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
+				user_info->voxel_subsample_factor = subsample_factor;
+				user_info->voxel_hash = voxel_hash;
 
-			result_msg_queue->enqueue(msg);
+				upload_msg->user_info = user_info;
+
+				// Null out references to gl_meshdata and jolt shape here, before we pass to another thread.
+				// This is important for gl_meshdata, since the main thread may set gl_meshdata->individual_vao, which could then be destroyed on this thread, which is invalid.
+				gl_meshdata = NULL;
+				physics_shape.jolt_shape = NULL;
+
+				upload_thread->getMessageQueue().enqueue(upload_msg);
+			}
+			else
+			{
+				// Send a ModelLoadedThreadMessage back to main window.
+				Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
+				msg->gl_meshdata = gl_meshdata;
+				msg->physics_shape = physics_shape;
+				msg->lod_model_url = lod_model_url;
+				msg->model_lod_level = model_lod_level;
+				msg->voxel_hash = voxel_hash;
+				msg->subsample_factor = subsample_factor;
+				msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
+				msg->vbo = vbo;
+				msg->index_data_src_offset_B = index_data_src_offset_B;
+				msg->total_geom_size_B = total_geom_size_B;
+				msg->vert_data_size_B = vert_data.size();
+				msg->index_data_size_B = index_data.size();
+
+				// Null out references to gl_meshdata and jolt shape here, before we pass to another thread.
+				// This is important for gl_meshdata, since the main thread may set gl_meshdata->individual_vao, which could then be destroyed on this thread, which is invalid.
+				gl_meshdata = NULL;
+				physics_shape.jolt_shape = NULL;
+
+				result_msg_queue->enqueue(msg);
+			}
+
 			return;
 		}
 		catch(glare::LimitedAllocatorAllocFailed& e)

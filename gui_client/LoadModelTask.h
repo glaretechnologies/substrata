@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2025 -
 #include "PhysicsObject.h"
 #include "../shared/Resource.h"
 #include <opengl/OpenGLEngine.h>
+#include <opengl/OpenGLUploadThread.h>
 #include <utils/Task.h>
 #include <utils/ThreadMessage.h>
 #include <utils/ThreadSafeQueue.h>
@@ -41,6 +42,18 @@ public:
 	size_t total_geom_size_B;
 	size_t vert_data_size_B; // in source VBO
 	size_t index_data_size_B; // in source VBO
+};
+
+
+struct LoadModelTaskUploadingUserInfo : public UploadingUserInfo
+{
+	PhysicsShape physics_shape;
+	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
+	int model_lod_level; // LOD level of the model we loaded.
+	bool built_dynamic_physics_ob;
+
+	int voxel_subsample_factor; // Computed when loading voxels.
+	uint64 voxel_hash;
 };
 
 
@@ -88,6 +101,8 @@ public:
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 
 	Reference<glare::Allocator> worker_allocator;
+
+	Reference<OpenGLUploadThread> upload_thread;
 };
 #ifdef _WIN32
 #pragma warning(pop)
