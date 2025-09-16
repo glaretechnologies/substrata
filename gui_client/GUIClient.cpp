@@ -7853,7 +7853,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			upload_msg->tex_params = loaded_msg->tex_params;
 			upload_msg->texture_data = loaded_msg->texture_data;
 			upload_msg->existing_opengl_tex = loaded_msg->existing_opengl_tex;
-			upload_msg->load_into_frame_i = loaded_msg->load_into_frame_i;
+			upload_msg->frame_i = loaded_msg->load_into_frame_i;
 
 			LoadTextureTaskUploadingUserInfo* user_info = new LoadTextureTaskUploadingUserInfo();
 			user_info->terrain_map = loaded_msg->terrain_map;

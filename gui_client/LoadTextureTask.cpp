@@ -165,10 +165,11 @@ void LoadTextureTask::run(size_t thread_index)
 				upload_msg->tex_params = tex_params;
 				upload_msg->texture_data = texture_data;
 				upload_msg->existing_opengl_tex = nullptr;
-				upload_msg->load_into_frame_i = 0;
+				upload_msg->frame_i = 0;
 
 				LoadTextureTaskUploadingUserInfo* user_info = new LoadTextureTaskUploadingUserInfo();
-				user_info->terrain_map = map;
+				if(is_terrain_map)
+					user_info->terrain_map = map;
 				user_info->tex_URL = resource->URL;
 				upload_msg->user_info = user_info;
 
