@@ -146,53 +146,26 @@ void AnimatedTexObData::processGIFAnimatedTex(GUIClient* gui_client, OpenGLEngin
 					// Don't try and upload the wrong size or we will get an OpenGL error or crash.
 					if(texture->xRes() == texdata->W && texture->yRes() == texdata->H)
 					{
-#if 1
-						UploadTextureMessage* msg = new UploadTextureMessage();
-						msg->texture_data = texdata;
-						msg->existing_opengl_tex = texture;
-						msg->frame_i = animtexdata.cur_frame_i;
-
-						gui_client->opengl_upload_thread->getMessageQueue().enqueue(msg);
-#else
-						// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner
-						Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
-						//msg->tex_path = tex_path; // Don't set tex_path as isn't used.
-						msg->texture_data = texdata;
-						msg->existing_opengl_tex = texture;
-						msg->load_into_frame_i = animtexdata.cur_frame_i;
-						msg->ob_uid = ob->uid;
-						// TODO: set msg->tex_params
-					
-						// Copy to PBO in mem-mapping case
-						if(USE_MEM_MAPPING_FOR_TEXTURE_UPLOAD)
+						if(gui_client->opengl_upload_thread)
 						{
-							ArrayRef<uint8> source_data = texdata->getDataArrayRef();
-							assert(source_data.data());
+							UploadTextureMessage* msg = gui_client->opengl_upload_thread->allocUploadTextureMessage();
+							msg->texture_data = texdata;
+							msg->existing_opengl_tex = texture;
+							msg->frame_i = animtexdata.cur_frame_i;
 
-							// Just upload a single frame
-							assert(texdata->isMultiFrame());
-							runtimeCheck(texdata->frame_size_B * animtexdata.cur_frame_i + texdata->frame_size_B <= source_data.size());
-							source_data = source_data.getSlice(/*offset=*/texdata->frame_size_B * animtexdata.cur_frame_i, /*slice len=*/texdata->frame_size_B);
-							
-							if(source_data.data())
-							{
-								PBORef pbo = opengl_engine->pbo_pool.getUnusedVBO(source_data.size());
-								if(pbo)
-								{
-									std::memcpy(pbo->getMappedPtr(), source_data.data(), source_data.size());
-
-									msg->pbo = pbo;
-									gui_client->async_texture_loaded_messages_to_process.push_back(msg);
-								}
-								//else
-								//	conPrint("AnimatedTexManager: Failed to get mapped PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
-							}
+							gui_client->opengl_upload_thread->getMessageQueue().enqueue(msg);
 						}
 						else
 						{
+							// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner
+							Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
+							msg->texture_data = texdata;
+							msg->existing_opengl_tex = texture;
+							msg->load_into_frame_i = animtexdata.cur_frame_i;
+							msg->ob_uid = ob->uid;
+					
 							gui_client->async_texture_loaded_messages_to_process.push_back(msg);
 						}
-#endif
 					}
 					//else
 					//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");

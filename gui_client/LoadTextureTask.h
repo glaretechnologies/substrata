@@ -27,7 +27,7 @@ namespace glare { class FastPoolAllocator; }
 class TextureLoadedThreadMessage : public ThreadMessage
 {
 public:
-	TextureLoadedThreadMessage() : load_into_frame_i(0), texture_loaded_msg_allocator(nullptr) {}
+	TextureLoadedThreadMessage() : load_into_frame_i(0) {}
 
 	std::string tex_path;
 	std::string tex_URL;
@@ -37,17 +37,11 @@ public:
 	int load_into_frame_i;
 	UID ob_uid;
 
-	PBORef pbo; // Non-null if we wrote the texture mipmap data into the mapped memory region of a PBO.
-
 	Reference<Map2D> terrain_map; // Non-null iff we are loading a terrain map (e.g. is_terrain_map is true)
-
-	glare::FastPoolAllocator* texture_loaded_msg_allocator;
-	int allocation_index;
 };
 
 // Template specialisation of destroyAndFreeOb for TextureLoadedThreadMessage.  This is called when being freed by a Reference.
-template <>
-void destroyAndFreeOb<TextureLoadedThreadMessage>(TextureLoadedThreadMessage* ob);
+template <> inline void destroyAndFreeOb<TextureLoadedThreadMessage>(TextureLoadedThreadMessage* ob) { destroyAndFreeOb<ThreadMessage>(ob); }
 
 
 

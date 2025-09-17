@@ -113,45 +113,6 @@ void LoadTextureTask::run(size_t thread_index)
 				texture_data = TextureProcessing::buildTextureData(map.ptr(), worker_allocator.ptr(), opengl_engine->getMainTaskManager(), do_compression, /*build_mipmaps=*/tex_params.use_mipmaps, /*convert_float_to_half=*/true);
 			}
 
-			PBORef pbo;
-#if !EMSCRIPTEN
-			if(USE_MEM_MAPPING_FOR_TEXTURE_UPLOAD)
-			{
-				const ArrayRef<uint8> source_data = texture_data->getDataArrayRef();
-				assert(source_data.data());
-				if(source_data.data())
-				{
-					if(source_data.size() <= opengl_engine->pbo_pool.getLargestPBOSize()) // Don't try if can't fit in largest PBO
-					{
-						const int max_num_attempts = (texture_data->mipmap_data.size() < 1024 * 1024) ? 1000 : 500;
-						for(int i=0; i<max_num_attempts; ++i)
-						{
-							pbo = opengl_engine->pbo_pool.getUnusedVBO(source_data.size());
-							if(pbo)
-							{
-								//conPrint("LoadTextureTask: Memcpying to PBO mem: " + toString(source_data.size()) + " B");
-								std::memcpy(pbo->getMappedPtr(), source_data.data(), source_data.size()); // TODO: remove memcpy and build texture data directly into PBO
-
-								// Free image texture memory now it has been copied to the PBO.
-								if(!texture_data->isMultiFrame())
-								{
-									texture_data->mipmap_data.clearAndFreeMem();
-									if(texture_data->converted_image)
-										texture_data->converted_image = nullptr;
-								}
-
-								break;
-							}
-							PlatformUtils::Sleep(1);
-						}
-					}
-				}
-			
-				if(!pbo)
-					conPrint("LoadTextureTask: Failed to get mapped PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
-			}
-#endif
-
 
 			if(hasExtension(key, "gif") && texture_data->totalCPUMemUsage() > 100000000)
 			{
@@ -160,7 +121,7 @@ void LoadTextureTask::run(size_t thread_index)
 
 			if(upload_thread)
 			{
-				UploadTextureMessage* upload_msg = new UploadTextureMessage();
+				UploadTextureMessage* upload_msg = upload_thread->allocUploadTextureMessage();
 				upload_msg->tex_path = path;
 				upload_msg->tex_params = tex_params;
 				upload_msg->texture_data = texture_data;
@@ -182,13 +143,12 @@ void LoadTextureTask::run(size_t thread_index)
 				// Send a message to MainWindow with the loaded texture data.
 				glare::FastPoolAllocator::AllocResult res = this->texture_loaded_msg_allocator->alloc();
 				Reference<TextureLoadedThreadMessage> msg = new (res.ptr) TextureLoadedThreadMessage();
-				msg->texture_loaded_msg_allocator = texture_loaded_msg_allocator.ptr();
+				msg->allocator = texture_loaded_msg_allocator.ptr();
 				msg->allocation_index = res.index;
 
 				msg->tex_path = path;
 				msg->tex_URL = resource->URL;
 				msg->tex_params = tex_params;
-				msg->pbo = pbo;
 				if(is_terrain_map)
 					msg->terrain_map = map;
 				msg->texture_data = texture_data;
@@ -227,21 +187,3 @@ void LoadTextureTask::run(size_t thread_index)
 	// We tried N times but each time we got an LimitedAllocatorAllocFailed exception.
 	result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': failed after multiple LimitedAllocatorAllocFailed"));
 }
-
-
-template <>
-void destroyAndFreeOb<TextureLoadedThreadMessage>(TextureLoadedThreadMessage* ob)
-{
-	glare::FastPoolAllocator* allocator = ob->texture_loaded_msg_allocator;
-	const int allocation_index = ob->allocation_index;
-
-	assert(allocator);
-	if(allocator)
-	{
-		ob->~TextureLoadedThreadMessage(); // Destroy ob
-		allocator->free(allocation_index); // Free mem
-	}
-	else
-		delete ob;
-}
-

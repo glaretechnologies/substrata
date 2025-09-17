@@ -122,40 +122,6 @@ void LoadModelTask::run(size_t thread_index)
 			const size_t index_data_src_offset_B = Maths::roundUpToMultipleOfPowerOf2<size_t>(vert_data.size(), 16); // Offset in VBO
 			const size_t total_geom_size_B = index_data_src_offset_B + index_data.size();
 
-			VBORef vbo;
-#if !EMSCRIPTEN
-			if(USE_MEM_MAPPING_FOR_GEOM_UPLOAD)
-			{
-				if(total_geom_size_B <= opengl_engine->vbo_pool.getLargestVBOSize()) // Don't try if can't fit in largest VBO
-				{
-					for(int i=0; i<100; ++i)
-					{
-						vbo = opengl_engine->vbo_pool.getUnusedVBO(total_geom_size_B);
-						if(vbo)
-						{
-							// Copy mesh data to mapped VBO
-
-							// Copy vertex data first
-							std::memcpy(vbo->getMappedPtr(), vert_data.data(), vert_data.size());
-
-							// Copy index data
-							std::memcpy((uint8*)vbo->getMappedPtr() + index_data_src_offset_B, index_data.data(), index_data.size());
-
-							// Free geometry memory now it has been copied to the PBO.
-							gl_meshdata->clearAndFreeGeometryMem();
-
-							break;
-						}
-						PlatformUtils::Sleep(1);
-					}
-				}
-
-				if(!vbo)
-					conPrint("LoadModelTask: Failed to get mapped VBO for " + uInt32ToStringCommaSeparated((uint32)total_geom_size_B) + " B");
-			}
-#endif
-
-
 			if(upload_thread)
 			{
 				UploadGeometryMessage* upload_msg = new UploadGeometryMessage();
@@ -193,7 +159,6 @@ void LoadModelTask::run(size_t thread_index)
 				msg->voxel_hash = voxel_hash;
 				msg->subsample_factor = subsample_factor;
 				msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
-				msg->vbo = vbo;
 				msg->index_data_src_offset_B = index_data_src_offset_B;
 				msg->total_geom_size_B = total_geom_size_B;
 				msg->vert_data_size_B = vert_data.size();
