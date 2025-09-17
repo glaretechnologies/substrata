@@ -50,7 +50,7 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 
 		glare::FastPoolAllocator::AllocResult res = this->texture_loaded_msg_allocator->alloc();
 		Reference<TextureLoadedThreadMessage> msg = new (res.ptr) TextureLoadedThreadMessage();
-		msg->texture_loaded_msg_allocator = texture_loaded_msg_allocator.ptr();
+		msg->allocator = texture_loaded_msg_allocator.ptr();
 		msg->allocation_index = res.index;
 
 		msg->tex_path = tex_key;

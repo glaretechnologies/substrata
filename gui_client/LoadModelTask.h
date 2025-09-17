@@ -36,7 +36,6 @@ public:
 	int subsample_factor; // Computed when loading voxels.
 	uint64 voxel_hash;
 
-	VBORef vbo;
 	// vert data offset = 0
 	size_t index_data_src_offset_B;
 	size_t total_geom_size_B;

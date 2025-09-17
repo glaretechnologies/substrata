@@ -547,7 +547,7 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 
 
 #else
-	if(section.detail_mask_map)
+	//if(section.detail_mask_map)
 	{
 		section.detail_mask_map.resizeNoCopy(detail_mask_map_width_px, detail_mask_map_width_px);
 		section.detail_mask_map.zero();
