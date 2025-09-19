@@ -7820,8 +7820,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			// Now that this texture is loaded, remove from textures_processing set.
 			// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-			//assert(textures_processing.count(tex_loading_progress.path) >= 1);
-			textures_processing.erase(tex_loading_progress.path);
+			//assert(textures_processing.count(m->tex_path) >= 1);
+			textures_processing.erase(m->tex_path);
 		}
 		else if(dynamic_cast<GeometryUploadedMessage*>(msg))
 		{
