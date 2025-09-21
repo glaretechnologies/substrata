@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/ThreadManager.h>
 #include <utils/Vector.h>
 #include <utils/VRef.h>
+#include <utils/MemMappedFile.h>
 #include <vector>
 #include <set>
 #include <map>
@@ -195,6 +196,7 @@ public:
 		AddSourceFromStreamingSoundFileParams() : source_volume(1.f), global_time(0.0), looping(true), paused(false) {}
 
 		std::string sound_file_path;
+		Reference<SharedMemMappedFile> mem_mapped_sound_file;
 		Reference<MP3AudioStreamerDataSource> sound_data_source;
 		float source_volume;
 		double global_time;
@@ -203,6 +205,8 @@ public:
 	};
 		
 	AudioSourceRef addSourceFromStreamingSoundFile(AddSourceFromStreamingSoundFileParams& params, const Vec4f& pos);
+
+	bool needNewStreamerForPath(const std::string& sound_file_path, bool new_source_paused);
 
 	void sourcePositionUpdated(AudioSource& source);
 

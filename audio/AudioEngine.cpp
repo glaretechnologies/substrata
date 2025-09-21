@@ -17,6 +17,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/MemMappedFile.h>
 #include <utils/FileInStream.h>
 #include <utils/RuntimeCheck.h>
+#include <utils/MemMappedFile.h>
+#include <utils/Timer.h>
 #include <resonance_audio/api/resonance_audio_api.h>
 #include <tracy/Tracy.hpp>
 #include <limits>
@@ -1101,7 +1103,7 @@ AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(AddSourceFromStreami
 		if(params.sound_data_source)
 			streamer = new MP3AudioStreamer(params.sound_data_source);
 		else
-			streamer = new MP3AudioStreamer(params.sound_file_path);
+			streamer = new MP3AudioStreamer(params.mem_mapped_sound_file);
 
 		if(!params.paused) // if not paused, we can use the same stream as other sources.
 		{
@@ -1132,6 +1134,13 @@ AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(AddSourceFromStreami
 	addSource(source);
 
 	return source;
+}
+
+
+bool AudioEngine::needNewStreamerForPath(const std::string& sound_file_path, bool new_source_paused)
+{
+	auto res = unpaused_streams.find(sound_file_path);
+	return (res == unpaused_streams.end()) || new_source_paused;
 }
 
 
