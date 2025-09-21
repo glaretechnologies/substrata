@@ -74,7 +74,6 @@ private:
 	void setWidgetVisibilityForExpanded();
 	void checkUpdateTilesForCurCamPosition();
 	void updateWidgetPositions();
-	void renderTilesToTexture();
 	Vec2f mapUICoordsForWorldSpacePos(const Vec3d& pos);
 	float computeMiniMapWidth();
 	float computeMiniMapTopMargin();
@@ -95,12 +94,6 @@ private:
 
 	std::set<Vec3i> queried_tile_coords;
 	std::map<Vec3i, MapTileInfo> tile_infos;
-
-	Reference<FrameBuffer> frame_buffer;
-
-	Reference<OpenGLTexture> minimap_texture;
-
-	Reference<OpenGLScene> scene;
 
 	Vec3d last_requested_campos;
 	int last_requested_tile_z;
