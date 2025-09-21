@@ -247,6 +247,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 		axis_arrow_segments[i] = LineSegment4f(Vec4f(0, 0, 0, 1), Vec4f(1, 0, 0, 1));
+
+	this->animated_texture_manager = new AnimatedTextureManager();
 }
 
 
@@ -422,7 +424,7 @@ void GUIClient::initAudioEngine()
 }
 
 
-static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager);
+static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager);
 
 
 static const float arc_handle_half_angle = 1.5f;
@@ -746,7 +748,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			// 	conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
 			// }
 
-			assignLoadedOpenGLTexturesToAvatarMats(test_avatar.ptr(), /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager);
+			assignLoadedOpenGLTexturesToAvatarMats(test_avatar.ptr(), /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager);
 
 			opengl_engine->addObject(test_avatar->graphics.skinned_gl_ob);
 		}
@@ -942,6 +944,8 @@ void GUIClient::shutdown()
 
 
 	mesh_manager.clear(); // Mesh manager has references to cached/unused meshes, so need to zero out the references before we shut down the OpenGL engine.
+
+	animated_texture_manager = NULL;
 
 	this->opengl_engine = NULL;
 
@@ -1239,12 +1243,37 @@ void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level
 }
 
 
+static void removeAnimatedTextureUse(GLObject& ob, AnimatedTextureManager& animated_texture_manager)
+{
+	const size_t materials_size = ob.materials.size();
+	for(size_t z=0; z<materials_size; ++z)
+	{
+		OpenGLMaterial& mat = ob.materials[z];
+
+		if(mat.albedo_texture && mat.albedo_texture->hasMultiFrameTextureData())
+			animated_texture_manager.removeTextureUse(mat.albedo_texture, &ob, z);
+
+		if(mat.emission_texture && mat.emission_texture->hasMultiFrameTextureData())
+			animated_texture_manager.removeTextureUse(mat.emission_texture, &ob, z);
+
+		if(mat.normal_map && mat.normal_map->hasMultiFrameTextureData())
+			animated_texture_manager.removeTextureUse(mat.normal_map, &ob, z);
+
+		if(mat.metallic_roughness_texture && mat.metallic_roughness_texture->hasMultiFrameTextureData())
+			animated_texture_manager.removeTextureUse(mat.metallic_roughness_texture, &ob, z);
+	}
+}
+
+
 void GUIClient::removeAndDeleteGLObjectsForOb(WorldObject& ob)
 {
-	if(ob.opengl_engine_ob.nonNull())
+	if(ob.opengl_engine_ob)
+	{
+		removeAnimatedTextureUse(*ob.opengl_engine_ob, *animated_texture_manager);
 		opengl_engine->removeObject(ob.opengl_engine_ob);
+	}
 
-	if(ob.opengl_light.nonNull())
+	if(ob.opengl_light)
 		opengl_engine->removeLight(ob.opengl_light);
 
 	ob.opengl_engine_ob = NULL;
@@ -1282,50 +1311,6 @@ void GUIClient::removeAndDeleteGLObjectForAvatar(Avatar& av)
 	av.mesh_data = NULL;
 }
 
-
-// Adds a temporary placeholder cube model for the object.
-// Removes any existing model for the object.
-void GUIClient::addPlaceholderObjectsForOb(WorldObject& ob_)
-{
-	WorldObject* ob = &ob_;
-
-	// Remove any existing OpenGL and physics model
-	if(ob->opengl_engine_ob.nonNull())
-		opengl_engine->removeObject(ob->opengl_engine_ob);
-
-	if(ob->opengl_light.nonNull())
-		opengl_engine->removeLight(ob->opengl_light);
-	
-	destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
-
-	if(ob->physics_object.nonNull())
-	{
-		physics_world->removeObject(ob->physics_object);
-		ob->physics_object = NULL;
-	}
-
-	GLObjectRef cube_gl_ob = opengl_engine->makeAABBObject(/*min=*/ob->getAABBOS().min_, /*max=*/ob->getAABBOS().max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-	cube_gl_ob->ob_to_world_matrix = ob->obToWorldMatrix() * OpenGLEngine::AABBObjectTransform(/*min=*/ob->getAABBOS().min_, /*max=*/ob->getAABBOS().max_);
-
-	ob->opengl_engine_ob = cube_gl_ob;
-	opengl_engine->addObject(cube_gl_ob);
-
-	// Make physics object
-	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false); // Make non-collidable, so avatar doesn't get stuck in large placeholder objects.
-	physics_ob->shape = this->unit_cube_shape;
-	physics_ob->pos = ob->pos.toVec4fPoint();
-	physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
-	physics_ob->scale = useScaleForWorldOb(ob->scale);
-
-	assert(ob->physics_object.isNull());
-	ob->physics_object = physics_ob;
-	physics_ob->userdata = ob;
-	physics_ob->userdata_type = 0;
-	physics_ob->ob_uid = ob->uid;
-	physics_world->addObject(physics_ob);
-
-	ob->using_placeholder_model = true;
-}
 
 /*
 60 m is roughly the distance at which a source with volume factor 1 becomes inaudible, with a reasonable system volume level.
@@ -1628,8 +1613,8 @@ static inline bool isNonEmptyAndNotMp4(const std::string& path)
 }
 
 
-static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const std::string& texture_URL, const std::string& desired_tex_path, OpenGLEngine& opengl_engine, 
-	ResourceManager& resource_manager, bool use_basis, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out, bool& assigned_animated_tex_out)
+static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const std::string& texture_URL, const std::string& desired_tex_path, GLObject* ob, size_t mat_index, OpenGLEngine& opengl_engine, 
+	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, bool use_basis, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out)
 {
 	if(isNonEmptyAndNotMp4(desired_tex_path))
 	{
@@ -1643,11 +1628,17 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 
 				if(new_tex != opengl_texture)
 				{
+					// If old texture was animated, remove use of the animated texture from the animated texture manager
+					if(opengl_texture && opengl_texture->hasMultiFrameTextureData())
+						animated_texture_manager.removeTextureUse(opengl_texture, ob, mat_index);
+
 					opengl_texture = new_tex;
 
 					mat_changed_out = true;
-					if(opengl_texture && opengl_texture->texture_data && opengl_texture->texture_data->isMultiFrame())
-						assigned_animated_tex_out = true;
+
+					// If new texture is animated, add use to animated texture manager
+					if(opengl_texture && opengl_texture->hasMultiFrameTextureData())
+						animated_texture_manager.checkAddTextureUse(opengl_texture, ob, mat_index);
 				}
 			}
 		}
@@ -1662,11 +1653,10 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 // Update textures to correct LOD-level textures.
 // Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
-static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, bool& assigned_animated_tex_out)
+static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, 
+	AnimatedTextureManager& animated_texture_manager)
 {
 	ZoneScoped; // Tracy profiler
-
-	assigned_animated_tex_out = false;
 
 	if(!ob->opengl_engine_ob)
 		return;
@@ -1678,17 +1668,17 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 
 		bool mat_changed = false;
 
-		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : std::string(), opengl_mat.tex_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : std::string(), opengl_mat.tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : std::string(), opengl_mat.emission_tex_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : std::string(), opengl_mat.emission_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : std::string(), opengl_mat.metallic_roughness_tex_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : std::string(), opengl_mat.metallic_roughness_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : std::string(), opengl_mat.normal_map_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : std::string(), opengl_mat.normal_map_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
 
 		if(use_lightmaps && isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
 		{
@@ -1725,23 +1715,12 @@ void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 {
 	ZoneScoped; // Tracy profiler
 
-	bool assigned_animated_tex = false;
-	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, assigned_animated_tex);
-	if(assigned_animated_tex)
-	{
-		if(ob->animated_tex_data.isNull())
-		{
-			ob->animated_tex_data = new AnimatedTexObData();
-			this->obs_with_animated_tex.insert(ob);
-		}
-
-		ob->animated_tex_data->rescanObjectForAnimatedTextures(ob, rng);
-	}
+	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager);
 }
 
 
 // For avatars
-static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
+static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -1755,19 +1734,18 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 		const WorldMaterial* world_mat = (z < av->avatar_settings.materials.size()) ? av->avatar_settings.materials[z].ptr() : NULL;
 
 		bool mat_changed = false;
-		bool assigned_animated_tex_out = false;
 
-		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : std::string(), opengl_mat.tex_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : std::string(), opengl_mat.tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : std::string(), opengl_mat.emission_tex_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : std::string(), opengl_mat.emission_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : std::string(), opengl_mat.metallic_roughness_tex_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : std::string(), opengl_mat.metallic_roughness_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : std::string(), opengl_mat.normal_map_path, opengl_engine, resource_manager, use_basis, 
-			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed, assigned_animated_tex_out);
+		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : std::string(), opengl_mat.normal_map_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, use_basis, 
+			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
 		
 		if(mat_changed)
 			opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
@@ -2012,7 +1990,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					this->obs_with_animated_tex.insert(ob);
 				}
 
-				ob->animated_tex_data->rescanObjectForAnimatedTextures(ob, rng);
+				ob->animated_tex_data->rescanObjectForAnimatedTextures(opengl_engine.ptr(), ob, rng, *animated_texture_manager);
 			}
 		}
 
@@ -2506,11 +2484,6 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					}
 				}
 			}
-
-			// Load a placeholder object (cube) if we don't have an existing model (e.g. another LOD level) being displayed.
-			// We also need a valid AABB.
-		//TEMP DISABLED FOR CHUNK LOD	if(!ob->getAABBOS().isEmpty() && ob->opengl_engine_ob.isNull())
-		//		addPlaceholderObjectsForOb(*ob);
 		}
 
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
@@ -2631,7 +2604,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 				this->obs_with_animated_tex.insert(ob);
 			}
 
-			ob->animated_tex_data->rescanObjectForAnimatedTextures(ob, rng);
+			ob->animated_tex_data->rescanObjectForAnimatedTextures(opengl_engine.ptr(), ob, rng, *animated_texture_manager);
 		}
 	}
 
@@ -2681,7 +2654,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	avatar->graphics.build();
 
-	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager);
+	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager);
 
 	// Enable materialise effect if needed
 	const float current_time = (float)Clock::getTimeSinceInit();
@@ -2827,11 +2800,6 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		if(!added_opengl_ob)
 		{
 			this->loading_model_URL_to_avatar_UID_map[lod_model_url].insert(avatar->uid);
-
-			// Load a placeholder object (cube) if we don't have an existing model (e.g. another LOD level) being displayed.
-			// We also need a valid AABB.
-			//if(!ob->aabb_ws.isEmpty() && ob->opengl_engine_ob.isNull())
-			//	addPlaceholderObjectsForOb(*ob);
 		}
 
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
@@ -2841,8 +2809,6 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		print("Error while loading avatar with UID " + avatar->uid.toString() + ", model_url='" + avatar->avatar_settings.model_url + "': " + e.what());
 	}
 }
-
-
 
 
 // Remove any existing instances of this object from the instance set, also from 3d engine and physics engine.
@@ -3197,36 +3163,59 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 						params.looping =  BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
 						params.paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
 
-						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(params, ob->pos.toVec4fPoint());
-
-						Lock lock(world_state->mutex);
-						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
-						source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
-
-						ob->audio_source = source;
-						ob->audio_state = WorldObject::AudioState_Loaded;
-
-						//---------------- Mute audio sources outside the parcel we are in, if required ----------------
-						// Find out which parcel we are in, if any.
-						ParcelID in_parcel_id = ParcelID::invalidParcelID(); // Which parcel camera is in
-						bool mute_outside_audio = false; // Does the parcel the camera is in have 'mute outside audio' set?
-						const Parcel* cam_parcel = world_state->getParcelPointIsIn(this->cam_controller.getFirstPersonPosition());
-						if(cam_parcel)
+						if(!params.sound_data_source && audio_engine.needNewStreamerForPath(params.sound_file_path, params.paused))
 						{
-							in_parcel_id = cam_parcel->id;
-							if(BitUtils::isBitSet(cam_parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
-								mute_outside_audio = true;
-						}
+							// New streams using an mp3 streaming from disk can block while creating MemMappedFile, so do in a task
+							const bool just_inserted = checkAddAudioToProcessingSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+							if(just_inserted)
+							{
+								// conPrint("Launching LoadAudioTask");
+								// Do the audio file loading in a different thread
+								Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
-						const bool source_is_one_shot = (source->type == glare::AudioSource::SourceType_NonStreaming) && !source->looping;
-						if(!source_is_one_shot && // Only mute looping/streaming sounds: (We won't be muting footsteps etc.)
-							mute_outside_audio && // If we are in a parcel, which has the mute-outside-audio option enabled:
-							(source->userdata_1 != in_parcel_id.value())) // And the source is in another parcel (or not in any parcel):
-						{
-							source->setMuteVolumeFactorImmediately(0.f); // Mute it (set mute volume factor)
-							audio_engine.sourceVolumeUpdated(*source); // Tell audio engine to mute it.
+								load_audio_task->mem_map_file = true;
+								load_audio_task->audio_source_url = ob->audio_source_url;
+								load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
+								load_audio_task->result_msg_queue = &this->msg_queue;
+
+								load_item_queue.enqueueItem(/*key=*/ob->audio_source_url, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
+							}
+							else
+							{
+								load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
+							}
 						}
-						//----------------------------------------------------------------------------------------------
+						else
+						{
+							glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(params, ob->pos.toVec4fPoint());
+
+							Lock lock(world_state->mutex);
+							const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+							source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+
+							ob->audio_source = source;
+							ob->audio_state = WorldObject::AudioState_Loaded;
+
+							//---------------- Mute audio sources outside the parcel we are in, if required ----------------
+							// Find out which parcel we are in, if any.
+							ParcelID in_parcel_id = ParcelID::invalidParcelID(); // Which parcel camera is in
+							bool mute_outside_audio = false; // Does the parcel the camera is in have 'mute outside audio' set?
+							const Parcel* cam_parcel = world_state->getParcelPointIsIn(this->cam_controller.getFirstPersonPosition());
+							if(cam_parcel)
+							{
+								in_parcel_id = cam_parcel->id;
+								if(BitUtils::isBitSet(cam_parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
+									mute_outside_audio = true;
+							}
+
+							if(mute_outside_audio && // If we are in a parcel, which has the mute-outside-audio option enabled:
+								(source->userdata_1 != in_parcel_id.value())) // And the source is in another parcel (or not in any parcel):
+							{
+								source->setMuteVolumeFactorImmediately(0.f); // Mute it (set mute volume factor)
+								audio_engine.sourceVolumeUpdated(*source); // Tell audio engine to mute it.
+							}
+							//----------------------------------------------------------------------------------------------
+						}
 					}
 					else // else loading a non-streaming source, such as a WAV file.
 					{
@@ -3237,6 +3226,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 							// Do the audio file loading in a different thread
 							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
+							load_audio_task->mem_map_file = false;
 							load_audio_task->resource = resource_manager->getOrCreateResourceForURL(ob->audio_source_url);
 							load_audio_task->audio_source_url = ob->audio_source_url;
 							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
@@ -4172,7 +4162,7 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 					if(res2 != this->world_state->avatars.end())
 					{
 						Avatar* av = res2->second.ptr();
-						assignLoadedOpenGLTexturesToAvatarMats(av, /*use basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager);
+						assignLoadedOpenGLTexturesToAvatarMats(av, /*use basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager);
 					}
 				}
 				loading_texture_URL_to_avatar_UID_map.erase(res); // Now that this texture has been loaded, remove from map
@@ -5396,6 +5386,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		this->last_num_gif_textures_processed = num_gif_textures_processed;
 		this->last_num_mp4_textures_processed = num_mp4_textures_processed;
+
+
+		animated_texture_manager->think(this, opengl_engine.ptr(), anim_time, dt);
+
 
 		// Process web-view objects
 		for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)
@@ -7786,11 +7780,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			
 			if(true) // If using OpenGLUploadThread
 			{
+				// NOTE: these messages still come in from MakeHypercardTextureTasks.
+
 				UploadTextureMessage* upload_msg = opengl_upload_thread->allocUploadTextureMessage();
 				upload_msg->tex_path = loaded_msg->tex_path;
 				upload_msg->tex_params = loaded_msg->tex_params;
 				upload_msg->texture_data = loaded_msg->texture_data;
-				upload_msg->existing_opengl_tex = loaded_msg->existing_opengl_tex;
 				upload_msg->frame_i = loaded_msg->load_into_frame_i;
 			
 				LoadTextureTaskUploadingUserInfo* user_info = new LoadTextureTaskUploadingUserInfo();
@@ -7822,6 +7817,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
 			//assert(textures_processing.count(m->tex_path) >= 1);
 			textures_processing.erase(m->tex_path);
+		}
+		else if(dynamic_cast<AnimatedTextureUpdated*>(msg))
+		{
+			const AnimatedTextureUpdated* m = static_cast<const AnimatedTextureUpdated*>(msg);
+
+			animated_texture_manager->doTextureSwap(/*m->original_opengl_tex, */m->old_tex, m->new_tex);
 		}
 		else if(dynamic_cast<GeometryUploadedMessage*>(msg))
 		{
@@ -7884,7 +7885,48 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								ob->audio_source = NULL;
 							}
 
-							if(loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
+							if(loaded_msg->mapped_file)
+							{
+								// Make a new audio source
+								glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+								params.sound_file_path = resource_manager->pathForURL(ob->audio_source_url);
+								params.mem_mapped_sound_file = loaded_msg->mapped_file;
+								//params.sound_data_source = data_source;
+								params.source_volume = ob->audio_volume;
+								params.global_time = this->world_state->getCurrentGlobalTime();
+								params.looping =  BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
+								params.paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
+
+								glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(params, ob->pos.toVec4fPoint());
+
+								const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+								source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+
+								ob->audio_source = source;
+								ob->audio_state = WorldObject::AudioState_Loaded;
+
+								//---------------- Mute audio sources outside the parcel we are in, if required ----------------
+								// Find out which parcel we are in, if any.
+								ParcelID in_parcel_id = ParcelID::invalidParcelID(); // Which parcel camera is in
+								bool mute_outside_audio = false; // Does the parcel the camera is in have 'mute outside audio' set?
+								const Parcel* cam_parcel = world_state->getParcelPointIsIn(this->cam_controller.getFirstPersonPosition());
+								if(cam_parcel)
+								{
+									in_parcel_id = cam_parcel->id;
+									if(BitUtils::isBitSet(cam_parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
+										mute_outside_audio = true;
+								}
+
+								if(mute_outside_audio && // If we are in a parcel, which has the mute-outside-audio option enabled:
+									(source->userdata_1 != in_parcel_id.value())) // And the source is in another parcel (or not in any parcel):
+								{
+									source->setMuteVolumeFactorImmediately(0.f); // Mute it (set mute volume factor)
+									audio_engine.sourceVolumeUpdated(*source); // Tell audio engine to mute it.
+								}
+								//----------------------------------------------------------------------------------------------
+
+							}
+							else if(loaded_msg->sound_file && loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
 							{
 								// Timer timer;
 								// Add a non-streaming audio source
@@ -8843,6 +8885,9 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		WorldStateLock lock(this->world_state->mutex);
 		num_lod_chunks = this->world_state->lod_chunks.size();
 	}
+
+	if(animated_texture_manager)
+		msg += animated_texture_manager->diagnostics();
 
 	msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 	msg += "main loop CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
@@ -11660,8 +11705,11 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 		{
 			WorldObject* ob = it.getValue().ptr();
 
-			if(ob->opengl_engine_ob.nonNull())
+			if(ob->opengl_engine_ob)
+			{
+				removeAnimatedTextureUse(*ob->opengl_engine_ob, *animated_texture_manager);
 				opengl_engine->removeObject(ob->opengl_engine_ob);
+			}
 
 			if(ob->opengl_light.nonNull())
 				opengl_engine->removeLight(ob->opengl_light);
@@ -12600,8 +12648,11 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 	ob->lightmap_url = "";
 
 	// Remove any existing OpenGL and physics model
-	if(ob->opengl_engine_ob.nonNull())
+	if(ob->opengl_engine_ob)
+	{
+		removeAnimatedTextureUse(*ob->opengl_engine_ob, *animated_texture_manager);
 		opengl_engine->removeObject(ob->opengl_engine_ob);
+	}
 
 	if(ob->opengl_light.nonNull())
 		opengl_engine->removeLight(ob->opengl_light);

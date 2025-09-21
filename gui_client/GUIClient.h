@@ -86,6 +86,7 @@ struct AsyncUploadedGeometryInfo;
 struct PBOAsyncUploadedTextureInfo;
 class RenderStatsWidget;
 class OpenGLUploadThread;
+class AnimatedTextureManager;
 
 
 struct ResourceUserList
@@ -302,7 +303,6 @@ public:
 	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
-	void addPlaceholderObjectsForOb(WorldObject& ob);
 
 	//----------------------- ObLoadingCallbacks interface -----------------------
 	//virtual void loadObject(WorldObjectRef ob);
@@ -818,4 +818,6 @@ public:
 	ThreadManager opengl_worker_thread_manager;
 
 	Reference<OpenGLUploadThread> opengl_upload_thread;
+
+	Reference<AnimatedTextureManager> animated_texture_manager;
 };

@@ -33,52 +33,65 @@ void LoadAudioTask::run(size_t thread_index)
 
 	try
 	{
-		runtimeCheck(resource.nonNull() && resource_manager.nonNull());
-		ArrayRef<uint8> audio_data_buffer;
-#if EMSCRIPTEN
-		// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
-		runtimeCheck(loaded_buffer.nonNull());
-		audio_data_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
-#else
-		MemMappedFile file(audio_source_path);
-		audio_data_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
-#endif
-
-		glare::SoundFileRef sound_file = glare::AudioFileReader::readAudioFileFromBuffer(audio_source_path, audio_data_buffer);
-
-		Reference<AudioLoadedThreadMessage> msg = new AudioLoadedThreadMessage();
-		msg->audio_source_url = audio_source_url;
-
-		
-		if(sound_file->num_channels == 1)
+		if(mem_map_file)
 		{
-			msg->sound_file = sound_file;
-		}
-		else if(sound_file->num_channels == 2)
-		{
-			// Mix down to mono
-			const size_t num_mono_samples = sound_file->buf->buffer.size() / 2;
-			if(sound_file->buf->buffer.size() != num_mono_samples * 2)
-				throw glare::Exception("invalid number of samples for stereo file (not even)");
+			SharedMemMappedFileRef file = new SharedMemMappedFile(audio_source_path);
 
-			glare::SoundFileRef mono_sound_file = new glare::SoundFile();
-			mono_sound_file->num_channels = 1;
-			mono_sound_file->sample_rate = sound_file->sample_rate;
-			mono_sound_file->buf->buffer.resize(num_mono_samples);
+			Reference<AudioLoadedThreadMessage> msg = new AudioLoadedThreadMessage();
+			msg->audio_source_url = audio_source_url;
+			msg->mapped_file = file;
 
-			const float* const src = sound_file->buf->buffer.data();
-			float* const dst = mono_sound_file->buf->buffer.data();
-			for(size_t i=0; i<num_mono_samples; ++i)
-				dst[i] = (src[i*2 + 0] + src[i*2 + 1]) * 0.5f; // Take average
-
-			msg->sound_file = mono_sound_file;
+			result_msg_queue->enqueue(msg);
 		}
 		else
-			throw glare::Exception("Unhandled num channels " + toString(sound_file->num_channels));
+		{
+			runtimeCheck(resource.nonNull() && resource_manager.nonNull());
+			ArrayRef<uint8> audio_data_buffer;
+#if EMSCRIPTEN
+			// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
+			runtimeCheck(loaded_buffer.nonNull());
+			audio_data_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
+#else
+			MemMappedFile file(audio_source_path);
+			audio_data_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
+#endif
 
-		// conPrint("Loaded audio data '" + audio_source_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
+			glare::SoundFileRef sound_file = glare::AudioFileReader::readAudioFileFromBuffer(audio_source_path, audio_data_buffer);
 
-		result_msg_queue->enqueue(msg);
+			Reference<AudioLoadedThreadMessage> msg = new AudioLoadedThreadMessage();
+			msg->audio_source_url = audio_source_url;
+			msg->mapped_file = nullptr;
+
+		
+			if(sound_file->num_channels == 1)
+			{
+				msg->sound_file = sound_file;
+			}
+			else if(sound_file->num_channels == 2)
+			{
+				// Mix down to mono
+				const size_t num_mono_samples = sound_file->buf->buffer.size() / 2;
+				if(sound_file->buf->buffer.size() != num_mono_samples * 2)
+					throw glare::Exception("invalid number of samples for stereo file (not even)");
+
+				glare::SoundFileRef mono_sound_file = new glare::SoundFile();
+				mono_sound_file->num_channels = 1;
+				mono_sound_file->sample_rate = sound_file->sample_rate;
+				mono_sound_file->buf->buffer.resize(num_mono_samples);
+
+				const float* const src = sound_file->buf->buffer.data();
+				float* const dst = mono_sound_file->buf->buffer.data();
+				for(size_t i=0; i<num_mono_samples; ++i)
+					dst[i] = (src[i*2 + 0] + src[i*2 + 1]) * 0.5f; // Take average
+
+				msg->sound_file = mono_sound_file;
+			}
+			else
+				throw glare::Exception("Unhandled num channels " + toString(sound_file->num_channels));
+
+			// conPrint("Loaded audio data '" + audio_source_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
+			result_msg_queue->enqueue(msg);
+		}
 	}
 	catch(glare::Exception& e)
 	{

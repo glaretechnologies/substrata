@@ -125,7 +125,6 @@ void LoadTextureTask::run(size_t thread_index)
 				upload_msg->tex_path = path;
 				upload_msg->tex_params = tex_params;
 				upload_msg->texture_data = texture_data;
-				upload_msg->existing_opengl_tex = nullptr;
 				upload_msg->frame_i = 0;
 
 				LoadTextureTaskUploadingUserInfo* user_info = new LoadTextureTaskUploadingUserInfo();

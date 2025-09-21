@@ -20,9 +20,9 @@ Copyright Glare Technologies Limited 2022 -
 #endif
 
 
-glare::MP3AudioStreamer::MP3AudioStreamer(const std::string& path)
-:	mem_mapped_file(new MemMappedFile(path)),
-	in_stream(ArrayRef<uint8>((const uint8*)mem_mapped_file->fileData(), mem_mapped_file->fileSize()))
+glare::MP3AudioStreamer::MP3AudioStreamer(const Reference<SharedMemMappedFile>& mem_mapped_file_)
+:	mem_mapped_file(mem_mapped_file_),
+	in_stream(ArrayRef<uint8>((const uint8*)mem_mapped_file_->fileData(), mem_mapped_file_->fileSize()))
 {
 	mp3dec_init(&decoder);
 }
@@ -39,7 +39,6 @@ glare::MP3AudioStreamer::MP3AudioStreamer(const Reference<MP3AudioStreamerDataSo
 
 glare::MP3AudioStreamer::~MP3AudioStreamer()
 {
-	delete mem_mapped_file;
 }
 
 
@@ -195,7 +194,7 @@ static void testStreamingValidMP3File(const std::string& path)
 {
 	try
 	{
-		Reference<glare::MP3AudioStreamer> streamer = new glare::MP3AudioStreamer(path);
+		Reference<glare::MP3AudioStreamer> streamer = new glare::MP3AudioStreamer(new SharedMemMappedFile(path));
 
 		int num_complete_read_iters = 3;
 		for(int i=0; i<num_complete_read_iters; ++i)
@@ -235,7 +234,7 @@ void glare::MP3AudioFileReader::test()
 	// Test trying to stream an invalid file
 	try
 	{
-		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer("D:/not_a_file_34324");
+		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer(new SharedMemMappedFile("D:/not_a_file_34324"));
 		failTest("Expected exception");
 	}
 	catch(glare::Exception& )
@@ -246,7 +245,7 @@ void glare::MP3AudioFileReader::test()
 	try
 	{
 		const std::string path = TestUtils::getTestReposDir() + "/testfiles/gifs/https_58_47_47media.giphy.com_47media_47X93e1eC2J2hjy_47giphy.gif";
-		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer(path);
+		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer(new SharedMemMappedFile(path));
 
 		int num_complete_read_iters = 2;
 		for(int i=0; i<num_complete_read_iters; ++i)

@@ -37,7 +37,7 @@ Streams an mp3 file - allows reading one mp3 frame at a time
 class MP3AudioStreamer : public ThreadSafeRefCounted
 {
 public:
-	MP3AudioStreamer(const std::string& path);
+	MP3AudioStreamer(const Reference<SharedMemMappedFile>& mem_mapped_file); // Takes ownership of mem_mapped_file
 	MP3AudioStreamer(const Reference<MP3AudioStreamerDataSource>& source);
 	~MP3AudioStreamer();
 
@@ -50,7 +50,7 @@ public:
 
 	mp3dec_t decoder;
 
-	MemMappedFile* mem_mapped_file;
+	Reference<SharedMemMappedFile> mem_mapped_file;
 	Reference<MP3AudioStreamerDataSource> source;
 	BufferViewInStream in_stream;
 };
