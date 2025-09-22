@@ -139,8 +139,6 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 	last_centre_x = -1000000;
 	last_centre_y = -1000000;
 
-	const int tile_z = getTileZForMapWidthWS(map_width_ws);
-	const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
 
 	for(int y=0; y<TILE_GRID_RES; ++y)
 	for(int x=0; x<TILE_GRID_RES; ++x)
@@ -327,34 +325,8 @@ void MiniMap::think()
 
 
 	// Set transforms of tile overlay objects
-	{
-		// The logic of the transform is something like:
-		// Create tiles in world space (let the map == the territory), transform them into camera space for a camera looking down at the player position,
-		// then translate and scale them to the minimap UI rectangle.
+	setTileOverlayObjectTransforms();
 
-		const Rect2f minimap_gl_rect = gl_ui->OpenGLRectCoordsForUICoords(minimap_image->rect);
-		Matrix4f world_to_overlay_space_matrix = Matrix4f::translationMatrix(minimap_gl_rect.getMin().x, minimap_gl_rect.getMax().y, MINIMAP_TILE_Z) * 
-			Matrix4f::scaleMatrix(minimap_gl_rect.getWidths().x * 1.f/map_width_ws, minimap_gl_rect.getWidths().y * 1.f/map_width_ws, 1) * 
-			Matrix4f::translationMatrix((float)-campos.x + map_width_ws/2.f, (float)-campos.y - map_width_ws/2.f, 0);
-
-		const int x0     = last_centre_x  - TILE_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around new camera position
-		const int y0     = last_centre_y  - TILE_GRID_RES/2;
-		const int wrapped_x0     = Maths::intMod(x0,     TILE_GRID_RES); // x0 mod TILE_GRID_RES                        [Using euclidean modulo]
-		const int wrapped_y0     = Maths::intMod(y0,     TILE_GRID_RES); // y0 mod TILE_GRID_RES                        [Using euclidean modulo]
-
-		const int tile_z = getTileZForMapWidthWS(map_width_ws);
-		const float tile_w_ws = getTileWidthWSForTileZ(tile_z);//TEMP
-
-		for(int j=0; j<TILE_GRID_RES; ++j)
-		for(int i=0; i<TILE_GRID_RES; ++i)
-		{
-			// Get unwrapped coords
-			const int x = x0 + i - wrapped_x0 + ((i >= wrapped_x0) ? 0 : TILE_GRID_RES);
-			const int y = y0 + j - wrapped_y0 + ((j >= wrapped_y0) ? 0 : TILE_GRID_RES);
-
-			tiles.elem(i, j).ob->ob_to_world_matrix = world_to_overlay_space_matrix * Matrix4f::translationMatrix(x * tile_w_ws, y * tile_w_ws, 0) *  Matrix4f::scaleMatrix(tile_w_ws, tile_w_ws, 1);
-		}
-	}
 	
 	const float heading = (float)gui_client->cam_controller.getAngles().x;
 
@@ -365,6 +337,40 @@ void MiniMap::think()
 		/*dims=*/Vec2f(arrow_width), 
 		/*rotation=*/heading,
 		/*z=*/ARROW_IMAGE_Z);
+}
+
+
+// Set transforms of tile overlay objects
+void MiniMap::setTileOverlayObjectTransforms()
+{
+	// The logic of the transform is something like:
+	// Create tiles in world space (let the map == the territory), transform them into camera space for a camera looking down at the player position,
+	// then translate and scale them to the minimap UI rectangle.
+
+	const Vec3d campos = gui_client->cam_controller.getFirstPersonPosition();
+
+	const Rect2f minimap_gl_rect = gl_ui->OpenGLRectCoordsForUICoords(minimap_image->rect);
+	Matrix4f world_to_overlay_space_matrix = Matrix4f::translationMatrix(minimap_gl_rect.getMin().x, minimap_gl_rect.getMax().y, MINIMAP_TILE_Z) * 
+		Matrix4f::scaleMatrix(minimap_gl_rect.getWidths().x * 1.f/map_width_ws, minimap_gl_rect.getWidths().y * 1.f/map_width_ws, 1) * 
+		Matrix4f::translationMatrix((float)-campos.x + map_width_ws/2.f, (float)-campos.y - map_width_ws/2.f, 0);
+
+	const int x0     = last_centre_x  - TILE_GRID_RES/2; // unwrapped grid x coordinate of lower left grid cell in square grid around new camera position
+	const int y0     = last_centre_y  - TILE_GRID_RES/2;
+	const int wrapped_x0     = Maths::intMod(x0,     TILE_GRID_RES); // x0 mod TILE_GRID_RES                        [Using euclidean modulo]
+	const int wrapped_y0     = Maths::intMod(y0,     TILE_GRID_RES); // y0 mod TILE_GRID_RES                        [Using euclidean modulo]
+
+	const int tile_z = getTileZForMapWidthWS(map_width_ws);
+	const float tile_w_ws = getTileWidthWSForTileZ(tile_z);
+
+	for(int j=0; j<TILE_GRID_RES; ++j)
+	for(int i=0; i<TILE_GRID_RES; ++i)
+	{
+		// Get unwrapped coords
+		const int x = x0 + i - wrapped_x0 + ((i >= wrapped_x0) ? 0 : TILE_GRID_RES);
+		const int y = y0 + j - wrapped_y0 + ((j >= wrapped_y0) ? 0 : TILE_GRID_RES);
+
+		tiles.elem(i, j).ob->ob_to_world_matrix = world_to_overlay_space_matrix * ::translationMulScaleMatrix(Vec4f(x * tile_w_ws, y * tile_w_ws, 0, 0), tile_w_ws, tile_w_ws, 1);
+	}
 }
 
 
@@ -462,7 +468,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 								const std::string local_path = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
 
 								OpenGLTextureRef tile_tex = opengl_engine->getTextureIfLoaded(local_path);
-								if(tile_tex.nonNull())
+								if(tile_tex)
 								{
 									tile.ob->material.albedo_texture = tile_tex;
 								}
@@ -470,8 +476,6 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 								{
 									// If tile_tex is null, keep placeholder texture assigned to tile object for now.
 									// Start loading the texture (may never have been loaded, or may have been unloaded if wasn't used for a while)
-
-									tile.ob->material.tex_path = local_path; // Store path so texture will be assigned later when loaded.
 
 									const Vec3d tile_pos(0.0); // TEMP HACK could use tile position in world space? or cam position?
 
@@ -584,7 +588,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 				tile.ob->material.albedo_linear_rgb.b = 0.3f + 0.7f * uint32Hash(x+10) * (1.f / 4294967296.f);
 #endif
 
-				tile.ob->ob_to_world_matrix = Matrix4f::translationMatrix(x * tile_w_ws, y * tile_w_ws, 0) *  Matrix4f::scaleMatrix(tile_w_ws, tile_w_ws, 1);
+				tile.ob->ob_to_world_matrix = Matrix4f::identity(); // Will be set later in setTileOverlayObjectTransforms().
 			}
 		}
 
@@ -655,6 +659,8 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 	last_centre_x = -10000;
 	last_centre_y = -10000;
 	checkUpdateTilesForCurCamPosition();
+
+	setTileOverlayObjectTransforms();
 }
 
 
@@ -980,5 +986,7 @@ void MiniMap::mouseWheelEventOccurred(GLUICallbackMouseWheelEvent& event)
 		last_centre_x = -10000;
 		last_centre_y = -10000;
 		checkUpdateTilesForCurCamPosition();
+
+		setTileOverlayObjectTransforms();
 	}
 }

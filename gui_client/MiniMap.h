@@ -74,6 +74,7 @@ private:
 	void setWidgetVisibilityForExpanded();
 	void checkUpdateTilesForCurCamPosition();
 	void updateWidgetPositions();
+	void setTileOverlayObjectTransforms();
 	Vec2f mapUICoordsForWorldSpacePos(const Vec3d& pos);
 	float computeMiniMapWidth();
 	float computeMiniMapTopMargin();
