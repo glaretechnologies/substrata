@@ -287,8 +287,16 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(OpenGLEngine* opengl_eng
 }
 
 
+AnimatedTextureManager::AnimatedTextureManager()
+:	last_num_textures_visible_and_close(0)
+{
+}
+
+
 void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_engine, double anim_time, double dt)
 {
+	last_num_textures_visible_and_close = 0;
+
 	for(auto info_it = tex_info.begin(); info_it != tex_info.end(); ++info_it)
 	{
 		AnimatedTexInfo& info = *info_it->second;
@@ -413,47 +421,56 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 								Reference<OpenGLTexture> next_tex = (info.next_tex_i == 0) ? info.original_tex : info.other_tex;
 								Reference<OpenGLTexture> from_tex = (info.next_tex_i == 0) ? info.other_tex    : info.original_tex;
 
-								// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
-								// Don't try and upload the wrong size or we will get an OpenGL error or crash.
-								if(next_tex->xRes() == texdata->W && next_tex->yRes() == texdata->H)
+								// NOTE: next_tex will be null if this is the first time we have updated a frame for this animated texture.
+								// In this case the texture will be created on the OpenGLUploadThread.
+
+								// Don't load new data into the texture that is currently applied to objects.
+								// This could happen if the opengl upload thread is slow uploading textures.
+								if(info.next_tex_i != info.cur_displayed_tex_i)
 								{
-									if(gui_client->opengl_upload_thread)
+									if(from_tex)
 									{
-										//conPrint("Sending UploadTextureMessage for tex " + info.original_tex->key);
-										UploadTextureMessage* msg = gui_client->opengl_upload_thread->allocUploadTextureMessage();
-										msg->texture_data = texdata;
-										//msg->original_opengl_tex = info.original_tex;
-										msg->old_tex = from_tex;
-										msg->new_tex = next_tex;
-										msg->frame_i = info.cur_frame_i;
+										if(gui_client->opengl_upload_thread)
+										{
+											//conPrint("Sending UploadTextureMessage for tex " + info.original_tex->key);
+											UploadTextureMessage* msg = gui_client->opengl_upload_thread->allocUploadTextureMessage();
+											msg->is_animated_texture_update = true;
+											msg->texture_data = texdata;
+											//msg->original_opengl_tex = info.original_tex;
+											msg->old_tex = from_tex;
+											msg->new_tex = next_tex;
+											msg->frame_i = info.cur_frame_i;
+											if(!next_tex)
+												msg->tex_path = info.original_tex->key;
 
-										gui_client->opengl_upload_thread->getMessageQueue().enqueue(msg);
+											gui_client->opengl_upload_thread->getMessageQueue().enqueue(msg);
+										}
+										//else
+										//{
+										//	// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner
+										//	Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
+										//	msg->texture_data = texdata;
+										//	msg->existing_opengl_tex = texture;
+										//	msg->load_into_frame_i = info.cur_frame_i;
+										//	msg->ob_uid = ob->uid;
+										//
+										//	gui_client->async_texture_loaded_messages_to_process.push_back(msg);
+										//}
+
+										info.next_tex_i = (info.next_tex_i + 1) % 2;
 									}
-									//else
-									//{
-									//	// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner
-									//	Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
-									//	msg->texture_data = texdata;
-									//	msg->existing_opengl_tex = texture;
-									//	msg->load_into_frame_i = info.cur_frame_i;
-									//	msg->ob_uid = ob->uid;
-									//
-									//	gui_client->async_texture_loaded_messages_to_process.push_back(msg);
-									//}
-
-									info.next_tex_i = (info.next_tex_i + 1) % 2;
 								}
-								else
-									conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
+								//else
+								//	conPrint("Can't start loading into next tex i " + toString(info.next_tex_i) + ", is currently applied");
 
 								info.last_loaded_frame_i = info.cur_frame_i;
-
-								//nun_gif_frames_advanced_in_out++;
 							}
 						}
 					}
 				}
-			}
+
+				last_num_textures_visible_and_close++;
+			} // end if(visible_and_close)
 		}
 	}
 }
@@ -462,6 +479,7 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 std::string AnimatedTextureManager::diagnostics()
 {
 	std::string s = "----AnimatedTextureManager----\n";
+	s += "last_num_textures_visible_and_close: " + toString(last_num_textures_visible_and_close) + "\n\n";
 	for(auto info_it = tex_info.begin(); info_it != tex_info.end(); ++info_it)
 	{
 		AnimatedTexInfo& info = *info_it->second;
@@ -494,6 +512,15 @@ void AnimatedTextureManager::doTextureSwap(const OpenGLTextureRef& old_tex, cons
 			if(mat.emission_texture == old_tex)
 				mat.emission_texture = new_tex;
 		}
+
+		// Handle case where the other texture was created in OpenGLUploadThread.
+		if(!info->other_tex)
+		{
+			//assert(old_tex == info->original_tex);
+			info->other_tex = new_tex;
+		}
+
+		info->cur_displayed_tex_i = (info->cur_displayed_tex_i + 1) % 2;
 	}
 }
 
@@ -510,16 +537,7 @@ void AnimatedTextureManager::checkAddTextureUse(const Reference<OpenGLTexture>& 
 		info->cur_frame_i = 0;
 		info->original_tex = texture;
 
-		// Create other texture
-		if(texture)
-		{
-			// Make sure the other texture has the same texture_data and key, as in removeAnimatedTextureUse in GUIClient.cpp, the decision to call removeTextureUse() is based on tex->hasMultiFrameTextureData(),
-			// which may be called on other_tex, depending on which texture is currently applied to the material.
-			info->other_tex = new OpenGLTexture(texture->xRes(), texture->yRes(), texture->m_opengl_engine, ArrayRef<uint8>(), texture->getFormat(), texture->getFiltering()); // TODO: copy all params
-			info->other_tex->texture_data = texture->texture_data;
-			info->other_tex->key = texture->key;
-		}
-
+		info->cur_displayed_tex_i = 0;
 		info->next_tex_i = 1;
 
 		tex_info[texture->key] = info;

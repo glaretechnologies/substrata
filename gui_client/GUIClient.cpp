@@ -7806,6 +7806,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			const TextureUploadedMessage* m = static_cast<const TextureUploadedMessage*>(msg);
 
+			runtimeCheck(m->user_info.nonNull());
 			LoadTextureTaskUploadingUserInfo* user_info = m->user_info.downcastToPtr<LoadTextureTaskUploadingUserInfo>();
 
 			opengl_engine->addOpenGLTexture(m->opengl_tex->key, m->opengl_tex);
