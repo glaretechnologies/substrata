@@ -42,6 +42,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "CarPhysics.h"
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
+#include "MiniMap.h"
 #if !defined(EMSCRIPTEN)
 #include "../networking/TLSSocket.h"
 #endif
@@ -88,7 +89,6 @@ Copyright Glare Technologies Limited 2024 -
 #include "../indigo/TextureServer.h"
 #include "../opengl/OpenGLShader.h"
 #include "../opengl/MeshPrimitiveBuilding.h"
-#include "../opengl/RenderStatsWidget.h"
 #include "../opengl/OpenGLUploadThread.h"
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/SSAODebugging.h>
@@ -458,7 +458,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	photo_mode_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui, this->settings);
 	photo_mode_ui.setVisible(false);
 
-	minimap.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
 	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
 #if !EMSCRIPTEN
@@ -769,8 +768,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		opengl_engine->addObject(results.gl_ob);
 	}
 
-	render_stats_widget = new RenderStatsWidget(opengl_engine, gl_ui);
-
 	opengl_upload_thread = new OpenGLUploadThread();
 	opengl_upload_thread->gl_context = ui_interface->makeNewSharedGLContext();
 	opengl_upload_thread->make_gl_context_current_func = [&](void* gl_context) { ui_interface->makeGLContextCurrent(gl_context); };
@@ -819,8 +816,6 @@ GUIClient::~GUIClient()
 void GUIClient::shutdown()
 {
 	// Destroy/close all OpenGL stuff, because once glWidget is destroyed, the OpenGL context is destroyed, so we can't free stuff properly.
-
-	render_stats_widget = NULL;
 
 	this->msg_queue.clear();
 
@@ -891,7 +886,7 @@ void GUIClient::shutdown()
 
 	photo_mode_ui.destroy();
 
-	minimap.destroy();
+	minimap = nullptr;
 
 	if(gl_ui.nonNull())
 	{
@@ -4088,7 +4083,8 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 		terrain_system->handleTextureLoaded(path, terrain_map);
 
 	// Assign to minimap tiles
-	minimap.handleUploadedTexture(path, URL, opengl_tex);
+	if(minimap)
+		minimap->handleUploadedTexture(path, URL, opengl_tex);
 
 	// Look up any LODChunks, objects or avatars using this texture, and assign the newly loaded texture to them.
 	{
@@ -5303,7 +5299,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	
 	gesture_ui.think();
 	hud_ui.think();
-	minimap.think();
+	if(minimap)
+		minimap->think();
 
 	updateObjectsWithDiagnosticVis();
 
@@ -6762,9 +6759,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
 	}
 
-	if(render_stats_widget)
-		render_stats_widget->addFrameTime((float)timer_event_timer.elapsed());
-
 	frame_num++;
 }
 
@@ -7182,7 +7176,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 					avatar->speaker_gl_ob = NULL;
 
 					hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
-					minimap.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
+					if(minimap)
+						minimap->removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 
 					// Remove avatar from avatar map
 					auto old_avatar_iterator = it;
@@ -7234,7 +7229,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						avatar->speaker_gl_ob = NULL;
 
 						hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
-						minimap.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
+						if(minimap)
+							minimap->removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 
 						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
 
@@ -7623,7 +7619,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 					if(!our_avatar)
 					{
 						hud_ui.updateMarkerForAvatar(avatar, Vec3d(use_nametag_pos)); // Update marker on HUD
-						minimap.updateMarkerForAvatar(avatar, Vec3d(use_nametag_pos)); // Update marker on minimap
+						if(minimap)
+							minimap->updateMarkerForAvatar(avatar, Vec3d(use_nametag_pos)); // Update marker on minimap
 					}
 
 
@@ -8468,7 +8465,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			const MapTilesResultReceivedMessage* m = static_cast<const MapTilesResultReceivedMessage*>(msg);
 
-			this->minimap.handleMapTilesResultReceivedMessage(*m);
+			if(minimap)
+				this->minimap->handleMapTilesResultReceivedMessage(*m);
 		}
 		else if(dynamic_cast<const UserSelectedObjectMessage*>(msg))
 		{
@@ -11693,6 +11691,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	gesture_ui.untoggleMicButton(); // Since mic_read_thread_manager has thread killed above.
 
+	minimap = nullptr;
+
 	deselectObject();
 
 	vehicle_controller_inside = NULL;
@@ -11764,7 +11764,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 			avatar->graphics.destroy(*opengl_engine);
 
 			hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
-			minimap.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
+			if(minimap)
+				minimap->removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 		}
 
 		for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
@@ -11975,6 +11976,9 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 
 
 	updateGroundPlane();
+
+	minimap = nullptr;
+	minimap = new MiniMap(opengl_engine, /*gui_client_=*/this, gl_ui);
 
 	// Init indigoView
 	/*this->ui->indigoView->initialise(this->base_dir_path);
@@ -13032,7 +13036,8 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 		}
 
 		chat_ui.handleMouseMoved(mouse_event);
-		minimap.handleMouseMoved(mouse_event);
+		if(minimap)
+			minimap->handleMouseMoved(mouse_event);
 	}
 
 	if(!ui_interface->isCursorHidden())
@@ -13724,7 +13729,8 @@ void GUIClient::viewportResized(int w, int h)
 	hud_ui.viewportResized(w, h);
 	chat_ui.viewportResized(w, h);
 	photo_mode_ui.viewportResized(w, h);
-	minimap.viewportResized(w, h);
+	if(minimap)
+		minimap->viewportResized(w, h);
 }
 
 

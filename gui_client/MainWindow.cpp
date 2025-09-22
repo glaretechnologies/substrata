@@ -36,6 +36,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "CEF.h"
 #include "ThreadMessages.h"
 #include "MeshBuilding.h"
+#include "MiniMap.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -80,6 +81,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../indigo/TextureServer.h"
 #include "../graphics/PNGDecoder.h"
 #include "../graphics/jpegdecoder.h"
+#include "../opengl/RenderStatsWidget.h"
 #if defined(_WIN32)
 #include "../video/WMFVideoReader.h"
 #endif
@@ -547,6 +549,9 @@ void MainWindow::afterGLInitInitialise()
 		logMessage("Setting MSAA to " + boolToString(MSAA));
 		//ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
 	}
+
+
+	render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui);
 }
 
 
@@ -608,6 +613,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 
 	gui_client.shutdown();
+
+	render_stats_widget = nullptr;
 
 
 	this->opengl_engine = NULL;
@@ -999,7 +1006,7 @@ void MainWindow::setUpForScreenshot()
 
 	gui_client.gesture_ui.destroy();
 
-	gui_client.minimap.destroy();
+	gui_client.minimap = nullptr;
 
 	opengl_engine->getCurrentScene()->cloud_shadows = false;
 
@@ -1223,6 +1230,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//	conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": updateGL() took " + timer.elapsedStringNSigFigs(4));
 		this->last_updateGL_time = timer2.elapsed();
 	}
+
+	// Plot the total time spent on CPU work this frame.
+	// Note that we can't just measure the time of this timerEvent method with glWidget->updateGL(), because updateGL() will block for vsync, so it will include a lot of waiting time.
+	// Instead use the sum of work time in this method plus the work time in OpenGLEngine::draw().
+	if(render_stats_widget)
+		render_stats_widget->addFrameTime((float)(last_timerEvent_CPU_work_elapsed + opengl_engine->last_draw_CPU_time));
 }
 
 

@@ -19,19 +19,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <tracy/Tracy.hpp>
 
 
-MiniMap::MiniMap()
-:	gui_client(NULL),
-	last_requested_campos(Vec3d(-1000000)),
-	last_requested_tile_z(-1000),
-	map_width_ws(500.f),
-	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
-{}
-
-
-MiniMap::~MiniMap()
-{}
-
-
 static const float x_margin = 0.03f; // margin around map in UI coordinates
 
 static const float arrow_width_px = 22;
@@ -49,32 +36,12 @@ static const float AVATAR_MARKER_IMAGE_Z       = MINIMAP_Z - 0.01f; // -0.93f;
 static const float AVATAR_MARKER_ARROW_IMAGE_Z = MINIMAP_Z - 0.02f; //-0.94f; // Slightly behind the marker dot
 
 
-static int getTileZForMapWidthWS(float map_width_ws)
-{
-	/*
-	Lets say we want ~= 2 tiles to span the map (tiles are 256 pixels wide):
-	map_width_ws = 2 * tile_w
-	and
-	tile_w = 5120 / (2 ^ tile_z)
-	so 
-	map_width_ws = 2 * 5120 / (2 ^ tile_z)    [See updateMapTiles() in server.cpp]
-
-	2 ^ tile_z = 2 * 5120 / map_width_ws;
-	tile_z = log_2(2 * 5120 / map_width_ws)
-	*/
-
-	return myClamp((int)std::log2(2 * 5120 / map_width_ws), 0, 6);
-}
-
-
-// See updateMapTiles() in server.cpp
-static float getTileWidthWSForTileZ(int tile_z)
-{
-	return 5120.f / (1 << tile_z);
-}
-
-
-void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
+MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
+:	gui_client(NULL),
+	last_requested_campos(Vec3d(-1000000)),
+	last_requested_tile_z(-1000),
+	map_width_ws(500.f),
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
 {
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
@@ -161,7 +128,7 @@ void MiniMap::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_cli
 }
 
 
-void MiniMap::destroy()
+MiniMap::~MiniMap()
 {
 	if(gl_ui.nonNull())
 	{
@@ -210,6 +177,31 @@ void MiniMap::destroy()
 
 	gl_ui = NULL;
 	opengl_engine = NULL;
+}
+
+
+static int getTileZForMapWidthWS(float map_width_ws)
+{
+	/*
+	Lets say we want ~= 2 tiles to span the map (tiles are 256 pixels wide):
+	map_width_ws = 2 * tile_w
+	and
+	tile_w = 5120 / (2 ^ tile_z)
+	so 
+	map_width_ws = 2 * 5120 / (2 ^ tile_z)    [See updateMapTiles() in server.cpp]
+
+	2 ^ tile_z = 2 * 5120 / map_width_ws;
+	tile_z = log_2(2 * 5120 / map_width_ws)
+	*/
+
+	return myClamp((int)std::log2(2 * 5120 / map_width_ws), 0, 6);
+}
+
+
+// See updateMapTiles() in server.cpp
+static float getTileWidthWSForTileZ(int tile_z)
+{
+	return 5120.f / (1 << tile_z);
 }
 
 
@@ -667,6 +659,8 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 void MiniMap::handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex)
 {
 	ZoneScoped; // Tracy profiler
+
+	// conPrint("MiniMap::handleUploadedTexture: " + path);
 
 	auto res = loading_texture_URL_to_tile_indices_map.find(URL);
 	if(res != loading_texture_URL_to_tile_indices_map.end())

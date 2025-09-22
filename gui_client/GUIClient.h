@@ -18,7 +18,6 @@ Copyright Glare Technologies Limited 2024 -
 #include "HeadUpDisplayUI.h"
 #include "PhotoModeUI.h"
 #include "ChatUI.h"
-#include "MiniMap.h"
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
@@ -84,9 +83,9 @@ class SubstrataLuaVM;
 struct LoadedBuffer;
 struct AsyncUploadedGeometryInfo;
 struct PBOAsyncUploadedTextureInfo;
-class RenderStatsWidget;
 class OpenGLUploadThread;
 class AnimatedTextureManager;
+class MiniMap;
 
 
 struct ResourceUserList
@@ -631,8 +630,7 @@ public:
 	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
 	PhotoModeUI photo_mode_ui;
-	MiniMap minimap; // Draws minimap
-	Reference<RenderStatsWidget> render_stats_widget;
+	Reference<MiniMap> minimap;
 
 	bool running_destructor;
 
