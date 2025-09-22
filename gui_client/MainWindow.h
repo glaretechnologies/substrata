@@ -27,6 +27,7 @@ class QMimeData;
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 struct _SDL_GameController;
+class RenderStatsWidget;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -361,4 +362,6 @@ public:
 
 	//struct _SDL_GameController* game_controller;
 	QByteArray pre_fullscreen_window_state;
+
+	Reference<RenderStatsWidget> render_stats_widget;
 };
