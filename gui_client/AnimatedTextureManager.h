@@ -94,7 +94,8 @@ struct AnimatedTexInfo : public ThreadSafeRefCounted
 
 	Reference<OpenGLTexture> original_tex;
 	Reference<OpenGLTexture> other_tex;
-	int next_tex_i;
+	int cur_displayed_tex_i; // Index of texture currently assigned to objects.  0 = original_tex, 1 = other_tex
+	int next_tex_i;          // Index of next texture to load next animation frame into.  0 = original_tex, 1 = other_tex
 };
 
 
@@ -108,6 +109,8 @@ when a new frame is uploaded.
 class AnimatedTextureManager : public ThreadSafeRefCounted
 {
 public:
+	AnimatedTextureManager();
+
 	void think(GUIClient* gui_client, OpenGLEngine* opengl_engine, double anim_time, double dt);
 
 	std::string diagnostics();
@@ -118,4 +121,6 @@ public:
 	void removeTextureUse(const Reference<OpenGLTexture>& tex, Reference<GLObject> ob, size_t mat_index);
 
 	std::map<std::string, Reference<AnimatedTexInfo>> tex_info;
+
+	int last_num_textures_visible_and_close;
 };
