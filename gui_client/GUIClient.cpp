@@ -935,12 +935,14 @@ void GUIClient::shutdown()
 	net_resource_download_thread_manager.killThreadsBlocking();
 	save_resources_db_thread_manager.killThreadsBlocking();
 	garbage_deleter_thread_manager.killThreadsBlocking();
-	opengl_worker_thread_manager.killThreadsBlocking();
-	opengl_upload_thread = NULL;
+	
 
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 
 	this->msg_queue.clear();
+
+	opengl_worker_thread_manager.killThreadsBlocking();
+	opengl_upload_thread = NULL;
 
 
 	mesh_manager.clear(); // Mesh manager has references to cached/unused meshes, so need to zero out the references before we shut down the OpenGL engine.
