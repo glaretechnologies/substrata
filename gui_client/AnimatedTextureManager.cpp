@@ -435,8 +435,8 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 											//conPrint("Sending UploadTextureMessage for tex " + info.original_tex->key);
 											UploadTextureMessage* msg = gui_client->opengl_upload_thread->allocUploadTextureMessage();
 											msg->is_animated_texture_update = true;
+											//msg->tex_params = from_tex->getTexParams(); TODO: set tex params from from_tex
 											msg->texture_data = texdata;
-											//msg->original_opengl_tex = info.original_tex;
 											msg->old_tex = from_tex;
 											msg->new_tex = next_tex;
 											msg->frame_i = info.cur_frame_i;
