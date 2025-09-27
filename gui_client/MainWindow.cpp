@@ -551,7 +551,11 @@ void MainWindow::afterGLInitInitialise()
 	}
 
 
-	render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui);
+	if(ui->diagnosticsWidget->showFrameTimeGraphsCheckBox->isChecked())
+	{
+		CPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui, /*widget index=*/0);
+		GPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui, /*widget index=*/1);
+	}
 }
 
 
@@ -614,7 +618,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 	gui_client.shutdown();
 
-	render_stats_widget = nullptr;
+	CPU_render_stats_widget = nullptr;
+	GPU_render_stats_widget = nullptr;
 
 
 	this->opengl_engine = NULL;
@@ -1234,8 +1239,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Plot the total time spent on CPU work this frame.
 	// Note that we can't just measure the time of this timerEvent method with glWidget->updateGL(), because updateGL() will block for vsync, so it will include a lot of waiting time.
 	// Instead use the sum of work time in this method plus the work time in OpenGLEngine::draw().
-	if(render_stats_widget)
-		render_stats_widget->addFrameTime((float)(last_timerEvent_CPU_work_elapsed + opengl_engine->last_draw_CPU_time));
+	if(CPU_render_stats_widget)
+		CPU_render_stats_widget->addFrameTime((float)(last_timerEvent_CPU_work_elapsed + opengl_engine->last_draw_CPU_time));
+
+	if(GPU_render_stats_widget)
+		GPU_render_stats_widget->addFrameTime((float)opengl_engine->last_total_draw_GPU_time);
 }
 
 
@@ -3240,6 +3248,21 @@ void MainWindow::on_actionEnter_Fullscreen_triggered()
 void MainWindow::diagnosticsWidgetChanged()
 {
 	opengl_engine->setDrawWireFrames(ui->diagnosticsWidget->showWireframesCheckBox->isChecked());
+
+	if(ui->diagnosticsWidget->showFrameTimeGraphsCheckBox->isChecked() && this->CPU_render_stats_widget.isNull())
+	{
+		opengl_engine->setProfilingEnabled(true);
+
+		CPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui, /*widget index=*/0);
+		GPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui, /*widget index=*/1);
+	}
+	else if(!ui->diagnosticsWidget->showFrameTimeGraphsCheckBox->isChecked() && CPU_render_stats_widget.nonNull())
+	{
+		opengl_engine->setProfilingEnabled(false);
+
+		CPU_render_stats_widget = nullptr;
+		GPU_render_stats_widget = nullptr;
+	}
 
 	gui_client.diagnosticsSettingsChanged();
 }

@@ -363,5 +363,6 @@ public:
 	//struct _SDL_GameController* game_controller;
 	QByteArray pre_fullscreen_window_state;
 
-	Reference<RenderStatsWidget> render_stats_widget;
+	Reference<RenderStatsWidget> CPU_render_stats_widget;
+	Reference<RenderStatsWidget> GPU_render_stats_widget;
 };
