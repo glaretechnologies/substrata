@@ -210,7 +210,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		const uint64 decompressed_size = socket->readUInt64();
 		const size_t compressed_size = msg_len - (msg_header_size_B + sizeof(uint64)); // Compressed data is the rest of the message after the header and decompressed size
 
-		if(decompressed_size > 100000000)
+		if(decompressed_size > 300'000'000)
 			throw glare::Exception("ObjectInitialSendCompressed: decompressed_size is too large: " + toString(decompressed_size)); 
 		if(compressed_size > 100000000)
 			throw glare::Exception("ObjectInitialSendCompressed: compressed_size is too large: " + toString(compressed_size)); 
