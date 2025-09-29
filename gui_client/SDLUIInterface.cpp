@@ -543,3 +543,21 @@ float SDLUIInterface::gamepadAxisRightY()
 }
 
 #endif
+
+
+bool SDLUIInterface::supportsSharedGLContexts() const
+{
+	return false;
+}
+
+
+void* SDLUIInterface::makeNewSharedGLContext()
+{
+	return nullptr;
+}
+
+
+void SDLUIInterface::makeGLContextCurrent(void* context)
+{
+	assert(0);
+}

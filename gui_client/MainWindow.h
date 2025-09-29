@@ -284,8 +284,11 @@ public:
 	virtual float gamepadAxisRightX();
 	virtual float gamepadAxisRightY();
 
-	virtual void* makeNewSharedGLContext();
-	virtual void makeGLContextCurrent(void* context);
+
+	// OpenGL
+	virtual bool supportsSharedGLContexts() const override;
+	virtual void* makeNewSharedGLContext()  override;
+	virtual void makeGLContextCurrent(void* context) override;
 	//------------------------------------------------- End UIInterface -----------------------------------------------------------
 
 public:

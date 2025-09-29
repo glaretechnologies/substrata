@@ -141,6 +141,7 @@ public:
 	
 
 	// OpenGL
+	virtual bool supportsSharedGLContexts() const = 0;
 	virtual void* makeNewSharedGLContext() = 0;
 	virtual void makeGLContextCurrent(void* context) = 0;
 };

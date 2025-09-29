@@ -4166,6 +4166,11 @@ float MainWindow::gamepadAxisRightY()
 #endif
 
 
+bool MainWindow::supportsSharedGLContexts() const
+{
+	return true;
+}
+
 
 void* MainWindow::makeNewSharedGLContext()
 {
