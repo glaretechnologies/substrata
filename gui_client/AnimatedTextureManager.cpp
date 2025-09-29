@@ -418,19 +418,19 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 						{
 							if(info.cur_frame_i != info.last_loaded_frame_i) // If cur frame changed: (Avoid uploading the same frame multiple times in a row)
 							{
-								Reference<OpenGLTexture> next_tex = (info.next_tex_i == 0) ? info.original_tex : info.other_tex;
-								Reference<OpenGLTexture> from_tex = (info.next_tex_i == 0) ? info.other_tex    : info.original_tex;
-
-								// NOTE: next_tex will be null if this is the first time we have updated a frame for this animated texture.
-								// In this case the texture will be created on the OpenGLUploadThread.
-
-								// Don't load new data into the texture that is currently applied to objects.
-								// This could happen if the opengl upload thread is slow uploading textures.
-								if(info.next_tex_i != info.cur_displayed_tex_i)
+								if(gui_client->opengl_upload_thread)
 								{
-									if(from_tex)
+									Reference<OpenGLTexture> next_tex = (info.next_tex_i == 0) ? info.original_tex : info.other_tex;
+									Reference<OpenGLTexture> from_tex = (info.next_tex_i == 0) ? info.other_tex    : info.original_tex;
+
+									// NOTE: next_tex will be null if this is the first time we have updated a frame for this animated texture.
+									// In this case the texture will be created on the OpenGLUploadThread.
+
+									// Don't load new data into the texture that is currently applied to objects.
+									// This could happen if the opengl upload thread is slow uploading textures.
+									if(info.next_tex_i != info.cur_displayed_tex_i)
 									{
-										if(gui_client->opengl_upload_thread)
+										if(from_tex)
 										{
 											//conPrint("Sending UploadTextureMessage for tex " + info.original_tex->key);
 											UploadTextureMessage* msg = gui_client->opengl_upload_thread->allocUploadTextureMessage();
@@ -444,25 +444,26 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 												msg->tex_path = info.original_tex->key;
 
 											gui_client->opengl_upload_thread->getMessageQueue().enqueue(msg);
+
+											info.next_tex_i = (info.next_tex_i + 1) % 2;
 										}
-										//else
-										//{
-										//	// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner
-										//	Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
-										//	msg->texture_data = texdata;
-										//	msg->existing_opengl_tex = texture;
-										//	msg->load_into_frame_i = info.cur_frame_i;
-										//	msg->ob_uid = ob->uid;
-										//
-										//	gui_client->async_texture_loaded_messages_to_process.push_back(msg);
-										//}
-
-										info.next_tex_i = (info.next_tex_i + 1) % 2;
 									}
+									//else
+									//	conPrint("Can't start loading into next tex i " + toString(info.next_tex_i) + ", is currently applied");
 								}
-								//else
-								//	conPrint("Can't start loading into next tex i " + toString(info.next_tex_i) + ", is currently applied");
-
+								else
+								{
+									// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner on the main OpenGL context.
+									// Note that when loading this way (as opposed to using a separate upload thread), we seem to be able to get away with just updating
+									// the texture currently in use, without seeing any glitches from partially updated textures.  In other words we don't need to ping-pong between two textures.
+									Reference<TextureLoadedThreadMessage> msg = gui_client->allocTextureLoadedThreadMessage();
+									msg->texture_data = texdata;
+									msg->existing_opengl_tex = info.original_tex;
+									msg->load_into_frame_i = info.cur_frame_i;
+										
+									gui_client->async_texture_loaded_messages_to_process.push_back(msg);
+								}
+								
 								info.last_loaded_frame_i = info.cur_frame_i;
 							}
 						}
@@ -492,7 +493,7 @@ std::string AnimatedTextureManager::diagnostics()
 }
 
 
-void AnimatedTextureManager::doTextureSwap(const OpenGLTextureRef& old_tex, const OpenGLTextureRef& new_tex)
+void AnimatedTextureManager::doTextureSwap(OpenGLEngine* opengl_engine, const OpenGLTextureRef& old_tex, const OpenGLTextureRef& new_tex)
 {
 	assert(old_tex->key == new_tex->key);
 
@@ -511,6 +512,8 @@ void AnimatedTextureManager::doTextureSwap(const OpenGLTextureRef& old_tex, cons
 				mat.albedo_texture = new_tex;
 			if(mat.emission_texture == old_tex)
 				mat.emission_texture = new_tex;
+
+			opengl_engine->materialTextureChanged(*use.ob, mat);
 		}
 
 		// Handle case where the other texture was created in OpenGLUploadThread.

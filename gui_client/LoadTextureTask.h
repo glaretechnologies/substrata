@@ -35,7 +35,6 @@ public:
 	Reference<TextureData> texture_data;
 	Reference<OpenGLTexture> existing_opengl_tex; // When uploading a frame of an animated texture, upload into this already existing texture.
 	int load_into_frame_i;
-	UID ob_uid;
 
 	Reference<Map2D> terrain_map; // Non-null iff we are loading a terrain map (e.g. is_terrain_map is true)
 };

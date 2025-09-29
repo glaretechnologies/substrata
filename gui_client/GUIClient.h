@@ -31,6 +31,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "../audio/AudioEngine.h"
 #include "../audio/MicReadThread.h" // For MicReadStatus
 #include "../opengl/TextureLoading.h"
+#include "../opengl/PBOAsyncTextureUploader.h"
+#include "../opengl/AsyncGeometryUploader.h"
 #include "../shared/WorldObject.h"
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/TimerQueue.h"
@@ -86,6 +88,10 @@ struct PBOAsyncUploadedTextureInfo;
 class OpenGLUploadThread;
 class AnimatedTextureManager;
 class MiniMap;
+class VBOPool;
+class PBOPool;
+class VBO;
+class PBO;
 
 
 struct ResourceUserList
@@ -791,7 +797,6 @@ public:
 		Reference<OpenGLTexture> opengl_tex;
 		Map2DRef terrain_map;
 		bool loading_into_existing_opengl_tex;
-		UID ob_uid;
 	};
 
 
@@ -818,6 +823,13 @@ public:
 	ThreadManager opengl_worker_thread_manager;
 
 	Reference<OpenGLUploadThread> opengl_upload_thread;
+
+	Reference<PBOPool> pbo_pool;
+	PBOAsyncTextureUploader pbo_async_tex_loader;
+	Reference<VBOPool> vbo_pool;
+	Reference<VBOPool> index_vbo_pool;
+	AsyncGeometryUploader async_geom_loader;
+	AsyncGeometryUploader async_index_geom_loader;
 
 	Reference<AnimatedTextureManager> animated_texture_manager;
 };
