@@ -2025,7 +2025,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 
-				const std::string tex_key = "hypercard_" + ob->content;
+				const std::string tex_key = "_HYPCRD_" + toString(XXH64(ob->content.data(), ob->content.size(), 1));
 
 				// If the hypercard texture is already loaded, use it
 				opengl_ob->materials[0].albedo_texture = opengl_engine->getTextureIfLoaded(tex_key);
@@ -2044,8 +2044,11 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 						task->fonts = this->gl_ui->getFonts();
 						task->worker_allocator = worker_allocator;
 						task->texture_loaded_msg_allocator = texture_loaded_msg_allocator;
+						task->upload_thread = opengl_upload_thread;
 						load_item_queue.enqueueItem(/*key=*/tex_key, *ob, task, /*max_dist_for_ob_lod_level=*/200.f);
 					}
+
+					loading_texture_key_to_hypercard_UID_map[tex_key].insert(ob->uid);
 				}
 
 				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
@@ -4093,6 +4096,34 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 	{
 		WorldStateLock lock(this->world_state->mutex);
 
+		//---------------------------- Assign to hypercards ----------------------------
+		{
+			ZoneScopedN("Assign to hypercards");
+			if(hasPrefix(path, "_HYPCRD"))
+			{
+				auto res = loading_texture_key_to_hypercard_UID_map.find(path);
+				if(res != this->loading_texture_key_to_hypercard_UID_map.end())
+				{
+					const std::set<UID>& waiting_obs = res->second;
+					for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
+					{
+						const UID waiting_uid = *it;
+						auto res2 = this->world_state->objects.find(waiting_uid);
+						if(res2 != this->world_state->objects.end())
+						{
+							WorldObject* ob = res2.getValue().ptr();
+							if(ob->opengl_engine_ob)
+							{
+								ob->opengl_engine_ob->materials[0].albedo_texture = opengl_tex;
+								opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
+							}
+						}
+					}
+					loading_texture_key_to_hypercard_UID_map.erase(res); // Now that this texture has been loaded, remove from map
+				}
+			}
+		}
+
 		//---------------------------- Assign to LOD chunks ----------------------------
 		{ 
 			ZoneScopedN("Assign to LOD chunks");
@@ -4124,7 +4155,6 @@ void GUIClient::handleUploadedTexture(const std::string& path, const std::string
 				loading_texture_URL_to_chunk_coords_map.erase(res); // Now that this texture has been loaded, remove from map
 			}
 		}
-
 
 		//---------------------------- Assign to objects ----------------------------
 		{
@@ -7782,22 +7812,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			Reference<TextureLoadedThreadMessage> loaded_msg = temp_msgs[msg_i].downcast<TextureLoadedThreadMessage>();
 			
-			if(opengl_upload_thread) // If using OpenGLUploadThread
+			if(opengl_upload_thread)
 			{
-				// NOTE: these messages still come in from MakeHypercardTextureTasks.
-
-				UploadTextureMessage* upload_msg = opengl_upload_thread->allocUploadTextureMessage();
-				upload_msg->tex_path = loaded_msg->tex_path;
-				upload_msg->tex_params = loaded_msg->tex_params;
-				upload_msg->texture_data = loaded_msg->texture_data;
-				upload_msg->frame_i = loaded_msg->load_into_frame_i;
-			
-				LoadTextureTaskUploadingUserInfo* user_info = new LoadTextureTaskUploadingUserInfo();
-				user_info->terrain_map = loaded_msg->terrain_map;
-				user_info->tex_URL = loaded_msg->tex_URL;
-				upload_msg->user_info = user_info;
-			
-				opengl_worker_thread_manager.enqueueMessage(upload_msg);
+				// If we are using an OpenGLUploadThread, then LoadTextureTask etc will pass messages directly to the OpenGLUploadThread, instead 
+				// of sending a TextureLoadedThreadMessage back to this thread.
+				assert(0);
 			}
 			else
 			{
@@ -11202,7 +11221,7 @@ void GUIClient::objectEdited()
 							opengl_ob->materials.resize(1);
 							opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 
-							const std::string tex_key = "hypercard_" + selected_ob->content;
+							const std::string tex_key = "_HYPCRD_" + toString(XXH64(selected_ob->content.data(), selected_ob->content.size(), 1));
 
 							// If the hypercard texture is already loaded, use it
 							opengl_ob->materials[0].albedo_texture = opengl_engine->getTextureIfLoaded(tex_key);
@@ -11221,8 +11240,11 @@ void GUIClient::objectEdited()
 									task->fonts = this->gl_ui->getFonts();
 									task->worker_allocator = worker_allocator;
 									task->texture_loaded_msg_allocator = texture_loaded_msg_allocator;
+									task->upload_thread = opengl_upload_thread;
 									load_item_queue.enqueueItem(/*key=*/tex_key, *this->selected_ob, task, /*max task dist=*/200.f);
 								}
+
+								loading_texture_key_to_hypercard_UID_map[tex_key].insert(selected_ob->uid);
 							}
 
 							opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
