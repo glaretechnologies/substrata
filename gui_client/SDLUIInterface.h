@@ -123,6 +123,11 @@ public:
 	virtual float gamepadAxisRightX() override;
 	virtual float gamepadAxisRightY() override;
 
+	// OpenGL
+	virtual bool supportsSharedGLContexts() const override;
+	virtual void* makeNewSharedGLContext() override;
+	virtual void makeGLContextCurrent(void* context) override;
+
 
 	SDL_Window* window;
 	SDL_GLContext gl_context;

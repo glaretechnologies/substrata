@@ -768,13 +768,16 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		opengl_engine->addObject(results.gl_ob);
 	}
 
-	opengl_upload_thread = new OpenGLUploadThread();
-	opengl_upload_thread->gl_context = ui_interface->makeNewSharedGLContext();
-	opengl_upload_thread->make_gl_context_current_func = [&](void* gl_context) { ui_interface->makeGLContextCurrent(gl_context); };
-	opengl_upload_thread->opengl_engine = opengl_engine.ptr();
-	opengl_upload_thread->out_msg_queue = &this->msg_queue;
+	if(ui_interface->supportsSharedGLContexts())
+	{
+		opengl_upload_thread = new OpenGLUploadThread();
+		opengl_upload_thread->gl_context = ui_interface->makeNewSharedGLContext();
+		opengl_upload_thread->make_gl_context_current_func = [&](void* gl_context) { ui_interface->makeGLContextCurrent(gl_context); };
+		opengl_upload_thread->opengl_engine = opengl_engine.ptr();
+		opengl_upload_thread->out_msg_queue = &this->msg_queue;
 
-	opengl_worker_thread_manager.addThread(opengl_upload_thread);
+		opengl_worker_thread_manager.addThread(opengl_upload_thread);
+	}
 }
 
 
@@ -4341,6 +4344,8 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				{
 					// conPrint("Finished loading texture '" + tex_loading_progress.path + "' into OpenGL.  Was terrain: " + toString(cur_loading_terrain_map.nonNull()));
 
+					opengl_engine->addOpenGLTexture(tex_loading_progress.path, tex_loading_progress.opengl_tex);
+
 					handleUploadedTexture(tex_loading_progress.path, tex_loading_progress.URL, tex_loading_progress.opengl_tex, tex_loading_progress.tex_data, cur_loading_terrain_map);
 
 					tex_loading_progress.tex_data = NULL;
@@ -7777,7 +7782,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			Reference<TextureLoadedThreadMessage> loaded_msg = temp_msgs[msg_i].downcast<TextureLoadedThreadMessage>();
 			
-			if(true) // If using OpenGLUploadThread
+			if(opengl_upload_thread) // If using OpenGLUploadThread
 			{
 				// NOTE: these messages still come in from MakeHypercardTextureTasks.
 
