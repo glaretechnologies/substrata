@@ -87,9 +87,11 @@ Copyright Glare Technologies Limited 2024 -
 #include "../graphics/BasisDecoder.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
-#include "../opengl/OpenGLShader.h"
-#include "../opengl/MeshPrimitiveBuilding.h"
-#include "../opengl/OpenGLUploadThread.h"
+#include <opengl/OpenGLShader.h>
+#include <opengl/MeshPrimitiveBuilding.h>
+#include <opengl/OpenGLUploadThread.h>
+#include <opengl/PBOPool.h>
+#include <opengl/VBOPool.h>
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/SSAODebugging.h>
 #include "../audio/AudioFileReader.h"
@@ -778,6 +780,12 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 		opengl_worker_thread_manager.addThread(opengl_upload_thread);
 	}
+	else
+	{
+		pbo_pool = new PBOPool();
+		vbo_pool       = new VBOPool(GL_ARRAY_BUFFER);
+		index_vbo_pool = new VBOPool(GL_ELEMENT_ARRAY_BUFFER); // WebGL requires index data and vertex data to be kept separate
+	}
 }
 
 
@@ -941,6 +949,13 @@ void GUIClient::shutdown()
 
 	opengl_worker_thread_manager.killThreadsBlocking();
 	opengl_upload_thread = NULL;
+
+	pbo_pool = NULL;
+	vbo_pool = NULL;
+	index_vbo_pool = NULL;
+	pbo_async_tex_loader.clear();
+	async_geom_loader.clear();
+	async_index_geom_loader.clear();
 
 
 	mesh_manager.clear(); // Mesh manager has references to cached/unused meshes, so need to zero out the references before we shut down the OpenGL engine.
@@ -4487,280 +4502,278 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 	// Check async geometry uploading queue and async texture uploading queue for any completed uploads
 	// We will keep looping until either there are no more completed uploads to process, or we have exceeded a certain amount of time.
-	const double MAX_CHECK_FOR_UPLOADED_GEOM_TIME = 0.002;
-	Timer timer;
-	while(timer.elapsed() < MAX_CHECK_FOR_UPLOADED_GEOM_TIME)
+	if(vbo_pool && pbo_pool)
 	{
-		ZoneScopedN("checking for uploaded geom and textures"); // Tracy profiler
-
-		bool at_least_one_geom_or_tex_uploaded = false;
-
-		//------------------------------------------- Check any current geometry uploads to see if they have completed ------------------------------------------- 
-		//Timer timer2;
-		opengl_engine->async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), opengl_engine->getCurrentScene()->frame_num, /*loaded_geom_out=*/temp_uploaded_geom_infos);
-		//const double elapsed = timer2.elapsed();
-		//if(elapsed > 0.0001)
-		//	conPrint("-----------checkForUploadedGeometry() took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms------------------");
-		for(size_t i=0; i<temp_uploaded_geom_infos.size(); ++i) // Process any completed uploaded geometry
+		const double MAX_CHECK_FOR_UPLOADED_GEOM_TIME = 0.002;
+		Timer timer;
+		while(timer.elapsed() < MAX_CHECK_FOR_UPLOADED_GEOM_TIME)
 		{
-			opengl_engine->vbo_pool.vboBecameUnused(temp_uploaded_geom_infos[i].vert_vbo); // Return VBO to pool of unused VBOs
-			if(temp_uploaded_geom_infos[i].index_vbo)
-				opengl_engine->index_vbo_pool.vboBecameUnused(temp_uploaded_geom_infos[i].index_vbo); // Return VBO to pool of unused VBOs
+			ZoneScopedN("checking for uploaded geom and textures"); // Tracy profiler
 
+			bool at_least_one_geom_or_tex_uploaded = false;
 
-			Reference<AsyncGeometryUploading> loading_info_ref = temp_uploaded_geom_infos[i].user_info.downcast<AsyncGeometryUploading>(); // Get our info about this upload
-			AsyncGeometryUploading& loading_info = *loading_info_ref;
-
-			try
+			//------------------------------------------- Check any current geometry uploads to see if they have completed ------------------------------------------- 
+			//Timer timer2;
+			async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), opengl_engine->getCurrentScene()->frame_num, /*loaded_geom_out=*/temp_uploaded_geom_infos);
+			//const double elapsed = timer2.elapsed();
+			//if(elapsed > 0.0001)
+			//	conPrint("-----------checkForUploadedGeometry() took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms------------------");
+			for(size_t i=0; i<temp_uploaded_geom_infos.size(); ++i) // Process any completed uploaded geometry
 			{
-				// Process the finished upload (assign mesh to objects etc.)
-				handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, temp_uploaded_geom_infos[i].meshdata, loading_info.physics_shape,
-					loading_info.voxel_subsample_factor, loading_info.voxel_hash);
-			}
-			catch(glare::Exception& e)
-			{
-				logMessage("Error while handling uploaded mesh data: " + e.what());
-			}
-
-			at_least_one_geom_or_tex_uploaded = true;
-		}
-		temp_uploaded_geom_infos.clear();
+				vbo_pool->vboBecameUnused(temp_uploaded_geom_infos[i].vert_vbo); // Return VBO to pool of unused VBOs
+				if(temp_uploaded_geom_infos[i].index_vbo)
+					index_vbo_pool->vboBecameUnused(temp_uploaded_geom_infos[i].index_vbo); // Return VBO to pool of unused VBOs
 
 
-		//------------------------------------------- Check any current texture uploads to see if they have completed ------------------------------------------- 
-		//Timer timer;
-		opengl_engine->pbo_async_tex_loader.checkForUploadedTexture(opengl_engine->getCurrentScene()->frame_num, temp_loaded_texture_infos);
-		//conPrint("checkForUploadedTexture took " + timer.elapsedStringMSWIthNSigFigs());
-		for(size_t i=0; i<temp_loaded_texture_infos.size(); ++i)
-		{
-			opengl_engine->pbo_pool.pboBecameUnused(temp_loaded_texture_infos[i].pbo); // Return PBO to pool of unused PBOs
+				Reference<AsyncGeometryUploading> loading_info_ref = temp_uploaded_geom_infos[i].user_info.downcast<AsyncGeometryUploading>(); // Get our info about this upload
+				AsyncGeometryUploading& loading_info = *loading_info_ref;
 
-			Reference<PBOAsyncTextureUploading> loading_info_ref = temp_loaded_texture_infos[i].user_info.downcast<PBOAsyncTextureUploading>(); // Get our info about this upload
-			PBOAsyncTextureUploading& loading_info = *loading_info_ref;
-			
-			// Now that we have loaded all the texture data into OpenGL, if we didn't compute all mipmap level data ourselves, and we need it for trilinear filtering, then get the driver to do it.
-			//if(loading_info.need_mipmap_build) // (texture_data->W > 1 || texture_data->H > 1) && texture_data->numMipLevels() == 1 && loading_info.opengl_tex->getFiltering() == OpenGLTexture::Filtering_Fancy)
-			if((loading_info.tex_data->W > 1 || loading_info.tex_data->H > 1) && loading_info.tex_data->numMipLevels() == 1 && loading_info.opengl_tex->getFiltering() == OpenGLTexture::Filtering_Fancy)
-			{
-				conPrint("INFO: Getting driver to build MipMaps for texture '" + loading_info.path + "'...");
-				loading_info.opengl_tex->buildMipMaps();
-			}
-
-			if(loading_info.loading_into_existing_opengl_tex)
-			{
-				// Nothing to do here, texture should already be added to the opengl_engine and applied to any objects using it.
-			}
-			else
-			{
-				// If this is texture data for an animated texture (Gif), then keep it around.
-				// We need to keep around animated texture data like this, for now, since during animation different frames will be loaded into the OpenGL texture from the tex data.
-				// Other texture data can be discarded now it has been uploaded to the GPU/OpenGL.
-				if(loading_info.tex_data->isMultiFrame())
-				{
-					assert(loading_info.tex_data);
-					loading_info.opengl_tex->texture_data = loading_info.tex_data;
-				}
-			
 				try
 				{
-					opengl_engine->addOpenGLTexture(loading_info.opengl_tex->key, loading_info.opengl_tex);
-
-					// Process the finished upload
-					handleUploadedTexture(loading_info.path, loading_info.URL, loading_info.opengl_tex, loading_info.tex_data, loading_info.terrain_map);
+					// Process the finished upload (assign mesh to objects etc.)
+					handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, temp_uploaded_geom_infos[i].meshdata, loading_info.physics_shape,
+						loading_info.voxel_subsample_factor, loading_info.voxel_hash);
 				}
 				catch(glare::Exception& e)
 				{
-					logMessage("Error while handling uploaded texture: " + e.what());
+					logMessage("Error while handling uploaded mesh data: " + e.what());
 				}
 
-				// Now that this texture is loaded, remove from textures_processing set.
-				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-				//assert(textures_processing.count(loading_info.path) >= 1);
-				textures_processing.erase(loading_info.path);
+				at_least_one_geom_or_tex_uploaded = true;
 			}
-
-			at_least_one_geom_or_tex_uploaded = true;
-		}
-		temp_loaded_texture_infos.clear();
-
-		if(!at_least_one_geom_or_tex_uploaded)
-			break;
-	}
+			temp_uploaded_geom_infos.clear();
 
 
-
-
-
-
-	//------------------------------------------- Start uploading any geometry that is ready to upload ------------------------------------------- 
-	// Read from async_model_loaded_messages_to_process queue which contains ModelLoadedThreadMessages with geometry data ready to upload
-	const double MAX_START_UPLOADING_TIME = 0.001;
-	Timer uploading_timer;
-
-	// We will remove items from the front of the queue.  If we can't start uploading the item currently (no free usable VBO), the item will be appended to the end of the list to try again later.
-	// So we have to be careful not to loop infinitely.  Ensure this by doing at most async_model_loaded_messages_to_process.size() iterations.
-
-	const size_t max_num_model_loaded_msgs_to_process = async_model_loaded_messages_to_process.size();
-	for(size_t i=0; (i < max_num_model_loaded_msgs_to_process) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
-	{
-		ZoneScopedN("Process async_model_loaded_messages_to_process"); // Tracy profiler
-
-		Reference<ModelLoadedThreadMessage> message = async_model_loaded_messages_to_process.front();
-		async_model_loaded_messages_to_process.pop_front();
-
-		if(!dummy_vert_vbo)
-			dummy_vert_vbo = new VBO(nullptr, 1024, GL_ARRAY_BUFFER);
-		if(!dummy_index_vbo)
-			dummy_index_vbo = new VBO(nullptr, 1024, GL_ELEMENT_ARRAY_BUFFER);
-
-		bool uploading = false;
-
-		// We want to get a free VBO, memcpy our geometry data to it, and then start uploading it to the GPU.
-		// Use separate buffers for vert and index data for async uploads, in the non-mem-mapped case, as required by WebGL.
-
-		VBORef vert_vbo  = opengl_engine->vbo_pool.      getUnusedVBO(message->vert_data_size_B);
-		VBORef index_vbo = opengl_engine->index_vbo_pool.getUnusedVBO(message->index_data_size_B);
-		if(vert_vbo && index_vbo)
-		{
-			ArrayRef<uint8> vert_data, index_data;
-			message->gl_meshdata->getVertAndIndexArrayRefs(vert_data, index_data);
-
-			// Copy vertex data
-			vert_vbo->updateData(/*offset=*/0, vert_data.data(), vert_data.size());
-			vert_vbo->unbind();
-
-			// Copy index data
-			index_vbo->updateData(/*offset=*/0, index_data.data(), index_data.size());
-			index_vbo->unbind();
-
-			// Free geometry memory in another thread to avoid blocking while memory is zeroed.
-			sendGeometryDataToGarbageDeleterThread(message->gl_meshdata);
-
-
-			Reference<AsyncGeometryUploading> uploading_info = new AsyncGeometryUploading();
-			uploading_info->lod_model_url = message->lod_model_url;
-			uploading_info->ob_model_lod_level = message->model_lod_level;
-			uploading_info->dynamic_physics_shape = message->built_dynamic_physics_ob;
-			uploading_info->physics_shape = message->physics_shape;
-			uploading_info->voxel_subsample_factor = message->subsample_factor;
-			uploading_info->voxel_hash = message->voxel_hash;
-
-			// Start asynchronous load from VBO
-			opengl_engine->async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/vert_vbo, index_vbo, dummy_vert_vbo, dummy_index_vbo, 
-				/*vert_data_src_offset_B=*/0, /*index_data_src_offset_B=*/0, message->vert_data_size_B, message->index_data_size_B, message->total_geom_size_B, 
-				opengl_engine->getCurrentScene()->frame_num, uploading_info);
-
-			uploading = true;
-		}
-		//else
-		//	conPrint("Failed to get free vert and index VBOs for " + toString(message->total_geom_size_B) + " B");
-
-		if(!uploading)
-			async_model_loaded_messages_to_process.push_back(message); // If we failed to upload this geometry, add to back of queue to try again later
-	}
-
-
-	//------------------------------------------- Start uploading any textures that are ready to upload ------------------------------------------- 
-	// Read from async_texture_loaded_messages_to_process which contains TextureLoadedThreadMessage with texture data ready to upload
-	if(!dummy_opengl_tex)
-		dummy_opengl_tex = new OpenGLTexture(16, 16, opengl_engine.ptr(), ArrayRef<uint8>(), OpenGLTextureFormat::Format_RGBA_Linear_Uint8, OpenGLTexture::Filtering::Filtering_Nearest);
-	
-	if(!dummy_pbo)
-		dummy_pbo = new PBO(1024);
-
-	// We will remove items from the front of the queue.  If we can't start uploading the item currently (no free usable PBO), the item will be appended to the end of the list to try again later.
-	// So we have to be careful not to loop infinitely.  Ensure this by doing at most async_texture_loaded_messages_to_process.size() iterations.
-
-	const size_t max_num_texture_loaded_msgs_to_process = async_texture_loaded_messages_to_process.size();
-
-	for(size_t i=0; (i < max_num_texture_loaded_msgs_to_process) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
-	{
-		ZoneScopedN("Process async_texture_loaded_messages_to_process"); // Tracy profiler
-
-		Reference<TextureLoadedThreadMessage> message = async_texture_loaded_messages_to_process.front();
-		async_texture_loaded_messages_to_process.pop_front();
-
-		// conPrint("Handling TextureLoadedThreadMessage from async_texture_loaded_messages_to_process");
-
-		try
-		{
-			// Work out texture to upload to.  If uploading to an existing texture, use it.  If uploading to a new texture, create it.
-			Reference<OpenGLTexture> opengl_tex;
-			if(message->existing_opengl_tex)
-				opengl_tex = message->existing_opengl_tex;
-			else
+			//------------------------------------------- Check any current texture uploads to see if they have completed ------------------------------------------- 
+			//Timer timer;
+			pbo_async_tex_loader.checkForUploadedTexture(opengl_engine->getCurrentScene()->frame_num, temp_loaded_texture_infos);
+			//conPrint("checkForUploadedTexture took " + timer.elapsedStringMSWIthNSigFigs());
+			for(size_t i=0; i<temp_loaded_texture_infos.size(); ++i)
 			{
-				//Timer timer2;
-				opengl_tex = TextureLoading::createUninitialisedOpenGLTexture(*message->texture_data, opengl_engine, message->tex_params);
-				//const double elapsed = timer2.elapsed();
-				//if(elapsed > 0.0001)
-				//		conPrint("    createUninitialisedOpenGLTexture() took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms");
-				opengl_tex->key = message->/*tex_key*/tex_path;
-			}
+				pbo_pool->pboBecameUnused(temp_loaded_texture_infos[i].pbo); // Return PBO to pool of unused PBOs
 
-
-			bool uploading = false;
-			// Get a free PBO, memcpy our texture data to it, and then start uploading it to the GPU.
-
-			Reference<TextureData> texture_data = message->texture_data;
-				
-			ArrayRef<uint8> source_data = texture_data->getDataArrayRef();
-
-			if(texture_data->isMultiFrame())
-			{
-				// Just upload a single frame
-				runtimeCheck(texture_data->frame_size_B * message->load_into_frame_i + texture_data->frame_size_B <= source_data.size());
-				source_data = source_data.getSlice(/*offset=*/texture_data->frame_size_B * message->load_into_frame_i, /*slice len=*/texture_data->frame_size_B);
-			}
-
-			runtimeCheck(source_data.data());
-			if(source_data.data())
-			{
-				PBORef pbo = opengl_engine->pbo_pool.getUnusedVBO(source_data.size());
-				if(pbo)
+				Reference<PBOAsyncTextureUploading> loading_info_ref = temp_loaded_texture_infos[i].user_info.downcast<PBOAsyncTextureUploading>(); // Get our info about this upload
+				PBOAsyncTextureUploading& loading_info = *loading_info_ref;
+			
+				// Now that we have loaded all the texture data into OpenGL, if we didn't compute all mipmap level data ourselves, and we need it for trilinear filtering, then get the driver to do it.
+				//if(loading_info.need_mipmap_build) // (texture_data->W > 1 || texture_data->H > 1) && texture_data->numMipLevels() == 1 && loading_info.opengl_tex->getFiltering() == OpenGLTexture::Filtering_Fancy)
+				if((loading_info.tex_data->W > 1 || loading_info.tex_data->H > 1) && loading_info.tex_data->numMipLevels() == 1 && loading_info.opengl_tex->getFiltering() == OpenGLTexture::Filtering_Fancy)
 				{
-					//conPrint("------- Uploading texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B using PBO " + toHexString((uint64)pbo.ptr()) + "-------");
-					//Timer timer2;
-					pbo->updateData(/*offset=*/0, source_data.data(), source_data.size());
-					//const double elapsed = timer2.elapsed();
-					//if(elapsed > 0.0001)
-					//	conPrint("pbo->updateData() for texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms (" + doubleToStringNSigFigs(source_data.size() / elapsed * 1.0e-9, 4) + " GB/s)");
-							
+					conPrint("INFO: Getting driver to build MipMaps for texture '" + loading_info.path + "'...");
+					loading_info.opengl_tex->buildMipMaps();
+				}
 
-					// Free image texture memory now it has been copied to the PBO.
-					if(!texture_data->isMultiFrame())
-					{
-						texture_data->mipmap_data.clearAndFreeMem();
-						if(texture_data->converted_image)
-							texture_data->converted_image = nullptr;
-					}
-
-					Reference<PBOAsyncTextureUploading> uploading_info = new PBOAsyncTextureUploading();
-					uploading_info->path = message->tex_path;
-					uploading_info->URL = message->tex_URL;
-					uploading_info->tex_data = message->texture_data;
-					uploading_info->opengl_tex = opengl_tex;
-					uploading_info->terrain_map = message->terrain_map;
-					uploading_info->loading_into_existing_opengl_tex = message->existing_opengl_tex.nonNull();
-					uploading_info->ob_uid = message->ob_uid;
-
-					//timer2.reset();
-					// Start asynchronous load from PBO
-					opengl_engine->pbo_async_tex_loader.startUploadingTexture(pbo, message->texture_data, opengl_tex, dummy_opengl_tex, dummy_pbo, opengl_engine->getCurrentScene()->frame_num, uploading_info);
-					//conPrint("    startUploadingTexture() took  " + timer2.elapsedStringMSWIthNSigFigs());
-
-					uploading = true;
+				if(loading_info.loading_into_existing_opengl_tex)
+				{
+					// Nothing to do here, texture should already be added to the opengl_engine and applied to any objects using it.
 				}
 				else
-					conPrint("LoadTextureTask: Failed to get free PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
-			}
+				{
+					// If this is texture data for an animated texture (Gif), then keep it around.
+					// We need to keep around animated texture data like this, for now, since during animation different frames will be loaded into the OpenGL texture from the tex data.
+					// Other texture data can be discarded now it has been uploaded to the GPU/OpenGL.
+					if(loading_info.tex_data->isMultiFrame())
+					{
+						assert(loading_info.tex_data);
+						loading_info.opengl_tex->texture_data = loading_info.tex_data;
+					}
 			
-			if(!uploading)
-				async_texture_loaded_messages_to_process.push_back(message); // If we failed to upload this texture, add to back of queue to try again later
+					try
+					{
+						opengl_engine->addOpenGLTexture(loading_info.opengl_tex->key, loading_info.opengl_tex);
+
+						// Process the finished upload
+						handleUploadedTexture(loading_info.path, loading_info.URL, loading_info.opengl_tex, loading_info.tex_data, loading_info.terrain_map);
+					}
+					catch(glare::Exception& e)
+					{
+						logMessage("Error while handling uploaded texture: " + e.what());
+					}
+
+					// Now that this texture is loaded, remove from textures_processing set.
+					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+					//assert(textures_processing.count(loading_info.path) >= 1);
+					textures_processing.erase(loading_info.path);
+				}
+
+				at_least_one_geom_or_tex_uploaded = true;
+			}
+			temp_loaded_texture_infos.clear();
+
+			if(!at_least_one_geom_or_tex_uploaded)
+				break;
 		}
-		catch(glare::Exception& e)
+
+		//------------------------------------------- Start uploading any geometry that is ready to upload ------------------------------------------- 
+		// Read from async_model_loaded_messages_to_process queue which contains ModelLoadedThreadMessages with geometry data ready to upload
+		const double MAX_START_UPLOADING_TIME = 0.001;
+		Timer uploading_timer;
+
+		// We will remove items from the front of the queue.  If we can't start uploading the item currently (no free usable VBO), the item will be appended to the end of the list to try again later.
+		// So we have to be careful not to loop infinitely.  Ensure this by doing at most async_model_loaded_messages_to_process.size() iterations.
+
+		const size_t max_num_model_loaded_msgs_to_process = async_model_loaded_messages_to_process.size();
+		for(size_t i=0; (i < max_num_model_loaded_msgs_to_process) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
 		{
-			conPrint("Excep while creating or starting to upload texture: " + e.what());
+			ZoneScopedN("Process async_model_loaded_messages_to_process"); // Tracy profiler
+
+			Reference<ModelLoadedThreadMessage> message = async_model_loaded_messages_to_process.front();
+			async_model_loaded_messages_to_process.pop_front();
+
+			if(!dummy_vert_vbo)
+				dummy_vert_vbo = new VBO(nullptr, 1024, GL_ARRAY_BUFFER);
+			if(!dummy_index_vbo)
+				dummy_index_vbo = new VBO(nullptr, 1024, GL_ELEMENT_ARRAY_BUFFER);
+
+			bool uploading = false;
+
+			// We want to get a free VBO, memcpy our geometry data to it, and then start uploading it to the GPU.
+			// Use separate buffers for vert and index data for async uploads, in the non-mem-mapped case, as required by WebGL.
+
+			VBORef vert_vbo  = vbo_pool      ->getUnusedVBO(message->vert_data_size_B);
+			VBORef index_vbo = index_vbo_pool->getUnusedVBO(message->index_data_size_B);
+			if(vert_vbo && index_vbo)
+			{
+				ArrayRef<uint8> vert_data, index_data;
+				message->gl_meshdata->getVertAndIndexArrayRefs(vert_data, index_data);
+
+				// Copy vertex data
+				vert_vbo->updateData(/*offset=*/0, vert_data.data(), vert_data.size());
+				vert_vbo->unbind();
+
+				// Copy index data
+				index_vbo->updateData(/*offset=*/0, index_data.data(), index_data.size());
+				index_vbo->unbind();
+
+				// Free geometry memory in another thread to avoid blocking while memory is zeroed.
+				sendGeometryDataToGarbageDeleterThread(message->gl_meshdata);
+
+
+				Reference<AsyncGeometryUploading> uploading_info = new AsyncGeometryUploading();
+				uploading_info->lod_model_url = message->lod_model_url;
+				uploading_info->ob_model_lod_level = message->model_lod_level;
+				uploading_info->dynamic_physics_shape = message->built_dynamic_physics_ob;
+				uploading_info->physics_shape = message->physics_shape;
+				uploading_info->voxel_subsample_factor = message->subsample_factor;
+				uploading_info->voxel_hash = message->voxel_hash;
+
+				// Start asynchronous load from VBO
+				async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/vert_vbo, index_vbo, dummy_vert_vbo, dummy_index_vbo, 
+					/*vert_data_src_offset_B=*/0, /*index_data_src_offset_B=*/0, message->vert_data_size_B, message->index_data_size_B, message->total_geom_size_B, 
+					opengl_engine->getCurrentScene()->frame_num, uploading_info);
+
+				uploading = true;
+			}
+			//else
+			//	conPrint("Failed to get free vert and index VBOs for " + toString(message->total_geom_size_B) + " B");
+
+			if(!uploading)
+				async_model_loaded_messages_to_process.push_back(message); // If we failed to upload this geometry, add to back of queue to try again later
+		}
+
+
+		//------------------------------------------- Start uploading any textures that are ready to upload ------------------------------------------- 
+		// Read from async_texture_loaded_messages_to_process which contains TextureLoadedThreadMessage with texture data ready to upload
+		if(!dummy_opengl_tex)
+			dummy_opengl_tex = new OpenGLTexture(16, 16, opengl_engine.ptr(), ArrayRef<uint8>(), OpenGLTextureFormat::Format_RGBA_Linear_Uint8, OpenGLTexture::Filtering::Filtering_Nearest);
+	
+		if(!dummy_pbo)
+			dummy_pbo = new PBO(1024);
+
+		// We will remove items from the front of the queue.  If we can't start uploading the item currently (no free usable PBO), the item will be appended to the end of the list to try again later.
+		// So we have to be careful not to loop infinitely.  Ensure this by doing at most async_texture_loaded_messages_to_process.size() iterations.
+
+		const size_t max_num_texture_loaded_msgs_to_process = async_texture_loaded_messages_to_process.size();
+
+		for(size_t i=0; (i < max_num_texture_loaded_msgs_to_process) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
+		{
+			ZoneScopedN("Process async_texture_loaded_messages_to_process"); // Tracy profiler
+
+			Reference<TextureLoadedThreadMessage> message = async_texture_loaded_messages_to_process.front();
+			async_texture_loaded_messages_to_process.pop_front();
+
+			// conPrint("Handling TextureLoadedThreadMessage from async_texture_loaded_messages_to_process");
+
+			try
+			{
+				// Work out texture to upload to.  If uploading to an existing texture, use it.  If uploading to a new texture, create it.
+				Reference<OpenGLTexture> opengl_tex;
+				if(message->existing_opengl_tex)
+					opengl_tex = message->existing_opengl_tex;
+				else
+				{
+					//Timer timer2;
+					opengl_tex = TextureLoading::createUninitialisedOpenGLTexture(*message->texture_data, opengl_engine, message->tex_params);
+					//const double elapsed = timer2.elapsed();
+					//if(elapsed > 0.0001)
+					//		conPrint("    createUninitialisedOpenGLTexture() took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms");
+					opengl_tex->key = message->/*tex_key*/tex_path;
+				}
+
+
+				bool uploading = false;
+				// Get a free PBO, memcpy our texture data to it, and then start uploading it to the GPU.
+
+				Reference<TextureData> texture_data = message->texture_data;
+				
+				ArrayRef<uint8> source_data = texture_data->getDataArrayRef();
+
+				if(texture_data->isMultiFrame())
+				{
+					// Just upload a single frame
+					runtimeCheck(texture_data->frame_size_B * message->load_into_frame_i + texture_data->frame_size_B <= source_data.size());
+					source_data = source_data.getSlice(/*offset=*/texture_data->frame_size_B * message->load_into_frame_i, /*slice len=*/texture_data->frame_size_B);
+				}
+
+				runtimeCheck(source_data.data());
+				if(source_data.data())
+				{
+					PBORef pbo = pbo_pool->getUnusedVBO(source_data.size());
+					if(pbo)
+					{
+						//conPrint("------- Uploading texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B using PBO " + toHexString((uint64)pbo.ptr()) + "-------");
+						//Timer timer2;
+						pbo->updateData(/*offset=*/0, source_data.data(), source_data.size());
+						//const double elapsed = timer2.elapsed();
+						//if(elapsed > 0.0001)
+						//	conPrint("pbo->updateData() for texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms (" + doubleToStringNSigFigs(source_data.size() / elapsed * 1.0e-9, 4) + " GB/s)");
+							
+
+						// Free image texture memory now it has been copied to the PBO.
+						if(!texture_data->isMultiFrame())
+						{
+							texture_data->mipmap_data.clearAndFreeMem();
+							if(texture_data->converted_image)
+								texture_data->converted_image = nullptr;
+						}
+
+						Reference<PBOAsyncTextureUploading> uploading_info = new PBOAsyncTextureUploading();
+						uploading_info->path = message->tex_path;
+						uploading_info->URL = message->tex_URL;
+						uploading_info->tex_data = message->texture_data;
+						uploading_info->opengl_tex = opengl_tex;
+						uploading_info->terrain_map = message->terrain_map;
+						uploading_info->loading_into_existing_opengl_tex = message->existing_opengl_tex.nonNull();
+						//uploading_info->ob_uid = message->ob_uid;
+
+						//timer2.reset();
+						// Start asynchronous load from PBO
+						pbo_async_tex_loader.startUploadingTexture(pbo, message->texture_data, opengl_tex, dummy_opengl_tex, dummy_pbo, opengl_engine->getCurrentScene()->frame_num, uploading_info);
+						//conPrint("    startUploadingTexture() took  " + timer2.elapsedStringMSWIthNSigFigs());
+
+						uploading = true;
+					}
+					else
+						conPrint("LoadTextureTask: Failed to get free PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
+				}
+			
+				if(!uploading)
+					async_texture_loaded_messages_to_process.push_back(message); // If we failed to upload this texture, add to back of queue to try again later
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Excep while creating or starting to upload texture: " + e.what());
+			}
 		}
 	}
 }
@@ -7803,7 +7816,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			ModelLoadedThreadMessage* loaded_msg = static_cast<ModelLoadedThreadMessage*>(msg);
 
-			if(loaded_msg->total_geom_size_B <= opengl_engine->vbo_pool.getLargestVBOSize())
+			if(loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize())
 				async_model_loaded_messages_to_process.push_back(loaded_msg);
 			else
 				model_loaded_messages_to_process.push_back(loaded_msg);
@@ -7820,7 +7833,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			}
 			else
 			{
-				if(loaded_msg->texture_data->frame_size_B <= opengl_engine->pbo_pool.getLargestPBOSize())
+				if(loaded_msg->texture_data->frame_size_B <= pbo_pool->getLargestPBOSize())
 					async_texture_loaded_messages_to_process.push_back(loaded_msg);
 				else
 					texture_loaded_messages_to_process.push_back(loaded_msg);
@@ -7846,7 +7859,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			const AnimatedTextureUpdated* m = static_cast<const AnimatedTextureUpdated*>(msg);
 
-			animated_texture_manager->doTextureSwap(/*m->original_opengl_tex, */m->old_tex, m->new_tex);
+			animated_texture_manager->doTextureSwap(opengl_engine.ptr(), m->old_tex, m->new_tex);
 		}
 		else if(dynamic_cast<GeometryUploadedMessage*>(msg))
 		{

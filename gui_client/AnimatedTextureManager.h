@@ -115,7 +115,7 @@ public:
 
 	std::string diagnostics();
 
-	void doTextureSwap(const Reference<OpenGLTexture>& old_tex, const Reference<OpenGLTexture>& new_tex);
+	void doTextureSwap(OpenGLEngine* opengl_engine, const Reference<OpenGLTexture>& old_tex, const Reference<OpenGLTexture>& new_tex);
 
 	void checkAddTextureUse(const Reference<OpenGLTexture>& tex, Reference<GLObject> ob, size_t mat_index);
 	void removeTextureUse(const Reference<OpenGLTexture>& tex, Reference<GLObject> ob, size_t mat_index);
