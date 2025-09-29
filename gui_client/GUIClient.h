@@ -654,6 +654,8 @@ public:
 	std::unordered_map<std::string, std::set<UID>> loading_texture_URL_to_world_ob_UID_map;
 	std::unordered_map<std::string, std::set<UID>> loading_texture_URL_to_avatar_UID_map;
 
+	std::unordered_map<std::string, std::set<UID>> loading_texture_key_to_hypercard_UID_map;
+
 	std::unordered_map<std::string, Vec3i> loading_mesh_URL_to_chunk_coords_map;
 	std::unordered_map<std::string, Vec3i> loading_texture_URL_to_chunk_coords_map;
 
