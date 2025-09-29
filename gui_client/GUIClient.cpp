@@ -948,7 +948,13 @@ void GUIClient::shutdown()
 	this->msg_queue.clear();
 
 	opengl_worker_thread_manager.killThreadsBlocking();
-	opengl_upload_thread = NULL;
+	if(opengl_upload_thread)
+	{
+		// Make sure the allocators are destroyed after opengl_upload_thread as opengl_upload_thread has a message queue that might have messages from these allocators.
+		Reference<glare::FastPoolAllocator> upload_texture_msg_allocator       = opengl_upload_thread->upload_texture_msg_allocator;
+		Reference<glare::FastPoolAllocator> animated_texture_updated_allocator = opengl_upload_thread->animated_texture_updated_allocator;
+		opengl_upload_thread = NULL;
+	}
 
 	pbo_pool = NULL;
 	vbo_pool = NULL;
