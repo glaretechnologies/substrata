@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <graphics/TextRenderer.h>
 #include <graphics/EXRDecoder.h>
 #include <opengl/OpenGLEngine.h>
+#include <opengl/RenderStatsWidget.h>
 #include <opengl/GLMeshBuilding.h>
 #include <indigo/TextureServer.h>
 #include <opengl/MeshPrimitiveBuilding.h>
@@ -149,6 +150,9 @@ Vec2i mouse_move_origin(0, 0);
 static std::vector<float> mem_usage_values;
 
 static bool show_imgui_info_window = false;
+
+Reference<RenderStatsWidget> CPU_render_stats_widget;
+Reference<RenderStatsWidget> GPU_render_stats_widget;
 
 
 static double cur_canvas_css_W = 800; // Current device-independent pixel width.  Canvas element css width in WebGL.
@@ -648,7 +652,10 @@ int main(int argc, char** argv)
 
 		gui_client->shutdown();
 		delete gui_client;
-		gui_client = NULL; 
+		gui_client = NULL;
+
+		CPU_render_stats_widget = NULL;
+		GPU_render_stats_widget = NULL;
 
 		opengl_engine = NULL;
 
@@ -785,6 +792,7 @@ static void convertFromSDLTextInputEvent(SDL_Event ev, TextInputEvent& text_inpu
 static bool do_graphics_diagnostics = false;
 static bool do_physics_diagnostics = false;
 static bool do_terrain_diagnostics = false;
+static bool show_frame_time_graphs = false;
 
 static size_t last_total_memory = 0;
 static uintptr_t last_dynamic_top = 0;
@@ -1158,7 +1166,7 @@ static void doOneMainLoopIter()
 		
 #if TRACE_ALLOCATIONS
 			ImGui::TextUnformatted("mem usage (MB)");
-			ImGui::PlotLines("", mem_usage_values.data(), (int)mem_usage_values.size(),
+			ImGui::PlotLines("mem usage", mem_usage_values.data(), (int)mem_usage_values.size(),
 					/*values offset=*/0, /* overlay text=*/NULL, 
 				/*scale min=*/0.0, /*scale max=*/std::numeric_limits<float>::max(), 
 				/*graph size=*/ImVec2(500, 200));
@@ -1178,6 +1186,26 @@ static void doOneMainLoopIter()
 					diagnostics_timer->reset();
 				}
 
+				//--------------------------------
+				if(ImGui::Checkbox("show frame time graphs", &show_frame_time_graphs))
+				{
+					if(show_frame_time_graphs && !CPU_render_stats_widget)
+					{
+						opengl_engine->setProfilingEnabled(true);
+
+						CPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client->gl_ui, /*widget index=*/0);
+						GPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client->gl_ui, /*widget index=*/1);
+					}
+					else if(!show_frame_time_graphs && CPU_render_stats_widget.nonNull())
+					{
+						opengl_engine->setProfilingEnabled(false);
+
+						CPU_render_stats_widget = nullptr;
+						GPU_render_stats_widget = nullptr;
+					}
+				}
+				//--------------------------------
+
 				ImGui::TextUnformatted(last_diagnostics.c_str());
 			}
 		}
@@ -1186,6 +1214,15 @@ static void doOneMainLoopIter()
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}
+
+	// Plot the total time spent on CPU work this frame.
+	// Note that we can't just measure the time of this timerEvent method with glWidget->updateGL(), because updateGL() will block for vsync, so it will include a lot of waiting time.
+	// Instead use the sum of work time in this method plus the work time in OpenGLEngine::draw().
+	if(CPU_render_stats_widget)
+		CPU_render_stats_widget->addFrameTime((float)(last_timerEvent_CPU_work_elapsed + opengl_engine->last_draw_CPU_time));
+
+	if(GPU_render_stats_widget)
+		GPU_render_stats_widget->addFrameTime((float)opengl_engine->last_total_draw_GPU_time);
 	
 	// Display
 	SDL_GL_SwapWindow(win);
