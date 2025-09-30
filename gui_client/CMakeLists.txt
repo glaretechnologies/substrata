@@ -265,6 +265,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/ScriptedObjectProximityChecker.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ScriptedObjectProximityChecker.h
 ${CMAKE_SOURCE_DIR}/gui_client/PhotoModeUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/PhotoModeUI.h
+${CMAKE_SOURCE_DIR}/gui_client/GarbageDeleterThread.cpp
+${CMAKE_SOURCE_DIR}/gui_client/GarbageDeleterThread.h
 )
 
 
