@@ -322,7 +322,8 @@ public:
 	void setUserWebMessage(const UserID& user_id, const std::string& s);
 	std::string getAndRemoveUserWebMessage(const UserID& user_id); // returns empty string if no message or user
 
-	Reference<ServerWorldState> getRootWorldState(); // Guaranteed to return a non-null reference
+	inline Reference<ServerWorldState> getRootWorldState(); // Guaranteed to return a non-null reference
+
 
 	void addResourceAsDBDirty(const ResourceRef resource)					REQUIRES(mutex) { db_dirty_resources.insert(resource); changed = 1; }
 	void addSubEthTransactionAsDBDirty(const SubEthTransactionRef trans)	REQUIRES(mutex) { db_dirty_sub_eth_transactions.insert(trans); changed = 1; }
@@ -351,6 +352,7 @@ public:
 	std::map<uint64, OrderRef> orders GUARDED_BY(mutex); // Order ID to order
 
 	std::map<std::string, Reference<ServerWorldState> > world_states GUARDED_BY(mutex); // ServerWorldState contains WorldObjects and Parcels
+	Reference<ServerWorldState> root_world_state GUARDED_BY(mutex); // = world_states[""]
 
 	std::map<std::string, UserWebSessionRef> user_web_sessions GUARDED_BY(mutex); // Map from key to UserWebSession
 	
@@ -437,6 +439,8 @@ public:
 
 	mutable ::WorldStateMutex mutex;
 private:
+	void setWorldState(const std::string& world_name, Reference<ServerWorldState> world);
+
 	GLARE_DISABLE_COPY(ServerAllWorldsState);
 
 	glare::AtomicInt changed;
@@ -448,3 +452,15 @@ private:
 
 	Database database GUARDED_BY(mutex);
 };
+
+
+Reference<ServerWorldState> ServerAllWorldsState::getRootWorldState() 
+{
+#ifndef NDEBUG
+	{
+		Lock lock(mutex);
+		assert(world_states[""] == root_world_state);
+	}
+#endif
+	return root_world_state;
+}

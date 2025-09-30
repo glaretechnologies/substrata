@@ -79,7 +79,7 @@ ServerAllWorldsState::ServerAllWorldsState()
 	next_order_uid = 0;
 	next_sub_eth_transaction_uid = 0;
 
-	world_states[""] = new ServerWorldState();
+	setWorldState(/*world name=*/"", new ServerWorldState());
 
 	last_parcel_update_info.last_parcel_sale_update_hour = 0;
 	last_parcel_update_info.last_parcel_sale_update_day = 0;
@@ -100,18 +100,12 @@ ServerAllWorldsState::ServerAllWorldsState()
 
 ServerAllWorldsState::~ServerAllWorldsState()
 {
+	root_world_state = nullptr;
+
 	// Delete any objects first, which may contain references to Lua stuff, before we delete the Lua VMs
 	world_states.clear();
 
 	lua_vms.clear();
-}
-
-
-Reference<ServerWorldState> ServerAllWorldsState::getRootWorldState() // Guaranteed to return a non-null reference
-{
-	Lock lock(mutex);
-
-	return world_states[""]; 
 }
 
 
@@ -225,7 +219,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 						
 						world->database_key = database_key;
 
-						world_states[world->details.name] = world;
+						setWorldState(/*world name=*/world->details.name, world);
 					}
 					else
 					{
@@ -245,7 +239,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					// Create ServerWorldState for world name if needed
 					if(world_states.count(world_name) == 0) 
-						world_states[world_name] = new ServerWorldState();
+						setWorldState(/*world name=*/world_name, new ServerWorldState());
 
 					// Deserialise object
 					WorldObjectRef world_ob = new WorldObject();
@@ -277,7 +271,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 					// Create ServerWorldState for world name if needed
 					if(world_states.count(world_name) == 0) 
-						world_states[world_name] = new ServerWorldState();
+						setWorldState(/*world name=*/world_name, new ServerWorldState());
 
 					// Deserialise parcel
 					ParcelRef parcel = new Parcel();
@@ -293,8 +287,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					const std::string world_name = stream.readStringLengthFirst(10000);
 
 					// Create ServerWorldState for world name if needed
-					if(world_states.count(world_name) == 0) 
-						world_states[world_name] = new ServerWorldState();
+					if(world_states.count(world_name) == 0)
+						setWorldState(/*world name=*/world_name, new ServerWorldState());
 
 					// NOTE: There was a bug with multiple world settings for the same world getting saved to the database.  Resolve ambiguity of which one to use by choosing the setting with the largest database key value.
 					// Use these new settings iff the existing settings are either uninitialised (in which case database_key will be invalid), or the settings we are reading from the DB have a greater key 
@@ -518,8 +512,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					const std::string world_name = stream.readStringLengthFirst(10000);
 
 					// Create ServerWorldState for world name if needed
-					if(world_states.count(world_name) == 0) 
-						world_states[world_name] = new ServerWorldState();
+					if(world_states.count(world_name) == 0)
+						setWorldState(/*world name=*/world_name, new ServerWorldState());
 
 					Reference<LODChunk> lod_chunk = new LODChunk();
 
@@ -566,7 +560,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	else // Else if is_pre_database:
 	{
 		Reference<ServerWorldState> current_world = new ServerWorldState();
-		world_states[""] = current_world;
+		setWorldState(/*world name=*/"", current_world);
 
 		FileInStream stream(path);
 
@@ -587,7 +581,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			{
 				const std::string world_name = stream.readStringLengthFirst(1000);
 				if(world_states.count(world_name) == 0)
-					world_states[world_name] = new ServerWorldState();
+					setWorldState(/*world name=*/world_name, current_world);
 
 				current_world = world_states[world_name];
 			}
@@ -960,6 +954,7 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 			world->db_dirty = true;
 
 			world_states[""] = world;
+			root_world_state = world;
 			num_worlds_added++;
 		}
 
@@ -1004,6 +999,7 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 				world->db_dirty = true;
 
 				world_states[""] = world;
+				root_world_state = world;
 				num_worlds_added++;
 			}
 			else
@@ -1890,6 +1886,14 @@ std::string ServerAllWorldsState::getAndRemoveUserWebMessage(const UserID& user_
 	}
 	else
 		return std::string();
+}
+
+
+void ServerAllWorldsState::setWorldState(const std::string& world_name, Reference<ServerWorldState> world)
+{
+	world_states[world_name] = world;
+	if(world_name.empty())
+		root_world_state = world;
 }
 
 
