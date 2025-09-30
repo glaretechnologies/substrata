@@ -166,8 +166,20 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	credential_manager.loadFromSettings(*settings);
 
-	if(args.isArgPresent("--no_MDI"))
-		ui->glWidget->allow_multi_draw_indirect = false;
+	// Always disable MDI for now, seems to be slower in general in Substrata
+	// 
+	// 	-u sub://substrata.info/?x=-1.3&y=-5.1&z=1.67&heading=85.3
+	// -------------------------------------------------------------
+	// 1.67 ms CPU, 6.06 ms GPU
+	// 
+	// -u sub://substrata.info/?x=-1.3&y=-5.1&z=1.67&heading=85.3  --no_MDI
+	// -------------------------------------------------------------
+	// 2.18 ms CPU, 4.53 ms GPU
+	//
+	ui->glWidget->allow_multi_draw_indirect = false;
+
+	//if(args.isArgPresent("--no_MDI"))
+	//	ui->glWidget->allow_multi_draw_indirect = false;
 	if(args.isArgPresent("--no_bindless"))
 		ui->glWidget->allow_bindless_textures = false;
 
@@ -553,6 +565,8 @@ void MainWindow::afterGLInitInitialise()
 
 	if(ui->diagnosticsWidget->showFrameTimeGraphsCheckBox->isChecked())
 	{
+		opengl_engine->setProfilingEnabled(true);
+
 		CPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui, /*widget index=*/0);
 		GPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client.gl_ui, /*widget index=*/1);
 	}
