@@ -1237,6 +1237,8 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 						max_dist_for_ob_lod_level_clamped_0); // Lightmaps don't have LOD level -1 so used max dist for LOD level >= 0.
 				}
 				// Lightmaps are only used by a single object, so there should be no other uses of the lightmap, so don't need to call load_item_queue.checkUpdateItemPosition()
+
+				this->loading_texture_URL_to_world_ob_UID_map[lod_tex_url].insert(ob.uid);
 			}
 		}
 	}
