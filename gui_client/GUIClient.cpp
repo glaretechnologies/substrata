@@ -7154,7 +7154,8 @@ void GUIClient::handleLODChunkMeshLoaded(const std::string& mesh_URL, Reference<
 
 					const std::string use_mat_info_path = "mat_info_" + toString(hash);
 					chunk->graphics_ob->materials[0].backface_albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D(use_mat_info_path, *map, mat_info_tex_params);
-					chunk->graphics_ob->materials[0].backface_albedo_texture->setDebugName(use_mat_info_path);
+					if(opengl_engine->runningInRenderDoc())
+						chunk->graphics_ob->materials[0].backface_albedo_texture->setDebugName(use_mat_info_path);
 
 					if(chunk->graphics_ob->materials.size() >= 2)
 					{
