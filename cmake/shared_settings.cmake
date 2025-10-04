@@ -225,6 +225,7 @@ ${UTILS_DIR}/PoolMap.cpp
 ${UTILS_DIR}/PoolMap.h
 ${UTILS_DIR}/GlareProcess.cpp
 ${UTILS_DIR}/GlareProcess.h
+${UTILS_DIR}/RandomAccessInStream.cpp
 ${UTILS_DIR}/RandomAccessInStream.h
 ${UTILS_DIR}/RandomAccessOutStream.h
 ${UTILS_DIR}/RefCounted.h
@@ -311,6 +312,10 @@ ${UTILS_DIR}/LRUCache.cpp
 ${UTILS_DIR}/LRUCache.h
 ${UTILS_DIR}/LimitedAllocator.cpp
 ${UTILS_DIR}/LimitedAllocator.h
+${UTILS_DIR}/SharedImmutableString.cpp
+${UTILS_DIR}/SharedImmutableString.h
+${UTILS_DIR}/SharedStringTable.cpp
+${UTILS_DIR}/SharedStringTable.h
 )
 
 
