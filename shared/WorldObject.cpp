@@ -1613,7 +1613,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 {
-	testAssert(ob1.getCompressedVoxels() == ob2.getCompressedVoxels());
+	testAssert(ob1.getCompressedVoxels().nonNull() == ob2.getCompressedVoxels().nonNull());
+	if(ob1.getCompressedVoxels().nonNull())
+		testAssert(*ob1.getCompressedVoxels() == *ob2.getCompressedVoxels());
 
 	testAssert(ob1.materials.size() == ob2.materials.size());
 	for(size_t i=0; i<ob1.materials.size(); ++i)
@@ -1770,6 +1772,7 @@ void WorldObject::test()
 			ob.angle = 0;
 			ob.materials.push_back(new WorldMaterial());
 			ob.object_type = WorldObject::ObjectType_VoxelGroup;
+			ob.compressed_voxels = new glare::SharedImmutableArray<uint8>();
 			ob.compressed_voxels->resizeNoCopy(100);
 			for(size_t i=0; i<100; ++i)
 				(*ob.compressed_voxels)[i] = (uint8)i;
@@ -1792,6 +1795,61 @@ void WorldObject::test()
 	{
 		failTest(e.what());
 	}
+
+
+	//----------------------------------------------------
+	try
+	{
+		const std::string xml_path = "C:\\code\\substrata\\testfiles\\world_objects\\sandbox_parcel_objects.xml";
+		IndigoXMLDoc doc(xml_path);
+
+		std::vector<WorldObjectRef> obs;
+		if(std::string(doc.getRootElement().name()) == "objects")
+		{
+			for(pugi::xml_node ob_node = doc.getRootElement().child("object"); ob_node; ob_node = ob_node.next_sibling("object"))
+			{
+				WorldObjectRef ob = WorldObject::loadFromXMLElem(/*object file path=*/xml_path, /*convert rel paths to abs disk paths=*/false, ob_node);
+				obs.push_back(ob);
+			}
+		}
+
+
+		{
+			std::set<DependencyURL> URLs;
+			Timer timer;
+			for(size_t i=0; i<obs.size(); ++i)
+			{
+				
+				WorldObject::GetDependencyOptions options;
+				options.use_basis = true;
+				obs[i]->getDependencyURLSet(/*ob lod level=*/1, options, URLs);
+			}
+			conPrint("objects getDependencyURLSet took " + timer.elapsedStringNSWIthNSigFigs(4));
+		}
+		{
+			std::vector<DependencyURL> URL_vector;
+			Timer timer;
+			for(size_t i=0; i<obs.size(); ++i)
+			{
+				WorldObject::GetDependencyOptions options;
+				options.use_basis = true;
+				obs[i]->appendDependencyURLs(/*ob lod level=*/1, options, URL_vector);
+			}
+			conPrint("objects appendDependencyURLs took " + timer.elapsedStringNSWIthNSigFigs(4));
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+
+
+
+
+
+
+
+
 
 	conPrint("WorldObject::test() done");
 }
