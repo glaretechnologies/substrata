@@ -1,0 +1,4017 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects>
+	<object>
+		<uid>198818</uid>
+		<object_type>text</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 1 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>1 1 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>300000</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+local TIME_DISPLAY_UID = 198818
+
+local function updateTimeDisplay(content)
+    local timeDisplay = getObjectForUID(TIME_DISPLAY_UID)
+    if timeDisplay then
+        timeDisplay.content = content
+        print("Time updated: " .. content)
+    else
+        print("Error: Object UID " .. TIME_DISPLAY_UID .. " not found.")
+    end
+end
+
+local function fetchUTCTime()
+    local utcNow = os.time(os.date("!*t"))
+    local beijingNow = utcNow + 8 * 3600
+    local utcTime = os.date("%Y-%m-%d %H:%M:%S CST", beijingNow)
+
+    updateTimeDisplay(utcTime)
+end
+
+if IS_SERVER then
+    print("Script is running on the server. Initializing UTC time updates...")
+    
+    createTimer(fetchUTCTime, 1.0, true)
+    fetchUTCTime()
+else
+    print("Script is running on client. No action taken.")
+end
+]]></script>
+		<content>2025-10-03 23:24:48 CST</content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-12.159140586853027 50 7.964205265045166</pos>
+		<axis>1 8.742274e-8 8.7422734e-8</axis>
+		<angle>1.5707967</angle>
+		<scale>0.4 0.4 0.4</scale>
+		<created_time>1740549129</created_time>
+		<last_modified_time>1758846544</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0.04761905 -0.023809524 0</aabb_os_min>
+		<aabb_os_max>14.571429 0.95238096 0</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>197907</uid>
+		<object_type>text</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 1 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>1 1 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+				<flags>17</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content>Sandbox Area</content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-5.0245771408081055 51.576175689697266 5.398202419281006</pos>
+		<axis>0.57735026 0.57735044 0.57735014</axis>
+		<angle>2.0943954</angle>
+		<scale>0.9 0.9 0.9</scale>
+		<created_time>1736580854</created_time>
+		<last_modified_time>1737105907</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>0.071428575 -0.023809524 0</aabb_os_min>
+		<aabb_os_max>8.095239 0.9761905 0</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>183212</uid>
+		<object_type>generic</object_type>
+		<model_url>blobby5_vrm_11583813200307939694.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.6666667 0.33333334 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.9843225 0.99999994 0.49324602</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.9895851 0.38345864</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.58902085 0.97724754 0.27784652</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>10</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.9982739 0.20689568 0</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.42747048 0.53027105 0.9982739</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.2831858 0.2831858</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.7445832 0.99557513 0.4493304</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0 0 0</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url>Michael_Jackson___Thriller___Extended_Version__320kbps__mp3_asd_10329127031515111796.asd</audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-10.419605255126953 51.19502639770508 -0.0753195583820343</pos>
+		<axis>0.96915185 -0.16874094 -0.17964184</axis>
+		<angle>1.5707395</angle>
+		<scale>1 1 1</scale>
+		<created_time>1700514715</created_time>
+		<last_modified_time>1755260797</last_modified_time>
+		<creator_id>2680</creator_id>
+		<flags>3077</flags>
+		<aabb_os_min>-1.3963794 -0.0026765836 -0.4630263</aabb_os_min>
+		<aabb_os_max>1.368438 2.468298 0.45985752</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>110</mass>
+		<friction>0.85</friction>
+		<restitution>0.050000004</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>132549</chunk_batch0_start>
+		<chunk_batch0_end>134826</chunk_batch0_end>
+		<chunk_batch1_start>151899</chunk_batch1_start>
+		<chunk_batch1_end>151899</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198649</uid>
+		<object_type>generic</object_type>
+		<model_url>756_VRM_glb_1081781635180926432.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Punk_base_15705893386317591800_png_15705893386317591800.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Punk_Normal_12000339428915528964_png_12000339428915528964.png</normal_map_url>
+				<roughness>
+					<val>0.100000024</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>2</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-6.337961673736572 51.69853591918945 1.284708023071289</pos>
+		<axis>0.971543 0.16748758 0.1674877</axis>
+		<angle>1.5996673</angle>
+		<scale>1 1 1</scale>
+		<created_time>1739413869</created_time>
+		<last_modified_time>1739740590</last_modified_time>
+		<creator_id>3233</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-1.3864044 -1.2265387 -0.44061133</aabb_os_min>
+		<aabb_os_max>0.95444435 1.3258376 1.3099241</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>141294</chunk_batch0_start>
+		<chunk_batch0_end>144534</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>204050</uid>
+		<object_type>generic</object_type>
+		<model_url>EMA_AVATAR_glb_1010157058520609431.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>BASE_COLOR_TEXTURE_ALPHA_8071182072738103564_png_8071182072738103564.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url>EMISSIVE_TEXTURE_ALPHA_16833046055010042943_png_16833046055010042943.png</emission_texture_url>
+				<normal_map_url>NORMAL_TEXTURE_ALPHA_2505308443650877852_png_2505308443650877852.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>METALLIC_ROUGHNESS_TEXTURE_ALPHA_17607451139911633274_png_17607451139911633274.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>1</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>BASE_COLOR_TEXTURE_ALPHA_8071182072738103564_png_8071182072738103564.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url>EMISSIVE_TEXTURE_ALPHA_16833046055010042943_png_16833046055010042943.png</emission_texture_url>
+				<normal_map_url>NORMAL_TEXTURE_ALPHA_2505308443650877852_png_2505308443650877852.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>METALLIC_ROUGHNESS_TEXTURE_ALPHA_17607451139911633274_png_17607451139911633274.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>1</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-12.719200134277344 51.38056564331055 0.052206993103027344</pos>
+		<axis>1 0 0</axis>
+		<angle>1.5707965</angle>
+		<scale>1.8 1.8 1.8</scale>
+		<created_time>1758766872</created_time>
+		<last_modified_time>1758766910</last_modified_time>
+		<creator_id>810</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.58428323 0.0013349056 -0.32114255</aabb_os_min>
+		<aabb_os_max>0.58817667 1.9983644 0.3567999</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>149103</chunk_batch0_start>
+		<chunk_batch0_end>149910</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>197905</uid>
+		<object_type>text</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 1 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>1 1 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>300000</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+local TIME_DISPLAY_UID = 197905 
+
+local function updateTimeDisplay(content)
+    local timeDisplay = getObjectForUID(TIME_DISPLAY_UID)
+    if timeDisplay then
+        timeDisplay.content = content
+        print("Time updated: " .. content)
+    else
+        print("Error: Object UID " .. TIME_DISPLAY_UID .. " not found.")
+    end
+end
+
+local function fetchUTCTime()
+   
+    local utcTime = os.date("!%Y-%m-%d %H:%M:%S UTC")
+   
+    updateTimeDisplay(utcTime)
+end
+
+if IS_SERVER then
+    print("Script is running on the server. Initializing UTC time updates...")
+    
+    createTimer(fetchUTCTime, 1.0, true) 
+    fetchUTCTime() 
+else
+    print("Script is running on client. No action taken.")
+end
+]]></script>
+		<content>2025-10-03 13:24:48 UTC</content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-18.882362365722656 50 7.964205265045166</pos>
+		<axis>1 8.742274e-8 8.7422734e-8</axis>
+		<angle>1.5707967</angle>
+		<scale>0.4 0.4 0.4</scale>
+		<created_time>1736579362</created_time>
+		<last_modified_time>1740548803</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0.04761905 -0.023809524 0</aabb_os_min>
+		<aabb_os_max>14.690476 0.95238096 0</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>191214</uid>
+		<object_type>voxel group</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 0.33333334 0</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+    showMessageToUser("Hi " .. av.name .. ", Welcome!", av)
+end
+]]></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-18.225807189941406 50.55214309692383 0.27122724056243896</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>0.5 0.5 0.5</scale>
+		<created_time>1720417379</created_time>
+		<last_modified_time>1742184094</last_modified_time>
+		<creator_id>2648</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<compressed_voxels_base64>KLUv/SAUZQAAMAEAAAABAAEAMigC</compressed_voxels_base64>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198494</uid>
+		<object_type>generic</object_type>
+		<model_url>https_58_47_47gfd_blob_core_windows_net_47cdn_47dada_vrm_14428242306375285125.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Model_6527_Mat1_Albedo_png_14604249206299558058_png_14604249206299558058.png</colour_texture_url>
+				<emission_rgb>0.99999994 0.99999994 0.99999994</emission_rgb>
+				<emission_texture_url>Model_6527_Mat1_Emissive_png_6243704020047386154_png_6243704020047386154.png</emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.9</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+				<flags>1</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Model_6527_Mat2_Albedo_png_4625554932141717118_png_4625554932141717118.png</colour_texture_url>
+				<emission_rgb>0.99999994 0.99999994 0.99999994</emission_rgb>
+				<emission_texture_url>Model_6527_Mat2_Emissive_png_10367649069914678955_png_10367649069914678955.png</emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.9</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+				<flags>1</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Model_6527_Mat1_Albedo_png_14604249206299558058_png_14604249206299558058.png</colour_texture_url>
+				<emission_rgb>0.99999994 0.99999994 0.99999994</emission_rgb>
+				<emission_texture_url>Model_6527_Mat1_Emissive_png_6243704020047386154_png_6243704020047386154.png</emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.9</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+				<flags>1</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url>sub://substrata.info/?x=221.4&amp;y=494.4&amp;z=1.72&amp;heading=180.7</target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-19.153051376342773 50.488441467285156 0.0016699731349945068</pos>
+		<axis>0.8782892 0.3380895 0.33808798</axis>
+		<angle>1.7002199</angle>
+		<scale>2 2 2</scale>
+		<created_time>1738677764</created_time>
+		<last_modified_time>1750021132</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.82615733 -0.00152324 -0.14995943</aabb_os_min>
+		<aabb_os_max>0.82614547 1.7518202 0.24422045</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>140916</chunk_batch0_start>
+		<chunk_batch0_end>141294</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>197904</uid>
+		<object_type>text</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.33333334 1 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.33333334 1 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>0.85</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>300000</emission_lum_flux_or_lum>
+				<flags>17</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content>Welcome to Substrata</content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-19.948944091796875 50.047508239746094 8.608284950256348</pos>
+		<axis>1 -8.742274e-8 -8.7422734e-8</axis>
+		<angle>1.5707967</angle>
+		<scale>1.1 1.1 1.1</scale>
+		<created_time>1736578767</created_time>
+		<last_modified_time>1753212749</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>0 -0.023809524 0</aabb_os_min>
+		<aabb_os_max>12.928572 0.9761905 0</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>176017</uid>
+		<object_type>generic</object_type>
+		<model_url>Capsule_obj_7747426282830510722.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>IMG_7264__4__jpg_9103051179330838511.jpg</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.83</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>0.9 0 0 0.9</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>0.94</audio_volume>
+		<pos>-6.114542007446289 53.31801223754883 1.7216988801956177</pos>
+		<axis>-0.195614 0.019951213 0.980478</axis>
+		<angle>3.4997032</angle>
+		<scale>3.1000001 3.9266665 2.6866665</scale>
+		<created_time>1677879963</created_time>
+		<last_modified_time>1701819736</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.25 -0.25 -0.5</aabb_os_min>
+		<aabb_os_max>0.25 0.25 0.5</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>128136</chunk_batch0_start>
+		<chunk_batch0_end>128289</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198070</uid>
+		<object_type>generic</object_type>
+		<model_url>Quad_obj_5294486581588718400.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0 0 0</colour_rgb>
+				<colour_texture_url>sub_trans_png_14741319883811347772.png</colour_texture_url>
+				<emission_rgb>0.6666667 1 1</emission_rgb>
+				<emission_texture_url>emi_output_gif_16170839247692815750.gif</emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>600000</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-20.728185653686523 50.136314392089844 8.863934516906738</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>2.2 2.2 2.2</scale>
+		<created_time>1737105629</created_time>
+		<last_modified_time>1753142367</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.5 0 -0.5</aabb_os_min>
+		<aabb_os_max>0.5 0 0.5</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>140877</chunk_batch0_start>
+		<chunk_batch0_end>140883</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198071</uid>
+		<object_type>voxel group</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.33333334 1 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.33333334 1 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>90000</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-21.799999237060547 50 7.544472694396973</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>16.8 0.1 0.1</scale>
+		<created_time>1737106005</created_time>
+		<last_modified_time>1737106112</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<compressed_voxels_base64>KLUv/SAUZQAAMAEAAAABAAEAMigC</compressed_voxels_base64>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>140883</chunk_batch0_start>
+		<chunk_batch0_end>140916</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>187113</uid>
+		<object_type>generic</object_type>
+		<model_url>Dank_Pixel_God_2_glb_2587318864841125669.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.5137255 0.40000004 0.62352943</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>1 0.7607844 0.42352945</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.9137255 0.36862746 0.63529414</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0 0.42352942 0.7176471</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.5058824 0.5137255 0.32156864</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.8666667 0.101960786 0.13333333</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0 0 0</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.21568629 0.21960786 0.21568629</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-9.021749496459961 53.20000076293945 5.199999809265137</pos>
+		<axis>1 0 0</axis>
+		<angle>1.5707967</angle>
+		<scale>0.1 0.1 0.1</scale>
+		<created_time>1712798037</created_time>
+		<last_modified_time>1712798966</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-12 -32 -1.5</aabb_os_min>
+		<aabb_os_max>14 8 1.5</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>134868</chunk_batch0_start>
+		<chunk_batch0_end>137472</chunk_batch0_end>
+		<chunk_batch1_start>151899</chunk_batch1_start>
+		<chunk_batch1_end>151899</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>175081</uid>
+		<object_type>generic</object_type>
+		<model_url>Cube_obj_11907297875084081315.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>IMG_1190_jpg_5181735662533260308.jpg</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.62</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-8.899999618530273 53.5 0.8999999761581421</pos>
+		<axis>0 1 0</axis>
+		<angle>0.019149166</angle>
+		<scale>3.055555 2.5231998 1.7863997</scale>
+		<created_time>1674792015</created_time>
+		<last_modified_time>1738727065</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.5 -0.5000019 -0.5</aabb_os_min>
+		<aabb_os_max>0.5 0.5 0.5</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>128064</chunk_batch0_start>
+		<chunk_batch0_end>128100</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>175664</uid>
+		<object_type>generic</object_type>
+		<model_url>Cube_obj_11907297875084081315.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>SkullPunks_logo_2_jpg_9221270245409112860.jpg</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-20.884204864501953 51.29999923706055 1.4427825212478638</pos>
+		<axis>0 0 1</axis>
+		<angle>1.5707967</angle>
+		<scale>2.4999998 2.5 1.5</scale>
+		<created_time>1676163429</created_time>
+		<last_modified_time>1737106275</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.5 -0.5 -0.49999994</aabb_os_min>
+		<aabb_os_max>0.4999981 0.5 0.49999988</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>128100</chunk_batch0_start>
+		<chunk_batch0_end>128136</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>171100</uid>
+		<object_type>generic</object_type>
+		<model_url>Cube_obj_11907297875084081315.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>PunkSkulls_NEW_GIF_gif_16683291495662534429.gif</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>0.8</audio_volume>
+		<pos>-20.855546951293945 51.38888168334961 4</pos>
+		<axis>-3.679481e-8 6.307372e-8 1</axis>
+		<angle>1.5707967</angle>
+		<scale>2.3000002 2.409524 2.190476</scale>
+		<created_time>1665932720</created_time>
+		<last_modified_time>1737106221</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.4999981 -0.5 -0.5000001</aabb_os_min>
+		<aabb_os_max>0.5000019 0.5 0.49999988</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>128022</chunk_batch0_start>
+		<chunk_batch0_end>128058</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>171099</uid>
+		<object_type>generic</object_type>
+		<model_url>Cube_obj_11907297875084081315.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>Crypto_SkullPunks_GIF_NEW_gif_1690812286476395721.gif</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>0.8</audio_volume>
+		<pos>-20.780366897583008 51.400001525878906 6.400000095367432</pos>
+		<axis>0 0 1</axis>
+		<angle>1.5707967</angle>
+		<scale>2.3000002 2.409524 2.190476</scale>
+		<created_time>1665932388</created_time>
+		<last_modified_time>1737106215</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.5 -0.5 -0.50000024</aabb_os_min>
+		<aabb_os_max>0.5 0.49999905 0.49999976</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>127986</chunk_batch0_start>
+		<chunk_batch0_end>128022</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>200981</uid>
+		<object_type>generic</object_type>
+		<model_url>DREAM_ALITTLEDANCE__glb_10220343804425484603.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99607843 0.20392157 0.93333334</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99607843 0.30588236 0.9137255</colour_rgb>
+				<colour_texture_url>03_Hats_PBR_5090946703149993981_png_5090946703149993981.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>03_Hats_PBR_normal_285314665466142202_png_285314665466142202.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>03_Hats_PBR_orm_6992661801208400857_png_6992661801208400857.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99607843 0.19215687 0.1764706</colour_rgb>
+				<colour_texture_url>05_Rings_PBR_14761784248366213592_png_14761784248366213592.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>05_Rings_PBR_normal_8001620861697507613_png_8001620861697507613.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>05_Rings_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>06_mustache_PBR_13825206063768807093_png_13825206063768807093.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>06_mustache_PBR_normal_15594687884647421904_png_15594687884647421904.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>06_mustache_PBR_orm_17938120747400180738_png_17938120747400180738.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>32_Pants_Skirts_PBR_18047218163917529605_png_18047218163917529605.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>32_Pants_Skirts_PBR_normal_16552195497153513063_png_16552195497153513063.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>32_Pants_Skirts_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>34_Tops_Bodysuits_PBR_5721676250909091701_png_5721676250909091701.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>34_Tops_Bodysuits_PBR_normal_16290531507534044552_png_16290531507534044552.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>34_Tops_Bodysuits_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>50_Shoe_PBR_16217413284248712206_png_16217413284248712206.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>50_Shoe_PBR_normal_698816947330046058_png_698816947330046058.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>50_Shoe_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Male_Basemesh_14088546371487081985_png_14088546371487081985.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Male_Basemesh_normal_3878186947196056027_png_3878186947196056027.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Male_Basemesh_orm_15203450036816343188_png_15203450036816343188.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>MALE_EYES_003_8670373607798869272_png_8670373607798869272.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>FingerNails_001_2891530598042164390_png_2891530598042164390.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>FingerNails_001_normal_4855304682652869821_png_4855304682652869821.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>FingerNails_001_orm_9473878801713735818_png_9473878801713735818.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>EYELASH_MAT_9228428788888906891_png_9228428788888906891.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>EYELASH_MAT_orm_5466595732871668986_png_5466595732871668986.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.047058824 0.047058824 0.047058824</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-17.753936767578125 53.74987030029297 -0.03987771272659302</pos>
+		<axis>1 0 0</axis>
+		<angle>1.5707964</angle>
+		<scale>1 1 1</scale>
+		<created_time>1753978701</created_time>
+		<last_modified_time>1753978922</last_modified_time>
+		<creator_id>3342</creator_id>
+		<flags>3073</flags>
+		<aabb_os_min>-0.90434206 4.3496204e-8 -0.11340192</aabb_os_min>
+		<aabb_os_max>0.9043424 1.903285 0.23228084</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>199793</uid>
+		<object_type>generic</object_type>
+		<model_url>Pop_Buddha_Pepe_stl_16153875244499833220.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+
+function onUserTouchedObject(avatar, ob)
+    
+    local t = os.date("*t")
+    local seconds = t.sec
+
+    local p = avatar.pos
+
+    if seconds % 2 == 0 then
+        --dark 
+        p.x = 260.0
+        p.y = 355.8
+        p.z = 1.68
+    else 
+        -- light
+        p.x = 209.8
+        p.y = 369.3
+        p.z = 1.67
+		
+    end
+    
+    avatar.pos = p 
+end]]></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-13.153987884521484 55.041202545166016 -0.07964533567428589</pos>
+		<axis>0 0 -1</axis>
+		<angle>0.49082127</angle>
+		<scale>2.2 2.2 2.2</scale>
+		<created_time>1748981527</created_time>
+		<last_modified_time>1759288310</last_modified_time>
+		<creator_id>3183</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>-0.32769695 -0.3066268 -0.003155669</aabb_os_min>
+		<aabb_os_max>0.3276223 0.30773035 0.9196835</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>145302</chunk_batch0_start>
+		<chunk_batch0_end>146079</chunk_batch0_end>
+		<chunk_batch1_start>152769</chunk_batch1_start>
+		<chunk_batch1_end>152769</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>183220</uid>
+		<object_type>generic</object_type>
+		<model_url>Quad_obj_17249492137259942610.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>IMG_0394_jpg_11484071294439266119.jpg</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>0.9 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-11.300000190734863 55.70000076293945 1.6776915788650513</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>1 1 1</scale>
+		<created_time>1700699783</created_time>
+		<last_modified_time>1712798388</last_modified_time>
+		<creator_id>40</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.5 0 -0.5</aabb_os_min>
+		<aabb_os_max>0.5 0 0.5</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>134826</chunk_batch0_start>
+		<chunk_batch0_end>134832</chunk_batch0_end>
+		<chunk_batch1_start>151899</chunk_batch1_start>
+		<chunk_batch1_end>151899</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>181126</uid>
+		<object_type>web view</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 1 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url>https://metasiberia.com</target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-24.770715713500977 53.03173828125 3.5374813079833984</pos>
+		<axis>0 0 1</axis>
+		<angle>1.5707967</angle>
+		<scale>5.9 0.118 3.31875</scale>
+		<created_time>1688190287</created_time>
+		<last_modified_time>1755746128</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 0 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>200976</uid>
+		<object_type>generic</object_type>
+		<model_url>DREAM_ALITTLEDANCE__glb_10220343804425484603.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>03_Earrings_PBR_12880865311998175682_png_12880865311998175682.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>03_Hats_PBR_5090946703149993981_png_5090946703149993981.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>03_Hats_PBR_normal_285314665466142202_png_285314665466142202.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>03_Hats_PBR_orm_6992661801208400857_png_6992661801208400857.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>05_Rings_PBR_14761784248366213592_png_14761784248366213592.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>05_Rings_PBR_normal_8001620861697507613_png_8001620861697507613.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>05_Rings_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>06_mustache_PBR_13825206063768807093_png_13825206063768807093.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>06_mustache_PBR_normal_15594687884647421904_png_15594687884647421904.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>06_mustache_PBR_orm_17938120747400180738_png_17938120747400180738.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>32_Pants_Skirts_PBR_18047218163917529605_png_18047218163917529605.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>32_Pants_Skirts_PBR_normal_16552195497153513063_png_16552195497153513063.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>32_Pants_Skirts_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>34_Tops_Bodysuits_PBR_5721676250909091701_png_5721676250909091701.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>34_Tops_Bodysuits_PBR_normal_16290531507534044552_png_16290531507534044552.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>34_Tops_Bodysuits_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>50_Shoe_PBR_16217413284248712206_png_16217413284248712206.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>50_Shoe_PBR_normal_698816947330046058_png_698816947330046058.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>50_Shoe_PBR_orm_14288256870612673222_png_14288256870612673222.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Male_Basemesh_14088546371487081985_png_14088546371487081985.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Male_Basemesh_normal_3878186947196056027_png_3878186947196056027.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Male_Basemesh_orm_15203450036816343188_png_15203450036816343188.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>MALE_EYES_003_8670373607798869272_png_8670373607798869272.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>18</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>FingerNails_001_2891530598042164390_png_2891530598042164390.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>FingerNails_001_normal_4855304682652869821_png_4855304682652869821.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>FingerNails_001_orm_9473878801713735818_png_9473878801713735818.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>EYELASH_MAT_9228428788888906891_png_9228428788888906891.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>EYELASH_MAT_orm_5466595732871668986_png_5466595732871668986.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-6.724575692377055 57.35430351192387 1.0323893863437785</pos>
+		<axis>1 0 0</axis>
+		<angle>1.5707964</angle>
+		<scale>1 1 1</scale>
+		<created_time>1753978399</created_time>
+		<last_modified_time>1753978399</last_modified_time>
+		<creator_id>3342</creator_id>
+		<flags>3073</flags>
+		<aabb_os_min>-0.90434206 4.3496204e-8 -0.11340192</aabb_os_min>
+		<aabb_os_max>0.9043424 1.903285 0.23228084</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>202033</uid>
+		<object_type>generic</object_type>
+		<model_url>portal_glb_956270117983933793.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Material_001_baseColor_16829149094923308222_png_16829149094923308222.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Material_001_normal_13193593383894660311_png_13193593383894660311.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Material_001_metallicRoughness_9909321123566836618_png_9909321123566836618.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Glass_001_baseColor_13324745679601235361_png_13324745679601235361.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Glass_001_metallicRoughness_1470425487264311561_png_1470425487264311561.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>0.5109523</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.9063317 0.9063317 0.9063317</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.99999994 0.99999994 0.99999994</emission_rgb>
+				<emission_texture_url>Light_001_emissive_2530138479423105566_png_2530138479423105566.png</emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.82111454</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+
+-- Function to teleport the user when touching the object
+function onUserTouchedObject(avatar, ob)
+    print("Portal activated! Attempting teleport to denshipilov/metasiberia")
+
+    -- Check if avatar and pos exist
+    if avatar and avatar.pos then
+        -- Set coordinates
+        local p = avatar.pos
+        p.x = 0.3
+        p.y = 5.2
+        p.z = 1.67
+        avatar.pos = p
+
+        -- Attempt to set orientation (heading=86.8), if supported
+        if avatar.rotation then
+            avatar.rotation = { x = 0, y = 86.8, z = 0 } -- Assuming rotation takes a table
+            print("Orientation set: rotation.y = 86.8")
+        elseif avatar.yaw then
+            avatar.yaw = 86.8
+            print("Orientation set: yaw = 86.8")
+        else
+            print("Orientation not supported (no rotation or yaw)")
+        end
+
+        -- World change placeholder (not implemented in Lua, likely set in editor)
+        local targetWorld = "denshipilov/metasiberia"
+        print("Warning: World change not implemented. Set world to " .. targetWorld .. " in Substrata editor or check API.")
+
+        print("User teleported to coordinates: x=" .. p.x .. ", y=" .. p.y .. ", z=" .. p.z .. ", target world: " .. targetWorld)
+    else
+        print("Error: avatar or pos unavailable")
+    end
+end]]></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-22.091567993164062 54.32646179199219 -0.04092824459075928</pos>
+		<axis>0.5875232 0.57219684 0.57219505</axis>
+		<angle>2.0792193</angle>
+		<scale>1.2 1.2 1.2</scale>
+		<created_time>1755746053</created_time>
+		<last_modified_time>1755755048</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>3585</flags>
+		<aabb_os_min>-1.1829258 -0.0050935233 -1.386072</aabb_os_min>
+		<aabb_os_max>1.5575341 2.8555934 1.1829258</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>150066</chunk_batch0_start>
+		<chunk_batch0_end>154242</chunk_batch0_end>
+		<chunk_batch1_start>156294</chunk_batch1_start>
+		<chunk_batch1_end>156324</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>199436</uid>
+		<object_type>generic</object_type>
+		<model_url>Cylinder_obj_13572754470173410538.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>EAoe_1407204204_gif_7632141245681515306.gif</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-11.178625106811523 57.81098556518555 1.5023601055145264</pos>
+		<axis>1 0 0</axis>
+		<angle>0.009935064</angle>
+		<scale>1 1 5</scale>
+		<created_time>1744630804</created_time>
+		<last_modified_time>1744630919</last_modified_time>
+		<creator_id>2755</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.25 -0.25 -0.5</aabb_os_min>
+		<aabb_os_max>0.25 0.25 0.5</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>145248</chunk_batch0_start>
+		<chunk_batch0_end>145296</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>199509</uid>
+		<object_type>text</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.33333334 1 0.49803925</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>17</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content>OVER THE HILLS AND FAR PEPE</content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-16.91334342956543 56.95695495605469 2.584507942199707</pos>
+		<axis>1 8.742274e-8 8.7422734e-8</axis>
+		<angle>1.5707967</angle>
+		<scale>0.08 0.08 0.08</scale>
+		<created_time>1745146990</created_time>
+		<last_modified_time>1747316703</last_modified_time>
+		<creator_id>3183</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>0.04761905 -0.023809524 0</aabb_os_min>
+		<aabb_os_max>18.52381 0.95238096 0</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>201327</uid>
+		<object_type>generic</object_type>
+		<model_url>unit_cube_bmesh_7263660735544605926.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>ChatGPT_Image_5_________2025______11_51_57__1__png_15884587901414912220.png</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>33</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-10.15872859954834 58.34605026245117 -0.29886341094970703</pos>
+		<axis>0.03468806 0.007234003 0.99937195</axis>
+		<angle>0.41467586</angle>
+		<scale>5.6 5.6 0.2999999</scale>
+		<created_time>1754883211</created_time>
+		<last_modified_time>1754883517</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>3072</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>145296</chunk_batch0_start>
+		<chunk_batch0_end>145332</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>199411</uid>
+		<object_type>generic</object_type>
+		<model_url>stone_ancient_window__door_frame_pbr_glb_13317191487229672951.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Scene___Root_baseColor_7677877019023993990_png_7677877019023993990.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Scene___Root_normal_1235626430164721005_png_1235626430164721005.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Scene___Root_metallicRoughness_14941505825253856078_png_14941505825253856078.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-15.869436264038086 57.48060607910156 -0.03697633743286133</pos>
+		<axis>0.57735044 -0.57735026 -0.5773502</axis>
+		<angle>2.0943954</angle>
+		<scale>0.05 0.05 0.05</scale>
+		<created_time>1743627573</created_time>
+		<last_modified_time>1743627587</last_modified_time>
+		<creator_id>3183</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-8.151068 -0.023736954 -24.341726</aabb_os_min>
+		<aabb_os_max>11.6561365 55.73017 28.566393</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>144924</chunk_batch0_start>
+		<chunk_batch0_end>145248</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>199413</uid>
+		<object_type>voxel group</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>Carl_Sagan_Space_GIF_by_Feliks_Tomasz_Konczakowski_gif_11336484889774253203.gif</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+
+function onUserTouchedObject(avatar, ob)
+    local p = avatar.pos
+    p.x = 3404.5
+    p.y = 12267.6
+    p.z = 242.8
+    
+    avatar.pos = p 
+end
+
+]]></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-16.674882888793945 57.34510803222656 0.11953237652778625</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>1.4000001 0.1 2.3</scale>
+		<created_time>1743627625</created_time>
+		<last_modified_time>1747626058</last_modified_time>
+		<creator_id>3183</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<compressed_voxels_base64>KLUv/SAUZQAAMAEAAAABAAEAMigC</compressed_voxels_base64>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>155591</uid>
+		<object_type>generic</object_type>
+		<model_url>Torus_obj_1408006762205690806.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-13.326908111572266 58.18306350708008 3.0517852306365967</pos>
+		<axis>0 0 1</axis>
+		<angle>0</angle>
+		<scale>1.110223e-16 1.3877788e-16 1.3877788e-16</scale>
+		<created_time>1641416214</created_time>
+		<last_modified_time>1641416214</last_modified_time>
+		<creator_id>591</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>0 0 0</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>196993</uid>
+		<object_type>generic</object_type>
+		<model_url>den4_glb_8926545567581800393.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Image_10_3014612815221302383_jpg_3014612815221302383.jpg</colour_texture_url>
+				<emission_rgb>0.99999994 0.99999994 0.99999994</emission_rgb>
+				<emission_texture_url>Image_10_3014612815221302383_jpg_3014612815221302383.jpg</emission_texture_url>
+				<normal_map_url>Image_11_8696970099396533518_jpg_8696970099396533518.jpg</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Image_12_Image_9_15721525405485509530_png_15721525405485509530.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Image_1_12739031158388115690_jpg_12739031158388115690.jpg</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Image_2_3955461644317571905_jpg_3955461644317571905.jpg</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Image_0_8208212319144318194_jpg_8208212319144318194.jpg</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Image_4_936807015167145267_jpg_936807015167145267.jpg</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Image_5_4896432900343670743_jpg_4896432900343670743.jpg</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Image_3_14583731205490295781_jpg_14583731205490295781.jpg</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.7803921 0.34509802 0.08235294</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Image_7_4665868255275437895_png_4665868255275437895.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Image_8_17202218240677488572_jpg_17202218240677488572.jpg</normal_map_url>
+				<roughness>
+					<val>0.85</val>
+					<texture_url>Image_6_13455915553293871524_jpg_13455915553293871524.jpg</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>0.15</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>1</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Image_14_5486105123749739684_jpg_5486105123749739684.jpg</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Image_15_7152733541970743114_jpg_7152733541970743114.jpg</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Image_13_16473067571556101045_jpg_16473067571556101045.jpg</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-20.4960880279541 56.69879913330078 -0.023415178060531616</pos>
+		<axis>0.7496035 0.46802565 0.46802408</axis>
+		<angle>1.8551034</angle>
+		<scale>1 1 1</scale>
+		<created_time>1735379868</created_time>
+		<last_modified_time>1742184122</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.24422242 -0.01125863 -0.24835834</aabb_os_min>
+		<aabb_os_max>0.29100782 1.8554353 0.2795707</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>138849</chunk_batch0_start>
+		<chunk_batch0_end>138984</chunk_batch0_end>
+		<chunk_batch1_start>151899</chunk_batch1_start>
+		<chunk_batch1_end>151899</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>191217</uid>
+		<object_type>voxel group</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0 0.6666667 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+
+function onUserEnteredParcel(av : Avatar, ob : Object)
+	showMessageToUser("Hi " .. av.name .. ", Welcome to Substrata", av)
+end]]></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-15.337451934814453 58.09657669067383 0.21625086665153503</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>0.5 0.5 0.5</scale>
+		<created_time>1720424037</created_time>
+		<last_modified_time>1742918031</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<compressed_voxels_base64>KLUv/SAUZQAAMAEAAAABAAEAMigC</compressed_voxels_base64>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198967</uid>
+		<object_type>generic</object_type>
+		<model_url>stone_ancient_window__door_frame_pbr_glb_13317191487229672951.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>Scene___Root_baseColor_7677877019023993990_png_7677877019023993990.png</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>Scene___Root_normal_1235626430164721005_png_1235626430164721005.png</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>Scene___Root_metallicRoughness_14941505825253856078_png_14941505825253856078.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-18.728675842285156 57.42548370361328 -0.03697633743286133</pos>
+		<axis>0.57735044 -0.57735026 -0.5773502</axis>
+		<angle>2.0943954</angle>
+		<scale>0.05 0.05 0.05</scale>
+		<created_time>1742183993</created_time>
+		<last_modified_time>1754958441</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-8.151068 -0.023736954 -24.341726</aabb_os_min>
+		<aabb_os_max>11.6561365 55.73017 28.566393</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>144534</chunk_batch0_start>
+		<chunk_batch0_end>144852</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198972</uid>
+		<object_type>generic</object_type>
+		<model_url>unit_cube_bmesh_7263660735544605926.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0 1 1</colour_rgb>
+				<colour_texture_url>image__3__png_6474810047253694098.png</colour_texture_url>
+				<emission_rgb>0.33333334 1 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>90000</emission_lum_flux_or_lum>
+				<flags>33</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-18.2855167388916 57.60287857055664 2.4286653995513916</pos>
+		<axis>-0.0029080415 -0.7071084 -0.70709914</axis>
+		<angle>3.147401</angle>
+		<scale>1.0999999 0.32352942 0.45294112</scale>
+		<created_time>1742192140</created_time>
+		<last_modified_time>1742192172</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>0</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>144888</chunk_batch0_start>
+		<chunk_batch0_end>144924</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198971</uid>
+		<object_type>generic</object_type>
+		<model_url>unit_cube_bmesh_7263660735544605926.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0 1 1</colour_rgb>
+				<colour_texture_url>image__3__png_6474810047253694098.png</colour_texture_url>
+				<emission_rgb>0.33333334 1 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>90000</emission_lum_flux_or_lum>
+				<flags>33</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-19.37466049194336 57.34575271606445 2.4194681644439697</pos>
+		<axis>1 0 0</axis>
+		<angle>1.5707967</angle>
+		<scale>1.0999999 0.32352942 0.45294112</scale>
+		<created_time>1742191915</created_time>
+		<last_modified_time>1742192117</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>0</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>144852</chunk_batch0_start>
+		<chunk_batch0_end>144888</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198970</uid>
+		<object_type>voxel group</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>Carl_Sagan_Space_GIF_by_Feliks_Tomasz_Konczakowski_gif_11336484889774253203.gif</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+-- Функция для телепортации пользователя и отображения сообщения
+function onUserTouchedObject(avatar, ob)
+    print("onUserTouchedObject!!!!!")
+    
+    -- Телепортировать пользователя к новым координатам
+    local p = avatar.pos
+    p.x = 333.3
+    p.y = -292.9
+    p.z = 1.68
+    avatar.pos = p
+    
+end
+
+]]></script>
+		<content>x=333.3&amp;y=-292.9&amp;z=1.68&amp;heading=87.4</content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-19.54216766357422 57.34510803222656 0.11953237652778625</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>1.4000001 0.1 2.3</scale>
+		<created_time>1742191191</created_time>
+		<last_modified_time>1755746581</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<compressed_voxels_base64>KLUv/SAUZQAAMAEAAAABAAEAMigC</compressed_voxels_base64>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>200723</uid>
+		<object_type>generic</object_type>
+		<model_url>Pop_Buddha_Pepe_stl_5891650248438730261.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[<?xml version="1.0" encoding="utf-8"?>
+<script>
+	<follow_path>
+		<speed>100</speed>
+		<waypoint><pos>-2018.4 -3555.7 3.04</pos>	<type>Stop</type>	<pause_time>36</pause_time>	</waypoint>
+		<waypoint><pos>-2018.4 -3555.7 3.54</pos>	<type>Stop</type>	<pause_time>36</pause_time>	</waypoint>
+		<waypoint><pos>-2018.4 -3555.7 4.04</pos>	<type>Stop</type>	<pause_time>36</pause_time>	</waypoint>
+	</follow_path>
+</script>
+]]></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-14.909506797790527 58.56531524658203 -0.30409252643585205</pos>
+		<axis>0.018160362 -0.012407205 0.9997582</axis>
+		<angle>2.6950417</angle>
+		<scale>11 11 11</scale>
+		<created_time>1753561521</created_time>
+		<last_modified_time>1756821936</last_modified_time>
+		<creator_id>3183</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>-0.32769695 -0.3066268 -0.003155669</aabb_os_min>
+		<aabb_os_max>0.3276223 0.30773035 0.9196835</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>145320</chunk_batch0_start>
+		<chunk_batch0_end>146379</chunk_batch0_end>
+		<chunk_batch1_start>152238</chunk_batch1_start>
+		<chunk_batch1_end>152238</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>191221</uid>
+		<object_type>voxel group</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 0.33333334 1</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script><![CDATA[--lua
+
+function onUserExitedParcel (av : Avatar, ob : Object)
+	showMessageToUser ("Goodbye," .. av.name .. ", See you soon!", av)
+end]]></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-15.337451934814453 59.9501838684082 0.21625086665153503</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>0.5 0.5 0.5</scale>
+		<created_time>1720425523</created_time>
+		<last_modified_time>1720426380</last_modified_time>
+		<creator_id>2547</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<compressed_voxels_base64>KLUv/SAUZQAAMAEAAAABAAEAMigC</compressed_voxels_base64>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>191680</uid>
+		<object_type>text</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>16</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script>独特的</script>
+		<content>So挑剔对方色</content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-12.373636245727539 61.417030334472656 1.2007462978363037</pos>
+		<axis>0.9736012 0.16140102 -0.1614014</axis>
+		<angle>1.597548</angle>
+		<scale>0.4 0.4 0.4</scale>
+		<created_time>1721571270</created_time>
+		<last_modified_time>1737885064</last_modified_time>
+		<creator_id>2120</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>0.071428575 -0.023809524 0</aabb_os_min>
+		<aabb_os_max>5.6904764 0.95238096 0</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>147106</uid>
+		<object_type>generic</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.52 0.16</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-15.613362312316895 62.09980010986328 0.3267062306404114</pos>
+		<axis>0 0 1</axis>
+		<angle>0</angle>
+		<scale>0.5 0.5 0.5</scale>
+		<created_time>1620319671</created_time>
+		<last_modified_time>1620319671</last_modified_time>
+		<creator_id>43</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>31.226725 -124.1996 -0.65341246</aabb_os_min>
+		<aabb_os_max>31.226725 -124.1996 -0.65341246</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>193566</uid>
+		<object_type>generic</object_type>
+		<model_url>decorative_statuette_uffkfdeva_low_glb_17307543421042777458.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+				<colour_texture_url>GLB_image_12583318756576937299_jpg_12583318756576937299.jpg</colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url>GLB_image_16895915255399976566_jpg_16895915255399976566.jpg</normal_map_url>
+				<roughness>
+					<val>1</val>
+					<texture_url>GLB_image_18077685069961269834_png_18077685069961269834.png</texture_url>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-6.4427809715271 64.30042266845703 1</pos>
+		<axis>0.8337747 0.3903989 0.3903954</axis>
+		<angle>1.7516127</angle>
+		<scale>7.2 7.2 7.2</scale>
+		<created_time>1730746664</created_time>
+		<last_modified_time>1754883509</last_modified_time>
+		<creator_id>319</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.057393882 -0.15994875 -0.05068372</aabb_os_min>
+		<aabb_os_max>0.059320647 0.1613527 0.05075613</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>138015</chunk_batch0_start>
+		<chunk_batch0_end>138837</chunk_batch0_end>
+		<chunk_batch1_start>151899</chunk_batch1_start>
+		<chunk_batch1_end>151899</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>95</uid>
+		<object_type>generic</object_type>
+		<model_url></model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.52 0.16</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-15.130584716796875 63.19521713256836 0.9423922300338745</pos>
+		<axis>0 0 1</axis>
+		<angle>0</angle>
+		<scale>0.5 0.5 0.5</scale>
+		<created_time>1557854054</created_time>
+		<last_modified_time>1557854054</last_modified_time>
+		<creator_id>1</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>30.26117 -126.390434 -1.8847845</aabb_os_min>
+		<aabb_os_max>30.26117 -126.390434 -1.8847845</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>0</chunk_batch0_start>
+		<chunk_batch0_end>0</chunk_batch0_end>
+		<chunk_batch1_start>0</chunk_batch1_start>
+		<chunk_batch1_end>0</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>176044</uid>
+		<object_type>generic</object_type>
+		<model_url>skullpunk_Green_ClownHair_glb_1202029513287163639.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.03137255 1 0.3372549</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.022173883 0.026241222 0.03071344</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>1 0.74509805 0.5647059</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.72305524 0.7835379 0.8549927</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.2831488 0.07421358 0.035601314</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-24.178112030029297 60.975341796875 2.7805495262145996</pos>
+		<axis>0.6288605 0.54978895 0.54978776</axis>
+		<angle>2.0188565</angle>
+		<scale>0.2 0.2 0.2</scale>
+		<created_time>1677903297</created_time>
+		<last_modified_time>1677903297</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-10 -12 -1.3499999</aabb_os_min>
+		<aabb_os_max>10 9 1.3499999</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>128289</chunk_batch0_start>
+		<chunk_batch0_end>130203</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>187999</uid>
+		<object_type>generic</object_type>
+		<model_url>Torus_obj_5690494170031588244.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>Verde_Alpi_Marble__Varied_Terrazzo_Architextures_jpg_4647217256195007618.jpg</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>3.7 0 0 2</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>2</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-9.100000381469727 65.42376708984375 0.6708623170852661</pos>
+		<axis>0.104034916 0.125475 -0.9866269</axis>
+		<angle>1.6348971</angle>
+		<scale>4.4 4.4 4.4</scale>
+		<created_time>1714954334</created_time>
+		<last_modified_time>1758304731</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>0</flags>
+		<aabb_os_min>-0.5 -0.5 -0.15</aabb_os_min>
+		<aabb_os_max>0.5 0.5 0.15</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>137895</chunk_batch0_start>
+		<chunk_batch0_end>138015</chunk_batch0_end>
+		<chunk_batch1_start>151899</chunk_batch1_start>
+		<chunk_batch1_end>151899</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>198275</uid>
+		<object_type>generic</object_type>
+		<model_url>__________glb_7289590551729075909.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.9063317 0.9063317 0.9063317</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0 0 0</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 -1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script>def evalRotation(float time, WinterEnv env) vec3 : vec3(sin(time * 1.01) * 0.01, 0, 0)</script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-15.417831420898438 65.55052185058594 1.109036922454834</pos>
+		<axis>-1 0 0</axis>
+		<angle>0.0018557482</angle>
+		<scale>1 1 1</scale>
+		<created_time>1737832061</created_time>
+		<last_modified_time>1739149477</last_modified_time>
+		<creator_id>3209</creator_id>
+		<flags>513</flags>
+		<aabb_os_min>-1 -1 -1</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>152082</chunk_batch0_start>
+		<chunk_batch0_end>152118</chunk_batch0_end>
+		<chunk_batch1_start>156420</chunk_batch1_start>
+		<chunk_batch1_end>156420</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>197703</uid>
+		<object_type>generic</object_type>
+		<model_url>mm_frame_obj_2535571964415591128.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.68235296 1 0.34509805</colour_rgb>
+				<colour_texture_url><![CDATA[ 0]]></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.63894314</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>1</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-18.00719451904297 65.47564697265625 0.40652328729629517</pos>
+		<axis>0.26229495 -0.12350808 0.9570513</axis>
+		<angle>5.8356814</angle>
+		<scale>1.5999999 1.6941175 1.5529411</scale>
+		<created_time>1736082316</created_time>
+		<last_modified_time>1759288385</last_modified_time>
+		<creator_id>871</creator_id>
+		<flags>9</flags>
+		<aabb_os_min>-0.4704298 -0.23879595 -0.26399124</aabb_os_min>
+		<aabb_os_max>0.4933954 0.2387964 0.450785</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>139281</chunk_batch0_start>
+		<chunk_batch0_end>139347</chunk_batch0_end>
+		<chunk_batch1_start>151962</chunk_batch1_start>
+		<chunk_batch1_end>151962</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>176112</uid>
+		<object_type>generic</object_type>
+		<model_url>Torus_obj_5690494170031588244.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url>Verde_Alpi_Marble__Varied_Terrazzo_Architextures_jpg_4647217256195007618.jpg</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>1</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>3.7 0 0 2</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>2</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-21.271800994873047 65.42376708984375 0.16310155391693115</pos>
+		<axis>0.086115874 0.25277415 -0.9636852</axis>
+		<angle>0.92280483</angle>
+		<scale>4.2000003 4.2000003 4.2000003</scale>
+		<created_time>1678068305</created_time>
+		<last_modified_time>1678068305</last_modified_time>
+		<creator_id>2570</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.5 -0.5 -0.15</aabb_os_min>
+		<aabb_os_max>0.5 0.5 0.15</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>130203</chunk_batch0_start>
+		<chunk_batch0_end>130323</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>176134</uid>
+		<object_type>generic</object_type>
+		<model_url>White_Punk_BODY_glb_2433297133723144597.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 0.2509804 1</colour_rgb>
+				<colour_texture_url>Verde_Alpi_Marble__Corfiot_Architextures_jpg_7072819863245446549.jpg</colour_texture_url>
+				<emission_rgb>1 0.2509804 1</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>1</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>50000 0 0 50000.1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>2</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-21.242612838745117 65.66858673095703 1.939257264137268</pos>
+		<axis>-0.05115897 0.70618206 0.7061795</axis>
+		<angle>3.2438226</angle>
+		<scale>0.1 0.1 0.1</scale>
+		<created_time>1678155438</created_time>
+		<last_modified_time>1678155438</last_modified_time>
+		<creator_id>1769</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-6 -12 -0.9</aabb_os_min>
+		<aabb_os_max>6 7 0.9</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>130323</chunk_batch0_start>
+		<chunk_batch0_end>130494</chunk_batch0_end>
+		<chunk_batch1_start>151683</chunk_batch1_start>
+		<chunk_batch1_end>151683</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>186319</uid>
+		<object_type>generic</object_type>
+		<model_url>image_cube_5438347426447337425.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>1 1 1</colour_rgb>
+				<colour_texture_url>8_png_12974931110649060193.png</colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url>1_00000_0230_gif_8114690051408709453.gif</emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>50000</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+			<material>
+				<name></name>
+				<colour_rgb>0.7 0.7 0.7</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-11.300000190734863 68.06658172607422 1.437246561050415</pos>
+		<axis>1 0 0</axis>
+		<angle>0</angle>
+		<scale>1 0.02 1</scale>
+		<created_time>1707699855</created_time>
+		<last_modified_time>1710374862</last_modified_time>
+		<creator_id>2120</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>0 0 0</aabb_os_min>
+		<aabb_os_max>1 1 1</aabb_os_max>
+		<max_model_lod_level>0</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>134832</chunk_batch0_start>
+		<chunk_batch0_end>134868</chunk_batch0_end>
+		<chunk_batch1_start>151899</chunk_batch1_start>
+		<chunk_batch1_end>151899</chunk_batch1_end>
+	</object>
+
+	<object>
+		<uid>147207</uid>
+		<object_type>generic</object_type>
+		<model_url>Torus_obj_1408006762205690806.bmesh</model_url>
+		<materials>
+			<material>
+				<name></name>
+				<colour_rgb>0.85 0.85 0.85</colour_rgb>
+				<colour_texture_url></colour_texture_url>
+				<emission_rgb>0.85 0.85 0.85</emission_rgb>
+				<emission_texture_url></emission_texture_url>
+				<normal_map_url></normal_map_url>
+				<roughness>
+					<val>0.5</val>
+				</roughness>
+				<metallic_fraction>
+					<val>0</val>
+				</metallic_fraction>
+				<opacity>
+					<val>1</val>
+				</opacity>
+				<tex_matrix>1 0 0 1</tex_matrix>
+				<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+				<flags>0</flags>
+			</material>
+		</materials>
+		<lightmap_url></lightmap_url>
+		<script></script>
+		<content></content>
+		<target_url></target_url>
+		<audio_source_url></audio_source_url>
+		<audio_volume>1</audio_volume>
+		<pos>-15.280078887939453 68.28781127929688 -0.8499984741210938</pos>
+		<axis>0 0 1</axis>
+		<angle>2.3719068</angle>
+		<scale>1 1 1</scale>
+		<created_time>1620543385</created_time>
+		<last_modified_time>1620543385</last_modified_time>
+		<creator_id>67</creator_id>
+		<flags>1</flags>
+		<aabb_os_min>-0.5 -0.5 -0.15</aabb_os_min>
+		<aabb_os_max>0.5 0.5 0.15</aabb_os_max>
+		<max_model_lod_level>2</max_model_lod_level>
+		<mass>50</mass>
+		<friction>0.5</friction>
+		<restitution>0.2</restitution>
+		<centre_of_mass_offset_os>0 0 0</centre_of_mass_offset_os>
+		<chunk_batch0_start>780</chunk_batch0_start>
+		<chunk_batch0_end>798</chunk_batch0_end>
+		<chunk_batch1_start>149910</chunk_batch1_start>
+		<chunk_batch1_end>149910</chunk_batch1_end>
+	</object>
+
+</objects>
