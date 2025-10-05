@@ -244,6 +244,7 @@ public:
 	void updateNotifications(double cur_time);
 	void setNotificationsVisible(bool visible);
 	void updateParcelGraphics();
+	void assignLODChunkSubMeshPlaceholderToOb(const LODChunk* chunk, WorldObject* const ob);
 	void updateLODChunkGraphics();
 	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
 	void setThirdPersonCameraPosition(double dt);

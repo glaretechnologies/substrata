@@ -134,6 +134,7 @@ static const float DECAL_EDGE_AABB_WIDTH = 0.02f;
 
 static const bool LOD_CHUNK_SUPPORT = true;
 static const float chunk_w = 128.f;
+static const float recip_chunk_w = 1.f / chunk_w;
 
 static const std::string DEFAULT_AVATAR_MODEL_URL = "xbot.bmesh"; // This file should be in the resources directory in the distribution.
 
@@ -2447,65 +2448,13 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					const Vec4f centroid = ob->getCentroidWS();
 					const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
 
-					WorldStateLock lock(world_state->mutex);
 					auto res = world_state->lod_chunks.find(chunk_coords);
 					if(res != world_state->lod_chunks.end())
 					{
 						const LODChunk* chunk = res->second.ptr();
 						if(chunk->graphics_ob)
 						{
-							const uint32 index_type_size_B = chunk->graphics_ob->mesh_data->getIndexTypeSize();
-
-							runtimeCheck(chunk->graphics_ob->mesh_data->batches.size() >= 1);
-							const size_t chunk_batch_0_start_index = chunk->graphics_ob->mesh_data->batches[0].prim_start_offset_B / index_type_size_B;
-							const size_t chunk_batch_0_end_index   = chunk_batch_0_start_index + chunk->graphics_ob->mesh_data->batches[0].num_indices;
-
-							const size_t chunk_batch_1_start_index = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk->graphics_ob->mesh_data->batches[1].prim_start_offset_B / index_type_size_B) : 0;
-							const size_t chunk_batch_1_end_index   = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk_batch_1_start_index + chunk->graphics_ob->mesh_data->batches[1].num_indices) : 0;
-
-							// If the object sub-chunk vertex indices ranges are valid (e.g. in bounds of original chunk mesh): (Note that an empty range is considered valid)
-							const bool batch0_valid = !ob_batch0_nonempty || ((ob->chunk_batch0_start >= chunk_batch_0_start_index) && (ob->chunk_batch0_end <= chunk_batch_0_end_index));
-							const bool batch1_valid = !ob_batch1_nonempty || ((ob->chunk_batch1_start >= chunk_batch_1_start_index) && (ob->chunk_batch1_end <= chunk_batch_1_end_index));
-
-							if(batch0_valid && batch1_valid)
-							{
-								ob->opengl_engine_ob = opengl_engine->allocateObject();
-								ob->opengl_engine_ob->mesh_data = chunk->graphics_ob->mesh_data; // Share the chunk's mesh data
-								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::identity();
-						
-								ob->opengl_engine_ob->materials = chunk->graphics_ob->materials;
-
-								int new_num_batches = 0;
-								if(ob->chunk_batch0_end > ob->chunk_batch0_start) // If batch 0 range is non-empty:
-									new_num_batches++;
-								if(ob->chunk_batch1_end > ob->chunk_batch1_start) // If batch 1 range is non-empty:
-									new_num_batches++;
-								assert(new_num_batches > 0);
-
-								ob->opengl_engine_ob->use_batches.resizeNoCopy(new_num_batches);
-
-								if(ob_batch0_nonempty) // If batch 0 range is non-empty:
-								{
-									ob->opengl_engine_ob->use_batches[0].material_index = 0;
-									ob->opengl_engine_ob->use_batches[0].prim_start_offset_B = ob->chunk_batch0_start * index_type_size_B;
-									ob->opengl_engine_ob->use_batches[0].num_indices         = ob->chunk_batch0_end - ob->chunk_batch0_start;
-								}
-
-								if(ob_batch1_nonempty) // If batch 1 range is non-empty:
-								{
-									ob->opengl_engine_ob->use_batches.back().material_index = 1;
-									ob->opengl_engine_ob->use_batches.back().prim_start_offset_B = ob->chunk_batch1_start * index_type_size_B;
-									ob->opengl_engine_ob->use_batches.back().num_indices         = ob->chunk_batch1_end - ob->chunk_batch1_start;
-								}
-
-								opengl_engine->addObject(ob->opengl_engine_ob);
-
-								ob->using_placeholder_model = true;
-							}
-							else
-							{
-								conPrint("ERROR: invalid chunk sub-range");
-							}
+							assignLODChunkSubMeshPlaceholderToOb(chunk, ob);
 						}
 					}
 				}
@@ -6936,6 +6885,80 @@ void GUIClient::updateParcelGraphics()
 }
 
 
+void GUIClient::assignLODChunkSubMeshPlaceholderToOb(const LODChunk* chunk, WorldObject* const ob)
+{
+	assert(chunk->graphics_ob);
+	if(!ob->opengl_engine_ob && !BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH))
+	{
+		// We will use part of the chunk geometry as the placeholder graphics for this object, while it is loading.
+		// Use the sub-range of the indices from the LOD chunk geometry that correspond to this object.
+		const bool ob_batch0_nonempty = ob->chunk_batch0_end > ob->chunk_batch0_start;
+		const bool ob_batch1_nonempty = ob->chunk_batch1_end > ob->chunk_batch1_start;
+		if(ob_batch0_nonempty || ob_batch1_nonempty) // If object has a chunk sub-range set:
+		{
+			const uint32 index_type_size_B = chunk->graphics_ob->mesh_data->getIndexTypeSize();
+
+			runtimeCheck(chunk->graphics_ob->mesh_data->batches.size() >= 1);
+			const size_t chunk_batch_0_start_index = chunk->graphics_ob->mesh_data->batches[0].prim_start_offset_B / index_type_size_B;
+			const size_t chunk_batch_0_end_index   = chunk_batch_0_start_index + chunk->graphics_ob->mesh_data->batches[0].num_indices;
+
+			const size_t chunk_batch_1_start_index = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk->graphics_ob->mesh_data->batches[1].prim_start_offset_B / index_type_size_B) : 0;
+			const size_t chunk_batch_1_end_index   = (chunk->graphics_ob->mesh_data->batches.size() >= 2) ? (chunk_batch_1_start_index + chunk->graphics_ob->mesh_data->batches[1].num_indices) : 0;
+
+			// If the object sub-chunk vertex indices ranges are valid (e.g. in bounds of original chunk mesh): (Note that an empty range is considered valid)
+			const bool batch0_valid = !ob_batch0_nonempty || ((ob->chunk_batch0_start >= chunk_batch_0_start_index) && (ob->chunk_batch0_end <= chunk_batch_0_end_index));
+			const bool batch1_valid = !ob_batch1_nonempty || ((ob->chunk_batch1_start >= chunk_batch_1_start_index) && (ob->chunk_batch1_end <= chunk_batch_1_end_index));
+
+			if(batch0_valid && batch1_valid)
+			{
+				ob->opengl_engine_ob = opengl_engine->allocateObject();
+				ob->opengl_engine_ob->mesh_data = chunk->graphics_ob->mesh_data; // Share the chunk's mesh data
+				ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::identity();
+						
+				ob->opengl_engine_ob->materials = chunk->graphics_ob->materials;
+
+				int new_num_batches = 0;
+				if(ob->chunk_batch0_end > ob->chunk_batch0_start) // If batch 0 range is non-empty:
+					new_num_batches++;
+				if(ob->chunk_batch1_end > ob->chunk_batch1_start) // If batch 1 range is non-empty:
+					new_num_batches++;
+				assert(new_num_batches > 0);
+
+				ob->opengl_engine_ob->use_batches.resizeNoCopy(new_num_batches);
+
+				if(ob_batch0_nonempty) // If batch 0 range is non-empty:
+				{
+					ob->opengl_engine_ob->use_batches[0].material_index = 0;
+					ob->opengl_engine_ob->use_batches[0].prim_start_offset_B = ob->chunk_batch0_start * index_type_size_B;
+					ob->opengl_engine_ob->use_batches[0].num_indices         = ob->chunk_batch0_end - ob->chunk_batch0_start;
+				}
+
+				if(ob_batch1_nonempty) // If batch 1 range is non-empty:
+				{
+					ob->opengl_engine_ob->use_batches.back().material_index = 1;
+					ob->opengl_engine_ob->use_batches.back().prim_start_offset_B = ob->chunk_batch1_start * index_type_size_B;
+					ob->opengl_engine_ob->use_batches.back().num_indices         = ob->chunk_batch1_end - ob->chunk_batch1_start;
+				}
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
+
+				ob->using_placeholder_model = true;
+			}
+			else
+			{
+				conPrint("ERROR: invalid chunk sub-range");
+			}
+		}
+	}
+}
+
+
+static inline Vec4i chunkCoordsVec4iForObCentroid(const Vec4f& centroid)
+{
+	return floorToVec4i(centroid * Vec4f(recip_chunk_w));
+}
+
+
 void GUIClient::updateLODChunkGraphics()
 {
 	const Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
@@ -6951,7 +6974,7 @@ void GUIClient::updateLODChunkGraphics()
 			const bool should_show = shouldDisplayLODChunk(chunk->coords, campos);
 			if(!should_show)
 			{
-				// Hide
+				// Hide the chunk graphics object
 				if(chunk->graphics_ob_in_engine)
 				{
 					opengl_engine->removeObject(chunk->graphics_ob);
@@ -6960,11 +6983,35 @@ void GUIClient::updateLODChunkGraphics()
 						opengl_engine->removeObject(chunk->diagnostics_gl_ob);
 
 					chunk->graphics_ob_in_engine = false;
+
+					// Iterate over all objects, if they are in the chunk we just hid, then assign chunk placeholder sub-meshes to them.
+					{
+						//Timer timer;
+						const Vec4i chunk_coords = Vec4i(chunk->coords.x, chunk->coords.y, chunk->coords.z, 0);
+
+						glare::FastIterMapValueInfo<UID, WorldObjectRef>* const objects_data = this->world_state->objects.vector.data();
+						const size_t objects_size                                            = this->world_state->objects.vector.size();
+
+						for(size_t i = 0; i<objects_size; ++i)
+						{
+							if(i + 16 < objects_size)
+								_mm_prefetch((const char*)(&objects_data[i + 16].value->centroid_ws), _MM_HINT_T0);
+
+							WorldObject* const ob = objects_data[i].value.ptr();
+
+							// Get the chunk this object is in, if any
+							const Vec4f centroid = ob->getCentroidWS();
+							const Vec4i ob_chunk_coords = chunkCoordsVec4iForObCentroid(centroid);
+							if(ob_chunk_coords == chunk_coords)
+								assignLODChunkSubMeshPlaceholderToOb(chunk, ob);
+						}
+						//conPrint("updateLODChunkGraphics(): assigning chunk placeholders took " + timer.elapsedStringMS());
+					}
 				}
 			}
 			else
 			{
-				// show
+				// Show the chunk graphics object
 				if(!chunk->graphics_ob_in_engine)
 				{
 					opengl_engine->addObject(chunk->graphics_ob);
