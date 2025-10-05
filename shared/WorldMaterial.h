@@ -30,8 +30,8 @@ struct ScalarVal
 	ScalarVal() : val(0.0f) {}
 	explicit ScalarVal(const float v) : val(v) {}
 
-	void appendDependencyURLs(bool tex_use_sRGB, int material_min_lod_level, int lod_level, std::vector<DependencyURL>& paths_out) const;
-	void appendDependencyURLsAllLODLevels(bool tex_use_sRGB, int material_min_lod_level, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLs(bool tex_use_sRGB, bool use_basis, int material_min_lod_level, int lod_level, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLsAllLODLevels(bool tex_use_sRGB, bool use_basis, int material_min_lod_level, std::vector<DependencyURL>& paths_out) const;
 	void appendDependencyURLsBaseLevel(bool tex_use_sRGB, std::vector<DependencyURL>& paths_out) const;
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
