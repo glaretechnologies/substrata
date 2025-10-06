@@ -279,7 +279,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 
 	if(options.include_lightmaps && !lightmap_url.empty())
 	{
-		DependencyURL dependency_url(getLODLightmapURL(lightmap_url, ob_lod_level));
+		DependencyURL dependency_url(getLODLightmapURLForLevel(lightmap_url, ob_lod_level));
 		dependency_url.is_lightmap = true;
 		URLs_out.push_back(dependency_url);
 	}
@@ -317,7 +317,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions
 	if(!lightmap_url.empty())
 		for(int lvl=0; lvl<=2; ++lvl)
 		{
-			DependencyURL dependency_url(getLODLightmapURL(lightmap_url, lvl));
+			DependencyURL dependency_url(getLODLightmapURLForLevel(lightmap_url, lvl));
 			dependency_url.is_lightmap = true;
 			URLs_out.push_back(dependency_url);
 		}
