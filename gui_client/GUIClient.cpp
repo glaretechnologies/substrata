@@ -1639,11 +1639,11 @@ static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat
 }
 
 
-static Reference<OpenGLTexture> getBestLightmapLOD(const std::string& base_lightmap_path, OpenGLEngine& opengl_engine)
+static Reference<OpenGLTexture> getBestLightmapLOD(const OpenGLTextureKey& base_lightmap_path, OpenGLEngine& opengl_engine)
 {
 	for(int lvl=0; lvl<=2; ++lvl)
 	{
-		const OpenGLTextureKey tex_lod_path = OpenGLTextureKey(WorldObject::getLODLightmapURLForLevel(toURLString(base_lightmap_path), lvl));
+		const OpenGLTextureKey tex_lod_path = WorldObject::getLODLightmapPathForLevel(base_lightmap_path, lvl);
 		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(tex_lod_path);
 		if(tex.nonNull())
 			return tex;
@@ -1743,7 +1743,14 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 				{
 					OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(opengl_mat.lightmap_path);
 					if(!new_tex) // If this texture is not loaded into the OpenGL engine:
-						new_tex = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
+					{
+						// Get local base tex path for lightmap URL
+						glare::STLArenaAllocator<char> stl_allocator(allocator);
+						OpenGLTextureKey base_tex_path(stl_allocator);
+						resource_manager.getTexPathForURL(ob->lightmap_url, /*path out=*/base_tex_path);
+
+						new_tex = getBestLightmapLOD(base_tex_path, opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
+					}
 
 					if(new_tex != opengl_mat.lightmap_texture)
 					{

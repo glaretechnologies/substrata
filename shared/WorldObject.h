@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <physics/jscol_aabbox.h>
 #include <indigo/DiscreteDistribution.h>
 #if GUI_CLIENT
+#include <opengl/OpenGLTexture.h>
 //#include "../gui_client/MeshManager.h"
 //#include <graphics/ImageMap.h>
 #endif
@@ -167,6 +168,9 @@ public:
 	static URLString getLODModelURLForLevel(const URLString& base_model_url, int level, const GetLODModelURLOptions& options);
 	static int getLODLevelForURL(const URLString& URL); // Identifies _lod1 etc. suffix.
 	static URLString getLODLightmapURLForLevel(const URLString& base_lightmap_url, int level);
+#if GUI_CLIENT
+	static OpenGLTextureKey getLODLightmapPathForLevel(const OpenGLTextureKey& base_lightmap_path, int level);
+#endif
 	static URLString makeOptimisedMeshURL(const URLString& base_model_url, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* allocator = nullptr);
 
 	inline int getLODLevel(const Vec3d& campos) const;
