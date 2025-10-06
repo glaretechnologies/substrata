@@ -81,7 +81,7 @@ private:
 	std::string base_dir_path;
 	std::vector<std::string> models;
 
-	std::string last_url;
+	URLString last_url;
 
 	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue; // From threads
 	ThreadManager thread_manager; // For NetDownloadResourcesThread

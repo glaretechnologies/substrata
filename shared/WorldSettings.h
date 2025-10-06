@@ -22,17 +22,17 @@ struct TerrainSpecSection
 {
 	int x, y; // section coordinates.  (0,0) is section centered on world origin.
 
-	std::string heightmap_URL;
-	std::string mask_map_URL;
-	std::string tree_mask_map_URL;
+	URLString heightmap_URL;
+	URLString mask_map_URL;
+	URLString tree_mask_map_URL;
 };
 
 struct TerrainSpec
 {
 	std::vector<TerrainSpecSection> section_specs;
 
-	std::string detail_col_map_URLs[4];
-	std::string detail_height_map_URLs[4];
+	URLString detail_col_map_URLs[4];
+	URLString detail_height_map_URLs[4];
 
 	float terrain_section_width_m;
 	float water_z;

@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "../shared/ResourceManager.h"
+#include "../shared/URLString.h"
 #include "DownloadingResourceQueue.h"
 #include "WorldState.h"
 #include <MySocket.h>
@@ -30,8 +31,8 @@ class DownloadingResourceQueue;
 class ResourceDownloadedMessage : public ThreadMessage
 {
 public:
-	ResourceDownloadedMessage(const std::string& URL_, const ResourceRef& resource_) : URL(URL_), resource(resource_) {}
-	std::string URL;
+	ResourceDownloadedMessage(const URLString& URL_, const ResourceRef& resource_) : URL(URL_), resource(resource_) {}
+	URLString URL;
 	ResourceRef resource;
 
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, where we will load directly into memory instead of to disk.

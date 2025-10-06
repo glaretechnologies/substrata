@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
+#include "../shared/URLString.h"
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
 #include <opengl/ui/GLUICallbackHandler.h>
@@ -31,7 +32,7 @@ struct MapTile
 
 struct MapTileInfo
 {
-	std::string image_URL;
+	URLString image_URL;
 };
 
 
@@ -66,7 +67,7 @@ public:
 
 	void handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMessage& msg);
 
-	void handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex);
+	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex);
 private:
 	void setWidgetVisibilityForExpanded();
 	void checkUpdateTilesForCurCamPosition();
@@ -102,5 +103,5 @@ private:
 
 	OpenGLTextureRef tile_placeholder_tex;
 
-	std::unordered_map<std::string, Vec3i> loading_texture_URL_to_tile_indices_map;
+	std::unordered_map<URLString, Vec3i> loading_texture_URL_to_tile_indices_map;
 };

@@ -27,7 +27,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <tracy/Tracy.hpp>
 
 
-LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource_,
+LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const OpenGLTextureKey& path_, const ResourceRef& resource_,
 	const TextureParams& tex_params_, bool is_terrain_map_, const Reference<glare::Allocator>& worker_allocator_, Reference<glare::FastPoolAllocator>& texture_loaded_msg_allocator_, const Reference<OpenGLUploadThread>& upload_thread_)
 :	opengl_engine(opengl_engine_), resource_manager(resource_manager_), result_msg_queue(result_msg_queue_), path(path_), resource(resource_), tex_params(tex_params_), is_terrain_map(is_terrain_map_), 
 	worker_allocator(worker_allocator_), texture_loaded_msg_allocator(texture_loaded_msg_allocator_), upload_thread(upload_thread_)
@@ -45,7 +45,7 @@ void LoadTextureTask::run(size_t thread_index)
 		{
 			// conPrint("LoadTextureTask: processing texture '" + path + "'");
 
-			const std::string& key = this->path;
+			const OpenGLTextureKey& key = this->path;
 
 
 			runtimeCheck(resource.nonNull() && resource_manager.nonNull());
@@ -68,7 +68,7 @@ void LoadTextureTask::run(size_t thread_index)
 				ImageDecoding::ImageDecodingOptions options;
 				options.ETC_support = opengl_engine->texture_compression_ETC_support;
 
-				map = ImageDecoding::decodeImageFromBuffer(/*base dir path (not used)=*/".", key, texture_data_buffer, worker_allocator.ptr(), options);
+				map = ImageDecoding::decodeImageFromBuffer(/*base dir path (not used)=*/".", std::string(key), texture_data_buffer, worker_allocator.ptr(), options);
 			}
 
 #if USE_TEXTURE_VIEWS // NOTE: USE_TEXTURE_VIEWS is defined in opengl/TextureAllocator.h
@@ -116,7 +116,7 @@ void LoadTextureTask::run(size_t thread_index)
 
 			if(hasExtension(key, "gif") && texture_data->totalCPUMemUsage() > 100000000)
 			{
-				conPrint("Large gif texture data: " + toString(texture_data->totalCPUMemUsage()) + " B, " + key);
+				conPrint("Large gif texture data: " + toString(texture_data->totalCPUMemUsage()) + " B, " + std::string(key));
 			}
 
 			if(upload_thread)
@@ -168,12 +168,12 @@ void LoadTextureTask::run(size_t thread_index)
 		}
 		catch(ImFormatExcep& e)
 		{
-			result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': " + e.what()));
+			result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + std::string(path) + "': " + e.what()));
 			return;
 		}
 		catch(glare::Exception& e)
 		{
-			result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': " + e.what()));
+			result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + std::string(path) + "': " + e.what()));
 			return;
 		}
 		catch(std::bad_alloc&)
@@ -184,5 +184,5 @@ void LoadTextureTask::run(size_t thread_index)
 	}
 
 	// We tried N times but each time we got an LimitedAllocatorAllocFailed exception.
-	result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': failed after multiple LimitedAllocatorAllocFailed"));
+	result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + std::string(path) + "': failed after multiple LimitedAllocatorAllocFailed"));
 }

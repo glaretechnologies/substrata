@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
+#include <opengl/OpenGLTexture.h>
 #include <utils/RefCounted.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Reference.h>
@@ -63,7 +64,7 @@ struct AnimatedTexObData : public RefCounted
 
 private:
 	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
+		OpenGLMaterial& mat, AnimatedTexData& animation_data, const OpenGLTextureKey& tex_path, bool is_refl_tex);
 };
 
 
@@ -120,7 +121,7 @@ public:
 	void checkAddTextureUse(const Reference<OpenGLTexture>& tex, Reference<GLObject> ob, size_t mat_index);
 	void removeTextureUse(const Reference<OpenGLTexture>& tex, Reference<GLObject> ob, size_t mat_index);
 
-	std::map<std::string, Reference<AnimatedTexInfo>> tex_info;
+	std::map<OpenGLTextureKey, Reference<AnimatedTexInfo>> tex_info;
 
 	int last_num_textures_visible_and_close;
 };

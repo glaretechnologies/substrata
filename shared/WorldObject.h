@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <utils/SharedImmutableArray.h>
 #include <utils/AllocatorVector.h>
 #include <utils/DatabaseKey.h>
+#include <utils/STLArenaAllocator.h>
 #include <maths/vec3.h>
 #include <maths/Quat.h>
 #include <physics/jscol_aabbox.h>
@@ -36,6 +37,7 @@ class RandomAccessInStream;
 class RandomAccessOutStream;
 namespace glare { class AudioSource; }
 namespace glare { class FastPoolAllocator; }
+namespace glare { class ArenaAllocator; }
 namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
@@ -156,15 +158,16 @@ public:
 
 	struct GetLODModelURLOptions
 	{
-		GetLODModelURLOptions(bool get_optimised_mesh_, int opt_mesh_version_) : get_optimised_mesh(get_optimised_mesh_), opt_mesh_version(opt_mesh_version_) {}
+		GetLODModelURLOptions(bool get_optimised_mesh_, int opt_mesh_version_) : get_optimised_mesh(get_optimised_mesh_), opt_mesh_version(opt_mesh_version_), allocator(nullptr) {}
 		bool get_optimised_mesh;
 		int opt_mesh_version;
+		glare::ArenaAllocator* allocator;
 	};
 
-	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level, const GetLODModelURLOptions& options);
-	static int getLODLevelForURL(const std::string& URL); // Identifies _lod1 etc. suffix.
-	static std::string getLODLightmapURL(const std::string& base_lightmap_url, int level);
-	static std::string makeOptimisedMeshURL(const std::string& base_model_url, int lod_level, bool get_optimised_mesh, int opt_mesh_version);
+	static URLString getLODModelURLForLevel(const URLString& base_model_url, int level, const GetLODModelURLOptions& options);
+	static int getLODLevelForURL(const URLString& URL); // Identifies _lod1 etc. suffix.
+	static URLString getLODLightmapURLForLevel(const URLString& base_lightmap_url, int level);
+	static URLString makeOptimisedMeshURL(const URLString& base_model_url, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* allocator = nullptr);
 
 	inline int getLODLevel(const Vec3d& campos) const;
 	inline int getLODLevel(const Vec4f& campos) const;
@@ -172,24 +175,27 @@ public:
 	inline int getLODLevel(float cam_to_ob_d2) const;
 	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
-	std::string getLODModelURL(const Vec3d& campos, const GetLODModelURLOptions& options) const; // Using lod level clamped to max_model_lod_level
+	URLString getLODModelURL(const Vec3d& campos, const GetLODModelURLOptions& options) const; // Using lod level clamped to max_model_lod_level
 
 	// Sometimes we are not interested in all dependencies, such as lightmaps.  So make returning those optional.
 	struct GetDependencyOptions
 	{
-		GetDependencyOptions() : include_lightmaps(true), use_basis(true), get_optimised_mesh(false), opt_mesh_version(-1) {}
+		GetDependencyOptions() : include_lightmaps(true), use_basis(true), get_optimised_mesh(false), opt_mesh_version(-1), allocator(nullptr) {}
 		bool include_lightmaps;
 		bool use_basis;
 		bool get_optimised_mesh;
 		int opt_mesh_version;
+		glare::ArenaAllocator* allocator;
 	};
-	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
-	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
-	void appendDependencyURLsBaseLevel(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
+	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, DependencyURLVector& URLs_out) const;
+	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, DependencyURLVector& URLs_out) const;
+	void appendDependencyURLsBaseLevel(const GetDependencyOptions& options, DependencyURLVector& URLs_out) const;
 
-	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
-	void getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
-	void getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
+	
+
+	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, DependencyURLSet& URLS_out) const;
+	void getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, DependencyURLSet& URLS_out) const;
+	void getDependencyURLSetBaseLevel(const GetDependencyOptions& options, DependencyURLSet& URLS_out) const;
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
@@ -294,9 +300,9 @@ public:
 	static const size_t MAX_CONTENT_SIZE                  = 10000;
 	
 
-	std::string model_url;
+	URLString model_url;
 	std::vector<WorldMaterialRef> materials;
-	std::string lightmap_url;
+	URLString lightmap_url;
 	std::string script;
 	std::string content; // For ObjectType_Hypercard, ObjectType_Text
 	std::string target_url;
@@ -347,7 +353,7 @@ public:
 #if GUI_CLIENT
 	Reference<glare::AudioSource> audio_source;
 #endif
-	std::string audio_source_url;
+	URLString audio_source_url;
 	float audio_volume;
 
 	enum State

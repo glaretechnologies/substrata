@@ -7,6 +7,9 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "DependencyURL.h"
+#if GUI_CLIENT
+#include <opengl/OpenGLTexture.h>
+#endif
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <BitUtils.h>
@@ -23,6 +26,7 @@ class RandomAccessInStream;
 class RandomAccessOutStream;
 namespace pugi { class xml_node; }
 namespace glare { class Allocator; }
+namespace glare { class ArenaAllocator; }
 
 
 struct ScalarVal
@@ -30,9 +34,19 @@ struct ScalarVal
 	ScalarVal() : val(0.0f) {}
 	explicit ScalarVal(const float v) : val(v) {}
 
-	void appendDependencyURLs(bool tex_use_sRGB, bool use_basis, int material_min_lod_level, int lod_level, std::vector<DependencyURL>& paths_out) const;
-	void appendDependencyURLsAllLODLevels(bool tex_use_sRGB, bool use_basis, int material_min_lod_level, std::vector<DependencyURL>& paths_out) const;
-	void appendDependencyURLsBaseLevel(bool tex_use_sRGB, std::vector<DependencyURL>& paths_out) const;
+	struct GetURLOptions
+	{
+		GetURLOptions(bool tex_use_sRGB_, bool use_basis_, int material_min_lod_level_, glare::ArenaAllocator* arena_allocator_) 
+			:	tex_use_sRGB(tex_use_sRGB_), use_basis(use_basis_), material_min_lod_level(material_min_lod_level_), arena_allocator(arena_allocator_) {}
+		bool tex_use_sRGB;
+		bool use_basis;
+		int material_min_lod_level;
+		glare::ArenaAllocator* arena_allocator;
+	};
+
+	void appendDependencyURLs(const GetURLOptions& options, int lod_level, DependencyURLVector& paths_out) const;
+	void appendDependencyURLsAllLODLevels(const GetURLOptions& options, DependencyURLVector& paths_out) const;
+	void appendDependencyURLsBaseLevel(const GetURLOptions& options, DependencyURLVector& paths_out) const;
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
@@ -44,7 +58,7 @@ struct ScalarVal
 	}
 
 	float val;
-	std::string texture_url;
+	URLString texture_url;
 };
 
 
@@ -64,12 +78,12 @@ public:
 	// NOTE: If adding new member variables, make sure to add to clone() and operator ==() below.
 
 	Colour3f colour_rgb; // Non-linear sRGB
-	std::string colour_texture_url;
+	URLString colour_texture_url;
 
 	Colour3f emission_rgb; // Non-linear sRGB
-	std::string emission_texture_url;
+	URLString emission_texture_url;
 
-	std::string normal_map_url;
+	URLString normal_map_url;
 
 	ScalarVal roughness; // Metallic-roughness texture URL will be stored in roughness.texture_url.
 	ScalarVal metallic_fraction;
@@ -132,12 +146,21 @@ public:
 			flags == b.flags;
 	}
 
-	std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha, bool use_basis) const;
+	struct GetURLOptions
+	{
+		GetURLOptions(bool use_basis_, glare::ArenaAllocator* arena_allocator_) : use_basis(use_basis_), arena_allocator(arena_allocator_) {}
+		bool use_basis;
+		glare::ArenaAllocator* arena_allocator;
+	};
 
+	URLString getLODTextureURLForLevel(const GetURLOptions& options, const URLString& base_texture_url, int level, bool has_alpha) const;
+#if GUI_CLIENT
+	OpenGLTextureKey getLODTexturePathForLevel(const GetURLOptions& options, const OpenGLTextureKey& base_texture_path, int level, bool has_alpha) const;
+#endif
 
-	void appendDependencyURLs(int lod_level, bool use_basis, std::vector<DependencyURL>& paths_out) const;
-	void appendDependencyURLsAllLODLevels(bool use_basis, std::vector<DependencyURL>& paths_out) const;
-	void appendDependencyURLsBaseLevel(bool use_basis, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLs(const GetURLOptions& options, int lod_level, DependencyURLVector& paths_out) const;
+	void appendDependencyURLsAllLODLevels(const GetURLOptions& options, DependencyURLVector& paths_out) const;
+	void appendDependencyURLsBaseLevel(const GetURLOptions& options, DependencyURLVector& paths_out) const;
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 

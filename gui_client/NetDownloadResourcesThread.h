@@ -29,8 +29,8 @@ class HTTPClient;
 class DownloadResourceMessage : public ThreadMessage
 {
 public:
-	DownloadResourceMessage(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
+	DownloadResourceMessage(const URLString& URL_) : URL(URL_) {}
+	URLString URL;
 
 	glare::AtomicInt processed; // zero if not processed (being downloaded) yet.
 };

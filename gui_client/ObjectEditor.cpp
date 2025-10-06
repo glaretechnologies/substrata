@@ -417,11 +417,16 @@ static void checkStringSize(std::string& s, size_t max_size)
 	if(s.size() > max_size)
 		s = s.substr(0, max_size);
 }
-
+static void checkStringSize(URLString& s, size_t max_size)
+{
+	// TODO: throw exception instead?
+	if(s.size() > max_size)
+		s = s.substr(0, max_size);
+}
 
 void ObjectEditor::toObject(WorldObject& ob_out)
 {
-	const std::string new_model_url = QtUtils::toIndString(this->modelFileSelectWidget->filename());
+	const URLString new_model_url = toURLString(QtUtils::toIndString(this->modelFileSelectWidget->filename()));
 	if(ob_out.model_url != new_model_url)
 		ob_out.changed_flags |= WorldObject::MODEL_URL_CHANGED;
 	ob_out.model_url = new_model_url;
@@ -520,7 +525,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		updateSpotlightColourButton();
 	}
 
-	const std::string new_audio_source_url = QtUtils::toStdString(this->audioFileWidget->filename());
+	const URLString new_audio_source_url = toURLString(QtUtils::toStdString(this->audioFileWidget->filename()));
 	if(ob_out.audio_source_url != new_audio_source_url)
 		ob_out.changed_flags |= WorldObject::AUDIO_SOURCE_URL_CHANGED;
 	ob_out.audio_source_url = new_audio_source_url;

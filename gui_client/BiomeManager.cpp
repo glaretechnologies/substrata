@@ -37,10 +37,10 @@ void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_worl
 
 void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
-	const std::string quad_mesh_URL = "Quad_obj_17249492137259942610.bmesh";
+	const URLString quad_mesh_URL = "Quad_obj_17249492137259942610.bmesh";
 	if(resource_manager.getExistingResourceForURL(quad_mesh_URL).isNull())
 	{
-		ResourceRef resource = new Resource(quad_mesh_URL, /*local (abs) path=*/resources_dir_path + "/" + quad_mesh_URL, Resource::State_Present, UserID(), /*external_resource=*/true);
+		ResourceRef resource = new Resource(quad_mesh_URL, /*local (abs) path=*/resources_dir_path + "/" + toStdString(quad_mesh_URL), Resource::State_Present, UserID(), /*external_resource=*/true);
 		resource_manager.addResource(resource);
 	}
 

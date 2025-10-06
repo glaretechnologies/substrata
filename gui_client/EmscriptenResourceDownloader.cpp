@@ -134,7 +134,7 @@ void EmscriptenResourceDownloader::onResourceError(Reference<CurrentlyDownloadin
 	//resource->setState(Resource::State_NotPresent);
 
 	//conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "'");// (Result=" + toString(result) + ")");
-	out_msg_queue->enqueue(new LogMessage("Server couldn't send resource '" + downloading_resource->URL + "' (resource not found)")); // Send message back to GUIClient
+	out_msg_queue->enqueue(new LogMessage("Server couldn't send resource '" + std::string(downloading_resource->URL.begin(), downloading_resource->URL.end()) + "' (resource not found)")); // Send message back to GUIClient
 }
 
 
@@ -157,7 +157,7 @@ void EmscriptenResourceDownloader::think()
 			{
 				if(!resource_manager->isInDownloadFailedURLs(item.URL)) // Don't try to re-download if we already failed to download this session.
 				{
-					const std::string URL = item.URL;
+					const URLString URL = item.URL;
 					ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
 					// conPrint("EmscriptenResourceDownloader: considering URL " + URL + "...");
@@ -173,7 +173,7 @@ void EmscriptenResourceDownloader::think()
 
 							(*this->num_resources_downloading)++;
 
-							const std::string http_URL = "/resource/" + URL;
+							const URLString http_URL = "/resource/" + URL;
 					
 							// conPrint("Calling emscripten_async_wget2_data for URL '" + http_URL + "'...");
 #if EMSCRIPTEN

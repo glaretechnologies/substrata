@@ -59,8 +59,8 @@ public:
 class GetFileMessage : public ThreadMessage
 {
 public:
-	GetFileMessage(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
+	GetFileMessage(const URLString& URL_) : URL(URL_) {}
+	URLString URL;
 };
 
 
@@ -68,8 +68,8 @@ public:
 class NewResourceOnServerMessage : public ThreadMessage
 {
 public:
-	NewResourceOnServerMessage(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
+	NewResourceOnServerMessage(const URLString& URL_) : URL(URL_) {}
+	URLString URL;
 };
 
 
@@ -218,7 +218,7 @@ class MapTilesResultReceivedMessage : public ThreadMessage
 public:
 	MapTilesResultReceivedMessage() {}
 	std::vector<Vec3i> tile_indices;
-	std::vector<std::string> tile_URLS;
+	std::vector<URLString> tile_URLS;
 };
 
 

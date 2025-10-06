@@ -33,7 +33,7 @@ class ModelLoading
 {
 public:
 	static void setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat);
-	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const std::string& lightmap_url, bool use_basis, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
+	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const URLString& lightmap_url, bool use_basis, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
 
 
 	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);
@@ -42,7 +42,7 @@ public:
 
 	inline static bool isSupportedModelExtension(string_view extension);
 
-	inline static bool hasSupportedModelExtension(const std::string& path);
+	inline static bool hasSupportedModelExtension(const string_view path);
 
 	// Load a model file from disk.
 	// Also load associated material information from the model file.
@@ -82,10 +82,10 @@ public:
 
 
 	static GLObjectRef makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_engine, const Reference<OpenGLMeshRenderData> gl_meshdata, /*size_t num_materials_referenced, */int ob_lod_level, const std::vector<WorldMaterialRef>& materials, 
-		const std::string& lightmap_url, bool use_basis, ResourceManager& resource_manager, const Matrix4f& ob_to_world_matrix);
+		const URLString& lightmap_url, bool use_basis, ResourceManager& resource_manager, const Matrix4f& ob_to_world_matrix);
 
 	static void setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_level, const std::vector<WorldMaterialRef>& materials,
-		const std::string& lightmap_url, bool use_basis, ResourceManager& resource_manager);
+		const URLString& lightmap_url, bool use_basis, ResourceManager& resource_manager);
 
 
 	// Build OpenGLMeshRenderData and Physics shape from a mesh on disk identified by lod_model_path.
@@ -121,7 +121,7 @@ bool ModelLoading::isSupportedModelExtension(string_view extension)
 }
 
 
-bool ModelLoading::hasSupportedModelExtension(const std::string& path)
+bool ModelLoading::hasSupportedModelExtension(const string_view path)
 {
 	const string_view extension = getExtensionStringView(path);
 

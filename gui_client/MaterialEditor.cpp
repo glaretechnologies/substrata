@@ -129,7 +129,7 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 }
 
 
-static void checkStringSize(std::string& s, size_t max_size)
+static void checkStringSize(URLString& s, size_t max_size)
 {
 	// TODO: throw exception instead?
 	if(s.size() > max_size)

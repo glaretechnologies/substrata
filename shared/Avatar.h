@@ -39,7 +39,7 @@ namespace glare { class AudioSource; }
 
 struct AvatarSettings
 {
-	std::string model_url;
+	URLString model_url;
 	std::vector<WorldMaterialRef> materials;
 	Matrix4f pre_ob_to_world_matrix; // For y-up to z-up transformation, and translating so feet are on ground etc..
 
@@ -72,7 +72,7 @@ public:
 		int opt_mesh_version;
 	};
 
-	std::string getLODModelURLForLevel(const std::string& base_model_url, int level, const GetLODModelURLOptions& options) const;
+	URLString getLODModelURLForLevel(const URLString& base_model_url, int level, const GetLODModelURLOptions& options) const;
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 
 	struct GetDependencyOptions
@@ -82,13 +82,13 @@ public:
 		bool get_optimised_mesh;
 		int opt_mesh_version;
 	};
-	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out);
-	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out);
-	void appendDependencyURLsBaseLevel(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
+	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, DependencyURLVector& URLs_out);
+	void appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, DependencyURLVector& URLs_out);
+	void appendDependencyURLsBaseLevel(const GetDependencyOptions& options, DependencyURLVector& URLs_out) const;
 	
-	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out);
-	void getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out);
-	void getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
+	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, DependencyURLSet& URLS_out);
+	void getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, DependencyURLSet& URLS_out);
+	void getDependencyURLSetBaseLevel(const GetDependencyOptions& options, DependencyURLSet& URLS_out) const;
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 

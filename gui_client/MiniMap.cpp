@@ -457,7 +457,7 @@ void MiniMap::checkUpdateTilesForCurCamPosition()
 								tile.ob->material.tex_matrix = Matrix2f(scale, 0, 0, -scale);  // See diagrams below for explanation
 								tile.ob->material.tex_translation = Vec2f(lower_left_coords.x, 1 - lower_left_coords.y);
 
-								const std::string local_path = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
+								const OpenGLTextureKey local_path = OpenGLTextureKey(gui_client->resource_manager->getLocalAbsPathForResource(*resource));
 
 								OpenGLTextureRef tile_tex = opengl_engine->getTextureIfLoaded(local_path);
 								if(tile_tex)
@@ -609,7 +609,7 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 		auto res = tile_infos.find(indices);
 		if(res == tile_infos.end())
 		{
-			const std::string& URL = msg.tile_URLS[i];
+			const URLString& URL = msg.tile_URLS[i];
 			MapTileInfo info;
 			info.image_URL = URL;
 			tile_infos[indices] = info;
@@ -656,7 +656,7 @@ void MiniMap::handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMe
 }
 
 
-void MiniMap::handleUploadedTexture(const std::string& path, const std::string& URL, const OpenGLTextureRef& opengl_tex)
+void MiniMap::handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex)
 {
 	ZoneScoped; // Tracy profiler
 

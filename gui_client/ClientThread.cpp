@@ -1054,8 +1054,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::GetFile:
 		{
-			const std::string model_url = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-			conPrint("Received GetFile message from server, model_url: '" + model_url + "'");
+			const URLString model_url = toURLString(msg_buffer.readStringLengthFirst(MAX_STRING_LEN));
+			conPrint("Received GetFile message from server, model_url: '" + toStdString(model_url) + "'");
 
 			out_msg_queue->enqueue(new GetFileMessage(model_url));
 			break;
@@ -1063,7 +1063,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 	case Protocol::NewResourceOnServer:
 		{
 			//conPrint("Received NewResourceOnServer message from server.");
-			const std::string url = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+			const URLString url = toURLString(msg_buffer.readStringLengthFirst(MAX_STRING_LEN));
 			//conPrint("url: '" + url + "'");
 
 			out_msg_queue->enqueue(new NewResourceOnServerMessage(url));

@@ -39,17 +39,17 @@ struct TerrainPathSpecSection
 {
 	int x, y; // section coordinates.  (0,0) is section centered on world origin.
 
-	std::string heightmap_path;
-	std::string mask_map_path;
-	std::string tree_mask_map_path;
+	OpenGLTextureKey heightmap_path;
+	OpenGLTextureKey mask_map_path;
+	OpenGLTextureKey tree_mask_map_path;
 };
 
 struct TerrainPathSpec
 {
 	std::vector<TerrainPathSpecSection> section_specs;
 
-	std::string detail_col_map_paths[4];
-	std::string detail_height_map_paths[4];
+	OpenGLTextureKey detail_col_map_paths[4];
+	OpenGLTextureKey detail_height_map_paths[4];
 
 	float terrain_section_width_m;
 	float default_terrain_z;
@@ -61,9 +61,9 @@ struct TerrainPathSpec
 
 struct TerrainDataSection
 {
-	std::string heightmap_path;
-	std::string mask_map_path;
-	std::string tree_mask_map_path;
+	OpenGLTextureKey heightmap_path;
+	OpenGLTextureKey mask_map_path;
+	OpenGLTextureKey tree_mask_map_path;
 
 	Map2DRef heightmap;
 	OpenGLTextureRef heightmap_gl_tex;
@@ -162,9 +162,9 @@ public:
 	void shutdown();
 
 	// A texture that will be used by the terrain system has been loaded into OpenGL.
-	void handleTextureLoaded(const std::string& path, const Map2DRef& map);
+	void handleTextureLoaded(const OpenGLTextureKey& path, const Map2DRef& map);
 
-	bool isTextureUsedByTerrain(const std::string& path) const;
+	bool isTextureUsedByTerrain(const OpenGLTextureKey& path) const;
 
 	void handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg& msg);
 

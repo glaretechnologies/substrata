@@ -46,7 +46,7 @@ AnimatedTexData::~AnimatedTexData()
 
 
 void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-	OpenGLMaterial& mat, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
+	OpenGLMaterial& mat, AnimatedTexData& animtexdata, const OpenGLTextureKey& tex_path, bool is_refl_tex)
 {
 #if CEF_SUPPORT
 	if(!CEF::isInitialised())
@@ -486,7 +486,7 @@ std::string AnimatedTextureManager::diagnostics()
 		AnimatedTexInfo& info = *info_it->second;
 
 		if(info.original_tex)
-			s += info.original_tex->key + ": uses: " + toString(info.uses.size()) + "\n";
+			s += std::string(info.original_tex->key) + ": uses: " + toString(info.uses.size()) + "\n";
 	}
 	s += "----------------------------\n";
 	return s;

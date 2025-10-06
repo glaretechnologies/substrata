@@ -59,35 +59,35 @@ static std::string escapeString(const std::string& s)
 }
 
 
-const std::string ResourceManager::URLForNameAndExtensionAndHash(const std::string& name, const std::string& extension, uint64 hash)
+const URLString ResourceManager::URLForNameAndExtensionAndHash(const std::string& name, const std::string& extension, uint64 hash)
 {
-	return sanitiseString(name) + "_" + toString(hash) + "." + extension;
+	return toURLString(sanitiseString(name) + "_" + toString(hash) + "." + extension);
 }
 
 
 // For a path like "d:/audio/some.mp3", returns a URL like "some_473446464646.mp3"
-const std::string ResourceManager::URLForPathAndHash(const std::string& path, uint64 hash)
+const URLString ResourceManager::URLForPathAndHash(const std::string& path, uint64 hash)
 {
 	const std::string filename = FileUtils::getFilename(path);
 
 	const std::string extension = ::getExtension(filename);
 	
 	// NOTE: should really removeDotAndExtension() on filename below, but will change the file -> URL mapping, which will probably break something, or cause redundant uploads etc.
-	return sanitiseString(filename) + "_" + toString(hash) + "." + extension;
+	return toURLString(sanitiseString(filename) + "_" + toString(hash) + "." + extension);
 }
 
 
-const std::string ResourceManager::URLForPathAndHashAndEpoch(const std::string& path, uint64 hash, int epoch)
+const URLString ResourceManager::URLForPathAndHashAndEpoch(const std::string& path, uint64 hash, int epoch)
 {
 	const std::string filename = FileUtils::getFilename(path);
 
 	const std::string extension = ::getExtension(filename);
 
-	return sanitiseString(removeDotAndExtension(filename)) + "_" + toString(hash) + "_" + toString(epoch) + "." + extension;
+	return toURLString(sanitiseString(removeDotAndExtension(filename)) + "_" + toString(hash) + "_" + toString(epoch) + "." + extension);
 }
 
 
-bool ResourceManager::isValidURL(const std::string& URL)
+bool ResourceManager::isValidURL(const URLString& URL)
 {
 	//for(size_t i=0; i<URL.size(); ++i)
 	//	if(!(::isAlphaNumeric(URL[i]) || URL[i] == '_' || URL[i] == '.'))
@@ -97,9 +97,9 @@ bool ResourceManager::isValidURL(const std::string& URL)
 
 
 // Compute default local path for URL.
-const std::string ResourceManager::computeDefaultRawLocalPathForURL(const std::string& URL)
+const std::string ResourceManager::computeDefaultRawLocalPathForURL(const URLString& URL)
 {
-	const std::string raw_path = escapeString(URL);
+	const std::string raw_path = escapeString(toStdString(URL));
 
 	const std::string abs_path = this->base_resource_dir + "/" + raw_path;
 #ifdef WIN32
@@ -115,7 +115,7 @@ const std::string ResourceManager::computeDefaultRawLocalPathForURL(const std::s
 
 
 // Computes a path that doesn't contain the filename, just uses a hash of the filename.
-const std::string ResourceManager::computeRawLocalPathFromURLHash(const std::string& URL, const std::string& extension)
+const std::string ResourceManager::computeRawLocalPathFromURLHash(const URLString& URL, const std::string& extension)
 {
 	const uint64 hash = XXH64(URL.data(), URL.size(), /*seed=*/1);
 
@@ -129,25 +129,27 @@ const std::string ResourceManager::getLocalAbsPathForResource(const Resource& re
 }
 
 
-ResourceRef ResourceManager::getOrCreateResourceForURL(const std::string& URL) // Threadsafe
+ResourceRef ResourceManager::getOrCreateResourceForURL(const URLString& URL) // Threadsafe
 {
 	Lock lock(mutex);
 
 	auto res = resource_for_url.find(URL);
 	if(res == resource_for_url.end())
 	{
+		const URLString URL_copy(URL.begin(), URL.end()); // Copy to avoid allocating from arena allocator.
+		assert(URL_copy.get_allocator().arena_allocator == nullptr);
 		// Insert it
 		const std::string raw_local_path = computeDefaultRawLocalPathForURL(URL);
 		const std::string abs_path = this->base_resource_dir + "/" + raw_local_path;
 
 		ResourceRef resource = new Resource(
-			URL, 
+			URL_copy, 
 			raw_local_path,
 			Resource::State_NotPresent,
 			UserID::invalidUserID(),
 			/*external_resource=*/false
 		);
-		resource_for_url[URL] = resource;
+		resource_for_url[URL_copy] = resource;
 		this->changed = 1;
 		return resource;
 	}
@@ -159,7 +161,7 @@ ResourceRef ResourceManager::getOrCreateResourceForURL(const std::string& URL) /
 
 
 // Returns null reference if no resource object for URL inserted.
-ResourceRef ResourceManager::getExistingResourceForURL(const std::string& URL) // Threadsafe
+ResourceRef ResourceManager::getExistingResourceForURL(const URLString& URL) // Threadsafe
 {
 	Lock lock(mutex);
 
@@ -171,7 +173,7 @@ ResourceRef ResourceManager::getExistingResourceForURL(const std::string& URL) /
 }
 
 
-void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL) // Threadsafe
+void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, const URLString& URL) // Threadsafe
 {
 	std::string dest_path; // local resource path to copy to if resource is not present locally in resource dir.
 
@@ -198,10 +200,10 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 }
 
 
-std::string ResourceManager::copyLocalFileToResourceDirAndReturnURL(const std::string& local_path) // Threadsafe
+URLString ResourceManager::copyLocalFileToResourceDirAndReturnURL(const std::string& local_path) // Threadsafe
 {
 	const uint64 hash = FileChecksum::fileChecksum(local_path);
-	const std::string URL = ResourceManager::URLForPathAndHash(local_path, hash);
+	const URLString URL = ResourceManager::URLForPathAndHash(local_path, hash);
 
 	copyLocalFileToResourceDir(local_path, URL);
 
@@ -209,7 +211,7 @@ std::string ResourceManager::copyLocalFileToResourceDirAndReturnURL(const std::s
 }
 
 
-void ResourceManager::setResourceAsLocallyPresentForURL(const std::string& URL) // Threadsafe
+void ResourceManager::setResourceAsLocallyPresentForURL(const URLString& URL) // Threadsafe
 {
 	try
 	{
@@ -228,7 +230,7 @@ void ResourceManager::setResourceAsLocallyPresentForURL(const std::string& URL) 
 }
 
 
-const std::string ResourceManager::pathForURL(const std::string& URL)
+const std::string ResourceManager::pathForURL(const URLString& URL)
 {
 	Lock lock(mutex);
 
@@ -241,8 +243,17 @@ const std::string ResourceManager::pathForURL(const std::string& URL)
 	//return base_resource_dir + "/" + escapeString(URL);
 }
 
+void ResourceManager::getTexPathForURL(const URLString& URL, OpenGLTextureKey& path_out)
+{
+	Lock lock(mutex);
 
-bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws glare::Exception if URL is invalid.
+	ResourceRef resource = this->getOrCreateResourceForURL(URL);
+
+	resource->getLocalAbsTexPath(this->base_resource_dir, path_out);
+}
+
+
+bool ResourceManager::isFileForURLPresent(const URLString& URL) // Throws glare::Exception if URL is invalid.
 {
 	ResourceRef resource = this->getExistingResourceForURL(URL);
 	return resource.nonNull() && (resource->getState() == Resource::State_Present);
@@ -265,7 +276,7 @@ void ResourceManager::markAsChanged() // Thread-safe
 }
 
 
-void ResourceManager::addToDownloadFailedURLs(const std::string& URL)
+void ResourceManager::addToDownloadFailedURLs(const URLString& URL)
 {
 	// conPrint("addToDownloadFailedURLs: " + URL);
 	Lock lock(mutex);
@@ -273,14 +284,14 @@ void ResourceManager::addToDownloadFailedURLs(const std::string& URL)
 }
 
 
-void ResourceManager::removeFromDownloadFailedURLs(const std::string& URL)
+void ResourceManager::removeFromDownloadFailedURLs(const URLString& URL)
 {
 	Lock lock(mutex);
 	download_failed_URLs.erase(URL);
 }
 
 
-bool ResourceManager::isInDownloadFailedURLs(const std::string& URL) const
+bool ResourceManager::isInDownloadFailedURLs(const URLString& URL) const
 {
 	Lock lock(mutex);
 	return download_failed_URLs.count(URL) >= 1;

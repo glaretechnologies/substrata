@@ -8,6 +8,9 @@ Copyright Glare Technologies Limited 2024 -
 
 #include "DependencyURL.h"
 #include "TimeStamp.h"
+#if GUI_CLIENT
+#include <opengl/OpenGLTexture.h>
+#endif
 #include <maths/vec3.h>
 #include <maths/vec2.h>
 #include <utils/RandomAccessInStream.h>
@@ -40,13 +43,13 @@ public:
 
 	void copyNetworkStateFrom(const LODChunk& other);
 
-	const std::string computeMeshURL(bool use_optimised_meshes, int opt_mesh_version) const;
+	const URLString computeMeshURL(bool use_optimised_meshes, int opt_mesh_version) const;
 
-	const std::string& getMeshURL() const { return mesh_url; }
+	const URLString& getMeshURL() const { return mesh_url; }
 
 	Vec3i coords;
-	std::string mesh_url;
-	std::string combined_array_texture_url;
+	URLString mesh_url;
+	URLString combined_array_texture_url;
 	js::Vector<uint8> compressed_mat_info;
 	bool needs_rebuild; // Does the chunk mesh or texture need rebuilding due to an object change in the chunk?
 
@@ -54,7 +57,7 @@ public:
 #if GUI_CLIENT
 	Reference<GLObject> graphics_ob;
 	bool graphics_ob_in_engine;
-	std::string combined_array_texture_path;
+	OpenGLTextureKey combined_array_texture_path;
 
 	Reference<GLObject> diagnostics_gl_ob; // For diagnostics visualisation
 

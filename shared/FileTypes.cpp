@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "ImageDecoding.h"
 
 
-bool FileTypes::hasSupportedExtension(const std::string& path)
+bool FileTypes::hasSupportedExtension(const string_view path)
 {
 	return
 		ModelLoading::hasSupportedModelExtension(path) ||

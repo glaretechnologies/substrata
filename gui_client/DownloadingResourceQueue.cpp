@@ -25,7 +25,7 @@ DownloadingResourceQueue::~DownloadingResourceQueue()
 }
 
 
-void DownloadingResourceQueue::enqueueOrUpdateItem(/*const DownloadQueueItem& item*/const std::string& URL, const Vec4f& pos, float size_factor)
+void DownloadingResourceQueue::enqueueOrUpdateItem(/*const DownloadQueueItem& item*/const URLString& URL, const Vec4f& pos, float size_factor)
 {
 	assert(pos.isFinite());
 

@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2025 -
 #pragma once
 
 
+#include "../shared/URLString.h"
 #include <MessageableThread.h>
 #include <SocketInterface.h>
 #include <string>
@@ -14,9 +15,9 @@ struct tls_config;
 
 struct ResourceToUpload : public ThreadSafeRefCounted
 {
-	ResourceToUpload(const std::string& local_path_, const std::string& resource_URL_) : local_path(local_path_), resource_URL(resource_URL_) {}
+	ResourceToUpload(const std::string& local_path_, const URLString& resource_URL_) : local_path(local_path_), resource_URL(resource_URL_) {}
 	std::string local_path;
-	std::string resource_URL;
+	URLString resource_URL;
 };
 
 
