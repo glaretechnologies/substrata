@@ -316,6 +316,8 @@ ${UTILS_DIR}/SharedImmutableString.cpp
 ${UTILS_DIR}/SharedImmutableString.h
 ${UTILS_DIR}/SharedStringTable.cpp
 ${UTILS_DIR}/SharedStringTable.h
+${UTILS_DIR}/STLArenaAllocator.cpp
+${UTILS_DIR}/STLArenaAllocator.h
 )
 
 

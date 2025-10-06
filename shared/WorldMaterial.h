@@ -8,7 +8,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "DependencyURL.h"
 #if GUI_CLIENT
-#include <opengl/OpenGLTexture.h>
+#include <opengl/OpenGLTextureKey.h>
 #endif
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
