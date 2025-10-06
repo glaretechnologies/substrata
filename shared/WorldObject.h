@@ -23,7 +23,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <physics/jscol_aabbox.h>
 #include <indigo/DiscreteDistribution.h>
 #if GUI_CLIENT
-#include <opengl/OpenGLTexture.h>
+#include <opengl/OpenGLTextureKey.h>
 //#include "../gui_client/MeshManager.h"
 //#include <graphics/ImageMap.h>
 #endif
