@@ -2038,8 +2038,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 		// Add any objects with gif or mp4 textures to the set of animated objects. (if not already)
 		for(size_t i=0; i<ob->materials.size(); ++i)
 		{
-			if(	::hasExtensionStringView(ob->materials[i]->colour_texture_url,   "mp4") ||
-				::hasExtensionStringView(ob->materials[i]->emission_texture_url, "mp4"))
+			if(	::hasExtension(ob->materials[i]->colour_texture_url,   "mp4") ||
+				::hasExtension(ob->materials[i]->emission_texture_url, "mp4"))
 			{
 				if(ob->animated_tex_data.isNull())
 				{
@@ -2603,8 +2603,8 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 	// Add any objects with mp4 textures to the set of animated objects. (if not already)
 	for(size_t i=0; i<ob->materials.size(); ++i)
 	{
-		if(	::hasExtensionStringView(ob->materials[i]->colour_texture_url,   "mp4") ||
-			::hasExtensionStringView(ob->materials[i]->emission_texture_url, "mp4"))
+		if(	::hasExtension(ob->materials[i]->colour_texture_url,   "mp4") ||
+			::hasExtension(ob->materials[i]->emission_texture_url, "mp4"))
 		{
 			if(ob->animated_tex_data.isNull())
 			{
@@ -2752,7 +2752,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		// Add any objects with gif or mp4 textures to the set of animated objects.
 		/*for(size_t i=0; i<avatar->materials.size(); ++i)
 		{
-			if(::hasExtensionStringView(avatar->materials[i]->colour_texture_url, "gif") || ::hasExtensionStringView(avatar->materials[i]->colour_texture_url, "mp4"))
+			if(::hasExtension(avatar->materials[i]->colour_texture_url, "gif") || ::hasExtensionStringView(avatar->materials[i]->colour_texture_url, "mp4"))
 			{
 				//Reference<AnimatedTexObData> anim_data = new AnimatedTexObData();
 				this->obs_with_animated_tex.insert(std::make_pair(ob, AnimatedTexObData()));
@@ -3161,7 +3161,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 				{
 					//if(!isAudioProcessed(ob->audio_source_url)) // If we are not already loading the audio:
 
-					if(hasExtensionStringView(ob->audio_source_url, "mp3"))
+					if(hasExtension(ob->audio_source_url, "mp3"))
 					{
 						// Make a new audio source
 						glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;

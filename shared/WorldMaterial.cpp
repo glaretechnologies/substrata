@@ -43,14 +43,14 @@ static inline URLString getLODTextureURLForLevel(const URLString& base_texture_u
 {
 	// Don't do LOD on mp4 (video) textures (for now).
 	// Also don't do LOD with http URLs
-	if(::hasExtensionStringView(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
+	if(::hasExtension(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
 		return URLString(base_texture_url, glare::STLArenaAllocator<char>(arena_allocator)); 
 
 	if(level <= material_min_lod_level)
 	{
 #if EMSCRIPTEN
 		// If this is the web build, use LOD 1 as the minimum LOD level for gifs.  This is to save RAM as gifs can be quite large (e.g. 20 MB).
-		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
+		const bool is_gif = ::hasExtension(base_texture_url, "gif");
 		if(is_gif)
 			return use_basis ? (removeDotAndExtension(base_texture_url) + "_lod1.basis") : (removeDotAndExtension(base_texture_url) + "_lod1.gif");
 #endif
@@ -87,14 +87,14 @@ static inline URLString getLODTextureURLForLevel(const URLString& base_texture_u
 		{
 			// Gifs LOD textures are always gifs.
 			// Other image formats get converted to jpg if they don't have alpha, and png if they do.
-			const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
+			const bool is_gif = ::hasExtension(base_texture_url, "gif");
 
 			if(level == 0)
-				return toURLString(toString(removeDotAndExtensionStringView(base_texture_url)) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg")));
+				return removeDotAndExtension(base_texture_url) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
 			else if(level == 1)
-				return toURLString(toString(removeDotAndExtensionStringView(base_texture_url)) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg")));
+				return removeDotAndExtension(base_texture_url) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
 			else
-				return toURLString(toString(removeDotAndExtensionStringView(base_texture_url)) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg")));
+				return removeDotAndExtension(base_texture_url) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
 		}
 	}
 }
@@ -105,14 +105,14 @@ static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey&
 {
 	// Don't do LOD on mp4 (video) textures (for now).
 	// Also don't do LOD with http URLs
-	if(::hasExtensionStringView(base_texture_path, "mp4") || hasPrefix(base_texture_path, "http:") || hasPrefix(base_texture_path, "https:"))
+	if(::hasExtension(base_texture_path, "mp4") || hasPrefix(base_texture_path, "http:") || hasPrefix(base_texture_path, "https:"))
 		return OpenGLTextureKey(base_texture_path, glare::STLArenaAllocator<char>(arena_allocator)); 
 
 	if(level <= material_min_lod_level)
 	{
 #if EMSCRIPTEN
 		// If this is the web build, use LOD 1 as the minimum LOD level for gifs.  This is to save RAM as gifs can be quite large (e.g. 20 MB).
-		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
+		const bool is_gif = ::hasExtension(base_texture_url, "gif");
 		if(is_gif)
 			return use_basis ? (removeDotAndExtension(base_texture_url) + "_lod1.basis") : (removeDotAndExtension(base_texture_url) + "_lod1.gif");
 #endif
@@ -149,7 +149,7 @@ static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey&
 		{
 			// Gifs LOD textures are always gifs.
 			// Other image formats get converted to jpg if they don't have alpha, and png if they do.
-			const bool is_gif = ::hasExtensionStringView(base_texture_path, "gif");
+			const bool is_gif = ::hasExtension(base_texture_path, "gif");
 
 			if(level == 0)
 				return OpenGLTextureKey(removeDotAndExtensionStringView(base_texture_path)) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
