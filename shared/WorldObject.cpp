@@ -260,9 +260,49 @@ URLString WorldObject::getLODLightmapURLForLevel(const URLString& base_lightmap_
 	if(level <= 0)
 		return base_lightmap_url;
 	else if(level == 1)
-		return toURLString(removeDotAndExtension(toStdString(base_lightmap_url)) + "_lod1." + getExtension(toStdString(base_lightmap_url)));
+	{
+		URLString res(base_lightmap_url.get_allocator());
+		res.reserve(base_lightmap_url.size() + 8);
+		res.append(removeDotAndExtension(base_lightmap_url));
+		res.append("_lod1.");
+		res.append(getExtensionStringView(base_lightmap_url));
+		return res;
+	}
 	else
-		return toURLString(removeDotAndExtension(toStdString(base_lightmap_url)) + "_lod2." + getExtension(toStdString(base_lightmap_url)));
+	{
+		URLString res(base_lightmap_url.get_allocator());
+		res.reserve(base_lightmap_url.size() + 8);
+		res.append(removeDotAndExtension(base_lightmap_url));
+		res.append("_lod2.");
+		res.append(getExtensionStringView(base_lightmap_url));
+		return res;
+	}
+}
+
+
+OpenGLTextureKey WorldObject::getLODLightmapPathForLevel(const OpenGLTextureKey& base_lightmap_path, int level)
+{
+	assert(level >= -1 && level <= 2);
+	if(level <= 0)
+		return base_lightmap_path;
+	else if(level == 1)
+	{
+		OpenGLTextureKey res(base_lightmap_path.get_allocator());
+		res.reserve(base_lightmap_path.size() + 8);
+		res.append(removeDotAndExtension(base_lightmap_path));
+		res.append("_lod1.");
+		res.append(getExtensionStringView(base_lightmap_path));
+		return res;
+	}
+	else
+	{
+		OpenGLTextureKey res(base_lightmap_path.get_allocator());
+		res.reserve(base_lightmap_path.size() + 8);
+		res.append(removeDotAndExtension(base_lightmap_path));
+		res.append("_lod2.");
+		res.append(getExtensionStringView(base_lightmap_path));
+		return res;
+	}
 }
 
 
