@@ -76,7 +76,7 @@ struct NumNonNetResourcesDownloadingDecrementor
 // Some resources, such as MP4 videos, shouldn't be downloaded fully before displaying, but instead can be streamed and displayed when only part of the stream is downloaded.
 //static bool shouldStreamResource(const std::string& url)
 //{
-//	return ::hasExtensionStringView(url, "mp4");
+//	return ::hasExtension(url, "mp4");
 //}
 
 

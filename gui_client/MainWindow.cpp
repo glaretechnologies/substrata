@@ -675,7 +675,7 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 {
 	// On Windows, use WMF's http reading to stream videos (until we get the custom byte stream working)
 #ifdef _WIN32
-	return ::hasExtensionStringView(url, "mp4");
+	return ::hasExtension(url, "mp4");
 #else
 	return false; // On Mac/linux, we'll use the ResourceIODeviceWrapper for QMediaPlayer, so we don't need to use http.
 #endif

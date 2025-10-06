@@ -38,7 +38,7 @@ public:
 
 	static inline bool hasSupportedVideoFileExtension(const string_view url)
 	{
-		return hasExtensionStringView(url, "mp4");
+		return hasExtension(url, "mp4");
 	}
 
 	static bool hasSupportedExtension(const string_view path);

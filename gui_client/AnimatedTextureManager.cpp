@@ -271,14 +271,14 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(OpenGLEngine* opengl_eng
 	{
 		const OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
 
-		if(hasExtensionStringView(mat.tex_path, "mp4"))
+		if(hasExtension(mat.tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
 				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);
 		}
 
 		// Emission tex
-		if(hasExtensionStringView(mat.emission_tex_path, "mp4"))
+		if(hasExtension(mat.emission_tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
 				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);

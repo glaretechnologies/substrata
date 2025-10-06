@@ -117,7 +117,7 @@ static const std::string toLocalPath(const URLString& URL, ResourceManager& reso
 		return "";
 	else
 	{
-		const bool streamable = ::hasExtensionStringView(URL, "mp4");
+		const bool streamable = ::hasExtension(URL, "mp4");
 		if(streamable)
 			return toString(URL); // Just leave streamable URLs as-is.
 		else
@@ -176,7 +176,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 	// glTexImage2D expects the start of the texture data to be the lower left of the image, whereas it is actually the upper left.  So flip y coord to compensate.
 	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
 
-	if(::hasExtensionStringView(opengl_mat.tex_path, "mp4"))
+	if(::hasExtension(opengl_mat.tex_path, "mp4"))
 		opengl_mat.fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
 }
 
