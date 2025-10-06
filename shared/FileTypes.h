@@ -24,7 +24,7 @@ public:
 			StringUtils::equalCaseInsensitive(extension, "wav");
 	}
 
-	static bool hasAudioFileExtension(const std::string& url)
+	static bool hasAudioFileExtension(const string_view url)
 	{
 		const string_view extension = getExtensionStringView(url);
 		return isSupportedAudioFileExtension(extension);
@@ -36,10 +36,10 @@ public:
 		return StringUtils::equalCaseInsensitive(extension, "mp4");
 	}
 
-	static inline bool hasSupportedVideoFileExtension(const std::string& url)
+	static inline bool hasSupportedVideoFileExtension(const string_view url)
 	{
 		return hasExtensionStringView(url, "mp4");
 	}
 
-	static bool hasSupportedExtension(const std::string& path);
+	static bool hasSupportedExtension(const string_view path);
 };

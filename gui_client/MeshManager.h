@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "PhysicsObject.h"
+#include "../shared/URLString.h"
 #include <opengl/GLMemUsage.h>
 #include <simpleraytracer/raymesh.h>
 #include <utils/ManagerWithCache.h>
@@ -17,7 +18,7 @@ class MeshManager;
 
 struct MeshData
 {
-	MeshData(const std::string& model_URL_, Reference<OpenGLMeshRenderData> gl_meshdata_, MeshManager* mesh_manager_) : model_url(model_URL_), gl_meshdata(gl_meshdata_), voxel_subsample_factor(1), refcount(0), mesh_manager(mesh_manager_) {}
+	MeshData(const URLString& model_URL_, Reference<OpenGLMeshRenderData> gl_meshdata_, MeshManager* mesh_manager_) : model_url(model_URL_), gl_meshdata(gl_meshdata_), voxel_subsample_factor(1), refcount(0), mesh_manager(mesh_manager_) {}
 
 	//------------------- Custom ReferenceCounted stuff, so we can call meshDataBecameUnused() ---------------------
 	/// Increment reference count
@@ -52,7 +53,7 @@ struct MeshData
 	void meshDataBecameUnused() const; // Called by decRefCount()
 
 
-	std::string model_url;
+	URLString model_url;
 
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 
@@ -66,7 +67,7 @@ struct MeshData
 
 struct PhysicsShapeData
 {
-	PhysicsShapeData(const std::string& model_URL_, bool dynamic_, PhysicsShape physics_shape_, MeshManager* mesh_manager_) : model_url(model_URL_), dynamic(dynamic_), physics_shape(physics_shape_), refcount(0), mesh_manager(mesh_manager_) {}
+	PhysicsShapeData(const URLString& model_URL_, bool dynamic_, PhysicsShape physics_shape_, MeshManager* mesh_manager_) : model_url(model_URL_), dynamic(dynamic_), physics_shape(physics_shape_), refcount(0), mesh_manager(mesh_manager_) {}
 
 	//------------------- Custom ReferenceCounted stuff, so we can call shapeDataBecameUnused() ---------------------
 	/// Increment reference count
@@ -101,7 +102,7 @@ struct PhysicsShapeData
 	void shapeDataBecameUnused() const; // Called by decRefCount()
 
 
-	std::string model_url;
+	URLString model_url;
 	bool dynamic; // Is the physics shape built for a dynamic physics object?  If so it will be a convex hull.
 
 	PhysicsShape physics_shape;
@@ -117,9 +118,9 @@ struct PhysicsShapeData
 struct MeshManagerPhysicsShapeKey
 {
 	MeshManagerPhysicsShapeKey() {}
-	MeshManagerPhysicsShapeKey(const std::string& URL_, const bool dynamic_physics_shape_) : URL(URL_), dynamic_physics_shape(dynamic_physics_shape_) {}
+	MeshManagerPhysicsShapeKey(const URLString& URL_, const bool dynamic_physics_shape_) : URL(URL_), dynamic_physics_shape(dynamic_physics_shape_) {}
 
-	std::string URL;
+	URLString URL;
 	bool dynamic_physics_shape;
 
 	bool operator < (const MeshManagerPhysicsShapeKey& other) const
@@ -137,7 +138,7 @@ struct MeshManagerPhysicsShapeKeyHasher
 {
 	size_t operator() (const MeshManagerPhysicsShapeKey& key) const
 	{
-		std::hash<std::string> h;
+		std::hash<string_view> h;
 		return h(key.URL);
 	}
 };
@@ -158,10 +159,10 @@ public:
 
 	void clear();
 
-	Reference<MeshData> insertMesh(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata);
+	Reference<MeshData> insertMesh(const URLString& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata);
 	Reference<PhysicsShapeData> insertPhysicsShape(const MeshManagerPhysicsShapeKey& key, PhysicsShape& physics_shape);
 
-	Reference<MeshData> getMeshData(const std::string& model_url) const; // Returns null reference if not found.
+	Reference<MeshData> getMeshData(const URLString& model_url) const; // Returns null reference if not found.
 	Reference<PhysicsShapeData> getPhysicsShapeData(const MeshManagerPhysicsShapeKey& key); // Returns null reference if not found.
 
 	void meshDataBecameUsed(const MeshData* meshdata);
@@ -181,7 +182,7 @@ private:
 	void checkRunningOnMainThread() const;
 
 	//mutable Mutex mutex;
-	ManagerWithCache<std::string, Reference<MeshData> > model_URL_to_mesh_map;
+	ManagerWithCache<URLString, Reference<MeshData> > model_URL_to_mesh_map;
 
 	ManagerWithCache<MeshManagerPhysicsShapeKey, Reference<PhysicsShapeData>, MeshManagerPhysicsShapeKeyHasher> physics_shape_map;
 

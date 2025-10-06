@@ -79,7 +79,7 @@ void UploadResourceThread::doRun()
 		if(upload_queue->dequeueWithTimeout(/*wait_time_s=*/0.4, resource_to_upload)) // If got a ResourceToUpload:
 		{
 			const std::string local_path   = resource_to_upload->local_path;
-			const std::string resource_URL = resource_to_upload->resource_URL;
+			const URLString resource_URL = resource_to_upload->resource_URL;
 
 			try
 			{
@@ -161,7 +161,7 @@ void UploadResourceThread::doRun()
 					//socket->writeData(file.fileData(), file.fileSize() / 2);
 					//throw glare::Exception("TEST QUITTING UPLOAD");
 					socket->writeData(file.fileData(), file.fileSize());
-					conPrint("UploadResourceThread: Sent file '" + local_path + "', URL '" + resource_URL + "' (" + toString(file.fileSize()) + " B)");
+					conPrint("UploadResourceThread: Sent file '" + local_path + "', URL '" + toStdString(resource_URL) + "' (" + toString(file.fileSize()) + " B)");
 				}
 				else
 				{

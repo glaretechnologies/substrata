@@ -99,7 +99,7 @@ bool ImageDecoding::isSupportedImageExtension(string_view extension)
 }
 
 
-bool ImageDecoding::hasSupportedImageExtension(const std::string& path)
+bool ImageDecoding::hasSupportedImageExtension(string_view path)
 {
 	const string_view extension = getExtensionStringView(path);
 

@@ -185,7 +185,7 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 	}
 	else // Else non-http:
 	{
-		ResourceRef resource = resource_manager.getExistingResourceForURL(video_url);
+		ResourceRef resource = resource_manager.getExistingResourceForURL(toURLString(video_url));
 
 		// if the resource is downloaded already, read video off disk:
 		std::string use_URL;
@@ -245,7 +245,7 @@ void BrowserVidPlayer::createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngin
 	if(ob->materials.empty())
 		throw glare::Exception("materials were empty");
 
-	const std::string& video_URL = ob->materials[0]->emission_texture_url;
+	const std::string video_URL = toStdString(ob->materials[0]->emission_texture_url);
 
 	int width, height;
 	getVidTextureDimensions(video_URL, ob, width, height);
@@ -793,7 +793,7 @@ void BrowserVidPlayer::videoURLMayHaveChanged(GUIClient* gui_client, OpenGLEngin
 	if(ob->materials.empty())
 		return;
 
-	const std::string& video_URL = ob->materials[0]->emission_texture_url;
+	const std::string video_URL = toStdString(ob->materials[0]->emission_texture_url);
 	if(video_URL != this->loaded_video_url)
 	{
 		if(browser.isNull())

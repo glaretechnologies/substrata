@@ -88,7 +88,7 @@ void MeshManager::clear()
 }
 
 
-Reference<MeshData> MeshManager::insertMesh(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata)
+Reference<MeshData> MeshManager::insertMesh(const URLString& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata)
 {
 	checkRunningOnMainThread();
 
@@ -138,7 +138,7 @@ Reference<PhysicsShapeData> MeshManager::insertPhysicsShape(const MeshManagerPhy
 }
 
 
-Reference<MeshData> MeshManager::getMeshData(const std::string& model_url) const
+Reference<MeshData> MeshManager::getMeshData(const URLString& model_url) const
 {
 	checkRunningOnMainThread();
 
@@ -231,7 +231,7 @@ void MeshManager::trimMeshMemoryUsage()
 	// Remove textures from unused texture list until we are using <= max_tex_mem_usage
 	while(((mesh_CPU_mem_usage > max_mesh_CPU_mem_usage) || (mesh_GPU_mem_usage > max_mesh_GPU_mem_usage)) && (model_URL_to_mesh_map.numUnusedItems() > 0))
 	{
-		std::string removed_key;
+		URLString removed_key;
 		Reference<MeshData> removed_meshdata;
 		const bool removed = model_URL_to_mesh_map.removeLRUUnusedItem(removed_key, removed_meshdata);
 		assert(removed);

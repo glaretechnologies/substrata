@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 #pragma once
 
 
+#include "../shared/URLString.h"
 #include <physics/jscol_aabbox.h>
 #include <utils/Platform.h>
 #include <utils/Mutex.h>
@@ -42,7 +43,7 @@ struct DownloadQueueItem
 	}
 
 	SmallVector<DownloadQueuePosInfo, 4> pos_info; // Store multiple positions and size factors, since multiple different objects may be using the same resource.
-	std::string URL;
+	URLString URL;
 
 	float priority;
 };
@@ -62,7 +63,7 @@ public:
 	DownloadingResourceQueue();
 	~DownloadingResourceQueue();
 
-	void enqueueOrUpdateItem(const std::string& URL, const Vec4f& pos, float size_factor); // Adds item to queue if it is not already in queue.
+	void enqueueOrUpdateItem(const URLString& URL, const Vec4f& pos, float size_factor); // Adds item to queue if it is not already in queue.
 
 	size_t size() const;
 
@@ -77,5 +78,5 @@ private:
 	Condition nonempty;
 	size_t begin_i										GUARDED_BY(mutex);
 	js::Vector<DownloadQueueItem*, 16> items			GUARDED_BY(mutex);
-	std::unordered_map<std::string, DownloadQueueItem*> item_URL_map	GUARDED_BY(mutex); // Map from item URL to pointer to DownloadQueueItem in items.
+	std::unordered_map<URLString, DownloadQueueItem*> item_URL_map	GUARDED_BY(mutex); // Map from item URL to pointer to DownloadQueueItem in items.
 };

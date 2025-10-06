@@ -414,7 +414,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 }
 
 
-void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef& map)
+void TerrainSystem::handleTextureLoaded(const OpenGLTextureKey& path, const Map2DRef& map)
 {
 	// conPrint("TerrainSystem::handleTextureLoaded(): path: '" + path + "'");
 	ZoneScoped; // Tracy profiler
@@ -472,7 +472,7 @@ void TerrainSystem::handleTextureLoaded(const std::string& path, const Map2DRef&
 }
 
 
-bool TerrainSystem::isTextureUsedByTerrain(const std::string& path) const
+bool TerrainSystem::isTextureUsedByTerrain(const OpenGLTextureKey& path) const
 {
 	for(int i=0; i<4; ++i)
 	{

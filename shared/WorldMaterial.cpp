@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/BufferOutStream.h>
 #include <utils/BufferViewInStream.h>
 #include <utils/RuntimeCheck.h>
+#include <utils/STLArenaAllocator.h>
 
 
 WorldMaterial::WorldMaterial()
@@ -38,12 +39,12 @@ WorldMaterial::~WorldMaterial()
 {}
 
 
-static inline std::string getLODTextureURLForLevel(const std::string& base_texture_url, int material_min_lod_level, int level, bool has_alpha, bool use_basis)
+static inline URLString getLODTextureURLForLevel(const URLString& base_texture_url, int material_min_lod_level, int level, bool has_alpha, bool use_basis, glare::ArenaAllocator* arena_allocator)
 {
 	// Don't do LOD on mp4 (video) textures (for now).
 	// Also don't do LOD with http URLs
 	if(::hasExtensionStringView(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
-		return base_texture_url; 
+		return URLString(base_texture_url, glare::STLArenaAllocator<char>(arena_allocator)); 
 
 	if(level <= material_min_lod_level)
 	{
@@ -57,14 +58,15 @@ static inline std::string getLODTextureURLForLevel(const std::string& base_textu
 		{
 			const string_view root = removeDotAndExtensionStringView(base_texture_url);
 
-			std::string res;
+			glare::STLArenaAllocator<char> allocator(arena_allocator);
+			URLString res(allocator);
 			res.reserve(root.size() + std::strlen(".basis"));
 			res.append(root);
 			res.append(".basis");
 			return res;
 		}
 		else
-			return base_texture_url;
+			return URLString(base_texture_url, glare::STLArenaAllocator<char>(arena_allocator));
 	}
 	else
 	{
@@ -72,7 +74,8 @@ static inline std::string getLODTextureURLForLevel(const std::string& base_textu
 		{
 			const string_view root = removeDotAndExtensionStringView(base_texture_url);
 
-			std::string res;
+			glare::STLArenaAllocator<char> allocator(arena_allocator);
+			URLString res(allocator);
 			res.reserve(root.size() + std::strlen("_lodX.basis"));
 			res.append(root);
 			res.append("_lod");
@@ -87,107 +90,178 @@ static inline std::string getLODTextureURLForLevel(const std::string& base_textu
 			const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
 
 			if(level == 0)
-				return removeDotAndExtension(base_texture_url) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+				return toURLString(toString(removeDotAndExtensionStringView(base_texture_url)) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg")));
 			else if(level == 1)
-				return removeDotAndExtension(base_texture_url) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+				return toURLString(toString(removeDotAndExtensionStringView(base_texture_url)) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg")));
 			else
-				return removeDotAndExtension(base_texture_url) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+				return toURLString(toString(removeDotAndExtensionStringView(base_texture_url)) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg")));
 		}
 	}
 }
 
 
-void ScalarVal::appendDependencyURLs(bool tex_use_sRGB, bool use_basis, int material_min_lod_level, int lod_level, std::vector<DependencyURL>& paths_out) const
+#if GUI_CLIENT
+static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey& base_texture_path, int material_min_lod_level, int level, bool has_alpha, bool use_basis, glare::ArenaAllocator* arena_allocator)
+{
+	// Don't do LOD on mp4 (video) textures (for now).
+	// Also don't do LOD with http URLs
+	if(::hasExtensionStringView(base_texture_path, "mp4") || hasPrefix(base_texture_path, "http:") || hasPrefix(base_texture_path, "https:"))
+		return OpenGLTextureKey(base_texture_path, glare::STLArenaAllocator<char>(arena_allocator)); 
+
+	if(level <= material_min_lod_level)
+	{
+#if EMSCRIPTEN
+		// If this is the web build, use LOD 1 as the minimum LOD level for gifs.  This is to save RAM as gifs can be quite large (e.g. 20 MB).
+		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
+		if(is_gif)
+			return use_basis ? (removeDotAndExtension(base_texture_url) + "_lod1.basis") : (removeDotAndExtension(base_texture_url) + "_lod1.gif");
+#endif
+		if(use_basis)
+		{
+			const string_view root = removeDotAndExtensionStringView(base_texture_path);
+
+			glare::STLArenaAllocator<char> stl_allocator(arena_allocator);
+			OpenGLTextureKey res(stl_allocator);
+			res.reserve(root.size() + std::strlen(".basis"));
+			res.append(root);
+			res.append(".basis");
+			return res;
+		}
+		else
+			return OpenGLTextureKey(base_texture_path, glare::STLArenaAllocator<char>(arena_allocator));
+	}
+	else
+	{
+		if(use_basis)
+		{
+			const string_view root = removeDotAndExtensionStringView(base_texture_path);
+
+			glare::STLArenaAllocator<char> stl_allocator(arena_allocator);
+			OpenGLTextureKey res(stl_allocator);
+			res.reserve(root.size() + std::strlen("_lodX.basis"));
+			res.append(root);
+			res.append("_lod");
+			res += '0' + (char)level;
+			res.append(".basis");
+			return res;
+		}
+		else
+		{
+			// Gifs LOD textures are always gifs.
+			// Other image formats get converted to jpg if they don't have alpha, and png if they do.
+			const bool is_gif = ::hasExtensionStringView(base_texture_path, "gif");
+
+			if(level == 0)
+				return OpenGLTextureKey(removeDotAndExtensionStringView(base_texture_path)) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+			else if(level == 1)
+				return OpenGLTextureKey(removeDotAndExtensionStringView(base_texture_path)) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+			else
+				return OpenGLTextureKey(removeDotAndExtensionStringView(base_texture_path)) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+		}
+	}
+}
+#endif
+
+
+void ScalarVal::appendDependencyURLs(const GetURLOptions& options, int lod_level, DependencyURLVector& paths_out) const
 {
 	if(!texture_url.empty())
-		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, material_min_lod_level, lod_level, /*has alpha=*/false, use_basis), tex_use_sRGB));
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, options.material_min_lod_level, lod_level, /*has alpha=*/false, options.use_basis, options.arena_allocator), options.tex_use_sRGB));
 }
 
 
-void ScalarVal::appendDependencyURLsAllLODLevels(bool tex_use_sRGB, bool use_basis, int material_min_lod_level, std::vector<DependencyURL>& paths_out) const
+void ScalarVal::appendDependencyURLsAllLODLevels(const GetURLOptions& options, DependencyURLVector& paths_out) const
 {
 	if(!texture_url.empty())
 	{
-		paths_out.push_back(DependencyURL(texture_url, tex_use_sRGB));
-		for(int i=material_min_lod_level+1; i <=2; ++i)
-			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, material_min_lod_level, i, /*has alpha=*/false, use_basis), tex_use_sRGB));
+		paths_out.push_back(DependencyURL(texture_url, options.tex_use_sRGB));
+		for(int i=options.material_min_lod_level+1; i <=2; ++i)
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, options.material_min_lod_level, i, /*has alpha=*/false, options.use_basis, options.arena_allocator), options.tex_use_sRGB));
 	}
 }
 
 
-void ScalarVal::appendDependencyURLsBaseLevel(bool tex_use_sRGB, std::vector<DependencyURL>& paths_out) const
+void ScalarVal::appendDependencyURLsBaseLevel(const GetURLOptions& options, DependencyURLVector& paths_out) const
 {
 	if(!texture_url.empty())
-		paths_out.push_back(DependencyURL(texture_url, tex_use_sRGB));
+		paths_out.push_back(DependencyURL(texture_url, options.tex_use_sRGB));
 }
-
 
 
 void ScalarVal::convertLocalPathsToURLS(ResourceManager& resource_manager)
 {
 	if(!this->texture_url.empty() && FileUtils::fileExists(this->texture_url)) // If the URL is a local path:
 	{
-		this->texture_url = resource_manager.URLForPathAndHash(this->texture_url, FileChecksum::fileChecksum(this->texture_url));
+		this->texture_url = resource_manager.URLForPathAndHash(toStdString(this->texture_url), FileChecksum::fileChecksum(this->texture_url));
 	}
 }
 
 
-std::string WorldMaterial::getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha, bool use_basis) const
+URLString WorldMaterial::getLODTextureURLForLevel(const GetURLOptions& options, const URLString& base_texture_url, int level, bool has_alpha) const
 {
-	return ::getLODTextureURLForLevel(base_texture_url, this->minLODLevel(), level, has_alpha, use_basis);
+	return ::getLODTextureURLForLevel(base_texture_url, this->minLODLevel(), level, has_alpha, options.use_basis, options.arena_allocator);
 }
 
+#if GUI_CLIENT
+OpenGLTextureKey WorldMaterial::getLODTexturePathForLevel(const GetURLOptions& options, const OpenGLTextureKey& base_texture_path, int level, bool has_alpha) const
+{
+	return ::getLODTexturePathForLevel(base_texture_path, this->minLODLevel(), level, has_alpha, options.use_basis, options.arena_allocator);
+}
+#endif
 
-void WorldMaterial::appendDependencyURLs(int lod_level, bool use_basis, std::vector<DependencyURL>& paths_out) const
+
+void WorldMaterial::appendDependencyURLs(const GetURLOptions& options, int lod_level, DependencyURLVector& paths_out) const
 {
 	if(!colour_texture_url.empty())
-		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(colour_texture_url, lod_level, this->colourTexHasAlpha(), use_basis)));
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, colour_texture_url, lod_level, this->colourTexHasAlpha())));
 
 	if(!emission_texture_url.empty())
-		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(emission_texture_url, lod_level, /*has alpha=*/false, use_basis)));
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, emission_texture_url, lod_level, /*has alpha=*/false)));
 
 	if(!normal_map_url.empty())
-		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, lod_level, /*has alpha=*/false, use_basis), /*use sRGB=*/false));
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, normal_map_url, lod_level, /*has alpha=*/false), /*use sRGB=*/false));
 
 	const int min_lod_level = this->minLODLevel();
-	roughness.			appendDependencyURLs(/*use sRGB=*/false, use_basis, min_lod_level, lod_level, paths_out);
-	metallic_fraction.	appendDependencyURLs(/*use sRGB=*/false, use_basis, min_lod_level, lod_level, paths_out);
-	opacity.			appendDependencyURLs(/*use sRGB=*/false, use_basis, min_lod_level, lod_level, paths_out);
+	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.use_basis, min_lod_level, options.arena_allocator);
+	roughness.			appendDependencyURLs(scalarval_options, lod_level, paths_out);
+	metallic_fraction.	appendDependencyURLs(scalarval_options, lod_level, paths_out);
+	opacity.			appendDependencyURLs(scalarval_options, lod_level, paths_out);
 }
 
 
-void WorldMaterial::appendDependencyURLsAllLODLevels(bool use_basis, std::vector<DependencyURL>& paths_out) const
+void WorldMaterial::appendDependencyURLsAllLODLevels(const GetURLOptions& options, DependencyURLVector& paths_out) const
 {
-	const int min_lod_level = this->minLODLevel();
+	const int material_min_lod_level = this->minLODLevel();
 
 	if(!colour_texture_url.empty())
 	{
 		paths_out.push_back(DependencyURL(colour_texture_url));
-		for(int i=min_lod_level+1; i <=2; ++i)
-			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(colour_texture_url, i, this->colourTexHasAlpha(), use_basis)));
+		for(int i=material_min_lod_level+1; i <=2; ++i)
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, colour_texture_url, i, this->colourTexHasAlpha())));
 	}
 	
 	if(!emission_texture_url.empty())
 	{
 		paths_out.push_back(DependencyURL(emission_texture_url));
-		for(int i=min_lod_level+1; i <=2; ++i)
-			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(emission_texture_url, i, /*has alpha=*/false, use_basis)));
+		for(int i=material_min_lod_level+1; i <=2; ++i)
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, emission_texture_url, i, /*has alpha=*/false)));
 	}
 
 	if(!normal_map_url.empty())
 	{
 		paths_out.push_back(DependencyURL(normal_map_url, /*use sRGB=*/false));
-		for(int i=min_lod_level+1; i <=2; ++i)
-			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(normal_map_url, i, /*has alpha=*/false, use_basis), /*use sRGB=*/false));
+		for(int i=material_min_lod_level+1; i <=2; ++i)
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, normal_map_url, i, /*has alpha=*/false), /*use sRGB=*/false));
 	}
 
-	roughness.			appendDependencyURLsAllLODLevels(/*use sRGB=*/false, use_basis, min_lod_level, paths_out);
-	metallic_fraction.	appendDependencyURLsAllLODLevels(/*use sRGB=*/false, use_basis, min_lod_level, paths_out);
-	opacity.			appendDependencyURLsAllLODLevels(/*use sRGB=*/false, use_basis, min_lod_level, paths_out);
+	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.use_basis, material_min_lod_level, options.arena_allocator);
+	roughness.			appendDependencyURLsAllLODLevels(scalarval_options, paths_out);
+	metallic_fraction.	appendDependencyURLsAllLODLevels(scalarval_options, paths_out);
+	opacity.			appendDependencyURLsAllLODLevels(scalarval_options, paths_out);
 }
 
 
-void WorldMaterial::appendDependencyURLsBaseLevel(bool use_basis, std::vector<DependencyURL>& paths_out) const
+void WorldMaterial::appendDependencyURLsBaseLevel(const GetURLOptions& options, DependencyURLVector& paths_out) const
 {
 	if(!colour_texture_url.empty())
 		paths_out.push_back(DependencyURL(colour_texture_url));
@@ -198,22 +272,23 @@ void WorldMaterial::appendDependencyURLsBaseLevel(bool use_basis, std::vector<De
 	if(!normal_map_url.empty())
 		paths_out.push_back(DependencyURL(normal_map_url, /*use sRGB=*/false));
 
-	roughness.			appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
-	metallic_fraction.	appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
-	opacity.			appendDependencyURLsBaseLevel(/*use sRGB=*/false, paths_out);
+	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.use_basis, this->minLODLevel(), /*arena_allocator=*/options.arena_allocator);
+	roughness.			appendDependencyURLsBaseLevel(scalarval_options, paths_out);
+	metallic_fraction.	appendDependencyURLsBaseLevel(scalarval_options, paths_out);
+	opacity.			appendDependencyURLsBaseLevel(scalarval_options, paths_out);
 }
 
 
 void WorldMaterial::convertLocalPathsToURLS(ResourceManager& resource_manager)
 {
 	if(FileUtils::fileExists(this->colour_texture_url)) // If the URL is a local path:
-		this->colour_texture_url = resource_manager.URLForPathAndHash(this->colour_texture_url, FileChecksum::fileChecksum(this->colour_texture_url));
+		this->colour_texture_url = resource_manager.URLForPathAndHash(toStdString(this->colour_texture_url), FileChecksum::fileChecksum(this->colour_texture_url));
 	
 	if(FileUtils::fileExists(this->emission_texture_url)) // If the URL is a local path:
-		this->emission_texture_url = resource_manager.URLForPathAndHash(this->emission_texture_url, FileChecksum::fileChecksum(this->emission_texture_url));
+		this->emission_texture_url = resource_manager.URLForPathAndHash(toStdString(this->emission_texture_url), FileChecksum::fileChecksum(this->emission_texture_url));
 	
 	if(FileUtils::fileExists(this->normal_map_url)) // If the URL is a local path:
-		this->normal_map_url = resource_manager.URLForPathAndHash(this->normal_map_url, FileChecksum::fileChecksum(this->normal_map_url));
+		this->normal_map_url = resource_manager.URLForPathAndHash(toStdString(this->normal_map_url), FileChecksum::fileChecksum(this->normal_map_url));
 
 	roughness.convertLocalPathsToURLS(resource_manager);
 	metallic_fraction.convertLocalPathsToURLS(resource_manager);
@@ -236,10 +311,10 @@ static ScalarVal parseScalarVal(pugi::xml_node elem, const char* elemname, const
 }
 
 
-static void convertRelPathToAbsolute(const std::string& mat_file_path, std::string& relative_path_in_out)
+static void convertRelPathToAbsolute(const std::string& mat_file_path, URLString& relative_path_in_out)
 {
 	if(!relative_path_in_out.empty())
-		relative_path_in_out = FileUtils::join(FileUtils::getDirectory(mat_file_path), relative_path_in_out);
+		relative_path_in_out = toURLString(FileUtils::join(FileUtils::getDirectory(mat_file_path), toStdString(relative_path_in_out)));
 }
 
 
@@ -554,24 +629,28 @@ void readScalarValFromStream(InStream& stream, ScalarVal& ob)
 
 static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_tex, bool expected_use_sRGB)
 {
+	glare::ArenaAllocator* allocator = nullptr;
+
 	//----------------------- Test appendDependencyURLs with different LOD levels with alpha -----------------------
 	{
 		mat.flags = 0;
 
-		std::vector<DependencyURL> urls;
-		mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/false, urls);
+		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+
+		DependencyURLVector urls;
+		mat.appendDependencyURLs(options, /*lod level=*/0, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex.png" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/-1, /*use basis=*/false, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/-1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex.png" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/false, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/false, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 		// Now mark the material as having alpha - now colour texture LODs should still be in PNG format.
@@ -580,21 +659,21 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		if(is_colour_tex)
 		{
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.png" && urls[0].use_sRGB == expected_use_sRGB); // Should use png extension (for the alpha channel)
 
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.png" && urls[0].use_sRGB == expected_use_sRGB); // Should use png extension
 		}
 		else
 		{
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 		}
 	}
@@ -603,31 +682,33 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 	{
 		mat.flags = 0;
 
-		std::vector<DependencyURL> urls;
-		mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/true, urls);
+		const WorldMaterial::GetURLOptions options(/*use basis=*/true, allocator);
+
+		DependencyURLVector urls;
+		mat.appendDependencyURLs(options, /*lod level=*/0, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/-1, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/-1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		// Now mark the material as having alpha - should still be in basis format
 		BitUtils::setBit(mat.flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.basis" && urls[0].use_sRGB == expected_use_sRGB);
 	}
 
@@ -637,20 +718,22 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		mat.flags = 0;
 		BitUtils::setBit(mat.flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1);
 
-		std::vector<DependencyURL> urls;
-		mat.appendDependencyURLs(/*lod level=*/-1, /*use basis=*/false, urls);
+		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+
+		DependencyURLVector urls;
+		mat.appendDependencyURLs(options, /*lod level=*/-1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex.png" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/false, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/0, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod0.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/false, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/false, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 		// Now mark the material as having alpha - now colour texture LODs should still be in PNG format.
@@ -659,29 +742,29 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		if(is_colour_tex)
 		{
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/0, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod0.png" && urls[0].use_sRGB == expected_use_sRGB); // Should use png extension (for the alpha channel)
 
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.png" && urls[0].use_sRGB == expected_use_sRGB); // Should use png extension
 
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.png" && urls[0].use_sRGB == expected_use_sRGB); // Should use png extension
 		}
 		else
 		{
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/0, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod0.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 
 			urls.clear();
-			mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/false, urls);
+			mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.jpg" && urls[0].use_sRGB == expected_use_sRGB); // Should use jpg extension
 		}
 	}
@@ -691,35 +774,37 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		mat.flags = 0;
 		BitUtils::setBit(mat.flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1);
 
-		std::vector<DependencyURL> urls;
-		mat.appendDependencyURLs(/*lod level=*/-1, /*use basis=*/true, urls);
+		const WorldMaterial::GetURLOptions options(/*use basis=*/true, allocator);
+
+		DependencyURLVector urls;
+		mat.appendDependencyURLs(options, /*lod level=*/-1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/0, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod0.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		// Now mark the material as having alpha - should still be in basis format
 		BitUtils::setBit(mat.flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/0, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod0.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/1, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.basis" && urls[0].use_sRGB == expected_use_sRGB);
 
 		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/true, urls);
+		mat.appendDependencyURLs(options, /*lod level=*/2, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.basis" && urls[0].use_sRGB == expected_use_sRGB);
 	}
 
@@ -728,8 +813,10 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 	{
 		mat.flags = 0;
 
-		std::vector<DependencyURL> urls;
-		mat.appendDependencyURLsBaseLevel(/*use basis=*/false, urls);
+		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+
+		DependencyURLVector urls;
+		mat.appendDependencyURLsBaseLevel(options, urls);
 		testAssert(urls.size() == 1 && urls[0].URL == "sometex.png" && urls[0].use_sRGB == expected_use_sRGB);
 	}
 	
@@ -737,8 +824,10 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 	{
 		mat.flags = 0;
 
-		std::vector<DependencyURL> urls;
-		mat.appendDependencyURLsAllLODLevels(/*use basis=*/false, urls);
+		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+
+		DependencyURLVector urls;
+		mat.appendDependencyURLsAllLODLevels(options, urls);
 		testAssert(urls.size() == 3);
 		testAssert(urls[0].use_sRGB == expected_use_sRGB && urls[0].URL == "sometex.png");
 		testAssert(urls[1].use_sRGB == expected_use_sRGB && urls[1].URL == "sometex_lod1.jpg");
@@ -748,7 +837,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		BitUtils::setBit(mat.flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG);
 
 		urls.clear();
-		mat.appendDependencyURLsAllLODLevels(/*use basis=*/false, urls);
+		mat.appendDependencyURLsAllLODLevels(options, urls);
 		testAssert(urls.size() == 3);
 		if(is_colour_tex)
 		{
@@ -769,7 +858,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		BitUtils::setBit(mat.flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1);
 
 		urls.clear();
-		mat.appendDependencyURLsAllLODLevels(/*use basis=*/false, urls);
+		mat.appendDependencyURLsAllLODLevels(options, urls);
 		testAssert(urls.size() == 4);
 		testAssert(urls[0].use_sRGB == expected_use_sRGB && urls[0].URL == "sometex.png");
 		testAssert(urls[1].use_sRGB == expected_use_sRGB && urls[1].URL == "sometex_lod0.jpg");
@@ -780,7 +869,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		BitUtils::setBit(mat.flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG);
 
 		urls.clear();
-		mat.appendDependencyURLsAllLODLevels(/*use basis=*/false, urls);
+		mat.appendDependencyURLsAllLODLevels(options, urls);
 		testAssert(urls.size() == 4);
 		if(is_colour_tex)
 		{
@@ -832,40 +921,47 @@ void WorldMaterial::test()
 		WorldMaterial mat;
 		mat.colour_texture_url = "sometex.jpg";
 
+		glare::ArenaAllocator* allocator = nullptr;
 
 		//----------------------- Test appendDependencyURLs with different LOD levels -----------------------
-		std::vector<DependencyURL> urls;
-		mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/false, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex.jpg");
+		{
+			const WorldMaterial::GetURLOptions get_url_options(false, allocator);
+			DependencyURLVector urls;
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/0, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex.jpg");
 
-		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/-1, /*use basis=*/false, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex.jpg");
+			urls.clear();
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/-1, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex.jpg");
 
-		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/false, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.jpg");
+			urls.clear();
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/1, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.jpg");
 
-		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/false, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.jpg");
+			urls.clear();
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/2, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.jpg");
+		}
 
 		//----------------------- Test with basis -----------------------
-		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/0, /*use basis=*/true, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis");
+		{
+			const WorldMaterial::GetURLOptions get_url_options(true, allocator);
+			DependencyURLVector urls;
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/0, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis");
 
-		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/-1, /*use basis=*/true, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis");
+			urls.clear();
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/-1, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis");
 
-		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/1, /*use basis=*/true, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.basis");
+			urls.clear();
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/1, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod1.basis");
 
-		urls.clear();
-		mat.appendDependencyURLs(/*lod level=*/2, /*use basis=*/true, urls);
-		testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.basis");
+			urls.clear();
+			mat.appendDependencyURLs(get_url_options, /*lod level=*/2, urls);
+			testAssert(urls.size() == 1 && urls[0].URL == "sometex_lod2.basis");
+		}
 	}
 
 

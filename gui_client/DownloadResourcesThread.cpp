@@ -164,7 +164,7 @@ void DownloadResourcesThread::doRun()
 		if(server_protocol_version >= 43)
 			server_mesh_optimisation_version = socket->readInt32();
 
-		std::set<std::string> URLs_to_get; // Set of URLs that this thread will get from the server.
+		std::set<URLString> URLs_to_get; // Set of URLs that this thread will get from the server.
 
 		while(1)
 		{
@@ -225,7 +225,7 @@ void DownloadResourcesThread::doRun()
 
 					for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
 					{
-						const std::string URL = *it;
+						const URLString URL = *it;
 
 						// conPrint("DownloadResourcesThread: Querying server for file '" + URL + "'...");
 						socket->writeStringLengthFirst(URL);
@@ -234,7 +234,7 @@ void DownloadResourcesThread::doRun()
 					// Read reply, which has an error code for each resource download.
 					for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
 					{
-						const std::string URL = *it;
+						const URLString URL = *it;
 						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
 						
@@ -297,7 +297,7 @@ void DownloadResourcesThread::doRun()
 
 							resource->setState(Resource::State_NotPresent);
 							//conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "' (Result=" + toString(result) + ")");
-							out_msg_queue->enqueue(new LogMessage("Server couldn't send resource '" + URL + "' (resource not found)"));
+							out_msg_queue->enqueue(new LogMessage("Server couldn't send resource '" + std::string(URL.begin(), URL.end()) + "' (resource not found)"));
 						}
 
 						(*this->num_resources_downloading)--;

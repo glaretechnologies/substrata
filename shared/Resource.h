@@ -7,8 +7,12 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "UserID.h"
+#include "URLString.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
+#if GUI_CLIENT
+#include <opengl/OpenGLTexture.h>
+#endif
 #include <utils/DatabaseKey.h>
 #include <string>
 
@@ -65,10 +69,13 @@ public:
 		//State_ResourceDownloadFailed
 	};
 
-	Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_, bool external_resource);
+	Resource(const URLString& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_, bool external_resource);
 	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, file_size_B(0), external_resource(false) {}
 	
 	const std::string getLocalAbsPath(const std::string& base_resource_dir) const { return external_resource ? local_path : (base_resource_dir + "/" + local_path); }
+#if GUI_CLIENT
+	inline void getLocalAbsTexPath(const std::string& base_resource_dir, OpenGLTextureKey& path_out);
+#endif
 	const std::string getRawLocalPath() const { return local_path; } // Relative path on local disk from base_resources_dir.
 	void setRawLocalPath(const std::string& p) { local_path = p; }
 
@@ -80,7 +87,7 @@ public:
 	void writeToStream(OutStream& stream) const;
 	
 	
-	std::string URL;
+	URLString URL;
 	UserID owner_id;
 
 	//void addDownloadListener(const Reference<ResourceDownloadListener>& listener);
@@ -120,3 +127,21 @@ struct ResourceRefHash
 		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
 	}
 };
+
+
+#if GUI_CLIENT
+void Resource::getLocalAbsTexPath(const std::string& base_resource_dir, OpenGLTextureKey& path_out)
+{
+	assert(path_out.empty());
+
+	if(external_resource)
+		path_out = local_path;
+	else
+	{
+		path_out.reserve(base_resource_dir.size() + 1 + local_path.size());
+		path_out += base_resource_dir;
+		path_out.push_back('/');
+		path_out += local_path;
+	}
+}
+#endif

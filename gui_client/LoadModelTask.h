@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2025 -
 
 #include "PhysicsObject.h"
 #include "../shared/Resource.h"
+#include "../shared/URLString.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/OpenGLUploadThread.h>
 #include <utils/Task.h>
@@ -29,7 +30,7 @@ public:
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 	PhysicsShape physics_shape;
 	
-	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
+	URLString lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 	int model_lod_level; // LOD level of the model we loaded.
 	bool built_dynamic_physics_ob;
 
@@ -47,7 +48,7 @@ public:
 struct LoadModelTaskUploadingUserInfo : public UploadingUserInfo
 {
 	PhysicsShape physics_shape;
-	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
+	URLString lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 	int model_lod_level; // LOD level of the model we loaded.
 	bool built_dynamic_physics_ob;
 
@@ -81,7 +82,7 @@ public:
 
 	virtual void run(size_t thread_index);
 
-	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
+	URLString lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
 	int model_lod_level; // The model LOD level of the object
 	ResourceRef resource;
 	bool build_physics_ob;

@@ -66,7 +66,7 @@ void NetDownloadResourcesThread::doRun()
 	try
 	{
 		
-		std::set<std::string> URLs_to_get; // Set of URLs to get from the server
+		std::set<URLString> URLs_to_get; // Set of URLs to get from the server
 
 		while(1)
 		{
@@ -94,7 +94,7 @@ void NetDownloadResourcesThread::doRun()
 				NumResourcesDownloadingDecrementor d;
 				d.num_net_resources_downloading = this->num_net_resources_downloading;
 
-				std::string url = *URLs_to_get.begin();
+				URLString url = *URLs_to_get.begin();
 				URLs_to_get.erase(URLs_to_get.begin());
 
 				ResourceRef resource = resource_manager->getOrCreateResourceForURL(url);
@@ -106,7 +106,7 @@ void NetDownloadResourcesThread::doRun()
 				}
 				else
 				{
-					if(VERBOSE) conPrint("NetDownloadResourcesThread: Downloading file '" + url + "'...");
+					if(VERBOSE) conPrint("NetDownloadResourcesThread: Downloading file '" + toStdString(url) + "'...");
 
 					resource->setState(Resource::State_Transferring);
 
@@ -115,16 +115,16 @@ void NetDownloadResourcesThread::doRun()
 						std::vector<uint8> data;
 
 						// Parse URL
-						const URL url_components = URL::parseURL(url);
+						const URL url_components = URL::parseURL(toStdString(url));
 						if(url_components.scheme == "http" || url_components.scheme == "https")
 						{
 							if(url_components.host == "gateway.ipfs.io")
-								throw glare::Exception("Skipping " + url);
+								throw glare::Exception("Skipping " + toStdString(url));
 
 							// Download with HTTP client
 							client->max_data_size			= 128 * 1024 * 1024; // 128 MB
 							client->max_socket_buffer_size	= 128 * 1024 * 1024; // 128 MB
-							HTTPClient::ResponseInfo response_info = client->downloadFile(url, data);
+							HTTPClient::ResponseInfo response_info = client->downloadFile(toStdString(url), data);
 							if(response_info.response_code != 200)
 								throw glare::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
 
@@ -176,7 +176,7 @@ void NetDownloadResourcesThread::doRun()
 							}
 						}
 						else
-							throw glare::Exception("Unknown protocol scheme in URL '" + url + "': '" + url_components.scheme + "'");
+							throw glare::Exception("Unknown protocol scheme in URL '" + toStdString(url) + "': '" + url_components.scheme + "'");
 					}
 					catch(glare::Exception& e)
 					{

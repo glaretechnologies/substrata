@@ -43,7 +43,7 @@ protected slots:
 	void applySettingsSlot();
 
 private:
-	std::string getURLForFileSelectWidget(FileSelectWidget* widget);
+	URLString getURLForFileSelectWidget(FileSelectWidget* widget);
 
 	//std::vector<TerrainSpecSectionWidget*> section_widgets;
 	MainWindow* main_window;

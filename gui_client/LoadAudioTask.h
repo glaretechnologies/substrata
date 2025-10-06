@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 #include "../shared/Resource.h"
+#include "../shared/URLString.h"
 #include "../audio/AudioEngine.h"
 #include <Task.h>
 #include <ThreadMessage.h>
@@ -18,7 +19,7 @@ class SharedMemMappedFile;
 class AudioLoadedThreadMessage : public ThreadMessage
 {
 public:
-	std::string audio_source_url;
+	URLString audio_source_url;
 
 	glare::SoundFileRef sound_file;
 
@@ -42,7 +43,7 @@ public:
 	bool mem_map_file;
 	ResourceRef resource;
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.Reference<LoadedBuffer> loaded_buffer;
-	std::string audio_source_url;
+	URLString audio_source_url;
 	std::string audio_source_path;
 	Reference<ResourceManager> resource_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;

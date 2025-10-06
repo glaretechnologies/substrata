@@ -85,7 +85,7 @@ Avatar::~Avatar()
 {}
 
 
-void Avatar::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out)
+void Avatar::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, DependencyURLVector& URLs_out)
 {
 	if(!avatar_settings.model_url.empty())
 	{
@@ -94,12 +94,14 @@ void Avatar::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& 
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level, url_options)));
 	}
 
+	const WorldMaterial::GetURLOptions mat_options(options.use_basis, /*area allocator=*/nullptr);
+
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		avatar_settings.materials[i]->appendDependencyURLs(ob_lod_level, options.use_basis, URLs_out);
+		avatar_settings.materials[i]->appendDependencyURLs(mat_options, ob_lod_level, URLs_out);
 }
 
 
-void Avatar::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out)
+void Avatar::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& options, DependencyURLVector& URLs_out)
 {
 	if(!avatar_settings.model_url.empty())
 	{
@@ -110,12 +112,14 @@ void Avatar::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& opt
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 2, url_options)));
 	}
 
+	const WorldMaterial::GetURLOptions mat_options(options.use_basis, /*area allocator=*/nullptr);
+
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(options.use_basis, URLs_out);
+		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(mat_options, URLs_out);
 }
 
 
-void Avatar::appendDependencyURLsBaseLevel(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const
+void Avatar::appendDependencyURLsBaseLevel(const GetDependencyOptions& options, DependencyURLVector& URLs_out) const
 {
 	if(!avatar_settings.model_url.empty())
 	{
@@ -124,42 +128,44 @@ void Avatar::appendDependencyURLsBaseLevel(const GetDependencyOptions& options, 
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 0, url_options)));
 	}
 
+	const WorldMaterial::GetURLOptions mat_options(options.use_basis, /*area allocator=*/nullptr);
+
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		avatar_settings.materials[i]->appendDependencyURLsBaseLevel(options.use_basis, URLs_out);
+		avatar_settings.materials[i]->appendDependencyURLsBaseLevel(mat_options, URLs_out);
 }
 
 
-void Avatar::getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out)
+void Avatar::getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, DependencyURLSet& URLS_out)
 {
-	std::vector<DependencyURL> URLs;
+	DependencyURLVector URLs;
 	this->appendDependencyURLs(ob_lod_level, options, URLs);
 
-	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
+	URLS_out = DependencyURLSet(URLs.begin(), URLs.end());
 }
 
 
-void Avatar::getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out)
+void Avatar::getDependencyURLSetForAllLODLevels(const GetDependencyOptions& options, DependencyURLSet& URLS_out)
 {
-	std::vector<DependencyURL> URLs;
+	DependencyURLVector URLs;
 	this->appendDependencyURLsForAllLODLevels(options, URLs);
 
-	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
+	URLS_out = DependencyURLSet(URLs.begin(), URLs.end());
 }
 
 
-void Avatar::getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const
+void Avatar::getDependencyURLSetBaseLevel(const GetDependencyOptions& options, DependencyURLSet& URLS_out) const
 {
-	std::vector<DependencyURL> URLs;
+	DependencyURLVector URLs;
 	this->appendDependencyURLsBaseLevel(options, URLs);
 
-	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
+	URLS_out = DependencyURLSet(URLs.begin(), URLs.end());
 }
 
 
 void Avatar::convertLocalPathsToURLS(ResourceManager& resource_manager)
 {
 	if(FileUtils::fileExists(this->avatar_settings.model_url)) // If the URL is a local path:
-		this->avatar_settings.model_url = resource_manager.URLForPathAndHash(this->avatar_settings.model_url, FileChecksum::fileChecksum(this->avatar_settings.model_url));
+		this->avatar_settings.model_url = resource_manager.URLForPathAndHash(toStdString(this->avatar_settings.model_url), FileChecksum::fileChecksum(this->avatar_settings.model_url));
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
 		avatar_settings.materials[i]->convertLocalPathsToURLS(resource_manager);
@@ -196,7 +202,7 @@ float Avatar::getMaxDistForLODLevel(int level) const
 }
 
 
-std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, int lod_level, const GetLODModelURLOptions& options) const
+URLString Avatar::getLODModelURLForLevel(const URLString& base_model_url, int lod_level, const GetLODModelURLOptions& options) const
 {
 	if((lod_level == 0) && !options.get_optimised_mesh)
 		return base_model_url;

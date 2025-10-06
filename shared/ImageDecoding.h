@@ -38,7 +38,7 @@ public:
 
 	static bool isSupportedImageExtension(string_view extension);
 
-	static bool hasSupportedImageExtension(const std::string& path);
+	static bool hasSupportedImageExtension(string_view path);
 
 	static bool areMagicBytesValid(const void* data, size_t data_len, string_view extension);
 };

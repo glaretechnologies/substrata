@@ -21,7 +21,7 @@ class GUIClient;
 
 struct CurrentlyDownloadingResource : public RefCounted
 {
-	std::string URL;
+	URLString URL;
 	EmscriptenResourceDownloader* resource_downloader;
 	int request_handle;
 };

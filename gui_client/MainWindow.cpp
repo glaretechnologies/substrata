@@ -1981,12 +1981,12 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			// Compute hash over audio file
 			const uint64 audio_file_hash = FileChecksum::fileChecksum(path);
 
-			const std::string audio_file_URL = ResourceManager::URLForPathAndHash(path, audio_file_hash);
+			const URLString audio_file_URL = ResourceManager::URLForPathAndHash(path, audio_file_hash);
 
 			// Copy audio file to local resources dir.  UploadResourceThread will read from here.
 			gui_client.resource_manager->copyLocalFileToResourceDir(path, audio_file_URL);
 
-			const std::string model_URL = "Capsule_obj_7611321750126528672.bmesh"; // This file is in the client distribution.
+			const URLString model_URL = "Capsule_obj_7611321750126528672.bmesh"; // This file is in the client distribution.
 		
 			WorldObjectRef new_world_object = new WorldObject();
 			new_world_object->uid = UID(0); // Will be set by server
@@ -2073,7 +2073,7 @@ void MainWindow::on_actionAdd_Decal_triggered()
 	BitUtils::zeroBit(new_world_object->flags, WorldObject::COLLIDABLE_FLAG); // make non-collidable.
 
 
-	std::string unit_cube_mesh_URL = "unit_cube_bmesh_7263660735544605926.bmesh";
+	URLString unit_cube_mesh_URL = "unit_cube_bmesh_7263660735544605926.bmesh";
 	if(!gui_client.resource_manager->isFileForURLPresent(unit_cube_mesh_URL))
 	{
 		Reference<Indigo::Mesh> indigo_mesh = MeshBuilding::makeUnitCubeIndigoMesh();

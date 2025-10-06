@@ -87,7 +87,7 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 }
 
 
-std::string WorldSettingsWidget::getURLForFileSelectWidget(FileSelectWidget* widget)
+URLString WorldSettingsWidget::getURLForFileSelectWidget(FileSelectWidget* widget)
 {
 	std::string current_URL_or_path = QtUtils::toStdString(widget->filename());
 
@@ -95,7 +95,7 @@ std::string WorldSettingsWidget::getURLForFileSelectWidget(FileSelectWidget* wid
 	if(FileUtils::fileExists(current_URL_or_path)) // If this was a local path:
 	{
 		const std::string local_path = current_URL_or_path;
-		const std::string URL = ResourceManager::URLForPathAndHash(local_path, FileChecksum::fileChecksum(local_path));
+		const URLString URL = ResourceManager::URLForPathAndHash(local_path, FileChecksum::fileChecksum(local_path));
 
 		// Copy model to local resources dir.
 		main_window->gui_client.resource_manager->copyLocalFileToResourceDir(local_path, URL);
@@ -104,7 +104,7 @@ std::string WorldSettingsWidget::getURLForFileSelectWidget(FileSelectWidget* wid
 	}
 	else
 	{
-		return current_URL_or_path;
+		return toURLString(current_URL_or_path);
 	}
 }
 

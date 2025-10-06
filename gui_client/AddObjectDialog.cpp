@@ -265,7 +265,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 	// Try and load textures.  Report any errors but continue with the loading.
 	for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
 	{
-		const std::string albedo_tex_path = preview_gl_ob->materials[i].tex_path;
+		const std::string albedo_tex_path = std::string(preview_gl_ob->materials[i].tex_path);
 		if(!albedo_tex_path.empty() && !hasExtension(albedo_tex_path, "mp4"))
 		{
 			try
@@ -286,7 +286,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 			}
 		}
 
-		const std::string metallic_roughness_tex_path = preview_gl_ob->materials[i].metallic_roughness_tex_path;
+		const std::string metallic_roughness_tex_path = std::string(preview_gl_ob->materials[i].metallic_roughness_tex_path);
 		if(!metallic_roughness_tex_path.empty() && !hasExtension(metallic_roughness_tex_path, "mp4"))
 		{
 			try
@@ -302,7 +302,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 			}
 		}
 
-		const std::string emission_tex_path = preview_gl_ob->materials[i].emission_tex_path;
+		const std::string emission_tex_path = std::string(preview_gl_ob->materials[i].emission_tex_path);
 		if(!emission_tex_path.empty() && !hasExtension(emission_tex_path, "mp4"))
 		{
 			try
@@ -318,7 +318,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 			}
 		}
 
-		const std::string normal_map_path = preview_gl_ob->materials[i].normal_map_path;
+		const std::string normal_map_path = std::string(preview_gl_ob->materials[i].normal_map_path);
 		if(!normal_map_path.empty() && !hasExtension(normal_map_path, "mp4"))
 		{
 			try
@@ -341,7 +341,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 
 void AddObjectDialog::urlChanged(const QString& filename)
 {
-	const std::string url = QtUtils::toStdString(urlLineEdit->text());
+	const URLString url = toURLString(QtUtils::toStdString(urlLineEdit->text()));
 	if(url != last_url)
 	{
 		last_url = url;

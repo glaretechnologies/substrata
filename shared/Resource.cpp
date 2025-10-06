@@ -19,7 +19,7 @@ Version history:
 */
 
 
-Resource::Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_, bool external_resource_)
+Resource::Resource(const URLString& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_, bool external_resource_)
 :	URL(URL_), 
 	local_path(raw_local_path_), 
 	state(s), 

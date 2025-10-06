@@ -77,10 +77,10 @@ void LODChunk::copyNetworkStateFrom(const LODChunk& other)
 }
 
 
-const std::string LODChunk::computeMeshURL(bool use_optimised_meshes, int opt_mesh_version) const
+const URLString LODChunk::computeMeshURL(bool use_optimised_meshes, int opt_mesh_version) const
 {
 	if(use_optimised_meshes)
-		return removeDotAndExtension(mesh_url) + "_opt" + toString(opt_mesh_version) + ".bmesh";
+		return toURLString(std::string(removeDotAndExtensionStringView(mesh_url)) + "_opt" + toString(opt_mesh_version) + ".bmesh");
 	else
 		return mesh_url;
 }

@@ -29,8 +29,8 @@ class TextureLoadedThreadMessage : public ThreadMessage
 public:
 	TextureLoadedThreadMessage() : load_into_frame_i(0) {}
 
-	std::string tex_path;
-	std::string tex_URL;
+	OpenGLTextureKey tex_path;
+	URLString tex_URL;
 	TextureParams tex_params;
 	Reference<TextureData> texture_data;
 	Reference<OpenGLTexture> existing_opengl_tex; // When uploading a frame of an animated texture, upload into this already existing texture.
@@ -46,7 +46,7 @@ template <> inline void destroyAndFreeOb<TextureLoadedThreadMessage>(TextureLoad
 
 struct LoadTextureTaskUploadingUserInfo : public UploadingUserInfo
 {
-	std::string tex_URL;
+	URLString tex_URL;
 	Reference<Map2D> terrain_map; // Non-null iff we are loading a terrain map (e.g. is_terrain_map is true)
 };
 
@@ -59,7 +59,7 @@ LoadTextureTask
 class LoadTextureTask : public glare::Task
 {
 public:
-	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, const ResourceRef& resource,
+	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, const Reference<ResourceManager>& resource_manager, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const OpenGLTextureKey& path_, const ResourceRef& resource,
 		const TextureParams& tex_params, bool is_terrain_map, const Reference<glare::Allocator>& worker_allocator, Reference<glare::FastPoolAllocator>& texture_loaded_msg_allocator,
 		const Reference<OpenGLUploadThread>& upload_thread);
 
@@ -69,7 +69,7 @@ public:
 	Reference<ResourceManager> resource_manager;
 	Reference<glare::FastPoolAllocator> texture_loaded_msg_allocator;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
-	std::string path;
+	OpenGLTextureKey path;
 	ResourceRef resource;
 	TextureParams tex_params;
 	bool is_terrain_map;

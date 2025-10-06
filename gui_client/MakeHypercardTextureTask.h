@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
+#include <opengl/OpenGLTexture.h>
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <ThreadSafeQueue.h>
@@ -29,7 +30,7 @@ public:
 
 	virtual void run(size_t thread_index);
 
-	std::string tex_key;
+	OpenGLTextureKey tex_key;
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<glare::FastPoolAllocator> texture_loaded_msg_allocator;
 	Reference<TextRendererFontFaceSizeSet> fonts;
