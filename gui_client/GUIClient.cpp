@@ -1375,14 +1375,17 @@ bool GUIClient::isResourceCurrentlyNeededForObjectGivenIsDependency(const URLStr
 
 	if(ImageDecoding::isSupportedImageExtension(extension))
 	{
-		// If we are already processing this file, don't download it.
-	//TEMP	if(textures_processing.count(url) > 0)
-	//TEMP		return false;
-
 		// If it's already loaded into the opengl engine, don't download it.
 		ResourceRef resource = resource_manager->getOrCreateResourceForURL(url); // NOTE: don't want to add resource here ideally.
 		const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
-		if(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(local_path)))
+
+		const OpenGLTextureKey key(local_path);
+
+		// If we are already processing this file, don't download it.
+		if(textures_processing.count(key) > 0)
+			return false;
+
+		if(opengl_engine->isOpenGLTextureInsertedForKey(key))
 			return false;
 	}
 	else
