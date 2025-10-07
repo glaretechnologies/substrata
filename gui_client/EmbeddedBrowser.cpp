@@ -271,7 +271,7 @@ public:
 			const std::string resource_URL = eatPrefix(URL, "https://resource/");
 			//conPrint("resource_URL: " + resource_URL);
 
-			ResourceRef resource = resource_manager->getExistingResourceForURL(resource_URL);
+			ResourceRef resource = resource_manager->getExistingResourceForURL(URLString(resource_URL));
 			if(resource.nonNull())
 			{
 				const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
