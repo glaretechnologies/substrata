@@ -264,7 +264,7 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 void generateBasisTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& basis_tex_path, glare::TaskManager& task_manager)
 {
 #if GUI_CLIENT
-	throw glare::Exception("generateKTXTexture not supported.");
+	throw glare::Exception("generateBasisTexture not supported.");
 #else
 
 	int new_max_w_h;
@@ -546,6 +546,7 @@ void LODGeneration::test()
 	try
 	{
 
+#if !GUI_CLIENT  // generateBasisTexture is disabled in gui_client.
 		// Test generateBasisTexture on an animated gif.
 		{
 			generateBasisTexture(TestUtils::getTestReposDir() + "/testfiles/gifs/fire.gif", // src tex path
@@ -586,6 +587,7 @@ void LODGeneration::test()
 		}
 
 		return;
+#endif
 
 
 
@@ -646,7 +648,7 @@ void LODGeneration::test()
 		}
 
 
-#if 0 // !GUI_CLIENT  // generateKTXTexture is disabled in gui_client.
+#if !GUI_CLIENT  // generateKTXTexture is disabled in gui_client.
 		//------------------------------------------- Test KTX texture generation -------------------------------------------
 		// Test writing an 8 bit RGB KTX image.
 		{
