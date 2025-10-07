@@ -769,8 +769,8 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 			{
 				if(!ob->materials.empty())
 				{
-					const std::string& video_URL = ob->materials[0]->emission_texture_url;
-					gui_client->logMessage("Closing vid player browser (out of view distance), video_URL: " + video_URL);
+					const auto& video_URL = ob->materials[0]->emission_texture_url;
+					gui_client->logMessage("Closing vid player browser (out of view distance), video_URL: " + std::string(video_URL));
 				}
 				browser = NULL;
 

@@ -58,7 +58,7 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 	{
 		if(animtexdata.browser.isNull() && !tex_path.empty() && ob->opengl_engine_ob.nonNull())
 		{
-			gui_client->logMessage("Creating browser to play vid, URL: " + tex_path);
+			gui_client->logMessage("Creating browser to play vid, URL: " + std::string(tex_path));
 
 			const int width = 1024;
 			const float use_height_over_width = ob->scale.z / ob->scale.x; // Object scale should be based on video aspect ratio, see ModelLoading::makeImageCube().
@@ -86,7 +86,7 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 			std::string use_URL;
 			if(resource.nonNull() && resource->getState() == Resource::State_Present)
 			{
-				use_URL = "https://resource/" + web::Escaping::URLEscape(tex_path);// resource->getLocalPath();
+				use_URL = "https://resource/" + web::Escaping::URLEscape(std::string(tex_path));// resource->getLocalPath();
 			}
 			else // Otherwise use streaming via HTTP
 			{
@@ -97,7 +97,7 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 				else
 				{
 					// If the URL does not have an HTTP prefix (e.g. is just a normal resource URL), rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
-					use_URL = "http://" + gui_client->server_hostname + "/resource/" + web::Escaping::URLEscape(tex_path);
+					use_URL = "http://" + gui_client->server_hostname + "/resource/" + web::Escaping::URLEscape(std::string(tex_path));
 				}
 			}
 
