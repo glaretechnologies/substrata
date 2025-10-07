@@ -404,7 +404,7 @@ public:
 	DatabaseKey database_key;
 
 #if GUI_CLIENT
-	std::vector<InstanceInfo> instances;
+	js::Vector<InstanceInfo> instances;
 
 	Reference<GLObject> opengl_engine_ob;
 	Reference<GLLight> opengl_light;

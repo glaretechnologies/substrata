@@ -194,45 +194,31 @@ class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 	}
 };
 
-uint64 num_jolt_allocs_done = 0;
+//uint64 num_jolt_allocs_done = 0;
 
 static void* joltAllocate(size_t size)
 {
-	num_jolt_allocs_done++;
-#if TRACE_ALLOCATIONS
-	void* ptr = MemAlloc::alignedMalloc(size, 8); // works
-	//void* ptr = MemAlloc::traceMalloc(size); // crashes
-#else
-	void* ptr = malloc(size);
-#endif
-	if(!ptr)
-		throw std::bad_alloc();
+	//num_jolt_allocs_done++;
+	void* ptr = MemAlloc::mallocWithDefaultAlignmentAndThrow(size);
+
 	TracyAllocS(ptr, size, /*call stack capture depth=*/10);
+
 	return ptr;
 }
 
 static void joltFree(void* inBlock)
 {
 	TracyFreeS(inBlock, /*call stack capture depth=*/10);
-#if TRACE_ALLOCATIONS
-	MemAlloc::alignedFree(inBlock);
-	//MemAlloc::traceFree(inBlock);
-#else
-	free(inBlock);
-#endif
+
+	MemAlloc::freeWithDefaultAlignmentAndThrow(inBlock);
 }
 
 static void* joltReallocate(void *inBlock, [[maybe_unused]] size_t inOldSize, size_t inNewSize)
 {
-	num_jolt_allocs_done++;
+	//num_jolt_allocs_done++;
 
-	
 	// Alloc new mem
-#if TRACE_ALLOCATIONS
-	void* ptr = MemAlloc::alignedMalloc(inNewSize, 8); // works
-#else
-	void* ptr = malloc(inNewSize);
-#endif
+	void* ptr = MemAlloc::mallocWithDefaultAlignmentAndThrow(inNewSize);
 	if(!ptr)
 		throw std::bad_alloc();
 	TracyAllocS(ptr, inNewSize, /*call stack capture depth=*/10);
@@ -245,13 +231,8 @@ static void* joltReallocate(void *inBlock, [[maybe_unused]] size_t inOldSize, si
 	if(inBlock)
 	{
 		TracyFreeS(inBlock, /*call stack capture depth=*/10);
-#if TRACE_ALLOCATIONS
-		MemAlloc::alignedFree(inBlock);
-#else
-		free(inBlock);
-#endif
+		MemAlloc::freeWithDefaultAlignmentAndThrow(inBlock);
 	}
-
 
 	return ptr;
 
@@ -1733,7 +1714,7 @@ void PhysicsWorld::test()
 
 
 		double min_time = 1.0e10;
-		for(int i=0; i<1000; ++i)
+		for(int i=0; i<1; ++i)
 		{
 			Timer timer;
 			//const uint64 initial_num_jolt_allocs = ::num_jolt_allocs_done;
