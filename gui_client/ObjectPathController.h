@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2025 -
 #include "../shared/WorldObject.h"
 #include <maths/Vec4f.h>
 #include <maths/vec3.h>
+#include <utils/Vector.h>
 #include <vector>
 
 
@@ -20,6 +21,8 @@ class PhysicsWorld;
 
 struct PathWaypointIn
 {
+	GLARE_ALIGNED_16_NEW_DELETE
+
 	enum WaypointType
 	{
 		CurveIn, // Start of a curve (circular arc)
@@ -88,5 +91,5 @@ public:
 		float curve_r;
 		Vec4f exit_segment_unit_dir; // = normalise(exit_pos - intersection)
 	};
-	std::vector<PathWaypoint> waypoints;
+	js::Vector<PathWaypoint> waypoints;
 };

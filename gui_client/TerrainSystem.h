@@ -120,6 +120,8 @@ public:
 // Quad-tree node
 struct TerrainNode : public RefCounted
 {
+	GLARE_ALIGNED_16_NEW_DELETE
+
 	TerrainNode() : building(false), subtree_built(false) {}
 	
 	GLObjectRef gl_ob;

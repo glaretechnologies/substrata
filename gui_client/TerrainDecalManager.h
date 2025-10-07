@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <maths/PCG32.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
+#include <utils/Vector.h>
 class OpenGLShader;
 class OpenGLMeshRenderData;
 class VertexBufferAllocator;
@@ -66,7 +67,7 @@ private:
 	OpenGLEngine* opengl_engine;
 	Reference<OpenGLTexture> foam_texture;
 	Reference<OpenGLTexture> foam_sprite_front;
-	std::vector<FoamDecal> foam_decals;
+	js::Vector<FoamDecal> foam_decals;
 
 	AsyncTextureLoader* async_tex_loader;
 	std::vector<AsyncTextureLoadingHandle> loading_handles;
