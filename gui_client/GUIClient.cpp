@@ -2377,8 +2377,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				// Update textures to correct LOD-level textures.
 				if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
 				{
-					glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-					ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena);
+					{
+						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena);
+					}
 					assignLoadedOpenGLTexturesToMats(ob);
 					for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
 					{
@@ -2478,8 +2480,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				// Update textures to correct LOD-level textures.
 				if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
 				{
-					glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-					ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena);
+					{
+						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena);
+					}
 					assignLoadedOpenGLTexturesToMats(ob);
 				}
 			}
@@ -2545,8 +2549,10 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 	if(voxel_subsample_factor != 1)
 		ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)voxel_subsample_factor);
 
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-	ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena, ob_to_world_matrix);
+	{
+		glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+		ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena, ob_to_world_matrix);
+	}
 
 	if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
