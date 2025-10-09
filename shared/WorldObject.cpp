@@ -185,10 +185,16 @@ URLString WorldObject::makeOptimisedMeshURL(const URLString& base_model_url, int
 URLString WorldObject::getLODModelURLForLevel(const URLString& base_model_url, int lod_level, const GetLODModelURLOptions& options)
 {
 	if((lod_level == 0) && !options.get_optimised_mesh)
-		return base_model_url;
+	{
+		glare::STLArenaAllocator<char> stl_arena_allocator(options.allocator);
+		return URLString(base_model_url, stl_arena_allocator);
+	}
 
 	if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
-		return base_model_url;
+	{
+		glare::STLArenaAllocator<char> stl_arena_allocator(options.allocator);
+		return URLString(base_model_url, stl_arena_allocator);
+	}
 
 	return makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, options.allocator);
 }
@@ -245,7 +251,10 @@ URLString WorldObject::getLODModelURL(const Vec3d& campos, const GetLODModelURLO
 		if(options.get_optimised_mesh)
 			return makeOptimisedMeshURL(this->model_url, /*lod_level=*/0, /*get_optimised_mesh=*/true, options.opt_mesh_version);
 		else
-			return this->model_url;
+		{
+			glare::STLArenaAllocator<char> stl_allocator(options.allocator);
+			return URLString(this->model_url, stl_allocator);
+		}
 	}
 
 	const int ob_lod_level = getLODLevel(campos);
@@ -254,14 +263,18 @@ URLString WorldObject::getLODModelURL(const Vec3d& campos, const GetLODModelURLO
 }
 
 
-URLString WorldObject::getLODLightmapURLForLevel(const URLString& base_lightmap_url, int level)
+URLString WorldObject::getLODLightmapURLForLevel(const URLString& base_lightmap_url, int level, glare::ArenaAllocator* allocator)
 {
 	assert(level >= -1 && level <= 2);
 	if(level <= 0)
-		return base_lightmap_url;
+	{
+		glare::STLArenaAllocator<char> stl_allocator(allocator);
+		return URLString(base_lightmap_url, stl_allocator);
+	}
 	else if(level == 1)
 	{
-		URLString res(base_lightmap_url.get_allocator());
+		glare::STLArenaAllocator<char> stl_allocator(allocator);
+		URLString res(stl_allocator);
 		res.reserve(base_lightmap_url.size() + 8);
 		res.append(removeDotAndExtension(base_lightmap_url));
 		res.append("_lod1.");
@@ -270,7 +283,8 @@ URLString WorldObject::getLODLightmapURLForLevel(const URLString& base_lightmap_
 	}
 	else
 	{
-		URLString res(base_lightmap_url.get_allocator());
+		glare::STLArenaAllocator<char> stl_allocator(allocator);
+		URLString res(stl_allocator);
 		res.reserve(base_lightmap_url.size() + 8);
 		res.append(removeDotAndExtension(base_lightmap_url));
 		res.append("_lod2.");
@@ -319,7 +333,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 
 	if(options.include_lightmaps && !lightmap_url.empty())
 	{
-		DependencyURL dependency_url(getLODLightmapURLForLevel(lightmap_url, ob_lod_level));
+		DependencyURL dependency_url(getLODLightmapURLForLevel(lightmap_url, ob_lod_level, options.allocator));
 		dependency_url.is_lightmap = true;
 		URLs_out.push_back(dependency_url);
 	}
@@ -357,7 +371,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions
 	if(!lightmap_url.empty())
 		for(int lvl=0; lvl<=2; ++lvl)
 		{
-			DependencyURL dependency_url(getLODLightmapURLForLevel(lightmap_url, lvl));
+			DependencyURL dependency_url(getLODLightmapURLForLevel(lightmap_url, lvl, options.allocator));
 			dependency_url.is_lightmap = true;
 			URLs_out.push_back(dependency_url);
 		}
