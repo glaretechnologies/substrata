@@ -411,18 +411,14 @@ void ObjectEditor::setTransformFromObject(const WorldObject& ob)
 }
 
 
-static void checkStringSize(std::string& s, size_t max_size)
+template <class StringType>
+static void checkStringSize(StringType& s, size_t max_size)
 {
 	// TODO: throw exception instead?
 	if(s.size() > max_size)
 		s = s.substr(0, max_size);
 }
-static void checkStringSize(URLString& s, size_t max_size)
-{
-	// TODO: throw exception instead?
-	if(s.size() > max_size)
-		s = s.substr(0, max_size);
-}
+
 
 void ObjectEditor::toObject(WorldObject& ob_out)
 {

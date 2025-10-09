@@ -167,7 +167,7 @@ public:
 
 	static URLString getLODModelURLForLevel(const URLString& base_model_url, int level, const GetLODModelURLOptions& options);
 	static int getLODLevelForURL(const URLString& URL); // Identifies _lod1 etc. suffix.
-	static URLString getLODLightmapURLForLevel(const URLString& base_lightmap_url, int level);
+	static URLString getLODLightmapURLForLevel(const URLString& base_lightmap_url, int level, glare::ArenaAllocator* allocator);
 #if GUI_CLIENT
 	static OpenGLTextureKey getLODLightmapPathForLevel(const OpenGLTextureKey& base_lightmap_path, int level);
 #endif
