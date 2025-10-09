@@ -712,7 +712,7 @@ public:
 	glare::StackAllocator stack_allocator;
 	Reference<glare::Allocator> worker_allocator;
 
-	glare::ArenaAllocator arena_allocator;
+	mutable glare::ArenaAllocator arena_allocator;
 
 
 	Mutex particles_creation_buf_mutex;

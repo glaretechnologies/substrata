@@ -1174,8 +1174,8 @@ void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_ab
 void GUIClient::startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, 
 	const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression)
 {
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-	const WorldMaterial::GetURLOptions get_url_options(/*use basis=*/server_has_basis_textures, /*arena allocator=*/&use_arena);
+	glare::ArenaFrame frame(arena_allocator);
+	const WorldMaterial::GetURLOptions get_url_options(/*use basis=*/server_has_basis_textures, /*arena allocator=*/&arena_allocator);
 
 	const URLString temp_lod_tex_url = world_mat.getLODTextureURLForLevel(get_url_options, texture_url, ob_lod_level, tex_has_alpha);
 
@@ -1221,8 +1221,8 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 	// Start loading lightmap
 	if(this->use_lightmaps && isValidLightMapURL(*opengl_engine, ob.lightmap_url))
 	{
-		glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-		const URLString temp_lod_tex_url = WorldObject::getLODLightmapURLForLevel(ob.lightmap_url, ob_lod_level, &use_arena);
+		glare::ArenaFrame frame(arena_allocator);
+		const URLString temp_lod_tex_url = WorldObject::getLODLightmapURLForLevel(ob.lightmap_url, ob_lod_level, &arena_allocator);
 
 		ResourceRef resource = resource_manager->getExistingResourceForURL(temp_lod_tex_url);
 		if(resource.nonNull() && (resource->getState() == Resource::State_Present)) // If the texture is present on disk:
@@ -1464,15 +1464,15 @@ bool GUIClient::isResourceCurrentlyNeededForObject(const URLString& url, const W
 		return false;
 	}
 
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&use_arena);
+	glare::ArenaFrame frame(arena_allocator);
+	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
 	options.include_lightmaps = this->use_lightmaps;
 	options.get_optimised_mesh = this->server_has_optimised_meshes;
 	options.opt_mesh_version = this->server_opt_mesh_version;
-	options.allocator = &use_arena;
+	options.allocator = &arena_allocator;
 
 	DependencyURLSet dependency_URLs(std::less<DependencyURL>(), stl_arena_allocator);
 	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
@@ -1534,15 +1534,15 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 
 	// conPrint("startDownloadingResourcesForObject: ob_lod_level: " + toString(ob_lod_level));
 
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&use_arena);
+	glare::ArenaFrame frame(arena_allocator);
+	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 	WorldObject::GetDependencyOptions options;
 	options.use_basis = this->server_has_basis_textures;
 	options.include_lightmaps = this->use_lightmaps;
 	options.get_optimised_mesh = this->server_has_optimised_meshes;
 	options.opt_mesh_version = this->server_opt_mesh_version;
-	options.allocator = &use_arena;
+	options.allocator = &arena_allocator;
 
 	DependencyURLSet dependency_URLs(std::less<DependencyURL>(), stl_arena_allocator);
 
@@ -1582,8 +1582,8 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 
 void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar)
 {
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&use_arena);
+	glare::ArenaFrame frame(arena_allocator);
+	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 	Avatar::GetDependencyOptions options;
 	options.get_optimised_mesh = this->server_has_optimised_meshes;
@@ -1786,9 +1786,9 @@ void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 {
 	ZoneScoped; // Tracy profiler
 
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+	glare::ArenaFrame frame(arena_allocator);
 
-	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager, &use_arena);
+	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 }
 
 
@@ -1905,10 +1905,10 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	opengl_ob->materials.resize(1);
 	OpenGLMaterial& gl_mat_0 = opengl_ob->materials[0];
 
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+	glare::ArenaFrame frame(arena_allocator);
 
 	if(ob->materials.size() >= 1)
-		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &use_arena, gl_mat_0);
+		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, gl_mat_0);
 
 
 	gl_mat_0.alpha_blend = true; // Make use alpha blending
@@ -2170,12 +2170,12 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				GLObjectRef opengl_ob = opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
 				
-				glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+				glare::ArenaFrame frame(arena_allocator);
 
 				// Use material[1] from the WorldObject as the light housing GL material.
 				opengl_ob->materials.resize(2);
 				if(ob->materials.size() >= 2)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena, /*open gl mat=*/opengl_ob->materials[0]);
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 				else
 					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
@@ -2378,8 +2378,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
 				{
 					{
-						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena);
+						glare::ArenaFrame frame(arena_allocator);
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator);
 					}
 					assignLoadedOpenGLTexturesToMats(ob);
 					for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
@@ -2481,8 +2481,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
 				{
 					{
-						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena);
+						glare::ArenaFrame frame(arena_allocator);
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator);
 					}
 					assignLoadedOpenGLTexturesToMats(ob);
 				}
@@ -2550,8 +2550,8 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 		ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)voxel_subsample_factor);
 
 	{
-		glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-		ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena, ob_to_world_matrix);
+		glare::ArenaFrame frame(arena_allocator);
+		ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
 	}
 
 	if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
@@ -2665,9 +2665,9 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
 
 	// Create gl and physics object now
-	glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+	glare::ArenaFrame frame(arena_allocator);
 	avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/URLString(), 
-		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena, ob_to_world_matrix);
+		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
 
 	mesh_data->meshDataBecameUsed();
 	avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
@@ -2692,7 +2692,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	avatar->graphics.build();
 
-	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &use_arena);
+	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 
 	// Enable materialise effect if needed
 	const float current_time = (float)Clock::getTimeSinceInit();
@@ -4229,8 +4229,8 @@ void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLStr
 					{
 						Avatar* av = res2->second.ptr();
 
-						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-						assignLoadedOpenGLTexturesToAvatarMats(av, /*use basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &use_arena);
+						glare::ArenaFrame frame(arena_allocator);
+						assignLoadedOpenGLTexturesToAvatarMats(av, /*use basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 					}
 				}
 				loading_texture_URL_to_avatar_UID_map.erase(res); // Now that this texture has been loaded, remove from map
@@ -6387,11 +6387,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								opengl_engine->updateObjectTransformData(*opengl_ob);
 
 								// Update materials in opengl engine.
-								glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+								glare::ArenaFrame frame(arena_allocator);
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 								for(size_t i=0; i<ob->materials.size(); ++i)
 									if(i < opengl_ob->materials.size())
-										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &use_arena, opengl_ob->materials[i]);
+										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 
 								opengl_engine->objectMaterialsUpdated(*opengl_ob);
 
@@ -6477,10 +6477,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					GLObjectRef opengl_ob = ob->opengl_engine_ob;
 					if(opengl_ob.nonNull())
 					{
-						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+						glare::ArenaFrame frame(arena_allocator);
 						for(size_t i=0; i<ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &use_arena, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
 
@@ -8728,15 +8728,15 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 							//if(ob->using_placeholder_model)
 							{
-								glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-								glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&use_arena);
+								glare::ArenaFrame frame(arena_allocator);
+								glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 								WorldObject::GetDependencyOptions options;
 								options.use_basis = this->server_has_basis_textures;
 								options.include_lightmaps = this->use_lightmaps;
 								options.get_optimised_mesh = this->server_has_optimised_meshes;
 								options.opt_mesh_version = this->server_opt_mesh_version;
-								options.allocator = &use_arena;
+								options.allocator = &arena_allocator;
 
 								DependencyURLSet URL_set(std::less<DependencyURL>(), stl_arena_allocator);
 								ob->getDependencyURLSet(ob_lod_level, options, URL_set);
@@ -8764,8 +8764,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 							//if(ob->using_placeholder_model)
 							{
-								glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-								glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&use_arena);
+								glare::ArenaFrame frame(arena_allocator);
+								glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 								Avatar::GetDependencyOptions options;
 								options.get_optimised_mesh = this->server_has_optimised_meshes;
@@ -10278,10 +10278,10 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 						const int ob_lod_level = in_world_ob->getLODLevel(cam_controller.getPosition());
 
 						// Update materials in opengl engine.
-						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+						glare::ArenaFrame frame(arena_allocator);
 						for(size_t i=0; i<in_world_ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &use_arena, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
@@ -11349,10 +11349,10 @@ void GUIClient::objectEdited()
 							{
 								opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
 
-								glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+								glare::ArenaFrame frame(arena_allocator);
 
 								for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &use_arena,
+									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator,
 										opengl_ob->materials[i]
 									);
 
@@ -11547,10 +11547,10 @@ void GUIClient::updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_ma
 
 
 		// Use material[1] from the WorldObject as the light housing GL material.
-		glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+		glare::ArenaFrame frame(arena_allocator);
 		opengl_ob->materials.resize(2);
 		if(ob->materials.size() >= 2)
-			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*//*ob_lod_level*/0, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &use_arena, /*open gl mat=*/opengl_ob->materials[0]);
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*//*ob_lod_level*/0, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 		else
 			opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
@@ -12877,12 +12877,12 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		gl_ob->ob_to_world_matrix = ob_to_world;
 		gl_ob->mesh_data = gl_meshdata;
 
-		glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
+		glare::ArenaFrame frame(arena_allocator);
 
 		gl_ob->materials.resize(ob->materials.size());
 		for(uint32 i=0; i<ob->materials.size(); ++i)
 		{
-			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &use_arena, gl_ob->materials[i]);
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, gl_ob->materials[i]);
 			gl_ob->materials[i].gen_planar_uvs = true;
 			gl_ob->materials[i].draw_planar_uv_grid = true;
 		}
