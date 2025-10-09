@@ -185,16 +185,10 @@ URLString WorldObject::makeOptimisedMeshURL(const URLString& base_model_url, int
 URLString WorldObject::getLODModelURLForLevel(const URLString& base_model_url, int lod_level, const GetLODModelURLOptions& options)
 {
 	if((lod_level == 0) && !options.get_optimised_mesh)
-	{
-		glare::STLArenaAllocator<char> stl_arena_allocator(options.allocator);
-		return URLString(base_model_url, stl_arena_allocator);
-	}
+		return URLString(base_model_url, glare::STLArenaAllocator<char>(options.allocator));
 
 	if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
-	{
-		glare::STLArenaAllocator<char> stl_arena_allocator(options.allocator);
-		return URLString(base_model_url, stl_arena_allocator);
-	}
+		return URLString(base_model_url, glare::STLArenaAllocator<char>(options.allocator));
 
 	return makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, options.allocator);
 }
@@ -251,10 +245,7 @@ URLString WorldObject::getLODModelURL(const Vec3d& campos, const GetLODModelURLO
 		if(options.get_optimised_mesh)
 			return makeOptimisedMeshURL(this->model_url, /*lod_level=*/0, /*get_optimised_mesh=*/true, options.opt_mesh_version);
 		else
-		{
-			glare::STLArenaAllocator<char> stl_allocator(options.allocator);
-			return URLString(this->model_url, stl_allocator);
-		}
+			return URLString(this->model_url, glare::STLArenaAllocator<char>(options.allocator));
 	}
 
 	const int ob_lod_level = getLODLevel(campos);
@@ -267,10 +258,7 @@ URLString WorldObject::getLODLightmapURLForLevel(const URLString& base_lightmap_
 {
 	assert(level >= -1 && level <= 2);
 	if(level <= 0)
-	{
-		glare::STLArenaAllocator<char> stl_allocator(allocator);
-		return URLString(base_lightmap_url, stl_allocator);
-	}
+		return URLString(base_lightmap_url, glare::STLArenaAllocator<char>(allocator));
 	else if(level == 1)
 	{
 		glare::STLArenaAllocator<char> stl_allocator(allocator);
@@ -345,12 +333,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 		materials[i]->appendDependencyURLs(mat_get_url_options, ob_lod_level, URLs_out);
 
 	if(!audio_source_url.empty())
-	{
-		glare::STLArenaAllocator<char> stl_allocator(options.allocator);
-		URLs_out.push_back(DependencyURL(URLString(audio_source_url, stl_allocator)));
-		
-		//URLs_out.push_back(DependencyURL(audio_source_url));
-	}
+		URLs_out.push_back(DependencyURL(URLString(audio_source_url, glare::STLArenaAllocator<char>(options.allocator))));
 }
 
 
@@ -382,7 +365,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions
 		materials[i]->appendDependencyURLsAllLODLevels(mat_get_url_options, URLs_out);
 
 	if(!audio_source_url.empty())
-		URLs_out.push_back(DependencyURL(audio_source_url));
+		URLs_out.push_back(DependencyURL(URLString(audio_source_url, glare::STLArenaAllocator<char>(options.allocator))));
 }
 
 
