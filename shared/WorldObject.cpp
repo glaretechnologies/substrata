@@ -1884,15 +1884,15 @@ void WorldObject::test()
 			for(int z=0; z<10000; ++z)
 			{
 				Timer timer;
-				glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-				glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&use_arena);
+				glare::ArenaFrame frame(arena_allocator);
+				glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 				DependencyURLSet URLs(std::less<DependencyURL>(), stl_arena_allocator);
 
 				for(size_t i=0; i<obs.size(); ++i)
 				{
 					WorldObject::GetDependencyOptions options;
 					options.use_basis = true;
-					options.allocator = &use_arena;
+					options.allocator = &arena_allocator;
 					obs[i]->getDependencyURLSet(/*ob lod level=*/1, options, URLs);
 				}
 				smallest_time = myMin(smallest_time, timer.elapsed());
@@ -1928,14 +1928,14 @@ void WorldObject::test()
 				for(int q=0; q<num_inner_iters; ++q)
 				{
 					{
-						glare::ArenaAllocator use_arena = arena_allocator.getFreeAreaArenaAllocator();
-						glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&use_arena);
+						glare::ArenaFrame arena_frame(arena_allocator);
+						glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 						DependencyURLVector URL_vector(stl_arena_allocator);
 						for(size_t i=0; i<obs.size(); ++i)
 						{
 							WorldObject::GetDependencyOptions options;
 							options.use_basis = true;
-							options.allocator = &use_arena;
+							options.allocator = &arena_allocator;
 							obs[i]->appendDependencyURLs(/*ob lod level=*/1, options, URL_vector);
 						}
 					}
