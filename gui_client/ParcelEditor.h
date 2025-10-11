@@ -17,6 +17,8 @@ public:
 
 	void toParcel(Parcel& parcel_out);
 
+	void setCurrentServerURL(const std::string& server_url);
+
 signals:;
 	void parcelChanged();
 
@@ -24,4 +26,5 @@ private slots:
 	void on_showOnWebLabel_linkActivated(const QString& link);
 
 protected:
+	std::string current_server_url;
 };
