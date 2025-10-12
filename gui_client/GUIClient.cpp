@@ -192,7 +192,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	last_cursor_movement_was_from_mouse(true),
 	sent_perform_gesture_without_stop_gesture(false),
 	use_lightmaps(true),
-	cur_loading_model_lod_level(-1)
+	cur_loading_model_lod_level(-1),
+	obs_with_scripts(/*empty val=*/WorldObjectRef())
 {
 	resources_dir_path = base_dir_path + "/data/resources";
 
@@ -253,6 +254,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 		axis_arrow_segments[i] = LineSegment4f(Vec4f(0, 0, 0, 1), Vec4f(1, 0, 0, 1));
 
 	this->animated_texture_manager = new AnimatedTextureManager();
+
+	this->object_scripts_evaluator = new Scripting::ObjectScriptsEvaluator();
 }
 
 
@@ -2852,19 +2855,19 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 // Remove any existing instances of this object from the instance set, also from 3d engine and physics engine.
 void GUIClient::removeInstancesOfObject(WorldObject* prototype_ob)
 {
-	for(size_t z=0; z<prototype_ob->instances.size(); ++z)
-	{
-		InstanceInfo& instance = prototype_ob->instances[z];
-		
-		if(instance.physics_object.nonNull())
-		{
-			physics_world->removeObject(instance.physics_object); // Remove from physics engine
-			instance.physics_object = NULL;
-		}
-	}
-
-	prototype_ob->instances.clear();
-	prototype_ob->instance_matrices.clear();
+	//for(size_t z=0; z<prototype_ob->instances.size(); ++z)
+	//{
+	//	InstanceInfo& instance = prototype_ob->instances[z];
+	//	
+	//	if(instance.physics_object.nonNull())
+	//	{
+	//		physics_world->removeObject(instance.physics_object); // Remove from physics engine
+	//		instance.physics_object = NULL;
+	//	}
+	//}
+	//
+	//prototype_ob->instances.clear();
+	//prototype_ob->instance_matrices.clear();
 }
 
 
@@ -2974,12 +2977,12 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 
 	
 	// If we have a script evaluator already, but the opengl ob has been recreated (due to LOD level changes), we need to recreate the instance_matrices VBO
-	if(ob->script_evaluator.nonNull() && ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
-	{
-		ob->opengl_engine_ob->enableInstancing(*opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
-
-		opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob); // Reload mat to enable instancing
-	}
+	//if(ob->script_evaluator.nonNull() && ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
+	//{
+	//	ob->opengl_engine_ob->enableInstancing(*opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
+	//
+	//	opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob); // Reload mat to enable instancing
+	//}
 }
 
 
@@ -3001,84 +3004,84 @@ void GUIClient::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* lo
 		const std::string script_content = loaded_msg->script;
 
 		// Handle instancing command if present
-		int count = 0;
-		if(ob->object_type == WorldObject::ObjectType_Generic) // Only allow instancing on objects (not spotlights etc. yet)
-		{
-			const std::vector<std::string> lines = StringUtils::splitIntoLines(script_content);
-			for(size_t z=0; z<lines.size(); ++z)
-			{
-				if(::hasPrefix(lines[z], "#instancing"))
-				{
-					Parser parser(lines[z]);
-					parser.parseString("#instancing");
-					parser.parseWhiteSpace();
-					if(!parser.parseInt(count))
-						throw glare::Exception("Failed to parse count after #instancing.");
-				}
-			}
-		}
-
-		const int MAX_COUNT = 100;
-		count = myMin(count, MAX_COUNT);
+		//int count = 0;
+		//if(ob->object_type == WorldObject::ObjectType_Generic) // Only allow instancing on objects (not spotlights etc. yet)
+		//{
+		//	const std::vector<std::string> lines = StringUtils::splitIntoLines(script_content);
+		//	for(size_t z=0; z<lines.size(); ++z)
+		//	{
+		//		if(::hasPrefix(lines[z], "#instancing"))
+		//		{
+		//			Parser parser(lines[z]);
+		//			parser.parseString("#instancing");
+		//			parser.parseWhiteSpace();
+		//			if(!parser.parseInt(count))
+		//				throw glare::Exception("Failed to parse count after #instancing.");
+		//		}
+		//	}
+		//}
+		//
+		//const int MAX_COUNT = 100;
+		//count = myMin(count, MAX_COUNT);
 
 		this->obs_with_scripts.insert(ob);
 
-		if(count > 0) // If instancing was requested:
-		{
-			// conPrint("Doing instancing with count " + toString(count));
-
-			removeInstancesOfObject(ob); // Make sure we remove any existing physics objects for existing instances.
-
-			ob->instance_matrices.resize(count);
-			ob->instances.resize(count);
-
-			// Create a bunch of copies of this object
-			for(size_t z=0; z<(size_t)count; ++z)
-			{
-				InstanceInfo* instance = &ob->instances[z];
-
-				assert(instance->physics_object.isNull());
-
-				instance->instance_index = (int)z;
-				instance->num_instances = count;
-				instance->script_evaluator = ob->script_evaluator;
-				instance->prototype_object = ob;
-
-				instance->pos = ob->pos;
-				instance->axis = ob->axis;
-				instance->angle = ob->angle;
-				instance->scale = ob->scale;
-
-				// Make physics object
-				if(ob->physics_object.nonNull())
-				{
-					PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-					physics_ob->shape = ob->physics_object->shape;
-					physics_ob->kinematic = true;
-
-					instance->physics_object = physics_ob;
-
-					physics_ob->userdata = instance;
-					physics_ob->userdata_type = 2;
-					physics_ob->ob_uid = UID(6666666);
-
-					physics_ob->pos = ob->pos.toVec4fPoint();
-					physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
-					physics_ob->scale = useScaleForWorldOb(ob->scale);
-
-					physics_world->addObject(physics_ob);
-				}
-
-				ob->instance_matrices[z] = obToWorldMatrix(*ob); // Use transform of prototype object for now.
-			}
-
-			if(ob->opengl_engine_ob.nonNull())
-			{
-				ob->opengl_engine_ob->enableInstancing(*opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * count);
-						
-				opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob); // Reload mat to enable instancing
-			}
-		}
+		//if(count > 0) // If instancing was requested:
+		//{
+		//	// conPrint("Doing instancing with count " + toString(count));
+		//
+		//	removeInstancesOfObject(ob); // Make sure we remove any existing physics objects for existing instances.
+		//
+		//	ob->instance_matrices.resize(count);
+		//	ob->instances.resize(count);
+		//
+		//	// Create a bunch of copies of this object
+		//	for(size_t z=0; z<(size_t)count; ++z)
+		//	{
+		//		InstanceInfo* instance = &ob->instances[z];
+		//
+		//		assert(instance->physics_object.isNull());
+		//
+		//		instance->instance_index = (int)z;
+		//		instance->num_instances = count;
+		//		instance->script_evaluator = ob->script_evaluator;
+		//		instance->prototype_object = ob;
+		//
+		//		instance->pos = ob->pos;
+		//		instance->axis = ob->axis;
+		//		instance->angle = ob->angle;
+		//		instance->scale = ob->scale;
+		//
+		//		// Make physics object
+		//		if(ob->physics_object.nonNull())
+		//		{
+		//			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+		//			physics_ob->shape = ob->physics_object->shape;
+		//			physics_ob->kinematic = true;
+		//
+		//			instance->physics_object = physics_ob;
+		//
+		//			physics_ob->userdata = instance;
+		//			physics_ob->userdata_type = 2;
+		//			physics_ob->ob_uid = UID(6666666);
+		//
+		//			physics_ob->pos = ob->pos.toVec4fPoint();
+		//			physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+		//			physics_ob->scale = useScaleForWorldOb(ob->scale);
+		//
+		//			physics_world->addObject(physics_ob);
+		//		}
+		//
+		//		ob->instance_matrices[z] = obToWorldMatrix(*ob); // Use transform of prototype object for now.
+		//	}
+		//
+		//	if(ob->opengl_engine_ob.nonNull())
+		//	{
+		//		ob->opengl_engine_ob->enableInstancing(*opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * count);
+		//				
+		//		opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob); // Reload mat to enable instancing
+		//	}
+		//}
 	}
 	catch(glare::Exception& e)
 	{
@@ -3293,23 +3296,23 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 }
 
 
-void GUIClient::updateInstancedCopiesOfObject(WorldObject* ob)
-{
-	for(size_t z=0; z<ob->instances.size(); ++z)
-	{
-		InstanceInfo* instance = &ob->instances[z];
-
-		instance->angle = ob->angle;
-		instance->pos = ob->pos;
-		instance->scale = ob->scale;
-
-		// TODO: update physics ob?
-		//if(instance->physics_object.nonNull())
-		//{
-		//	//TEMP physics_world->updateObjectTransformData(*instance->physics_object);
-		//}
-	}
-}
+//void GUIClient::updateInstancedCopiesOfObject(WorldObject* ob)
+//{
+//	for(size_t z=0; z<ob->instances.size(); ++z)
+//	{
+//		InstanceInfo* instance = &ob->instances[z];
+//
+//		instance->angle = ob->angle;
+//		instance->pos = ob->pos;
+//		instance->scale = ob->scale;
+//
+//		// TODO: update physics ob?
+//		//if(instance->physics_object.nonNull())
+//		//{
+//		//	//TEMP physics_world->updateObjectTransformData(*instance->physics_object);
+//		//}
+//	}
+//}
 
 
 void GUIClient::logMessage(const std::string& msg) // Append to LogWindow log display
@@ -5521,8 +5524,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		ZoneScopedN("script eval"); // Tracy profiler
 
 		Timer timer;
-		Scripting::evaluateObjectScripts(this->obs_with_scripts, global_time, dt, world_state.ptr(), opengl_engine.ptr(), this->physics_world.ptr(), &this->audio_engine,
-			/*num_scripts_processed_out=*/this->last_num_scripts_processed
+		object_scripts_evaluator->evaluateObjectScripts(this->obs_with_scripts, global_time, dt, world_state.ptr(), opengl_engine.ptr(), this->physics_world.ptr(), &this->audio_engine,
+			this->high_priority_task_manager, /*num_scripts_processed_out=*/this->last_num_scripts_processed
 		);
 		this->last_eval_script_time = timer.elapsed();
 	}
@@ -6398,7 +6401,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								if(ob->object_type == WorldObject::ObjectType_Spotlight)
 									updateSpotlightGraphicsEngineData(opengl_ob->ob_to_world_matrix, ob);
 
-								updateInstancedCopiesOfObject(ob);
+								//updateInstancedCopiesOfObject(ob);
 							}
 
 							if(ob == selected_ob.ptr())
@@ -9060,8 +9063,8 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		num_lod_chunks = this->world_state->lod_chunks.size();
 	}
 
-	if(animated_texture_manager)
-		msg += animated_texture_manager->diagnostics();
+	//if(animated_texture_manager)
+	//	msg += animated_texture_manager->diagnostics();
 
 	msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 	msg += "main loop CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
@@ -11061,7 +11064,7 @@ void GUIClient::objectTransformEdited()
 				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 				// Update any instanced copies of object
-				updateInstancedCopiesOfObject(this->selected_ob.ptr());
+				//updateInstancedCopiesOfObject(this->selected_ob.ptr());
 			}
 			else // Else if new transform is not valid
 			{
@@ -11456,7 +11459,7 @@ void GUIClient::objectEdited()
 
 
 					// Update any instanced copies of object
-					updateInstancedCopiesOfObject(this->selected_ob.ptr());
+					//updateInstancedCopiesOfObject(this->selected_ob.ptr());
 				}
 				else // Else if new transform is not valid
 				{
@@ -13041,8 +13044,8 @@ void GUIClient::doObjectSelectionTraceForMouseEvent(MouseEvent& e)
 		}
 		else if(results.hit_object->userdata && results.hit_object->userdata_type == 2) // If we hit an instance:
 		{
-			InstanceInfo* instance = static_cast<InstanceInfo*>(results.hit_object->userdata);
-			selectObject(instance->prototype_object, results.hit_mat_index); // Select the original prototype object that the hit object is an instance of.
+			//InstanceInfo* instance = static_cast<InstanceInfo*>(results.hit_object->userdata);
+			//selectObject(instance->prototype_object, results.hit_mat_index); // Select the original prototype object that the hit object is an instance of.
 		}
 		else // Else if the trace didn't hit anything:
 		{

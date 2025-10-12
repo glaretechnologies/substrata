@@ -93,6 +93,7 @@ class VBOPool;
 class PBOPool;
 class VBO;
 class PBO;
+namespace Scripting { class ObjectScriptsEvaluator; }
 
 
 struct ResourceUserList
@@ -256,7 +257,7 @@ public:
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
 	void updateSelectedObjectPlacementBeamAndGizmos();
-	void updateInstancedCopiesOfObject(WorldObject* ob);
+	//void updateInstancedCopiesOfObject(WorldObject* ob);
 	void removeInstancesOfObject(WorldObject* ob);
 	void removeObScriptingInfo(WorldObject* ob);
 	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
@@ -467,9 +468,10 @@ public:
 	std::set<WorldObjectRef> web_view_obs;
 	std::set<WorldObjectRef> browser_vid_player_obs;
 	std::set<WorldObjectRef> audio_obs; // Objects with an audio_source or a non-empty audio_source_url, or objects that may play audio such as web-views or videos.
-	std::set<WorldObjectRef> obs_with_scripts; // Objects with non-null script_evaluator
+	glare::LinearIterSet<WorldObjectRef, WorldObjectRefHash> obs_with_scripts; // Objects with non-null script_evaluator
 	std::set<WorldObjectRef> obs_with_diagnostic_vis;
 
+	Reference<Scripting::ObjectScriptsEvaluator> object_scripts_evaluator;
 
 	WorldDetails connected_world_details;
 	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
@@ -529,6 +531,7 @@ public:
 	
 	glare::TaskManager model_and_texture_loader_task_manager;
 
+	// For short, processor-intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
 	glare::TaskManager* high_priority_task_manager;
 
 	MeshManager mesh_manager;
