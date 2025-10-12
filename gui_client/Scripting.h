@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "../shared/WorldObject.h"
-#include <utils/linearIterSet.h>
+#include <utils/LinearIterSet.h>
 class WorldState;
 class OpenGLEngine;
 class PhysicsWorld;

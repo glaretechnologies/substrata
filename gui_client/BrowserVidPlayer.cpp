@@ -554,13 +554,13 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 	{
 		if(html_view_handle < 0) // If HTML view not created yet:
 		{
-			const std::string& video_url = ob->materials[0]->emission_texture_url;
+			const URLString& video_url = ob->materials[0]->emission_texture_url;
 
 			const bool is_http_URL = hasPrefix(video_url, "http://") || hasPrefix(video_url, "https://");
 
 			if(is_http_URL)
 			{
-				const URL parsed_URL = URL::parseURL(video_url);
+				const URL parsed_URL = URL::parseURL(toStdString(video_url));
 
 				if(parsed_URL.host == "www.youtube.com" || parsed_URL.host == "youtu.be")
 				{
@@ -633,7 +633,7 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 			}
 			else // Else non-http: (e.g. mp4 resource)
 			{
-				const std::string video_http_URL = "/resource/" + ob->materials[0]->emission_texture_url;
+				const std::string video_http_URL = "/resource/" + toStdString(ob->materials[0]->emission_texture_url);
 
 				const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
 				const bool loop     = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
