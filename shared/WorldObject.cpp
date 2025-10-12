@@ -43,12 +43,13 @@ Copyright Glare Technologies Limited 2016 -
 #include <dll/include/SceneNodeModel.h>
 #endif
 
-InstanceInfo::~InstanceInfo()
-{
-#if GUI_CLIENT
-	assert(physics_object.isNull());
-#endif
-}
+
+//InstanceInfo::~InstanceInfo()
+//{
+//#if GUI_CLIENT
+//	assert(physics_object.isNull());
+//#endif
+//}
 
 
 WorldObject::WorldObject() noexcept

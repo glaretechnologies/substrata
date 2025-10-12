@@ -18,7 +18,8 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/IndigoXMLDoc.h>
 #include <utils/Parser.h>
 #include <utils/XMLParseUtils.h>
-#include "superluminal/PerformanceAPI.h"
+#include <utils/Task.h>
+#include <tracy/Tracy.hpp>
 
 
 namespace Scripting
@@ -391,6 +392,126 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 }
 
 
+#define DO_MULTITHREADING 1
+
+#if DO_MULTITHREADING
+void evalObjectScript(WorldObject* ob, float use_global_time, double dt, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine, WinterScriptEvalOutput& output_out)
+{
+	CybWinterEnv winter_env;
+	winter_env.instance_index = 0;
+	winter_env.num_instances = 1;
+
+#if !defined(EMSCRIPTEN)
+	if(ob->script_evaluator->jitted_evalRotation)
+	{
+		const Vec4f rot = ob->script_evaluator->evalRotation(use_global_time, winter_env);
+		ob->angle = rot.length();
+		if(isFinite(ob->angle))
+		{
+			if(ob->angle > 0)
+				ob->axis = Vec3f(normalise(rot));
+			else
+				ob->axis = Vec3f(1, 0, 0);
+		}
+		else
+		{
+			ob->angle = 0;
+			ob->axis = Vec3f(1, 0, 0);
+		}
+	}
+
+	if(ob->script_evaluator->jitted_evalTranslation)
+	{
+		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
+	}
+#endif
+
+	// Compute object-to-world matrix, similarly to obToWorldMatrix().  Do it here so we can reuse some components of the computation.
+	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+	const Vec4f translation = pos + ob->translation;
+
+	if(!translation.isFinite()) // Avoid hitting assert in Jolt (and other potential problems) if translation is Nan, or Inf.
+		return;
+
+	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
+	Vec4f use_scale = ob->scale.toVec4fVector();
+	if(use_scale[0] == 0) use_scale[0] = 1.0e-6f;
+	if(use_scale[1] == 0) use_scale[1] = 1.0e-6f;
+	if(use_scale[2] == 0) use_scale[2] = 1.0e-6f;
+
+	const Vec4f unit_axis = normalise(ob->axis.toVec4fVector());
+	const Matrix4f R = Matrix4f::rotationMatrix(unit_axis, ob->angle);
+	Matrix4f ob_to_world;
+	ob_to_world.setColumn(0, R.getColumn(0) * use_scale[0]);
+	ob_to_world.setColumn(1, R.getColumn(1) * use_scale[1]);
+	ob_to_world.setColumn(2, R.getColumn(2) * use_scale[2]);
+	ob_to_world.setColumn(3, translation);
+
+	/* Compute upper-left inverse transpose matrix.
+	upper left inverse transpose:
+	= ((RS)^-1)^T
+	= (S^1 R^1)^T
+	= R^1^T S^1^T
+	= R S^1
+
+	Compute upper-left adjugate transpose matrix.
+	upper left adjugate transpose:
+	= adj(RS)^T = det(RS) ((RS)^-1)^T
+	= det(RS) (S^1 R^1)^T
+	= det(RS) R^1^T S^1^T
+	= det(RS) R S^1
+	*/
+
+	const float det = use_scale[0] * use_scale[1] * use_scale[2];
+
+	assert(Maths::approxEq<float>(det, (R * Matrix4f::scaleMatrix(use_scale[0], use_scale[1], use_scale[2])).upperLeftDeterminant()));
+
+	const Vec4f det_over_scale = maskWToZero(div(Vec4f(det), use_scale)); // det(RS) S^-1
+
+	// Right-multiplying with a scale matrix is equivalent to multiplying column 0 with scale_x, column 1 with scale_y etc.
+	Matrix4f ob_to_world_normal_matrix;
+	ob_to_world_normal_matrix.setColumn(0, R.getColumn(0) * copyToAll<0>(det_over_scale));
+	ob_to_world_normal_matrix.setColumn(1, R.getColumn(1) * copyToAll<1>(det_over_scale));
+	ob_to_world_normal_matrix.setColumn(2, R.getColumn(2) * copyToAll<2>(det_over_scale));
+	ob_to_world_normal_matrix.setColumn(3, Vec4f(0, 0, 0, 1));
+
+	// Update transform in 3d engine.
+	GLObject* gl_ob = ob->opengl_engine_ob.ptr();
+	if(gl_ob)
+	{
+		output_out.aabb_ws = gl_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
+
+		// Update object world space AABB (used for computing LOD level).
+		// For objects with animated rotation, we want to compute an AABB without rotation, otherwise we can get a world-space AABB
+		// that effectively oscillates in size.  See https://youtu.be/Wo_PauArb6A for an example.
+		// This is bad because it can cause the object to oscillate between LOD levels.
+		// The AABB will be somewhat wrong, but hopefully it shouldn't matter too much.
+#if !defined(EMSCRIPTEN)
+		if(ob->script_evaluator->jitted_evalRotation)
+		{
+			ob->doTransformChangedIgnoreRotation(translation, use_scale);
+		}
+		else
+#endif
+		{
+			ob->doTransformChanged(ob_to_world, use_scale);
+		}
+
+
+		// TODO: need to call assignLightsToObject() somehow
+		// opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+	}
+
+	// Update in physics engine
+	if(ob->physics_object)
+		physics_world->moveKinematicObject(*ob->physics_object, translation, Quatf::fromAxisAndAngle(unit_axis, ob->angle), (float)dt);
+
+	output_out.ob_to_world = ob_to_world;
+	output_out.ob_to_world_normal_matrix = ob_to_world_normal_matrix;
+	output_out.translation = translation;
+	output_out.det = det;
+}
+#else // else if !DO_MULTITHREADING:
 void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine, Matrix4f& ob_to_world_out)
 {
 	CybWinterEnv winter_env;
@@ -523,8 +644,10 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 
 	ob_to_world_out = ob_to_world;
 }
+#endif // end if !DO_MULTITHREADING
 
 
+#if 0
 void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, Matrix4f& ob_to_world_out)
 {
 	CybWinterEnv winter_env;
@@ -582,15 +705,50 @@ void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt
 
 	ob_to_world_out = ob_to_world;
 }
+#endif
 
 
-void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double global_time, double dt, WorldState* world_state, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine,
+#if DO_MULTITHREADING
+class EvalWinterScriptTask : public glare::Task
+{
+public:
+	void run(size_t /*thread_index*/) override
+	{
+		ZoneScopedN("EvalWinterScriptTask::run"); // Tracy profiler
+
+		WorldObjectRef* const obs_with_scripts_data = context->obs_with_scripts->vector.data();
+		WinterScriptEvalOutput* output_data         = context->output->data();
+		const float use_global_time                 = context->use_global_time;
+		const double dt                             = context->dt;
+		PhysicsWorld* physics_world                 = context->physics_world;
+		glare::AudioEngine* audio_engine            = context->audio_engine;
+
+
+		for(size_t ob_i = begin; ob_i < end; ++ob_i)
+		{
+			assert(ob_i < context->obs_with_scripts->size());
+			WorldObject* ob = obs_with_scripts_data[ob_i].ptr();
+			assert(ob_i < context->output->size());
+			evalObjectScript(ob, use_global_time, dt, physics_world, audio_engine, output_data[ob_i]);
+		}
+	}
+
+	EvalWinterScriptTaskContext* context;
+	size_t begin, end;
+};
+#endif // DO_MULTITHREADING
+
+
+
+void ObjectScriptsEvaluator::evaluateObjectScripts(glare::LinearIterSet<WorldObjectRef, WorldObjectRefHash>& obs_with_scripts, double global_time, double dt, WorldState* world_state, 
+	OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine, glare::TaskManager* task_manager,
 	int& num_scripts_processed_out)
 {
+	ZoneScoped; // Tracy profiler
+
 	// Evaluate scripts on objects
 	if(world_state)
 	{
-		PERFORMANCEAPI_INSTRUMENT("eval scripts");
 		int num_scripts_processed = 0;
 
 		Lock lock(world_state->mutex);
@@ -599,7 +757,92 @@ void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double gl
 		// resulting in 'jumpy' transformations.  So mod the double value down to a smaller range (that wraps e.g. once per hour)
 		// and then cast to float.
 		const float use_global_time = (float)Maths::doubleMod(global_time, 3600);
+#if DO_MULTITHREADING
+		//---------------------------------- Do parallel work ----------------------------------
+		{
+			ZoneScopedN("parallel work"); // Tracy profiler
 
+			output.resizeNoCopy(obs_with_scripts.vector.size());
+
+			if(!task_group)
+			{
+				task_group = new glare::TaskGroup();
+				task_group->tasks.resize(task_manager->getConcurrency());
+
+				for(size_t i=0; i<task_group->tasks.size(); ++i)
+				{
+					EvalWinterScriptTask* task = new EvalWinterScriptTask();
+					task->context = &this->context;
+					task_group->tasks[i] = task;
+				}
+			}
+
+			glare::AtomicInt next_ob_i(0);
+
+			context.obs_with_scripts = &obs_with_scripts;
+			context.use_global_time = use_global_time;
+			context.dt = dt;
+			context.physics_world = physics_world;
+			context.audio_engine = audio_engine;
+			context.output = &output;
+
+
+			const size_t num_per_group = Maths::roundedUpDivide(obs_with_scripts.size(), task_group->tasks.size());
+			for(size_t i=0; i<task_group->tasks.size(); ++i)
+			{
+				EvalWinterScriptTask* task = (EvalWinterScriptTask*)task_group->tasks[i].ptr();
+				task->begin = myMin(i * num_per_group,       obs_with_scripts.size());
+				task->end   = myMin((i + 1) * num_per_group, obs_with_scripts.size());
+			}
+		
+			task_manager->runTaskGroup(task_group);
+		}
+		{
+			ZoneScopedN("serial work"); // Tracy profiler
+
+			//---------------------------------- Do serial work ----------------------------------
+			const size_t obs_with_scripts_size          = obs_with_scripts.size();
+			WorldObjectRef* const obs_with_scripts_data = obs_with_scripts.vector.data();
+
+			for(size_t i=0; i<obs_with_scripts_size; ++i)
+			{
+				WorldObject* ob = obs_with_scripts_data[i].ptr();
+
+				assert(ob->script_evaluator.nonNull());
+				if(ob->script_evaluator)
+				{
+					const WinterScriptEvalOutput& script_output = output[i];
+
+					// Update transform in 3d engine.
+					GLObject* gl_ob = ob->opengl_engine_ob.ptr();
+					if(gl_ob)
+					{
+						gl_ob->ob_to_world_matrix             = script_output.ob_to_world;
+						gl_ob->ob_to_world_normal_matrix      = script_output.ob_to_world_normal_matrix;
+						gl_ob->ob_to_world_matrix_determinant = script_output.det;
+						gl_ob->aabb_ws                        = script_output.aabb_ws;
+						opengl_engine->objectTransformDataChanged(*gl_ob);
+					}
+
+					if(ob->opengl_light)
+					{
+						ob->opengl_light->gpu_data.dir = normalise(script_output.ob_to_world * Vec4f(0, 0, -1, 0));
+
+						opengl_engine->setLightPos(ob->opengl_light, setWToOne(script_output.translation));
+					}
+
+					// Update audio source for the object, if it has one.
+					if(ob->audio_source)
+					{
+						ob->audio_source->pos = ob->getCentroidWS();
+						audio_engine->sourcePositionUpdated(*ob->audio_source);
+					}
+
+					num_scripts_processed++;
+				}
+			}
+		}
+#else // else if !DO_MULTITHREADING:
 		for(auto it = obs_with_scripts.begin(); it != obs_with_scripts.end(); ++it)
 		{
 			WorldObject* ob = it->getPointer();
@@ -612,8 +855,10 @@ void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double gl
 				num_scripts_processed++;
 
 				// If this object has instances (and has a graphics ob):
+				#if 0 // Instancing in scripts is disabled.
 				if(!ob->instances.empty() && ob->opengl_engine_ob.nonNull())
 				{
+					//conPrint("ob " + ob->uid.toString() + " has " + toString(ob->instances.size()) + " instances");
 					// Update instance ob-to-world transform based on the script.
 					// Compute AABB over all instances of the object
 					js::AABBox all_instances_aabb_ws = js::AABBox::emptyAABBox();
@@ -641,8 +886,10 @@ void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double gl
 						ob->opengl_engine_ob->instance_matrix_vbo->updateData(ob->instance_matrices.data(), ob->instance_matrices.dataSizeBytes());
 					}
 				}
+				#endif
 			}
 		}
+#endif // end if !DO_MULTITHREADING
 
 		num_scripts_processed_out = num_scripts_processed;
 	}

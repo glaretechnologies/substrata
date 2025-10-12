@@ -7,10 +7,13 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "../shared/WorldObject.h"
+#include <utils/linearIterSet.h>
 class WorldState;
 class OpenGLEngine;
 class PhysicsWorld;
 namespace glare { class AudioEngine; }
+namespace glare { class TaskManager; }
+namespace glare { class TaskGroup; }
 class ObjectPathController;
 
 
@@ -174,13 +177,44 @@ public:
 };
 
 
+struct WinterScriptEvalOutput
+{
+	Matrix4f ob_to_world;
+	Matrix4f ob_to_world_normal_matrix;
+	js::AABBox aabb_ws;
+	Vec4f translation;
+	float det;
+};
 
+
+struct EvalWinterScriptTaskContext
+{
+	glare::LinearIterSet<WorldObjectRef, WorldObjectRefHash>* obs_with_scripts;
+	float use_global_time;
+	double dt;
+	PhysicsWorld* physics_world;
+	glare::AudioEngine* audio_engine;
+
+	js::Vector<WinterScriptEvalOutput>* output;
+};
+
+
+class ObjectScriptsEvaluator : public ThreadSafeRefCounted
+{
+public:
+	void evaluateObjectScripts(glare::LinearIterSet<WorldObjectRef, WorldObjectRefHash>& obs_with_scripts, double global_time, double dt, WorldState* world_state, 
+		OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine, glare::TaskManager* task_manager,
+		int& num_scripts_processed_out);
+
+	js::Vector<WinterScriptEvalOutput> output;
+
+	Reference<glare::TaskGroup> task_group;
+
+	EvalWinterScriptTaskContext context;
+};
 
 
 void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<VehicleScript>& vehicle_script_out);
 
-
-void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double global_time, double dt, WorldState* world_state, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine,
-	int& num_scripts_processed_out);
 
 } // end namespace Scripting

@@ -110,6 +110,7 @@ struct ObScatteringInfo : public ThreadSafeRefCounted
 };
 
 
+#if 0
 struct InstanceInfo
 {
 	~InstanceInfo();
@@ -134,6 +135,7 @@ struct InstanceInfo
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 #endif
 };
+#endif
 
 
 /*=====================================================================
@@ -404,7 +406,7 @@ public:
 	DatabaseKey database_key;
 
 #if GUI_CLIENT
-	js::Vector<InstanceInfo> instances;
+	//js::Vector<InstanceInfo> instances;
 
 	Reference<GLObject> opengl_engine_ob;
 	Reference<GLLight> opengl_light;
@@ -449,7 +451,7 @@ public:
 
 	Reference<Scripting::VehicleScript> vehicle_script;
 
-	js::Vector<Matrix4f, 16> instance_matrices;
+	//js::Vector<Matrix4f, 16> instance_matrices;
 
 	int loading_or_loaded_model_lod_level; // The LOD level we have started (or finished) loading the model for this object at.  Can be different than loading_or_loaded_lod_level due to max_model_lod_level clamping.
 	int loading_or_loaded_lod_level; // Lod level for textures etc.. 
