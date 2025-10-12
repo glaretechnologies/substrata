@@ -112,9 +112,9 @@ static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey&
 	{
 #if EMSCRIPTEN
 		// If this is the web build, use LOD 1 as the minimum LOD level for gifs.  This is to save RAM as gifs can be quite large (e.g. 20 MB).
-		const bool is_gif = ::hasExtension(base_texture_url, "gif");
+		const bool is_gif = ::hasExtension(base_texture_path, "gif");
 		if(is_gif)
-			return use_basis ? (removeDotAndExtension(base_texture_url) + "_lod1.basis") : (removeDotAndExtension(base_texture_url) + "_lod1.gif");
+			return use_basis ? (removeDotAndExtension(base_texture_path) + "_lod1.basis") : (removeDotAndExtension(base_texture_path) + "_lod1.gif");
 #endif
 		if(use_basis)
 		{

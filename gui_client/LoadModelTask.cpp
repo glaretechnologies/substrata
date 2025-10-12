@@ -91,7 +91,7 @@ void LoadModelTask::run(size_t thread_index)
 				{
 					// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
 					if(!loaded_buffer)
-						conPrint("LoadModelTask: loaded_buffer is null for resource with URL '" + lod_model_url + "'");
+						conPrint("LoadModelTask: loaded_buffer is null for resource with URL '" + toStdString(lod_model_url) + "'");
 					runtimeCheck(loaded_buffer.nonNull());
 					model_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
 				}
