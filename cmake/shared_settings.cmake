@@ -294,6 +294,9 @@ ${UTILS_DIR}/HashSetIterators.h
 ${UTILS_DIR}/HashMap.cpp
 ${UTILS_DIR}/HashMap.h
 ${UTILS_DIR}/HashMapIterators.h
+${UTILS_DIR}/HashMap2.cpp
+${UTILS_DIR}/HashMap2.h
+${UTILS_DIR}/HashMap2Iterators.h
 ${UTILS_DIR}/RuntimeCheck.cpp
 ${UTILS_DIR}/RuntimeCheck.h
 ${UTILS_DIR}/GeneralMemAllocator.cpp
