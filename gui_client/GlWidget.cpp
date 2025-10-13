@@ -31,7 +31,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <QtWidgets/QShortcut>
 #include <QtGamepad/QGamepad>
 #include <QtGui/QOpenGLContext>
+#if defined(_WIN32)
 #include <QtPlatformHeaders/QWGLNativeContext>
+#endif
 #include <tracy/Tracy.hpp>
 #include <set>
 #include <stack>
@@ -340,6 +342,7 @@ void GlWidget::initializeGL()
 
 void* GlWidget::makeNewSharedGLContext()
 {
+#if defined(_WIN32)
 	QOpenGLContext* window_context = this->context()->contextHandle();
 	
 	QOpenGLContext* new_window_context = new QOpenGLContext();
@@ -356,6 +359,9 @@ void* GlWidget::makeNewSharedGLContext()
 	HGLRC hglrc = nativeContext.context();
 
 	return hglrc;
+#else
+	return nullptr;
+#endif
 }
 
 
