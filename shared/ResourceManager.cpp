@@ -269,7 +269,8 @@ void ResourceManager::addResource(const ResourceRef& res)
 
 	resource_for_url[res->URL] = res;
 
-	this->changed = 1;
+	if(!res->external_resource) // External resources aren't saved to disk, so we don't need to set the changed flag to write resources to disk.
+		this->changed = 1;
 }
 
 
