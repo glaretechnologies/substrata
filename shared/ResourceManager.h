@@ -84,8 +84,8 @@ public:
 
 	// Used for deserialising resource objects from serialised server state.
 	void addResource(const ResourceRef& res);
-	const std::unordered_map<URLString, ResourceRef>& getResourcesForURL() const REQUIRES(mutex) { return resource_for_url; }
-	std::unordered_map<URLString, ResourceRef>& getResourcesForURL() REQUIRES(mutex) { return resource_for_url; }
+	const std::unordered_map<URLString, ResourceRef, URLStringHasher>& getResourcesForURL() const REQUIRES(mutex) { return resource_for_url; }
+	std::unordered_map<URLString, ResourceRef, URLStringHasher>& getResourcesForURL() REQUIRES(mutex) { return resource_for_url; }
 
 	bool hasChanged() const { return changed != 0; }
 	void clearChangedFlag() { changed = 0; }
@@ -102,11 +102,11 @@ private:
 	std::string base_resource_dir;
 
 	mutable Mutex mutex;
-	std::unordered_map<URLString, ResourceRef> resource_for_url			GUARDED_BY(mutex); // Use unordered_map for now instead of HashMap so we don't need to specify an empty key.
+	std::unordered_map<URLString, ResourceRef, URLStringHasher> resource_for_url			GUARDED_BY(mutex); // Use unordered_map for now instead of HashMap so we don't need to specify an empty key.
 	glare::AtomicInt changed;
 
 
-	std::unordered_set<URLString> download_failed_URLs; // Ephemeral state, used to prevent trying to download the same resource over and over again in one client execution.
+	std::unordered_set<URLString, URLStringHasher> download_failed_URLs; // Ephemeral state, used to prevent trying to download the same resource over and over again in one client execution.
 
 public:
 	// Total amount of memory in LoadedBuffer objects that are not persistently used.

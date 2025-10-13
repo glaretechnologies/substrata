@@ -103,5 +103,5 @@ private:
 
 	OpenGLTextureRef tile_placeholder_tex;
 
-	std::unordered_map<URLString, Vec3i> loading_texture_URL_to_tile_indices_map;
+	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_texture_URL_to_tile_indices_map;
 };
