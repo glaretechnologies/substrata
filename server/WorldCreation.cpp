@@ -242,7 +242,7 @@ static void makeTowerParcels(const Vec2d& botleft, int& next_id, Reference<Serve
 #endif
 
 
-static WorldObjectRef findObWithModelURL(Reference<ServerAllWorldsState> world_state, const std::string& URL)
+static WorldObjectRef findObWithModelURL(Reference<ServerAllWorldsState> world_state, const URLString& URL)
 {
 	WorldStateLock lock(world_state->mutex);
 
@@ -255,7 +255,7 @@ static WorldObjectRef findObWithModelURL(Reference<ServerAllWorldsState> world_s
 	}
 	
 	if(ob.isNull())
-		throw glare::Exception("Could not find an object using model URL '" + URL + "'.");
+		throw glare::Exception("Could not find an object using model URL '" + toStdString(URL) + "'.");
 	else
 		return ob;
 }

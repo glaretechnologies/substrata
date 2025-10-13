@@ -648,7 +648,7 @@ void LODGeneration::test()
 		}
 
 
-#if !GUI_CLIENT  // generateKTXTexture is disabled in gui_client.
+#if 0 // !GUI_CLIENT  // generateKTXTexture is disabled in gui_client.
 		//------------------------------------------- Test KTX texture generation -------------------------------------------
 		// Test writing an 8 bit RGB KTX image.
 		{

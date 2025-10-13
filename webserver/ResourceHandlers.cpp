@@ -34,7 +34,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 {
 	try
 	{
-		const std::string resource_URL = web::Escaping::URLUnescape(::eatPrefix(request.path, "/resource/"));
+		const URLString resource_URL = toURLString(web::Escaping::URLUnescape(::eatPrefix(request.path, "/resource/")));
 
 		// TEMP: print out request and headers
 		//conPrint("handleResourceRequest: resource_URL: " + resource_URL);

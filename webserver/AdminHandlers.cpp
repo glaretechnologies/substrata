@@ -214,7 +214,7 @@ void renderAdminUserPage(ServerAllWorldsState& world_state, const web::RequestIn
 				"name: " + web::Escaping::HTMLEscape(user->name) + "<br/>" +
 				"email_address: " + web::Escaping::HTMLEscape(user->email_address) + "<br/>" +
 				"controlled_eth_address: " + web::Escaping::HTMLEscape(user->controlled_eth_address) + "<br/>" +
-				"avatar model_url: " + web::Escaping::HTMLEscape(user->avatar_settings.model_url) + "<br/>" +
+				"avatar model_url: " + web::Escaping::HTMLEscape(toStdString(user->avatar_settings.model_url)) + "<br/>" +
 				"flags: " + toString(user->flags) + "<br/>";
 
 			for(size_t i=0; i<user->password_resets.size(); ++i)
@@ -884,7 +884,7 @@ void renderAdminLODChunksPage(ServerAllWorldsState& all_worlds_state, const web:
 				{
 					const LODChunk* chunk = lod_it->second.ptr();
 
-					page_out += "<div>Coords: " + chunk->coords.toString() + ", <br/> mesh_url: " + web::Escaping::HTMLEscape(chunk->getMeshURL()) + ", <br/> combined_array_texture_url: " + web::Escaping::HTMLEscape(chunk->combined_array_texture_url) + 
+					page_out += "<div>Coords: " + chunk->coords.toString() + ", <br/> mesh_url: " + web::Escaping::HTMLEscape(toStdString(chunk->getMeshURL())) + ", <br/> combined_array_texture_url: " + web::Escaping::HTMLEscape(toStdString(chunk->combined_array_texture_url)) + 
 						"<br/> compressed_mat_info: " + toString(chunk->compressed_mat_info.size()) + " B, <br/> needs_rebuild: " + boolToString(chunk->needs_rebuild) + "</div><br/>";
 				}
 			}

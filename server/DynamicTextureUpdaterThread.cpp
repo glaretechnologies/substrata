@@ -90,12 +90,12 @@ static std::string sanitiseString(const std::string& s)
 
 struct DynTextureFetchResults
 {
-	std::string substrata_URL; // Set to empty string if exception occurred or download failed.
+	URLString substrata_URL; // Set to empty string if exception occurred or download failed.
 };
 
 
 // Returns substrata URL of resource for the downloaded file.
-static std::string fetchFileForURLAndAddAsResource(const std::string& base_URL, ServerAllWorldsState* world_state)
+static URLString fetchFileForURLAndAddAsResource(const std::string& base_URL, ServerAllWorldsState* world_state)
 {
 	HTTPClient http_client;
 	http_client.setAsNotIndependentlyHeapAllocated();
@@ -132,9 +132,9 @@ static std::string fetchFileForURLAndAddAsResource(const std::string& base_URL, 
 
 		const uint64 hash = XXH64(data.data(), data.size(), /*seed=*/1);
 
-		const std::string URL = ResourceManager::URLForNameAndExtensionAndHash(::removeDotAndExtension(base_URL), use_extension, hash);
+		const URLString URL = ResourceManager::URLForNameAndExtensionAndHash(::removeDotAndExtension(base_URL), use_extension, hash);
 
-		conPrint("\tDynamicTextureUpdaterThread: current/new URL: " + URL + "");
+		conPrint("\tDynamicTextureUpdaterThread: current/new URL: " + toStdString(URL) + "");
 
 		if(URL.size() > WorldObject::MAX_URL_SIZE)
 			throw glare::Exception("URL too long.");
@@ -180,7 +180,7 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 
 		try
 		{
-			const std::string substrata_URL = fetchFileForURLAndAddAsResource(base_URL, world_state);
+			const URLString substrata_URL = fetchFileForURLAndAddAsResource(base_URL, world_state);
 
 			fetch_results_map[base_URL] = DynTextureFetchResults({substrata_URL});
 		}
@@ -204,7 +204,7 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 		{
 			WorldStateLock lock(world_state->mutex);
 
-			const std::string substrata_URL = fetch_results.substrata_URL;
+			const URLString substrata_URL = fetch_results.substrata_URL;
 
 			// Update object to use new texture
 			const auto ob_res = world_state->world_states[ob_with_dyn_tex.world_name]->getObjects(lock).find(ob_with_dyn_tex.ob_uid);

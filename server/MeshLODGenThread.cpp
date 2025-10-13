@@ -46,7 +46,7 @@ struct LODMeshToGen
 {
 	std::string model_abs_path;
 	std::string LOD_model_abs_path;
-	std::string lod_URL;
+	URLString lod_URL;
 	int lod_level;
 	UserID owner_id;
 	bool build_optimised_mesh;
@@ -57,7 +57,7 @@ struct LODTextureToGen
 {
 	std::string source_tex_abs_path; // Absolute base texture path, to read texture from.
 	std::string LOD_tex_abs_path; // LOD texture path, to write LOD texture to.
-	std::string lod_URL;
+	URLString lod_URL;
 	int lod_level;
 	UserID owner_id;
 };
@@ -67,7 +67,7 @@ struct BasisTextureToGen
 {
 	std::string source_tex_abs_path; // source texture abs path
 	std::string basis_tex_abs_path; // abs path to write KTX texture to.
-	std::string basis_URL;
+	URLString basis_URL;
 	int base_lod_level;
 	int lod_level;
 	UserID owner_id;
@@ -180,7 +180,7 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 }
 
 
-static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
 {
 	try
 	{
@@ -211,8 +211,8 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 						for(int lvl = 1; lvl <= 2; ++lvl)
 						{
 							WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/false, Protocol::OPTIMISED_MESH_VERSION);
-							const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
-							const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
+
+							const URLString lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
 
 							if(lod_URLs_considered.count(lod_URL) == 0)
 							{
@@ -220,6 +220,8 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 
 								if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
 								{
+									const std::string lod_abs_path = toStdString(WorldObject::getLODModelURLForLevel(toURLString(base_model_abs_path), lvl, options));
+
 									// Add to list of models to generate
 									LODMeshToGen mesh_to_gen;
 									mesh_to_gen.lod_level = lvl;
@@ -280,7 +282,7 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 //static size_t sum_optimised_size_B = 0;
 
 
-static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
 {
 	try
 	{
@@ -300,8 +302,7 @@ static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state,
 					{
 						WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
 
-						const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
-						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
+						const URLString lod_URL = WorldObject::getLODModelURLForLevel(ob->model_url, lvl, options);
 
 						if(lod_URLs_considered.count(lod_URL) == 0)
 						{
@@ -309,6 +310,8 @@ static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state,
 
 							if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
 							{
+								const std::string lod_abs_path = toStdString(WorldObject::getLODModelURLForLevel(toURLString(base_model_abs_path), lvl, options));
+
 								// Add to list of models to generate
 								LODMeshToGen mesh_to_gen;
 								mesh_to_gen.lod_level = lvl;
@@ -347,7 +350,7 @@ static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state,
 }
 
 
-static void checkForOptimisedMeshToGenerateForURL(const std::string& URL, ResourceManager* resource_manager, std::unordered_set<std::string>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
 {
 	try
 	{
@@ -362,8 +365,7 @@ static void checkForOptimisedMeshToGenerateForURL(const std::string& URL, Resour
 
 				WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
 
-				const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(base_model_abs_path, lvl, options);
-				const std::string lod_URL      = WorldObject::getLODModelURLForLevel(URL, lvl, options);
+				const URLString lod_URL = WorldObject::getLODModelURLForLevel(URL, lvl, options);
 
 				if(lod_URLs_considered.count(lod_URL) == 0)
 				{
@@ -371,6 +373,8 @@ static void checkForOptimisedMeshToGenerateForURL(const std::string& URL, Resour
 
 					if(!resource_manager->isFileForURLPresent(lod_URL))
 					{
+						const std::string lod_abs_path = toStdString(WorldObject::getLODModelURLForLevel(toURLString(base_model_abs_path), lvl, options));
+
 						// Add to list of models to generate
 						LODMeshToGen mesh_to_gen;
 						mesh_to_gen.lod_level = lvl;
@@ -464,7 +468,7 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 
 
 // Make tasks for generating LOD level textures.
-static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
+static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
 	std::vector<LODTextureToGen>& textures_to_gen)
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
@@ -474,7 +478,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 		const int start_lod_level = mat->minLODLevel() + 1;
 		for(int lvl = start_lod_level; lvl <= 2; ++lvl)
 		{
-			std::vector<std::string> URLs;
+			std::vector<URLString> URLs;
 			URLs.push_back(mat->colour_texture_url);
 			URLs.push_back(mat->emission_texture_url);
 			URLs.push_back(mat->roughness.texture_url);
@@ -482,19 +486,18 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 
 			for(size_t q=0; q<URLs.size(); ++q)
 			{
-				const std::string texture_URL = URLs[q];
+				const URLString& texture_URL = URLs[q];
 				if(!texture_URL.empty() && !hasExtension(texture_URL, "mp4")) // Don't generate LOD for mp4.
 				{
 					ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(texture_URL);
 					if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 					{
-						const std::string tex_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
-
 						bool has_alpha = false;
 						if(texture_URL == mat->colour_texture_url)
 							has_alpha = BitUtils::isBitSet(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG); // Assume mat->flags are correct.
 
-						const std::string lod_URL = mat->getLODTextureURLForLevel(texture_URL, lvl, has_alpha, /*use basis=*/false);
+						WorldMaterial::GetURLOptions options(/*use basis=*/false, /*arena allocator=*/nullptr);
+						const URLString lod_URL = mat->getLODTextureURLForLevel(options, texture_URL, lvl, has_alpha);
 
 						if(lod_URL != texture_URL) // We don't do LOD for some texture types.
 						{
@@ -504,6 +507,8 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 
 								if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
 								{
+									const std::string tex_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
+
 									const std::string lod_abs_path = world_state->resource_manager->pathForURL(lod_URL);
 
 									// Generate the texture
@@ -526,14 +531,14 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<std::string>& lod_URLs_considered,
+static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<URLString>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	for(size_t z=0; z<materials.size(); ++z)
 	{
 		const WorldMaterial* mat = materials[z].ptr();
 
-		std::vector<std::string> URLs;
+		std::vector<URLString> URLs;
 		URLs.push_back(mat->colour_texture_url);
 		URLs.push_back(mat->emission_texture_url);
 		URLs.push_back(mat->roughness.texture_url);
@@ -541,18 +546,17 @@ static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* wo
 
 		for(size_t q=0; q<URLs.size(); ++q)
 		{
-			const std::string texture_URL = URLs[q];
+			const URLString& texture_URL = URLs[q];
 
 			if(!texture_URL.empty() && !hasExtension(texture_URL, "mp4")) // Don't generate basis textures for mp4s
 			{
 				ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(texture_URL);
 				if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 				{
-					const std::string tex_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
-
 					for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
 					{
-						const std::string basis_lod_URL = mat->getLODTextureURLForLevel(texture_URL, lvl, /*has_alpha=*/false, /*use basis=-*/true);  // Lod URL without ktx extension (jpg or PNG)
+						WorldMaterial::GetURLOptions options(/*use basis=*/true, /*arena allocator=*/nullptr);
+						const URLString basis_lod_URL = mat->getLODTextureURLForLevel(options, texture_URL, lvl, /*has_alpha=*/false);  // Lod URL without ktx extension (jpg or PNG)
 						if(hasExtension(basis_lod_URL, "basis"))
 						{
 							if(lod_URLs_considered.count(basis_lod_URL) == 0)
@@ -561,6 +565,7 @@ static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* wo
 
 								if(!world_state->resource_manager->isFileForURLPresent(basis_lod_URL))
 								{
+									const std::string tex_abs_path   = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 									const std::string basis_abs_path = world_state->resource_manager->pathForURL(basis_lod_URL);
 
 									// Add to list of textures to generate
@@ -584,7 +589,7 @@ static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* wo
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered,
+static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	checkForBasisTexturesToGenerateForMaterials(world_state, /*world, */ob->materials, lod_URLs_considered, basis_textures_to_gen);
@@ -592,27 +597,26 @@ static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_sta
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForURL(const std::string& URL, ResourceManager* resource_manager, std::unordered_set<std::string>& lod_URLs_considered,
+static void checkForBasisTexturesToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
-	const std::string base_texture_URL = URL;
+	const URLString base_texture_URL = URL;
 
 	if(ImageDecoding::hasSupportedImageExtension(URL) && !hasExtension(base_texture_URL, "mp4")) // Don't generate basis textures for mp4s
 	{
 		ResourceRef base_resource = resource_manager->getExistingResourceForURL(base_texture_URL);
 		if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 		{
-			const std::string tex_abs_path = resource_manager->getLocalAbsPathForResource(*base_resource);
-
 			for(int lvl = 0; lvl <= 2; ++lvl)
 			{
-				const std::string basis_lod_URL = removeDotAndExtension(base_texture_URL) + ((lvl > 0) ? ("_lod" + toString(lvl)) : std::string()) + ".basis";
+				const URLString basis_lod_URL = removeDotAndExtension(base_texture_URL) + toURLString(((lvl > 0) ? ("_lod" + toString(lvl)) : std::string()) + ".basis");
 				if(lod_URLs_considered.count(basis_lod_URL) == 0)
 				{
 					lod_URLs_considered.insert(basis_lod_URL);
 
 					if(!resource_manager->isFileForURLPresent(basis_lod_URL))
 					{
+						const std::string tex_abs_path   = resource_manager->getLocalAbsPathForResource(*base_resource);
 						const std::string basis_abs_path = resource_manager->pathForURL(basis_lod_URL);
 
 						// Add to list of textures to generate
@@ -720,7 +724,7 @@ void MeshLODGenThread::doRun()
 		while(1)
 		{
 			std::set<UID> obs_to_scan_UIDs;
-			std::set<std::string> URLs_to_check;
+			std::set<URLString> URLs_to_check;
 			if(!do_initial_full_scan)
 			{
 				// Block until we have one or more messages.
@@ -743,7 +747,7 @@ void MeshLODGenThread::doRun()
 						// Textures used by e.g. an avatar need to have .basis versions generated.
 						URLs_to_check.insert(check_gen_msg->URL);
 
-						conPrint("MeshLODGenThread: Received message to scan URL " + check_gen_msg->URL);
+						conPrint("MeshLODGenThread: Received message to scan URL " + toStdString(check_gen_msg->URL));
 					}
 					else if(dynamic_cast<KillThreadMessage*>(msg.ptr()))
 					{
@@ -759,7 +763,7 @@ void MeshLODGenThread::doRun()
 			std::vector<LODMeshToGen> meshes_to_gen;
 			std::vector<LODTextureToGen> lod_textures_to_gen;
 			std::vector<BasisTextureToGen> basis_textures_to_gen;
-			std::unordered_set<std::string> lod_URLs_considered;
+			std::unordered_set<URLString> lod_URLs_considered;
 			std::map<std::string, MeshLODGenThreadTexInfo> tex_info; // Cached info about textures
 
 			// conPrint("MeshLODGenThread: Iterating over world object(s)...");
@@ -801,10 +805,10 @@ void MeshLODGenThread::doRun()
 						// Check world settings textures
 						for(int i=0; i<4; ++i)
 						{
-							const std::string detail_col_map_URL = world->world_settings.terrain_spec.detail_col_map_URLs[i];
+							const URLString detail_col_map_URL = world->world_settings.terrain_spec.detail_col_map_URLs[i];
 							checkForBasisTexturesToGenerateForURL(detail_col_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
 
-							const std::string detail_height_map_URL = world->world_settings.terrain_spec.detail_height_map_URLs[i];
+							const URLString detail_height_map_URL = world->world_settings.terrain_spec.detail_height_map_URLs[i];
 							checkForBasisTexturesToGenerateForURL(detail_height_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
 						}
 					}
@@ -850,7 +854,7 @@ void MeshLODGenThread::doRun()
 
 					for(auto it = URLs_to_check.begin(); it != URLs_to_check.end(); ++it)
 					{
-						const std::string URL_to_check = *it;
+						const URLString URL_to_check = *it;
 						checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
 						checkForOptimisedMeshToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 					}
@@ -873,7 +877,7 @@ void MeshLODGenThread::doRun()
 					const LODMeshToGen& mesh_to_gen = meshes_to_gen[i];
 					try
 					{
-						conPrint("MeshLODGenThread: (mesh " + toString(i) + " / " + toString(meshes_to_gen.size()) + "): Generating " + (mesh_to_gen.build_optimised_mesh ? "optimised" : "LOD") + " mesh with URL " + mesh_to_gen.lod_URL);
+						conPrint("MeshLODGenThread: (mesh " + toString(i) + " / " + toString(meshes_to_gen.size()) + "): Generating " + (mesh_to_gen.build_optimised_mesh ? "optimised" : "LOD") + " mesh with URL " + toStdString(mesh_to_gen.lod_URL));
 
 						if(mesh_to_gen.build_optimised_mesh) // If building optimised mesh (may be LOD mesh also):
 						{
@@ -909,7 +913,7 @@ void MeshLODGenThread::doRun()
 					}
 					catch(glare::Exception& e)
 					{
-						conPrint("\tMeshLODGenThread: glare::Exception while generating LOD model for URL '" + mesh_to_gen.lod_URL + "': " + e.what());
+						conPrint("\tMeshLODGenThread: glare::Exception while generating LOD model for URL '" + toStdString(mesh_to_gen.lod_URL) + "': " + e.what());
 					}
 
 					if(should_quit)
@@ -931,7 +935,7 @@ void MeshLODGenThread::doRun()
 					const LODTextureToGen& tex_to_gen = lod_textures_to_gen[i];
 					try
 					{
-						conPrint("MeshLODGenThread:  (LOD tex " + toString(i) + " / " + toString(lod_textures_to_gen.size()) + "): Generating LOD texture with URL " + tex_to_gen.lod_URL);
+						conPrint("MeshLODGenThread:  (LOD tex " + toString(i) + " / " + toString(lod_textures_to_gen.size()) + "): Generating LOD texture with URL " + toStdString(tex_to_gen.lod_URL));
 
 						LODGeneration::generateLODTexture(tex_to_gen.source_tex_abs_path, tex_to_gen.lod_level, tex_to_gen.LOD_tex_abs_path, task_manager);
 
@@ -979,7 +983,7 @@ void MeshLODGenThread::doRun()
 					const BasisTextureToGen& tex_to_gen = basis_textures_to_gen[i];
 					try
 					{
-						conPrint("MeshLODGenThread: (basis " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating basis texture with URL " + tex_to_gen.basis_URL);
+						conPrint("MeshLODGenThread: (basis " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating basis texture with URL " + toStdString(tex_to_gen.basis_URL));
 
 						LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, 
 							tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, 
