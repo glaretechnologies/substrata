@@ -126,17 +126,20 @@ Following https://bitbucket.org/chromiumembedded/cef/wiki/AutomatedBuildSetup an
 Download https://bitbucket.org/chromiumembedded/cef/raw/master/tools/automate/automate-git.py, save it somewhere, e.g. in c:/programming
 
 In cmd.exe shell:
+(may also require a VS shell like "x64 Native Tools Command Prompt for VS 2022")
 
 
 set GN_DEFINES=is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome use_thin_lto=false
 set GYP_MSVS_VERSION=2022
 set CEF_ARCHIVE_FORMAT=tar.bz2
 C:\programming>python automate-git.py --download-dir=c:/cef --branch=7258 --minimal-distrib --client-distrib --force-clean --x64-build --with-pgo-profiles
-C:\programming>python automate-git.py --download-dir=c:/cef --branch=5845 --minimal-distrib --client-distrib --force-clean --x64-build --with-pgo-profiles
 
 Branch 7258 is July 2025
-Branch 5845 is June 2023
 
+Notes:
+You will need a *lot* of disk space - at least 200 GB.
+If the downloading of source with the above command fails with HTTP error 429 ("too many requests"), try running the command again without the --force-clean argument.
+If you get compilation errors, it's probably best to start again by removing all the downloads in c:/cef and running the command again.
 
 To build binary distribution
 ----------------------------
@@ -146,7 +149,7 @@ cd C:\cef\chromium\src\cef\tools
 make_distrib.bat --ninja-build --x64-build
 
 Builds to something like:
-C:\cef\chromium\src\cef\binary_distrib\cef_binary_101.0.3+g68a0a11+chromium-101.0.4951.26_windows64\
+C:\cef\chromium\src\cef\binary_distrib\cef_binary_139.0.40+g465474a+chromium-139.0.7258.139_windows64
 
 
 
@@ -155,21 +158,22 @@ Rebuild libcef C++ dll wrapper
 ------------------------------
 Change into the binary distribution directory we just built:
 
-cd C:\cef\chromium\src\cef\binary_distrib\cef_binary_101.0.3+g68a0a11+chromium-101.0.4951.26_windows64
+cd C:\cef\chromium\src\cef\binary_distrib\cef_binary_139.0.40+g465474a+chromium-139.0.7258.139_windows64
 mkdir libcef_dll_build
 cd libcef_dll_build
 cmake ../
 # Open in Visual Studio:
-&"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe" cef.sln
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe" cef.sln
 
 For libcef_dll_wrapper project:
 Debug config:
 remove _HAS_ITERATOR_DEBUGGING=0 from libcef_dll_wrapper c++ preprocess defs
-Change debug C++ code generation  / Runtime Library to "Multi-threaded Debug DLL (/MDd)"
+Change debug configuration C/C++ / Code generation  / Runtime Library to "Multi-threaded Debug DLL (/MDd)"
 
 Release config:
-Change debug C++ code generation  / Runtime Library to "Multi-threaded DLL (/MD)"
+Change debug configuration C/C++ / Code generation  / Runtime Library to "Multi-threaded DLL (/MD)"
 
+Then build libcef_dll_wrapper project in both Debug and Release configurations.
 
 
 CEF on Mac
