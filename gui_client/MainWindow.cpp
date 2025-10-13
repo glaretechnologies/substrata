@@ -4182,24 +4182,34 @@ float MainWindow::gamepadAxisRightY()
 
 bool MainWindow::supportsSharedGLContexts() const
 {
+#if defined(_WIN32)
 	return true;
+#else
+	return false; // Not implemented yet for Mac and Linux
+#endif
 }
 
 
 void* MainWindow::makeNewSharedGLContext()
 {
+#if defined(_WIN32)
 	return (void*)ui->glWidget->makeNewSharedGLContext();
+#else
+	return nullptr;
+#endif
 }
 
 
 void MainWindow::makeGLContextCurrent(void* context_)
 {
+#if defined(_WIN32)
 	HWND hwnd = reinterpret_cast<HWND>(ui->glWidget->winId());
 	HDC hdc = GetDC(hwnd);
 
 	HGLRC handle = (HGLRC)context_;
 	BOOL res = wglMakeCurrent(hdc, handle);
 	assert(res != 0);
+#endif
 }
 
 
