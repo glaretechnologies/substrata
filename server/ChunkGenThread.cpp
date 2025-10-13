@@ -1364,7 +1364,7 @@ void ChunkGenThread::doRun()
 				const int MESH_EPOCH = 2; // This can be bumped to punch through caches, in particular if the optimised mesh needs to be rebuilt.
 				// Note that because we store mesh_url in the LodChunk object, which is sent to clients, they will automatically pick up a new epoch version if it's incremented.
 
-				std::string mesh_URL;
+				URLString mesh_URL;
 				if(!results.combined_mesh_path.empty())
 				{
 					mesh_URL = ResourceManager::URLForPathAndHashAndEpoch(results.combined_mesh_path, results.combined_mesh_hash, MESH_EPOCH);
@@ -1380,7 +1380,7 @@ void ChunkGenThread::doRun()
 				// Copy optimised mesh into resource system.
 				if(!results.optimised_mesh_path.empty())
 				{	
-					const std::string optimised_mesh_URL = removeDotAndExtension(ResourceManager::URLForPathAndHashAndEpoch(results.combined_mesh_path, results.combined_mesh_hash, MESH_EPOCH)) + "_opt" + toString(Protocol::OPTIMISED_MESH_VERSION) + ".bmesh";
+					const URLString optimised_mesh_URL = removeDotAndExtension(ResourceManager::URLForPathAndHashAndEpoch(results.combined_mesh_path, results.combined_mesh_hash, MESH_EPOCH)) + "_opt" + toURLString(toString(Protocol::OPTIMISED_MESH_VERSION)) + ".bmesh";
 
 					if(!all_worlds_state->resource_manager->isFileForURLPresent(optimised_mesh_URL))
 					{
@@ -1391,7 +1391,7 @@ void ChunkGenThread::doRun()
 					}
 				}
 
-				std::string tex_URL;
+				URLString tex_URL;
 				if(!results.combined_texture_path.empty())
 				{
 					tex_URL = ResourceManager::URLForPathAndHash(results.combined_texture_path, results.combined_texture_hash);

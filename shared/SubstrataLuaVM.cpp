@@ -1254,7 +1254,8 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 
 
 #if SERVER
-static void assignStringWithSizeCheck(lua_State* state, int index, std::string& field, const char* field_name, size_t max_size)
+template <class StringType>
+static void assignStringWithSizeCheck(lua_State* state, int index, StringType& field, const char* field_name, size_t max_size)
 {
 	size_t new_len;
 	const char* new_string = LuaUtils::getStringPointerAndLen(state, index, new_len);

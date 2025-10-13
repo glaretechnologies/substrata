@@ -104,13 +104,13 @@ static js::Vector<uint8, 16> readFile(const std::string& path)
 static bool shouldCompressFile(const std::string& path)
 {
 	return 
-		hasExtensionStringView(path, "js") || 
-		hasExtensionStringView(path, "css") || 
-		hasExtensionStringView(path, "wasm") || 
-		hasExtensionStringView(path, "html") ||
-		hasExtensionStringView(path, "data") ||
-		hasExtensionStringView(path, "bin") ||
-		hasExtensionStringView(path, "ktx2");
+		hasExtension(path, "js") || 
+		hasExtension(path, "css") || 
+		hasExtension(path, "wasm") || 
+		hasExtension(path, "html") ||
+		hasExtension(path, "data") ||
+		hasExtension(path, "bin") ||
+		hasExtension(path, "ktx2");
 }
 
 

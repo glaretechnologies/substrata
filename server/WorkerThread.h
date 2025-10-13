@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2018 -
 #pragma once
 
 
+#include "../shared/URLString.h"
 #include <RequestInfo.h>
 #include <MessageableThread.h>
 #include <Platform.h>
@@ -44,7 +45,7 @@ public:
 	web::RequestInfo websocket_request_info; // If the client connected via a websocket, this the HTTP request data.  Is used for accessing the login cookie.
 
 private:
-	void sendGetFileMessageIfNeeded(const std::string& resource_URL);
+	void sendGetFileMessageIfNeeded(const URLString& resource_URL);
 	void handleResourceUploadConnection();
 	void handleResourceDownloadConnection();
 	void handleScreenshotBotConnection();

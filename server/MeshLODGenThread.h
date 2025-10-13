@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "../shared/UID.h"
+#include "../shared/URLString.h"
 #include <MessageableThread.h>
 #include <AtomicInt.h>
 class Server;
@@ -23,16 +24,16 @@ public:
 class CheckGenLodResourcesForURL : public ThreadMessage
 {
 public:
-	CheckGenLodResourcesForURL(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
+	CheckGenLodResourcesForURL(const URLString& URL_) : URL(URL_) {}
+	URLString URL;
 };
 
 
 class NewResourceGenerated : public ThreadMessage
 {
 public:
-	NewResourceGenerated(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
+	NewResourceGenerated(const URLString& URL_) : URL(URL_) {}
+	URLString URL;
 };
 
 

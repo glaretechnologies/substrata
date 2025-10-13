@@ -243,6 +243,8 @@ const std::string ResourceManager::pathForURL(const URLString& URL)
 	//return base_resource_dir + "/" + escapeString(URL);
 }
 
+
+#if GUI_CLIENT
 void ResourceManager::getTexPathForURL(const URLString& URL, OpenGLTextureKey& path_out)
 {
 	Lock lock(mutex);
@@ -251,6 +253,7 @@ void ResourceManager::getTexPathForURL(const URLString& URL, OpenGLTextureKey& p
 
 	resource->getLocalAbsTexPath(this->base_resource_dir, path_out);
 }
+#endif
 
 
 bool ResourceManager::isFileForURLPresent(const URLString& URL) // Throws glare::Exception if URL is invalid.

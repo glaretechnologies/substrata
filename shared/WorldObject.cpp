@@ -283,6 +283,7 @@ URLString WorldObject::getLODLightmapURLForLevel(const URLString& base_lightmap_
 }
 
 
+#if GUI_CLIENT
 OpenGLTextureKey WorldObject::getLODLightmapPathForLevel(const OpenGLTextureKey& base_lightmap_path, int level)
 {
 	assert(level >= -1 && level <= 2);
@@ -307,6 +308,7 @@ OpenGLTextureKey WorldObject::getLODLightmapPathForLevel(const OpenGLTextureKey&
 		return res;
 	}
 }
+#endif
 
 
 void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, DependencyURLVector& URLs_out) const

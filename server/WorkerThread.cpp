@@ -76,10 +76,10 @@ WorkerThread::~WorkerThread()
 
 
 // Checks if the resource is present on the server, if not, sends a GetFile message (or rather enqueues to send) to the client.
-void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
+void WorkerThread::sendGetFileMessageIfNeeded(const URLString& resource_URL)
 {
 	if(!ResourceManager::isValidURL(resource_URL))
-		throw glare::Exception("Invalid URL: '" + resource_URL + "'");
+		throw glare::Exception("Invalid URL: '" + toStdString(resource_URL) + "'");
 
 	// If this is a web URL, then we don't need to get it from the client.
 	if(hasPrefix(resource_URL, "http://") || hasPrefix(resource_URL, "https://"))
@@ -91,11 +91,11 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 		if(resource.nonNull() && (resource->getState() == Resource::State_Present))
 		{
 			// Check hash?
-			conPrintIfNotFuzzing("resource file with URL '" + resource_URL + "' already present on disk.");
+			conPrintIfNotFuzzing("resource file with URL '" + toStdString(resource_URL) + "' already present on disk.");
 		}
 		else
 		{
-			conPrintIfNotFuzzing("resource file with URL '" + resource_URL + "' not present on disk, sending get file message to client.");
+			conPrintIfNotFuzzing("resource file with URL '" + toStdString(resource_URL) + "' not present on disk, sending get file message to client.");
 
 			// We need the file from the client.
 			// Send the client a 'get file' message
@@ -204,7 +204,7 @@ void WorkerThread::handleResourceUploadConnection()
 		}
 
 
-		const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
+		const URLString URL = toURLString(socket->readStringLengthFirst(MAX_STRING_LEN));
 
 		//conPrintIfNotFuzzing("\tURL: '" + URL + "'");
 
@@ -316,7 +316,7 @@ void WorkerThread::handleResourceUploadConnection()
 		} // End scope for FileOutStream
 
 
-		conPrintIfNotFuzzing("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
+		conPrintIfNotFuzzing("\tReceived file with URL '" + toStdString(URL) + "' from client. (" + toString(file_len) + " B)");
 		// conPrintIfNotFuzzing("\t!!! file checksum: " + toString(FileChecksum::fileChecksum(local_path)));
 
 		resource->owner_id = client_user_id;
@@ -346,7 +346,7 @@ void WorkerThread::handleResourceUploadConnection()
 				{
 					ServerWorldState* world = world_it->second.ptr();
 
-					std::set<DependencyURL> URLs;
+					DependencyURLSet URLs;
 					const ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
 					for(auto it = objects.begin(); it != objects.end(); ++it)
 					{
@@ -417,9 +417,9 @@ void WorkerThread::handleResourceDownloadConnection()
 
 				for(size_t i=0; i<num_resources; ++i)
 				{
-					const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
+					const URLString URL = toURLString(socket->readStringLengthFirst(MAX_STRING_LEN));
 
-					conPrintIfNotFuzzing("\tRequested URL: '" + URL + "'");
+					conPrintIfNotFuzzing("\tRequested URL: '" + toStdString(URL) + "'");
 
 					if(!ResourceManager::isValidURL(URL))
 					{
@@ -596,7 +596,7 @@ void WorkerThread::handleScreenshotBotConnection()
 					if(screenshot->is_map_tile)
 					{
 						// Copy screenshot into resource dir and add as a resource
-						const std::string URL = screenshot_filename;
+						const URLString URL = toURLString(screenshot_filename);
 						ResourceRef resource = server->world_state->resource_manager->getOrCreateResourceForURL(URL); // Will create a new Resource ob if not already inserted.
 						const std::string local_abs_path = server->world_state->resource_manager->getLocalAbsPathForResource(*resource);
 
@@ -1456,7 +1456,7 @@ void WorkerThread::doRun()
 												client_user->avatar_settings = avatar->avatar_settings;
 												world_state->addUserAsDBDirty(client_user);
 
-												conPrintIfNotFuzzing("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+												conPrintIfNotFuzzing("Updated user avatar settings.  model_url: " + toStdString(client_user->avatar_settings.model_url));
 											}
 										}
 									}
@@ -1466,7 +1466,7 @@ void WorkerThread::doRun()
 							}
 
 							// Process resources
-							std::set<DependencyURL> URLs;
+							DependencyURLSet URLs;
 							Avatar::GetDependencyOptions options;
 							options.get_optimised_mesh = false; // Get non-optimised mesh, optimise on server.
 							options.use_basis = false; // Get non-basis resources, convert to basis on server.
@@ -1518,7 +1518,7 @@ void WorkerThread::doRun()
 								sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
 
 							// Process resources
-							std::set<DependencyURL> URLs;
+							DependencyURLSet URLs;
 							Avatar::GetDependencyOptions options;
 							options.get_optimised_mesh = false; // Get non-optimised mesh, optimise on server.
 							options.use_basis = false; // Get non-basis resources, convert to basis on server.
@@ -1530,7 +1530,7 @@ void WorkerThread::doRun()
 								server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(it->URL));
 							}
 
-							conPrintIfNotFuzzing("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
+							conPrintIfNotFuzzing("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + toStdString(temp_avatar.avatar_settings.model_url) + "'");
 
 							break;
 						}
@@ -1885,7 +1885,7 @@ void WorkerThread::doRun()
 											world_state->markAsChanged();
 
 											// Process resources
-											std::set<DependencyURL> URLs;
+											DependencyURLSet URLs;
 											WorldObject::GetDependencyOptions options;
 											options.use_basis = false; // Get plain textures, convert to basis on server.
 											options.get_optimised_mesh = false;
@@ -2076,7 +2076,7 @@ void WorkerThread::doRun()
 							new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
 							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *new_ob);
 
-							conPrintIfNotFuzzing("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
+							conPrintIfNotFuzzing("model_url: '" + toStdString(new_ob->model_url) + "', pos: " + new_ob->pos.toString());
 
 							// If client is not logged in, refuse object creation.
 							if(!client_user_id.valid())
@@ -2108,7 +2108,7 @@ void WorkerThread::doRun()
 									new_ob->last_modified_time = new_ob->created_time;
 									new_ob->creator_name = client_user_name;
 
-									std::set<DependencyURL> URLs;
+									DependencyURLSet URLs;
 									WorldObject::GetDependencyOptions options;
 									options.use_basis = false; // Get plain textures, convert to basis on server.
 									options.get_optimised_mesh = false;
