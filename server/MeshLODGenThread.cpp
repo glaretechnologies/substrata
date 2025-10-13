@@ -180,7 +180,7 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 }
 
 
-static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
 {
 	try
 	{
@@ -282,7 +282,7 @@ static void checkForLODMeshesToGenerate(ServerAllWorldsState* world_state, Serve
 //static size_t sum_optimised_size_B = 0;
 
 
-static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
 {
 	try
 	{
@@ -350,7 +350,7 @@ static void checkForOptimisedMeshesToGenerate(ServerAllWorldsState* world_state,
 }
 
 
-static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
 {
 	try
 	{
@@ -468,7 +468,7 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 
 
 // Make tasks for generating LOD level textures.
-static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
+static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
 	std::vector<LODTextureToGen>& textures_to_gen)
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
@@ -531,7 +531,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<URLString>& lod_URLs_considered,
+static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	for(size_t z=0; z<materials.size(); ++z)
@@ -589,7 +589,7 @@ static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* wo
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<URLString>& lod_URLs_considered,
+static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	checkForBasisTexturesToGenerateForMaterials(world_state, /*world, */ob->materials, lod_URLs_considered, basis_textures_to_gen);
@@ -597,7 +597,7 @@ static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_sta
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString>& lod_URLs_considered,
+static void checkForBasisTexturesToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	const URLString base_texture_URL = URL;
@@ -763,7 +763,7 @@ void MeshLODGenThread::doRun()
 			std::vector<LODMeshToGen> meshes_to_gen;
 			std::vector<LODTextureToGen> lod_textures_to_gen;
 			std::vector<BasisTextureToGen> basis_textures_to_gen;
-			std::unordered_set<URLString> lod_URLs_considered;
+			std::unordered_set<URLString, URLStringHasher> lod_URLs_considered;
 			std::map<std::string, MeshLODGenThreadTexInfo> tex_info; // Cached info about textures
 
 			// conPrint("MeshLODGenThread: Iterating over world object(s)...");
