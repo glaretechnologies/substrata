@@ -182,7 +182,7 @@ private:
 	void checkRunningOnMainThread() const;
 
 	//mutable Mutex mutex;
-	ManagerWithCache<URLString, Reference<MeshData> > model_URL_to_mesh_map;
+	ManagerWithCache<URLString, Reference<MeshData>, URLStringHasher> model_URL_to_mesh_map;
 
 	ManagerWithCache<MeshManagerPhysicsShapeKey, Reference<PhysicsShapeData>, MeshManagerPhysicsShapeKeyHasher> physics_shape_map;
 
