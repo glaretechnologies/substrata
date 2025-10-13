@@ -91,5 +91,5 @@ private:
 	size_t begin_i;
 	js::Vector<LoadItemQueueItem*, 16> items;
 
-	std::unordered_map<URLString, LoadItemQueueItem*> item_map; // Map from key to pointer to LoadItemQueueItem.
+	std::unordered_map<URLString, LoadItemQueueItem*, URLStringHasher> item_map; // Map from key to pointer to LoadItemQueueItem.
 };

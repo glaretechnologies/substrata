@@ -78,5 +78,5 @@ private:
 	Condition nonempty;
 	size_t begin_i										GUARDED_BY(mutex);
 	js::Vector<DownloadQueueItem*, 16> items			GUARDED_BY(mutex);
-	std::unordered_map<URLString, DownloadQueueItem*> item_URL_map	GUARDED_BY(mutex); // Map from item URL to pointer to DownloadQueueItem in items.
+	std::unordered_map<URLString, DownloadQueueItem*, URLStringHasher> item_URL_map	GUARDED_BY(mutex); // Map from item URL to pointer to DownloadQueueItem in items.
 };

@@ -598,7 +598,7 @@ public:
 
 	// Audio files being loaded or already loaded.
 	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
-	std::unordered_set<URLString> audio_processing;
+	std::unordered_set<URLString, URLStringHasher> audio_processing;
 
 	std::unordered_set<std::string> script_content_processing;
 
@@ -657,18 +657,18 @@ public:
 
 	js::Vector<Vec4f, 16> temp_av_positions;
 
-	std::unordered_map<URLString, DownloadingResourceInfo> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
+	std::unordered_map<URLString, DownloadingResourceInfo, URLStringHasher> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
 
 	std::map<ModelProcessingKey, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
-	std::unordered_map<URLString, std::set<UID>> loading_model_URL_to_avatar_UID_map;
+	std::unordered_map<URLString, std::set<UID>, URLStringHasher> loading_model_URL_to_avatar_UID_map;
 
-	std::unordered_map<URLString, std::set<UID>> loading_texture_URL_to_world_ob_UID_map;
-	std::unordered_map<URLString, std::set<UID>> loading_texture_URL_to_avatar_UID_map;
+	std::unordered_map<URLString, std::set<UID>, URLStringHasher> loading_texture_URL_to_world_ob_UID_map;
+	std::unordered_map<URLString, std::set<UID>, URLStringHasher> loading_texture_URL_to_avatar_UID_map;
 
-	std::unordered_map<OpenGLTextureKey, std::set<UID>> loading_texture_key_to_hypercard_UID_map;
+	std::unordered_map<OpenGLTextureKey, std::set<UID>, URLStringHasher> loading_texture_key_to_hypercard_UID_map;
 
-	std::unordered_map<URLString, Vec3i> loading_mesh_URL_to_chunk_coords_map;
-	std::unordered_map<URLString, Vec3i> loading_texture_URL_to_chunk_coords_map;
+	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_mesh_URL_to_chunk_coords_map;
+	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_texture_URL_to_chunk_coords_map;
 
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 
