@@ -563,7 +563,7 @@ public:
 
 	// Textures being loaded or already loaded.
 	// We have this set so that we don't process the same texture from multiple LoadTextureTasks running in parallel.
-	std::unordered_set<OpenGLTextureKey> textures_processing;
+	std::unordered_set<OpenGLTextureKey, OpenGLTextureKeyHasher> textures_processing;
 
 	// We build a different physics mesh for dynamic objects, so we need to keep track of which mesh we are building.
 	struct ModelProcessingKey
