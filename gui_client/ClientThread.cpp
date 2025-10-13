@@ -317,7 +317,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 	{
 	case Protocol::AllObjectsSent:
 		{
-			conPrint("All objects finished sending.");
+			// conPrint("All objects finished sending.");
 			// This message has no payload.
 			this->all_objects_received = true;
 			break;
@@ -337,7 +337,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::AudioStreamToServerEnded:
 		{
-			conPrint("ClientThread: received Protocol::AudioStreamToServerEnded");
+			// conPrint("ClientThread: received Protocol::AudioStreamToServerEnded");
 
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 
@@ -379,7 +379,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::AvatarFullUpdate:
 		{
-			conPrint("received Protocol::AvatarFullUpdate");
+			// conPrint("received Protocol::AvatarFullUpdate");
 
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 
@@ -402,7 +402,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::AvatarIsHere:
 		{
-			conPrint("received Protocol::AvatarIsHere");
+			// conPrint("received Protocol::AvatarIsHere");
 
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 			Avatar temp_avatar;
@@ -433,7 +433,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::AvatarCreated:
 		{
-			conPrint("received Protocol::AvatarCreated");
+			// conPrint("received Protocol::AvatarCreated");
 
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 			Avatar temp_avatar;
@@ -464,7 +464,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::AvatarDestroyed:
 		{
-			conPrint("AvatarDestroyed");
+			// conPrint("AvatarDestroyed");
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 			// Mark avatar as dead
@@ -535,7 +535,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::AvatarExitedVehicle:
 		{
-			conPrint("AvatarExitedVehicle");
+			// conPrint("AvatarExitedVehicle");
 
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 
@@ -927,7 +927,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::ObjectDestroyed:
 		{
-			conPrint("ObjectDestroyed");
+			// conPrint("ObjectDestroyed");
 			const UID object_uid = readUIDFromStream(msg_buffer);
 
 			// Mark object as dead
@@ -1007,7 +1007,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::ParcelDestroyed:
 		{
-			conPrint("ParcelDestroyed");
+			// conPrint("ParcelDestroyed");
 			const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
 			// Mark parcel as dead
@@ -1026,7 +1026,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::ParcelFullUpdate:
 		{
-			conPrint("ParcelFullUpdate");
+			// conPrint("ParcelFullUpdate");
 			const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
 			// Look up existing parcel in world state
@@ -1055,7 +1055,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 	case Protocol::GetFile:
 		{
 			const URLString model_url = toURLString(msg_buffer.readStringLengthFirst(MAX_STRING_LEN));
-			conPrint("Received GetFile message from server, model_url: '" + toStdString(model_url) + "'");
+			// conPrint("Received GetFile message from server, model_url: '" + toStdString(model_url) + "'");
 
 			out_msg_queue->enqueue(new GetFileMessage(model_url));
 			break;
@@ -1109,7 +1109,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	case Protocol::LoggedInMessageID:
 		{
-			conPrint("Received LoggedInMessageID msg.");
+			// conPrint("Received LoggedInMessageID msg.");
 			const UserID logged_in_user_id = readUserIDFromStream(msg_buffer); 
 			const std::string logged_in_username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 			Reference<LoggedInMessage> msg = new LoggedInMessage(logged_in_user_id, logged_in_username);
