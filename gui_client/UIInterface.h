@@ -144,4 +144,6 @@ public:
 	virtual bool supportsSharedGLContexts() const = 0;
 	virtual void* makeNewSharedGLContext() = 0;
 	virtual void makeGLContextCurrent(void* context) = 0;
+
+	virtual	void* getID3D11Device() const = 0;
 };

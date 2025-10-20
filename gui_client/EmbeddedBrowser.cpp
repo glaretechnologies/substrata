@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <ui/UIEvents.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
+#include <opengl/OpenGLMemoryObject.h>
 #include <maths/vec2.h>
 #include <webserver/Escaping.h>
 #include <webserver/ResponseUtils.h>
@@ -23,8 +24,20 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/PlatformUtils.h>
 #include <utils/BufferInStream.h>
 #include <utils/Base64.h>
-#include "superluminal/PerformanceAPI.h"
-
+#include <utils/RuntimeCheck.h>
+#include <direct3d/Direct3DUtils.h>
+#include <tracy/Tracy.hpp>
+#ifdef _WIN32
+#include <utils/ComObHandle.h>
+#include <mfidl.h>
+#include <mfapi.h>
+#include <mferror.h>
+#include <mfreadwrite.h>
+#include <d3d11.h>
+#include <d3d11_3.h>
+#include <d3d11_4.h>
+#include <wincodec.h>
+#endif
 
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
 #include <cef_app.h>
@@ -45,16 +58,55 @@ Copyright Glare Technologies Limited 2023 -
 class EmbeddedBrowserRenderHandler : public CefRenderHandler
 {
 public:
-	EmbeddedBrowserRenderHandler(Reference<OpenGLTexture> opengl_tex_, GUIClient* gui_client_, WorldObject* ob_, OpenGLEngine* opengl_engine_)
-	:	opengl_tex(opengl_tex_), opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
+	EmbeddedBrowserRenderHandler(int viewport_width_, int viewport_height_, GUIClient* gui_client_, WorldObject* ob_, size_t mat_index_, bool apply_to_emission_texture_, OpenGLEngine* opengl_engine_, bool use_shared_gpu_textures_)
+	:	opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false)
+	{
+		ZoneScoped; // Tracy profiler
 
-	~EmbeddedBrowserRenderHandler() {}
+		viewport_width  = viewport_width_;
+		viewport_height = viewport_height_;
+		mat_index = mat_index_;
+		apply_to_emission_texture = apply_to_emission_texture_;
+		use_shared_gpu_textures = use_shared_gpu_textures_;
+
+		if(!use_shared_gpu_textures)
+		{
+			// Create a new texture that we will copy the rendered browser data to.
+			runtimeCheck(ob->opengl_engine_ob.nonNull());
+			runtimeCheck(mat_index < ob->opengl_engine_ob->materials.size());
+
+			OpenGLTextureRef new_tex = new OpenGLTexture(viewport_width, viewport_height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
+				OpenGLTexture::Filtering_Bilinear,
+				OpenGLTexture::Wrapping_Clamp,
+				/*has mipmaps=*/false
+			);
+
+			new_tex->clearRegion2D(/*mipmap level=*/0, /*x=*/0, /*y=*/0, viewport_width, viewport_height, /*data=*/nullptr); // Zero out the texture.  NOTE: Doesn't work on Mac currently.
+
+			// Swizzle from BGRA with 0 alpha to RGBA with alpha 1.
+			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
+			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);
+			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);
+
+			// Apply the texture to the specified material
+			if(apply_to_emission_texture)
+				ob->opengl_engine_ob->materials[mat_index].emission_texture = new_tex;
+			else
+				ob->opengl_engine_ob->materials[mat_index].albedo_texture = new_tex;
+
+			ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
+			opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+		}
+	}
+
+	~EmbeddedBrowserRenderHandler()
+	{}
 
 	void onWebViewDataDestroyed()
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		opengl_tex = NULL;
 		opengl_engine = NULL;
 		ob = NULL;
 	}
@@ -63,89 +115,141 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		if(opengl_tex.nonNull())
-			rect = CefRect(0, 0, (int)opengl_tex->xRes(), (int)opengl_tex->yRes());
-		else
-			rect = CefRect(0, 0, 100, 100);
+		rect = CefRect(0, 0, viewport_width, viewport_height);
 	}
 
 	// "|buffer| will be |width|*|height|*4 bytes in size and represents a BGRA image with an upper-left origin"
 	void OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList& dirty_rects, const void* buffer, int width, int height) override
 	{
 		CEF_REQUIRE_UI_THREAD();
+		ZoneScoped; // Tracy profiler
 
-		if(opengl_engine && ob)
+		assert(dirty_rects.size() > 0);
+
+		if(opengl_engine && ob && ob->opengl_engine_ob)
 		{
-			//conPrint("EmbeddedBrowserRenderHandler: OnPaint()");
-
-			// whole page was updated
-			if(type == PET_VIEW)
+			if(type == PET_VIEW) // Page was updated (as opposed to pop-up).
 			{
 				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 				if(ob_visible)
 				{
-					for(size_t i=0; i<dirty_rects.size(); ++i)
+					runtimeCheck(mat_index < ob->opengl_engine_ob->materials.size());
+					OpenGLTexture* opengl_tex = apply_to_emission_texture ? ob->opengl_engine_ob->materials[mat_index].emission_texture.ptr() : ob->opengl_engine_ob->materials[mat_index].albedo_texture.ptr();
+					if(opengl_tex)
 					{
-						const CefRect& rect = dirty_rects[i];
-
-						//conPrint("Updating dirty rect for ob " + ob->uid.toString()  + ": (" + toString(rect.x) + ", " + toString(rect.y) + "), w: " + toString(rect.width) + ", h: " + toString(rect.height));
-
-						// Copy dirty rect data into a packed buffer
-
 						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while uploading to texture buffer.
 
-						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
-						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, /*z=*/0, rect.width, rect.height, /*region depth=*/1, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, width * rect.height * 4), /*bind_needed=*/true);
+						for(size_t i=0; i<dirty_rects.size(); ++i)
+						{
+							const CefRect& rect = dirty_rects[i];
+
+							//conPrint("Updating dirty rect for ob " + ob->uid.toString()  + ": (" + toString(rect.x) + ", " + toString(rect.y) + "), w: " + toString(rect.width) + ", h: " + toString(rect.height));
+
+							const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
+							opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, /*z=*/0, rect.width, rect.height, /*region depth=*/1, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, width * rect.height * 4), /*bind_needed=*/true);
+						}
 					}
 				}
 				else
 				{
-					//conPrint("Discarded a dirty rect update");
 					discarded_dirty_updates = true;
-
-					//for(size_t i=0; i<dirty_rects.size(); ++i)
-					//{
-					//	const CefRect& rect = dirty_rects[i];
-					//	
-					//	//discarded_dirty_rect.enlargeToHoldRect(Rect2i(Vec2i(rect.x, rect.y), Vec2i(rect.x + rect.width, rect.y + rect.height)));
-					//}
 				}
-
-
-				// if there is still a popup open, write it into the page too (it's pixels will have been
-				// copied into it's buffer by a call to OnPaint with type of PET_POPUP earlier)
-				//if(gPopupPixels != nullptr)
-				//{
-				//    unsigned char* dst = gPagePixels + gPopupRect.y * gWidth * gDepth + gPopupRect.x * gDepth;
-				//    unsigned char* src = (unsigned char*)gPopupPixels;
-				//    while(src < (unsigned char*)gPopupPixels + gPopupRect.width * gPopupRect.height * gDepth)
-				//    {
-				//        memcpy(dst, src, gPopupRect.width * gDepth);
-				//        src += gPopupRect.width * gDepth;
-				//        dst += gWidth * gDepth;
-				//    }
-				//}
-
 			}
-			// popup was updated
-			else if(type == PET_POPUP)
-			{
-				//std::cout << "OnPaint() for popup: " << width << " x " << height << " at " << gPopupRect.x << " x " << gPopupRect.y << std::endl;
+		}
+	}
 
-				// copy over the popup pixels into it's buffer
-				// (popup buffer created in onPopupSize() as we know the size there)
-				//memcpy(gPopupPixels, buffer, width * height * gDepth);
-				//
-				//// copy over popup pixels into page pixels. We need this for when popup is changing (e.g. highlighting or scrolling)
-				//// when the containing page is not changing and therefore doesn't get an OnPaint update
-				//unsigned char* src = (unsigned char*)gPopupPixels;
-				//unsigned char* dst = gPagePixels + gPopupRect.y * gWidth * gDepth + gPopupRect.x * gDepth;
-				//while(src < (unsigned char*)gPopupPixels + gPopupRect.width * gPopupRect.height * gDepth)
-				//{
-				//    memcpy(dst, src, gPopupRect.width * gDepth);
-				//    src += gPopupRect.width * gDepth;
-				//    dst += gWidth * gDepth;
-				//}
+	void OnAcceleratedPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList& dirtyRects, const CefAcceleratedPaintInfo& info) override
+	{
+		CEF_REQUIRE_UI_THREAD();
+		ZoneScoped; // Tracy profiler
+
+		if(opengl_engine && ob)
+		{
+			if(type == PET_VIEW) // page was updated (as opposed to pop-up)
+			{
+				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+				if(ob_visible)
+				{
+#if defined(_WIN32)
+					gui_client->ui_interface->setGLWidgetContextAsCurrent();
+
+					ComObHandle<ID3D11Device> d3d_device((ID3D11Device*)gui_client->ui_interface->getID3D11Device());
+
+					if(d3d_device && info.shared_texture_handle)
+					{
+						// Get the corresponding ComObHandle<ID3D11Texture2D> for info.shared_texture_handle.
+						ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>();
+							
+						ComObHandle<ID3D11Texture2D> orig_shared_texture;
+						HRESULT hr = device1->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
+						if(SUCCEEDED(hr) && orig_shared_texture)
+						{
+							// Create new local shared D3D texture
+							D3D11_TEXTURE2D_DESC desc;
+							orig_shared_texture->GetDesc(&desc);
+							const int tex_width = desc.Width;
+							const int tex_height = desc.Height;
+
+							runtimeCheck(mat_index < ob->opengl_engine_ob->materials.size());
+							OpenGLTextureRef& tex_to_apply_to = apply_to_emission_texture ? ob->opengl_engine_ob->materials[mat_index].emission_texture : ob->opengl_engine_ob->materials[mat_index].albedo_texture;
+
+							if(!texture_copy || 
+								tex_to_apply_to.isNull() ||
+								tex_to_apply_to->xRes() != tex_width || 
+								tex_to_apply_to->yRes() != tex_height)
+							{
+								this->texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, orig_shared_texture);
+
+								// returns HANDLE
+								HANDLE texture_copy_handle = Direct3DUtils::getSharedHandleForTexture(this->texture_copy);
+
+								//====================== Create an OpenGL texture to show the video ========================
+								conPrint("Creating new OpenGL tex for EmbeddedBrowser (tex_width: " + toString(tex_width) + ", tex_height: " + toString(tex_height));
+
+								OpenGLMemoryObjectRef mem_ob = new OpenGLMemoryObject();
+								mem_ob->importD3D11ImageFromHandle(texture_copy_handle);
+
+								OpenGLTextureRef video_display_opengl_tex;
+								{
+									OpenGLMemoryObjectLock mem_ob_lock(mem_ob);
+								
+									video_display_opengl_tex = new OpenGLTexture(tex_width, tex_height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
+										OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Clamp, /*has mipmaps=*/false, /*MSAA samples=*/-1, /*num array images=*/0, mem_ob);
+
+									#define GL_TEXTURE_TILING_EXT             0x9580
+									#define GL_OPTIMAL_TILING_EXT             0x9584
+
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_TILING_EXT, GL_OPTIMAL_TILING_EXT);
+
+									// Swizzle from BGRA with 0 alpha to RGBA with alpha 1.
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);
+								} // End lock scope
+
+								
+								tex_to_apply_to = video_display_opengl_tex;
+								ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
+
+								opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+							}
+							else
+							{
+								// Copy to the existing local D3D texture
+								if(this->texture_copy)
+									Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/orig_shared_texture, /*dest=*/this->texture_copy);
+							}
+						}
+					}
+				
+					glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT);  // Ensure updates visible
+#endif
+				}
+				else // else if !ob_visible:
+				{
+					discarded_dirty_updates = true;
+				}
 			}
 		}
 	}
@@ -157,7 +261,7 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		if(!opengl_engine || opengl_tex.isNull())
+		if(!opengl_engine)
 			return false;
 
 		//conPrint("GetScreenPoint: viewX: " + toString(viewX) + ", viewY: " + toString(viewY));
@@ -174,10 +278,10 @@ public:
 
 		const bool viewing_frontface = dot(frontface_vec_ws, ob_to_cam_ws) > 0;
 
-		float u = viewX / (float)opengl_tex->xRes();
+		float u = viewX / (float)viewport_width;
 		if(!viewing_frontface) // Flip u coordinate if we are viewing the backface.
 			u = 1 - u;
-		const float v = 1.f - viewY / (float)opengl_tex->yRes();
+		const float v = 1.f - viewY / (float)viewport_height;
 
 		const Vec4f pos_os(u, 0, v, 1);
 
@@ -197,36 +301,25 @@ public:
 	void OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) override
 	{
 		CEF_REQUIRE_UI_THREAD();
-		//std::cout << "CefRenderHandler::OnPopupShow(" << (show ? "true" : "false") << ")" << std::endl;
-
-		if(!show)
-		{
-			//delete gPopupPixels;
-			//gPopupPixels = nullptr;
-			//gPopupRect.Reset();
-		}
 	}
 
 	void OnPopupSize(CefRefPtr<CefBrowser> browser, const CefRect& rect) override
 	{
 		CEF_REQUIRE_UI_THREAD();
-		//std::cout << "CefRenderHandler::OnPopupSize(" << rect.width << " x " << rect.height << ") at " << rect.x << ", " << rect.y << std::endl;
-
-		//gPopupRect = rect;
-
-		/*if(gPopupPixels == nullptr)
-		{
-			gPopupPixels = new unsigned char[rect.width * rect.height * gDepth];
-		}*/
 	}
 
-	Reference<OpenGLTexture> opengl_tex;
 	OpenGLEngine* opengl_engine;
 	GUIClient* gui_client;
 	WorldObject* ob;
-	bool discarded_dirty_updates; // Set to true if we didn't update the buffer when a rectangle was dirty, because the webview object was not visible by the camera.
-	//Rect2i discarded_dirty_rect;
+	size_t mat_index;
+	bool apply_to_emission_texture;
+	bool use_shared_gpu_textures;
 
+	bool discarded_dirty_updates; // Set to true if we didn't update the buffer when a rectangle was dirty, because the webview object was not visible by the camera.
+
+	int viewport_width, viewport_height;
+
+	ComObHandle<ID3D11Texture2D> texture_copy;
 
 	IMPLEMENT_REFCOUNTING(EmbeddedBrowserRenderHandler);
 };
@@ -825,10 +918,12 @@ public:
 class EmbeddedBrowserCEFBrowser : public RefCounted
 {
 public:
-	EmbeddedBrowserCEFBrowser(EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, GUIClient* gui_client_, WorldObject* ob_, const std::string& root_page)
+	EmbeddedBrowserCEFBrowser(EmbeddedBrowserRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, GUIClient* gui_client_, WorldObject* ob_, const std::string& root_page, int width_, int height_)
 	:	mRenderHandler(render_handler),
 		gui_client(gui_client_),
-		ob(ob_)
+		ob(ob_),
+		width(width_),
+		height(height_)
 	{
 		cef_client = new EmbeddedBrowserCefClient(gui_client, ob);
 		cef_client->root_page = root_page;
@@ -853,14 +948,14 @@ public:
 
 	void sendMouseClickEvent(CefBrowserHost::MouseButtonType btn_type, float uv_x, float uv_y, bool mouse_up, uint32 cef_modifiers)
 	{
-		if(cef_browser && cef_browser->GetHost() && mRenderHandler->opengl_tex.nonNull())
+		if(cef_browser && cef_browser->GetHost())
 		{
 			//mBrowser->GetHost()->SendFocusEvent(true);
 
 			CefMouseEvent cef_mouse_event;
 			//cef_mouse_event.Reset();
-			cef_mouse_event.x = (int)(uv_x         * mRenderHandler->opengl_tex->xRes());
-			cef_mouse_event.y = (int)((1.f - uv_y) * mRenderHandler->opengl_tex->yRes());
+			cef_mouse_event.x = (int)(uv_x         * width);
+			cef_mouse_event.y = (int)((1.f - uv_y) * height);
 			cef_mouse_event.modifiers = cef_modifiers;
 
 			int last_click_count = 1;
@@ -870,12 +965,12 @@ public:
 
 	void sendMouseMoveEvent(float uv_x, float uv_y, uint32 cef_modifiers)
 	{
-		if(cef_browser && cef_browser->GetHost() && mRenderHandler->opengl_tex.nonNull())
+		if(cef_browser && cef_browser->GetHost())
 		{
 			CefMouseEvent cef_mouse_event;
 			//cef_mouse_event.Reset();
-			cef_mouse_event.x = (int)(uv_x         * mRenderHandler->opengl_tex->xRes());
-			cef_mouse_event.y = (int)((1.f - uv_y) * mRenderHandler->opengl_tex->yRes());
+			cef_mouse_event.x = (int)(uv_x         * width);
+			cef_mouse_event.y = (int)((1.f - uv_y) * height);
 			cef_mouse_event.modifiers = cef_modifiers;
 
 			bool mouse_leave = false;
@@ -885,12 +980,12 @@ public:
 
 	void sendMouseWheelEvent(float uv_x, float uv_y, int delta_x, int delta_y, uint32 cef_modifiers)
 	{
-		if(cef_browser && cef_browser->GetHost() && mRenderHandler->opengl_tex.nonNull())
+		if(cef_browser && cef_browser->GetHost())
 		{
 			CefMouseEvent cef_mouse_event;
 			//cef_mouse_event.Reset();
-			cef_mouse_event.x = (int)(uv_x         * mRenderHandler->opengl_tex->xRes());
-			cef_mouse_event.y = (int)((1.f - uv_y) * mRenderHandler->opengl_tex->yRes());
+			cef_mouse_event.x = (int)(uv_x         * width);
+			cef_mouse_event.y = (int)((1.f - uv_y) * height);
 			cef_mouse_event.modifiers = cef_modifiers;
 
 			cef_browser->GetHost()->SendMouseWheelEvent(cef_mouse_event, (int)delta_x, (int)delta_y);
@@ -962,23 +1057,34 @@ public:
 	CefRefPtr<EmbeddedBrowserRenderHandler> mRenderHandler;
 	CefRefPtr<CefBrowser> cef_browser;
 	CefRefPtr<EmbeddedBrowserCefClient> cef_client;
+
+
+	int width, height;
 };
 
 
-static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex, GUIClient* gui_client, WorldObject* ob, OpenGLEngine* opengl_engine,
+static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLEngine* opengl_engine,
 	const std::string& root_page)
 {
-	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+	ZoneScoped; // Tracy profiler
 
-	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(new EmbeddedBrowserRenderHandler(opengl_tex, gui_client, ob, opengl_engine), CEF::getLifespanHandler(), gui_client, ob,
-		root_page);
+#if defined(_WIN32) // The shared GPU texture stuff is only implemented for Windows for now.
+	const bool use_shared_gpu_textures = opengl_engine->GL_EXT_memory_object_support && opengl_engine->GL_EXT_memory_object_win32_support && opengl_engine->GL_EXT_win32_keyed_mutex_support;
+#else
+	const bool use_shared_gpu_textures = false;
+#endif
+
+	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(
+		new EmbeddedBrowserRenderHandler(viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, opengl_engine, use_shared_gpu_textures), 
+		CEF::getLifespanHandler(), gui_client, ob, root_page, viewport_width, viewport_height);
 
 	CefWindowInfo window_info;
 	window_info.windowless_rendering_enabled = true;
+	window_info.shared_texture_enabled = use_shared_gpu_textures;
 
 	CefBrowserSettings browser_settings;
 	browser_settings.windowless_frame_rate = 60;
-	browser_settings.background_color = CefColorSetARGB(255, 100, 100, 100);
+	browser_settings.background_color = CefColorSetARGB(255, 255, 255, 255);
 
 	browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
 	if(!browser->cef_browser)
@@ -1021,11 +1127,11 @@ EmbeddedBrowser::~EmbeddedBrowser()
 }
 
 
-void EmbeddedBrowser::create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, GUIClient* gui_client, WorldObject* ob, OpenGLEngine* opengl_engine, const std::string& root_page)
+void EmbeddedBrowser::create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLEngine* opengl_engine, const std::string& root_page)
 {
 #if CEF_SUPPORT
 	this->embedded_cef_browser = NULL;
-	this->embedded_cef_browser = createBrowser(URL, opengl_tex, gui_client, ob, opengl_engine, root_page);
+	this->embedded_cef_browser = createBrowser(URL, viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, opengl_engine, root_page);
 #endif
 }
 
@@ -1055,7 +1161,7 @@ void EmbeddedBrowser::browserBecameVisible()
 	{
 		if(embedded_cef_browser->mRenderHandler->discarded_dirty_updates)
 		{
-			// conPrint("Browser had disacarded dirty updates, invalidating...");
+			// conPrint("Browser had discarded dirty updates, invalidating...");
 			embedded_cef_browser->mRenderHandler->discarded_dirty_updates = false;
 
 			if(embedded_cef_browser->cef_browser && embedded_cef_browser->cef_browser->GetHost())
@@ -1228,7 +1334,8 @@ void EmbeddedBrowser::wheelEvent(MouseWheelEvent* e, const Vec2f& uv_coords)
 	//conPrint("wheelEvent(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
 	if(embedded_cef_browser.nonNull())
-		embedded_cef_browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, e->angle_delta.x, e->angle_delta.y, convertToCEFModifiers(e->modifiers/*, e->button*/)); // TEMP REFACTOR using button not buttons
+		embedded_cef_browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, (int)(e->angle_delta.x * 8.f), (int)(e->angle_delta.y * 8.f), 
+			convertToCEFModifiers(e->modifiers/*, e->button*/)); // TEMP REFACTOR using button not buttons
 #endif
 }
 

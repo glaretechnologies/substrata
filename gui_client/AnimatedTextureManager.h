@@ -64,7 +64,7 @@ struct AnimatedTexObData : public RefCounted
 
 private:
 	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-		OpenGLMaterial& mat, AnimatedTexData& animation_data, const OpenGLTextureKey& tex_path, bool is_refl_tex);
+		size_t mat_index, AnimatedTexData& animation_data, const OpenGLTextureKey& tex_path, bool is_refl_tex);
 };
 
 

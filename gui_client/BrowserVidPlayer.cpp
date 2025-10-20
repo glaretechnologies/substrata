@@ -273,21 +273,13 @@ void BrowserVidPlayer::createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngin
 
 	gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
-	std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
-	ob->opengl_engine_ob->materials[0].emission_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTextureFormat::Format_SRGBA_Uint8,
-		GL_SRGB8_ALPHA8, // GL internal format
-		GL_BGRA, // GL format.
-		OpenGLTexture::Filtering_Bilinear);
-
-	//ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
-
-	opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
+	ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
 
 	browser = new EmbeddedBrowser();
 
 	const std::string use_url = "https://localdomain/"; // URL to serve the root page
 
-	browser->create(use_url, ob->opengl_engine_ob->materials[0].emission_texture, gui_client, ob, opengl_engine, root_page);
+	browser->create(use_url, width, height, gui_client, ob, /*mat index=*/0, /*apply_to_emission_texture=*/true, opengl_engine, root_page);
 
 	this->loaded_video_url = video_URL;
 }

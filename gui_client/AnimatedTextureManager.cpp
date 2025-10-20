@@ -46,7 +46,7 @@ AnimatedTexData::~AnimatedTexData()
 
 
 void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-	OpenGLMaterial& mat, AnimatedTexData& animtexdata, const OpenGLTextureKey& tex_path, bool is_refl_tex)
+	size_t mat_index, AnimatedTexData& animtexdata, const OpenGLTextureKey& tex_path, bool is_refl_tex)
 {
 #if CEF_SUPPORT
 	if(!CEF::isInitialised())
@@ -63,22 +63,6 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 			const int width = 1024;
 			const float use_height_over_width = ob->scale.z / ob->scale.x; // Object scale should be based on video aspect ratio, see ModelLoading::makeImageCube().
 			const int height = myClamp((int)(1024 * use_height_over_width), 16, 2048);
-
-			std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
-			OpenGLTextureRef new_tex /*mat.albedo_texture*/ = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTextureFormat::Format_SRGBA_Uint8,
-				GL_SRGB8_ALPHA8, // GL internal format
-				GL_BGRA, // GL format.
-				OpenGLTexture::Filtering_Bilinear);
-
-			if(is_refl_tex)
-			{
-				mat.albedo_texture = new_tex;
-				mat.fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
-			}
-			else
-				mat.emission_texture = new_tex;
-
-			opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 
 			ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
 
@@ -116,7 +100,7 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 			const std::string data_URL = makeDataURL(html);
 
 			Reference<EmbeddedBrowser> browser = new EmbeddedBrowser();
-			browser->create(data_URL, new_tex, gui_client, ob, opengl_engine);
+			browser->create(data_URL, width, height, gui_client, ob, /*mat index=*/mat_index, /*apply_to_emission_texture=*/!is_refl_tex, opengl_engine);
 
 			animtexdata.browser = browser;
 		}
@@ -175,7 +159,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 				{
 					if(mp4_large_enough)
 					{
-						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *refl_data, mat.tex_path, /*is refl tex=*/true);
+						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, m, *refl_data, mat.tex_path, /*is refl tex=*/true);
 						stats.num_mp4_textures_processed++;
 					}
 				}
@@ -194,7 +178,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 				{
 					if(mp4_large_enough)
 					{
-						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, mat, *emission_data, mat.emission_tex_path, /*is refl tex=*/false);
+						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, m, *emission_data, mat.emission_tex_path, /*is refl tex=*/false);
 						stats.num_mp4_textures_processed++;
 					}
 				}

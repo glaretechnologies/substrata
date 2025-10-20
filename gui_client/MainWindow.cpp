@@ -4213,6 +4213,16 @@ void MainWindow::makeGLContextCurrent(void* context_)
 }
 
 
+void* MainWindow::getID3D11Device() const
+{
+#if defined(_WIN32)
+	return (void*)d3d_device.ptr;
+#else
+	return nullptr;
+#endif
+}
+
+
 // The mouse was double-clicked on a web-view object
 void MainWindow::webViewMouseDoubleClicked(QMouseEvent* e)
 {

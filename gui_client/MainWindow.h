@@ -289,6 +289,8 @@ public:
 	virtual bool supportsSharedGLContexts() const override;
 	virtual void* makeNewSharedGLContext()  override;
 	virtual void makeGLContextCurrent(void* context) override;
+
+	virtual void* getID3D11Device() const override;
 	//------------------------------------------------- End UIInterface -----------------------------------------------------------
 
 public:

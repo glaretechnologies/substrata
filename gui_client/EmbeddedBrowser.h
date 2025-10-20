@@ -25,7 +25,8 @@ template <class T> class Vec2;
 /*=====================================================================
 EmbeddedBrowser
 ---------------
-Hides CEF
+Wraps Chromium Embedded Framework (CEF).
+Renders a browser to a specific texture on a WorldObject material.
 =====================================================================*/
 class EmbeddedBrowser : public RefCounted
 { 
@@ -33,7 +34,8 @@ public:
 	EmbeddedBrowser();
 	~EmbeddedBrowser();
 
-	void create(const std::string& URL, Reference<OpenGLTexture> opengl_tex, GUIClient* gui_client, WorldObject* ob, OpenGLEngine* opengl_engine, const std::string& root_page = "");
+	void create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, 
+		OpenGLEngine* opengl_engine, const std::string& root_page = "");
 
 	void updateRootPage(const std::string& root_page);
 	void navigate(const std::string& URL);
