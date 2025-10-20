@@ -106,7 +106,7 @@ def copySDLRedistWindows(vs_version, target_dir, copy_debug)
 end
 
 
-def copyCEFRedistWindows(target_dir)
+def copyCEFRedistWindows(target_dir, copy_debug = false)
 	if (!OS.windows?)
 		return
 	end
@@ -115,18 +115,23 @@ def copyCEFRedistWindows(target_dir)
 	cef_bin_distrib_dir = getAndCheckEnvVar('CEF_BINARY_DISTRIB_DIR')
 	
 	# See e.g. C:\cef\chromium\src\cef\binary_distrib\cef_binary_101.0.0-Unknown.0+gUnknown+chromium-101.0.4951.26_windows64\README.txt for needed files.
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/libcef.dll", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/chrome_elf.dll", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/snapshot_blob.bin", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/v8_context_snapshot.bin", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/d3dcompiler_47.dll", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/libEGL.dll", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/libGLESv2.dll", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/vk_swiftshader.dll", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/vk_swiftshader_icd.json", target_dir, :verbose => true)
-	FileUtils.cp(cef_bin_distrib_dir + "/Release/vulkan-1.dll", target_dir, :verbose => true)
-	FileUtils.cp_r(cef_bin_distrib_dir + "/Release/swiftshader", target_dir, :verbose => true)
 	
+	debug_or_rel_cef_distrib_dir = cef_bin_distrib_dir + "/" + (copy_debug ? "Debug" : "Release")
+
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/chrome_elf.dll", target_dir, :verbose => true)
+	#FileUtils.cp(debug_or_rel_cef_distrib_dir + "/snapshot_blob.bin", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/d3dcompiler_47.dll", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/dxcompiler.dll", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/dxil.dll", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/libcef.dll", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/libEGL.dll", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/libGLESv2.dll", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/v8_context_snapshot.bin", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/vk_swiftshader.dll", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/vk_swiftshader_icd.json", target_dir, :verbose => true)
+	FileUtils.cp(debug_or_rel_cef_distrib_dir + "/vulkan-1.dll", target_dir, :verbose => true)
+	#FileUtils.cp_r(debug_or_rel_cef_distrib_dir + "/swiftshader", target_dir, :verbose => true)
+	#
 	FileUtils.cp_r(cef_bin_distrib_dir + "/Resources/locales", target_dir, :verbose => true)
 	FileUtils.cp(cef_bin_distrib_dir + "/Resources/chrome_100_percent.pak", target_dir, :verbose => true)
 	FileUtils.cp(cef_bin_distrib_dir + "/Resources/chrome_200_percent.pak", target_dir, :verbose => true)
