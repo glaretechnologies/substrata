@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <maths/vec2.h>
 #include <webserver/Escaping.h>
 #include <webserver/ResponseUtils.h>
+#include <networking/URL.h>
 #include <utils/FileInStream.h>
 #include <utils/PlatformUtils.h>
 #include <utils/BufferInStream.h>
@@ -46,7 +47,6 @@ Copyright Glare Technologies Limited 2023 -
 #ifdef OSX
 #include <wrapper/cef_library_loader.h>
 #endif
-#include <URL.h>
 #endif
 
 
@@ -365,7 +365,7 @@ public:
 			//conPrint("resource_URL: " + resource_URL);
 
 			ResourceRef resource = resource_manager->getExistingResourceForURL(URLString(resource_URL));
-			if(resource.nonNull())
+			if(resource)
 			{
 				const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
 				//conPrint("path: " + path);
@@ -554,7 +554,7 @@ public:
 	// From CefDisplayHandler
 	virtual bool OnConsoleMessage( CefRefPtr< CefBrowser > browser, cef_log_severity_t level, const CefString& message, const CefString& source, int line ) override
 	{
-		conPrint("OnConsoleMessage: " + message.ToString());
+		// conPrint("OnConsoleMessage: " + message.ToString());
 		return true;
 	}
 
@@ -831,7 +831,7 @@ public:
 		// So we don't want to access ob or ob->audio_source as it may be being destroyed or modified on the main thread etc.
 
 		// Copy to our audio source
-		if(this->audio_source.nonNull())
+		if(this->audio_source)
 		{
 			const int num_samples = frames;
 			temp_buf.resize(num_samples);
@@ -1107,8 +1107,6 @@ class EmbeddedBrowserCEFBrowser : public RefCounted
 
 EmbeddedBrowser::EmbeddedBrowser()
 :	embedded_cef_browser(NULL)
-	//showing_click_to_load_text(false),
-	//user_clicked_to_load(false)
 {
 
 }
@@ -1117,7 +1115,7 @@ EmbeddedBrowser::EmbeddedBrowser()
 EmbeddedBrowser::~EmbeddedBrowser()
 {
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 	{
 		embedded_cef_browser->onWebViewDataDestroyed(); // The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 		embedded_cef_browser->requestExit();
@@ -1139,7 +1137,7 @@ void EmbeddedBrowser::create(const std::string& URL, int viewport_width, int vie
 void EmbeddedBrowser::updateRootPage(const std::string& root_page)
 {
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 		embedded_cef_browser->cef_client->root_page = root_page;
 #endif
 }
@@ -1148,7 +1146,7 @@ void EmbeddedBrowser::updateRootPage(const std::string& root_page)
 void EmbeddedBrowser::navigate(const std::string& URL)
 {
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 		embedded_cef_browser->navigate(URL);
 #endif
 }
@@ -1157,7 +1155,7 @@ void EmbeddedBrowser::navigate(const std::string& URL)
 void EmbeddedBrowser::browserBecameVisible()
 {
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 	{
 		if(embedded_cef_browser->mRenderHandler->discarded_dirty_updates)
 		{
@@ -1170,63 +1168,6 @@ void EmbeddedBrowser::browserBecameVisible()
 	}
 #endif
 }
-
-
-//static const int text_tex_W = 512;
-//static const int button_W = 200;
-//static const int button_left_x = text_tex_W/2 - button_W/2;
-//static const int button_top_y = (int)((1080.0 / 1920) * text_tex_W) - 120;
-//static const int button_H = 60;
-
-
-//static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::string& text)
-//{
-//	const int W = text_tex_W;
-//	const int H = (int)((1080.0 / 1920) * W);
-//
-//	QImage qimage(W, H, QImage::Format_RGBA8888); // The 32 bit Qt formats seem faster than the 24 bit formats.
-//	qimage.fill(QColor(220, 220, 220));
-//	QPainter painter(&qimage);
-//	painter.setPen(QPen(QColor(30, 30, 30)));
-//	painter.setFont(QFont("helvetica", 20, QFont::Normal));
-//	const int padding = 20;
-//	painter.drawText(QRect(padding, padding, W - padding*2, H - padding*2), Qt::TextWordWrap | Qt::AlignLeft, QtUtils::toQString(text));
-//
-//	painter.drawRect(W/2 - 100, button_top_y, 200, button_H);
-//
-//	//painter.setPen(QPen(QColor(30, 30, 30)));
-//	//painter.setFont(QFont("helvetica", 20, QFont::Normal));
-//	painter.drawText(QRect(button_left_x, button_top_y, /*width=*/button_W, /*height=*/button_H), Qt::AlignVCenter | Qt::AlignHCenter, "Load"); // y=0 at top
-//
-//	OpenGLTextureRef tex = new OpenGLTexture(W, H, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
-//	tex->loadIntoExistingTexture(/*mipmap level=*/0, W, H, /*row stride B=*/qimage.bytesPerLine(), ArrayRef<uint8>(qimage.constBits(), qimage.sizeInBytes()), /*bind_needed=*/true);
-//	return tex;
-//}
-//
-//
-//static bool uvsAreOnLoadButton(float uv_x, float uv_y)
-//{
-//	const int W = text_tex_W;
-//	const int H = (int)((1080.0 / 1920) * W);
-//	const int x = (int)(uv_x * W);
-//	const int y = (int)((1.f - uv_y) * H);
-//	
-//	return
-//		x >= button_left_x && x <= (button_left_x + button_W) &&
-//		y >= button_top_y && y <= (button_top_y + button_H);
-//}
-//
-//
-//static const std::string makeDataURL(const std::string& html)
-//{
-//	std::string html_base64;
-//	Base64::encode(html.data(), html.size(), html_base64);
-//
-//	return "data:text/html;base64," + html_base64;
-//}
-
-
-
 
 
 #if CEF_SUPPORT
@@ -1272,7 +1213,7 @@ void EmbeddedBrowser::mouseReleased(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mouseReleased()");
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 	{
 		if(e->button == MouseButton::Back) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.  Nothing to do for mouse-up
 		{}
@@ -1289,12 +1230,9 @@ void EmbeddedBrowser::mouseReleased(MouseEvent* e, const Vec2f& uv_coords)
 
 void EmbeddedBrowser::mousePressed(MouseEvent* e, const Vec2f& uv_coords)
 {
-	//if(showing_click_to_load_text && uvsAreOnLoadButton(uv_coords.x, uv_coords.y))
-		//user_clicked_to_load = true;
-
 	//conPrint("mousePressed()");
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 	{
 		if(e->button == MouseButton::Back) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.
 		{
@@ -1323,7 +1261,7 @@ void EmbeddedBrowser::mouseMoved(MouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mouseMoved(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 		embedded_cef_browser->sendMouseMoveEvent(uv_coords.x, uv_coords.y, convertToCEFModifiers(e->modifiers, e->button)); // TEMP REFACTOR using button not buttons
 #endif
 }
@@ -1333,7 +1271,7 @@ void EmbeddedBrowser::wheelEvent(MouseWheelEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("wheelEvent(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 		embedded_cef_browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, (int)(e->angle_delta.x * 8.f), (int)(e->angle_delta.y * 8.f), 
 			convertToCEFModifiers(e->modifiers/*, e->button*/)); // TEMP REFACTOR using button not buttons
 #endif
@@ -1347,7 +1285,7 @@ void EmbeddedBrowser::keyPressed(KeyEvent* e)
 
 	// This song and dance of sending two events seems to be needed to type both punctuation and alphabetic characters.
 
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 		embedded_cef_browser->sendKeyEvent(KEYEVENT_RAWKEYDOWN, e->key, e->native_virtual_key, modifiers);
 
 	//if(!e->text.empty())
@@ -1365,10 +1303,11 @@ void EmbeddedBrowser::keyReleased(KeyEvent* e)
 #if CEF_SUPPORT
 	const uint32 modifiers = convertToCEFModifiers(e->modifiers);
 
-	if(embedded_cef_browser.nonNull())
+	if(embedded_cef_browser)
 		embedded_cef_browser->sendKeyEvent(KEYEVENT_KEYUP, e->key, e->native_virtual_key, modifiers);
 #endif
 }
+
 
 void EmbeddedBrowser::handleTextInputEvent(TextInputEvent& e)
 {
@@ -1378,7 +1317,7 @@ void EmbeddedBrowser::handleTextInputEvent(TextInputEvent& e)
 		const uint32 modifiers = 0;//convertToCEFModifiers(e.modifiers);
 
 		//conPrint(QtUtils::toStdString(e->text()));
-		if(embedded_cef_browser.nonNull())
+		if(embedded_cef_browser)
 			embedded_cef_browser->sendKeyEvent(KEYEVENT_CHAR, e.text[0]/*e->text().at(0).toLatin1()*/, e.text[0]/*e.native_virtual_key*/, modifiers);
 	}
 #endif
