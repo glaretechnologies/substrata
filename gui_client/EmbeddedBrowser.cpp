@@ -158,6 +158,7 @@ public:
 		}
 	}
 
+#if CEF_VERSION_MAJOR >= 139
 	void OnAcceleratedPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList& dirtyRects, const CefAcceleratedPaintInfo& info) override
 	{
 		CEF_REQUIRE_UI_THREAD();
@@ -253,6 +254,7 @@ public:
 			}
 		}
 	}
+#endif
 
 
 	// Called to retrieve the translation from view coordinates to actual screen
@@ -319,7 +321,9 @@ public:
 
 	int viewport_width, viewport_height;
 
+#if defined(_WIN32)
 	ComObHandle<ID3D11Texture2D> texture_copy;
+#endif
 
 	IMPLEMENT_REFCOUNTING(EmbeddedBrowserRenderHandler);
 };
@@ -1068,7 +1072,7 @@ static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL
 {
 	ZoneScoped; // Tracy profiler
 
-#if defined(_WIN32) // The shared GPU texture stuff is only implemented for Windows for now.
+#if defined(_WIN32) && (CEF_VERSION_MAJOR >= 139) // The shared GPU texture stuff is only implemented for Windows for now.  We also need a version of CEF that supports it.
 	const bool use_shared_gpu_textures = opengl_engine->GL_EXT_memory_object_support && opengl_engine->GL_EXT_memory_object_win32_support && opengl_engine->GL_EXT_win32_keyed_mutex_support;
 #else
 	const bool use_shared_gpu_textures = false;

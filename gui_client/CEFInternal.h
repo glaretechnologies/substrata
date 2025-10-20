@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2022 -
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
 #include <cef_app.h>
 #include <cef_client.h>
+#include <cef_version.h>
 #include <wrapper/cef_helpers.h>
 #ifdef OSX
 #include <wrapper/cef_library_loader.h>
@@ -30,7 +31,9 @@ public:
 
 	virtual bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
 		CefRefPtr<CefFrame> frame,
-		//int popup_id,
+#if CEF_VERSION_MAJOR >= 139
+		int popup_id,
+#endif
 		const CefString& target_url,
 		const CefString& target_frame_name,
 		WindowOpenDisposition target_disposition,

@@ -29,7 +29,9 @@ LifeSpanHandler::~LifeSpanHandler()
 
 bool LifeSpanHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 	CefRefPtr<CefFrame> frame,
-	//int popup_id,
+#if CEF_VERSION_MAJOR >= 139
+	int popup_id,
+#endif
 	const CefString& target_url,
 	const CefString& target_frame_name,
 	WindowOpenDisposition target_disposition,
