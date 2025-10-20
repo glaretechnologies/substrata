@@ -74,6 +74,12 @@ static bool CEF_initialisation_failed = false;
 CefRefPtr<GlareCEFApp> glare_cef_app;
 
 
+std::string CEF::CEFVersionString()
+{
+	return CEF_VERSION;
+}
+
+
 bool CEF::isInitialised()
 {
 	return CEF_initialised;

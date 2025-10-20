@@ -20,6 +20,8 @@ Chromium Embedded Framework code.
 class CEF
 { 
 public:
+	static std::string CEFVersionString();
+
 	static bool isInitialised();
 
 	static void initialiseCEF(const std::string& base_dir_path);
