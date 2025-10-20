@@ -33,6 +33,7 @@ void URLWhitelist::loadDefaultWhitelist()
 		// Social media
 		"www.facebook.com/",
 		"twitter.com/",
+		"x.com/",
 		"www.reddit.com/",
 		"news.ycombinator.com/",
 
