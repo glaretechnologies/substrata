@@ -258,8 +258,8 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 
 #if CEF_SUPPORT
 
-	const int width = 1024;
-	const int height = (int)(1024.f / 1920.f * 1080.f); // Webview uses 1920 : 1080 aspect ratio.  (See MainWindow::on_actionAdd_Web_View_triggered())
+	const int viewport_width  = 1920;
+	const int viewport_height = 1080; // Webview uses 1920 : 1080 aspect ratio.  (See MainWindow::on_actionAdd_Web_View_triggered())
 
 	if(in_process_dist)
 	{
@@ -287,19 +287,11 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 					{
 						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
-						std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
-						ob->opengl_engine_ob->materials[0].emission_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTextureFormat::Format_SRGBA_Uint8,
-							GL_SRGB8_ALPHA8, // GL internal format
-							GL_BGRA, // GL format.
-							OpenGLTexture::Filtering_Bilinear);
-
-						//ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
-
-						opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
+						ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
 					}
 
 					browser = new EmbeddedBrowser();
-					browser->create(ob->target_url, ob->opengl_engine_ob->materials[0].emission_texture, gui_client, ob, opengl_engine);
+					browser->create(ob->target_url, viewport_width, viewport_height, gui_client, ob, /*mat index=*/0, /*apply_to_emission_texture=*/true, opengl_engine);
 				}
 				else
 				{
