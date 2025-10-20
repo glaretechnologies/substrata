@@ -183,7 +183,7 @@ elseif(WIN32)
 	add_definitions(-D__SSE4_1__)
 	
 	add_definitions(/std:c++17)
-	add_definitions(/Zc:__cplusplus) # Qt wants this for some reason
+	add_definitions(/Zc:__cplusplus) # Make the __cplusplus macro show the updated, actual C++ version.
 	
 	if(PERFORMANCEAPI_ENABLED)
 		add_definitions(-DPERFORMANCEAPI_ENABLED=1) # Turn on or off superluminal profiler integration.
