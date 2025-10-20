@@ -513,6 +513,7 @@ SET(shared_files
 ../shared/LODChunk.h
 ../shared/WorldDetails.cpp
 ../shared/WorldDetails.h
+../shared/URLString.h
 )
 
 SET(client_indigo_files
