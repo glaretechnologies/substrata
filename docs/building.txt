@@ -166,14 +166,11 @@ cmake ../
 "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe" cef.sln
 
 For libcef_dll_wrapper project:
-Debug config:
-remove _HAS_ITERATOR_DEBUGGING=0 from libcef_dll_wrapper c++ preprocess defs
-Change debug configuration C/C++ / Code generation  / Runtime Library to "Multi-threaded Debug DLL (/MDd)"
 
-Release config:
-Change debug configuration C/C++ / Code generation  / Runtime Library to "Multi-threaded DLL (/MD)"
+Change 'Debug' configuration C/C++ / Code generation  / Runtime Library to "Multi-threaded Debug DLL (/MDd)"
+Change 'Release' configuration C/C++ / Code generation  / Runtime Library to "Multi-threaded DLL (/MD)"
 
-Then build libcef_dll_wrapper project in both Debug and Release configurations.
+Then build libcef_dll_wrapper project in both 'Debug' and 'Release' configurations.
 
 
 CEF on Mac
