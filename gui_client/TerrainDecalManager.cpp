@@ -6,10 +6,15 @@ Copyright Glare Technologies Limited 2023 -
 #include "TerrainDecalManager.h"
 
 
+#include <tracy/Tracy.hpp>
+
+
 TerrainDecalManager::TerrainDecalManager(const std::string& base_dir_path, AsyncTextureLoader* async_tex_loader_, OpenGLEngine* opengl_engine_)
 :	opengl_engine(opengl_engine_),
 	async_tex_loader(async_tex_loader_)
 {
+	ZoneScoped; // Tracy profiler
+
 	TextureParams params;
 	params.wrapping = OpenGLTexture::Wrapping_Clamp;
 	loading_handles.push_back(async_tex_loader->startLoadingTexture("/resources/foam_windowed.basis", this, params));

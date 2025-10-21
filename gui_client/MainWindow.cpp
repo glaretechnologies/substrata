@@ -138,10 +138,15 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	settings(NULL)
 	//game_controller(NULL)
 {
+	ZoneScoped; // Tracy profiler
+
 	QGamepadManager::instance(); // Creating the instance here before any windows are created is required for querying gamepads to work.
 
-	ui = new Ui::MainWindow();
-	ui->setupUi(this);
+	{
+		ZoneScopedN("setupUi"); // Tracy profiler
+		ui = new Ui::MainWindow();
+		ui->setupUi(this);
+	}
 
 	setAcceptDrops(true);
 
@@ -357,6 +362,8 @@ void MainWindow::startMainTimer()
 
 void MainWindow::initialise()
 {
+	ZoneScoped; // Tracy profiler
+
 	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
 
 	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, /*print output=*/this);
@@ -482,6 +489,8 @@ public:
 
 void MainWindow::afterGLInitInitialise()
 {
+	ZoneScoped; // Tracy profiler
+
 	if(settings->value("mainwindow/showParcels", QVariant(false)).toBool())
 	{
 		ui->actionShow_Parcels->setChecked(true);
@@ -4375,9 +4384,13 @@ static void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, 
 
 int main(int argc, char *argv[])
 {
+	ZoneScoped; // Tracy profiler
+
 #ifdef BUGSPLAT_SUPPORT
 	if(shouldEnableBugSplat())
 	{
+		ZoneScopedN("Bugsplat initialization"); // Tracy profiler
+
 		// BugSplat initialization.
 		new MiniDmpSender(
 			L"Substrata", // database
@@ -4592,7 +4605,7 @@ int main(int argc, char *argv[])
 			mw.gui_client.cam_controller.setMoveScale(0.3f);
 
 
-			// If the user didn't explictly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
+			// If the user didn't explicitly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
 			if(!server_URL_explicitly_specified)
 			{
 				const std::string start_loc_URL_setting = QtUtils::toStdString(mw.settings->value(MainOptionsDialog::startLocationURLKey()).toString());

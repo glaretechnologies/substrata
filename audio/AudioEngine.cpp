@@ -575,6 +575,8 @@ public:
 
 void AudioEngine::init()
 {
+	ZoneScoped; // Tracy profiler
+
 	const unsigned int desired_sample_rate = 48000;
 
 #if EMSCRIPTEN

@@ -8,8 +8,9 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "CEFInternal.h"
 #include <utils/PlatformUtils.h>
-#include <utils/RefCounted.h>
+#include <utils/ThreadSafeRefCounted.h>
 #include <utils/ConPrint.h>
+#include <utils/Timer.h>
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
 #include <cef_app.h>
 #include <cef_client.h>
@@ -18,13 +19,13 @@ Copyright Glare Technologies Limited 2022 -
 #include <wrapper/cef_library_loader.h>
 #endif
 #endif
-#include "superluminal/PerformanceAPI.h"
+#include <tracy/Tracy.hpp>
 
 
 #if CEF_SUPPORT
 
 
-class GlareCEFApp : public CefApp, public RefCounted
+class GlareCEFApp : public CefApp, public ThreadSafeRefCounted
 {
 public:
 	GlareCEFApp()
@@ -88,9 +89,13 @@ bool CEF::isInitialised()
 
 void CEF::initialiseCEF(const std::string& base_dir_path)
 {
+	ZoneScoped; // Tracy profiler
+
 	assert(!CEF_initialised);
 	if(CEF_initialised || CEF_initialisation_failed)
 		return;
+
+	Timer timer;
 
 #ifdef OSX
 	// Load the CEF framework library at runtime instead of linking directly
@@ -132,11 +137,15 @@ void CEF::initialiseCEF(const std::string& base_dir_path)
 		conPrint("CefInitialize failed.");
 		CEF_initialisation_failed = true;
 	}
+
+	conPrint("CEF::initialiseCEF() took " + timer.elapsedStringMSWIthNSigFigs());
 }
 
 
 void CEF::shutdownCEF()
 {
+	ZoneScoped; // Tracy profiler
+
 	if(CEF_initialised && glare_cef_app)
 	{
 		// Wait until browser processes are shut down
@@ -164,7 +173,7 @@ LifeSpanHandler* CEF::getLifespanHandler()
 
 void CEF::doMessageLoopWork()
 {
-	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+	ZoneScoped; // Tracy profiler
 
 	if(CEF_initialised)
 		CefDoMessageLoopWork();

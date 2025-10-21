@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "GUIClient.h"
 #include <settings/SettingsStore.h>
 #include <graphics/SRGBUtils.h>
+#include <tracy/Tracy.hpp>
 
 
 GestureUI::GestureUI()
@@ -70,6 +71,8 @@ bool GestureUI::loopAnim(const std::string& gesture)
 
 void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
+	ZoneScoped; // Tracy profiler
+
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;

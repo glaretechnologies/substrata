@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "GUIClient.h"
+#include <tracy/Tracy.hpp>
 
 
 MiscInfoUI::MiscInfoUI()
@@ -20,6 +21,8 @@ MiscInfoUI::~MiscInfoUI()
 
 void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
+	ZoneScoped; // Tracy profiler
+
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;

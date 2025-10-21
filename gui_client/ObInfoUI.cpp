@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "GUIClient.h"
 #include <utils/UTF8Utils.h>
+#include <tracy/Tracy.hpp>
 
 
 ObInfoUI::ObInfoUI()
@@ -21,6 +22,8 @@ ObInfoUI::~ObInfoUI()
 
 void ObInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
+	ZoneScoped; // Tracy profiler
+
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
