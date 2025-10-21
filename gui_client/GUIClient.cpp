@@ -261,6 +261,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 void GUIClient::staticInit()
 {
+	ZoneScoped; // Tracy profiler
+
 	// Set the C standard lib locale back to c, so e.g. printf works as normal, and uses '.' as the decimal separator.
 	std::setlocale(LC_ALL, "C");
 
@@ -277,6 +279,8 @@ void GUIClient::staticInit()
 
 void GUIClient::staticShutdown()
 {
+	ZoneScoped; // Tracy profiler
+
 #if !defined(EMSCRIPTEN)
 	OpenSSL::shutdown();
 	Winter::VirtualMachine::shutdown();
@@ -440,6 +444,8 @@ static const float arc_handle_half_angle = 1.5f;
 void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine_, 
 	const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts)
 {
+	ZoneScoped; // Tracy profiler
+
 	opengl_engine = opengl_engine_;
 
 	// Add a default array texture.  Will be used for the chunk array texture before the proper one is loaded.
@@ -12038,6 +12044,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 void GUIClient::connectToServer(const URLParseResults& parse_res)
 {
+	ZoneScoped; // Tracy profiler
+
 	this->last_url_parse_results = parse_res;
 
 	// By default, randomly vary the spawn position a bit so players don't spawn inside other players.

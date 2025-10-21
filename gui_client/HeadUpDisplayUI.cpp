@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "GUIClient.h"
 #include <graphics/SRGBUtils.h>
+#include <tracy/Tracy.hpp>
 
 
 static const float AVATAR_MARKER_DOT_Z = -0.8f;
@@ -24,6 +25,8 @@ HeadUpDisplayUI::~HeadUpDisplayUI()
 
 void HeadUpDisplayUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
+	ZoneScoped; // Tracy profiler
+
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;

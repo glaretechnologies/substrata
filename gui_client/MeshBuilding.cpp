@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/StandardPrintOutput.h>
+#include <tracy/Tracy.hpp>
 
 
 MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAllocator& allocator)
@@ -142,6 +143,8 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAlloca
 
 MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator)
 {
+	ZoneScoped; // Tracy profiler
+
 	const std::string model_path = base_dir_path + "/data/resources/spotlight5.glb";
 
 	GLTFLoadedData gltf_data;

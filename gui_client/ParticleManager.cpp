@@ -8,12 +8,15 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "PhysicsWorld.h"
 #include "TerrainDecalManager.h"
+#include <tracy/Tracy.hpp>
 
 
 ParticleManager::ParticleManager(const std::string& base_dir_path_, AsyncTextureLoader* async_tex_loader_, OpenGLEngine* opengl_engine_, PhysicsWorld* physics_world_, TerrainDecalManager* terrain_decal_manager_)
 :	base_dir_path(base_dir_path_), opengl_engine(opengl_engine_), physics_world(physics_world_), terrain_decal_manager(terrain_decal_manager_),
 	async_tex_loader(async_tex_loader_)
 {
+	ZoneScoped; // Tracy profiler
+
 	TextureParams params;
 	params.wrapping = OpenGLTexture::Wrapping::Wrapping_Clamp;
 
