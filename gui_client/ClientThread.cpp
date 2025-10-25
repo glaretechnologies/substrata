@@ -37,7 +37,7 @@ static const size_t MAX_STRING_LEN = 10000;
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
-						   const std::string& world_name_, struct tls_config* config_, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator_)
+						   const std::string& world_name_, struct tls_config* config_, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator_, Reference<WorldState> world_state_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
@@ -46,7 +46,8 @@ ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_q
 	config(config_),
 	world_ob_pool_allocator(world_ob_pool_allocator_),
 	send_data_to_socket(false),
-	dstream(nullptr)
+	dstream(nullptr),
+	world_state(world_state_)
 {
 #if !defined(EMSCRIPTEN)
 	MySocketRef mysocket = new MySocket();

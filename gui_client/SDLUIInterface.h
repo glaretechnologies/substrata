@@ -128,6 +128,8 @@ public:
 	virtual void* makeNewSharedGLContext() override;
 	virtual void makeGLContextCurrent(void* context) override;
 
+	virtual	void* getID3D11Device() const override;
+
 
 	SDL_Window* window;
 	SDL_GLContext gl_context;
@@ -138,6 +140,7 @@ public:
 	std::string appdata_path;
 
 	Reference<SettingsStore> settings_store;
+	void* d3d11_device;
 
 	//Reference<TextRendererFontFace> font;
 };

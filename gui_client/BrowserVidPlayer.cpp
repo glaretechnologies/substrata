@@ -252,8 +252,6 @@ void BrowserVidPlayer::createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngin
 	
 
 	if(!CEF::isInitialised())
-		CEF::initialiseCEF(gui_client->base_dir_path);
-	if(!CEF::isInitialised())
 		throw glare::Exception("CEF could not be initialised");
 
 	

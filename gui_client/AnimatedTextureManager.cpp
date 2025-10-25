@@ -49,11 +49,6 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 	size_t mat_index, AnimatedTexData& animtexdata, const OpenGLTextureKey& tex_path, bool is_refl_tex)
 {
 #if CEF_SUPPORT
-	if(!CEF::isInitialised())
-	{
-		CEF::initialiseCEF(gui_client->base_dir_path);
-	}
-
 	if(CEF::isInitialised())
 	{
 		if(animtexdata.browser.isNull() && !tex_path.empty() && ob->opengl_engine_ob.nonNull())
@@ -135,7 +130,8 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 		const float min_mp4_recip_dist = 1 / max_mp4_dist; // textures >= min_recip_dist are updated
 
 		const float ob_w = ob->getAABBWSLongestLength();
-		const float recip_dist = (ob->getCentroidWS() - gui_client->cam_controller.getPosition().toVec4fPoint()).fastApproxRecipLength();
+		const Vec3d cam_position = gui_client->cam_controller.getPosition();
+		const float recip_dist = (ob->getCentroidWS() - cam_position.toVec4fPoint()).fastApproxRecipLength();
 		const float proj_len = ob_w * recip_dist;
 
 		large_enough     = (proj_len > 0.01f) && (recip_dist > min_recip_dist);

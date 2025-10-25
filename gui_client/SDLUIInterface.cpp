@@ -561,3 +561,9 @@ void SDLUIInterface::makeGLContextCurrent(void* context)
 {
 	assert(0);
 }
+
+
+void* SDLUIInterface::getID3D11Device() const
+{
+	return d3d11_device;
+}

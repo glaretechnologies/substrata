@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "TestSuite.h"
 #include "URLParser.h"
 #include "ModelLoading.h"
+#include "CEF.h"
 #include <maths/GeometrySampling.h>
 #include <graphics/FormatDecoderGLTF.h>
 #include <graphics/MeshSimplification.h>
@@ -34,9 +35,11 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
 #include <utils/LimitedAllocator.h>
+#include <utils/ComObHandle.h>
 #include <utils/FileInStream.h>
 #include <networking/URL.h>
 #include <webserver/Escaping.h>
+#include <direct3d/Direct3DUtils.h>
 #include <GL/gl3w.h>
 #include <SDL_opengl.h>
 #include <SDL.h>
@@ -51,6 +54,11 @@ Copyright Glare Technologies Limited 2024 -
 #endif
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyOpenGL.hpp>
+#ifdef _WIN32
+#include <d3d11.h>
+#include <d3d11_4.h>
+#include <mfobjects.h>
+#endif
 
 
 // If we are building on Windows, and we are not in Release mode (e.g. BUILD_TESTS is enabled), then make sure the console window is shown.
@@ -132,6 +140,11 @@ std::string last_diagnostics;
 bool reset = false;
 double fps = 0;
 bool wireframes = false;
+
+#if defined(_WIN32)
+ComObHandle<ID3D11Device> d3d_device;
+ComObHandle<IMFDXGIDeviceManager> device_manager;
+#endif
 
 SDL_Window* win;
 SDL_GLContext gl_context;
@@ -535,18 +548,10 @@ int main(int argc, char** argv)
 		sdl_ui_interface->game_controller = game_controller;
 		sdl_ui_interface->appdata_path = appdata_path;
 		sdl_ui_interface->settings_store = settings_store;
+		sdl_ui_interface->d3d11_device = nullptr;
 
-		gui_client->initialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager, worker_allocator);
 
-
-		// NOTE: use 1 for device_pixel_ratio as we are not doing high DPI rendering.
-		gui_client->afterGLInitInitialise(/*device_pixel_ratio*/1.f, opengl_engine, fonts, emoji_fonts);
-
-		gui_client->gl_ui->callbacks = new SDLClientGLUICallbacks();
-
-		// A high device_pixel_ratio indicates the UI is going to be very small unless it is scaled up a bit.
-		if(device_pixel_ratio > 2.f)
-			gui_client->gl_ui->setUIScale((float)device_pixel_ratio / 2.f);
+		gui_client->preConnectInitialise(cache_dir, settings_store, sdl_ui_interface, high_priority_task_manager, worker_allocator);
 
 
 		URLParseResults url_parse_results;
@@ -592,8 +597,31 @@ int main(int argc, char** argv)
 		}
 
 #endif
-
 		gui_client->connectToServer(url_parse_results);
+
+		gui_client->postConnectInitialise();
+
+#ifdef _WIN32
+		// Create a GPU device.  Needed to get hardware accelerated video decoding and for hardware texture sharing for CEF.
+		Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
+
+		sdl_ui_interface->d3d11_device = (void*)d3d_device.ptr;
+#endif //_WIN32
+
+
+		CEF::initialiseCEF(base_dir);
+
+		// NOTE: use 1 for device_pixel_ratio as we are not doing high DPI rendering.
+		gui_client->afterGLInitInitialise(/*device_pixel_ratio*/1.f, opengl_engine, fonts, emoji_fonts);
+
+		gui_client->gl_ui->callbacks = new SDLClientGLUICallbacks();
+
+		// A high device_pixel_ratio indicates the UI is going to be very small unless it is scaled up a bit.
+		if(device_pixel_ratio > 2.f)
+			gui_client->gl_ui->setUIScale((float)device_pixel_ratio / 2.f);
+
+
+
 
 
 #if EMSCRIPTEN
@@ -653,6 +681,8 @@ int main(int argc, char** argv)
 		gui_client->shutdown();
 		delete gui_client;
 		gui_client = NULL;
+
+		CEF::shutdownCEF();
 
 		CPU_render_stats_widget = NULL;
 		GPU_render_stats_widget = NULL;
@@ -821,6 +851,7 @@ static void doOneMainLoopIter()
 	}
 #endif
 
+	CEF::doMessageLoopWork();
 
 
 	if(SDL_GL_MakeCurrent(win, gl_context) != 0)

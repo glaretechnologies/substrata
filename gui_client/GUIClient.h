@@ -145,7 +145,13 @@ public:
 	static void staticInit();
 	static void staticShutdown();
 
-	void initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator);
+	// Initialise everything needed for the initial ClientThread launch.
+	void preConnectInitialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store, UIInterface* ui_interface, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator);
+
+	// Initialises various things not needed for the initial ClientThread launch.
+	// Called after the initial connectToServer() has completed.
+	void postConnectInitialise();
+
 	void afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine, 
 		const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts);
 
@@ -340,6 +346,9 @@ public:
 
 	void connectToServer(const URLParseResults& url_results);
 
+	void checkCreateResourceDownloadThreads(); // Create DownloadResourcesThread etc. if not created already and resource_manager is non-null.
+	void checkCreateManagersAndMinimap();
+
 	void processLoading(Timer& timer_event_timer);
 	void sendGeometryDataToGarbageDeleterThread(const Reference<OpenGLMeshRenderData>& gl_meshdata);
 	void sendWinterShaderEvaluatorToGarbageDeleterThread(const Reference<WinterShaderEvaluator>& script_evaluator);
@@ -406,6 +415,7 @@ public:
 	std::string base_dir_path;
 	std::string resources_dir_path; // = base_dir_path + "/data/resources"
 	std::string appdata_path;
+	std::string cache_dir;
 	ArgumentParser parsed_args;
 
 	CameraController cam_controller;

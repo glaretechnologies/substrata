@@ -65,6 +65,7 @@ void EmscriptenResourceDownloader::shutdown()
 #if EMSCRIPTEN
 
 // Callback on successful load of the file.
+// Note that we set the argument free to 0 for emscripten_async_wget2_data, so we need to free buffer ourselves.
 static void onLoad(unsigned int request_handle, void* userdata_arg, void* buffer, unsigned int buffer_size_B)
 {
 	// conPrint("DownloadResourcesThread: onLoad: " + std::string(filename) + ", firstarg: " + toString(firstarg));
@@ -103,16 +104,17 @@ void EmscriptenResourceDownloader::onResourceLoad(Reference<CurrentlyDownloading
 	(*this->num_resources_downloading)--;
 
 	ResourceRef resource = resource_manager->getOrCreateResourceForURL(downloading_resource->URL);
-	resource->setState(Resource::State_Present);
+	// Don't mark the resource as present.
+	// Instead we will load the texture/model immediately if needed (see ResourceDownloadedMessage handling), then free the memory.
+	// We do it this way to avoid wasting memory using the in-memory filesystem that saving the resource to the filesystem would require.
 
 	resource_manager->total_unused_loaded_buffer_size_B += buffer_size_B;
 
 	Reference<LoadedBuffer> loaded_buffer = new LoadedBuffer();
 	loaded_buffer->buffer = buffer;
 	loaded_buffer->buffer_size = buffer_size_B;
-	loaded_buffer->total_unused_loaded_buffer_size_B = &resource_manager->total_unused_loaded_buffer_size_B;
-
-	resource->file_size_B = buffer_size_B;
+	loaded_buffer->total_unused_loaded_buffer_size_B = &resource_manager->total_unused_loaded_buffer_size_B; // Store pointer to total_unused_loaded_buffer_size_B in loaded_buffer, 
+	// will be deref'd and decremented in loaded_buffer's destructor.
 
 	Reference<ResourceDownloadedMessage> msg = new ResourceDownloadedMessage(downloading_resource->URL, resource);
 	msg->loaded_buffer = loaded_buffer;
