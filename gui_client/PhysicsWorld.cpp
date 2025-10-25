@@ -255,6 +255,8 @@ static void joltAlignedFree(void *inBlock)
 
 void PhysicsWorld::init()
 {
+	ZoneScoped; // Tracy profiler
+
 #if USE_JOLT
 	// Register allocation hook
 
@@ -476,6 +478,8 @@ PhysicsWorld::PhysicsWorld(glare::TaskManager* task_manager_/*PhysicsWorldBodyAc
 	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
 #endif
 {
+	ZoneScoped; // Tracy profiler
+
 #if USE_JOLT
 	// Highest high water mark I have seen so far is 20.5 MB.  
 	// Note that increasing mMaxNumHits in CharacterVirtualSettings results in a lot more mem usage.

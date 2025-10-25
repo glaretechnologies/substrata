@@ -75,20 +75,32 @@ static bool CEF_initialisation_failed = false;
 CefRefPtr<GlareCEFApp> glare_cef_app;
 
 
+#endif // CEF_SUPPORT
+
+
 std::string CEF::CEFVersionString()
 {
+#if CEF_SUPPORT
 	return CEF_VERSION;
+#else
+	return std::string();
+#endif
 }
 
 
 bool CEF::isInitialised()
 {
+#if CEF_SUPPORT
 	return CEF_initialised;
+#else
+	return false;
+#endif
 }
 
 
 void CEF::initialiseCEF(const std::string& base_dir_path)
 {
+#if CEF_SUPPORT
 	ZoneScoped; // Tracy profiler
 
 	assert(!CEF_initialised);
@@ -139,11 +151,14 @@ void CEF::initialiseCEF(const std::string& base_dir_path)
 	}
 
 	conPrint("CEF::initialiseCEF() took " + timer.elapsedStringMSWIthNSigFigs());
+
+#endif // CEF_SUPPORT
 }
 
 
 void CEF::shutdownCEF()
 {
+#if CEF_SUPPORT
 	ZoneScoped; // Tracy profiler
 
 	if(CEF_initialised && glare_cef_app)
@@ -162,49 +177,26 @@ void CEF::shutdownCEF()
 
 		glare_cef_app = CefRefPtr<GlareCEFApp>();
 	}
+#endif // CEF_SUPPORT
 }
 
 
 LifeSpanHandler* CEF::getLifespanHandler()
 {
+#if CEF_SUPPORT
 	return glare_cef_app->lifespan_handler.get();
+#else
+	return nullptr;
+#endif
 }
 
 
 void CEF::doMessageLoopWork()
 {
+#if CEF_SUPPORT
 	ZoneScoped; // Tracy profiler
 
 	if(CEF_initialised)
 		CefDoMessageLoopWork();
+#endif // CEF_SUPPORT
 }
-
-
-#else // else if !CEF_SUPPORT:
-
-
-bool CEF::isInitialised()
-{
-	return false;
-}
-
-
-void CEF::initialiseCEF(const std::string& base_dir_path)
-{}
-
-
-void CEF::shutdownCEF()
-{}
-
-
-LifeSpanHandler* CEF::getLifespanHandler()
-{
-	return NULL;
-}
-
-
-void CEF::doMessageLoopWork()
-{}
-
-
-#endif // end if !CEF_SUPPORT

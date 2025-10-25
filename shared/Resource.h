@@ -70,7 +70,7 @@ public:
 	};
 
 	Resource(const URLString& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_, bool external_resource);
-	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, file_size_B(0), external_resource(false) {}
+	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/, external_resource(false) {}
 	
 	const std::string getLocalAbsPath(const std::string& base_resource_dir) const { return external_resource ? local_path : (base_resource_dir + "/" + local_path); }
 #if GUI_CLIENT
@@ -107,8 +107,6 @@ private:
 	std::string local_path; // Relative path on local disk from base_resources_dir.
 public:
 	bool external_resource; // External resources are stored locally outside of base_resources_dir.   local_path is absolute.
-
-	size_t file_size_B; // Size of resource on disk.  Just used with Emscripten.
 };
 
 typedef Reference<Resource> ResourceRef;

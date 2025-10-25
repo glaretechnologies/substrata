@@ -43,6 +43,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
 #include "MiniMap.h"
+#include "CEF.h"
 #if !defined(EMSCRIPTEN)
 #include "../networking/TLSSocket.h"
 #endif
@@ -195,6 +196,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	cur_loading_model_lod_level(-1),
 	obs_with_scripts(/*empty val=*/WorldObjectRef())
 {
+	ZoneScoped; // Tracy profiler
+
 	resources_dir_path = base_dir_path + "/data/resources";
 
 	scripted_ob_proximity_checker.gui_client = this;
@@ -312,10 +315,12 @@ static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_com
 #endif // EMSCRIPTEN
 
 
-void GUIClient::initialise(const std::string& cache_dir, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator_)
+// Initialise everything needed for the initial ClientThread launch.
+void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator_)
 {
 	ZoneScoped; // Tracy profiler
 
+	cache_dir = cache_dir_;
 	settings = settings_store_;
 	ui_interface = ui_interface_;
 	high_priority_task_manager = high_priority_task_manager_;
@@ -323,17 +328,29 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 
 	PhysicsWorld::init(); // init Jolt stuff
 
-	const float dist = (float)settings->getDoubleValue(/*MainOptionsDialog::objectLoadDistanceKey()*/"ob_load_distance", /*default val=*/2000.0);
-	proximity_loader.setLoadDistance(dist);
-	this->load_distance = dist;
-	this->load_distance2 = dist*dist;
+
+#if !defined(EMSCRIPTEN)
+	// Create and init TLS client config
+	client_tls_config = tls_config_new();
+	if(!client_tls_config)
+		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
+	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
+	tls_config_insecure_noverifyname(client_tls_config);
+#endif
+}
+
+
+// Initialises various things not needed for the initial ClientThread launch.
+// Called after the initial connectToServer() has completed.
+void GUIClient::postConnectInitialise()
+{
+	ZoneScoped; // Tracy profiler
 
 	const std::string resources_dir = cache_dir + "/resources";
 	FileUtils::createDirIfDoesNotExist(resources_dir);
 
 	print("resources_dir: " + resources_dir);
 	resource_manager = new ResourceManager(resources_dir);
-
 
 	// The user may have changed the resources dir (by changing the custom cache directory) since last time we ran.
 	// In this case, we want to check if each resource is actually present on disk in the current resources dir.
@@ -358,6 +375,15 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 	save_resources_db_thread_manager.addThread(new SaveResourcesDBThread(resource_manager, resources_db_path));
 #endif
 
+
+
+	const float dist = (float)settings->getDoubleValue(/*MainOptionsDialog::objectLoadDistanceKey()*/"ob_load_distance", /*default val=*/2000.0);
+	proximity_loader.setLoadDistance(dist);
+	this->load_distance = dist;
+	this->load_distance2 = dist*dist;
+
+
+
 	garbage_deleter_thread_manager.addThread(new GarbageDeleterThread());
 
 
@@ -377,19 +403,12 @@ void GUIClient::initialise(const std::string& cache_dir, const Reference<Setting
 		resource_manager->addResource(new Resource(capsule_model_URL, capsule_local_model_path, Resource::State_Present, UserID(), /*external resource=*/true));
 	}
 
-
-#if !defined(EMSCRIPTEN)
-	// Create and init TLS client config
-	client_tls_config = tls_config_new();
-	if(!client_tls_config)
-		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
-	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
-	tls_config_insecure_noverifyname(client_tls_config);
-
-
 	// Init audio engine immediately if we are not on the web.  Web browsers need to wait for an input gesture is completed before trying to play sounds.
+#ifndef EMSCRIPTEN
 	initAudioEngine();
 #endif
+
+	checkCreateResourceDownloadThreads();
 }
 
 
@@ -797,6 +816,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		vbo_pool       = new VBOPool(GL_ARRAY_BUFFER);
 		index_vbo_pool = new VBOPool(GL_ELEMENT_ARRAY_BUFFER); // WebGL requires index data and vertex data to be kept separate
 	}
+
+	checkCreateManagersAndMinimap();
 }
 
 
@@ -10201,6 +10222,8 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 	// Add or remove our avatar opengl model.
 	if(this->cam_controller.thirdPersonEnabled()) // If we just enabled third person camera:
 	{
+		this->setThirdPersonCameraPosition(/*dt=*/1/60.f); // Update cam_controller->third_person_cam_position etc.
+
 		// Add our avatar model. Do this by marking it as dirty.
 		Lock lock(this->world_state->mutex);
 		auto res = this->world_state->avatars.find(this->client_avatar_uid);
@@ -11873,14 +11896,17 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	this->server_using_lod_chunks = false;
 
-	ui_interface->setTextAsNotLoggedIn();
+	if(ui_interface)
+	{
+		ui_interface->setTextAsNotLoggedIn();
 
-	ui_interface->updateWorldSettingsControlsEditable();
+		ui_interface->updateWorldSettingsControlsEditable();
 
-	ui_interface->updateOnlineUsersList();
-	//ui->onlineUsersTextEdit->clear();
-	ui_interface->clearChatMessages();
-	//ui->chatMessagesTextEdit->clear();
+		ui_interface->updateOnlineUsersList();
+		//ui->onlineUsersTextEdit->clear();
+		ui_interface->clearChatMessages();
+		//ui->chatMessagesTextEdit->clear();
+	}
 
 	gesture_ui.untoggleMicButton(); // Since mic_read_thread_manager has thread killed above.
 
@@ -12105,20 +12131,12 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 
 	TracyMessageL("Creating ClientThread");
 
-	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, server_worldname, this->client_tls_config, this->world_ob_pool_allocator);
-	client_thread->world_state = world_state;
+	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, server_worldname, this->client_tls_config, this->world_ob_pool_allocator, this->world_state);
 	client_thread_manager.addThread(client_thread);
 
-#if defined(EMSCRIPTEN)
-	emscripten_resource_downloader.init(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, &this->download_queue, this);
-#else
-	for(int z=0; z<4; ++z)
-		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
-			&this->download_queue));
 
-	for(int i=0; i<4; ++i)
-		net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
-#endif // end if !defined(EMSCRIPTEN)
+	checkCreateResourceDownloadThreads();
+
 
 	if(physics_world.isNull())
 	{
@@ -12145,11 +12163,8 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	opengl_engine->startAsyncLoadingData(this->async_texture_loader.ptr());
 #endif
 
-	assert(terrain_decal_manager.isNull());
-	terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr());
-
-	assert(particle_manager.isNull());
-	particle_manager = new ParticleManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
+	minimap = nullptr;
+	checkCreateManagersAndMinimap();
 
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
@@ -12170,11 +12185,6 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	}
 
 
-	updateGroundPlane();
-
-	minimap = nullptr;
-	minimap = new MiniMap(opengl_engine, /*gui_client_=*/this, gl_ui);
-
 	// Init indigoView
 	/*this->ui->indigoView->initialise(this->base_dir_path);
 	{
@@ -12183,6 +12193,44 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	}*/
 
 	this->connection_state = ServerConnectionState_Connecting;
+}
+
+
+void GUIClient::checkCreateResourceDownloadThreads()
+{
+	if(resource_manager.nonNull())
+	{
+#if defined(EMSCRIPTEN)
+		emscripten_resource_downloader.init(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, &this->download_queue, this);
+#else
+		
+		if(resource_download_thread_manager.getNumThreads() == 0)
+		{
+			for(int z=0; z<4; ++z)
+				resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
+					&this->download_queue));
+
+			for(int i=0; i<4; ++i)
+				net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
+		}
+#endif // end if !defined(EMSCRIPTEN)
+	}
+}
+
+
+void GUIClient::checkCreateManagersAndMinimap()
+{
+	if(opengl_engine && async_texture_loader && gl_ui)
+	{
+		if(!terrain_decal_manager)
+			terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr());
+		
+		if(!particle_manager)
+			particle_manager = new ParticleManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
+
+		if(!minimap)
+			minimap = new MiniMap(opengl_engine, /*gui_client_=*/this, gl_ui);
+	}
 }
 
 

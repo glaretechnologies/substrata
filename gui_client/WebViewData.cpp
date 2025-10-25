@@ -263,11 +263,6 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 
 	if(in_process_dist)
 	{
-		if(!CEF::isInitialised())
-		{
-			CEF::initialiseCEF(gui_client->base_dir_path);
-		}
-
 		if(CEF::isInitialised())
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())

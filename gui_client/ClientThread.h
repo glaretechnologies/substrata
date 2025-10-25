@@ -231,7 +231,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
-		const std::string& world_name, struct tls_config* config, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator);
+		const std::string& world_name, struct tls_config* config, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator, Reference<WorldState> world_state);
 	virtual ~ClientThread();
 
 	virtual void doRun() override;
@@ -243,10 +243,11 @@ public:
 	void killConnection();
 
 	bool all_objects_received;
-	Reference<WorldState> world_state;
 private:
 	void readAndHandleMessage(uint32 peer_protocol_version);
 	void handleObjectInitialSend(RandomAccessInStream& msg_stream);
+
+	Reference<WorldState> world_state;
 
 	UID client_avatar_uid;
 

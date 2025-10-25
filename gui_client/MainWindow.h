@@ -37,8 +37,8 @@ public:
 	MainWindow(const std::string& base_dir_path, const std::string& appdata_path, const ArgumentParser& args, QWidget* parent = 0);
 	~MainWindow();
 
-	void initialise();
-	void afterGLInitInitialise();
+	void initialiseUI();
+	void afterGLInitInitialise(); // Called after glWigget and OpenGLEngine has been initialised.
 
 	void logAndConPrintMessage(const std::string& msg); // Print to console, and appends to LogWindow log display.
 

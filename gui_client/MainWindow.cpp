@@ -135,8 +135,88 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	done_screenshot_setup(false),
 	running_destructor(false),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
-	settings(NULL)
+	settings(NULL),
+	user_details(NULL),
+	ui(NULL)
 	//game_controller(NULL)
+{
+	ZoneScoped; // Tracy profiler
+
+	settings = new QSettings("Glare Technologies", "Cyberspace");
+
+	credential_manager.loadFromSettings(*settings);
+
+	// Create main task manager.
+	// This is for doing work like texture compression and EXR loading, that will be created by LoadTextureTasks etc.
+	// Alloc these on the heap as Emscripten may have issues with stack-allocated objects before the emscripten_set_main_loop() call.
+	const size_t main_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
+	main_task_manager = new glare::TaskManager("main task manager", main_task_manager_num_threads);
+	main_task_manager->setThreadPriorities(MyThread::Priority_Lowest);
+
+
+	// Create high-priority task manager.
+	// For short, processor intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
+	const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
+	high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
+
+
+	main_mem_allocator = new glare::MallocAllocator(); // TEMP TODO: use something better
+	//main_mem_allocator = new glare::LimitedAllocator(10'000'000'000ull); // TEMP TODO: use something better
+
+
+
+	std::string cache_dir = appdata_path;
+	if(settings->value(MainOptionsDialog::useCustomCacheDirKey(), /*default value=*/false).toBool())
+	{
+		const std::string custom_cache_dir = QtUtils::toStdString(settings->value(MainOptionsDialog::customCacheDirKey()).toString());
+		if(!custom_cache_dir.empty()) // Don't use custom cache dir if it's the empty string (e.g. not set to something valid)
+			cache_dir = custom_cache_dir;
+	}
+
+	settings_store = new QSettingsStore(settings);
+
+	Reference<glare::Allocator> worker_allocator = new glare::LimitedAllocator(/*max_size_B=*/2048 * 1024 * 1024ull);
+
+	gui_client.preConnectInitialise(cache_dir, settings_store, this, high_priority_task_manager, /*worker allocator=*/worker_allocator);
+}
+
+
+static std::string computeWindowTitle()
+{
+	return "Substrata v" + ::cyberspace_version;
+}
+
+
+static const char* default_help_info_message = "Use the W/A/S/D keys and arrow keys to move and look around.\n"
+	"Click and drag the mouse on the 3D view to look around.\n"
+	"Space key: jump\n"
+	"Double-click an object to select it.";
+
+
+void MainWindow::startMainTimer()
+{
+	// Stop previous timer, if it exists.
+	if(main_timer_id != 0)
+		killTimer(main_timer_id);
+
+	int use_interval = 1; // in milliseconds
+	const bool limit_FPS = settings->value(MainOptionsDialog::limitFPSKey(), /*default val=*/false).toBool();
+	if(limit_FPS)
+	{
+		const int max_FPS = myClamp(settings->value(MainOptionsDialog::FPSLimitKey(), /*default val=*/60).toInt(), 15, 1000);
+		use_interval = (int)(1000.0 / max_FPS);
+	}
+
+#ifdef OSX
+	// Set to at least 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
+	use_interval = myMax(use_interval, 17); 
+#endif
+
+	main_timer_id = startTimer(use_interval);
+}
+
+
+void MainWindow::initialiseUI()
 {
 	ZoneScoped; // Tracy profiler
 
@@ -167,9 +247,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 #endif
 	ui->menuWindow->addAction(ui->diagnosticsDockWidget->toggleViewAction());
 
-	settings = new QSettings("Glare Technologies", "Cyberspace");
-
-	credential_manager.loadFromSettings(*settings);
 
 	// Always disable MDI for now, seems to be slower in general in Substrata
 	// 
@@ -185,7 +262,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	//if(args.isArgPresent("--no_MDI"))
 	//	ui->glWidget->allow_multi_draw_indirect = false;
-	if(args.isArgPresent("--no_bindless"))
+	if(parsed_args.isArgPresent("--no_bindless"))
 		ui->glWidget->allow_bindless_textures = false;
 
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
@@ -206,16 +283,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	user_details = new UserDetailsWidget(this);
 	ui->toolBar->addWidget(user_details);
 
-	
-	// Open Log File
-	//const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
-	//this->logfile.open(StringUtils::UTF8ToPlatformUnicodeEncoding(logfile_path).c_str(), std::ios_base::out);
-	//if(!logfile.good())
-	//	conPrint("WARNING: Failed to open log file at '" + logfile_path + "' for writing.");
-	//logfile << "============================= Cyberspace Started =============================" << std::endl;
-	//logfile << Clock::getAsciiTime() << std::endl;
 
-	
+
+
 
 	// Create the LogWindow early so we can log stuff to it.
 	log_window = new LogWindow(this, settings);
@@ -228,6 +298,11 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	// Since we use a perspective projection matrix with infinite far distance, use a large max drawing distance.
 	ui->glWidget->max_draw_dist = 100000;
+
+	ui->glWidget->main_task_manager = main_task_manager;
+	ui->glWidget->high_priority_task_manager = high_priority_task_manager;
+	ui->glWidget->main_mem_allocator = main_mem_allocator;
+
 
 	// Restore main window geometry and state
 	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
@@ -302,68 +377,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 #endif
 
 
-	// Create main task manager.
-	// This is for doing work like texture compression and EXR loading, that will be created by LoadTextureTasks etc.
-	// Alloc these on the heap as Emscripten may have issues with stack-allocated objects before the emscripten_set_main_loop() call.
-	const size_t main_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
-	main_task_manager = new glare::TaskManager("main task manager", main_task_manager_num_threads);
-	main_task_manager->setThreadPriorities(MyThread::Priority_Lowest);
-
-
-	// Create high-priority task manager.
-	// For short, processor intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
-	const size_t high_priority_task_manager_num_threads = myClamp<size_t>(PlatformUtils::getNumLogicalProcessors(), 1, 512);
-	high_priority_task_manager = new glare::TaskManager("high_priority_task_manager", high_priority_task_manager_num_threads);
-
-
-	main_mem_allocator = new glare::MallocAllocator(); // TEMP TODO: use something better
-	//main_mem_allocator = new glare::LimitedAllocator(10'000'000'000ull); // TEMP TODO: use something better
-
-	ui->glWidget->main_task_manager = main_task_manager;
-	ui->glWidget->high_priority_task_manager = high_priority_task_manager;
-	ui->glWidget->main_mem_allocator = main_mem_allocator;
-}
-
-
-static std::string computeWindowTitle()
-{
-	return "Substrata v" + ::cyberspace_version;
-}
-
-
-static const char* default_help_info_message = "Use the W/A/S/D keys and arrow keys to move and look around.\n"
-	"Click and drag the mouse on the 3D view to look around.\n"
-	"Space key: jump\n"
-	"Double-click an object to select it.";
-
-
-void MainWindow::startMainTimer()
-{
-	// Stop previous timer, if it exists.
-	if(main_timer_id != 0)
-		killTimer(main_timer_id);
-
-	int use_interval = 1; // in milliseconds
-	const bool limit_FPS = settings->value(MainOptionsDialog::limitFPSKey(), /*default val=*/false).toBool();
-	if(limit_FPS)
-	{
-		const int max_FPS = myClamp(settings->value(MainOptionsDialog::FPSLimitKey(), /*default val=*/60).toInt(), 15, 1000);
-		use_interval = (int)(1000.0 / max_FPS);
-	}
-
-#ifdef OSX
-	// Set to at least 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
-	use_interval = myMax(use_interval, 17); 
-#endif
-
-	main_timer_id = startTimer(use_interval);
-}
-
-
-void MainWindow::initialise()
-{
-	ZoneScoped; // Tracy profiler
-
 	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
 
 	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, /*print output=*/this);
@@ -397,26 +410,13 @@ void MainWindow::initialise()
 	connect(lightmap_flag_timer, SIGNAL(timeout()), this, SLOT(sendLightmapNeededFlagsSlot()));
 
 
-	std::string cache_dir = appdata_path;
-	if(settings->value(MainOptionsDialog::useCustomCacheDirKey(), /*default value=*/false).toBool())
-	{
-		const std::string custom_cache_dir = QtUtils::toStdString(settings->value(MainOptionsDialog::customCacheDirKey()).toString());
-		if(!custom_cache_dir.empty()) // Don't use custom cache dir if it's the empty string (e.g. not set to something valid)
-			cache_dir = custom_cache_dir;
-	}
-
-	settings_store = new QSettingsStore(settings);
-
-	Reference<glare::Allocator> worker_allocator = new glare::LimitedAllocator(/*max_size_B=*/2048 * 1024 * 1024ull);
-
-	gui_client.initialise(cache_dir, settings_store, this, high_priority_task_manager, /*worker allocator=*/worker_allocator);
 
 #ifdef _WIN32
-	// Create a GPU device.  Needed to get hardware accelerated video decoding.
+	// Create a GPU device.  Needed to get hardware accelerated video decoding and for hardware texture sharing for CEF.
 	Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
 #endif //_WIN32
 
-	
+
 	if(run_as_screenshot_slave)
 	{
 		conPrint("Waiting for screenshot command connection...");
@@ -487,6 +487,7 @@ public:
 };
 
 
+ // Called after glWigget and OpenGLEngine has been initialised.
 void MainWindow::afterGLInitInitialise()
 {
 	ZoneScoped; // Tracy profiler
@@ -754,13 +755,15 @@ void MainWindow::showInfoNotification(const std::string& message)
 
 void MainWindow::setTextAsNotLoggedIn()
 {
-	user_details->setTextAsNotLoggedIn();
+	if(user_details)
+		user_details->setTextAsNotLoggedIn();
 }
 
 
 void MainWindow::setTextAsLoggedIn(const std::string& username)
 {
-	user_details->setTextAsLoggedIn(username);
+	if(user_details)
+		user_details->setTextAsLoggedIn(username);
 }
 
 
@@ -784,13 +787,15 @@ void MainWindow::loggedInButtonClicked()
 
 void MainWindow::updateWorldSettingsControlsEditable()
 {
-	ui->worldSettingsWidget->updateControlsEditable();
+	if(ui)
+		ui->worldSettingsWidget->updateControlsEditable();
 }
 
 
 void MainWindow::updateWorldSettingsUIFromWorldSettings()
 {
-	this->ui->worldSettingsWidget->setFromWorldSettings(gui_client.connected_world_settings); // Update UI
+	if(ui)
+		this->ui->worldSettingsWidget->setFromWorldSettings(gui_client.connected_world_settings); // Update UI
 }
 
 
@@ -943,7 +948,8 @@ void MainWindow::appendChatMessage(const std::string& msg)
 
 void MainWindow::clearChatMessages()
 {
-	ui->chatMessagesTextEdit->clear();
+	if(ui)
+		ui->chatMessagesTextEdit->clear();
 }
 
 
@@ -955,6 +961,9 @@ bool MainWindow::isShowParcelsEnabled() const
 
 void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 {
+	if(!ui)
+		return;
+
 	if(gui_client.world_state.isNull())
 		return;
 
@@ -3548,6 +3557,9 @@ static uint32 fromQtModifiers(Qt::KeyboardModifiers modifiers)
 
 void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 {
+	if(!opengl_engine)
+		return;
+
 	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
 
 	MouseEvent mouse_event;
@@ -3565,6 +3577,9 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 
 void MainWindow::glWidgetMouseReleased(QMouseEvent* e)
 {
+	if(!opengl_engine)
+		return;
+
 	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
 	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
@@ -4570,9 +4585,35 @@ int main(int argc, char *argv[])
 
 
 		int app_exec_res;
-		{ // Scope of MainWindow mw and textureserver.
+		{ // Scope of MainWindow mw.
 
-			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args); // Creates GLWidget
+			// We want to call connectToServer as quickly as possible to hide the latency of setting up the TLS connection to the server.
+			// So do the bare minimum of initialisation, call connectToServer, then do the reset (setting up UI etc.)
+
+			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
+
+			// If the user didn't explicitly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
+			if(!server_URL_explicitly_specified)
+			{
+				const std::string start_loc_URL_setting = QtUtils::toStdString(mw.settings->value(MainOptionsDialog::startLocationURLKey()).toString());
+				if(!start_loc_URL_setting.empty())
+					server_URL = start_loc_URL_setting;
+			}
+
+			try
+			{
+				URLParseResults parse_results = URLParser::parseURL(server_URL);
+
+				mw.gui_client.connectToServer(parse_results);
+			}
+			catch(glare::Exception& e)
+			{
+				QtUtils::showErrorMessageDialog(e.what(), &mw);
+			}
+
+			// Do rest of initialisation now we have called connectToServer().
+			mw.gui_client.postConnectInitialise();
+			CEF::initialiseCEF(cyberspace_base_dir_path);
 
 			open_even_filter->main_window = &mw;
 
@@ -4582,9 +4623,9 @@ int main(int argc, char *argv[])
 			if(parsed_args.isArgPresent("--testscreenshot"))
 				mw.test_screenshot_taking = true;
 
-			mw.initialise();
+			mw.initialiseUI();
 
-			mw.show();
+			mw.show(); // Calls glWidget->initializeGL() which initialises OpenGLEngine.
 
 			mw.raise();
 
@@ -4605,26 +4646,9 @@ int main(int argc, char *argv[])
 			mw.gui_client.cam_controller.setMoveScale(0.3f);
 
 
-			// If the user didn't explicitly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
-			if(!server_URL_explicitly_specified)
-			{
-				const std::string start_loc_URL_setting = QtUtils::toStdString(mw.settings->value(MainOptionsDialog::startLocationURLKey()).toString());
-				if(!start_loc_URL_setting.empty())
-					server_URL = start_loc_URL_setting;
-			}
 
 			mw.afterGLInitInitialise();
 
-			try
-			{
-				URLParseResults parse_results = URLParser::parseURL(server_URL);
-
-				mw.gui_client.connectToServer(parse_results);
-			}
-			catch(glare::Exception& e)
-			{
-				QtUtils::showErrorMessageDialog(e.what(), &mw);
-			}
 
 			app_exec_res = app.exec();
 
