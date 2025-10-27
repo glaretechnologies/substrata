@@ -352,7 +352,7 @@ public:
 	std::map<uint64, OrderRef> orders GUARDED_BY(mutex); // Order ID to order
 
 	std::map<std::string, Reference<ServerWorldState> > world_states GUARDED_BY(mutex); // ServerWorldState contains WorldObjects and Parcels
-	Reference<ServerWorldState> root_world_state GUARDED_BY(mutex); // = world_states[""]
+	Reference<ServerWorldState> root_world_state; // = world_states[""].  Not guarded by mutex as should be set only once during load from disk, init, or while mutex is held.
 
 	std::map<std::string, UserWebSessionRef> user_web_sessions GUARDED_BY(mutex); // Map from key to UserWebSession
 	
