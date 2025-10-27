@@ -775,7 +775,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
 		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " + 
-		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s), " + toString(num_photos) + " photo(s) in " + timer.elapsedStringNSigFigs(4));
+		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s), " + toString(num_photos) + " photo(s), " + toString(num_worlds) + " world(s), in " + timer.elapsedStringNSigFigs(4));
 }
 
 

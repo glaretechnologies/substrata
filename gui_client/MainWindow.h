@@ -276,13 +276,13 @@ public:
 	virtual void webViewDataLinkHovered(const std::string& text) override;
 
 	// Gamepad
-	virtual bool gamepadAttached();
-	virtual float gamepadButtonL2();
-	virtual float gamepadButtonR2();
-	virtual float gamepadAxisLeftX();
-	virtual float gamepadAxisLeftY();
-	virtual float gamepadAxisRightX();
-	virtual float gamepadAxisRightY();
+	virtual bool gamepadAttached() override;
+	virtual float gamepadButtonL2() override;
+	virtual float gamepadButtonR2() override;
+	virtual float gamepadAxisLeftX() override;
+	virtual float gamepadAxisLeftY() override;
+	virtual float gamepadAxisRightX() override;
+	virtual float gamepadAxisRightY() override;
 
 
 	// OpenGL

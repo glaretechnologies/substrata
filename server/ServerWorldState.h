@@ -439,7 +439,7 @@ public:
 
 	mutable ::WorldStateMutex mutex;
 private:
-	void setWorldState(const std::string& world_name, Reference<ServerWorldState> world);
+	void setWorldState(const std::string& world_name, Reference<ServerWorldState> world) REQUIRES(mutex);
 
 	GLARE_DISABLE_COPY(ServerAllWorldsState);
 

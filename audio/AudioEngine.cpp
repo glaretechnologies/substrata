@@ -1168,6 +1168,7 @@ void glare::AudioEngine::test()
 
 		PlatformUtils::Sleep(1000); // We mute the first second or so of output from Resonance due to a Resonance bug.
 
+		Lock lock(engine.mutex);
 		//------------------------------- Test playOneShotSound(), loads sound completely as a non-streaming source. ------------------------------------
 		// Play a single non-looping WAV sound, check it gets removed properly at the end
 		{
