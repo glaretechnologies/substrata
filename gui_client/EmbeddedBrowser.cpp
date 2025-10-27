@@ -84,10 +84,7 @@ public:
 			new_tex->clearRegion2D(/*mipmap level=*/0, /*x=*/0, /*y=*/0, viewport_width, viewport_height, /*data=*/nullptr); // Zero out the texture.  NOTE: Doesn't work on Mac currently.
 
 			// Swizzle from BGRA with 0 alpha to RGBA with alpha 1.
-			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
-			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
-			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);
-			glTextureParameteri(new_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);
+			new_tex->setSwizzle(GL_BLUE, GL_GREEN, GL_RED, GL_ONE);
 
 			// Apply the texture to the specified material
 			if(apply_to_emission_texture)
@@ -220,13 +217,11 @@ public:
 									#define GL_TEXTURE_TILING_EXT             0x9580
 									#define GL_OPTIMAL_TILING_EXT             0x9584
 
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_TILING_EXT, GL_OPTIMAL_TILING_EXT);
+									video_display_opengl_tex->bind();
+									glTexParameteri(video_display_opengl_tex->getTextureTarget(), GL_TEXTURE_TILING_EXT, GL_OPTIMAL_TILING_EXT);
 
 									// Swizzle from BGRA with 0 alpha to RGBA with alpha 1.
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);
+									video_display_opengl_tex->setSwizzle(GL_BLUE, GL_GREEN, GL_RED, GL_ONE);
 								} // End lock scope
 
 								
