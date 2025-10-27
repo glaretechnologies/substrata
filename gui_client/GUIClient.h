@@ -238,7 +238,7 @@ public:
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	GLObjectRef makeSpeakerGLObject();
 public:
-	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock);
+	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock) REQUIRES(world_state->mutex);
 	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, int voxel_subsample_factor, WorldStateLock& world_state_lock);
 	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
 	void loadModelForAvatar(Avatar* avatar);
@@ -377,7 +377,7 @@ public:
 	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
 	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
 
-	void handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<MeshData> mesh_data, WorldStateLock& lock);
+	void handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<MeshData> mesh_data, WorldStateLock& lock) REQUIRES(world_state->mutex);
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
