@@ -800,6 +800,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		opengl_engine->addObject(results.gl_ob);
 	}
 
+	// The preferred way to do uploads to the GPU is on a dedicated thread.  Using a dedicated thread avoids the many potential (and actual) stalls in various OpenGL calls on the main thread, even with async uploads.
+	// Currently I have only implemented this on Windows.  It may be possible on some other platforms as well.
 	if(ui_interface->supportsSharedGLContexts())
 	{
 		opengl_upload_thread = new OpenGLUploadThread();
@@ -812,6 +814,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	}
 	else
 	{
+		// If we can't create a dedicated upload thread, use async uploads with VBO/PBO pools.
 		pbo_pool = new PBOPool();
 		vbo_pool       = new VBOPool(GL_ARRAY_BUFFER);
 		index_vbo_pool = new VBOPool(GL_ELEMENT_ARRAY_BUFFER); // WebGL requires index data and vertex data to be kept separate
