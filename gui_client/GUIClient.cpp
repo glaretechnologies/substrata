@@ -7971,6 +7971,14 @@ inline static SubClass* checkedDowncastPtr(ThreadMessage* msg)
 }
 
 
+
+// Enable error on implicit fallthrough in switch statement.  We want to catch this error beacuse it's a bad bug that could cause a crash.
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(error:5262)
+#endif
+
+
 // Handle any messages (chat messages etc..)
 void GUIClient::handleMessages(double global_time, double cur_time)
 {
@@ -9022,6 +9030,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 	temp_msgs.clear();
 }
+
+
+#ifdef _WIN32
+#pragma warning(pop) // Pop Enable warn on implicit fallthrough in switch statement.
+#endif
 
 
 std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool do_physics_diagnostics, bool do_terrain_diagnostics, double last_timerEvent_CPU_work_elapsed, double last_updateGL_time)
