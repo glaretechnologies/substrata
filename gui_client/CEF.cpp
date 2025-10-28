@@ -98,6 +98,16 @@ bool CEF::isInitialised()
 }
 
 
+bool CEF::initialisationFailed()
+{
+#if CEF_SUPPORT
+	return CEF_initialisation_failed;
+#else
+	return false;
+#endif
+}
+
+
 void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& appdata_path)
 {
 #if CEF_SUPPORT

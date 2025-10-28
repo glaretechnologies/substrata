@@ -23,6 +23,7 @@ public:
 	static std::string CEFVersionString();
 
 	static bool isInitialised();
+	static bool initialisationFailed();
 
 	static void initialiseCEF(const std::string& base_dir_path, const std::string& appdata_path);
 
