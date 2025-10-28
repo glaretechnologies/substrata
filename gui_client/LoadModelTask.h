@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2025 -
 #pragma once
 
 
+#include "ThreadMessages.h"
 #include "PhysicsObject.h"
 #include "../shared/Resource.h"
 #include "../shared/URLString.h"
@@ -23,7 +24,7 @@ class ResourceManager;
 class ModelLoadedThreadMessage : public ThreadMessage
 {
 public:
-	ModelLoadedThreadMessage() = default;
+	ModelLoadedThreadMessage() : ThreadMessage(Msg_ModelLoadedThreadMessage) {}
 	GLARE_DISABLE_COPY(ModelLoadedThreadMessage);
 	// Results of the task:
 	

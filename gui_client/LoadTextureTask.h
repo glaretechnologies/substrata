@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2019 -
 #pragma once
 
 
+#include "ThreadMessages.h"
 #include "../shared/Resource.h"
 #include "../shared/UID.h"
 #include <opengl/OpenGLTexture.h>
@@ -27,7 +28,7 @@ namespace glare { class FastPoolAllocator; }
 class TextureLoadedThreadMessage : public ThreadMessage
 {
 public:
-	TextureLoadedThreadMessage() : load_into_frame_i(0) {}
+	TextureLoadedThreadMessage() : ThreadMessage(Msg_TextureLoadedThreadMessage), load_into_frame_i(0) {}
 
 	OpenGLTextureKey tex_path;
 	URLString tex_URL;

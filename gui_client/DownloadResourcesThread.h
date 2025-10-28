@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "../shared/ResourceManager.h"
 #include "../shared/URLString.h"
+#include "ThreadMessages.h"
 #include "DownloadingResourceQueue.h"
 #include "WorldState.h"
 #include <MySocket.h>
@@ -31,7 +32,7 @@ class DownloadingResourceQueue;
 class ResourceDownloadedMessage : public ThreadMessage
 {
 public:
-	ResourceDownloadedMessage(const URLString& URL_, const ResourceRef& resource_) : URL(URL_), resource(resource_) {}
+	ResourceDownloadedMessage(const URLString& URL_, const ResourceRef& resource_) : ThreadMessage(Msg_ResourceDownloadedMessage), URL(URL_), resource(resource_) {}
 	URLString URL;
 	ResourceRef resource;
 

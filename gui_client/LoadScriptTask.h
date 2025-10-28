@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
+#include "ThreadMessages.h"
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <ThreadSafeQueue.h>
@@ -17,6 +18,8 @@ class WinterShaderEvaluator;
 class ScriptLoadedThreadMessage : public ThreadMessage
 {
 public:
+	ScriptLoadedThreadMessage() : ThreadMessage(Msg_ScriptLoadedThreadMessage) {}
+
 	std::string script;
 	Reference<WinterShaderEvaluator> script_evaluator;
 };

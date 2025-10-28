@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
+#include "../gui_client/ThreadMessages.h"
 #include "../shared/UID.h"
 #include <networking/UDPSocket.h>
 #include <utils/MessageableThread.h>
@@ -16,7 +17,7 @@ Copyright Glare Technologies Limited 2023 -
 class AudioStreamToServerStartedMessage : public ThreadMessage
 {
 public:
-	AudioStreamToServerStartedMessage(uint32 sampling_rate_, uint32 flags_, uint32 stream_id_) : sampling_rate(sampling_rate_), flags(flags_), stream_id(stream_id_) {}
+	AudioStreamToServerStartedMessage(uint32 sampling_rate_, uint32 flags_, uint32 stream_id_) : ThreadMessage(Msg_AudioStreamToServerStartedMessage), sampling_rate(sampling_rate_), flags(flags_), stream_id(stream_id_) {}
 	uint32 sampling_rate;
 	uint32 flags;
 	uint32 stream_id;
@@ -26,7 +27,7 @@ public:
 class AudioStreamToServerEndedMessage : public ThreadMessage
 {
 public:
-	AudioStreamToServerEndedMessage() {}
+	AudioStreamToServerEndedMessage() : ThreadMessage(Msg_AudioStreamToServerEndedMessage) {}
 };
 
 
