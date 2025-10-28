@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "TerrainSystem.h"
 #include "TerrainDecalManager.h"
 #include "LoadScriptTask.h"
+#include "ThreadMessages.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
 #include "NetDownloadResourcesThread.h"
@@ -415,7 +416,7 @@ void GUIClient::postConnectInitialise()
 class WindNoiseLoaded : public ThreadMessage
 {
 public:
-	WindNoiseLoaded(glare::SoundFileRef sound_) : sound(sound_) {}
+	WindNoiseLoaded(glare::SoundFileRef sound_) : ThreadMessage(Msg_WindNoiseLoaded), sound(sound_) {}
 	glare::SoundFileRef sound;
 };
 
@@ -7960,6 +7961,16 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 }
 
 
+template <class SubClass>
+inline static SubClass* checkedDowncastPtr(ThreadMessage* msg)
+{
+#ifndef NDEBUG
+	assert(dynamic_cast<SubClass*>(msg) != nullptr);
+#endif
+	return static_cast<SubClass*>(msg);
+}
+
+
 // Handle any messages (chat messages etc..)
 void GUIClient::handleMessages(double global_time, double cur_time)
 {
@@ -7973,16 +7984,19 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 	{
 		ThreadMessage* const msg = temp_msgs[msg_i].ptr();
 
-		if(dynamic_cast<ModelLoadedThreadMessage*>(msg))
+		switch((GuiClientThreadMessages)msg->id)
 		{
-			ModelLoadedThreadMessage* loaded_msg = static_cast<ModelLoadedThreadMessage*>(msg);
+		case Msg_ModelLoadedThreadMessage:
+		{
+			ModelLoadedThreadMessage* loaded_msg = checkedDowncastPtr<ModelLoadedThreadMessage>(msg);
 
 			if(loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize())
 				async_model_loaded_messages_to_process.push_back(loaded_msg);
 			else
 				model_loaded_messages_to_process.push_back(loaded_msg);
 		}
-		else if(dynamic_cast<TextureLoadedThreadMessage*>(msg))
+		break;
+		case Msg_TextureLoadedThreadMessage:
 		{
 			Reference<TextureLoadedThreadMessage> loaded_msg = temp_msgs[msg_i].downcast<TextureLoadedThreadMessage>();
 			
@@ -8000,66 +8014,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					texture_loaded_messages_to_process.push_back(loaded_msg);
 			}
 		}
-		else if(dynamic_cast<TextureUploadedMessage*>(msg))
+		break;
+		case Msg_AudioLoadedThreadMessage:
 		{
-			const TextureUploadedMessage* m = static_cast<const TextureUploadedMessage*>(msg);
-
-			runtimeCheck(m->user_info.nonNull());
-			LoadTextureTaskUploadingUserInfo* user_info = m->user_info.downcastToPtr<LoadTextureTaskUploadingUserInfo>();
-
-			opengl_engine->addOpenGLTexture(m->opengl_tex->key, m->opengl_tex);
-
-			this->handleUploadedTexture(m->tex_path, user_info->tex_URL, m->opengl_tex, m->texture_data, user_info->terrain_map);
-
-			// Now that this texture is loaded, remove from textures_processing set.
-			// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-			//assert(textures_processing.count(m->tex_path) >= 1);
-			textures_processing.erase(m->tex_path);
-		}
-		else if(dynamic_cast<AnimatedTextureUpdated*>(msg))
-		{
-			const AnimatedTextureUpdated* m = static_cast<const AnimatedTextureUpdated*>(msg);
-
-			animated_texture_manager->doTextureSwap(opengl_engine.ptr(), m->old_tex, m->new_tex);
-		}
-		else if(dynamic_cast<GeometryUploadedMessage*>(msg))
-		{
-			const GeometryUploadedMessage* m = static_cast<const GeometryUploadedMessage*>(msg);
-
-			LoadModelTaskUploadingUserInfo* user_info = m->user_info.downcastToPtr<LoadModelTaskUploadingUserInfo>();
-			try
-			{
-				opengl_engine->vert_buf_allocator->getOrCreateAndAssignVAOForMesh(*m->meshdata, m->meshdata->vertex_spec);
-
-				// Process the finished upload (assign mesh to objects etc.)
-				handleUploadedMeshData(user_info->lod_model_url, user_info->model_lod_level, user_info->built_dynamic_physics_ob, m->meshdata, user_info->physics_shape,
-					user_info->voxel_subsample_factor, user_info->voxel_hash);
-			}
-			catch(glare::Exception& e)
-			{
-				logMessage("Error while handling uploaded mesh data: " + e.what());
-			}
-		}
-		/*else if(dynamic_cast<BuildScatteringInfoDoneThreadMessage*>(msg))
-		{
-			BuildScatteringInfoDoneThreadMessage* loaded_msg = static_cast<BuildScatteringInfoDoneThreadMessage*>(msg);
-
-			// Look up object
-			Lock lock(this->world_state->mutex);
-
-			auto res = this->world_state->objects.find(loaded_msg->ob_uid);
-			if(res != this->world_state->objects.end())
-			{
-				WorldObject* ob = res.getValue().ptr();
-
-				ob->scattering_info = loaded_msg->ob_scattering_info;
-
-				doBiomeScatteringForObject(ob);
-			}
-		}*/
-		else if(dynamic_cast<AudioLoadedThreadMessage*>(msg))
-		{
-			AudioLoadedThreadMessage* loaded_msg = static_cast<AudioLoadedThreadMessage*>(msg);
+			AudioLoadedThreadMessage* loaded_msg = checkedDowncastPtr<AudioLoadedThreadMessage>(msg);
 
 			// conPrint("AudioLoadedThreadMessage: loaded_msg->audio_source_url: " + loaded_msg->audio_source_url);
 
@@ -8168,9 +8126,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
 			audio_processing.erase(loaded_msg->audio_source_url);
 		}
-		else if(dynamic_cast<ScriptLoadedThreadMessage*>(msg))
+		break;
+		case Msg_ScriptLoadedThreadMessage:
 		{
-			ScriptLoadedThreadMessage* loaded_msg = static_cast<ScriptLoadedThreadMessage*>(msg);
+			ScriptLoadedThreadMessage* loaded_msg = checkedDowncastPtr<ScriptLoadedThreadMessage>(msg);
 
 			// conPrint("ScriptLoadedThreadMessage");
 
@@ -8193,12 +8152,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
 			script_content_processing.erase(loaded_msg->script);
 		}
-		else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg))
+		break;
+		case Msg_ClientConnectingToServerMessage:
 		{
 			this->connection_state = ServerConnectionState_Connecting;
 			//ui_interface->updateStatusBar();
 
-			this->server_ip_addr = static_cast<const ClientConnectingToServerMessage*>(msg)->server_ip;
+			this->server_ip_addr = checkedDowncastPtr<const ClientConnectingToServerMessage>(msg)->server_ip;
 
 			// Now that we have the server IP address, start UDP thread.
 			try
@@ -8236,8 +8196,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				//return;
 			}
 		}
-		else if(const ClientConnectedToServerMessage* connected_msg = dynamic_cast<const ClientConnectedToServerMessage*>(msg))
+		break;
+		case Msg_ClientConnectedToServerMessage:
 		{
+			ClientConnectedToServerMessage* connected_msg = checkedDowncastPtr<ClientConnectedToServerMessage>(msg);
+
 			this->connection_state = ServerConnectionState_Connected;
 			//updateStatusBar();
 
@@ -8288,11 +8251,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
 				(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 		}
-		else if(dynamic_cast<const AudioStreamToServerStartedMessage*>(msg))
+		break;
+		case Msg_AudioStreamToServerStartedMessage:
 		{
 			// Sent by MicReadThread to indicate that streaming audio to the server has started.   Also sent periodically during streaming as well.
 
-			const AudioStreamToServerStartedMessage* m = static_cast<const AudioStreamToServerStartedMessage*>(msg);
+			const AudioStreamToServerStartedMessage* m = checkedDowncastPtr<const AudioStreamToServerStartedMessage>(msg);
 
 			// Make AudioStreamToServerStarted packet and enqueue to send
 			MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
@@ -8302,7 +8266,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
-		else if(dynamic_cast<const AudioStreamToServerEndedMessage*>(msg))
+		break;
+		case Msg_AudioStreamToServerEndedMessage:
 		{
 			// Sent by MicReadThread to indicate that streaming audio to the server has ended.
 
@@ -8311,13 +8276,14 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
-		else if(dynamic_cast<const RemoteClientAudioStreamToServerStarted*>(msg))
+		break;
+		case Msg_RemoteClientAudioStreamToServerStarted:
 		{
 			// Sent by ClientThread to this GUIClient after receiving AudioStreamToServerStarted message from server.
 			// Indicates a client has started streaming audio to the server.
 			// Create an audio source to play spatial audio from the avatar, if there isn't one already.
 
-			const RemoteClientAudioStreamToServerStarted* m = static_cast<const RemoteClientAudioStreamToServerStarted*>(msg);
+			const RemoteClientAudioStreamToServerStarted* m = checkedDowncastPtr<const RemoteClientAudioStreamToServerStarted>(msg);
 
 			if(m->flags == 0)
 				conPrint("Received RemoteClientAudioStreamToServerStarted, avatar_uid: " + m->avatar_uid.toString() + ", sampling_rate: " + toString(m->sampling_rate) + ", flags: " + toString(m->flags) + ", stream_id: " + toString(m->stream_id));
@@ -8360,12 +8326,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			else
 				conPrint("Invalid sampling rate, ignoring RemoteClientAudioStreamToServerStarted message");
 		}
-		else if(dynamic_cast<const RemoteClientAudioStreamToServerEnded*>(msg))
+		break;
+		case Msg_RemoteClientAudioStreamToServerEnded:
 		{
 			// Sent by ClientThread to this GUIClient after receiving AudioStreamToServerEnded message from server.
 			// Indicates a client has finished streaming audio to the server.
 
-			const RemoteClientAudioStreamToServerEnded* m = static_cast<const RemoteClientAudioStreamToServerEnded*>(msg);
+			const RemoteClientAudioStreamToServerEnded* m = checkedDowncastPtr<const RemoteClientAudioStreamToServerEnded>(msg);
 
 			conPrint("Received RemoteClientAudioStreamToServerEnded, avatar_uid: " + m->avatar_uid.toString());
 
@@ -8396,13 +8363,15 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<const ClientProtocolTooOldMessage*>(msg))
+		break;
+		case Msg_ClientProtocolTooOldMessage:
 		{
 			ui_interface->showHTMLMessageBox("Client too old", "<p>Sorry, your Substrata client is too old.</p><p>Please download and install an updated client from <a href=\"https://substrata.info/\">substrata.info</a></p>");
 		}
-		else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg))
+		break;
+		case Msg_ClientDisconnectedFromServerMessage:
 		{
-			const ClientDisconnectedFromServerMessage* m = static_cast<const ClientDisconnectedFromServerMessage*>(msg);
+			const ClientDisconnectedFromServerMessage* m = checkedDowncastPtr<const ClientDisconnectedFromServerMessage>(msg);
 			if(!m->error_message.empty() && !m->closed_gracefully)
 			{
 				showErrorNotification(m->error_message);
@@ -8419,9 +8388,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			//updateStatusBar();
 		}
-		else if(dynamic_cast<const AvatarIsHereMessage*>(msg))
+		break;
+		case Msg_AvatarIsHereMessage:
 		{
-			const AvatarIsHereMessage* m = static_cast<const AvatarIsHereMessage*>(msg);
+			const AvatarIsHereMessage* m = checkedDowncastPtr<const AvatarIsHereMessage>(msg);
 
 			if(world_state.nonNull())
 			{
@@ -8441,9 +8411,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<const AvatarCreatedMessage*>(msg))
+		break;
+		case Msg_AvatarCreatedMessage:
 		{
-			const AvatarCreatedMessage* m = static_cast<const AvatarCreatedMessage*>(msg);
+			const AvatarCreatedMessage* m = checkedDowncastPtr<const AvatarCreatedMessage>(msg);
 
 			if(world_state.nonNull())
 			{
@@ -8462,9 +8433,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<const AvatarPerformGestureMessage*>(msg))
+		break;
+		case Msg_AvatarPerformGestureMessage:
 		{
-			const AvatarPerformGestureMessage* m = static_cast<const AvatarPerformGestureMessage*>(msg);
+			const AvatarPerformGestureMessage* m = checkedDowncastPtr<const AvatarPerformGestureMessage>(msg);
 
 			if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
 			{
@@ -8481,9 +8453,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<const AvatarStopGestureMessage*>(msg))
+		break;
+		case Msg_AvatarStopGestureMessage:
 		{
-			const AvatarStopGestureMessage* m = static_cast<const AvatarStopGestureMessage*>(msg);
+			const AvatarStopGestureMessage* m = checkedDowncastPtr<const AvatarStopGestureMessage>(msg);
 
 			if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
 			{
@@ -8500,9 +8473,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<const ChatMessage*>(msg))
+		break;
+		case Msg_ChatMessage:
 		{
-			const ChatMessage* m = static_cast<const ChatMessage*>(msg);
+			const ChatMessage* m = checkedDowncastPtr<const ChatMessage>(msg);
 
 			if(world_state.nonNull())
 			{
@@ -8526,29 +8500,28 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				chat_ui.appendMessage(m->name, col, ": " + m->msg);
 			}
 		}
-		else if(dynamic_cast<const InfoMessage*>(msg))
+		break;
+		case Msg_InfoMessage:
 		{
-			const InfoMessage* m = static_cast<const InfoMessage*>(msg);
+			const InfoMessage* m = checkedDowncastPtr<const InfoMessage>(msg);
 			showInfoNotification(m->msg);
 		}
-		else if(dynamic_cast<const ErrorMessage*>(msg))
+		break;
+		case Msg_ErrorMessage:
 		{
-			const ErrorMessage* m = static_cast<const ErrorMessage*>(msg);
+			const ErrorMessage* m = checkedDowncastPtr<const ErrorMessage>(msg);
 			showErrorNotification(m->msg);
 		}
-		else if(dynamic_cast<const LogMessage*>(msg))
+		break;
+		case Msg_LogMessage:
 		{
-			const LogMessage* m = static_cast<const LogMessage*>(msg);
+			const LogMessage* m = checkedDowncastPtr<const LogMessage>(msg);
 			logMessage(m->msg);
 		}
-		else if(dynamic_cast<const OpenGLUploadErrorMessage*>(msg))
+		break;
+		case Msg_LoggedInMessage:
 		{
-			const OpenGLUploadErrorMessage* m = static_cast<const OpenGLUploadErrorMessage*>(msg);
-			logMessage(m->msg);
-		}
-		else if(dynamic_cast<const LoggedInMessage*>(msg))
-		{
-			const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg);
+			const LoggedInMessage* m = checkedDowncastPtr<const LoggedInMessage>(msg);
 
 			ui_interface->setTextAsLoggedIn(m->username);
 			this->logged_in_user_id = m->user_id;
@@ -8576,7 +8549,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
-		else if(dynamic_cast<const LoggedOutMessage*>(msg))
+		break;
+		case Msg_LoggedOutMessage:
 		{
 			ui_interface->setTextAsNotLoggedIn();
 			this->logged_in_user_id = UserID::invalidUserID();
@@ -8602,9 +8576,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
-		else if(dynamic_cast<const SignedUpMessage*>(msg))
+		break;
+		case Msg_SignedUpMessage:
 		{
-			const SignedUpMessage* m = static_cast<const SignedUpMessage*>(msg);
+			const SignedUpMessage* m = checkedDowncastPtr<const SignedUpMessage>(msg);
 			ui_interface->showPlainTextMessageBox("Signed up", "Successfully signed up and logged in.");
 
 			ui_interface->setTextAsLoggedIn(m->username);
@@ -8628,15 +8603,17 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
-		else if(dynamic_cast<const ServerAdminMessage*>(msg))
+		break;
+		case Msg_ServerAdminMessage:
 		{
-			const ServerAdminMessage* m = static_cast<const ServerAdminMessage*>(msg);
+			const ServerAdminMessage* m = checkedDowncastPtr<const ServerAdminMessage>(msg);
 				
 			misc_info_ui.showServerAdminMessage(m->msg);
 		}
-		else if(dynamic_cast<const WorldSettingsReceivedMessage*>(msg))
+		break;
+		case Msg_WorldSettingsReceivedMessage:
 		{
-			const WorldSettingsReceivedMessage* m = static_cast<const WorldSettingsReceivedMessage*>(msg);
+			const WorldSettingsReceivedMessage* m = checkedDowncastPtr<const WorldSettingsReceivedMessage>(msg);
 
 			this->connected_world_settings.copyNetworkStateFrom(m->world_settings); // Store world settings to be used later
 
@@ -8659,25 +8636,28 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				physics_world->setWaterZ(use_water_z);
 			}
 		}
-		else if(dynamic_cast<const WorldDetailsReceivedMessage*>(msg))
+		break;
+		case Msg_WorldDetailsReceivedMessage:
 		{
-			const WorldDetailsReceivedMessage* m = static_cast<const WorldDetailsReceivedMessage*>(msg);
+			const WorldDetailsReceivedMessage* m = checkedDowncastPtr<const WorldDetailsReceivedMessage>(msg);
 
 			this->connected_world_details = m->world_details;
 		}
-		else if(dynamic_cast<const MapTilesResultReceivedMessage*>(msg))
+		break;
+		case Msg_MapTilesResultReceivedMessage:
 		{
-			const MapTilesResultReceivedMessage* m = static_cast<const MapTilesResultReceivedMessage*>(msg);
+			const MapTilesResultReceivedMessage* m = checkedDowncastPtr<const MapTilesResultReceivedMessage>(msg);
 
 			if(minimap)
 				this->minimap->handleMapTilesResultReceivedMessage(*m);
 		}
-		else if(dynamic_cast<const UserSelectedObjectMessage*>(msg))
+		break;
+		case Msg_UserSelectedObjectMessage:
 		{
 			if(world_state.nonNull())
 			{
 				//print("GUIClient: Received UserSelectedObjectMessage");
-				const UserSelectedObjectMessage* m = static_cast<const UserSelectedObjectMessage*>(msg);
+				const UserSelectedObjectMessage* m = checkedDowncastPtr<const UserSelectedObjectMessage>(msg);
 				Lock lock(this->world_state->mutex);
 				const bool is_ob_with_uid_inserted = this->world_state->objects.find(m->object_uid) != this->world_state->objects.end();
 				if(this->world_state->avatars.count(m->avatar_uid) != 0 && is_ob_with_uid_inserted)
@@ -8686,12 +8666,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<const UserDeselectedObjectMessage*>(msg))
+		break;
+		case Msg_UserDeselectedObjectMessage:
 		{
 			if(world_state.nonNull())
 			{	
 				//print("GUIClient: Received UserDeselectedObjectMessage");
-				const UserDeselectedObjectMessage* m = static_cast<const UserDeselectedObjectMessage*>(msg);
+				const UserDeselectedObjectMessage* m = checkedDowncastPtr<const UserDeselectedObjectMessage>(msg);
 				Lock lock(this->world_state->mutex);
 				if(this->world_state->avatars.count(m->avatar_uid) != 0)
 				{
@@ -8699,10 +8680,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<const GetFileMessage*>(msg))
+		break;
+		case Msg_GetFileMessage:
 		{
 			// When the server wants a file from the client, it will send the client a GetFile protocol message.
-			const GetFileMessage* m = static_cast<const GetFileMessage*>(msg);
+			const GetFileMessage* m = checkedDowncastPtr<const GetFileMessage>(msg);
 
 			if(ResourceManager::isValidURL(m->URL))
 			{
@@ -8734,11 +8716,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					print("Could not upload resource with URL '" + toStdString(m->URL) + "' to server, not present on client.");
 			}
 		}
-		else if(dynamic_cast<const NewResourceOnServerMessage*>(msg))
+		break;
+		case Msg_NewResourceOnServerMessage:
 		{
 			// When the server has a file uploaded to it, it will send a NewResourceOnServer message to clients, so they can download it.
 
-			const NewResourceOnServerMessage* m = static_cast<const NewResourceOnServerMessage*>(msg);
+			const NewResourceOnServerMessage* m = checkedDowncastPtr<const NewResourceOnServerMessage>(msg);
 
 			if(world_state.nonNull())
 			{
@@ -8843,15 +8826,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		/*else if(dynamic_cast<const ResourceDownloadingStatus*>(msg))
+		break;
+		case Msg_ResourceDownloadedMessage:
 		{
-			const ResourceDownloadingStatus* m = msg.downcastToPtr<const ResourceDownloadingStatus>();
-			this->total_num_res_to_download = m->total_to_download;
-			updateStatusBar();
-		}*/
-		else if(dynamic_cast<const ResourceDownloadedMessage*>(msg))
-		{
-			const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg);
+			const ResourceDownloadedMessage* m = checkedDowncastPtr<const ResourceDownloadedMessage>(msg);
 			const URLString& URL = m->URL;
 			ResourceRef resource = m->resource;
 			logMessage("Resource downloaded: '" + toStdString(URL) + "'");
@@ -8962,15 +8940,17 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 			}
 		}
-		else if(dynamic_cast<TerrainChunkGeneratedMsg*>(msg))
+		break;
+		case Msg_TerrainChunkGeneratedMsg:
 		{
-			const TerrainChunkGeneratedMsg* m = static_cast<const TerrainChunkGeneratedMsg*>(msg);
+			const TerrainChunkGeneratedMsg* m = checkedDowncastPtr<const TerrainChunkGeneratedMsg>(msg);
 			if(terrain_system.nonNull())
 				terrain_system->handleCompletedMakeChunkTask(*m);
 		}
-		else if(dynamic_cast<WindNoiseLoaded*>(msg))
+		break;
+		case Msg_WindNoiseLoaded:
 		{
-			const WindNoiseLoaded* m = static_cast<const WindNoiseLoaded*>(msg);
+			const WindNoiseLoaded* m = checkedDowncastPtr<const WindNoiseLoaded>(msg);
 
 			assert(!wind_audio_source);
 			wind_audio_source = new glare::AudioSource();
@@ -8982,7 +8962,63 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			
 			audio_engine.addSource(wind_audio_source);
 		}
-	}
+		break;
+		case Msg_TextureUploadedMessage:
+		{
+			const TextureUploadedMessage* m = checkedDowncastPtr<const TextureUploadedMessage>(msg);
+
+			runtimeCheck(m->user_info.nonNull());
+			LoadTextureTaskUploadingUserInfo* user_info = m->user_info.downcastToPtr<LoadTextureTaskUploadingUserInfo>();
+
+			opengl_engine->addOpenGLTexture(m->opengl_tex->key, m->opengl_tex);
+
+			this->handleUploadedTexture(m->tex_path, user_info->tex_URL, m->opengl_tex, m->texture_data, user_info->terrain_map);
+
+			// Now that this texture is loaded, remove from textures_processing set.
+			// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+			//assert(textures_processing.count(m->tex_path) >= 1);
+			textures_processing.erase(m->tex_path);
+		}
+		break;
+		case Msg_AnimatedTextureUpdated:
+		{
+			const AnimatedTextureUpdated* m = checkedDowncastPtr<const AnimatedTextureUpdated>(msg);
+
+			animated_texture_manager->doTextureSwap(opengl_engine.ptr(), m->old_tex, m->new_tex);
+		}
+		break;
+		case Msg_GeometryUploadedMessage:
+		{
+			const GeometryUploadedMessage* m = checkedDowncastPtr<const GeometryUploadedMessage>(msg);
+
+			LoadModelTaskUploadingUserInfo* user_info = m->user_info.downcastToPtr<LoadModelTaskUploadingUserInfo>();
+			try
+			{
+				opengl_engine->vert_buf_allocator->getOrCreateAndAssignVAOForMesh(*m->meshdata, m->meshdata->vertex_spec);
+
+				// Process the finished upload (assign mesh to objects etc.)
+				handleUploadedMeshData(user_info->lod_model_url, user_info->model_lod_level, user_info->built_dynamic_physics_ob, m->meshdata, user_info->physics_shape,
+					user_info->voxel_subsample_factor, user_info->voxel_hash);
+			}
+			catch(glare::Exception& e)
+			{
+				logMessage("Error while handling uploaded mesh data: " + e.what());
+			}
+		}
+		break;
+		case Msg_OpenGLUploadErrorMessage:
+		{
+			const OpenGLUploadErrorMessage* m = checkedDowncastPtr<const OpenGLUploadErrorMessage>(msg);
+			logMessage(m->msg);
+		}
+		break;
+		default:
+		{
+			conPrint("Internal error, got a message that is not handled in switch statement.");
+			assert(0);
+		}
+		} // End switch on message id
+	} // End for each message
 
 	temp_msgs.clear();
 }
@@ -15362,3 +15398,5 @@ void GUIClient::showScriptMessage(const std::string& message)
 		script_messages.pop_front(); // remove from list
 	}
 }
+
+

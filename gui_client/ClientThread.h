@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 #pragma once
 
 
+#include "ThreadMessages.h"
 #include "../shared/WorldSettings.h"
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
@@ -33,7 +34,7 @@ struct ZSTD_DCtx_s;
 class ChatMessage : public ThreadMessage
 {
 public:
-	ChatMessage(const std::string& name_, const std::string& msg_) : name(name_), msg(msg_) {}
+	ChatMessage(const std::string& name_, const std::string& msg_) : ThreadMessage(Msg_ChatMessage), name(name_), msg(msg_) {}
 	std::string name, msg;
 };
 
@@ -41,7 +42,7 @@ public:
 class AvatarPerformGestureMessage : public ThreadMessage
 {
 public:
-	AvatarPerformGestureMessage(const UID avatar_uid_, const std::string& gesture_name_) : avatar_uid(avatar_uid_), gesture_name(gesture_name_) {}
+	AvatarPerformGestureMessage(const UID avatar_uid_, const std::string& gesture_name_) : ThreadMessage(Msg_AvatarPerformGestureMessage), avatar_uid(avatar_uid_), gesture_name(gesture_name_) {}
 	UID avatar_uid;
 	std::string gesture_name;
 };
@@ -50,7 +51,7 @@ public:
 class AvatarStopGestureMessage : public ThreadMessage
 {
 public:
-	AvatarStopGestureMessage(const UID avatar_uid_) : avatar_uid(avatar_uid_) {}
+	AvatarStopGestureMessage(const UID avatar_uid_) : ThreadMessage(Msg_AvatarStopGestureMessage), avatar_uid(avatar_uid_) {}
 	UID avatar_uid;
 };
 
@@ -59,7 +60,7 @@ public:
 class GetFileMessage : public ThreadMessage
 {
 public:
-	GetFileMessage(const URLString& URL_) : URL(URL_) {}
+	GetFileMessage(const URLString& URL_) : ThreadMessage(Msg_GetFileMessage), URL(URL_) {}
 	URLString URL;
 };
 
@@ -68,7 +69,7 @@ public:
 class NewResourceOnServerMessage : public ThreadMessage
 {
 public:
-	NewResourceOnServerMessage(const URLString& URL_) : URL(URL_) {}
+	NewResourceOnServerMessage(const URLString& URL_) : ThreadMessage(Msg_NewResourceOnServerMessage), URL(URL_) {}
 	URLString URL;
 };
 
@@ -76,7 +77,7 @@ public:
 class AvatarCreatedMessage : public ThreadMessage
 {
 public:
-	AvatarCreatedMessage(const UID& avatar_uid_) : avatar_uid(avatar_uid_) {}
+	AvatarCreatedMessage(const UID& avatar_uid_) : ThreadMessage(Msg_AvatarCreatedMessage), avatar_uid(avatar_uid_) {}
 	UID avatar_uid;
 };
 
@@ -84,7 +85,7 @@ public:
 class AvatarIsHereMessage : public ThreadMessage
 {
 public:
-	AvatarIsHereMessage(const UID& avatar_uid_) : avatar_uid(avatar_uid_) {}
+	AvatarIsHereMessage(const UID& avatar_uid_) : ThreadMessage(Msg_AvatarIsHereMessage), avatar_uid(avatar_uid_) {}
 	UID avatar_uid;
 };
 
@@ -92,7 +93,7 @@ public:
 class RemoteClientAudioStreamToServerStarted : public ThreadMessage
 {
 public:
-	RemoteClientAudioStreamToServerStarted(UID avatar_uid_, const uint32 sampling_rate_, uint32 flags_, uint32 stream_id_) : avatar_uid(avatar_uid_), sampling_rate(sampling_rate_), flags(flags_), stream_id(stream_id_) {}
+	RemoteClientAudioStreamToServerStarted(UID avatar_uid_, const uint32 sampling_rate_, uint32 flags_, uint32 stream_id_) : ThreadMessage(Msg_RemoteClientAudioStreamToServerStarted), avatar_uid(avatar_uid_), sampling_rate(sampling_rate_), flags(flags_), stream_id(stream_id_) {}
 	UID avatar_uid;
 	uint32 sampling_rate;
 	uint32 flags;
@@ -103,7 +104,7 @@ public:
 class RemoteClientAudioStreamToServerEnded : public ThreadMessage
 {
 public:
-	RemoteClientAudioStreamToServerEnded(UID avatar_uid_) : avatar_uid(avatar_uid_) {}
+	RemoteClientAudioStreamToServerEnded(UID avatar_uid_) : ThreadMessage(Msg_RemoteClientAudioStreamToServerEnded), avatar_uid(avatar_uid_) {}
 	UID avatar_uid;
 };
 
@@ -111,7 +112,7 @@ public:
 class UserSelectedObjectMessage : public ThreadMessage
 {
 public:
-	UserSelectedObjectMessage(const UID& avatar_uid_, const UID& object_uid_) : avatar_uid(avatar_uid_), object_uid(object_uid_) {}
+	UserSelectedObjectMessage(const UID& avatar_uid_, const UID& object_uid_) : ThreadMessage(Msg_UserSelectedObjectMessage), avatar_uid(avatar_uid_), object_uid(object_uid_) {}
 	UID avatar_uid, object_uid;
 };
 
@@ -119,7 +120,7 @@ public:
 class UserDeselectedObjectMessage : public ThreadMessage
 {
 public:
-	UserDeselectedObjectMessage(const UID& avatar_uid_, const UID& object_uid_) : avatar_uid(avatar_uid_), object_uid(object_uid_) {}
+	UserDeselectedObjectMessage(const UID& avatar_uid_, const UID& object_uid_) : ThreadMessage(Msg_UserDeselectedObjectMessage), avatar_uid(avatar_uid_), object_uid(object_uid_) {}
 	UID avatar_uid, object_uid;
 };
 
@@ -128,7 +129,7 @@ class ClientConnectedToServerMessage : public ThreadMessage
 {
 public:
 	ClientConnectedToServerMessage(const UID client_avatar_uid_, uint32 server_protocol_version_, uint32 server_capabilities_, int server_mesh_optimisation_version_) : 
-		client_avatar_uid(client_avatar_uid_), server_protocol_version(server_protocol_version_), server_capabilities(server_capabilities_), server_mesh_optimisation_version(server_mesh_optimisation_version_) {}
+		ThreadMessage(Msg_ClientConnectedToServerMessage), client_avatar_uid(client_avatar_uid_), server_protocol_version(server_protocol_version_), server_capabilities(server_capabilities_), server_mesh_optimisation_version(server_mesh_optimisation_version_) {}
 	UID client_avatar_uid;
 	uint32 server_protocol_version;
 	uint32 server_capabilities;
@@ -139,7 +140,7 @@ public:
 class ClientConnectingToServerMessage : public ThreadMessage
 {
 public:
-	ClientConnectingToServerMessage(const IPAddress& server_ip_) : server_ip(server_ip_) {}
+	ClientConnectingToServerMessage(const IPAddress& server_ip_) : ThreadMessage(Msg_ClientConnectingToServerMessage), server_ip(server_ip_) {}
 	IPAddress server_ip;
 };
 
@@ -147,15 +148,15 @@ public:
 class ClientProtocolTooOldMessage : public ThreadMessage
 {
 public:
-	ClientProtocolTooOldMessage() {}
+	ClientProtocolTooOldMessage() : ThreadMessage(Msg_ClientProtocolTooOldMessage) {}
 };
 
 
 class ClientDisconnectedFromServerMessage : public ThreadMessage
 {
 public:
-	ClientDisconnectedFromServerMessage() : closed_gracefully(true) {}
-	ClientDisconnectedFromServerMessage(const std::string& error_message_, bool closed_gracefully_) : error_message(error_message_), closed_gracefully(closed_gracefully_) {}
+	ClientDisconnectedFromServerMessage() : ThreadMessage(Msg_ClientDisconnectedFromServerMessage), closed_gracefully(true) {}
+	ClientDisconnectedFromServerMessage(const std::string& error_message_, bool closed_gracefully_) : ThreadMessage(Msg_ClientDisconnectedFromServerMessage), error_message(error_message_), closed_gracefully(closed_gracefully_) {}
 	std::string error_message;
 	bool closed_gracefully;
 };
@@ -164,7 +165,7 @@ public:
 class LoggedInMessage : public ThreadMessage
 {
 public:
-	LoggedInMessage(UserID user_id_, const std::string& username_) : user_id(user_id_), username(username_), user_flags(0) {}
+	LoggedInMessage(UserID user_id_, const std::string& username_) : ThreadMessage(Msg_LoggedInMessage), user_id(user_id_), username(username_), user_flags(0) {}
 	UserID user_id;
 	std::string username;
 	AvatarSettings avatar_settings;
@@ -175,14 +176,14 @@ public:
 class LoggedOutMessage : public ThreadMessage
 {
 public:
-	LoggedOutMessage() {}
+	LoggedOutMessage() : ThreadMessage(Msg_LoggedOutMessage) {}
 };
 
 
 class SignedUpMessage : public ThreadMessage
 {
 public:
-	SignedUpMessage(UserID user_id_, const std::string& username_) : user_id(user_id_), username(username_) {}
+	SignedUpMessage(UserID user_id_, const std::string& username_) : ThreadMessage(Msg_SignedUpMessage), user_id(user_id_), username(username_) {}
 	UserID user_id;
 	std::string username;
 };
@@ -191,7 +192,7 @@ public:
 class ServerAdminMessage : public ThreadMessage
 {
 public:
-	ServerAdminMessage(const std::string& msg_) : msg(msg_) {}
+	ServerAdminMessage(const std::string& msg_) : ThreadMessage(Msg_ServerAdminMessage), msg(msg_) {}
 	std::string msg;
 };
 
@@ -199,7 +200,7 @@ public:
 class WorldSettingsReceivedMessage : public ThreadMessage
 {
 public:
-	WorldSettingsReceivedMessage(bool is_initial_send_) : is_initial_send(is_initial_send_) {}
+	WorldSettingsReceivedMessage(bool is_initial_send_) : ThreadMessage(Msg_WorldSettingsReceivedMessage), is_initial_send(is_initial_send_) {}
 	WorldSettings world_settings;
 	bool is_initial_send;
 };
@@ -208,7 +209,7 @@ public:
 class WorldDetailsReceivedMessage : public ThreadMessage
 {
 public:
-	WorldDetailsReceivedMessage() {}
+	WorldDetailsReceivedMessage() : ThreadMessage(Msg_WorldDetailsReceivedMessage) {}
 	WorldDetails world_details;
 };
 
@@ -216,7 +217,7 @@ public:
 class MapTilesResultReceivedMessage : public ThreadMessage
 {
 public:
-	MapTilesResultReceivedMessage() {}
+	MapTilesResultReceivedMessage() : ThreadMessage(Msg_MapTilesResultReceivedMessage) {}
 	std::vector<Vec3i> tile_indices;
 	std::vector<URLString> tile_URLS;
 };

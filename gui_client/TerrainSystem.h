@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
+#include "ThreadMessages.h"
 #include "TerrainScattering.h"
 #include "PhysicsObject.h"
 #include <opengl/IncludeOpenGL.h>
@@ -109,6 +110,8 @@ public:
 class TerrainChunkGeneratedMsg : public ThreadMessage
 {
 public:
+	TerrainChunkGeneratedMsg() : ThreadMessage(Msg_TerrainChunkGeneratedMsg) {}
+
 	float chunk_x, chunk_y; // world-space coords of lower left corner of chunk.
 	float chunk_w; // Width of chunk in world-space (m)
 	uint64 node_id;

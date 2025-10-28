@@ -5,6 +5,8 @@ Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #pragma once
 
+
+#include "ThreadMessages.h"
 #include "../shared/Resource.h"
 #include "../shared/URLString.h"
 #include "../audio/AudioEngine.h"
@@ -19,6 +21,7 @@ class SharedMemMappedFile;
 class AudioLoadedThreadMessage : public ThreadMessage
 {
 public:
+	AudioLoadedThreadMessage() : ThreadMessage(Msg_AudioLoadedThreadMessage) {}
 	URLString audio_source_url;
 
 	glare::SoundFileRef sound_file;

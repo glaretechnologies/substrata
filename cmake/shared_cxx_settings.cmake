@@ -149,7 +149,12 @@ elseif(WIN32)
 	# Set warning level to 4 - this shows some useful stuff not in /W3 in vs2012.
 	add_definitions(/W4)
 	
-	##### Ignore some warnings #####	
+	
+	### Enable some warnigns ###
+	
+	# add_definitions(/we5262) # Enable warn on implicit fallthrough in switch statement.
+	
+	### Ignore some warnings ###	
 	# add_definitions(/wd4146) # 'unary minus operator applied to unsigned type, result still unsigned'
 	# add_definitions(/wd4800) # ''type' : forcing value to bool 'true' or 'false' (performance warning)'
 	
@@ -176,6 +181,7 @@ elseif(WIN32)
 	add_definitions(/wd5240)
 	
 	################################
+	
 	
 	add_definitions(/GS-) # Disable Security Check (/GS-)
 	add_definitions(/fp:fast) # Set fast floating point model.
