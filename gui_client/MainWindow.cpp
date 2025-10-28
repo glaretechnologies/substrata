@@ -509,15 +509,6 @@ void MainWindow::afterGLInitInitialise()
 
 	// OpenGLEngineTests::doTextureLoadingTests(*ui->glWidget->opengl_engine);
 
-#ifdef _WIN32
-	// Prepare for D3D interoperability with opengl
-	//wgl_funcs.init();
-	//
-	//interop_device_handle = wgl_funcs.wglDXOpenDeviceNV(d3d_device.ptr); // prepare for interoperability with opengl
-	//if(interop_device_handle == 0)
-	//	throw glare::Exception("wglDXOpenDeviceNV failed.");
-#endif
-
 	// NOTE: this code is also in SDLClient.cpp
 #if defined(_WIN32)
 		const std::string font_path       = PlatformUtils::getFontsDirPath() + "/Segoeui.ttf"; // SegoeUI is shipped with Windows 7 onwards: https://learn.microsoft.com/en-us/typography/fonts/windows_7_font_list
@@ -596,14 +587,6 @@ MainWindow::~MainWindow()
 #endif
 
 	//ui->glWidget->makeCurrent(); // This crashes on Mac
-
-#ifdef _WIN32
-	//if(this->interop_device_handle)
-	//{
-	//	const BOOL res = wgl_funcs.wglDXCloseDeviceNV(this->interop_device_handle); // close interoperability with opengl
-	//	assertOrDeclareUsed(res);
-	//}
-#endif
 
 	// Free direct3d device and device manager
 #ifdef _WIN32
