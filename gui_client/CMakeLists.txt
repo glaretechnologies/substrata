@@ -1159,8 +1159,9 @@ if(EMSCRIPTEN)
 	# ResonanceThread								1
 	# StreamerThread								1
 	# UploadResourceThread							1
+	# GarbageDeleterThread							1
 	# 
-	# Total:										29
+	# Total:										30
 	
 	target_link_options(${CURRENT_TARGET} PRIVATE
 		"-sMIN_WEBGL_VERSION=2"
@@ -1172,7 +1173,7 @@ if(EMSCRIPTEN)
 		"-sMAXIMUM_MEMORY=4000MB" # Default is 2GB.
 		"-pthread"
 		"-sENVIRONMENT=web,worker" # Specify that the JS code only supports running in web/web workers.(Not node.js etc.)
-		"-sPTHREAD_POOL_SIZE=29" # See calculation above
+		"-sPTHREAD_POOL_SIZE=30" # See calculation above
 		"-sSTACK_SIZE=262144"
 		"-sEXPORTED_RUNTIME_METHODS=ccall" # Needed to be able to call into C++ from JS.  Used in emscripten_browser_clipboard.
 		"-sEXPORTED_FUNCTIONS=_processAvatarModelFile,_malloc,_free,_main"
