@@ -98,7 +98,7 @@ bool CEF::isInitialised()
 }
 
 
-void CEF::initialiseCEF(const std::string& base_dir_path)
+void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& appdata_path)
 {
 #if CEF_SUPPORT
 	ZoneScoped; // Tracy profiler
@@ -138,6 +138,12 @@ void CEF::initialiseCEF(const std::string& base_dir_path)
 	// conPrint("Using browser_process_path '" + browser_process_path + "'...");
 	CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
 #endif
+
+	// Set a root dir for the browser cache, as recommended by CEF (see cef_types.h)
+	// Otherwise a default cache dir is used that might clash with other applications using CEF.
+	const std::string root_cache_path = appdata_path + "/CEF_cache";
+	CefString(&settings.root_cache_path).FromString(root_cache_path);
+
 
 	glare_cef_app = new GlareCEFApp();
 

@@ -18,10 +18,6 @@ Copyright Glare Technologies Limited 2022 -
 
 class WebViewDataCEFApp : public CefApp, public CefBrowserProcessHandler
 {
-	void initialise()
-	{
-	}
-
 	// CefApp methods:
 	CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
 
@@ -60,7 +56,7 @@ int main(int argc, char* argv[])
 
 	CefMainArgs main_args(argc, argv);
 	
-#endif // Endif on linux/
+#endif // Endif on linux
 
 	// Implementation of the CefApp interface.
 	CefRefPtr<WebViewDataCEFApp> app = new WebViewDataCEFApp();

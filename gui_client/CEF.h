@@ -24,7 +24,7 @@ public:
 
 	static bool isInitialised();
 
-	static void initialiseCEF(const std::string& base_dir_path);
+	static void initialiseCEF(const std::string& base_dir_path, const std::string& appdata_path);
 
 	static void shutdownCEF();
 
