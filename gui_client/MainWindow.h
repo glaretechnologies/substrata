@@ -343,8 +343,6 @@ public:
 #if defined(_WIN32)
 	ComObHandle<ID3D11Device> d3d_device;
 	ComObHandle<IMFDXGIDeviceManager> device_manager;
-	//HANDLE interop_device_handle;
-	//WGL wgl_funcs;
 #endif
 
 	LogWindow* log_window;
