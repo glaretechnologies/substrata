@@ -4596,7 +4596,7 @@ int main(int argc, char *argv[])
 
 			// Do rest of initialisation now we have called connectToServer().
 			mw.gui_client.postConnectInitialise();
-			CEF::initialiseCEF(cyberspace_base_dir_path);
+			CEF::initialiseCEF(cyberspace_base_dir_path, appdata_path);
 
 			open_even_filter->main_window = &mw;
 

@@ -609,7 +609,7 @@ int main(int argc, char** argv)
 #endif //_WIN32
 
 
-		CEF::initialiseCEF(base_dir);
+		CEF::initialiseCEF(base_dir, appdata_path);
 
 		// NOTE: use 1 for device_pixel_ratio as we are not doing high DPI rendering.
 		gui_client->afterGLInitInitialise(/*device_pixel_ratio*/1.f, opengl_engine, fonts, emoji_fonts);
