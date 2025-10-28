@@ -8541,6 +8541,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			const LogMessage* m = static_cast<const LogMessage*>(msg);
 			logMessage(m->msg);
 		}
+		else if(dynamic_cast<const OpenGLUploadErrorMessage*>(msg))
+		{
+			const OpenGLUploadErrorMessage* m = static_cast<const OpenGLUploadErrorMessage*>(msg);
+			logMessage(m->msg);
+		}
 		else if(dynamic_cast<const LoggedInMessage*>(msg))
 		{
 			const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg);
