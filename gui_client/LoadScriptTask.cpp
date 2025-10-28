@@ -7,9 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "ThreadMessages.h"
-#if !defined(EMSCRIPTEN)
 #include "WinterShaderEvaluator.h"
-#endif
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <tracy/Tracy.hpp>

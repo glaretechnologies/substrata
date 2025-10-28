@@ -14,7 +14,6 @@ Copyright Glare Technologies Limited 2024 -
 #include "TerrainSystem.h"
 #include "TerrainDecalManager.h"
 #include "LoadScriptTask.h"
-#include "ThreadMessages.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
 #include "NetDownloadResourcesThread.h"
