@@ -4608,6 +4608,9 @@ int main(int argc, char *argv[])
 
 			mw.initialiseUI();
 
+			if(CEF::initialisationFailed())
+				mw.logMessage("CEF initialisation failed."); // Log CEF initialisation failure now that mw.log_window has been created.
+
 			mw.show(); // Calls glWidget->initializeGL() which initialises OpenGLEngine.
 
 			mw.raise();
