@@ -4734,11 +4734,6 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 		//------------------------------------------- Start uploading any textures that are ready to upload ------------------------------------------- 
 		// Read from async_texture_loaded_messages_to_process which contains TextureLoadedThreadMessage with texture data ready to upload
-		if(!dummy_opengl_tex)
-			dummy_opengl_tex = new OpenGLTexture(16, 16, opengl_engine.ptr(), ArrayRef<uint8>(), OpenGLTextureFormat::Format_RGBA_Linear_Uint8, OpenGLTexture::Filtering::Filtering_Nearest);
-	
-		if(!dummy_pbo)
-			dummy_pbo = new PBO(1024);
 
 		// We will remove items from the front of the queue.  If we can't start uploading the item currently (no free usable PBO), the item will be appended to the end of the list to try again later.
 		// So we have to be careful not to loop infinitely.  Ensure this by doing at most async_texture_loaded_messages_to_process.size() iterations.
@@ -4818,7 +4813,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 						//timer2.reset();
 						// Start asynchronous load from PBO
-						pbo_async_tex_loader.startUploadingTexture(pbo, message->texture_data, opengl_tex, dummy_opengl_tex, dummy_pbo, opengl_engine->getCurrentScene()->frame_num, uploading_info);
+						pbo_async_tex_loader.startUploadingTexture(pbo, message->texture_data, opengl_tex, opengl_engine->getCurrentScene()->frame_num, uploading_info);
 						//conPrint("    startUploadingTexture() took  " + timer2.elapsedStringMSWIthNSigFigs());
 
 						uploading = true;
