@@ -48,6 +48,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../networking/TLSSocket.h"
 #endif
 #include "../shared/Protocol.h"
+#include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
 #include "../shared/MessageUtils.h"
@@ -319,6 +320,8 @@ static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_com
 void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator_)
 {
 	ZoneScoped; // Tracy profiler
+
+	conPrint("Substrata version " + cyberspace_version);
 
 	cache_dir = cache_dir_;
 	settings = settings_store_;
