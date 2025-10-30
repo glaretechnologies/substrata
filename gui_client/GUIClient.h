@@ -565,9 +565,6 @@ public:
 
 	Reference<VBO> dummy_vert_vbo;
 	Reference<VBO> dummy_index_vbo;
-	Reference<PBO> dummy_pbo;
-	Reference<PBO> temp_pbo;
-	Reference<OpenGLTexture> dummy_opengl_tex;
 	
 	bool process_model_loaded_next;
 
