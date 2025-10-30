@@ -4673,7 +4673,9 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 		// So we have to be careful not to loop infinitely.  Ensure this by doing at most async_model_loaded_messages_to_process.size() iterations.
 
 		const size_t max_num_model_loaded_msgs_to_process = async_model_loaded_messages_to_process.size();
-		for(size_t i=0; (i < max_num_model_loaded_msgs_to_process) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
+		const size_t MAX_NUM_VBO_ACQUISITION_FAILURES = 4;
+		size_t num_VBO_acquisition_failures = 0;
+		for(size_t i=0; (i < max_num_model_loaded_msgs_to_process) && (num_VBO_acquisition_failures < MAX_NUM_VBO_ACQUISITION_FAILURES) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
 		{
 			ZoneScopedN("Process async_model_loaded_messages_to_process"); // Tracy profiler
 
@@ -4685,11 +4687,8 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 			if(!dummy_index_vbo)
 				dummy_index_vbo = new VBO(nullptr, 1024, GL_ELEMENT_ARRAY_BUFFER);
 
-			bool uploading = false;
-
 			// We want to get a free VBO, memcpy our geometry data to it, and then start uploading it to the GPU.
-			// Use separate buffers for vert and index data for async uploads, in the non-mem-mapped case, as required by WebGL.
-
+			// Use separate buffers for vert and index data for async uploads, as required by WebGL.
 			VBORef vert_vbo  = vbo_pool      ->getUnusedVBO(message->vert_data_size_B);
 			VBORef index_vbo = index_vbo_pool->getUnusedVBO(message->index_data_size_B);
 			if(vert_vbo && index_vbo)
@@ -4721,14 +4720,21 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/vert_vbo, index_vbo, dummy_vert_vbo, dummy_index_vbo, 
 					/*vert_data_src_offset_B=*/0, /*index_data_src_offset_B=*/0, message->vert_data_size_B, message->index_data_size_B, message->total_geom_size_B, 
 					opengl_engine->getCurrentScene()->frame_num, uploading_info);
-
-				uploading = true;
 			}
-			//else
-			//	conPrint("Failed to get free vert and index VBOs for " + toString(message->total_geom_size_B) + " B");
+			else
+			{
+				// conPrint("Failed to get free vert and index VBOs for " + toString(message->total_geom_size_B) + " B");
 
-			if(!uploading)
+				// We may have just got one of the VBOs, in which case, free it.
+				if(vert_vbo)
+					vbo_pool->vboBecameUnused(vert_vbo);
+				if(index_vbo)
+					index_vbo_pool->vboBecameUnused(index_vbo);
+
+				num_VBO_acquisition_failures++;
+
 				async_model_loaded_messages_to_process.push_back(message); // If we failed to upload this geometry, add to back of queue to try again later
+			}
 		}
 
 
@@ -4740,7 +4746,9 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 		const size_t max_num_texture_loaded_msgs_to_process = async_texture_loaded_messages_to_process.size();
 
-		for(size_t i=0; (i < max_num_texture_loaded_msgs_to_process) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
+		const size_t MAX_NUM_PBO_ACQUISITION_FAILURES = 4;
+		size_t num_PBO_acquisition_failures = 0;
+		for(size_t i=0; (i < max_num_texture_loaded_msgs_to_process) && (num_PBO_acquisition_failures < MAX_NUM_PBO_ACQUISITION_FAILURES) && (uploading_timer.elapsed() < MAX_START_UPLOADING_TIME); ++i)
 		{
 			ZoneScopedN("Process async_texture_loaded_messages_to_process"); // Tracy profiler
 
@@ -4766,7 +4774,6 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				}
 
 
-				bool uploading = false;
 				// Get a free PBO, memcpy our texture data to it, and then start uploading it to the GPU.
 
 				Reference<TextureData> texture_data = message->texture_data;
@@ -4781,49 +4788,46 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				}
 
 				runtimeCheck(source_data.data());
-				if(source_data.data())
+				PBORef pbo = pbo_pool->getUnusedVBO(source_data.size());
+				if(pbo)
 				{
-					PBORef pbo = pbo_pool->getUnusedVBO(source_data.size());
-					if(pbo)
-					{
-						//conPrint("------- Uploading texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B using PBO " + toHexString((uint64)pbo.ptr()) + "-------");
-						//Timer timer2;
-						pbo->updateData(/*offset=*/0, source_data.data(), source_data.size());
-						//const double elapsed = timer2.elapsed();
-						//if(elapsed > 0.0001)
-						//	conPrint("pbo->updateData() for texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms (" + doubleToStringNSigFigs(source_data.size() / elapsed * 1.0e-9, 4) + " GB/s)");
+					//conPrint("------- Uploading texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B using PBO " + toHexString((uint64)pbo.ptr()) + "-------");
+					//Timer timer2;
+					pbo->updateData(/*offset=*/0, source_data.data(), source_data.size());
+					//const double elapsed = timer2.elapsed();
+					//if(elapsed > 0.0001)
+					//	conPrint("pbo->updateData() for texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms (" + doubleToStringNSigFigs(source_data.size() / elapsed * 1.0e-9, 4) + " GB/s)");
 							
 
-						// Free image texture memory now it has been copied to the PBO.
-						if(!texture_data->isMultiFrame())
-						{
-							texture_data->mipmap_data.clearAndFreeMem();
-							if(texture_data->converted_image)
-								texture_data->converted_image = nullptr;
-						}
-
-						Reference<PBOAsyncTextureUploading> uploading_info = new PBOAsyncTextureUploading();
-						uploading_info->path = message->tex_path;
-						uploading_info->URL = message->tex_URL;
-						uploading_info->tex_data = message->texture_data;
-						uploading_info->opengl_tex = opengl_tex;
-						uploading_info->terrain_map = message->terrain_map;
-						uploading_info->loading_into_existing_opengl_tex = message->existing_opengl_tex.nonNull();
-						//uploading_info->ob_uid = message->ob_uid;
-
-						//timer2.reset();
-						// Start asynchronous load from PBO
-						pbo_async_tex_loader.startUploadingTexture(pbo, message->texture_data, opengl_tex, opengl_engine->getCurrentScene()->frame_num, uploading_info);
-						//conPrint("    startUploadingTexture() took  " + timer2.elapsedStringMSWIthNSigFigs());
-
-						uploading = true;
+					// Free image texture memory now it has been copied to the PBO.
+					if(!texture_data->isMultiFrame())
+					{
+						texture_data->mipmap_data.clearAndFreeMem();
+						if(texture_data->converted_image)
+							texture_data->converted_image = nullptr;
 					}
-					else
-						conPrint("LoadTextureTask: Failed to get free PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
+
+					Reference<PBOAsyncTextureUploading> uploading_info = new PBOAsyncTextureUploading();
+					uploading_info->path = message->tex_path;
+					uploading_info->URL = message->tex_URL;
+					uploading_info->tex_data = message->texture_data;
+					uploading_info->opengl_tex = opengl_tex;
+					uploading_info->terrain_map = message->terrain_map;
+					uploading_info->loading_into_existing_opengl_tex = message->existing_opengl_tex.nonNull();
+					//uploading_info->ob_uid = message->ob_uid;
+
+					//timer2.reset();
+					// Start asynchronous load from PBO
+					pbo_async_tex_loader.startUploadingTexture(pbo, message->texture_data, opengl_tex, opengl_engine->getCurrentScene()->frame_num, uploading_info);
+					//conPrint("    startUploadingTexture() took  " + timer2.elapsedStringMSWIthNSigFigs());
 				}
-			
-				if(!uploading)
+				else
+				{
+					// conPrint("Failed to get free PBO for " + uInt32ToStringCommaSeparated((uint32)source_data.size()) + " B");
+
 					async_texture_loaded_messages_to_process.push_back(message); // If we failed to upload this texture, add to back of queue to try again later
+					num_PBO_acquisition_failures++;
+				}
 			}
 			catch(glare::Exception& e)
 			{
