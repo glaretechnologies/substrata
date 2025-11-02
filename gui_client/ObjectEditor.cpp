@@ -110,6 +110,9 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->audioAutoplayCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->audioLoopCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
+	connect(this->spotlightStartAngleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->spotlightEndAngleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+
 
 	this->volumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VOLUME);
 	this->volumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
@@ -362,6 +365,9 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 
 		this->spotlight_col = selected_mat->colour_rgb; // Spotlight light colour is in colour_rgb instead of emission_rgb for historical reasons.
 
+		SignalBlocker::setValue(this->spotlightStartAngleSpinBox, ::radToDegree(ob.type_data.spotlight_data.cone_start_angle));
+		SignalBlocker::setValue(this->spotlightEndAngleSpinBox,   ::radToDegree(ob.type_data.spotlight_data.cone_end_angle));
+
 		updateSpotlightColourButton();
 	}
 
@@ -519,6 +525,9 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		}
 
 		updateSpotlightColourButton();
+
+		ob_out.type_data.spotlight_data.cone_start_angle = ::degreeToRad(this->spotlightStartAngleSpinBox->value());
+		ob_out.type_data.spotlight_data.cone_end_angle   = ::degreeToRad(this->spotlightEndAngleSpinBox->value());
 	}
 
 	const URLString new_audio_source_url = toURLString(QtUtils::toStdString(this->audioFileWidget->filename()));

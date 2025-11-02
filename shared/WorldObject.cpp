@@ -568,7 +568,7 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 21;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 22;
 /*
 Version history:
 9: introduced voxels
@@ -584,10 +584,68 @@ Version history:
 19: Added last_modified_time
 20: Added centre_of_mass_offset_os
 21: Added chunk_batch0_start etc.
+22: Added per-type data (length-prefixed)
 */
 
 
 static_assert(sizeof(Voxel) == sizeof(int)*4, "sizeof(Voxel) == sizeof(int)*4");
+
+
+static void writeWorldObjectPerTypeData(RandomAccessOutStream& stream, const WorldObject& ob)
+{
+	switch(ob.object_type)
+	{
+		case WorldObject::ObjectType_Spotlight:
+		{
+			// Write length of per-type data
+			stream.writeUInt32(sizeof(WorldObject::SpotLightTypeData));
+
+			stream.writeData(&ob.type_data.spotlight_data, sizeof(WorldObject::SpotLightTypeData));
+			break;
+		}
+		default:
+		{
+			// Write length of per-type data
+			stream.writeUInt32(0);
+		}
+	}
+}
+
+
+static void readWorldObjectPerTypeData(RandomAccessInStream& stream, WorldObject& ob)
+{
+	// Read TypeData
+	const uint32 len = stream.readUInt32(); // Length of per-type data that follows this uint32.
+	const size_t start_offset = stream.getReadIndex(); // Offset at start of per-type data
+	switch(ob.object_type)
+	{
+		case WorldObject::ObjectType_Spotlight:
+		{
+			stream.readData(&ob.type_data.spotlight_data, sizeof(WorldObject::SpotLightTypeData));
+			break;
+		}
+	}
+
+	// Read any remaining type data
+	if(start_offset + len > stream.getReadIndex())
+		stream.advanceReadIndex(start_offset + len - stream.getReadIndex());
+}
+
+
+static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
+{
+	// Set default values if per-type data is not present:
+	switch(ob.object_type)
+	{
+	case WorldObject::ObjectType_Spotlight:
+		ob.type_data.spotlight_data.cone_start_angle = 0.317560429291521f; // = std::acos(0.95f); (old fixed value)
+		ob.type_data.spotlight_data.cone_end_angle   = 0.451026811796262f; // = std::acos(0.9f);  (old fixed value)
+		break;
+	default:
+		break;
+	}
+}
+
 
 
 void WorldObject::writeToStream(RandomAccessOutStream& stream) const
@@ -652,6 +710,9 @@ void WorldObject::writeToStream(RandomAccessOutStream& stream) const
 	stream.writeUInt32(chunk_batch0_end);
 	stream.writeUInt32(chunk_batch1_start);
 	stream.writeUInt32(chunk_batch1_end);
+
+	// New in v22:
+	writeWorldObjectPerTypeData(stream, *this);
 }
 
 
@@ -841,6 +902,11 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 		ob.chunk_batch1_end = stream.readUInt32();
 	}
 
+	if(v >= 22)
+		readWorldObjectPerTypeData(stream, ob); // New in v22
+	else
+		setWorldObjectPerTypeDataDefaults(ob);
+
 	// Set ephemeral state
 	ob.state = WorldObject::State_Alive;
 }
@@ -913,6 +979,9 @@ void WorldObject::writeToNetworkStream(RandomAccessOutStream& stream) const // W
 	stream.writeUInt32(chunk_batch0_end);
 	stream.writeUInt32(chunk_batch1_start);
 	stream.writeUInt32(chunk_batch1_end);
+
+	// New in v22:
+	writeWorldObjectPerTypeData(stream, *this);
 }
 
 
@@ -960,6 +1029,8 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	chunk_batch0_end = other.chunk_batch0_end;
 	chunk_batch1_start = other.chunk_batch1_start;
 	chunk_batch1_end = other.chunk_batch1_end;
+
+	type_data = other.type_data;
 
 	physics_owner_id = other.physics_owner_id;
 	last_physics_ownership_change_global_time = other.last_physics_ownership_change_global_time;
@@ -1242,6 +1313,11 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 		ob.chunk_batch1_start = stream.readUInt32();
 		ob.chunk_batch1_end = stream.readUInt32();
 	}
+
+	if(!stream.endOfStream())
+		readWorldObjectPerTypeData(stream, ob);
+	else
+		setWorldObjectPerTypeDataDefaults(ob);
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;
@@ -1627,6 +1703,7 @@ void doDestroyOb(WorldObject* ob)
 #include <utils/BufferOutStream.h>
 #include <utils/BufferViewInStream.h>
 #include <utils/TestUtils.h>
+#include <utils/FileInStream.h>
 #include <utils/FileOutStream.h>
 
 
@@ -1739,9 +1816,22 @@ void WorldObject::test()
 	testAssert(getLODLevelForURL("something") == 0);
 	testAssert(getLODLevelForURL("") == 0);
 
-
 	try
 	{
+
+		//--------------------------- Test reading a v21 spotlight model ----------------------------
+		{
+			FileInStream file("C:\\code\\substrata\\testfiles\\world_objects\\spotlight_world_object_503_v21.bin");
+			WorldObject ob;
+			readWorldObjectFromStream(file, ob);
+			testAssert(ob.uid == UID(503));
+			testAssert(ob.object_type == WorldObject::ObjectType_Spotlight);
+
+			// Test defaults are set
+			testAssert(ob.type_data.spotlight_data.cone_start_angle == 0.317560429291521f); // = std::acos(0.95f); (old fixed value)
+			testAssert(ob.type_data.spotlight_data.cone_end_angle   == 0.451026811796262f); // = std::acos(0.9f);  (old fixed value)
+		}
+
 
 		{
 			WorldObject ob;

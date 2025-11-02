@@ -140,6 +140,8 @@ static const float recip_chunk_w = 1.f / chunk_w;
 
 static const URLString DEFAULT_AVATAR_MODEL_URL = "xbot.bmesh"; // This file should be in the resources directory in the distribution.
 
+static const float MIN_SPOTLIGHT_CONE_ANGLE = 0.087266f;
+
 
 GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args)
 :	base_dir_path(base_dir_path_),
@@ -1863,7 +1865,8 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 
 
 // Compute approximate spectral radiance of the emitter, from the given luminous flux, multiplied by 1.0e-9 (to avoid precision issues in shaders)
-static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_angle_start, float cone_cos_angle_end, float& scale_out)
+// Angles are in radians.
+static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_start_angle, float cone_end_angle, float& scale_out)
 {
 	if(ob.materials.size() >= 1 && ob.materials[0].nonNull())
 	{
@@ -1889,7 +1892,7 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 
 		L_e = 1 / (683 * 106 * 10^-9 * 2pi(1 - cos(alpha))
 		*/
-		const float use_cone_angle = (std::acos(cone_cos_angle_start) + std::acos(cone_cos_angle_end)) * 0.5f; // Average of start and end cone angles.
+		const float use_cone_angle = (cone_start_angle + cone_end_angle) * 0.5f; // Average of start and end cone angles.
 		const float L_e = ob.materials[0]->emission_lum_flux_or_lum / (683.002f * 106.856e-9f * Maths::get2Pi<float>() * (1 - cos(use_cone_angle))) * 1.0e-9f;
 		scale_out = L_e;
 		return Colour4f(ob.materials[0]->colour_rgb.r * L_e, ob.materials[0]->colour_rgb.g * L_e, ob.materials[0]->colour_rgb.b * L_e, 1.f);
@@ -2220,14 +2223,20 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
+				const float use_cone_start_angle = myClamp(ob->type_data.spotlight_data.cone_start_angle, MIN_SPOTLIGHT_CONE_ANGLE, Maths::pi<float>() - 0.01f);
+				const float use_cone_end_angle = myClamp(
+					myMax(ob->type_data.spotlight_data.cone_end_angle, ob->type_data.spotlight_data.cone_start_angle + 0.01f), // end angle should be >= start angle.
+					MIN_SPOTLIGHT_CONE_ANGLE + 0.01f, Maths::pi<float>());
+
 				GLLightRef light = new GLLight();
 				light->gpu_data.pos = ob->pos.toVec4fPoint();
 				light->gpu_data.dir = normalise(ob_to_world_matrix * Vec4f(0, 0, -1, 0));
 				light->gpu_data.light_type = 1; // spotlight
-				light->gpu_data.cone_cos_angle_start = 0.9f;
-				light->gpu_data.cone_cos_angle_end = 0.95f;
+				light->gpu_data.cone_min_cos_angle = std::cos(use_cone_end_angle);
+				light->gpu_data.cone_max_cos_angle = std::cos(use_cone_start_angle); 
+				assert(light->gpu_data.cone_min_cos_angle < light->gpu_data.cone_max_cos_angle);
 				float scale;
-				light->gpu_data.col = computeSpotlightColour(*ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
+				light->gpu_data.col = computeSpotlightColour(*ob, use_cone_start_angle, use_cone_end_angle, scale);
 				light->max_light_dist = myMin(15.f, 4.f * myMax(light->gpu_data.col[0], light->gpu_data.col[1], light->gpu_data.col[2]));
 				
 				// Apply a light emitting material to the light surface material in the spotlight model.
@@ -11632,8 +11641,17 @@ void GUIClient::updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_ma
 	{
 		light->gpu_data.dir = normalise(ob_to_world_matrix * Vec4f(0, 0, -1, 0));
 
+		const float use_cone_start_angle = myClamp(ob->type_data.spotlight_data.cone_start_angle, MIN_SPOTLIGHT_CONE_ANGLE, Maths::pi<float>() - 0.01f);
+		const float use_cone_end_angle = myClamp(
+			myMax(ob->type_data.spotlight_data.cone_end_angle, ob->type_data.spotlight_data.cone_start_angle + 0.01f), // end angle should be >= start angle.
+			MIN_SPOTLIGHT_CONE_ANGLE + 0.01f, Maths::pi<float>());
+
+		light->gpu_data.cone_min_cos_angle = std::cos(use_cone_end_angle);
+		light->gpu_data.cone_max_cos_angle = std::cos(use_cone_start_angle); 
+		assert(light->gpu_data.cone_min_cos_angle < light->gpu_data.cone_max_cos_angle);
+
 		float scale;
-		light->gpu_data.col = computeSpotlightColour(*ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
+		light->gpu_data.col = computeSpotlightColour(*ob, use_cone_start_angle, use_cone_end_angle, scale);
 
 		opengl_engine->setLightPos(light, ob->pos.toVec4fPoint());
 
