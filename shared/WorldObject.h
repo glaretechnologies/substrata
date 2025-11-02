@@ -352,6 +352,19 @@ public:
 	uint32 chunk_batch1_start;
 	uint32 chunk_batch1_end;
 
+	// Some data that differs based on the object type (generic, spotlight etc.)
+	struct SpotLightTypeData
+	{
+		float cone_start_angle;
+		float cone_end_angle;
+	};
+
+	union TypeData
+	{
+		SpotLightTypeData spotlight_data;
+
+	} type_data;
+
 
 	uint32 physics_owner_id;
 	double last_physics_ownership_change_global_time; // Last change or renewal time.

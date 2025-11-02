@@ -1772,6 +1772,9 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	new_world_object->angle = 0;
 	new_world_object->scale = Vec3f(1.f);
 
+	new_world_object->type_data.spotlight_data.cone_start_angle = 0.317560429291521f; // = std::acos(0.95f); (old fixed value)
+	new_world_object->type_data.spotlight_data.cone_end_angle   = 0.451026811796262f; // = std::acos(0.9f);  (old fixed value)
+
 	// Emitting material
 	new_world_object->materials.push_back(new WorldMaterial());
 	new_world_object->materials.back()->emission_lum_flux_or_lum = 100000.f;
