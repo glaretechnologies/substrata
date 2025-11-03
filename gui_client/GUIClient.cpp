@@ -3774,7 +3774,7 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 	}
 
 	// Update physics object
-	if(ob->physics_object.nonNull())
+	if(ob->physics_object)
 	{
 		physics_world->setNewObToWorldTransform(*ob->physics_object, new_ob_pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle), useScaleForWorldOb(ob->scale).toVec4fVector());
 
@@ -6576,9 +6576,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				{
 					enableMaterialisationEffectOnOb(*ob);
 
-					// Set physics and object transforms here explictly instead of relying on interpolation or whatever.
+					// Set physics and object transforms here explicitly instead of relying on interpolation or whatever.
 					// This is because summoning moves objects discontinuously, so we don't want to interpolate.
-					if(ob->physics_object.nonNull())
+					if(ob->physics_object)
 					{
 						physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), 
 							Vec4f(0), Vec4f(0));
@@ -6658,7 +6658,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								if(global_time >= desired_insertion_time)
 								{
 									// conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
-									if(ob->physics_object.nonNull())
+									if(ob->physics_object)
 									{
 										const Vec4f old_effective_pos = ob->physics_object->smooth_translation + ob->physics_object->pos;
 										const Quatf old_effective_rot = ob->physics_object->smooth_rotation    * ob->physics_object->rot;
@@ -6689,7 +6689,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 							}
 
-							if(ob->physics_object.nonNull())
+							if(ob->physics_object)
 							{
 								// Update in physics engine
 								physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), rot, useScaleForWorldOb(ob->scale).toVec4fVector());
@@ -10388,7 +10388,7 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					}
 
 					// Update physics object transform
-					if(in_world_ob->physics_object.nonNull())
+					if(in_world_ob->physics_object)
 					{
 						physics_world->setNewObToWorldTransform(*in_world_ob->physics_object, in_world_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(in_world_ob->axis.toVec4fVector()), in_world_ob->angle), 
 							useScaleForWorldOb(in_world_ob->scale).toVec4fVector());
@@ -11144,8 +11144,9 @@ void GUIClient::objectTransformEdited()
 				opengl_engine->updateObjectTransformData(*opengl_ob);
 
 				// Update physics object transform
-				physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
-					useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+				if(selected_ob->physics_object)
+					physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+						useScaleForWorldOb(selected_ob->scale).toVec4fVector());
 
 				selected_ob->transformChanged(); // Recompute centroid_ws, biased_aabb_len etc..
 
@@ -11528,9 +11529,12 @@ void GUIClient::objectEdited()
 					opengl_engine->updateObjectTransformData(*opengl_ob);
 
 					// Update physics object transform
-					selected_ob->physics_object->collidable = selected_ob->isCollidable();
-					physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
-						useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+					if(selected_ob->physics_object)
+					{
+						selected_ob->physics_object->collidable = selected_ob->isCollidable();
+						physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+							useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+					}
 
 					// Update in Indigo view
 					//ui->indigoView->objectTransformChanged(*selected_ob);
@@ -13545,7 +13549,8 @@ void GUIClient::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), new_q, useScaleForWorldOb(ob->scale).toVec4fVector());
+		if(ob->physics_object)
+			physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), new_q, useScaleForWorldOb(ob->scale).toVec4fVector());
 
 		// Update in Indigo view
 		//ui->indigoView->objectTransformChanged(*ob);
