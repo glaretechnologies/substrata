@@ -12826,7 +12826,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 						bool voxels_changed = false;
 
-						if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl)) //e->modifiers & Qt::ControlModifier)
+						if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl))
 						{
 							const Vec4f point_off_surface = hitpos_ws + results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
 
@@ -12981,6 +12981,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 	{
 		removeAnimatedTextureUse(*ob->opengl_engine_ob, *animated_texture_manager);
 		opengl_engine->removeObject(ob->opengl_engine_ob);
+		ob->opengl_engine_ob = nullptr;
 	}
 
 	if(ob->opengl_light.nonNull())
@@ -13040,8 +13041,8 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		physics_ob->scale = useScaleForWorldOb(ob->scale);
 
 		ob->opengl_engine_ob = gl_ob;
-		//opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
-		assignLoadedOpenGLTexturesToMats(ob.ptr()); // TEMP TEST
+		opengl_engine->addObject(gl_ob);
+		assignLoadedOpenGLTexturesToMats(ob.ptr());
 
 		// Update in Indigo view
 		//ui->indigoView->objectAdded(*ob, *this->resource_manager);
