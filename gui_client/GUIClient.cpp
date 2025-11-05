@@ -819,10 +819,12 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	}
 	else
 	{
-		// If we can't create a dedicated upload thread, use async uploads with VBO/PBO pools.
+		// If we can't create a dedicated upload thread, use async uploads with VBO/PBO pools, except on Mac on which async stuff is broken (of course).
+#if !defined(__APPLE__)
 		pbo_pool = new PBOPool();
 		vbo_pool       = new VBOPool(GL_ARRAY_BUFFER);
 		index_vbo_pool = new VBOPool(GL_ELEMENT_ARRAY_BUFFER); // WebGL requires index data and vertex data to be kept separate
+#endif
 	}
 
 	checkCreateManagersAndMinimap();
@@ -8008,7 +8010,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			ModelLoadedThreadMessage* loaded_msg = checkedDowncastPtr<ModelLoadedThreadMessage>(msg);
 
-			if(loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize())
+			if(vbo_pool && (loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize()))
 				async_model_loaded_messages_to_process.push_back(loaded_msg);
 			else
 				model_loaded_messages_to_process.push_back(loaded_msg);
@@ -8026,7 +8028,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			}
 			else
 			{
-				if(loaded_msg->texture_data->frame_size_B <= pbo_pool->getLargestPBOSize())
+				if(pbo_pool && (loaded_msg->texture_data->frame_size_B <= pbo_pool->getLargestPBOSize()))
 					async_texture_loaded_messages_to_process.push_back(loaded_msg);
 				else
 					texture_loaded_messages_to_process.push_back(loaded_msg);
