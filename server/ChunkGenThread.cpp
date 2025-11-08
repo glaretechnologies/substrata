@@ -321,7 +321,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 					imagemap = imagemapseq->images[0].ptr();
 				}
 				else
-					throw glare::Exception("Unhandled texture type.");
+					throw glare::Exception("Unhandled texture type (not ImageMapUInt8 or ImageMapSequenceUInt8).");
 
 
 				const int new_W = 64;
