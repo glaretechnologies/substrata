@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/WorldObject.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
+#include <opengl/PBOPool.h>
 #include <webserver/Escaping.h>
 #include <utils/Base64.h>
 #include <utils/StringUtils.h>
@@ -431,7 +432,7 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 									//else
 									//	conPrint("Can't start loading into next tex i " + toString(info.next_tex_i) + ", is currently applied");
 								}
-								else
+								else if(gui_client->pbo_pool) // Else if we are doing async texture uploads (which use the PBOPool):
 								{
 									// Insert message into gui_client async_texture_loaded_messages_to_process, which will load the frame in an async manner on the main OpenGL context.
 									// Note that when loading this way (as opposed to using a separate upload thread), we seem to be able to get away with just updating
@@ -442,6 +443,14 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 									msg->load_into_frame_i = info.cur_frame_i;
 										
 									gui_client->async_texture_loaded_messages_to_process.push_back(msg);
+								}
+								else
+								{
+									// Else synchronously update the texture with the new frame data
+									if(info.original_tex && info.original_tex->texture_data)
+									{
+										TextureLoading::loadIntoExistingOpenGLTexture(info.original_tex, *info.original_tex->texture_data, info.cur_frame_i);
+									}
 								}
 								
 								info.last_loaded_frame_i = info.cur_frame_i;
