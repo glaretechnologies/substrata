@@ -31,8 +31,6 @@ public:
 
 	void think();
 
-	void showHyperLink(const std::string& URL, const Vec2f& gl_coords);
-
 	void showMessage(const std::string& message, const Vec2f& gl_coords);
 
 	void hideMessage();

@@ -55,19 +55,6 @@ void ObInfoUI::think()
 }
 
 
-void ObInfoUI::showHyperLink(const std::string& URL, const Vec2f& gl_coords)
-{
-	const int MAX_LEN = 60;
-	std::string trimmed_URL = URL;
-	if(trimmed_URL.size() > MAX_LEN)
-	{
-		trimmed_URL = trimmed_URL.substr(0, MAX_LEN) + "...";
-	}
-
-	showMessage("Press [E] to open " + trimmed_URL, gl_coords);
-}
-
-
 void ObInfoUI::showMessage(const std::string& message, const Vec2f& gl_coords)
 {
 	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(gl_coords);

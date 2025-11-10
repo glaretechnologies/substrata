@@ -95,6 +95,8 @@ public:
 	struct ContactedEvent
 	{
 		PhysicsObject* ob;
+		JPH::SubShapeID sub_shape_id;
+		Vec3f contact_pos;
 	};
 	std::vector<ContactedEvent> contacted_events;
 

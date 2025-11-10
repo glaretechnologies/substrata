@@ -273,13 +273,16 @@ public:
 		ObjectType_VoxelGroup = 2,
 		ObjectType_Spotlight = 3,
 		ObjectType_WebView = 4,
-		ObjectType_Video = 5, // A Youtube or Twitch video, or mp4 video, with video-specific UI.
-		ObjectType_Text = 6 // Text displayed on a quad
+		ObjectType_Video = 5, // A YouTube or Twitch video, or mp4 video, with video-specific UI.
+		ObjectType_Text = 6, // Text displayed on a quad
+		ObjectType_Portal = 7 // A portal to another Substrata world or another location in the current world.
 	};
-	static const uint64 NUM_OBJECT_TYPES = 7;
+	static const uint64 NUM_OBJECT_TYPES = 8;
 
 	static std::string objectTypeString(ObjectType t);
 	static ObjectType objectTypeForString(const std::string& ob_type_string);
+
+	bool isPortal() const { return object_type == ObjectType_Portal; }
 
 	static void test();
 

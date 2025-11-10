@@ -178,6 +178,8 @@ public:
 
 	void writeJoltSnapshotToDisk(const std::string& path);
 
+	static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape);
+
 	static void test();
 private:
 	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.  TODO: can remove?
