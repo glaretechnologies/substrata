@@ -133,7 +133,8 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	CefMainArgs args;
 
 	CefSettings settings;
-	settings.log_severity = LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
+	CefString(&settings.log_file).FromString(appdata_path + "/CEF_log.txt");
+	settings.log_severity = LOGSEVERITY_DEFAULT; // LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
 
 #if defined(OSX)
 	//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
