@@ -1224,6 +1224,7 @@ elseif(WIN32)
 		mfuuid.lib
 		Mf.lib
 		d3d11.lib
+		DXGI.lib
 		
 		# RtAudio:
 		ole32
