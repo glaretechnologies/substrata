@@ -70,6 +70,7 @@
     <addaction name="actionAdd_Web_View"/>
     <addaction name="actionAdd_Video"/>
     <addaction name="actionAdd_Decal"/>
+    <addaction name="actionAdd_Portal"/>
     <addaction name="separator"/>
     <addaction name="actionCopy_Object"/>
     <addaction name="actionPaste_Object"/>
@@ -742,6 +743,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+C</string>
+   </property>
+  </action>
+  <action name="actionAdd_Portal">
+   <property name="text">
+    <string>Add Portal</string>
    </property>
   </action>
  </widget>

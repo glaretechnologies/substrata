@@ -43,6 +43,8 @@ public:
 
 	static MeshBuildingResults makeSpotlightMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator);
 
+	static MeshBuildingResults makePortalMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator);
+
 	static Reference<Indigo::Mesh> makeUnitCubeIndigoMesh();
 
 	static PhysicsShape makeUnitCubePhysicsShape(VertexBufferAllocator& allocator);

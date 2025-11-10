@@ -37,6 +37,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "ThreadMessages.h"
 #include "MeshBuilding.h"
 #include "MiniMap.h"
+#include "PlayerPhysics.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -595,6 +596,7 @@ MainWindow::~MainWindow()
 #endif
 
 	delete ui;
+	ui = nullptr;
 	
 	settings_store = nullptr;
 	// NOTE: can't delete settings here as some widget destructors access it after here.
@@ -1796,6 +1798,47 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	}
 
 	showInfoNotification("Added spotlight.");
+}
+
+
+void MainWindow::on_actionAdd_Portal_triggered()
+{
+	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + 
+		removeComponentInDir(gui_client.cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3.0f - // Forwards from the camera position, parallel to ground plane
+		Vec3d(0,0,PlayerPhysics::getEyeHeight()); // Then drop down to ground level that the player is standing on.
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = gui_client.haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create portals in a parcel that you have write permissions for.");
+		return;
+	}
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_Portal;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle, facing player.
+	new_world_object->scale = Vec3f(1.f);
+
+	new_world_object->setAABBOS(gui_client.spotlight_opengl_mesh->aabb_os);
+
+
+	// Send CreateObject message to server
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+	}
+
+	showInfoNotification("Added portal.");
 }
 
 

@@ -23,6 +23,15 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/StandardPrintOutput.h>
 #include <tracy/Tracy.hpp>
 
+#if USE_JOLT
+#include <Jolt/Jolt.h>
+#include <Jolt/Physics/Collision/Shape/Shape.h>
+#include <Jolt/Physics/Collision/Shape/CompoundShape.h>
+#include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
+#include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#endif
+
+
 
 MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAllocator& allocator)
 {
@@ -157,6 +166,45 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 	MeshBuildingResults results;
 	results.opengl_mesh_data = spotlight_opengl_mesh;
 	results.physics_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/false);
+	return results;
+}
+
+
+MeshBuilding::MeshBuildingResults MeshBuilding::makePortalMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator)
+{
+	ZoneScoped; // Tracy profiler
+
+	const std::string model_path = base_dir_path + "/data/resources/portal.bmesh";
+
+	BatchedMeshRef batched_mesh = BatchedMesh::readFromFile(model_path, /*mem allocator=*/nullptr);
+
+	batched_mesh->checkValidAndSanitiseMesh();
+
+	Reference<OpenGLMeshRenderData> portal_opengl_mesh = GLMeshBuilding::buildBatchedMesh(&allocator, batched_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+
+	js::Vector<bool> create_tris_for_mat(4, true);
+	create_tris_for_mat[3] = false; // Material with index 3 is the blue portal shader material that shouldn't be collidable.
+	PhysicsShape arch_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*build_dynamic_physics_ob=*/false, /*mem allocator=*/nullptr, &create_tris_for_mat);
+
+
+	JPH::Ref<JPH::StaticCompoundShapeSettings> compound_settings = new JPH::StaticCompoundShapeSettings();
+	compound_settings->AddShape(JPH::Vec3Arg(0,0,0), JPH::QuatArg::sIdentity(), arch_shape.jolt_shape, /*inUserData=*/0);
+
+	JPH::Ref<JPH::BoxShapeSettings> box_settings = new JPH::BoxShapeSettings(/*inHalfExtent=*/JPH::Vec3Arg(0.5f, 0.06f, 1.f));
+
+	compound_settings->AddShape(/*position=*/JPH::Vec3Arg(0,0,1.f), JPH::QuatArg::sIdentity(), box_settings, /*inUserData=*/1);
+
+
+	JPH::Result<JPH::Ref<JPH::Shape>> result = compound_settings->Create();
+	if(result.HasError())
+		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+	JPH::Ref<JPH::Shape> compound_shape = result.Get();
+
+
+	MeshBuildingResults results;
+	results.opengl_mesh_data = portal_opengl_mesh;
+	results.physics_shape.jolt_shape = compound_shape;
+	results.physics_shape.size_B = PhysicsWorld::computeSizeBForShape(compound_shape);
 	return results;
 }
 

@@ -162,6 +162,7 @@ void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 	case WorldObject::ObjectType_WebView: ob_type = "Web View"; break;
 	case WorldObject::ObjectType_Video: ob_type = "Video"; break;
 	case WorldObject::ObjectType_Text: ob_type = "Text"; break;
+	case WorldObject::ObjectType_Portal: ob_type = "Portal"; break;
 	}
 
 	std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
@@ -330,6 +331,17 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->spotlightGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_Portal)
+	{
+		this->materialsGroupBox->hide();
+		this->lightmapGroupBox->hide();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
+		this->audioGroupBox->show();
+		this->physicsSettingsGroupBox->hide();
 		this->videoGroupBox->hide();
 	}
 	else

@@ -43,7 +43,7 @@ void LoadTextureTask::run(size_t thread_index)
 	{
 		try
 		{
-			// conPrint("LoadTextureTask: processing texture '" + path + "'");
+			// conPrint("LoadTextureTask: processing texture '" + toStdString(path) + "'");
 
 			const OpenGLTextureKey& key = this->path;
 

@@ -551,6 +551,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_WebView: return "web view";
 	case ObjectType_Video: return "video";
 	case ObjectType_Text: return "text";
+	case ObjectType_Portal: return "portal";
 	default: return "Unknown";
 	}
 }
@@ -564,6 +565,7 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 	if(ob_type_string == "web view") return ObjectType_WebView;
 	if(ob_type_string == "video") return ObjectType_Video;
 	if(ob_type_string == "text") return ObjectType_Text;
+	if(ob_type_string == "portal") return ObjectType_Portal;
 	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
 }
 

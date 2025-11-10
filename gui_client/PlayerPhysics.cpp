@@ -486,7 +486,7 @@ void PlayerPhysics::OnContactAdded(const JPH::CharacterVirtual *inCharacter, con
 		if(user_data != 0)
 		{
 			PhysicsObject* physics_ob = (PhysicsObject*)user_data;
-			contacted_events.push_back(ContactedEvent({physics_ob}));
+			contacted_events.push_back(ContactedEvent({physics_ob, inSubShapeID2, toVec3f(inContactPosition)}));
 		}
 	}
 }

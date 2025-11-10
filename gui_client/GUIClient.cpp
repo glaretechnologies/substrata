@@ -620,6 +620,13 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		spotlight_shape = results.physics_shape;
 	}
 
+	// Make portal meshes
+	{
+		MeshBuilding::MeshBuildingResults results = MeshBuilding::makePortalMeshes(base_dir_path, *opengl_engine->vert_buf_allocator);
+		portal_opengl_mesh = results.opengl_mesh_data;
+		portal_shape = results.physics_shape;
+	}
+
 	// Make image cube meshes
 	{
 		MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(*opengl_engine->vert_buf_allocator);
@@ -841,6 +848,8 @@ GUIClient::~GUIClient()
 		task_manager = NULL;
 	}*/
 
+	shutdown();
+
 	if(wind_audio_source)
 		audio_engine.removeSource(wind_audio_source);
 	wind_audio_source = NULL;
@@ -913,7 +922,11 @@ void GUIClient::shutdown()
 	disconnectFromServerAndClearAllObjects();
 
 	
-	if(biome_manager) delete biome_manager;
+	if(biome_manager)
+	{
+		delete biome_manager;
+		biome_manager = nullptr;
+	}
 
 	// Remove the notifications from the UI
 	for(auto it = notifications.begin(); it != notifications.end(); ++it)
@@ -952,6 +965,8 @@ void GUIClient::shutdown()
 	hypercard_quad_opengl_mesh = NULL;
 	image_cube_opengl_mesh = NULL;
 	spotlight_opengl_mesh = NULL;
+	portal_opengl_mesh = NULL;
+	portal_shape = PhysicsShape();
 	cur_loading_mesh_data = NULL;
 	single_voxel_meshdata = NULL;
 	single_voxel_shapedata = NULL;
@@ -2190,6 +2205,81 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				recreateTextGraphicsAndPhysicsObs(ob);
 
 				loadScriptForObject(ob, world_state_lock); // Load any script for the object.
+			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_Portal)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob->shape = this->portal_shape;
+				physics_ob->is_sensor = ob->isSensor();
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = useScaleForWorldOb(ob->scale);
+
+				GLObjectRef opengl_ob = opengl_engine->allocateObject();
+				opengl_ob->mesh_data = this->portal_opengl_mesh;
+				
+				glare::ArenaFrame frame(arena_allocator);
+
+				opengl_ob->materials.resize(4);
+				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(1,1,1); // mat 0 not used
+
+				//--------------------- solid arch volume: marble material ---------------------
+				opengl_ob->materials[1].albedo_linear_rgb = Colour3f(1,1,1);
+				opengl_ob->materials[1].tex_matrix = Matrix2f(0.05f, 0, 0, 0.05f);
+
+				const URLString carrara1_tex_URL = "carrara1.jpg";
+				const OpenGLTextureKey carrara1_tex_local_abs_path = OpenGLTextureKey(base_dir_path + "/data/resources/materials/white marble/carrara1.jpg");
+				
+				opengl_ob->materials[1].tex_path = carrara1_tex_local_abs_path;
+
+				//--------------------- Inside wall of arch: gold material ---------------------
+				opengl_ob->materials[2].albedo_linear_rgb = toLinearSRGB(Colour3f(216/255.f, 207/255.f, 140/255.f)); // Inside wall of arch: gold material
+				opengl_ob->materials[2].metallic_frac = 1.f;
+				opengl_ob->materials[2].roughness = 0.3f;
+
+
+				//--------------------- portal plane: glowing blue ---------------------
+				opengl_ob->materials[3].transparent = true;
+				opengl_ob->materials[3].hologram = true;
+				opengl_ob->materials[3].emission_linear_rgb = Colour3f(0,0.5,1);
+				opengl_ob->materials[3].emission_scale = 0.5f;
+
+
+				for(size_t i=0; i<opengl_ob->materials.size(); ++i)
+				{
+					opengl_ob->materials[i].materialise_effect = use_materialise_effect;
+					opengl_ob->materials[i].materialise_start_time = ob->materialise_effect_start_time;
+				}
+
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
+
+				physics_world->addObject(ob->physics_object);
+
+				loadScriptForObject(ob, world_state_lock); // Load any script for the object.
+
+
+				// Start loading the marble texture
+				ResourceRef resource = resource_manager->getExistingResourceForURL(carrara1_tex_URL);
+				if(!resource)
+				{
+					resource = new Resource(carrara1_tex_URL, /*local (abs) path=*/base_dir_path, Resource::State_Present, UserID(), /*external_resource=*/true);
+					resource_manager->addResource(resource);
+				}
+				startLoadingTextureForLocalPath(carrara1_tex_local_abs_path, resource, ob->getCentroidWS(), ob->getAABBWSLongestLength(), /*max task dist=*/1.0e10f, 1.f, TextureParams());
+				loading_texture_URL_to_world_ob_UID_map[carrara1_tex_URL].insert(ob->uid);
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
@@ -5585,6 +5675,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	const bool world_render_has_keyboard_focus = gl_ui ? gl_ui->getKeyboardFocusWidget().isNull() : false;
 
+	std::string touched_portal_target_URL;
+
 	{
 		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
 		processPlayerPhysicsInput((float)dt, world_render_has_keyboard_focus, /*input_out=*/physics_input); // sets player physics move impulse.
@@ -5646,9 +5738,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				physics_world->think(substep_dt); // Advance physics simulation
 
 				// Process contact events for objects that the player touched.
-				// Take physics ownership of any such object if needed.
+				if(!player_physics.contacted_events.empty())
 				{
-					Lock world_state_lock(this->world_state->mutex);
+					WorldStateLock world_state_lock(this->world_state->mutex);
+
 					for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
 					{
 						PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
@@ -5658,28 +5751,16 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 							// conPrint("Player contacted object " + ob->uid.toString());
 						
+							// Take physics ownership of any such object if needed.
 							if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
 							{
 								// conPrint("==Taking ownership of physics object from avatar physics contact...==");
 								takePhysicsOwnershipOfObject(*ob, global_time);
 							}
-						}
-					}
-				}
 
-				// Execute script events on any player contacted events.
-				// These are events generated in PlayerPhysics::update() by contact between the virtual character controller and Jolt bodies.
-				{
-					WorldStateLock world_state_lock(this->world_state->mutex);
-					for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
-					{
-						PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
-						if(physics_ob->userdata && (physics_ob->userdata_type == 0)) // WorldObject
-						{
-							WorldObject* ob = (WorldObject*)physics_ob->userdata;
-					
-							// conPrint("timerEvent: player hit ob UID: " + ob->uid.toString());
-					
+
+							// Execute script events on any player contacted events.
+							// These are events generated in PlayerPhysics::update() by contact between the virtual character controller and Jolt bodies.
 							// Run script
 							if(ob->event_handlers && ob->event_handlers->onUserTouchedObject_handlers.nonEmpty())
 							{
@@ -5699,11 +5780,24 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 									enqueueMessageToSend(*client_thread, scratch_packet);
 								}
 							}
+
+							// Handle walking through portals
+							if(ob->object_type == WorldObject::ObjectType_Portal)
+							{
+								JPH::SubShapeID remainder;
+								const uint32 subshape = player_physics.contacted_events[z].sub_shape_id.PopID(/*num bits=*/1, remainder);
+								if(subshape == 1) // If touched inner plane collider in portal:
+								{
+									// conPrint("Touched inner portal collider!");
+									touched_portal_target_URL = ob->target_url;
+								}
+							}
 						}
 					}
-				}
 
-				player_physics.contacted_events.resize(0);
+					player_physics.contacted_events.resize(0);
+				} // end if(!player_physics.contacted_events.empty())
+				
 
 
 				// Process vehicle controllers for any vehicles we are not driving:
@@ -5720,6 +5814,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			}
 		}
 	}
+
+	if(hasPrefix(touched_portal_target_URL, "sub://"))
+		visitSubURL(touched_portal_target_URL);
 
 
 	player_physics.zeroMoveDesiredVel();
@@ -11888,6 +11985,25 @@ void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://
 		this->cam_controller.setFirstAndThirdPersonPositions(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 		this->player_physics.setEyePosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 	}
+
+	// Enable materialise effect on our avatar
+	{
+		WorldStateLock lock(this->world_state->mutex);
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* avatar = it->second.getPointer();
+			if(avatar->isOurAvatar() && avatar->graphics.skinned_gl_ob)
+			{
+				const float current_time = (float)Clock::getTimeSinceInit();
+				for(size_t z=0; z<avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+				{
+					avatar->graphics.skinned_gl_ob->materials[z].materialise_effect = true;
+					avatar->graphics.skinned_gl_ob->materials[z].materialise_start_time = current_time;
+				}
+				opengl_engine->objectMaterialsUpdated(*avatar->graphics.skinned_gl_ob);
+			}
+		}
+	}
 }
 
 
@@ -12138,7 +12254,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	script_content_processing.clear();
 	//scatter_info_processing.clear();
 
-	texture_server->clear();
+	if(texture_server)
+		texture_server->clear();
 
 	world_state = NULL;
 
@@ -13286,7 +13403,16 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 
 						if(!selected_editable_ob)
 						{
-							ob_info_ui.showHyperLink(ob->target_url, cursor_gl_coords);
+							const int MAX_LEN = 60;
+							std::string trimmed_URL = ob->target_url;
+							if(trimmed_URL.size() > MAX_LEN)
+								trimmed_URL = trimmed_URL.substr(0, MAX_LEN) + "...";
+
+							if(ob->isPortal())
+								ob_info_ui.showMessage("Walk through to visit " + trimmed_URL, cursor_gl_coords);
+							else
+								ob_info_ui.showMessage("Press [E] to open " + trimmed_URL, cursor_gl_coords);
+
 							show_mouseover_info_ui = true;
 						}
 					}
@@ -14737,7 +14863,7 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 					}
 				}
 
-				if(!ob->target_url.empty()) // And the object has a target URL:
+				if(!ob->target_url.empty() && !ob->isPortal()) // And the object has a target URL: (and is not a portal; portals should be walked through, not E-pressed)
 				{
 					// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
 					const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);

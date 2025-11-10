@@ -145,7 +145,7 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 
 void WorldSettingsWidget::updateControlsEditable()
 {
-	const bool editable = main_window->connectedToUsersWorldOrGodUser();
+	const bool editable = main_window && main_window->connectedToUsersWorldOrGodUser();
 
 	for(int i=0; i<terrainSectionScrollAreaWidgetContents->layout()->count(); ++i)
 	{

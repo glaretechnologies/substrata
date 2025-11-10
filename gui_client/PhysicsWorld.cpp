@@ -715,7 +715,7 @@ void PhysicsWorld::moveKinematicObject(PhysicsObject& object, const Vec4f& trans
 }
 
 
-static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
+size_t PhysicsWorld::computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
 {
 	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
 

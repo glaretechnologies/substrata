@@ -503,6 +503,9 @@ public:
 	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
 	PhysicsShape spotlight_shape;
 
+	Reference<OpenGLMeshRenderData> portal_opengl_mesh;
+	PhysicsShape portal_shape;
+
 	PhysicsShape unit_cube_shape;
 
 	Reference<MeshData> single_voxel_meshdata;
