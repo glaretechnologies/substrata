@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!-- based on https://indigorenderer.com/materials/materials/1482 -->
+
+<material>
+	<name>Gold</name>
+
+	<colour_rgb>0.847 0.8117 0.549</colour_rgb>
+
+	<roughness>
+		<val>0.3</val>
+	</roughness>
+
+	<metallic_fraction>
+		<val>1</val>
+	</metallic_fraction>
+
+</material>
