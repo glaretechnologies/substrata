@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!-- based on https://indigorenderer.com/materials/materials/1482 -->
+
+<material>
+	<name>White Marble</name>
+
+	<colour_texture_url>white marble/carrara1.jpg</colour_texture_url>
+
+	<colour_rgb>1 1 1</colour_rgb>
+	
+	<roughness>
+		<val>0.3</val>
+	</roughness>
+	
+</material>
