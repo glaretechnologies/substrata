@@ -51,11 +51,21 @@ void LoadTextureTask::run(size_t thread_index)
 			runtimeCheck(resource.nonNull() && resource_manager.nonNull());
 			ArrayRef<uint8> texture_data_buffer;
 #if EMSCRIPTEN
-			// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
-			if(!loaded_buffer)
-				conPrint("LoadTextureTask: loaded_buffer is null for resource with URL '" + toStdString(path) + "'");
-			runtimeCheck(loaded_buffer.nonNull());
-			texture_data_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
+			Reference<SharedMemMappedFile> shared_file;
+			if(resource->external_resource)
+			{
+				// Load from disk
+				shared_file = new SharedMemMappedFile(key);
+				texture_data_buffer = ArrayRef<uint8>((const uint8*)shared_file->fileData(), shared_file->fileSize());
+			}
+			else
+			{
+				// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader
+				if(!loaded_buffer)
+					conPrint("LoadTextureTask: loaded_buffer is null for resource with URL '" + toStdString(path) + "'");
+				runtimeCheck(loaded_buffer.nonNull());
+				texture_data_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
+			}
 #else
 			MemMappedFile file(key);
 			texture_data_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
