@@ -32,7 +32,11 @@ FileUtils.rm_r("data", :verbose=>true) if File.exists?("data")
 FileUtils.mkdir_p("data", :verbose => true)
 
 FileUtils.cp_r(substrata_dir + "/resources", "data", :verbose=>true)
-FileUtils.rm_r("data/resources/materials", :verbose=>true)
+FileUtils.rm_r("data/resources/materials", :verbose=>true) # We don't need most of the materials
+
+FileUtils.mkdir_p("data/resources/materials/white marble", :verbose => true)
+FileUtils.cp(substrata_dir + "/resources/materials/white marble/carrara1.jpg", "data/resources/materials/white marble/carrara1.jpg", :verbose => true) # We need this marble texture for the Portals.
+
 FileUtils.rm_r("data/resources/models", :verbose=>true)
 
 # We just need foam_sprite_front.basis out of the sprites (used in TerrainDecalManager)
