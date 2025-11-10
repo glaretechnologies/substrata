@@ -178,12 +178,12 @@ public:
 						if(d3d_device && info.shared_texture_handle)
 						{
 							// Get the corresponding ComObHandle<ID3D11Texture2D> for info.shared_texture_handle.
-							ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>();
+							//ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>();
 							
 							ComObHandle<ID3D11Texture2D> orig_shared_texture;
-							HRESULT hr = device1->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
+							HRESULT hr = d3d_device->OpenSharedResource(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
 							if(!(SUCCEEDED(hr) && orig_shared_texture))
-								throw glare::Exception("OpenSharedResource1 failed: " + PlatformUtils::COMErrorString(hr));
+								throw glare::Exception("OpenSharedResource failed: " + PlatformUtils::COMErrorString(hr));
 
 							// Create new local shared D3D texture
 							D3D11_TEXTURE2D_DESC desc;
