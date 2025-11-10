@@ -154,10 +154,9 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 {
 	ZoneScoped; // Tracy profiler
 
-	const std::string model_path = base_dir_path + "/data/resources/spotlight5.glb";
+	const std::string model_path = base_dir_path + "/data/resources/spotlight5.bmesh";
 
-	GLTFLoadedData gltf_data;
-	BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
+	BatchedMeshRef batched_mesh = BatchedMesh::readFromFile(model_path, /*mem allocator=*/nullptr);
 
 	batched_mesh->checkValidAndSanitiseMesh();
 
