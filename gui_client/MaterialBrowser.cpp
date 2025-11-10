@@ -1,28 +1,19 @@
 /*=====================================================================
 MaterialBrowser.cpp
 -------------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2025 -
 =====================================================================*/
 #include "MaterialBrowser.h"
 
 
 #include <QtWidgets/QPushButton>
-#include <QtGui/QOffscreenSurface>
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-#include <QtOpenGL/QOpenGLFramebufferObject>
-#include <QtOpenGLWidgets/QOpenGLWidget>
-#else
-#include <QtGui/QOpenGLFramebufferObject>
-#include <QtOpenGL/QGLWidget>
-#endif
-#include <QtGui/QOpenGLContext>
-#include <QtGui/QImageWriter>
 #include "../qt/FlowLayout.h"
 #include "../shared/WorldMaterial.h"
 #include "ModelLoading.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/FrameBuffer.h>
 #include <graphics/PNGDecoder.h>
+#include <graphics/jpegdecoder.h>
 #include <graphics/SRGBUtils.h>
 #include <qt/QtUtils.h>
 #include <FileUtils.h>
@@ -30,18 +21,13 @@ Copyright Glare Technologies Limited 2019 -
 #include <ConPrint.h>
 #include <IncludeXXHash.h>
 #include <Exception.h>
-#include "../indigo/TextureServer.h"
-#include "../dll/include/IndigoMesh.h"
 
 
-#define PREVIEW_SIZE 120
+static const int PREVIEW_SIZE = 160;
 
 
 MaterialBrowser::MaterialBrowser()
-:	//fbo(NULL),
-	//context(NULL),
-	//offscreen_surface(NULL),
-	print_output(NULL)
+:	print_output(NULL)
 {
 }
 
@@ -49,120 +35,6 @@ MaterialBrowser::MaterialBrowser()
 MaterialBrowser::~MaterialBrowser()
 {
 }
-
-
-#if 0
-// Set up offscreen rendering and OpenGL engine
-// Throws glare::Exception on failure
-void MaterialBrowser::createOpenGLEngineAndSurface()
-{
-	QSurfaceFormat format;
-	format.setSamples(4); // For MSAA
-	format.setColorSpace(QSurfaceFormat::sRGBColorSpace);
-	format.setProfile(QSurfaceFormat::CoreProfile);
-#ifdef OSX
-	format.setVersion(3, 2); // We need to request version 3.2 (or above?) on OS X, otherwise we get legacy version 2.
-#endif
-
-	this->context = new QOpenGLContext();
-	this->context->setFormat(format);
-	this->context->create();
-	if(!context->isValid())
-		throw glare::Exception("MaterialBrowser: Could not create valid QOpenGLContext");
-
-	this->offscreen_surface = new QOffscreenSurface();
-	this->offscreen_surface->setFormat(context->format());
-	this->offscreen_surface->create();
-	if(!offscreen_surface->isValid())
-		throw glare::Exception("MaterialBrowser: Could not create valid QOffscreenSurface");
-
-
-	if(!context->makeCurrent(this->offscreen_surface))
-		throw glare::Exception("MaterialBrowser: Failed to make context current.");
-
-
-	OpenGLEngineSettings settings;
-	settings.enable_debug_output = true;
-	settings.shadow_mapping = true;
-	settings.compress_textures = true;
-	opengl_engine = new OpenGLEngine(settings);
-
-	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl", // data dir
-		basedir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
-		texture_server_ptr,
-		print_output
-	);
-	if(!opengl_engine->initSucceeded())
-		throw glare::Exception("MaterialBrowser: opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
-
-	QOpenGLFramebufferObjectFormat fbo_format;
-	fbo_format.setSamples(4); // For MSAA
-	fbo_format.setAttachment(QOpenGLFramebufferObject::Depth);// Seems to be needed for shadow mapping.
-	this->fbo = new QOpenGLFramebufferObject(QSize(PREVIEW_SIZE, PREVIEW_SIZE), fbo_format);
-	if(!fbo->isValid())
-		throw glare::Exception("QOpenGLFramebufferObject is invalid");
-
-	this->frame_buffer = new FrameBuffer();
-	this->frame_buffer->buffer_name = this->fbo->handle();
-	this->frame_buffer->xres = this->fbo->width();
-	this->frame_buffer->yres = this->fbo->height();
-
-	const float sun_phi = 1.f;
-	const float sun_theta = Maths::pi<float>() / 4;
-	opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
-
-	// Add env mat
-	{
-		OpenGLMaterial env_mat;
-		try
-		{
-			env_mat.albedo_texture = opengl_engine->getTexture(basedir_path + "/data/resources/sky_no_sun.exr");
-		}
-		catch(glare::Exception& e)
-		{
-			throw glare::Exception("MaterialBrowser: " + e.what());
-		}
-		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
-		opengl_engine->setEnvMat(env_mat);
-	}
-
-	// Load a ground plane into the GL engine
-	{
-		const float W = 200;
-
-		GLObjectRef ob = opengl_engine->allocateObject();
-		ob->materials.resize(1);
-		ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9f));
-		try
-		{
-			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
-		}
-		catch(glare::Exception& e)
-		{
-			throw glare::Exception("MaterialBrowser: " + e.what());
-		}
-		ob->materials[0].roughness = 0.8f;
-		ob->materials[0].fresnel_scale = 0.5f;
-		ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
-
-		ob->ob_to_world_matrix = Matrix4f::scaleMatrix(W, W, 1) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
-		ob->mesh_data = opengl_engine->getUnitQuadMeshData();
-
-		opengl_engine->addObject(ob);
-	}
-
-	const Matrix4f world_to_camera_space_matrix =  Matrix4f::rotationAroundXAxis(0.5f) * Matrix4f::translationMatrix(0, 0.8, -0.6) * Matrix4f::rotationAroundZAxis(2.5);
-
-	const float sensor_width = 0.035f;
-	const float lens_sensor_dist = 0.03f;
-	const float render_aspect_ratio = 1.0;
-
-	opengl_engine->setViewport(PREVIEW_SIZE, PREVIEW_SIZE);
-	opengl_engine->setMaxDrawDistance(100.f);
-	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
-}
-#endif
 
 
 void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, const std::string& appdata_path_, PrintOutput* print_output_)
@@ -190,80 +62,10 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 			const std::string mat_dir = ::removeDotAndExtension(filepaths[i]);
 			const std::string preview_path = mat_dir + "/preview.jpg";
-			
+		
 			QImage image;
 			image.load(QtUtils::toQString(preview_path));
 
-
-#if 0
-			const std::string EPOCH_STRING = "_4"; // Can change to invalidate cache.
-			const std::string cache_key_input = FileUtils::getFilename(filepaths[i]) + EPOCH_STRING;
-			const uint64 cache_hashkey = XXH64(cache_key_input.data(), cache_key_input.size(), 1);
-			const uint64 dir_bits = cache_hashkey >> 58; // 6 bits for the dirs => 64 subdirs in program_cache.
-			const std::string dir = ::toHexString(dir_bits);
-			const std::string cachefile_path = appdata_path + "/material_cache/" + dir + "/" + toHexString(cache_hashkey) + ".jpg";
-
-			QImage image;
-			if(FileUtils::fileExists(cachefile_path))
-			{
-				// TEMP image.load(QtUtils::toQString(cachefile_path));
-			}
-
-			if(image.isNull()) // If image on disk was not found, or failed to load:
-			{
-				if(opengl_engine.isNull())
-					createOpenGLEngineAndSurface();
-
-				assert(opengl_engine.nonNull());
-
-				// Render the preview image
-
-				// Add voxel
-				GLObjectRef voxel_ob = opengl_engine->allocateObject();
-				{
-					voxel_ob->materials.resize(1);
-
-					WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(filepaths[i], /*convert_rel_paths_to_abs_disk_paths=*/true);
-
-					ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(*mat, voxel_ob->materials[0]);
-
-					const float voxel_w = 0.5f;
-					voxel_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, voxel_w/2) * Matrix4f::rotationAroundZAxis(Maths::pi_4<float>()) *
-						Matrix4f::uniformScaleMatrix(voxel_w) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-					voxel_ob->mesh_data = opengl_engine->getCubeMeshData();
-
-					for(size_t z=0; z<voxel_ob->materials.size(); ++z)
-						voxel_ob->materials[z].albedo_texture = opengl_engine->getTexture(voxel_ob->materials[z].tex_path);
-
-					opengl_engine->addObject(voxel_ob);
-				}
-
-				opengl_engine->setTargetFrameBufferAndViewport(frame_buffer);
-				opengl_engine->draw();
-
-				glFinish();
-
-				opengl_engine->removeObject(voxel_ob);
-
-				image = fbo->toImage();
-
-				// Save image to disk.
-				try
-				{
-					const std::string path = ::eatExtension(FileUtils::getFilename(filepaths[i])) + "jpg"; // TEMP
-					//FileUtils::createDirsForPath(cachefile_path);
-					QImageWriter writer(QtUtils::toQString(path/*cachefile_path*/));
-					writer.setQuality(95);
-					const bool saved = writer.write(image);
-					if(!saved)
-						conPrint("Warning: failed to save cached material preview image to '" + cachefile_path + "'.");
-				}
-				catch(FileUtils::FileUtilsExcep& e)
-				{
-					conPrint("Warning: failed to save cached material preview image to '" + cachefile_path + "': " + e.what());
-				}
-			}
-#endif
 			QPushButton* button = new QPushButton();
 
 			button->setFixedWidth(PREVIEW_SIZE);
@@ -280,7 +82,6 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 			browser_buttons.push_back(button);
 			mat_paths.push_back(filepaths[i]);
-
 		}
 	}
 	catch(glare::Exception& e)
@@ -289,17 +90,6 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 			print_output->print("MaterialBrowser: " + e.what());
 		conPrint("Error: " + e.what());
 	}
-
-#if 0
-	// Free OpenGL engine, offscreen surfaces etc. if they were allocated.
-	if(this->frame_buffer.nonNull())
-		this->frame_buffer->buffer_name = 0; // Don't let our FrameBufferRef delete the fbo.
-	this->frame_buffer = NULL;
-	delete this->fbo;
-	opengl_engine = NULL;
-	delete this->offscreen_surface;
-	delete this->context;
-#endif
 }
 
 
@@ -313,4 +103,116 @@ void MaterialBrowser::buttonClicked()
 		{
 			emit materialSelected(mat_paths[z]);
 		}
+}
+
+
+void MaterialBrowser::renderThumbnails(Reference<OpenGLEngine> opengl_engine)
+{
+	OpenGLSceneRef old_scene = opengl_engine->getCurrentScene();
+
+	try
+	{
+		const std::string materials_dir = "C:/code/substrata/resources/materials";
+		const std::vector<std::string> file_paths = FileUtils::getFilesInDirWithExtensionFullPaths(materials_dir, "submat");
+
+		for(size_t i=0; i<file_paths.size(); ++i)
+		{
+			const std::string mat_name = ::removeDotAndExtension(FileUtils::getFilename(file_paths[i]));
+			const std::string mat_dir  = ::removeDotAndExtension(file_paths[i]);
+			const std::string preview_png_path = mat_dir + "/preview.png";
+			const std::string preview_jpeg_path = mat_dir + "/preview.jpg";
+
+			OpenGLSceneRef scene = new OpenGLScene(*opengl_engine);
+			opengl_engine->addScene(scene);
+			opengl_engine->setCurrentScene(scene);
+
+			// Add cube object with the material applied
+			{
+				GLObjectRef cube_ob = opengl_engine->allocateObject();
+				cube_ob->materials.resize(1);
+			
+				WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(file_paths[i], /*convert_rel_paths_to_abs_disk_paths=*/true);
+			
+				ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(*mat, cube_ob->materials[0]);
+			
+				const float cube_w = 0.5f;
+				cube_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, cube_w/2) * Matrix4f::rotationAroundZAxis(Maths::pi_4<float>()) *
+					Matrix4f::uniformScaleMatrix(cube_w) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+				cube_ob->mesh_data = opengl_engine->getCubeMeshData();
+			
+				// Load any textures
+				for(size_t z=0; z<cube_ob->materials.size(); ++z)
+					if(!cube_ob->materials[z].tex_path.empty())
+						cube_ob->materials[z].albedo_texture = opengl_engine->getTexture(toStdString(cube_ob->materials[z].tex_path));
+			
+				opengl_engine->addObject(cube_ob);
+			}
+
+			// Add env mat
+			{
+				OpenGLMaterial env_mat;
+				opengl_engine->setEnvMat(env_mat);
+
+				opengl_engine->setSunDir(normalise(Vec4f(0.5f, 1.f, 1.f, 0)));
+			}
+
+			// Add a ground plane
+			{
+				const float W = 200;
+			
+				GLObjectRef ob = opengl_engine->allocateObject();
+				ob->materials.resize(1);
+				ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9f));
+				ob->materials[0].albedo_texture = opengl_engine->getTexture(basedir_path + "/data/resources/obstacle.png");
+				ob->materials[0].roughness = 0.8f;
+				ob->materials[0].fresnel_scale = 0.5f;
+				ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
+			
+				ob->ob_to_world_matrix = Matrix4f::scaleMatrix(W, W, 1) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
+				ob->mesh_data = opengl_engine->getUnitQuadMeshData();
+			
+				opengl_engine->addObject(ob);
+			}
+
+			const Matrix4f world_to_camera_space_matrix = Matrix4f::rotationAroundXAxis(0.5f) * Matrix4f::translationMatrix(0, 0.8, -0.6) * Matrix4f::rotationAroundZAxis(2.5);
+
+			const float sensor_width = 0.035f;
+			const float lens_sensor_dist = 0.03f;
+			const float render_aspect_ratio = 1.0;
+
+			opengl_engine->setMainViewportDims(PREVIEW_SIZE, PREVIEW_SIZE);
+			opengl_engine->setViewportDims(PREVIEW_SIZE, PREVIEW_SIZE);
+			opengl_engine->setNearDrawDistance(0.1f);
+			opengl_engine->setMaxDrawDistance(100.f);
+			opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
+
+
+			OpenGLTextureRef target_tex = new OpenGLTexture(PREVIEW_SIZE, PREVIEW_SIZE, opengl_engine.ptr(),
+				ArrayRef<uint8>(),
+				OpenGLTextureFormat::Format_RGBA_Linear_Uint8,
+				OpenGLTexture::Filtering_Nearest,
+				OpenGLTexture::Wrapping_Clamp
+			);
+
+			opengl_engine->waitForAllBuildingProgramsToBuild();
+
+			ImageMapUInt8Ref im = opengl_engine->drawToBufferAndReturnImageMap();
+			
+			FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(preview_jpeg_path));
+			JPEGDecoder::save(im->extract3ChannelImage(), preview_jpeg_path, JPEGDecoder::SaveOptions());
+
+			// PNGDecoder::write(*im, preview_png_path);
+
+			conPrint("Wrote to " + preview_jpeg_path);
+
+			opengl_engine->removeScene(scene);
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint(e.what());
+	}
+	
+	// Restore old scene
+	opengl_engine->setCurrentScene(old_scene);
 }
