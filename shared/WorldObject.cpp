@@ -626,6 +626,8 @@ static void readWorldObjectPerTypeData(RandomAccessInStream& stream, WorldObject
 			stream.readData(&ob.type_data.spotlight_data, sizeof(WorldObject::SpotLightTypeData));
 			break;
 		}
+		default:
+			break;
 	}
 
 	// Read any remaining type data
