@@ -59,7 +59,7 @@ class EmbeddedBrowserRenderHandler : public CefRenderHandler
 {
 public:
 	EmbeddedBrowserRenderHandler(int viewport_width_, int viewport_height_, GUIClient* gui_client_, WorldObject* ob_, size_t mat_index_, bool apply_to_emission_texture_, OpenGLEngine* opengl_engine_, bool use_shared_gpu_textures_)
-	:	opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false)
+	:	opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false), num_messages_logged(0)
 	{
 		ZoneScoped; // Tracy profiler
 
@@ -161,27 +161,30 @@ public:
 		CEF_REQUIRE_UI_THREAD();
 		ZoneScoped; // Tracy profiler
 
-		if(opengl_engine && ob)
+		try
 		{
-			if(type == PET_VIEW) // page was updated (as opposed to pop-up)
+			if(opengl_engine && ob)
 			{
-				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
-				if(ob_visible)
+				if(type == PET_VIEW) // page was updated (as opposed to pop-up)
 				{
-#if defined(_WIN32)
-					gui_client->ui_interface->setGLWidgetContextAsCurrent();
-
-					ComObHandle<ID3D11Device> d3d_device((ID3D11Device*)gui_client->ui_interface->getID3D11Device());
-
-					if(d3d_device && info.shared_texture_handle)
+					const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+					if(ob_visible)
 					{
-						// Get the corresponding ComObHandle<ID3D11Texture2D> for info.shared_texture_handle.
-						ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>();
-							
-						ComObHandle<ID3D11Texture2D> orig_shared_texture;
-						HRESULT hr = device1->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
-						if(SUCCEEDED(hr) && orig_shared_texture)
+#if defined(_WIN32)
+						gui_client->ui_interface->setGLWidgetContextAsCurrent();
+
+						ComObHandle<ID3D11Device> d3d_device((ID3D11Device*)gui_client->ui_interface->getID3D11Device());
+
+						if(d3d_device && info.shared_texture_handle)
 						{
+							// Get the corresponding ComObHandle<ID3D11Texture2D> for info.shared_texture_handle.
+							ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>();
+							
+							ComObHandle<ID3D11Texture2D> orig_shared_texture;
+							HRESULT hr = device1->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
+							if(!(SUCCEEDED(hr) && orig_shared_texture))
+								throw glare::Exception("OpenSharedResource1 failed: " + PlatformUtils::COMErrorString(hr));
+
 							// Create new local shared D3D texture
 							D3D11_TEXTURE2D_DESC desc;
 							orig_shared_texture->GetDesc(&desc);
@@ -202,7 +205,7 @@ public:
 								HANDLE texture_copy_handle = Direct3DUtils::getSharedHandleForTexture(this->texture_copy);
 
 								//====================== Create an OpenGL texture to show the video ========================
-								conPrint("Creating new OpenGL tex for EmbeddedBrowser (tex_width: " + toString(tex_width) + ", tex_height: " + toString(tex_height));
+								gui_client->logMessage("Creating new OpenGL tex for EmbeddedBrowser (tex_width: " + toString(tex_width) + ", tex_height: " + toString(tex_height));
 
 								OpenGLMemoryObjectRef mem_ob = new OpenGLMemoryObject();
 								mem_ob->importD3D11ImageFromHandle(texture_copy_handle);
@@ -237,15 +240,27 @@ public:
 									Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/orig_shared_texture, /*dest=*/this->texture_copy);
 							}
 						}
-					}
 				
-					glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT);  // Ensure updates visible
+						glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT);  // Ensure updates visible
 #endif
+					}
+					else // else if !ob_visible:
+					{
+						discarded_dirty_updates = true;
+					}
 				}
-				else // else if !ob_visible:
-				{
-					discarded_dirty_updates = true;
-				}
+			}
+		}
+		catch(glare::Exception& e)
+		{
+			const int MAX_NUM_LOG_MESSAGES = 100;
+			if(num_messages_logged < MAX_NUM_LOG_MESSAGES)
+			{
+				gui_client->logMessage("EmbeddedBrowser::OnAcceleratedPaint() Error: " + e.what());
+
+				num_messages_logged++;
+				if(num_messages_logged == MAX_NUM_LOG_MESSAGES)
+					conPrint("Not logging any more errors, reached max.");
 			}
 		}
 	}
@@ -315,6 +330,8 @@ public:
 	bool discarded_dirty_updates; // Set to true if we didn't update the buffer when a rectangle was dirty, because the webview object was not visible by the camera.
 
 	int viewport_width, viewport_height;
+
+	int num_messages_logged;
 
 #if defined(_WIN32)
 	ComObHandle<ID3D11Texture2D> texture_copy;
@@ -1088,6 +1105,7 @@ static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL
 	browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
 	if(!browser->cef_browser)
 		throw glare::Exception("Failed to create CEF browser");
+	gui_client->logMessage("Created new CEF browser (use_shared_gpu_textures: " + boolToString(use_shared_gpu_textures) + ")");
 
 	// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
 	// See https://bitbucket.org/chromiumembedded/cef/issues/3319/burst-of-uncaptured-audio-after-creating
