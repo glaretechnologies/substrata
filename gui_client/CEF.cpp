@@ -167,7 +167,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 		CEF_initialisation_failed = true;
 	}
 
-	conPrint("CEF::initialiseCEF() took " + timer.elapsedStringMSWIthNSigFigs());
+	// conPrint("CEF::initialiseCEF() took " + timer.elapsedStringMSWIthNSigFigs());
 
 #endif // CEF_SUPPORT
 }
