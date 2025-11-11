@@ -180,10 +180,16 @@ public:
 							// Get the corresponding ComObHandle<ID3D11Texture2D> for info.shared_texture_handle.
 							ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>(); // Get newer ID3D11Device1 interface for the d3d_device object.
 							
+							// It's not clear whether to use OpenSharedResource or OpenSharedResource1, see https://github.com/chromiumembedded/cef/issues/4027
+							// For now try both
 							ComObHandle<ID3D11Texture2D> orig_shared_texture;
-							HRESULT hr = device1->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
-							if(!(SUCCEEDED(hr) && orig_shared_texture))
-								throw glare::Exception("OpenSharedResource failed: " + PlatformUtils::COMErrorString(hr));
+							HRESULT res1 = device1->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
+							if(!(SUCCEEDED(res1) && orig_shared_texture))
+							{
+								HRESULT res2 = d3d_device->OpenSharedResource(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
+								if(!(SUCCEEDED(res2) && orig_shared_texture))
+									throw glare::Exception("OpenSharedResource1 failed: " + PlatformUtils::COMErrorString(res1) + ", and OpenSharedResource failed: " + PlatformUtils::COMErrorString(res2));
+							}
 
 							// Create new local shared D3D texture
 							D3D11_TEXTURE2D_DESC desc;
