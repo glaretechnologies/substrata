@@ -178,10 +178,10 @@ public:
 						if(d3d_device && info.shared_texture_handle)
 						{
 							// Get the corresponding ComObHandle<ID3D11Texture2D> for info.shared_texture_handle.
-							//ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>();
+							ComObHandle<ID3D11Device1> device1 = d3d_device.getInterface<ID3D11Device1>(); // Get newer ID3D11Device1 interface for the d3d_device object.
 							
 							ComObHandle<ID3D11Texture2D> orig_shared_texture;
-							HRESULT hr = d3d_device->OpenSharedResource(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
+							HRESULT hr = device1->OpenSharedResource1(info.shared_texture_handle, IID_PPV_ARGS(&orig_shared_texture.ptr));
 							if(!(SUCCEEDED(hr) && orig_shared_texture))
 								throw glare::Exception("OpenSharedResource failed: " + PlatformUtils::COMErrorString(hr));
 
@@ -212,16 +212,10 @@ public:
 
 								OpenGLTextureRef video_display_opengl_tex;
 								{
-									OpenGLMemoryObjectLock mem_ob_lock(mem_ob);
+									//OpenGLMemoryObjectLock mem_ob_lock(mem_ob); // Doesn't seem to be needed, also not available with AMD drivers.
 								
 									video_display_opengl_tex = new OpenGLTexture(tex_width, tex_height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
 										OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Clamp, /*has mipmaps=*/false, /*MSAA samples=*/-1, /*num array images=*/0, mem_ob);
-
-									#define GL_TEXTURE_TILING_EXT             0x9580
-									#define GL_OPTIMAL_TILING_EXT             0x9584
-
-									video_display_opengl_tex->bind();
-									glTexParameteri(video_display_opengl_tex->getTextureTarget(), GL_TEXTURE_TILING_EXT, GL_OPTIMAL_TILING_EXT);
 
 									// Swizzle from BGRA with 0 alpha to RGBA with alpha 1.
 									video_display_opengl_tex->setSwizzle(GL_BLUE, GL_GREEN, GL_RED, GL_ONE);
@@ -253,10 +247,11 @@ public:
 		}
 		catch(glare::Exception& e)
 		{
-			const int MAX_NUM_LOG_MESSAGES = 100;
+			const int MAX_NUM_LOG_MESSAGES = 20;
 			if(num_messages_logged < MAX_NUM_LOG_MESSAGES)
 			{
 				gui_client->logMessage("EmbeddedBrowser::OnAcceleratedPaint() Error: " + e.what());
+				conPrint("EmbeddedBrowser::OnAcceleratedPaint() Error: " + e.what());
 
 				num_messages_logged++;
 				if(num_messages_logged == MAX_NUM_LOG_MESSAGES)
@@ -1085,7 +1080,7 @@ static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL
 	ZoneScoped; // Tracy profiler
 
 #if defined(_WIN32) && (CEF_VERSION_MAJOR >= 139) // The shared GPU texture stuff is only implemented for Windows for now.  We also need a version of CEF that supports it.
-	const bool use_shared_gpu_textures = opengl_engine->GL_EXT_memory_object_support && opengl_engine->GL_EXT_memory_object_win32_support && opengl_engine->GL_EXT_win32_keyed_mutex_support;
+	const bool use_shared_gpu_textures = opengl_engine->GL_EXT_memory_object_support && opengl_engine->GL_EXT_memory_object_win32_support; // && opengl_engine->GL_EXT_win32_keyed_mutex_support;
 #else
 	const bool use_shared_gpu_textures = false;
 #endif
