@@ -415,6 +415,18 @@ void MainWindow::initialiseUI()
 #ifdef _WIN32
 	// Create a GPU device.  Needed to get hardware accelerated video decoding and for hardware texture sharing for CEF.
 	Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
+
+	// Log the adapter (GPU) that was chosen:
+	{
+		ComObHandle<IDXGIDevice1> device1 = d3d_device.getInterface<IDXGIDevice1>("IDXGIDevice1");
+		ComObHandle<IDXGIAdapter> adapter;
+		HRESULT hr = device1->GetAdapter(&adapter.ptr);
+		if(hr != S_OK)
+			throw glare::Exception("GetAdapter failed: " + PlatformUtils::COMErrorString(hr));
+		DXGI_ADAPTER_DESC desc;
+		adapter->GetDesc(&desc);
+		logMessage("Direct3D device adapter: " + StringUtils::PlatformToUTF8UnicodeEncoding(desc.Description) + ", LUID: {" + toString((uint32)desc.AdapterLuid.LowPart) + ", " + toString(desc.AdapterLuid.HighPart) + "}");
+	}
 #endif //_WIN32
 
 
@@ -493,12 +505,7 @@ void MainWindow::afterGLInitInitialise()
 {
 	ZoneScoped; // Tracy profiler
 
-	if(settings->value("mainwindow/showParcels", QVariant(false)).toBool())
-	{
-		ui->actionShow_Parcels->setChecked(true);
-		gui_client.addParcelObjects();
-	}
-
+	
 	if(settings->value("mainwindow/flyMode", QVariant(false)).toBool())
 	{
 		ui->actionFly_Mode->setChecked(true);
@@ -532,6 +539,14 @@ void MainWindow::afterGLInitInitialise()
 	const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, which have twice the density of qt pixel coordinates.
 
 	gui_client.afterGLInitInitialise((double)device_pixel_ratio, ui->glWidget->opengl_engine, fonts, emoji_fonts);
+
+
+	if(settings->value("mainwindow/showParcels", QVariant(false)).toBool())
+	{
+		ui->actionShow_Parcels->setChecked(true);
+		gui_client.addParcelObjects();
+	}
+
 
 	MainWindowGLUICallbacks* glui_callbacks = new MainWindowGLUICallbacks();
 	glui_callbacks->main_window = this;
@@ -4656,6 +4671,8 @@ int main(int argc, char *argv[])
 
 			if(CEF::initialisationFailed())
 				mw.logMessage("CEF initialisation failed."); // Log CEF initialisation failure now that mw.log_window has been created.
+			else
+				mw.logMessage("CEF initialised successfully.");
 
 			mw.show(); // Calls glWidget->initializeGL() which initialises OpenGLEngine.
 
