@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/PlatformUtils.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/ConPrint.h>
+#include <utils/StringUtils.h>
 #include <utils/Timer.h>
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
 #include <cef_app.h>
@@ -134,7 +135,22 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 
 	CefSettings settings;
 	CefString(&settings.log_file).FromString(appdata_path + "/CEF_log.txt");
-	settings.log_severity = LOGSEVERITY_DEFAULT; // LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
+
+	settings.log_severity = LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
+	// Allow setting the logging level via environment variable.
+	try
+	{
+		const std::string level = PlatformUtils::getEnvironmentVariable("SUBSTRATA_CEF_LOGGING_LEVEL");
+		if(level == "LOGSEVERITY_VERBOSE")
+			settings.log_severity = LOGSEVERITY_VERBOSE;
+		else if(level == "LOGSEVERITY_INFO")
+			settings.log_severity = LOGSEVERITY_INFO;
+		else if(level == "LOGSEVERITY_DISABLE")
+			settings.log_severity = LOGSEVERITY_DISABLE;
+		conPrint("Setting CEF logging level to " + toString((int)settings.log_severity));
+	}
+	catch(glare::Exception& )
+	{}
 
 #if defined(OSX)
 	//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
