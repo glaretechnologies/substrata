@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2025 -
 #include "WinterShaderEvaluator.h"
 #include <utils/MessageableThread.h>
 #include <utils/AllocatorVector.h>
+class VideoReader;
 
 
 struct GarbageToDelete
@@ -19,6 +20,8 @@ struct GarbageToDelete
 	glare::AllocatorVector<uint16, 16> uint16_data;
 
 	Reference<WinterShaderEvaluator> winter_shader_evaluator;
+
+	Reference<VideoReader> video_reader;
 };
 
 

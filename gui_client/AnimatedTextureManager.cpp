@@ -16,6 +16,8 @@ Copyright Glare Technologies Limited 2023 -
 #include <opengl/IncludeOpenGL.h>
 #include <opengl/PBOPool.h>
 #include <webserver/Escaping.h>
+#include <video/WMFVideoReader.h>
+#include <direct3d/Direct3DUtils.h>
 #include <utils/Base64.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
@@ -24,17 +26,22 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/IncludeHalf.h>
 #include <xxhash.h>
 #include <tracy/Tracy.hpp>
+#ifdef _WIN32
+#include <d3d11.h>
+#include <d3d11_4.h>
+#endif
 
 
-AnimatedTexData::AnimatedTexData(bool is_mp4_)
-:	is_mp4(is_mp4_)
+AnimatedTexData::AnimatedTexData(size_t mat_index_, bool is_refl_tex_)
+:	shared_handle(nullptr),
+	error_occurred(false),
+	mat_index(mat_index_),
+	is_refl_tex(is_refl_tex_)
 {
 }
 
 AnimatedTexData::~AnimatedTexData()
-{
-	browser = NULL;
-}
+{}
 
 
 [[maybe_unused]] static std::string makeDataURL(const std::string& html)
@@ -46,13 +53,233 @@ AnimatedTexData::~AnimatedTexData()
 }
 
 
-void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-	size_t mat_index, AnimatedTexData& animtexdata, const OpenGLTextureKey& tex_path, bool is_refl_tex)
+struct CreateWMFVideoReaderTask : public glare::Task
 {
+	void run(size_t /*thread_index*/) override
+	{
+		try
+		{
+			Reference<WMFVideoReader> video_reader = new WMFVideoReader(/*read from video device=*/false, /*just read audio=*/false, 
+				/*URL=*/path_or_URL, dx_device_manager, /*decode to d3d tex=*/true);
+
+			video_reader->startReadingNextSample();
+
+			{
+				Lock lock(mutex);
+				video_reader_result = video_reader;
+			}
+		}
+		catch(glare::Exception& e)
+		{
+			Lock lock(mutex);
+			error_str = e.what();
+		}
+	}
+
+	Mutex mutex;
+	Reference<WMFVideoReader> video_reader_result;
+	std::string error_str;
+
+	IMFDXGIDeviceManager* dx_device_manager;
+	std::string path_or_URL;
+};
+
+
+void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
+	double anim_time, double dt, const OpenGLTextureKey& tex_path)
+{
+#if USE_WMF_FOR_MP4_PLAYBACK
+	if(!video_reader && !tex_path.empty())
+	{
+		if(!error_occurred)
+		{
+			if(!create_vid_reader_task)
+			{
+				ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
+				if(resource && resource->isPresent())
+				{
+					gui_client->logMessage("Creating WMFVideoReader to play vid, URL: " + std::string(tex_path));
+
+					create_vid_reader_task = new CreateWMFVideoReaderTask();
+					create_vid_reader_task->path_or_URL = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
+					create_vid_reader_task->dx_device_manager = dx_device_manager;
+
+					task_manager.addTask(create_vid_reader_task);
+				}
+			}
+			else
+			{
+				// create_vid_reader_task has already been created, see if it is finished:
+				{
+					Lock lock(create_vid_reader_task->mutex);
+					if(!create_vid_reader_task->error_str.empty()) // If an error occurred:
+					{
+						gui_client->logMessage("Error while creating WMFVideoReader for URL '" + std::string(tex_path) + "': " + create_vid_reader_task->error_str);
+						error_occurred = true;
+					}
+					else if(create_vid_reader_task->video_reader_result)
+						video_reader = create_vid_reader_task->video_reader_result;
+				}
+
+				if(error_occurred || video_reader) // If the create_vid_reader_task was finished:
+					create_vid_reader_task = nullptr;
+			}
+		}
+	}
+
+	if(video_reader)
+	{
+		// Check if there is a new video frame to consume
+		Reference<SampleInfo> front_frame;
+		size_t queue_size;
+		{
+			Lock lock(video_reader->frame_queue.getMutex());
+			if(video_reader->frame_queue.unlockedNonEmpty())
+				front_frame = video_reader->frame_queue.unlockedDequeue();
+			queue_size = video_reader->frame_queue.size();
+		}
+		if(front_frame)
+		{
+			if(!front_frame->is_EOS_marker)
+			{
+				WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
+
+				if(front_frame->frame_time <= video_reader->timer.elapsed()) // If the play time has reached the frame presentation time:
+				{
+					if(front_frame->is_audio)
+					{
+						//conPrint("got audio frame, buffer size: " + toString(front_frame->buffer_len_B) + " B");
+						const uint32 bytes_per_sample = front_frame->bits_per_sample / 8;
+						runtimeCheck((bytes_per_sample > 0) && (front_frame->num_channels > 0)); // Avoid divide by zero
+						const uint64 num_samples = front_frame->buffer_len_B / bytes_per_sample / front_frame->num_channels;
+
+						if(!ob->audio_source)
+						{
+							// Create audio source
+							ob->audio_source = new glare::AudioSource();
+
+							// Create a streaming audio source.
+							ob->audio_source->type = glare::AudioSource::SourceType_Streaming;
+							ob->audio_source->pos = ob->getCentroidWS();
+							ob->audio_source->debugname = "animated tex: " + tex_path;
+							ob->audio_source->sampling_rate = front_frame->sample_rate_hz;// gui_client->audio_engine.getSampleRate();
+							ob->audio_source->volume = myClamp(ob->audio_volume, 0.f, 10.f);
+
+							{
+								Lock lock(gui_client->world_state->mutex);
+
+								const Parcel* parcel = gui_client->world_state->getParcelPointIsIn(ob->pos);
+								ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+							}
+
+							gui_client->audio_engine.addSource(ob->audio_source);
+						}
+
+						// Copy to our audio source
+						if(ob->audio_source)
+						{
+							temp_buf.resizeNoCopy(num_samples);
+
+							if(bytes_per_sample == 2)
+							{
+								const int16* const src_data = (const int16*)wmf_frame->frame_buffer;
+								if(front_frame->num_channels == 1)
+								{
+									runtimeCheck(num_samples * sizeof(int16) <= wmf_frame->buffer_len_B);
+									for(int z=0; z<num_samples; ++z)
+										temp_buf[z] = (float)src_data[z] * (1.f / std::numeric_limits<int16>::max());
+								}
+								else if(front_frame->num_channels == 2)
+								{
+									runtimeCheck(num_samples * 2 * sizeof(int16) <= wmf_frame->buffer_len_B);
+									for(int z=0; z<num_samples; ++z)
+									{
+										const float left  = (float)src_data[z*2 + 0] * (1.f / std::numeric_limits<int16>::max());
+										const float right = (float)src_data[z*2 + 1] * (1.f / std::numeric_limits<int16>::max());
+										temp_buf[z] = (left + right) * 0.5f;
+									}
+								}
+								else
+								{
+									for(int z=0; z<num_samples; ++z)
+										temp_buf[z] = 0.f;
+								}
+							}
+							else
+							{
+								// TODO: handle other bytes per sample
+								for(int z=0; z<num_samples; ++z)
+									temp_buf[z] = 0.f;
+							}
+
+							ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+						}
+					}
+					else // else if video frame:
+					{
+						if(!texture_copy)
+						{
+							texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
+							shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
+						}
+				
+						//----------------- Do the texture copy -----------------
+						Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
+
+
+						//====================== Create an OpenGL texture to show the video ========================
+						if(video_display_opengl_tex.isNull())
+						{
+							gl_mem_ob = new OpenGLMemoryObject();
+
+							gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
+
+							{
+								//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
+
+								video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
+									OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Clamp, /*has mipmaps=*/false, -1, 0, gl_mem_ob);
+
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
+							}
+
+							if(is_refl_tex)
+								ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
+							else
+								ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
+							ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
+							opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+						}
+
+					} // end if video frame
+
+					video_reader->startReadingNextSample();
+				}
+				else
+				{
+					// else frame is not ready to display yet, add back to front of queue.
+					video_reader->frame_queue.enqueueFront(front_frame);
+				}
+			}
+			else // Else if frame is EOS marker:
+			{
+				// conPrint("Received EOS, seeking to beginning...");
+				video_reader->seekToStart(); // Resets timer as well
+				video_reader->startReadingNextSample();
+			}
+		} // End if(front_frame)
+	}
+
+
+#else // else if !USE_WMF_FOR_MP4_PLAYBACK:
+
 #if CEF_SUPPORT
 	if(CEF::isInitialised())
 	{
-		if(animtexdata.browser.isNull() && !tex_path.empty() && ob->opengl_engine_ob.nonNull())
+		if(browser.isNull() && !tex_path.empty())
 		{
 			gui_client->logMessage("Creating browser to play vid, URL: " + std::string(tex_path));
 
@@ -95,38 +322,99 @@ void AnimatedTexObData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngin
 
 			const std::string data_URL = makeDataURL(html);
 
-			Reference<EmbeddedBrowser> browser = new EmbeddedBrowser();
-			browser->create(data_URL, width, height, gui_client, ob, /*mat index=*/mat_index, /*apply_to_emission_texture=*/!is_refl_tex, opengl_engine);
+			Reference<EmbeddedBrowser> new_browser = new EmbeddedBrowser();
+			new_browser->create(data_URL, width, height, gui_client, ob, /*mat index=*/mat_index, /*apply_to_emission_texture=*/!is_refl_tex, opengl_engine);
 
-			animtexdata.browser = browser;
+			browser = new_browser;
 		}
 	}
 #endif // CEF_SUPPORT
+
+#endif // end if !USE_WMF_FOR_MP4_PLAYBACK
 }
 
 
-AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
+void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob)
+{
+#if USE_WMF_FOR_MP4_PLAYBACK
+	if(video_reader)
+	{
+		Timer timer;
+		gui_client->logMessage("Closing video_reader (out of view distance).");
+
+		gui_client->sendVideoReaderToGarbageDeleterThread(video_reader);
+		video_reader = NULL;
+		texture_copy = NULL;
+		shared_handle = NULL;
+		
+		video_display_opengl_tex = NULL;
+		gl_mem_ob = NULL;
+		//// fast till here
+		temp_buf.clearAndFreeMem();
+		
+		
+		//create_vid_reader_task->video_reader_result = NULL;
+		conPrint("checkCloseMP4Playback: " + timer.elapsedStringMS());
+		create_vid_reader_task = NULL;
+		error_occurred = false;
+		
+		
+
+		runtimeCheck(mat_index < ob->opengl_engine_ob->materials.size());
+		if(is_refl_tex)
+			ob->opengl_engine_ob->materials[mat_index].albedo_texture = nullptr;
+		else
+			ob->opengl_engine_ob->materials[mat_index].emission_texture = nullptr;
+		opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+
+
+		// Remove audio source
+		if(ob->audio_source)
+		{
+			gui_client->audio_engine.removeSource(ob->audio_source);
+			ob->audio_source = NULL;
+		}
+
+		
+	}
+#else // else if !USE_WMF_FOR_MP4_PLAYBACK:
+
+#if CEF_SUPPORT
+	// Close any browsers for animated textures on this object.
+	if(browser)
+	{
+		gui_client->logMessage("Closing vid playback browser (out of view distance).");
+		browser = NULL;
+
+		// Remove audio source
+		if(ob->audio_source.nonNull())
+		{
+			gui_client->audio_engine.removeSource(ob->audio_source);
+			ob->audio_source = NULL;
+		}
+	}
+#endif // CEF_SUPPORT
+
+#endif // end if !USE_WMF_FOR_MP4_PLAYBACK
+}
+
+
+AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, double anim_time, double dt)
 {
 	ZoneScoped; // Tracy profiler
 
 	AnimatedTexObDataProcessStats stats;
-	stats.num_gif_textures_processed = 0;
 	stats.num_mp4_textures_processed = 0;
-	stats.num_gif_frames_advanced = 0;
 
 	if(ob->opengl_engine_ob.isNull())
 		return stats;
 
-	const bool in_cam_frustum = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+	//const bool in_cam_frustum = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 
 	// Work out if the object is sufficiently large, as seen from the camera, and sufficiently close to the camera.
 	// Gifs will play further away than mp4s.
-	bool large_enough;
 	bool mp4_large_enough;
 	{
-		const float max_dist = 200.f; // textures <= max_dist are updated
-		const float min_recip_dist = 1 / max_dist; // textures >= min_recip_dist are updated
-
 		const float max_mp4_dist = (float)AnimatedTexData::maxVidPlayDist(); // textures <= max_dist are updated
 		const float min_mp4_recip_dist = 1 / max_mp4_dist; // textures >= min_recip_dist are updated
 
@@ -135,55 +423,31 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 		const float recip_dist = (ob->getCentroidWS() - cam_position.toVec4fPoint()).fastApproxRecipLength();
 		const float proj_len = ob_w * recip_dist;
 
-		large_enough     = (proj_len > 0.01f) && (recip_dist > min_recip_dist);
 		mp4_large_enough = (proj_len > 0.01f) && (recip_dist > min_mp4_recip_dist);
 	}
 
-	if(in_cam_frustum && large_enough)
+	if(/*in_cam_frustum && */mp4_large_enough)
 	{
-		AnimatedTexObData& animation_data = *this;
-		animation_data.mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
+		this->mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
 
 		for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
 		{
 			OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
 			
 			//---- Handle animated reflection texture ----
-			AnimatedTexData* refl_data = animation_data.mat_animtexdata[m].refl_col_animated_tex_data.ptr();
+			AnimatedTexData* refl_data = this->mat_animtexdata[m].refl_col_animated_tex_data.ptr();
 			if(refl_data)
 			{
-				if(refl_data->is_mp4)
-				{
-					if(mp4_large_enough)
-					{
-						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, m, *refl_data, mat.tex_path, /*is refl tex=*/true);
-						stats.num_mp4_textures_processed++;
-					}
-				}
-				//else
-				//{
-				//	processGIFAnimatedTex(gui_client, opengl_engine, ob->opengl_engine_ob, ob, anim_time, dt, mat, mat.albedo_texture, *refl_data, mat.tex_path, /*is refl tex=*/true, stats.num_gif_frames_advanced);
-				//	stats.num_gif_textures_processed++;
-				//}
+				refl_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.tex_path);
+				stats.num_mp4_textures_processed++;
 			}
 
 			//---- Handle animated emission texture ----
-			AnimatedTexData* emission_data = animation_data.mat_animtexdata[m].emission_col_animated_tex_data.ptr();
+			AnimatedTexData* emission_data = this->mat_animtexdata[m].emission_col_animated_tex_data.ptr();
 			if(emission_data)
 			{
-				if(emission_data->is_mp4)
-				{
-					if(mp4_large_enough)
-					{
-						processMP4AnimatedTex(gui_client, opengl_engine, ob, anim_time, dt, m, *emission_data, mat.emission_tex_path, /*is refl tex=*/false);
-						stats.num_mp4_textures_processed++;
-					}
-				}
-				//else
-				//{
-				//	processGIFAnimatedTex(gui_client, opengl_engine, ob->opengl_engine_ob, ob, anim_time, dt, mat, mat.emission_texture, *emission_data, mat.emission_tex_path, /*is refl tex=*/false, stats.num_gif_frames_advanced);
-				//	stats.num_gif_textures_processed++;
-				//}
+				emission_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.emission_tex_path);
+				stats.num_mp4_textures_processed++;
 			}
 		}
 	}
@@ -192,49 +456,16 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 	// Note that we only want to do this when the object is far away, not just when it moves outside the camera frustum.
 	if(!mp4_large_enough)
 	{
-#if CEF_SUPPORT
-		// Close any browsers for animated textures on this object.
+		// Close any video readers for animated textures on this object.
 		for(size_t m=0; m<this->mat_animtexdata.size(); ++m)
 		{
-			if(this->mat_animtexdata[m].refl_col_animated_tex_data.nonNull())
-			{
-				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].refl_col_animated_tex_data;
-				if(animtexdata.browser.nonNull())
-				{
-					gui_client->logMessage("Closing vid playback browser (out of view distance).");
-					animtexdata.browser = NULL;
+			if(this->mat_animtexdata[m].refl_col_animated_tex_data)
+				this->mat_animtexdata[m].refl_col_animated_tex_data->checkCloseMP4Playback(gui_client, opengl_engine, ob);
 
-					// Remove audio source
-					if(ob->audio_source.nonNull())
-					{
-						gui_client->audio_engine.removeSource(ob->audio_source);
-						ob->audio_source = NULL;
-					}
-				}
-			}
-
-			if(this->mat_animtexdata[m].emission_col_animated_tex_data.nonNull())
-			{
-				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].emission_col_animated_tex_data;
-				if(animtexdata.browser.nonNull())
-				{
-					gui_client->logMessage("Closing vid playback browser (out of view distance).");
-					animtexdata.browser = NULL;
-
-					// Remove audio source
-					if(ob->audio_source.nonNull())
-					{
-						gui_client->audio_engine.removeSource(ob->audio_source);
-						ob->audio_source = NULL;
-					}
-				}
-			}
+			if(this->mat_animtexdata[m].emission_col_animated_tex_data)
+				this->mat_animtexdata[m].emission_col_animated_tex_data->checkCloseMP4Playback(gui_client, opengl_engine, ob);
 		}
-#endif
 	}
-
-	// If the object is sufficiently far from the camera, clean up gif playback data.
-	// NOTE: nothing to do now tex_data for animated textures is stored in the texture?
 
 	return stats;
 }
@@ -252,17 +483,18 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(OpenGLEngine* opengl_eng
 	{
 		const OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
 
+		// Reflection/albedo tex
 		if(hasExtension(mat.tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);
+				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/true);
 		}
 
 		// Emission tex
 		if(hasExtension(mat.emission_tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*is mp4=*/true);
+				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/false);
 		}
 	}
 }

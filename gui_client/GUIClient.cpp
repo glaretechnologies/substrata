@@ -89,6 +89,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../graphics/BasisDecoder.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
+#include <video/VideoReader.h>
 #include <opengl/OpenGLShader.h>
 #include <opengl/MeshPrimitiveBuilding.h>
 #include <opengl/OpenGLUploadThread.h>
@@ -726,9 +727,27 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
 			new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
 			opengl_engine->getAndIncrNextProgramIndex(),
-			/*wait for build to complete=*/true
+			/*wait for build to complete=*/true // !opengl_engine->parallel_shader_compile_support
 		);
 		opengl_engine->addProgram(parcel_shader_prog);
+		// Let any glare::Exception thrown fall through to below.
+	}
+	
+	// Make shader for portal
+	if(0)
+	{
+		const std::string use_shader_dir = base_dir_path + "/data/shaders";
+		const std::string version_directive    = opengl_engine->getVersionDirective();
+		const std::string preprocessor_defines = opengl_engine->getPreprocessorDefines();
+				
+		portal_shader_prog = new OpenGLProgram(
+			"portal prog",
+			new OpenGLShader(use_shader_dir + "/portal_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
+			new OpenGLShader(use_shader_dir + "/portal_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
+			opengl_engine->getAndIncrNextProgramIndex(),
+			/*wait for build to complete=*/!opengl_engine->parallel_shader_compile_support
+		);
+		opengl_engine->addProgram(portal_shader_prog);
 		// Let any glare::Exception thrown fall through to below.
 	}
 
@@ -2251,6 +2270,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->materials[3].hologram = true;
 				opengl_ob->materials[3].emission_linear_rgb = Colour3f(0,0.5,1);
 				opengl_ob->materials[3].emission_scale = 0.5f;
+//				opengl_ob->materials[3].shader_prog = this->portal_shader_prog;
+//				opengl_ob->materials[3].auto_assign_shader = false;
 
 
 				for(size_t i=0; i<opengl_ob->materials.size(); ++i)
@@ -2429,8 +2450,25 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				physics_world->addObject(ob->physics_object);
 
-				ob->browser_vid_player = new BrowserVidPlayer();
-				this->browser_vid_player_obs.insert(ob);
+				// If we are playing an Mp4 file, then handle it with the AnimatedTextureManager system, 
+				// which will use a Windows Media Foundation (WMF) player on Windows, and a CEF-based player on other systems.
+				if((ob->materials.size() >= 1) && hasSuffix(ob->materials[0]->emission_texture_url, "mp4"))
+				{
+					opengl_ob->materials[0].emission_tex_path = ob->materials[0]->emission_texture_url;
+
+					if(ob->animated_tex_data.isNull())
+					{
+						ob->animated_tex_data = new AnimatedTexObData();
+						this->obs_with_animated_tex.insert(ob);
+					}
+
+					ob->animated_tex_data->rescanObjectForAnimatedTextures(opengl_engine.ptr(), ob, rng, *animated_texture_manager);
+				}
+				else
+				{
+					ob->browser_vid_player = new BrowserVidPlayer();
+					this->browser_vid_player_obs.insert(ob);
+				}
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
@@ -4970,6 +5008,14 @@ void GUIClient::sendGeometryDataToGarbageDeleterThread(const Reference<OpenGLMes
 }
 
 
+void GUIClient::sendVideoReaderToGarbageDeleterThread(const Reference<VideoReader>& video_reader)
+{
+	Reference<DeleteGarbageMessage> msg = new DeleteGarbageMessage();
+	msg->garbage.video_reader = video_reader;
+	this->garbage_deleter_thread_manager.enqueueMessage(msg);
+}
+
+
 void GUIClient::sendWinterShaderEvaluatorToGarbageDeleterThread(const Reference<WinterShaderEvaluator>& script_evaluator)
 {
 	Reference<DeleteGarbageMessage> msg = new DeleteGarbageMessage();
@@ -5565,7 +5611,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		int num_gif_textures_processed = 0;
 		int num_mp4_textures_processed = 0;
-		int num_gif_frames_advanced = 0;
 
 		const double anim_time = total_timer.elapsed();
 
@@ -5579,10 +5624,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 				try
 				{
-					const AnimatedTexObDataProcessStats stats = animation_data.process(this, opengl_engine.ptr(), ob, anim_time, dt);
-					num_gif_textures_processed += stats.num_gif_textures_processed;
+					const AnimatedTexObDataProcessStats stats = animation_data.process(this, opengl_engine.ptr(), device_manager, d3d_device, model_and_texture_loader_task_manager, ob, anim_time, dt);
 					num_mp4_textures_processed += stats.num_mp4_textures_processed;
-					num_gif_frames_advanced    += stats.num_gif_frames_advanced;
 				}
 				catch(glare::Exception& e)
 				{
