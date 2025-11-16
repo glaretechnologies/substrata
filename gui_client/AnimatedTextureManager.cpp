@@ -53,6 +53,7 @@ AnimatedTexData::~AnimatedTexData()
 }
 
 
+#if USE_WMF_FOR_MP4_PLAYBACK
 struct CreateWMFVideoReaderTask : public glare::Task
 {
 	void run(size_t /*thread_index*/) override
@@ -83,6 +84,7 @@ struct CreateWMFVideoReaderTask : public glare::Task
 	IMFDXGIDeviceManager* dx_device_manager;
 	std::string path_or_URL;
 };
+#endif
 
 
 void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
