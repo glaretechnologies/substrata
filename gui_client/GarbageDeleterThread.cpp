@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2025 -
 #include "GarbageDeleterThread.h"
 
 
+#include <video/VideoReader.h>
 #include <utils/ConPrint.h>
 #include <utils/Exception.h>
 #include <utils/KillThreadMessage.h>
@@ -45,6 +46,11 @@ void GarbageDeleterThread::doRun()
 				ptr->garbage.uint8_data2.clearAndFreeMem();
 				ptr->garbage.uint32_data.clearAndFreeMem();
 				ptr->garbage.uint16_data.clearAndFreeMem();
+
+				//if(ptr->garbage.video_reader && ptr->garbage.video_reader->getRefCount() == 1)
+				//	conPrint("Deleting video_reader on GarbageDeleterThread");
+
+				ptr->garbage.video_reader = nullptr;
 			}
 			catch(glare::Exception& e)
 			{

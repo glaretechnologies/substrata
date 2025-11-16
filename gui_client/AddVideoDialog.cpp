@@ -104,7 +104,7 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 		if(hasExtension(local_path, "mp4"))
 		{
 #if defined(_WIN32)
-			Reference<WMFVideoReader> reader = new WMFVideoReader(false, /*just_read_audio=*/false, local_path, /*NULL,*/ /*reader callback=*/NULL, dev_manager, /*decode_to_d3d_tex=*/false);
+			Reference<WMFVideoReader> reader = new WMFVideoReader(false, /*just_read_audio=*/false, local_path, dev_manager, /*decode_to_d3d_tex=*/false);
 
 			// Load first frame
 			const SampleInfoRef frameinfo = reader->getAndLockNextSample(/*just_get_vid_sample=*/true);

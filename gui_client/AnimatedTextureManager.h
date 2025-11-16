@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/RefCounted.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Reference.h>
+#include <utils/ComObHandle.h>
 #include <string>
 #include <vector>
 #include <set>
@@ -24,19 +25,46 @@ class TextureData;
 class OpenGLTexture;
 class PCG32;
 class AnimatedTextureManager;
+class WMFVideoReader;
+struct IMFDXGIDeviceManager;
+struct ID3D11Device;
+struct ID3D11Texture2D;
+struct CreateWMFVideoReaderTask;
 
 
-// Each material can potentially have its own animation.  This is thus per-material data.
+// Use a Windows Media Foundation (WMF)-based player on Windows, and a CEF-based player on other systems.
+#ifdef _WIN32
+#define USE_WMF_FOR_MP4_PLAYBACK 1
+#endif
+
+
 struct AnimatedTexData : public RefCounted
 { 
-	AnimatedTexData(bool is_mp4);
+	AnimatedTexData(size_t mat_index, bool is_refl_tex);
 	~AnimatedTexData();
 
 	static double maxVidPlayDist() { return 20.0; }
 
-	Reference<EmbeddedBrowser> browser;
+	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
+		double anim_time, double dt, const OpenGLTextureKey& tex_path);
+	void checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob);
 
-	bool is_mp4;
+#if USE_WMF_FOR_MP4_PLAYBACK
+	Reference<WMFVideoReader> video_reader;
+	ComObHandle<ID3D11Texture2D> texture_copy;
+	Reference<OpenGLTexture> video_display_opengl_tex;
+	Reference<OpenGLMemoryObject> gl_mem_ob;
+	js::Vector<float> temp_buf;
+
+	Reference<CreateWMFVideoReaderTask> create_vid_reader_task;
+#else
+	Reference<EmbeddedBrowser> browser;
+#endif
+
+	/*HANDLE*/void* shared_handle;
+	bool error_occurred;
+	size_t mat_index;
+	bool is_refl_tex;
 };
 
 
@@ -49,22 +77,16 @@ struct MaterialAnimatedTexData
 
 struct AnimatedTexObDataProcessStats
 {
-	int num_gif_textures_processed;
 	int num_mp4_textures_processed;
-	int num_gif_frames_advanced;
 };
 
 struct AnimatedTexObData : public RefCounted
 {
 	std::vector<MaterialAnimatedTexData> mat_animtexdata; // size() == ob.material.size()
 
-	AnimatedTexObDataProcessStats process(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
+	AnimatedTexObDataProcessStats process(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, double anim_time, double dt);
 
 	void rescanObjectForAnimatedTextures(OpenGLEngine* opengl_engine, WorldObject* ob, PCG32& rng, AnimatedTextureManager& animated_tex_manager);
-
-private:
-	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-		size_t mat_index, AnimatedTexData& animation_data, const OpenGLTextureKey& tex_path, bool is_refl_tex);
 };
 
 

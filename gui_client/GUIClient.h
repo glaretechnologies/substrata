@@ -58,6 +58,7 @@ namespace Ui { class MainWindow; }
 class TextureServer;
 class UserDetailsWidget;
 class URLWidget;
+class VideoReader;
 class ModelLoadedThreadMessage;
 class TextureLoadedThreadMessage;
 struct tls_config;
@@ -351,6 +352,7 @@ public:
 
 	void processLoading(Timer& timer_event_timer);
 	void sendGeometryDataToGarbageDeleterThread(const Reference<OpenGLMeshRenderData>& gl_meshdata);
+	void sendVideoReaderToGarbageDeleterThread(const Reference<VideoReader>& video_reader);
 	void sendWinterShaderEvaluatorToGarbageDeleterThread(const Reference<WinterShaderEvaluator>& script_evaluator);
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
 	void createPathControlledPathVisObjects(const WorldObject& ob);
@@ -538,6 +540,7 @@ public:
 	OpenGLTextureRef default_array_tex;
 
 	Reference<OpenGLProgram> parcel_shader_prog;
+	Reference<OpenGLProgram> portal_shader_prog;
 
 	StandardPrintOutput print_output;
 	//glare::TaskManager* task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff. Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent(). Lazily created.
@@ -849,4 +852,7 @@ public:
 	AsyncGeometryUploader async_index_geom_loader;
 
 	Reference<AnimatedTextureManager> animated_texture_manager;
+
+	IMFDXGIDeviceManager* device_manager;
+	ID3D11Device* d3d_device;
 };

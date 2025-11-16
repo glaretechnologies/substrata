@@ -415,6 +415,8 @@ void MainWindow::initialiseUI()
 #ifdef _WIN32
 	// Create a GPU device.  Needed to get hardware accelerated video decoding and for hardware texture sharing for CEF.
 	Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
+	gui_client.device_manager = device_manager.ptr;
+	gui_client.d3d_device = d3d_device.ptr;
 
 	// Log the adapter (GPU) that was chosen:
 	{
