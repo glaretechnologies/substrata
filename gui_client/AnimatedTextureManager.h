@@ -32,7 +32,7 @@ struct ID3D11Texture2D;
 struct CreateWMFVideoReaderTask;
 
 
-// Use a Windows Media Foundation (WMF)-based player on Windows, and a CEF-based player on other systems.
+// Use a Windows Media Foundation (WMF)-based player on Windows, and a Chromium Embedded Framework (CEF)-based player on other systems.
 #ifdef _WIN32
 #define USE_WMF_FOR_MP4_PLAYBACK 1
 #endif
