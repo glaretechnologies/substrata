@@ -155,7 +155,7 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 						runtimeCheck((bytes_per_sample > 0) && (front_frame->num_channels > 0)); // Avoid divide by zero
 						const uint64 num_samples = front_frame->buffer_len_B / bytes_per_sample / front_frame->num_channels;
 
-						if(!ob->audio_source)
+						if(!ob->audio_source && !BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED))
 						{
 							// Create audio source
 							ob->audio_source = new glare::AudioSource();
@@ -240,7 +240,9 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 								//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
 
 								video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
-									OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Clamp, /*has mipmaps=*/false, -1, 0, gl_mem_ob);
+									OpenGLTexture::Filtering_Bilinear, 
+									(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
+									/*has mipmaps=*/false, -1, 0, gl_mem_ob);
 
 								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
 								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
@@ -268,9 +270,12 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 			}
 			else // Else if frame is EOS marker:
 			{
-				// conPrint("Received EOS, seeking to beginning...");
-				video_reader->seekToStart(); // Resets timer as well
-				video_reader->startReadingNextSample();
+				if(BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP))
+				{
+					// conPrint("Received EOS, seeking to beginning...");
+					video_reader->seekToStart(); // Resets timer as well
+					video_reader->startReadingNextSample();
+				}
 			}
 		} // End if(front_frame)
 	}
