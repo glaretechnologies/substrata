@@ -341,7 +341,6 @@ void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine*
 #if USE_WMF_FOR_MP4_PLAYBACK
 	if(video_reader)
 	{
-		Timer timer;
 		gui_client->logMessage("Closing video_reader (out of view distance).");
 
 		gui_client->sendVideoReaderToGarbageDeleterThread(video_reader);
@@ -351,15 +350,10 @@ void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine*
 		
 		video_display_opengl_tex = NULL;
 		gl_mem_ob = NULL;
-		//// fast till here
 		temp_buf.clearAndFreeMem();
 		
-		
-		//create_vid_reader_task->video_reader_result = NULL;
-		conPrint("checkCloseMP4Playback: " + timer.elapsedStringMS());
 		create_vid_reader_task = NULL;
 		error_occurred = false;
-		
 		
 
 		runtimeCheck(mat_index < ob->opengl_engine_ob->materials.size());
@@ -376,8 +370,6 @@ void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine*
 			gui_client->audio_engine.removeSource(ob->audio_source);
 			ob->audio_source = NULL;
 		}
-
-		
 	}
 #else // else if !USE_WMF_FOR_MP4_PLAYBACK:
 
