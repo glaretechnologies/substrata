@@ -88,7 +88,7 @@ struct CreateWMFVideoReaderTask : public glare::Task
 
 
 void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
-	double anim_time, double dt, const OpenGLTextureKey& tex_path)
+	double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum)
 {
 #if USE_WMF_FOR_MP4_PLAYBACK
 	if(!video_reader && !tex_path.empty())
@@ -237,45 +237,49 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 				{
 					video_reader->video_frame_queue.pop_front(); // Remove from queue
 
-					// conPrint("Presenting frame with time " + toString(front_frame->frame_time));
-
-					if(!texture_copy)
+					// If the object with the video applied is visible, copy the video frame to another texture and assign it to the object.
+					if(in_view_frustum)
 					{
-						texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
-						shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
-					}
-				
-					//----------------- Do the texture copy -----------------
-					Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
+						// conPrint("Presenting frame with time " + toString(front_frame->frame_time));
 
-
-					//====================== Create an OpenGL texture to show the video ========================
-					if(video_display_opengl_tex.isNull())
-					{
-						gl_mem_ob = new OpenGLMemoryObject();
-
-						gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
-
+						if(!texture_copy)
 						{
-							//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
-
-							video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
-								OpenGLTexture::Filtering_Bilinear, 
-								(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
-								/*has mipmaps=*/false, -1, 0, gl_mem_ob);
-
-							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
-							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
-							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
-							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
+							texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
+							shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
 						}
+				
+						//----------------- Do the texture copy -----------------
+						Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
 
-						if(is_refl_tex)
-							ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
-						else
-							ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
-						ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
-						opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+
+						//====================== Create an OpenGL texture to show the video ========================
+						if(video_display_opengl_tex.isNull())
+						{
+							gl_mem_ob = new OpenGLMemoryObject();
+
+							gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
+
+							{
+								//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
+
+								video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
+									OpenGLTexture::Filtering_Bilinear, 
+									(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
+									/*has mipmaps=*/false, -1, 0, gl_mem_ob);
+
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
+								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
+							}
+
+							if(is_refl_tex)
+								ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
+							else
+								ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
+							ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
+							opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+						}
 					}
 				}
 			}
@@ -427,10 +431,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 	if(ob->opengl_engine_ob.isNull())
 		return stats;
 
-	//const bool in_cam_frustum = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
-
 	// Work out if the object is sufficiently large, as seen from the camera, and sufficiently close to the camera.
-	// Gifs will play further away than mp4s.
 	bool mp4_large_enough;
 	{
 		const float max_mp4_dist = (float)AnimatedTexData::maxVidPlayDist(); // textures <= max_dist are updated
@@ -444,9 +445,11 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 		mp4_large_enough = (proj_len > 0.01f) && (recip_dist > min_mp4_recip_dist);
 	}
 
-	if(/*in_cam_frustum && */mp4_large_enough)
+	if(mp4_large_enough)
 	{
 		this->mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
+
+		const bool in_cam_frustum = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 
 		for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
 		{
@@ -456,7 +459,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 			AnimatedTexData* refl_data = this->mat_animtexdata[m].refl_col_animated_tex_data.ptr();
 			if(refl_data)
 			{
-				refl_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.tex_path);
+				refl_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.tex_path, in_cam_frustum);
 				stats.num_mp4_textures_processed++;
 			}
 
@@ -464,7 +467,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 			AnimatedTexData* emission_data = this->mat_animtexdata[m].emission_col_animated_tex_data.ptr();
 			if(emission_data)
 			{
-				emission_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.emission_tex_path);
+				emission_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.emission_tex_path, in_cam_frustum);
 				stats.num_mp4_textures_processed++;
 			}
 		}
