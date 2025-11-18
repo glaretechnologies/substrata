@@ -46,7 +46,7 @@ struct AnimatedTexData : public RefCounted
 	static double maxVidPlayDist() { return 20.0; }
 
 	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
-		double anim_time, double dt, const OpenGLTextureKey& tex_path);
+		double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum);
 	void checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob);
 
 #if USE_WMF_FOR_MP4_PLAYBACK
