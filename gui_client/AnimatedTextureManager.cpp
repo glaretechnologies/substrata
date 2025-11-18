@@ -131,153 +131,172 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 
 	if(video_reader)
 	{
-		// Check if there is a new video frame to consume
-		Reference<SampleInfo> front_frame;
-		size_t queue_size;
+		// Process any decoded frames: either add to audio_frame_queue or video_frame_queue.
 		{
 			Lock lock(video_reader->frame_queue.getMutex());
-			if(video_reader->frame_queue.unlockedNonEmpty())
-				front_frame = video_reader->frame_queue.unlockedDequeue();
-			queue_size = video_reader->frame_queue.size();
+			while(video_reader->frame_queue.unlockedNonEmpty())
+			{
+				Reference<SampleInfo> frame = video_reader->frame_queue.unlockedDequeue();
+				if(frame->is_audio)
+					video_reader->audio_frame_queue.push_back(frame);
+				else
+					video_reader->video_frame_queue.push_back(frame);
+			}
 		}
-		if(front_frame)
+
+		// Process any audio frames we have queued: mix down to mono and append to the audio source buffer.
+		while(video_reader->audio_frame_queue.nonEmpty())
 		{
+			Reference<SampleInfo> front_frame = video_reader->audio_frame_queue.popAndReturnFront();
+
+			assert(front_frame->is_audio);
+			WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
+
+			//conPrint("got audio frame, buffer size: " + toString(front_frame->buffer_len_B) + " B");
+			const uint32 bytes_per_sample = front_frame->bits_per_sample / 8;
+			runtimeCheck((bytes_per_sample > 0) && (front_frame->num_channels > 0)); // Avoid divide by zero
+			const uint64 num_samples = front_frame->buffer_len_B / bytes_per_sample / front_frame->num_channels;
+
+			if(!ob->audio_source && !BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED))
+			{
+				// Create audio source
+				ob->audio_source = new glare::AudioSource();
+
+				// Create a streaming audio source.
+				ob->audio_source->type = glare::AudioSource::SourceType_Streaming;
+				ob->audio_source->pos = ob->getCentroidWS();
+				ob->audio_source->debugname = "animated tex: " + tex_path;
+				ob->audio_source->sampling_rate = front_frame->sample_rate_hz;// gui_client->audio_engine.getSampleRate();
+				ob->audio_source->volume = myClamp(ob->audio_volume, 0.f, 10.f);
+
+				{
+					Lock lock(gui_client->world_state->mutex);
+
+					const Parcel* parcel = gui_client->world_state->getParcelPointIsIn(ob->pos);
+					ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+				}
+
+				gui_client->audio_engine.addSource(ob->audio_source);
+			}
+
+			// Copy to our audio source
+			if(ob->audio_source)
+			{
+				temp_buf.resizeNoCopy(num_samples);
+
+				if(bytes_per_sample == 2)
+				{
+					const int16* const src_data = (const int16*)wmf_frame->frame_buffer;
+					if(front_frame->num_channels == 1)
+					{
+						runtimeCheck(num_samples * sizeof(int16) <= wmf_frame->buffer_len_B);
+						for(int z=0; z<num_samples; ++z)
+							temp_buf[z] = (float)src_data[z] * (1.f / std::numeric_limits<int16>::max());
+					}
+					else if(front_frame->num_channels == 2)
+					{
+						runtimeCheck(num_samples * 2 * sizeof(int16) <= wmf_frame->buffer_len_B);
+						for(int z=0; z<num_samples; ++z)
+						{
+							const float left  = (float)src_data[z*2 + 0] * (1.f / std::numeric_limits<int16>::max());
+							const float right = (float)src_data[z*2 + 1] * (1.f / std::numeric_limits<int16>::max());
+							temp_buf[z] = (left + right) * 0.5f;
+						}
+					}
+					else
+					{
+						for(int z=0; z<num_samples; ++z)
+							temp_buf[z] = 0.f;
+					}
+				}
+				else
+				{
+					// TODO: handle other bytes per sample
+					for(int z=0; z<num_samples; ++z)
+						temp_buf[z] = 0.f;
+				}
+
+				ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+				// conPrint("Added " + toString(num_samples) + " samples, num samples in ob->audio_source->buffer: " + toString(ob->audio_source->buffer.size()));
+			}
+		}
+
+
+
+		// Check the video frame queue to see if there is a frame due to be presented.
+		if(video_reader->video_frame_queue.nonEmpty())
+		{
+			Reference<SampleInfo> front_frame = video_reader->video_frame_queue.front(); // Look at front video frame, but don't remove from queue yet.
+			assert(!front_frame->is_audio);
 			if(!front_frame->is_EOS_marker)
 			{
 				WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
 
-				if(front_frame->frame_time <= video_reader->timer.elapsed()) // If the play time has reached the frame presentation time:
+				// conPrint("frame_time: " + toString(front_frame->frame_time) + ", video_reader->timer: " + toString(video_reader->timer.elapsed()));
+				if(front_frame->frame_time <= video_reader->timer.elapsed()) // If the play time has reached the frame presentation time, then present the frame:
 				{
-					if(front_frame->is_audio)
+					video_reader->video_frame_queue.pop_front(); // Remove from queue
+
+					// conPrint("Presenting frame with time " + toString(front_frame->frame_time));
+
+					if(!texture_copy)
 					{
-						//conPrint("got audio frame, buffer size: " + toString(front_frame->buffer_len_B) + " B");
-						const uint32 bytes_per_sample = front_frame->bits_per_sample / 8;
-						runtimeCheck((bytes_per_sample > 0) && (front_frame->num_channels > 0)); // Avoid divide by zero
-						const uint64 num_samples = front_frame->buffer_len_B / bytes_per_sample / front_frame->num_channels;
-
-						if(!ob->audio_source && !BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED))
-						{
-							// Create audio source
-							ob->audio_source = new glare::AudioSource();
-
-							// Create a streaming audio source.
-							ob->audio_source->type = glare::AudioSource::SourceType_Streaming;
-							ob->audio_source->pos = ob->getCentroidWS();
-							ob->audio_source->debugname = "animated tex: " + tex_path;
-							ob->audio_source->sampling_rate = front_frame->sample_rate_hz;// gui_client->audio_engine.getSampleRate();
-							ob->audio_source->volume = myClamp(ob->audio_volume, 0.f, 10.f);
-
-							{
-								Lock lock(gui_client->world_state->mutex);
-
-								const Parcel* parcel = gui_client->world_state->getParcelPointIsIn(ob->pos);
-								ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
-							}
-
-							gui_client->audio_engine.addSource(ob->audio_source);
-						}
-
-						// Copy to our audio source
-						if(ob->audio_source)
-						{
-							temp_buf.resizeNoCopy(num_samples);
-
-							if(bytes_per_sample == 2)
-							{
-								const int16* const src_data = (const int16*)wmf_frame->frame_buffer;
-								if(front_frame->num_channels == 1)
-								{
-									runtimeCheck(num_samples * sizeof(int16) <= wmf_frame->buffer_len_B);
-									for(int z=0; z<num_samples; ++z)
-										temp_buf[z] = (float)src_data[z] * (1.f / std::numeric_limits<int16>::max());
-								}
-								else if(front_frame->num_channels == 2)
-								{
-									runtimeCheck(num_samples * 2 * sizeof(int16) <= wmf_frame->buffer_len_B);
-									for(int z=0; z<num_samples; ++z)
-									{
-										const float left  = (float)src_data[z*2 + 0] * (1.f / std::numeric_limits<int16>::max());
-										const float right = (float)src_data[z*2 + 1] * (1.f / std::numeric_limits<int16>::max());
-										temp_buf[z] = (left + right) * 0.5f;
-									}
-								}
-								else
-								{
-									for(int z=0; z<num_samples; ++z)
-										temp_buf[z] = 0.f;
-								}
-							}
-							else
-							{
-								// TODO: handle other bytes per sample
-								for(int z=0; z<num_samples; ++z)
-									temp_buf[z] = 0.f;
-							}
-
-							ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
-						}
+						texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
+						shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
 					}
-					else // else if video frame:
-					{
-						if(!texture_copy)
-						{
-							texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
-							shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
-						}
 				
-						//----------------- Do the texture copy -----------------
-						Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
+					//----------------- Do the texture copy -----------------
+					Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
 
 
-						//====================== Create an OpenGL texture to show the video ========================
-						if(video_display_opengl_tex.isNull())
+					//====================== Create an OpenGL texture to show the video ========================
+					if(video_display_opengl_tex.isNull())
+					{
+						gl_mem_ob = new OpenGLMemoryObject();
+
+						gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
+
 						{
-							gl_mem_ob = new OpenGLMemoryObject();
+							//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
 
-							gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
+							video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
+								OpenGLTexture::Filtering_Bilinear, 
+								(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
+								/*has mipmaps=*/false, -1, 0, gl_mem_ob);
 
-							{
-								//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
-
-								video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
-									OpenGLTexture::Filtering_Bilinear, 
-									(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
-									/*has mipmaps=*/false, -1, 0, gl_mem_ob);
-
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
-							}
-
-							if(is_refl_tex)
-								ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
-							else
-								ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
-							ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
-							opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
+							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
+							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
+							glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
 						}
 
-					} // end if video frame
-
-					video_reader->startReadingNextSample();
-				}
-				else
-				{
-					// else frame is not ready to display yet, add back to front of queue.
-					video_reader->frame_queue.enqueueFront(front_frame);
+						if(is_refl_tex)
+							ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
+						else
+							ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
+						ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
+						opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+					}
 				}
 			}
 			else // Else if frame is EOS marker:
 			{
+				video_reader->video_frame_queue.pop_front(); // Remove from queue
+
 				if(BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP))
 				{
 					// conPrint("Received EOS, seeking to beginning...");
 					video_reader->seekToStart(); // Resets timer as well
-					video_reader->startReadingNextSample();
 				}
 			}
 		} // End if(front_frame)
+
+		// Start doing some new sample reads if needed.
+		assert(video_reader->audio_frame_queue.empty()); // We should have processed all audio samples.
+		const int TARGET_NUM_FRAMES_DECODED_OR_DECODING = 6;
+		const int num_additional_samples_needed = myMax(0, TARGET_NUM_FRAMES_DECODED_OR_DECODING - (int)video_reader->video_frame_queue.size() - (int)video_reader->num_pending_reads);
+		for(int i=0; i<num_additional_samples_needed; ++i)
+			video_reader->startReadingNextSample();
 	}
 
 
