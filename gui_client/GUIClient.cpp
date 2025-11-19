@@ -727,14 +727,13 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
 			new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
 			opengl_engine->getAndIncrNextProgramIndex(),
-			/*wait for build to complete=*/true // !opengl_engine->parallel_shader_compile_support
+			/*wait for build to complete=*/!opengl_engine->parallel_shader_compile_support
 		);
 		opengl_engine->addProgram(parcel_shader_prog);
 		// Let any glare::Exception thrown fall through to below.
 	}
 	
 	// Make shader for portal
-	if(0)
 	{
 		const std::string use_shader_dir = base_dir_path + "/data/shaders";
 		const std::string version_directive    = opengl_engine->getVersionDirective();
@@ -745,9 +744,12 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			new OpenGLShader(use_shader_dir + "/portal_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
 			new OpenGLShader(use_shader_dir + "/portal_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
 			opengl_engine->getAndIncrNextProgramIndex(),
-			/*wait for build to complete=*/!opengl_engine->parallel_shader_compile_support
+			/*wait for build to complete=*/true
 		);
 		opengl_engine->addProgram(portal_shader_prog);
+
+		opengl_engine->getUniformLocations(portal_shader_prog);
+		opengl_engine->setStandardTextureUnitUniformsForProgram(*portal_shader_prog);
 		// Let any glare::Exception thrown fall through to below.
 	}
 
@@ -2265,14 +2267,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->materials[2].roughness = 0.3f;
 
 
-				//--------------------- portal plane: glowing blue ---------------------
+				//--------------------- portal plane: glowing pattern ---------------------
 				opengl_ob->materials[3].transparent = true;
-				opengl_ob->materials[3].hologram = true;
-				opengl_ob->materials[3].emission_linear_rgb = Colour3f(0,0.5,1);
-				opengl_ob->materials[3].emission_scale = 0.5f;
-//				opengl_ob->materials[3].shader_prog = this->portal_shader_prog;
-//				opengl_ob->materials[3].auto_assign_shader = false;
-
+				opengl_ob->materials[3].shader_prog = this->portal_shader_prog;
+				opengl_ob->materials[3].auto_assign_shader = false;
 
 				for(size_t i=0; i<opengl_ob->materials.size(); ++i)
 				{
