@@ -860,6 +860,8 @@ include(${GLARE_CORE_TRUNK_DIR_ENV}/opengl/opengl.cmake)
 set(substrata_shaders
 ../shaders/parcel_frag_shader.glsl
 ../shaders/parcel_vert_shader.glsl
+../shaders/portal_frag_shader.glsl
+../shaders/portal_vert_shader.glsl
 )
 
 SOURCE_GROUP(opengl/substrata_shaders FILES ${substrata_shaders})
