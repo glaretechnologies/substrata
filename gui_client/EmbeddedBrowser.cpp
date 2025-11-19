@@ -163,7 +163,7 @@ public:
 
 		try
 		{
-			if(opengl_engine && ob)
+			if(opengl_engine && ob && ob->opengl_engine_ob)
 			{
 				if(type == PET_VIEW) // page was updated (as opposed to pop-up)
 				{
