@@ -7,10 +7,13 @@ uniform float time;
 uniform vec3 colour;
 uniform vec3 campos_os;
 
+#if ORDER_INDEPENDENT_TRANSPARENCY
 // Various outputs for order-independent transparency.
 layout(location = 0) out vec4 transmittance_out;
 layout(location = 1) out vec4 accum_out;
-
+#else
+layout(location = 0) out vec4 colour_out;
+#endif
 
 uniform sampler2D fbm_tex;
 
@@ -99,10 +102,10 @@ void main()
 	{
 		float side_f = float(side);
 		const float wall_d = 0.8;
-		float left_ray_t = rayPlaneIntersect(pos_os, unit_cam_to_pos_os, -wall_d + side_f * (wall_d*2.0));
-		if(left_ray_t > 0)
+		float ray_t = rayPlaneIntersect(pos_os, unit_cam_to_pos_os, -wall_d + side_f * (wall_d*2.0));
+		if(ray_t > 0.0)
 		{
-			vec3 hitpos = pos_os + unit_cam_to_pos_os * left_ray_t;
+			vec3 hitpos = pos_os + unit_cam_to_pos_os * ray_t;
 
 			for(int i=0; i<5; ++i)
 			{
@@ -125,9 +128,12 @@ void main()
 		}
 	}
 	
-	accum_out = vec4(accum * 10.0, 0.0);
-
 
 	float T = 0.2;
+#if ORDER_INDEPENDENT_TRANSPARENCY
+	accum_out = vec4(accum * 10.0, 0.0);
 	transmittance_out = vec4(T, T, T, T);
+#else
+	colour_out = vec4(accum * 10.0, 1.0 - T);
+#endif
 }
