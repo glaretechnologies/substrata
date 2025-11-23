@@ -4,13 +4,13 @@ in vec3 normal_in;
 in vec2 texture_coords_0_in;
 
 out vec3 pos_os;
+out vec3 pos_cs;
 out vec2 texture_coords;
 
 uniform mat4 proj_matrix;
 uniform mat4 model_matrix;
 uniform mat4 view_matrix;
 uniform mat4 normal_matrix;
-uniform vec3 campos_ws;
 
 
 void main()
@@ -20,6 +20,7 @@ void main()
 	gl_Position = proj_matrix * pos_cs_vec4;
 
 	//pos_ws = pos_ws_vec4.xyz;
+	pos_cs = pos_cs_vec4.xyz;
 	pos_os = position_in;
 
 	texture_coords = texture_coords_0_in;
