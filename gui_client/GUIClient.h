@@ -132,7 +132,7 @@ GUIClient
 GUI client code that is used by both the Native GUI client that uses Qt,
 and the web client that uses SDL.
 =====================================================================*/
-class GUIClient : public ObLoadingCallbacks, public PrintOutput, public PhysicsWorldEventListener, public LuaScriptOutputHandler
+class GUIClient : public ObLoadingCallbacks, public PrintOutput, public PhysicsWorldEventListener, public LuaScriptOutputHandler, public ReloadShadersCallback
 {
 public:
 	GUIClient(const std::string& base_dir_path, const std::string& appdata_path, const ArgumentParser& args);
@@ -177,6 +177,10 @@ public:
 	virtual void print(const std::string& s) override;
 	virtual void printStr(const std::string& s) override;
 	//----------------------- End PrintOutput interface -----------------------
+
+	//----------------------- ReloadShadersCallback interface -----------------------
+	virtual void reloadShaders() override;
+	//----------------------- End ReloadShadersCallback interface -----------------------
 
 	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGestureClicked(const std::string& gesture_name);
@@ -239,6 +243,7 @@ public:
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	GLObjectRef makeSpeakerGLObject();
 public:
+	void makeShaders();
 	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock) REQUIRES(world_state->mutex);
 	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, int voxel_subsample_factor, WorldStateLock& world_state_lock);
 	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);

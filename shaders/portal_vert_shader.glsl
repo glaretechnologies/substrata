@@ -7,19 +7,18 @@ out vec3 pos_os;
 out vec3 pos_cs;
 out vec2 texture_coords;
 
-uniform mat4 proj_matrix;
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 normal_matrix;
+layout (std140) uniform PerObjectVertUniforms
+{
+	PerObjectVertUniformsStruct per_object_data;
+};
 
 
 void main()
 {
-	vec4 pos_ws_vec4 = model_matrix * vec4(position_in, 1.0);
+	vec4 pos_ws_vec4 = per_object_data.model_matrix * vec4(position_in, 1.0);
 	vec4 pos_cs_vec4 = view_matrix * pos_ws_vec4;
 	gl_Position = proj_matrix * pos_cs_vec4;
 
-	//pos_ws = pos_ws_vec4.xyz;
 	pos_cs = pos_cs_vec4.xyz;
 	pos_os = position_in;
 
