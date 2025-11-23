@@ -61,7 +61,7 @@ struct CreateWMFVideoReaderTask : public glare::Task
 		try
 		{
 			Reference<WMFVideoReader> video_reader = new WMFVideoReader(/*read from video device=*/false, /*just read audio=*/false, 
-				/*URL=*/path_or_URL, dx_device_manager, /*decode to d3d tex=*/true);
+				/*URL=*/path_or_URL, /*async_mode=*/true, dx_device_manager, /*decode to d3d tex=*/true);
 
 			video_reader->startReadingNextSample();
 

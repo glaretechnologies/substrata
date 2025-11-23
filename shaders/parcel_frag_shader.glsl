@@ -5,6 +5,7 @@ in vec2 texture_coords;
 uniform float time;
 uniform vec3 colour;
 
+// TODO: handle case where ORDER_INDEPENDENT_TRANSPARENCY is disabled.
 // Various outputs for order-independent transparency.
 layout(location = 0) out vec4 transmittance_out;
 layout(location = 1) out vec4 accum_out;
