@@ -2276,25 +2276,28 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				opengl_ob->materials.resize(4);
 				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(1,1,1); // mat 0 not used
 
+				const int inner_rim_mat_index = 0;
+				const int arch_mat_index = 1;
+				const int portal_plane_index = 3;
 				//--------------------- solid arch volume: marble material ---------------------
-				opengl_ob->materials[1].albedo_linear_rgb = Colour3f(1,1,1);
-				opengl_ob->materials[1].tex_matrix = Matrix2f(0.05f, 0, 0, 0.05f);
+				opengl_ob->materials[arch_mat_index].albedo_linear_rgb = Colour3f(1,1,1);
+				opengl_ob->materials[arch_mat_index].tex_matrix = Matrix2f(0.05f, 0, 0, 0.05f);
 
 				const URLString carrara1_tex_URL = "carrara1.jpg";
 				const OpenGLTextureKey carrara1_tex_local_abs_path = OpenGLTextureKey(base_dir_path + "/data/resources/materials/white marble/carrara1.jpg");
 				
-				opengl_ob->materials[1].tex_path = carrara1_tex_local_abs_path;
+				opengl_ob->materials[arch_mat_index].tex_path = carrara1_tex_local_abs_path;
 
 				//--------------------- Inside wall of arch: gold material ---------------------
-				opengl_ob->materials[2].albedo_linear_rgb = toLinearSRGB(Colour3f(216/255.f, 207/255.f, 140/255.f)); // Inside wall of arch: gold material
-				opengl_ob->materials[2].metallic_frac = 1.f;
-				opengl_ob->materials[2].roughness = 0.3f;
+				opengl_ob->materials[inner_rim_mat_index].albedo_linear_rgb = toLinearSRGB(Colour3f(216/255.f, 207/255.f, 140/255.f)); // Inside wall of arch: gold material
+				opengl_ob->materials[inner_rim_mat_index].metallic_frac = 1.f;
+				opengl_ob->materials[inner_rim_mat_index].roughness = 0.3f;
 
 
 				//--------------------- portal plane: glowing pattern ---------------------
-				opengl_ob->materials[3].transparent = true;
-				opengl_ob->materials[3].shader_prog = this->portal_shader_prog;
-				opengl_ob->materials[3].auto_assign_shader = false;
+				opengl_ob->materials[portal_plane_index].transparent = true;
+				opengl_ob->materials[portal_plane_index].shader_prog = this->portal_shader_prog;
+				opengl_ob->materials[portal_plane_index].auto_assign_shader = false;
 
 				for(size_t i=0; i<opengl_ob->materials.size(); ++i)
 				{

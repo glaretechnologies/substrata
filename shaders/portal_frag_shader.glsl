@@ -6,6 +6,7 @@ in vec2 texture_coords;
 uniform float time;
 uniform vec3 colour;
 uniform vec3 campos_os;
+uniform uint ob_random_num;
 
 #if ORDER_INDEPENDENT_TRANSPARENCY
 // Various outputs for order-independent transparency.
@@ -42,10 +43,10 @@ float hash( uvec2 q )
 
 #define HASH_VALUE_THRESHOLD 0.97
 
-float innerEvalSlightlyJittered(vec2 p)
+float innerEvalSlightlyJittered(vec2 p, uint seed)
 {
     ivec2 cell_coords = ivec2(floor(p));
-    float h = hash(uvec2(ivec2(10000000) + cell_coords));
+    float h = hash(uvec2(ivec2(10000000) + cell_coords) + uvec2(seed));
     
     float v = 0.0;
     if(h >= HASH_VALUE_THRESHOLD)
@@ -62,7 +63,7 @@ float innerEvalSlightlyJittered(vec2 p)
 }
 
 
-float evalStarfield(vec2 p)
+float evalStarfield(vec2 p, uint seed)
 {   
     vec2 dcoords_dx = dFdx(p);
     vec2 dcoords_dy = dFdy(p);
@@ -81,7 +82,7 @@ float evalStarfield(vec2 p)
             (dcoords_dx * float(x)) / float(rx) + 
             (dcoords_dy * float(y)) / float(ry);
             
-        v += innerEvalSlightlyJittered(coords);
+        v += innerEvalSlightlyJittered(coords, seed);
     }
     v /= float(rx*ry);
 
@@ -112,7 +113,8 @@ void main()
 				float q = float(i) * (1.0 / 40.0);
 				vec3 col = (vec3(1.0) + cos(vec3(time_offset * 0.7 + q*3.0) + vec3(6.0, 1.0, 2.0))) * vec3(0.1, 0.6, 1.0);
 				accum += max(0.0, texture(fbm_tex, 
-					vec2(q +/*q +*/ (hitpos.y /*+ q*5*/) * (0.2 /*+ q*/) * 0.01, hitpos.z + side_f * 3.0 + q*3.0) * 0.5 + vec2(-time_offset * (0.2 + q*0.3), 0.3)).x - 0.8) 
+					vec2(q +/*q +*/ (hitpos.y /*+ q*5*/) * (0.2 /*+ q*/) * 0.01, hitpos.z + side_f * 3.0 + q*3.0) * 0.5 + vec2(-time_offset * (0.2 + q*0.3), 0.3) + 
+					vec2(float(ob_random_num) * (1.0 / 4294967296.0))).x - 0.8) 
 					* col * 1.0;
 			}
 
@@ -122,7 +124,8 @@ void main()
 				float q = float(i) * (1.0 / 40.0);
 				vec3 col = (vec3(1.0) + cos(vec3(time_offset * 0.3 + q*3.0) + vec3(6.0, 1.0, 2.0))) * vec3(0.1, 0.6, 1.0);
                 float scale = 10.0;
-				float h = evalStarfield(vec2(hitpos.y*0.1*scale + side_f*3.5 - time_offset*1.0*(5.0 /*+ q*4.0*/), hitpos.z*scale /*+ q *//*+ side_f*5.5*/));
+				float h = evalStarfield(vec2(hitpos.y*0.1*scale + side_f*3.5 - time_offset*1.0*(5.0 /*+ q*4.0*/), hitpos.z*scale /*+ q *//*+ side_f*5.5*/),
+					/*seed=*/ob_random_num);
 				accum += vec3(max(0.0, h)) * col * star_env * 4.0;
 			}
 		}
