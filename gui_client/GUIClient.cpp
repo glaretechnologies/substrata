@@ -473,6 +473,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	opengl_engine = opengl_engine_;
 
+	opengl_engine->setReloadShadersCallback(this);
+
 	// Add a default array texture.  Will be used for the chunk array texture before the proper one is loaded.
 	std::vector<uint8> tex_data(4*4*3, 200);
 	default_array_tex = new OpenGLTexture(4, 4, opengl_engine.ptr(),
@@ -656,6 +658,9 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	}
 
 
+	makeShaders();
+
+
 	// Make object-placement beam model
 	{
 		ob_placement_beam = opengl_engine->allocateObject();
@@ -714,43 +719,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		OpenGLMaterial material;
 		material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.3f, 0.8f, 0.3f));
 		voxel_edit_face_marker->setSingleMaterial(material);
-	}
-
-	// Make shader for parcels
-	{
-		const std::string use_shader_dir = base_dir_path + "/data/shaders";
-		const std::string version_directive    = opengl_engine->getVersionDirective();
-		const std::string preprocessor_defines = opengl_engine->getPreprocessorDefines();
-				
-		parcel_shader_prog = new OpenGLProgram(
-			"parcel hologram prog",
-			new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
-			new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
-			opengl_engine->getAndIncrNextProgramIndex(),
-			/*wait for build to complete=*/!opengl_engine->parallel_shader_compile_support
-		);
-		opengl_engine->addProgram(parcel_shader_prog);
-		// Let any glare::Exception thrown fall through to below.
-	}
-	
-	// Make shader for portal
-	{
-		const std::string use_shader_dir = base_dir_path + "/data/shaders";
-		const std::string version_directive    = opengl_engine->getVersionDirective();
-		const std::string preprocessor_defines = opengl_engine->getPreprocessorDefines();
-				
-		portal_shader_prog = new OpenGLProgram(
-			"portal prog",
-			new OpenGLShader(use_shader_dir + "/portal_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
-			new OpenGLShader(use_shader_dir + "/portal_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
-			opengl_engine->getAndIncrNextProgramIndex(),
-			/*wait for build to complete=*/true
-		);
-		opengl_engine->addProgram(portal_shader_prog);
-
-		opengl_engine->getUniformLocations(portal_shader_prog);
-		opengl_engine->setStandardTextureUnitUniformsForProgram(*portal_shader_prog);
-		// Let any glare::Exception thrown fall through to below.
 	}
 
 	
@@ -893,6 +861,54 @@ GUIClient::~GUIClient()
 	if(this->client_tls_config)
 		tls_config_free(this->client_tls_config);
 #endif
+}
+
+
+
+void GUIClient::makeShaders()
+{
+	// Make shader for parcels
+	{
+		const std::string use_shader_dir = base_dir_path + "/data/shaders";
+		const std::string version_directive    = opengl_engine->getVersionDirective();
+		const std::string preprocessor_defines = opengl_engine->getPreprocessorDefines();
+				
+		parcel_shader_prog = new OpenGLProgram(
+			"parcel hologram prog",
+			new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
+			new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
+			opengl_engine->getAndIncrNextProgramIndex(),
+			/*wait for build to complete=*/!opengl_engine->parallel_shader_compile_support
+		);
+		opengl_engine->addProgram(parcel_shader_prog);
+		// Let any glare::Exception thrown fall through to below.
+	}
+	
+	// Make shader for portal
+	{
+		const std::string use_shader_dir = "C:\\code\\substrata\\shaders";
+		//const std::string use_shader_dir = base_dir_path + "/data/shaders";
+		const std::string version_directive    = opengl_engine->getVersionDirective();
+		const std::string preprocessor_defines_vert = opengl_engine->getPreprocessorDefinesWithCommonVertStructs();
+		const std::string preprocessor_defines      = opengl_engine->getPreprocessorDefinesWithCommonVertStructs();
+				
+		portal_shader_prog = new OpenGLProgram(
+			"portal prog",
+			new OpenGLShader(use_shader_dir + "/portal_vert_shader.glsl", version_directive, preprocessor_defines_vert, GL_VERTEX_SHADER),
+			new OpenGLShader(use_shader_dir + "/portal_frag_shader.glsl", version_directive, preprocessor_defines     , GL_FRAGMENT_SHADER),
+			opengl_engine->getAndIncrNextProgramIndex(),
+			/*wait for build to complete=*/true
+		);
+		//portal_shader_prog->appendUserUniformInfo(UserUniformInfo::UniformType_Vec3, "campos_os");
+		opengl_engine->addProgram(portal_shader_prog);
+
+		opengl_engine->getUniformLocations(portal_shader_prog);
+		opengl_engine->setStandardTextureUnitUniformsForProgram(*portal_shader_prog);
+		// Let any glare::Exception thrown fall through to below.
+
+		portal_shader_prog->uses_vert_uniform_buf_obs = true;
+		opengl_engine->bindCommonVertUniformBlocksToProgram(portal_shader_prog);
+	}
 }
 
 
@@ -14493,6 +14509,34 @@ void GUIClient::updateGroundPlane()
 		done_terrain_test = true;
 	}
 #endif
+}
+
+
+void GUIClient::reloadShaders()
+{
+	try
+	{
+		makeShaders();
+	
+		// Assign new portal shader to portal objects
+		{
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
+			{
+				WorldObject* ob = it.getValue().ptr();
+				if(ob->isPortal() && ob->opengl_engine_ob)
+				{
+					ob->opengl_engine_ob->materials[3].shader_prog = this->portal_shader_prog;
+					opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
+				}
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Error while reloading shaders: " + e.what());
+	}
 }
 
 

@@ -1,5 +1,5 @@
 
-in vec3 pos_ws;
+//in vec3 pos_ws;
 in vec2 texture_coords;
 
 uniform float time;

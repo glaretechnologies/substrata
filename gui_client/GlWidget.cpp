@@ -296,6 +296,14 @@ void GlWidget::initializeGL()
 	}
 	catch(glare::Exception&)
 	{}
+	
+	try
+	{
+		const std::string substrata_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_TRUNK_DIR");
+		opengl_engine->additional_shader_dirs.push_back(substrata_dir);
+	}
+	catch(glare::Exception&)
+	{}
 #endif
 		
 	opengl_engine->initialise(

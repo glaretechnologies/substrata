@@ -98,7 +98,8 @@ void main()
 	for(int side=0; side<2; ++side)
 	{
 		float side_f = float(side);
-		float left_ray_t = rayPlaneIntersect(pos_os, unit_cam_to_pos_os, -0.8 + side_f * 1.6);
+		const float wall_d = 0.8;
+		float left_ray_t = rayPlaneIntersect(pos_os, unit_cam_to_pos_os, -wall_d + side_f * (wall_d*2.0));
 		if(left_ray_t > 0)
 		{
 			vec3 hitpos = pos_os + unit_cam_to_pos_os * left_ray_t;
