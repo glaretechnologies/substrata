@@ -1965,10 +1965,10 @@ void MainWindow::on_actionAdd_Video_triggered()
 			new_world_object->pos = ob_pos;
 			new_world_object->axis = Vec3f(0, 0, 1);
 			new_world_object->angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
-			new_world_object->scale = Vec3f(/*width=*/1.f, /*depth=*/0.02f, /*height=*/(float)dialog.video_height / dialog.video_width); // NOTE: matches Youtube aspect ratio of 16:9.
+			new_world_object->scale = Vec3f(/*width=*/1.f, /*depth=*/0.02f, /*height=*/(float)dialog.video_height / dialog.video_width);
 			new_world_object->max_model_lod_level = 0;
 
-			BitUtils::setBit(new_world_object->flags, WorldObject::VIDEO_AUTOPLAY);
+			BitUtils::setBit(new_world_object->flags, WorldObject::VIDEO_AUTOPLAY | WorldObject::VIDEO_LOOP);
 
 			new_world_object->materials.resize(2);
 			new_world_object->materials[0] = new WorldMaterial();
