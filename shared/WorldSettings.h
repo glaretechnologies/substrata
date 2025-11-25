@@ -56,6 +56,8 @@ public:
 
 	GLARE_ALIGNED_16_NEW_DELETE
 
+	void clear();
+
 	// NOTE: not setting use_sRGB etc. in DependencyURLs, as this getDependencyURLSet method is just used on the server currently, which doesn't need those.
 	void getDependencyURLSet(std::set<DependencyURL>& URLs_out);
 

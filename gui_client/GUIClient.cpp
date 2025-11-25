@@ -149,6 +149,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	appdata_path(appdata_path_),
 	parsed_args(args),
 	connection_state(ServerConnectionState_NotConnected),
+	received_world_settings_since_connect(false),
 	logged_in_user_id(UserID::invalidUserID()),
 	logged_in_user_flags(0),
 	shown_object_modification_error_msg(false),
@@ -5745,6 +5746,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	std::string touched_portal_target_URL;
 
+	if((connection_state == ServerConnectionState_Connected) && received_world_settings_since_connect)
 	{
 		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
 		processPlayerPhysicsInput((float)dt, world_render_has_keyboard_focus, /*input_out=*/physics_input); // sets player physics move impulse.
@@ -8801,6 +8803,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			const WorldSettingsReceivedMessage* m = checkedDowncastPtr<const WorldSettingsReceivedMessage>(msg);
 
 			this->connected_world_settings.copyNetworkStateFrom(m->world_settings); // Store world settings to be used later
+			this->received_world_settings_since_connect = true;
 
 			this->ui_interface->updateWorldSettingsUIFromWorldSettings(); // Update UI
 
@@ -9046,14 +9049,15 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						
 								const OpenGLTextureKey tex_path(local_path);
 
-								if(!opengl_engine->isOpenGLTextureInsertedForKey(tex_path)) // If texture is not uploaded to GPU already:
+								// NOTE: For the terrain texture case, we need the CPU texture (Map2D), not just the GPU texture.
+								// So load the texture in a LoadTextureTask even if the GPU texture is in the opengl engine.
+
+								if(!opengl_engine->isOpenGLTextureInsertedForKey(tex_path) || info.used_by_terrain) // If texture is not uploaded to GPU already:
 								{
 									const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 									if(just_added)
 									{
-										const bool used_by_terrain = this->terrain_system.nonNull() && this->terrain_system->isTextureUsedByTerrain(tex_path);
-
-										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, used_by_terrain, worker_allocator, 
+										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, info.used_by_terrain, worker_allocator, 
 											texture_loaded_msg_allocator, opengl_upload_thread);
 										task->loaded_buffer = m->loaded_buffer;
 										load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, task, /*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
@@ -9115,7 +9119,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						}
 						else
 						{
-							// conPrint("GUIClient handleMessage(): downloaded resource '" + URL + "' is not currently used, not loading.");
+							// conPrint("GUIClient handleMessage(): downloaded resource '" + toStdString(URL) + "' is not currently used, not loading.");
 						}
 					}
 					else
@@ -12312,6 +12316,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 		terrain_system->shutdown();
 		terrain_system = NULL;
 	}
+	connected_world_settings.clear();
 
 	//this->ui->indigoView->shutdown();
 
@@ -12460,6 +12465,7 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	}*/
 
 	this->connection_state = ServerConnectionState_Connecting;
+	this->received_world_settings_since_connect = false;
 }
 
 
@@ -14310,6 +14316,11 @@ void GUIClient::updateGroundPlane()
 		return;
 
 	if(opengl_engine.isNull() || !opengl_engine->initSucceeded())
+		return;
+
+	// If we are not connected to a server, or we have not received the world settings (which include the terrain settings),
+	// Then don't create the terrain, as it will likely just have to be destroyed immediately when we connect and receive the actual settings.
+	if((connection_state != ServerConnectionState_Connected) || !received_world_settings_since_connect)
 		return;
 
 	if(terrain_system.isNull())

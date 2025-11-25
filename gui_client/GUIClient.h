@@ -751,6 +751,8 @@ public:
 	};
 	ServerConnectionState connection_state;
 
+	bool received_world_settings_since_connect; // Have we received a WorldSettingsInitialSendMessage since connecting to the server?
+
 	UserID logged_in_user_id;
 	std::string logged_in_user_name;
 	uint32 logged_in_user_flags;
