@@ -30,6 +30,12 @@ WorldSettings::~WorldSettings()
 }
 
 
+void WorldSettings::clear()
+{
+	terrain_spec = TerrainSpec();
+}
+
+
 void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 {
 	for(size_t i=0; i<terrain_spec.section_specs.size(); ++i)

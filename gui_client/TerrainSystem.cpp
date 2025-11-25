@@ -416,7 +416,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 
 void TerrainSystem::handleTextureLoaded(const OpenGLTextureKey& path, const Map2DRef& map)
 {
-	// conPrint("TerrainSystem::handleTextureLoaded(): path: '" + path + "'");
+	// conPrint("TerrainSystem::handleTextureLoaded(): path: '" + toStdString(path) + "'");
 	ZoneScoped; // Tracy profiler
 
 	assert(opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(path)));
@@ -1651,7 +1651,7 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 		
 		Reference<OpenGLMeshRenderData> mesh_data = msg.chunk_data.mesh_data;
 
-		// Update node AABB, now that we have actual heighfield data.
+		// Update node AABB, now that we have actual heightfield data.
 		// Offset node object space AABB by the chunk x, y coords to get the world-space AABB.
 		node.aabb = js::AABBox(
 			mesh_data->aabb_os.min_ + Vec4f(msg.chunk_x, msg.chunk_y, 0, 0),
