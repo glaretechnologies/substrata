@@ -233,13 +233,15 @@ public:
 	void signupButtonClicked();
 	void loggedInButtonClicked();
 	std::string getCurrentWebClientURLPath() const;
+	std::string getCurrentURL() const;
+	void goBack();
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
 	void deleteSelectedObject();
 	void deselectObject();
 	void deselectParcel();
-	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
+	void visitSubURL(const std::string& URL, bool push_cur_URL_on_nav_stack = true, bool adjust_cur_URL_pos_back = false); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	GLObjectRef makeSpeakerGLObject();
 public:
@@ -862,4 +864,6 @@ public:
 
 	IMFDXGIDeviceManager* device_manager;
 	ID3D11Device* d3d_device;
+
+	std::vector<std::string> navigation_stack;
 };

@@ -102,6 +102,7 @@ private slots:;
 	void on_actionLoad_Objects_From_Disk_triggered();
 	void on_actionDelete_All_Parcel_Objects_triggered();
 	void on_actionEnter_Fullscreen_triggered();
+	void on_actionGo_Back_triggered();
 
 	void diagnosticsWidgetChanged();
 	void diagnosticsReloadTerrain();

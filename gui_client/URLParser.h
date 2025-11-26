@@ -27,6 +27,7 @@ struct URLParseResults
 	bool parsed_x;
 	bool parsed_y;
 	bool parsed_z;
+	bool parsed_heading;
 	bool parsed_parcel_uid;
 };
 
