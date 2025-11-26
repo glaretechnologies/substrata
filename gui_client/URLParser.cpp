@@ -24,6 +24,7 @@ URLParseResults::URLParseResults()
 	parsed_x(false),
 	parsed_y(false),
 	parsed_z(false),
+	parsed_heading(false),
 	parsed_parcel_uid(false)
 {}
 
@@ -113,7 +114,10 @@ void URLParser::processQueryKeyValues(const std::map<std::string, std::string>& 
 		res.worldname = query_keyvalues.find("world")->second; // An alternative way of specifying the world/user name
 
 	if(query_keyvalues.count("heading"))
+	{
 		res.heading = stringToDouble(query_keyvalues.find("heading")->second);
+		res.parsed_heading = true;
+	}
 
 	if(query_keyvalues.count("sun_vert_angle"))
 	{

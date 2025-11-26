@@ -5886,7 +5886,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	if(hasPrefix(touched_portal_target_URL, "sub://"))
-		visitSubURL(touched_portal_target_URL);
+		visitSubURL(touched_portal_target_URL, /*push_cur_URL_on_nav_stack=*/true, /*adjust_cur_URL_pos_back=*/true);
 
 
 	player_physics.zeroMoveDesiredVel();
@@ -12018,8 +12018,63 @@ void GUIClient::sendLightmapNeededFlagsSlot()
 }
 
 
-void GUIClient::visitSubURL(const std::string& URL) // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
+static std::string makeURL(const std::string& server_hostname, const std::string& server_worldname, const Vec3d& pos, double heading_deg)
 {
+	// Use doubleToStringNDecimalPlaces instead of doubleToStringMaxNDecimalPlaces, as the latter is distracting due to flickering URL length when moving.
+	// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
+	std::string url;
+	url.reserve(128);
+	url += "sub://";
+	url += server_hostname;
+	url += "/";
+	url += server_worldname;
+	url += "?x="; 
+	url += doubleToStringNDecimalPlaces(pos.x, 1);
+	url += "&y=";
+	url += doubleToStringNDecimalPlaces(pos.y, 1);
+	url += "&z="; 
+	url += doubleToStringNDecimalPlaces(pos.z, 2);
+	url += "&heading=";
+	url += doubleToStringNDecimalPlaces(heading_deg, 1);
+	return url;
+}
+
+
+void GUIClient::visitSubURL(const std::string& URL, bool push_prev_URL_on_nav_stack, bool adjust_cur_URL_pos_back) // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
+{
+	if(push_prev_URL_on_nav_stack)
+	{
+		// Push a URL entry onto the navigation stack that the back button will come back to.
+		std::string current_URL = this->getCurrentURL();
+
+		// Modify the URL to move the player back a metre or so, so they are not right up against the portal, which may be confusing.
+		if(adjust_cur_URL_pos_back)
+		{
+			try
+			{
+				URLParseResults parse_res = URLParser::parseURL(::stripHeadAndTailWhitespace(current_URL));
+				if(parse_res.parsed_x && parse_res.parsed_y && parse_res.parsed_z && parse_res.parsed_heading)
+				{
+					Vec3d p(parse_res.x, parse_res.y, parse_res.z);
+					Vec3d forwards(std::cos(::degreeToRad(parse_res.heading)), std::sin(::degreeToRad(parse_res.heading)), 0);
+					p -= forwards * 1.5;
+
+					current_URL = makeURL(parse_res.hostname, parse_res.worldname, p, parse_res.heading);
+				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Error while parsing URL: " + e.what());
+			}
+		}
+
+		navigation_stack.push_back(current_URL);
+
+		// conPrint("-----------------------Pushed entry onto nav stack, new stack:------------------------------");
+		// for(int i=(int)navigation_stack.size()-1; i >= 0; --i)
+		// 	conPrint(toString(i) + ": " + navigation_stack[i]);
+	}
+
 	URLParseResults parse_res = URLParser::parseURL(::stripHeadAndTailWhitespace(URL));
 
 	const std::string hostname = parse_res.hostname;
@@ -15063,6 +15118,27 @@ std::string GUIClient::getCurrentWebClientURLPath() const
 		url_path += "&sun_vert_angle=" + doubleToStringNDecimalPlaces(this->last_url_parse_results.sun_vert_angle, 1);
 
 	return url_path;
+}
+
+
+std::string GUIClient::getCurrentURL() const
+{
+	const double heading_deg = Maths::doubleMod(::radToDegree(cam_controller.getAngles().x), 360.0);
+
+	return makeURL(server_hostname, server_worldname, cam_controller.getFirstPersonPosition(), heading_deg);
+}
+
+
+// e.g. user pressed Back button
+void GUIClient::goBack()
+{
+	if(!navigation_stack.empty())
+	{
+		const std::string URL = navigation_stack.back();
+		navigation_stack.pop_back();
+
+		visitSubURL(URL, /*push_prev_URL_on_nav_stack=*/false);
+	}
 }
 
 

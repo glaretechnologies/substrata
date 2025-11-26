@@ -279,12 +279,18 @@ void MainWindow::initialiseUI()
 	ui->toolBar->addWidget(spacer);
 
 	url_widget = new URLWidget(this);
+	url_widget->backPushButton->setIcon(QIcon(QtUtils::toQString(base_dir_path + "/data/resources/back.png")));
+	const int button_W = 24;
+	url_widget->backPushButton->setIconSize(QSize(button_W, button_W));
+	url_widget->backPushButton->setFixedSize(button_W, button_W);
+	url_widget->backPushButton->setText("");
+
 	ui->toolBar->addWidget(url_widget);
 
 	user_details = new UserDetailsWidget(this);
 	ui->toolBar->addWidget(user_details);
 
-
+	connect(url_widget->backPushButton, SIGNAL(clicked(bool)), this, SLOT(on_actionGo_Back_triggered()));
 
 
 
@@ -1205,27 +1211,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	runScreenshotCode();
 	
 	// Update URL Bar
-	// NOTE: use doubleToStringNDecimalPlaces instead of doubleToStringMaxNDecimalPlaces, as the latter is distracting due to flickering URL length when moving.
 	if(this->url_widget->shouldBeUpdated())
 	{
-		const double heading_deg = Maths::doubleMod(::radToDegree(gui_client.cam_controller.getAngles().x), 360.0);
-
-		// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
-		std::string url;
-		url.reserve(128);
-		url += "sub://";
-		url += gui_client.server_hostname;
-		url += "/";
-		url += gui_client.server_worldname;
-		url += "?x="; 
-		url += doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().x, 1);
-		url += "&y=";
-		url += doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().y, 1);
-		url += "&z="; 
-		url += doubleToStringNDecimalPlaces(gui_client.cam_controller.getFirstPersonPosition().z, 2);
-		url += "&heading=";
-		url += doubleToStringNDecimalPlaces(heading_deg, 1);
-		this->url_widget->setURL(url);
+		this->url_widget->setURL(gui_client.getCurrentURL());
 	}
 
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
@@ -3321,6 +3309,12 @@ void MainWindow::on_actionDelete_All_Parcel_Objects_triggered()
 void MainWindow::on_actionEnter_Fullscreen_triggered()
 {
 	enterFullScreenMode();
+}
+
+
+void MainWindow::on_actionGo_Back_triggered()
+{
+	gui_client.goBack();
 }
 
 

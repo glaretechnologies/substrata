@@ -95,6 +95,8 @@
     <property name="title">
      <string>Go</string>
     </property>
+    <addaction name="actionGo_Back"/>
+    <addaction name="separator"/>
     <addaction name="actionGo_to_Position"/>
     <addaction name="actionGo_to_Parcel"/>
     <addaction name="actionGo_To_Start_Location"/>
@@ -748,6 +750,11 @@
   <action name="actionAdd_Portal">
    <property name="text">
     <string>Add Portal</string>
+   </property>
+  </action>
+  <action name="actionGo_Back">
+   <property name="text">
+    <string>Go Back</string>
    </property>
   </action>
  </widget>
