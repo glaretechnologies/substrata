@@ -10522,12 +10522,15 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 			{
 				in_world_ob = res.getValue().ptr();
 
-				const bool voxels_same = 
-					in_world_ob->getCompressedVoxels() &&
-					restored_ob->getCompressedVoxels() && 
-					(*in_world_ob->getCompressedVoxels() == *restored_ob->getCompressedVoxels());
+				if(restored_ob->object_type == WorldObject::ObjectType_VoxelGroup)
+				{
+					const bool voxels_same = 
+						in_world_ob->getCompressedVoxels() &&
+						restored_ob->getCompressedVoxels() && 
+						(*in_world_ob->getCompressedVoxels() == *restored_ob->getCompressedVoxels());
 
-				voxels_different = !voxels_same;
+					voxels_different = !voxels_same;
+				}
 
 				in_world_ob->copyNetworkStateFrom(*restored_ob);
 
