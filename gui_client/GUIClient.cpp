@@ -1427,11 +1427,7 @@ void GUIClient::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 
 	destroyVehiclePhysicsControllingObject(&ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
 
-	if(ob.physics_object.nonNull())
-	{
-		physics_world->removeObject(ob.physics_object);
-		ob.physics_object = NULL;
-	}
+	checkRemoveObAndSetRefToNull(physics_world, ob.physics_object);
 
 	ob.mesh_manager_shape_data = NULL;
 
@@ -5060,22 +5056,10 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 		if(!isObjectPhysicsOwned(*ob, world_state->getCurrentGlobalTime())) //   ob->physics_owner_id == std::numeric_limits<uint32>::max()) // If object is unowned:
 		{
 			// Remove any existing visualisation AABB.
-			if(ob->diagnostics_gl_ob.nonNull())
-			{
-				opengl_engine->removeObject(ob->diagnostics_gl_ob);
-				ob->diagnostics_gl_ob = NULL;
-			}
-			if(ob->diagnostics_unsmoothed_gl_ob.nonNull())
-			{
-				opengl_engine->removeObject(ob->diagnostics_unsmoothed_gl_ob);
-				ob->diagnostics_unsmoothed_gl_ob = NULL;
-			}
-
-			if(ob->diagnostic_text_view.nonNull())
-			{
-				this->gl_ui->removeWidget(ob->diagnostic_text_view);
-				ob->diagnostic_text_view = NULL;
-			}
+			checkRemoveObAndSetRefToNull(opengl_engine, ob->diagnostics_gl_ob);
+			checkRemoveObAndSetRefToNull(opengl_engine, ob->diagnostics_unsmoothed_gl_ob);
+			
+			checkRemoveAndDeleteWidget(this->gl_ui, ob->diagnostic_text_view);
 		}
 		else
 		{
@@ -7091,15 +7075,10 @@ void GUIClient::updateParcelGraphics()
 					print("Removing Parcel.");
 					
 					// Remove any OpenGL object for it
-					if(parcel->opengl_engine_ob.nonNull())
-						opengl_engine->removeObject(parcel->opengl_engine_ob);
-
+					checkRemoveObAndSetRefToNull(opengl_engine, parcel->opengl_engine_ob);
+					
 					// Remove physics object
-					if(parcel->physics_object.nonNull())
-					{
-						physics_world->removeObject(parcel->physics_object);
-						parcel->physics_object = NULL;
-					}
+					checkRemoveObAndSetRefToNull(physics_world, parcel->physics_object);
 
 					this->world_state->parcels.erase(parcel->id);
 				}
@@ -7557,12 +7536,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 					avatar->graphics.destroy(*opengl_engine);
 
 					// Remove nametag OpenGL object
-					if(avatar->nametag_gl_ob.nonNull())
-						opengl_engine->removeObject(avatar->nametag_gl_ob);
-					avatar->nametag_gl_ob = NULL;
-					if(avatar->speaker_gl_ob.nonNull())
-						opengl_engine->removeObject(avatar->speaker_gl_ob);
-					avatar->speaker_gl_ob = NULL;
+					checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
+					checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 
 					hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
 					if(minimap)
@@ -7610,12 +7585,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						// Remove any existing model and nametag
 						avatar->graphics.destroy(*opengl_engine);
 						
-						if(avatar->nametag_gl_ob.nonNull()) // Remove nametag ob
-							opengl_engine->removeObject(avatar->nametag_gl_ob);
-						avatar->nametag_gl_ob = NULL;
-						if(avatar->speaker_gl_ob.nonNull())
-							opengl_engine->removeObject(avatar->speaker_gl_ob);
-						avatar->speaker_gl_ob = NULL;
+						checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob); // Remove nametag ob
+						checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 
 						hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
 						if(minimap)
@@ -8151,7 +8122,7 @@ inline static SubClass* checkedDowncastPtr(ThreadMessage* msg)
 
 
 
-// Enable error on implicit fallthrough in switch statement.  We want to catch this error beacuse it's a bad bug that could cause a crash.
+// Enable error on implicit fallthrough in switch statement.  We want to catch this error because it's a bad bug that could cause a crash.
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(error:5262)
@@ -8542,11 +8513,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					}
 
 					// Remove speaker icon by nametag.
-					if(avatar->speaker_gl_ob.nonNull())
-					{
-						opengl_engine->removeObject(avatar->speaker_gl_ob);
-						avatar->speaker_gl_ob = NULL;
-					}
+					checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 				}
 			}
 		}
@@ -10413,17 +10380,8 @@ void GUIClient::removeParcelObjects()
 		for(auto& it : this->world_state->parcels)
 		{
 			Parcel* parcel = it.second.getPointer();
-			if(parcel->opengl_engine_ob.nonNull())
-			{
-				opengl_engine->removeObject(parcel->opengl_engine_ob);
-				parcel->opengl_engine_ob = NULL;
-			}
-
-			if(parcel->physics_object.nonNull())
-			{
-				physics_world->removeObject(parcel->physics_object);
-				parcel->physics_object = NULL;
-			}
+			checkRemoveObAndSetRefToNull(opengl_engine, parcel->opengl_engine_ob);
+			checkRemoveObAndSetRefToNull(physics_world, parcel->physics_object);
 		}
 	}
 	catch(glare::Exception& e)
@@ -10483,12 +10441,8 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 			avatar->graphics.destroy(*opengl_engine);
 
 			// Remove nametag OpenGL object
-			if(avatar->nametag_gl_ob.nonNull())
-				opengl_engine->removeObject(avatar->nametag_gl_ob);
-			avatar->nametag_gl_ob = NULL;
-			if(avatar->speaker_gl_ob.nonNull())
-				opengl_engine->removeObject(avatar->speaker_gl_ob);
-			avatar->speaker_gl_ob = NULL;
+			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
+			checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 		}
 
 		// Turn off selfie mode if it was enabled.
@@ -11411,11 +11365,7 @@ void GUIClient::objectEdited()
 					physics_shape);
 
 				// Remove existing physics object
-				if(selected_ob->physics_object.nonNull())
-				{
-					physics_world->removeObject(selected_ob->physics_object);
-					selected_ob->physics_object = NULL;
-				}
+				checkRemoveObAndSetRefToNull(physics_world, selected_ob->physics_object);
 
 				// Make new physics object
 				assert(selected_ob->physics_object.isNull());
@@ -12263,11 +12213,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 			if(ob->opengl_light.nonNull())
 				opengl_engine->removeLight(ob->opengl_light);
 
-			if(ob->physics_object.nonNull())
-			{
-				this->physics_world->removeObject(ob->physics_object);
-				ob->physics_object = NULL;
-			}
+			checkRemoveObAndSetRefToNull(physics_world, ob->physics_object);
 
 			if(ob->audio_source.nonNull())
 			{
@@ -12281,18 +12227,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
 		{
 			Parcel* parcel = it->second.ptr();
-
-			if(parcel->opengl_engine_ob.nonNull())
-			{
-				opengl_engine->removeObject(parcel->opengl_engine_ob);
-				parcel->opengl_engine_ob = NULL;
-			}
-
-			if(parcel->physics_object.nonNull())
-			{
-				this->physics_world->removeObject(parcel->physics_object);
-				parcel->physics_object = NULL;
-			}
+			checkRemoveObAndSetRefToNull(opengl_engine, parcel->opengl_engine_ob);
+			checkRemoveObAndSetRefToNull(physics_world, parcel->physics_object);
 		}
 
 		for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
@@ -12301,12 +12237,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 			avatar->entered_vehicle = NULL;
 
-			if(avatar->nametag_gl_ob.nonNull())
-				opengl_engine->removeObject(avatar->nametag_gl_ob);
-			avatar->nametag_gl_ob = NULL;
-			if(avatar->speaker_gl_ob.nonNull())
-				opengl_engine->removeObject(avatar->speaker_gl_ob);
-			avatar->speaker_gl_ob = NULL;
+			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
+			checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 
 			avatar->graphics.destroy(*opengl_engine);
 
@@ -13237,11 +13169,8 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		opengl_engine->removeLight(ob->opengl_light);
 
 	destroyVehiclePhysicsControllingObject(ob.ptr()); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies.
-	if(ob->physics_object.nonNull())
-	{
-		physics_world->removeObject(ob->physics_object);
-		ob->physics_object = NULL;
-	}
+
+	checkRemoveObAndSetRefToNull(physics_world, ob->physics_object);
 
 	// Update in Indigo view
 	//ui->indigoView->objectRemoved(*ob);
@@ -14161,16 +14090,8 @@ void GUIClient::deselectObject()
 		}
 
 		// Remove visualisation objects
-		if(this->aabb_os_vis_gl_ob.nonNull())
-		{
-			opengl_engine->removeObject(this->aabb_os_vis_gl_ob);
-			this->aabb_os_vis_gl_ob = NULL;
-		}
-		if(this->aabb_ws_vis_gl_ob.nonNull())
-		{
-			opengl_engine->removeObject(this->aabb_ws_vis_gl_ob);
-			this->aabb_ws_vis_gl_ob = NULL;
-		}
+		checkRemoveObAndSetRefToNull(opengl_engine, this->aabb_os_vis_gl_ob);
+		checkRemoveObAndSetRefToNull(opengl_engine, this->aabb_ws_vis_gl_ob);
 
 		for(size_t i=0; i<selected_ob_vis_gl_obs.size(); ++i)
 			opengl_engine->removeObject(this->selected_ob_vis_gl_obs[i]);
