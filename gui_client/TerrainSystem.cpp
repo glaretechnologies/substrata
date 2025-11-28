@@ -1308,11 +1308,8 @@ done:
 
 void TerrainSystem::removeLeafGeometry(TerrainNode* node)
 {
-	if(node->gl_ob.nonNull()) opengl_engine->removeObject(node->gl_ob);
-	node->gl_ob = NULL;
-
-	if(node->physics_ob.nonNull()) physics_world->removeObject(node->physics_ob);
-	node->physics_ob = NULL;
+	checkRemoveObAndSetRefToNull(opengl_engine, node->gl_ob);
+	checkRemoveObAndSetRefToNull(physics_world, node->physics_ob);
 }
 
 

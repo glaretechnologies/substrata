@@ -1133,44 +1133,20 @@ void BikePhysics::removeVisualisationObs()
 {
 	if(m_opengl_engine)
 	{
-		if(body_gl_ob.nonNull())
-			m_opengl_engine->removeObject(body_gl_ob);
-		body_gl_ob = NULL;
+		checkRemoveObAndSetRefToNull(m_opengl_engine, body_gl_ob);
 
 		for(int i=0; i<2; ++i)
 		{
-			if(wheel_attach_point_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(wheel_attach_point_gl_ob[i]);
-			wheel_attach_point_gl_ob[i] = NULL;
-
-			if(wheel_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(wheel_gl_ob[i]);
-			wheel_gl_ob[i] = NULL;
-
-			if(coll_tester_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(coll_tester_gl_ob[i]);
-			coll_tester_gl_ob[i] = NULL;
-
-			if(contact_point_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(contact_point_gl_ob[i]);
-			contact_point_gl_ob[i] = NULL;
-
-			if(contact_laterial_force_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(contact_laterial_force_gl_ob[i]);
-			contact_laterial_force_gl_ob[i] = NULL;
-
-			if(contact_suspension_force_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(contact_suspension_force_gl_ob[i]);
-			contact_suspension_force_gl_ob[i] = NULL;
+			checkRemoveObAndSetRefToNull(m_opengl_engine, wheel_attach_point_gl_ob[i]);
+			checkRemoveObAndSetRefToNull(m_opengl_engine, wheel_gl_ob[i]);
+			checkRemoveObAndSetRefToNull(m_opengl_engine, coll_tester_gl_ob[i]);
+			checkRemoveObAndSetRefToNull(m_opengl_engine, contact_point_gl_ob[i]);
+			checkRemoveObAndSetRefToNull(m_opengl_engine, contact_laterial_force_gl_ob[i]);
+			checkRemoveObAndSetRefToNull(m_opengl_engine, contact_suspension_force_gl_ob[i]);
 		}
 
-		if(righting_force_gl_ob.nonNull())
-			m_opengl_engine->removeObject(righting_force_gl_ob);
-		righting_force_gl_ob = NULL;
-
-		if(desired_bike_up_vec_gl_ob.nonNull())
-			m_opengl_engine->removeObject(desired_bike_up_vec_gl_ob);
-		desired_bike_up_vec_gl_ob = NULL;
+		checkRemoveObAndSetRefToNull(m_opengl_engine, righting_force_gl_ob);
+		checkRemoveObAndSetRefToNull(m_opengl_engine, desired_bike_up_vec_gl_ob);
 
 		for(size_t i=0; i<convex_hull_pts_gl_obs.size(); ++i)
 			m_opengl_engine->removeObject(convex_hull_pts_gl_obs[i]);

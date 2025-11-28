@@ -925,13 +925,8 @@ void AvatarGraphics::build()
 
 void AvatarGraphics::destroy(OpenGLEngine& engine)
 {
-	if(skinned_gl_ob.nonNull())
-		engine.removeObject(skinned_gl_ob);
-	skinned_gl_ob = NULL;
-
-
-	if(selected_ob_beam.nonNull())
-		engine.removeObject(selected_ob_beam);
+	checkRemoveObAndSetRefToNull(engine, skinned_gl_ob);
+	checkRemoveObAndSetRefToNull(engine, selected_ob_beam);
 }
 
 
@@ -968,11 +963,7 @@ void AvatarGraphics::setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target
 
 void AvatarGraphics::hideSelectedObBeam(OpenGLEngine& engine)
 {
-	if(selected_ob_beam.nonNull())
-	{
-		engine.removeObject(selected_ob_beam);
-		selected_ob_beam = NULL;
-	}
+	checkRemoveObAndSetRefToNull(engine, selected_ob_beam);
 }
 
 

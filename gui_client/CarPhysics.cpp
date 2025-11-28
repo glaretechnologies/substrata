@@ -650,10 +650,6 @@ void CarPhysics::removeVisualisationObs()
 		convex_hull_pts_gl_obs.clear();
 
 		for(size_t i=0; i<4; ++i)
-			if(coll_tester_gl_ob[i])
-			{
-				m_opengl_engine->removeObject(coll_tester_gl_ob[i]);
-				coll_tester_gl_ob[i] = nullptr;
-			}
+			checkRemoveObAndSetRefToNull(m_opengl_engine, coll_tester_gl_ob[i]);
 	}
 }
