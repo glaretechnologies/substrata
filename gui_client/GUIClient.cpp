@@ -12473,8 +12473,6 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 		physics_world = new PhysicsWorld(high_priority_task_manager, &this->stack_allocator);
 		physics_world->event_listener = this;
 		player_physics.init(*physics_world, spawn_pos);
-
-		//car_physics.init(*physics_world);
 	}
 	else
 	{
