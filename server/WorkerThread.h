@@ -39,10 +39,10 @@ public:
 
 	virtual void kill() override;
 
-	std::string connected_world_name;
+	Reference<ServerWorldState> cur_world_state; // World the client is connected to.
 
-	void enqueueDataToSend(const std::string& data); // threadsafe
 	void enqueueDataToSend(const SocketBufferOutStream& packet); // threadsafe
+	void enqueueDataToSend(const ArrayRef<uint8> data); // threadsafe
 
 	web::RequestInfo websocket_request_info; // If the client connected via a websocket, this the HTTP request data.  Is used for accessing the login cookie.
 
@@ -53,7 +53,8 @@ private:
 	void handleScreenshotBotConnection();
 	void handleEthBotConnection();
 	void conPrintIfNotFuzzing(const std::string& msg);
-	void sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state, Reference<ServerWorldState> cur_world_state, uint32 client_protocol_version);
+	void sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state, uint32 client_protocol_version);
+	void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer);
 
 	Reference<SocketInterface> socket;
 	Server* server;

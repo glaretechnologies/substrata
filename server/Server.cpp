@@ -135,17 +135,15 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 }
 
 
-static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
+static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<uint8>& broadcast_packets)
 {
 	MessageUtils::updatePacketLengthField(packet_buffer);
 
 	if(packet_buffer.buf.size() > 0)
 	{
-		std::string packet_string(packet_buffer.buf.size(), '\0');
-
-		std::memcpy(&packet_string[0], packet_buffer.buf.data(), packet_buffer.buf.size());
-
-		broadcast_packets.push_back(packet_string);
+		const size_t write_i = broadcast_packets.size();
+		broadcast_packets.resize(write_i + packet_buffer.buf.size());
+		std::memcpy(&broadcast_packets[write_i], packet_buffer.buf.data(), packet_buffer.buf.size());
 	}
 }
 
@@ -588,8 +586,8 @@ int main(int argc, char *argv[])
 
 		Timer save_state_timer;
 
-		// A map from world name to a vector of packets to send to clients connected to that world.
-		std::map<std::string, std::vector<std::string>> broadcast_packets;
+		// A map from world to packet data to send to clients connected to that world.
+		std::unordered_map<ServerWorldState*, std::vector<uint8>> broadcast_packets;
 
 		SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
@@ -798,15 +796,15 @@ int main(int argc, char *argv[])
 
 				for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
 				{
-					Reference<ServerWorldState> world_state = world_it->second;
+					ServerWorldState* world_state = world_it->second.ptr();
 
-					std::vector<std::string>& world_packets = broadcast_packets[world_it->first];
+					std::vector<uint8>& world_packets = broadcast_packets[world_state];
 
 					// Generate packets for avatar changes
 					const ServerWorldState::AvatarMapType& avatars = world_state->getAvatars(lock);
 					for(auto i = avatars.begin(); i != avatars.end();)
 					{
-						Avatar* avatar = i->second.getPointer();
+						Avatar* avatar = i->second.ptr();
 						if(avatar->other_dirty)
 						{
 							if(avatar->state == Avatar::State_Alive)
@@ -1052,8 +1050,8 @@ int main(int argc, char *argv[])
 					Lock lock3(server.worker_thread_manager.getMutex());
 					for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 					{
-						assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-						static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(scratch_packet);
+						assert(dynamic_cast<WorkerThread*>(i->ptr()));
+						static_cast<WorkerThread*>(i->ptr())->enqueueDataToSend(scratch_packet);
 					}
 
 					server.world_state->server_admin_message_changed = false;
@@ -1067,11 +1065,14 @@ int main(int argc, char *argv[])
 				Lock lock2(server.worker_thread_manager.getMutex());
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 				{
-					WorkerThread* worker = static_cast<WorkerThread*>(i->getPointer());
-					std::vector<std::string>& packets = broadcast_packets[worker->connected_world_name];
-
-					for(size_t z=0; z<packets.size(); ++z)
-						worker->enqueueDataToSend(packets[z]);
+					WorkerThread* worker = static_cast<WorkerThread*>(i->ptr());
+					auto res = broadcast_packets.find(worker->cur_world_state.ptr());
+					if(res != broadcast_packets.end())
+					{
+						const std::vector<uint8>& packets = res->second;
+						if(!packets.empty())
+							worker->enqueueDataToSend(packets);
+					}
 				}
 			}
 
@@ -1089,8 +1090,8 @@ int main(int argc, char *argv[])
 				Lock lock3(server.worker_thread_manager.getMutex());
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 				{
-					assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-					static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(scratch_packet);
+					assert(dynamic_cast<WorkerThread*>(i->ptr()));
+					static_cast<WorkerThread*>(i->ptr())->enqueueDataToSend(scratch_packet);
 				}
 			}
 
