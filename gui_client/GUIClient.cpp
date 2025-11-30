@@ -416,6 +416,8 @@ void GUIClient::postConnectInitialise()
 #endif
 
 	checkCreateResourceDownloadThreads();
+
+	url_whitelist.loadDefaultWhitelist();
 }
 
 
@@ -12405,7 +12407,6 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	}
 
 	world_state = new WorldState();
-	world_state->url_whitelist->loadDefaultWhitelist();
 
 	TracyMessageL("Creating ClientThread");
 

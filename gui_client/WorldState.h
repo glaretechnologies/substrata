@@ -14,11 +14,9 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/LODChunk.h"
 #include <ThreadSafeRefCounted.h>
 #include <FastIterMap.h>
-#include <FastIterMap.h>
 #include <Mutex.h>
 #include <map>
 #include <unordered_set>
-class URLWhitelist;
 
 
 /*=====================================================================
@@ -64,8 +62,6 @@ public:
 
 	mutable WorldStateMutex mutex;
 
-
-	URLWhitelist* url_whitelist; // Pointer to reduce include parse time.
 private:
 	double last_global_time_received GUARDED_BY(mutex);
 	double local_time_global_time_received GUARDED_BY(mutex);

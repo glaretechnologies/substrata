@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "MeshManager.h"
 #include "URLParser.h"
 #include "WorldState.h"
+#include "URLWhitelist.h"
 #include "EmscriptenResourceDownloader.h"
 #include "UploadResourceThread.h"
 #include "ScriptedObjectProximityChecker.h"
@@ -869,4 +870,6 @@ public:
 	ID3D11Device* d3d_device;
 
 	std::vector<std::string> navigation_stack;
+
+	URLWhitelist url_whitelist;
 };

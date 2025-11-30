@@ -267,7 +267,7 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
-				const bool URL_in_whitelist = gui_client->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
+				const bool URL_in_whitelist = gui_client->url_whitelist.isURLPrefixInWhitelist(ob->target_url);
 
 				// If the user is logged in to their personal world, and the user created the object, consider the URL to be safe.
 				const bool webview_is_safe = gui_client->logged_in_user_id.valid() && 
@@ -309,7 +309,7 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 			{
 				// conPrint("Webview loading URL '" + ob->target_url + "'...");
 
-				const bool URL_in_whitelist = gui_client->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
+				const bool URL_in_whitelist = gui_client->url_whitelist.isURLPrefixInWhitelist(ob->target_url);
 
 				// If the user is logged in to their personal world, and the user created the object, consider the URL to be safe.
 				const bool webview_is_safe = gui_client->logged_in_user_id.valid() && 

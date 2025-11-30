@@ -7,7 +7,6 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "../shared/ObjectEventHandlers.h"
-#include "URLWhitelist.h"
 #include <ConPrint.h>
 #include <StringUtils.h>
 #include <Clock.h>
@@ -23,14 +22,11 @@ WorldState::WorldState()
 	correction_amount(0),
 	objects(UID::invalidUID())
 {
-	url_whitelist = new URLWhitelist();
 }
 
 
 WorldState::~WorldState()
 {
-	delete url_whitelist;
-
 	dirty_from_remote_objects.clear();
 	dirty_from_local_objects.clear();
 
