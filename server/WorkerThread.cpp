@@ -121,17 +121,18 @@ static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::str
 }
 
 
-// Enqueues packet to all WorkerThreads to send to all clients connected to the server.
-static void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer, Server* server)
+// Enqueues packet to all WorkerThreads connected to the same world.
+void WorkerThread::enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer)
 {
-	assert(packet_buffer.buf.size() > 0);
-	if(packet_buffer.buf.size() > 0)
+	Lock lock(server->worker_thread_manager.getMutex());
+	for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
 	{
-		Lock lock(server->worker_thread_manager.getMutex());
-		for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
+		assert(dynamic_cast<WorkerThread*>(i->ptr()));
+		WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
+
+		if(worker_thread->cur_world_state.ptr() == this->cur_world_state.ptr()) // If connected to the same world as this thread:
 		{
-			assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-			static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_buffer);
+			worker_thread->enqueueDataToSend(packet_buffer);
 		}
 	}
 }
@@ -333,7 +334,7 @@ void WorkerThread::handleResourceUploadConnection()
 			scratch_packet.writeStringLengthFirst(URL);
 			MessageUtils::updatePacketLengthField(scratch_packet);
 
-			enqueuePacketToBroadcast(scratch_packet, server);
+			enqueuePacketToBroadcast(scratch_packet);
 		}
 
 
@@ -918,9 +919,11 @@ static void compressWithZstd(const void* src, size_t src_size, int compression_l
 
 // Sends a bunch of data about a particular world to the client.
 // Called when the client connects initially, or when the client changes the current world.
-void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state, Reference<ServerWorldState> cur_world_state, 
+void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state,
 	uint32 client_protocol_version)
 {
+	runtimeCheck(cur_world_state.nonNull());
+
 	// Send world settings to client
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsInitialSendMessage);
@@ -1088,7 +1091,6 @@ void WorkerThread::doRun()
 	AvatarSettings client_user_avatar_settings;
 	uint32 client_user_flags = 0;
 
-	Reference<ServerWorldState> cur_world_state; // World the client is connected to.
 	bool logged_in_user_is_lightmapper_bot = false; // Just for updating the last_lightmapper_bot_contact_time.
 
 	try
@@ -1169,10 +1171,8 @@ void WorkerThread::doRun()
 				if(world_state->world_states.count(initial_world_name) == 0)
 					throw glare::Exception("Invalid world name '" + initial_world_name + "'.");
 
-				cur_world_state = world_state->world_states[initial_world_name];
+				this->cur_world_state = world_state->world_states[initial_world_name];
 			}
-
-			this->connected_world_name = initial_world_name;
 
 			// Write avatar UID assigned to the connected client.
 			client_avatar_uid = world_state->getNextAvatarUID();
@@ -1232,7 +1232,7 @@ void WorkerThread::doRun()
 			}
 
 
-			sendPerWorldInitialDataToClient(world_state, cur_world_state, client_protocol_version);
+			sendPerWorldInitialDataToClient(world_state, client_protocol_version);
 
 
 			// Send a message saying we have sent all initial state
@@ -1327,12 +1327,10 @@ void WorkerThread::doRun()
 								if(world_state->world_states.count(new_world_name) == 0)
 									throw glare::Exception("Invalid world name '" + new_world_name + "'.");
 
-								cur_world_state = world_state->world_states[new_world_name];
+								this->cur_world_state = world_state->world_states[new_world_name];
 							}
 
-							this->connected_world_name = new_world_name;
-
-							sendPerWorldInitialDataToClient(world_state, cur_world_state, client_protocol_version);
+							sendPerWorldInitialDataToClient(world_state, client_protocol_version);
 
 							break;
 						}
@@ -1361,7 +1359,7 @@ void WorkerThread::doRun()
 								scratch_packet.writeUInt32(stream_id);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet, server);
+								enqueuePacketToBroadcast(scratch_packet);
 							}
 
 							break;
@@ -1376,7 +1374,7 @@ void WorkerThread::doRun()
 								writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet, server);
+								enqueuePacketToBroadcast(scratch_packet);
 							}
 
 							break;
@@ -1427,7 +1425,7 @@ void WorkerThread::doRun()
 								scratch_packet.writeStringLengthFirst(gesture_name);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet, server);
+								enqueuePacketToBroadcast(scratch_packet);
 							//}
 							break;
 						}
@@ -1447,7 +1445,7 @@ void WorkerThread::doRun()
 								writeToStream(avatar_uid, scratch_packet);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet, server);
+								enqueuePacketToBroadcast(scratch_packet);
 							//}
 							break;
 						}
@@ -1624,7 +1622,7 @@ void WorkerThread::doRun()
 							scratch_packet.writeUInt32(seat_index);
 							scratch_packet.writeUInt32(flags);
 							MessageUtils::updatePacketLengthField(scratch_packet);
-							enqueuePacketToBroadcast(scratch_packet, server);
+							enqueuePacketToBroadcast(scratch_packet);
 
 							break;
 						}
@@ -1662,7 +1660,7 @@ void WorkerThread::doRun()
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarExitedVehicle);
 							writeToStream(avatar_uid, scratch_packet);
 							MessageUtils::updatePacketLengthField(scratch_packet);
-							enqueuePacketToBroadcast(scratch_packet, server);
+							enqueuePacketToBroadcast(scratch_packet);
 
 							break;
 						}
@@ -1787,7 +1785,7 @@ void WorkerThread::doRun()
 									scratch_packet.writeData(&summon_msg, sizeof(SummonObjectMessageClientToServer));
 									scratch_packet.writeUInt32((uint32)client_avatar_uid.value()); // Write last_transform_update_avatar_uid
 									MessageUtils::updatePacketLengthField(scratch_packet);
-									enqueuePacketToBroadcast(scratch_packet, server);
+									enqueuePacketToBroadcast(scratch_packet);
 								}
 							}
 
@@ -2095,7 +2093,7 @@ void WorkerThread::doRun()
 							scratch_packet.writeDouble(client_global_time);
 							scratch_packet.writeUInt32(flags);
 							MessageUtils::updatePacketLengthField(scratch_packet);
-							enqueuePacketToBroadcast(scratch_packet, server);
+							enqueuePacketToBroadcast(scratch_packet);
 
 							break;
 						}
@@ -2588,7 +2586,7 @@ void WorkerThread::doRun()
 								scratch_packet.writeStringLengthFirst(msg);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet, server);
+								enqueuePacketToBroadcast(scratch_packet);
 							}
 							break;
 						}
@@ -2605,7 +2603,7 @@ void WorkerThread::doRun()
 								writeToStream(object_uid, scratch_packet);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet, server);
+								enqueuePacketToBroadcast(scratch_packet);
 							}
 							break;
 						}
@@ -2622,7 +2620,7 @@ void WorkerThread::doRun()
 								writeToStream(object_uid, scratch_packet);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet, server);
+								enqueuePacketToBroadcast(scratch_packet);
 							}
 							break;
 						}
@@ -2992,7 +2990,7 @@ void WorkerThread::doRun()
 									world_settings.writeToStream(scratch_packet);
 									MessageUtils::updatePacketLengthField(scratch_packet);
 
-									enqueuePacketToBroadcast(scratch_packet, server);
+									enqueuePacketToBroadcast(scratch_packet);
 								}
 
 								// Textures used by terrain need to have basis versions generated.
@@ -3155,10 +3153,14 @@ void WorkerThread::kill()
 }
 
 
-void WorkerThread::enqueueDataToSend(const std::string& data)
+void WorkerThread::enqueueDataToSend(const SocketBufferOutStream& packet) // threadsafe
 {
-	if(VERBOSE) conPrint("WorkerThread::enqueueDataToSend(), data: '" + data + "'");
+	enqueueDataToSend(packet.buf);
+}
 
+
+void WorkerThread::enqueueDataToSend(const ArrayRef<uint8> data) // threadsafe
+{
 	// Append data to data_to_send
 	if(!data.empty())
 	{
@@ -3166,21 +3168,6 @@ void WorkerThread::enqueueDataToSend(const std::string& data)
 		const size_t write_i = data_to_send.size();
 		data_to_send.resize(write_i + data.size());
 		std::memcpy(&data_to_send[write_i], data.data(), data.size());
-	}
-
-	event_fd.notify();
-}
-
-
-void WorkerThread::enqueueDataToSend(const SocketBufferOutStream& packet) // threadsafe
-{
-	// Append data to data_to_send
-	if(!packet.buf.empty())
-	{
-		Lock lock(data_to_send_mutex);
-		const size_t write_i = data_to_send.size();
-		data_to_send.resize(write_i + packet.buf.size());
-		std::memcpy(&data_to_send[write_i], packet.buf.data(), packet.buf.size());
 	}
 
 	event_fd.notify();
