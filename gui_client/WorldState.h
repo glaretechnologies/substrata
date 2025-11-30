@@ -32,6 +32,8 @@ public:
 	WorldState();
 	~WorldState();
 
+	void clear();
+
 	// Just used on clients:
 	void updateWithGlobalTimeReceived(double t);
 	double getCurrentGlobalTime() const;
@@ -62,8 +64,6 @@ public:
 
 	mutable WorldStateMutex mutex;
 
-
-	std::map<GroundPatchUID, GroundPatchRef> ground_patches;
 
 	URLWhitelist* url_whitelist; // Pointer to reduce include parse time.
 private:

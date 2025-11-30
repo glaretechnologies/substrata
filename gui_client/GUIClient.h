@@ -351,8 +351,10 @@ public:
 	void focusOut();
 
 	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
+	void clearAllObjects();
 
 	void connectToServer(const URLParseResults& url_results);
+	void changeToDifferentWorld(const URLParseResults& url_results);
 
 	void checkCreateResourceDownloadThreads(); // Create DownloadResourcesThread etc. if not created already and resource_manager is non-null.
 	void checkCreateManagersAndMinimap();
@@ -753,11 +755,12 @@ public:
 	};
 	ServerConnectionState connection_state;
 
-	bool received_world_settings_since_connect; // Have we received a WorldSettingsInitialSendMessage since connecting to the server?
+	bool received_world_settings_since_connect_or_world_change; // Have we received a WorldSettingsInitialSendMessage since connecting to the server?
 
 	UserID logged_in_user_id;
 	std::string logged_in_user_name;
 	uint32 logged_in_user_flags;
+	AvatarSettings logged_in_avatar_settings; // Last avatar settings received from server in a LoggedInMessage.
 
 	bool server_using_lod_chunks; // Should be equal to !world_state->lod_chunks.empty(), cached in a boolean.
 

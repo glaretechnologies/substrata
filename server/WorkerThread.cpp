@@ -916,6 +916,162 @@ static void compressWithZstd(const void* src, size_t src_size, int compression_l
 }
 
 
+// Sends a bunch of data about a particular world to the client.
+// Called when the client connects initially, or when the client changes the current world.
+void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state, Reference<ServerWorldState> cur_world_state, 
+	uint32 client_protocol_version)
+{
+	// Send world settings to client
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsInitialSendMessage);
+
+		{
+			Lock lock(world_state->mutex);
+			cur_world_state->world_settings.writeToStream(scratch_packet);
+		}
+
+		MessageUtils::updatePacketLengthField(scratch_packet);
+		socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+	}
+
+	// Send the current world details (contains world name, owner, description etc. to client)
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::WorldDetailsInitialSendMessage);
+
+		{
+			Lock lock(world_state->mutex);
+			cur_world_state->details.writeToNetworkStream(scratch_packet);
+		}
+
+		MessageUtils::updatePacketLengthField(scratch_packet);
+		socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+	}
+
+
+	// Send all current avatar state data to client
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		{ // Lock scope
+			WorldStateLock lock(world_state->mutex);
+			const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+			for(auto it = avatars.begin(); it != avatars.end(); ++it)
+			{
+				const Avatar* avatar = it->second.getPointer();
+
+				// Write AvatarIsHere message
+				MessageUtils::initPacket(scratch_packet, Protocol::AvatarIsHere);
+				writeAvatarToNetworkStream(*avatar, scratch_packet);
+				MessageUtils::updatePacketLengthField(scratch_packet);
+
+				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+			}
+		} // End lock scope
+
+		socket->writeData(packet.buf.data(), packet.buf.size());
+	}
+
+	// Send all current object data to client
+	/*{
+		Lock lock(world_state->mutex);
+		for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+		{
+			const WorldObject* ob = it->second.getPointer();
+
+			// Send ObjectCreated packet
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+			packet.writeUInt32(Protocol::ObjectCreated);
+			ob->writeToNetworkStream(packet);
+			socket->writeData(packet.buf.data(), packet.buf.size());
+		}
+	}*/
+
+	// Send all current parcel data to client.
+	// Send compressed parcel data if the client is new enough to handle it.
+	// As of 3/4/2025, uncompressed parcel data on substrata.info is 308331 B.
+	// With zstd compression: 
+	// Compressed to size 59929 B with compression level 3, compression took 2.454600064083934 ms
+	const bool send_compressed_parcel_data = client_protocol_version >= 42;
+	if(send_compressed_parcel_data)
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		{ // Lock scope
+			WorldStateLock lock(world_state->mutex);
+			for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
+			{
+				const Parcel* parcel = it->second.getPointer();
+
+				// Build ParcelCreated message in scratch_packet
+				MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
+				writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
+				MessageUtils::updatePacketLengthField(scratch_packet);
+
+				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet to packet
+			}
+		} // End lock scope
+
+		// Compress packet to temp_buf
+		Timer timer;
+		compressWithZstd(/*src=*/packet.buf.data(), /*src size=*/packet.buf.size(), /*compression level=*/ZSTD_CLEVEL_DEFAULT, /*compressed data out=*/m_temp_buf);
+		const double compression_elapsed = timer.elapsed();
+
+		// Initialise ParcelInitialSendCompressed message in scratch_packet
+		MessageUtils::initPacket(scratch_packet, Protocol::ParcelInitialSendCompressed);
+		scratch_packet.writeData(m_temp_buf.data(), m_temp_buf.size()); // Write compressed data to scratch_packet
+		MessageUtils::updatePacketLengthField(scratch_packet);
+
+		// Write the ParcelInitialSendCompressed message
+		socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+		socket->flush();
+		conPrint("Sent " + toString(scratch_packet.getWriteIndex()) + " B ParcelInitialSendCompressed message (compression took " + doubleToStringNSigFigs(compression_elapsed * 1.0e3, 4) + " ms)");
+	}
+	else
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		{ // Lock scope
+			WorldStateLock lock(world_state->mutex);
+			for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
+			{
+				const Parcel* parcel = it->second.getPointer();
+
+				// Send ParcelCreated message
+				MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
+				writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
+				MessageUtils::updatePacketLengthField(scratch_packet);
+
+				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+			}
+		} // End lock scope
+
+		// conPrint("Sending total of " + toString(packet.getWriteIndex()) + " B in ParcelCreated messages");
+		socket->writeData(packet.buf.data(), packet.buf.size());
+		socket->flush();
+	}
+
+	// Send all current LOD chunk data to client, if they are using a sufficiently new protocol version.
+	if((client_protocol_version >= 40) && server->config.enable_LOD_chunking)
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		{
+			WorldStateLock lock(world_state->mutex);
+			for(auto it = cur_world_state->getLODChunks(lock).begin(); it != cur_world_state->getLODChunks(lock).end(); ++it)
+			{
+				MessageUtils::initPacket(scratch_packet, Protocol::LODChunkInitialSend);
+				it->second->writeToStream(scratch_packet);
+				MessageUtils::updatePacketLengthField(scratch_packet);
+
+				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with LODChunkInitialSend message to packet.
+			}
+		}
+		conPrint("Sending total of " + toString(packet.getWriteIndex()) + " B in LODChunkInitialSend messages");
+		socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
+		socket->flush();
+	}
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -1004,20 +1160,19 @@ void WorkerThread::doRun()
 				this->write_trace = true;
 
 			// Read name of world to connect to
-			const std::string world_name = socket->readStringLengthFirst(1000);
-			conPrintIfNotFuzzing("Client connecting to world '" + world_name + "'...");
+			const std::string initial_world_name = socket->readStringLengthFirst(1000);
+			conPrintIfNotFuzzing("Client connecting to world '" + initial_world_name + "'...");
 			
-
 			{
 				Lock lock(world_state->mutex);
 
-				if(world_state->world_states.count(world_name) == 0)
-					throw glare::Exception("Invalid world name '" + world_name + "'.");
+				if(world_state->world_states.count(initial_world_name) == 0)
+					throw glare::Exception("Invalid world name '" + initial_world_name + "'.");
 
-				cur_world_state = world_state->world_states[world_name];
+				cur_world_state = world_state->world_states[initial_world_name];
 			}
 
-			this->connected_world_name = world_name;
+			this->connected_world_name = initial_world_name;
 
 			// Write avatar UID assigned to the connected client.
 			client_avatar_uid = world_state->getNextAvatarUID();
@@ -1076,154 +1231,8 @@ void WorkerThread::doRun()
 				socket->flush();
 			}
 
-			// Send world settings to client
-			{
-				MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsInitialSendMessage);
 
-				{
-					Lock lock(world_state->mutex);
-					cur_world_state->world_settings.writeToStream(scratch_packet);
-				}
-
-				MessageUtils::updatePacketLengthField(scratch_packet);
-				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-			}
-
-			// Send the current world details (contains world name, owner, description etc. to client)
-			{
-				MessageUtils::initPacket(scratch_packet, Protocol::WorldDetailsInitialSendMessage);
-
-				{
-					Lock lock(world_state->mutex);
-					cur_world_state->details.writeToNetworkStream(scratch_packet);
-				}
-
-				MessageUtils::updatePacketLengthField(scratch_packet);
-				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-			}
-
-
-			// Send all current avatar state data to client
-			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-
-				{ // Lock scope
-					WorldStateLock lock(world_state->mutex);
-					const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
-					for(auto it = avatars.begin(); it != avatars.end(); ++it)
-					{
-						const Avatar* avatar = it->second.getPointer();
-
-						// Write AvatarIsHere message
-						MessageUtils::initPacket(scratch_packet, Protocol::AvatarIsHere);
-						writeAvatarToNetworkStream(*avatar, scratch_packet);
-						MessageUtils::updatePacketLengthField(scratch_packet);
-
-						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-					}
-				} // End lock scope
-
-				socket->writeData(packet.buf.data(), packet.buf.size());
-			}
-
-			// Send all current object data to client
-			/*{
-				Lock lock(world_state->mutex);
-				for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
-				{
-					const WorldObject* ob = it->second.getPointer();
-
-					// Send ObjectCreated packet
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::ObjectCreated);
-					ob->writeToNetworkStream(packet);
-					socket->writeData(packet.buf.data(), packet.buf.size());
-				}
-			}*/
-
-			// Send all current parcel data to client.
-			// Send compressed parcel data if the client is new enough to handle it.
-			// As of 3/4/2025, uncompressed parcel data on substrata.info is 308331 B.
-			// With zstd compression: 
-			// Compressed to size 59929 B with compression level 3, compression took 2.454600064083934 ms
-			const bool send_compressed_parcel_data = client_protocol_version >= 42;
-			if(send_compressed_parcel_data)
-			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-
-				{ // Lock scope
-					WorldStateLock lock(world_state->mutex);
-					for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
-					{
-						const Parcel* parcel = it->second.getPointer();
-
-						// Build ParcelCreated message in scratch_packet
-						MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
-						writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
-						MessageUtils::updatePacketLengthField(scratch_packet);
-
-						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet to packet
-					}
-				} // End lock scope
-
-				// Compress packet to temp_buf
-				Timer timer;
-				compressWithZstd(/*src=*/packet.buf.data(), /*src size=*/packet.buf.size(), /*compression level=*/ZSTD_CLEVEL_DEFAULT, /*compressed data out=*/m_temp_buf);
-				const double compression_elapsed = timer.elapsed();
-
-				// Initialise ParcelInitialSendCompressed message in scratch_packet
-				MessageUtils::initPacket(scratch_packet, Protocol::ParcelInitialSendCompressed);
-				scratch_packet.writeData(m_temp_buf.data(), m_temp_buf.size()); // Write compressed data to scratch_packet
-				MessageUtils::updatePacketLengthField(scratch_packet);
-
-				// Write the ParcelInitialSendCompressed message
-				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-				socket->flush();
-				conPrint("Sent " + toString(scratch_packet.getWriteIndex()) + " B ParcelInitialSendCompressed message (compression took " + doubleToStringNSigFigs(compression_elapsed * 1.0e3, 4) + " ms)");
-			}
-			else
-			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-
-				{ // Lock scope
-					WorldStateLock lock(world_state->mutex);
-					for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
-					{
-						const Parcel* parcel = it->second.getPointer();
-
-						// Send ParcelCreated message
-						MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
-						writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
-						MessageUtils::updatePacketLengthField(scratch_packet);
-
-						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-					}
-				} // End lock scope
-
-				// conPrint("Sending total of " + toString(packet.getWriteIndex()) + " B in ParcelCreated messages");
-				socket->writeData(packet.buf.data(), packet.buf.size());
-				socket->flush();
-			}
-
-			// Send all current LOD chunk data to client, if they are using a sufficiently new protocol version.
-			if((client_protocol_version >= 40) && server->config.enable_LOD_chunking)
-			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				{
-					WorldStateLock lock(world_state->mutex);
-					for(auto it = cur_world_state->getLODChunks(lock).begin(); it != cur_world_state->getLODChunks(lock).end(); ++it)
-					{
-						MessageUtils::initPacket(scratch_packet, Protocol::LODChunkInitialSend);
-						it->second->writeToStream(scratch_packet);
-						MessageUtils::updatePacketLengthField(scratch_packet);
-
-						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with LODChunkInitialSend message to packet.
-					}
-				}
-				conPrint("Sending total of " + toString(packet.getWriteIndex()) + " B in LODChunkInitialSend messages");
-				socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
-				socket->flush();
-			}
+			sendPerWorldInitialDataToClient(world_state, cur_world_state, client_protocol_version);
 
 
 			// Send a message saying we have sent all initial state
@@ -1303,6 +1312,28 @@ void WorkerThread::doRun()
 							socket->waitForGracefulDisconnect(); // Wait for a FIN packet from the client. (indicated by recv() returning 0).  We can then close the socket without going into a wait state.
 							conPrintIfNotFuzzing("WorkerThread: waitForGracefulDisconnect done.");
 							should_quit = 1;
+							break;
+						}
+					case Protocol::ChangeToDifferentWorld:
+						{
+							conPrintIfNotFuzzing("WorkerThread: received ChangeToDifferentWorld");
+							const std::string new_world_name = msg_buffer.readStringLengthFirst(1000);
+
+							conPrintIfNotFuzzing("Client connecting to world '" + new_world_name + "'...");
+
+							{
+								Lock lock(world_state->mutex);
+
+								if(world_state->world_states.count(new_world_name) == 0)
+									throw glare::Exception("Invalid world name '" + new_world_name + "'.");
+
+								cur_world_state = world_state->world_states[new_world_name];
+							}
+
+							this->connected_world_name = new_world_name;
+
+							sendPerWorldInitialDataToClient(world_state, cur_world_state, client_protocol_version);
+
 							break;
 						}
 					case Protocol::ClientUDPSocketOpen:

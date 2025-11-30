@@ -38,7 +38,12 @@ ParticleManager::ParticleManager(const std::string& base_dir_path_, AsyncTexture
 
 ParticleManager::~ParticleManager()
 {
-	clear();
+	// Cancel any pending async downloads.
+	for(size_t i=0; i<loading_handles.size(); ++i)
+		async_tex_loader->cancelLoadingTexture(loading_handles[i]);
+	loading_handles.clear();
+
+	clearParticles();
 }
 
 
@@ -66,18 +71,12 @@ void ParticleManager::textureLoaded(Reference<OpenGLTexture> texture, const std:
 }
 
 
-void ParticleManager::clear()
+void ParticleManager::clearParticles()
 {
-	// Cancel any pending async downloads.
-	for(size_t i=0; i<loading_handles.size(); ++i)
-		async_tex_loader->cancelLoadingTexture(loading_handles[i]);
-	loading_handles.clear();
-
 	for(size_t i=0; i<particles.size(); ++i)
-	{
-		if(particles[i].gl_ob.nonNull())
+		if(particles[i].gl_ob)
 			opengl_engine->removeObject(particles[i].gl_ob);
-	}
+
 	particles.clear();
 }
 
