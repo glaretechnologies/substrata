@@ -37,11 +37,11 @@ static const size_t MAX_STRING_LEN = 10000;
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
-						   const std::string& world_name_, struct tls_config* config_, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator_, Reference<WorldState> world_state_)
+						   const std::string& initial_world_name_, struct tls_config* config_, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator_, Reference<WorldState> world_state_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
-	world_name(world_name_),
+	initial_world_name(initial_world_name_),
 	all_objects_received(false),
 	config(config_),
 	world_ob_pool_allocator(world_ob_pool_allocator_),
@@ -1269,7 +1269,7 @@ void ClientThread::doRun()
 		scratch_packet.writeUInt32(Protocol::CyberspaceHello); // Write hello
 		scratch_packet.writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
 		scratch_packet.writeUInt32(Protocol::ConnectionTypeUpdates); // Write connection type
-		scratch_packet.writeStringLengthFirst(world_name); // Write world name
+		scratch_packet.writeStringLengthFirst(initial_world_name); // Write world name
 		socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 
 

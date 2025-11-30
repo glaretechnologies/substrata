@@ -24,7 +24,11 @@ TerrainDecalManager::TerrainDecalManager(const std::string& base_dir_path, Async
 
 TerrainDecalManager::~TerrainDecalManager()
 {
-	clear();
+	for(size_t i=0; i<loading_handles.size(); ++i)
+		async_tex_loader->cancelLoadingTexture(loading_handles[i]);
+	loading_handles.clear();
+
+	clearDecals();
 }
 
 
@@ -44,12 +48,8 @@ void TerrainDecalManager::textureLoaded(Reference<OpenGLTexture> texture, const 
 }
 
 
-void TerrainDecalManager::clear()
+void TerrainDecalManager::clearDecals()
 {
-	for(size_t i=0; i<loading_handles.size(); ++i)
-		async_tex_loader->cancelLoadingTexture(loading_handles[i]);
-	loading_handles.clear();
-
 	for(size_t i=0; i<foam_decals.size(); ++i)
 	{
 		opengl_engine->addObject(foam_decals[i].decal_ob);

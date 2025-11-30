@@ -39,6 +39,8 @@ namespace glare { class AudioSource; }
 
 struct AvatarSettings
 {
+	AvatarSettings() : pre_ob_to_world_matrix(Matrix4f::identity()) {}
+
 	URLString model_url;
 	std::vector<WorldMaterialRef> materials;
 	Matrix4f pre_ob_to_world_matrix; // For y-up to z-up transformation, and translating so feet are on ground etc..

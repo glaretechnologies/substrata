@@ -232,7 +232,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
-		const std::string& world_name, struct tls_config* config, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator, Reference<WorldState> world_state);
+		const std::string& initial_world_name, struct tls_config* config, const Reference<glare::FastPoolAllocator>& world_ob_pool_allocator, Reference<WorldState> world_state);
 	virtual ~ClientThread();
 
 	virtual void doRun() override;
@@ -262,7 +262,7 @@ private:
 public:
 	Reference<SocketInterface> socket;
 private:
-	std::string world_name;
+	std::string initial_world_name;
 	struct tls_config* config;
 
 	Mutex data_to_send_mutex;

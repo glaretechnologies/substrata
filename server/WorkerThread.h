@@ -19,6 +19,8 @@ Copyright Glare Technologies Limited 2018 -
 #include <AtomicInt.h>
 #include <string>
 class Server;
+class ServerAllWorldsState;
+class ServerWorldState;
 
 
 /*=====================================================================
@@ -51,6 +53,7 @@ private:
 	void handleScreenshotBotConnection();
 	void handleEthBotConnection();
 	void conPrintIfNotFuzzing(const std::string& msg);
+	void sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state, Reference<ServerWorldState> cur_world_state, uint32 client_protocol_version);
 
 	Reference<SocketInterface> socket;
 	Server* server;

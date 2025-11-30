@@ -49,7 +49,7 @@ public:
 	TerrainDecalManager(const std::string& base_dir_path, AsyncTextureLoader* async_tex_loader, OpenGLEngine* opengl_engine);
 	~TerrainDecalManager();
 
-	void clear();
+	void clearDecals();
 
 	virtual void textureLoaded(Reference<OpenGLTexture> texture, const std::string& local_filename) override;
 

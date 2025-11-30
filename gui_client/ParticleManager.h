@@ -75,7 +75,7 @@ public:
 	ParticleManager(const std::string& base_dir_path, AsyncTextureLoader* async_tex_loader, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, TerrainDecalManager* terrain_decal_manager);
 	~ParticleManager();
 
-	void clear();
+	void clearParticles();
 
 	virtual void textureLoaded(Reference<OpenGLTexture> texture, const std::string& local_filename) override;
 

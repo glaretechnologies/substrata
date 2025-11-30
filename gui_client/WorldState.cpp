@@ -51,6 +51,28 @@ WorldState::~WorldState()
 }
 
 
+void WorldState::clear()
+{
+	Lock lock(mutex);
+
+	avatars.clear();
+	avatars_changed = 1;
+	
+	objects.clear();
+	dirty_from_remote_objects.clear();
+	dirty_from_local_objects.clear();
+
+	parcels.clear();
+	dirty_from_remote_parcels.clear();
+	dirty_from_local_parcels.clear();
+
+	lod_chunks.clear();
+	dirty_from_remote_lod_chunks.clear();
+
+	pending_event_handlers.clear();
+}
+
+
 static const double CORRECTION_PERIOD = 2.0;
 
 

@@ -37,13 +37,14 @@ CyberspaceProtocolVersion
 41: Added server capabilities uint sent back in initial handshake
 42: Added ParcelInitialSendCompressed, client_capabilities
 43: Added sending mesh optimisation version to client
+44: Added ChangeToDifferentWorld
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 43;
+const uint32 CyberspaceProtocolVersion = 44;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -61,6 +62,8 @@ const uint32 ConnectionTypeDownloadResources	= 502;
 const uint32 ConnectionTypeScreenshotBot		= 504; // A connection from the screenshot bot.
 const uint32 ConnectionTypeEthBot				= 505; // A connection from the Ethereum bot.
 const uint32 ConnectionTypeUploadPhoto			= 506;
+
+const uint32 ChangeToDifferentWorld			= 600;
 
 
 const uint32 AvatarCreated			= 1000;

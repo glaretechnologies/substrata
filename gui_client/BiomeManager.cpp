@@ -30,9 +30,9 @@ BiomeManager::BiomeManager()
 }
 
 
-void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_world)
-{
-}
+//void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_world)
+//{
+//}
 
 
 void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
