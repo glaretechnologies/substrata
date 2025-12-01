@@ -1420,6 +1420,55 @@ void handleSetParcelZBoundsPost(ServerAllWorldsState& world_state, const web::Re
 }
 
 
+void handleSetParcelWidthsPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int parcel_id = request.getPostIntField("parcel_id");
+		
+		const std::string widths_string = stripHeadAndTailWhitespace(request.getPostField("widths_string").str());
+		Parser parser(widths_string);
+		Vec2d widths;
+		if(!parser.parseDouble(widths.x))
+			throw glare::Exception("failed to parse x coord");
+		parser.parseWhiteSpace();
+		if(!parser.parseDouble(widths.y))
+			throw glare::Exception("failed to parse y coord");
+
+		{ // Lock scope
+			WorldStateLock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				parcel->verts[1] = parcel->verts[0] + Vec2d(widths.x, 0);
+				parcel->verts[2] = parcel->verts[0] + widths;
+				parcel->verts[3] = parcel->verts[0] + Vec2d(0, widths.y);
+				parcel->build();
+
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(parcel_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSetParcelWidthsPost error: " + e.what());
+	}
+}
+
+
 // Sets the state of a minting transaction to new.
 void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
