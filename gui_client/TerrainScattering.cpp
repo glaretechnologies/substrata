@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "OpenGLShader.h"
 #include "BiomeManager.h"
 #include "TerrainTests.h"
+#include "../shared/WorldSettings.h"
 #include "graphics/PerlinNoise.h"
 #include "PhysicsWorld.h"
 #include "../shared/ImageDecoding.h"
@@ -119,6 +120,7 @@ struct ShaderChunkInfo
 	float base_scale;
 	float imposter_width_over_height;
 	float terrain_scale_factor;
+	float water_level_z;
 	uint32 vert_data_offset_B;
 };
 
@@ -1819,6 +1821,7 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 		chunk_info.base_scale = grid_scatter.base_scale;
 		chunk_info.imposter_width_over_height = grid_scatter.imposter_width_over_height;
 		chunk_info.terrain_scale_factor = terrain_scale_factor;
+		chunk_info.water_level_z = BitUtils::isBitSet(terrain_system->spec.flags, TerrainSpec::WATER_ENABLED_FLAG) ? terrain_system->spec.water_z : -100000.f;
 		chunk_info.vert_data_offset_B = (uint32)chunk.imposters_gl_ob->mesh_data->vbo_handle.offset;
 
 		chunk_info_ssbo->updateData(0, &chunk_info, sizeof(chunk_info));
