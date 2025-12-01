@@ -192,6 +192,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetParcelZBoundsPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_parcel_widths")
+		{
+			AdminHandlers::handleSetParcelWidthsPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_set_transaction_state_to_new_post")
 		{
 			AdminHandlers::handleSetTransactionStateToNewPost(*this->world_state, request, reply_info);
