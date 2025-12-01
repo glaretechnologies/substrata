@@ -291,7 +291,27 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				page += "<input type=\"submit\" value=\"Retry parcel minting\" onclick=\"return confirm('Are you sure you want to retry minting?');\" >";
 				page += "</form>";
 
-			}
+
+				for(int i=0; i<4; ++i)
+				{
+					const std::string vert_string = toString(parcel->verts[i].x) + " " + toString(parcel->verts[i].y);
+
+					page += "<form action=\"/admin_set_parcel_vertex\" method=\"post\">";
+					page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
+					page += "<input type=\"hidden\" name=\"vert_i\" value=\"" + toString(i) + "\">";
+					page += "<input type=\"text\" name=\"vert_string\" value=\"" + vert_string + "\">";
+					page += "<input type=\"submit\" value=\"Set parcel vertex " + toString(i) + "\">";
+					page += "</form>";
+				}
+
+				const std::string zbounds_string = toString(parcel->zbounds.x) + " " + toString(parcel->zbounds.y);
+
+				page += "<form action=\"/admin_set_parcel_zbounds\" method=\"post\">";
+				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
+				page += "<input type=\"text\" name=\"zbounds_string\" value=\"" + zbounds_string + "\">";
+				page += "<input type=\"submit\" value=\"Set parcel z-bounds\">";
+				page += "</form>";
+		}
 
 		} // end lock scope
 

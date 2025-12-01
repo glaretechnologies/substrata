@@ -270,6 +270,14 @@ void renderParcelsPage(ServerAllWorldsState& world_state, const web::RequestInfo
 		page_out += "<hr/>";
 		//-----------------------
 
+		//-----------------------
+		page_out += "<hr/>";
+		page_out += "<form action=\"/admin_create_parcel\" method=\"post\">";
+		page_out += "<input type=\"submit\" value=\"Create new parcel\" onclick=\"return confirm('Are you sure you want to create a parcel?');\" >";
+		page_out += "</form>";
+		page_out += "<hr/>";
+		//-----------------------
+
 
 
 		Reference<ServerWorldState> root_world = world_state.getRootWorldState();
@@ -1313,6 +1321,105 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 }
 
 
+void handleSetParcelVertexPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int parcel_id = request.getPostIntField("parcel_id");
+		const int vert_i    = request.getPostIntField("vert_i");
+		if(vert_i < 0 || vert_i >= 4)
+			throw glare::Exception("invalid vert index");
+
+		const std::string vert_string = stripHeadAndTailWhitespace(request.getPostField("vert_string").str());
+		Parser parser(vert_string);
+		Vec2d new_vert_pos;
+		if(!parser.parseDouble(new_vert_pos.x))
+			throw glare::Exception("failed to parse x coord");
+		parser.parseWhiteSpace();
+		if(!parser.parseDouble(new_vert_pos.y))
+			throw glare::Exception("failed to parse y coord");
+
+		{ // Lock scope
+			WorldStateLock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				parcel->verts[vert_i] = new_vert_pos;
+				parcel->build();
+				
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(parcel_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSetParcelVertexPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleSetParcelZBoundsPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int parcel_id = request.getPostIntField("parcel_id");
+		
+		const std::string zbounds_string = stripHeadAndTailWhitespace(request.getPostField("zbounds_string").str());
+		Parser parser(zbounds_string);
+		Vec2d new_zbounds;
+		if(!parser.parseDouble(new_zbounds.x))
+			throw glare::Exception("failed to parse x coord");
+		parser.parseWhiteSpace();
+		if(!parser.parseDouble(new_zbounds.y))
+			throw glare::Exception("failed to parse y coord");
+
+		{ // Lock scope
+			WorldStateLock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				parcel->zbounds = new_zbounds;
+				parcel->build();
+				
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(parcel_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSetParcelZBoundsPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
 // Sets the state of a minting transaction to new.
 void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
@@ -1506,6 +1613,66 @@ void handleDeleteTransactionPost(ServerAllWorldsState& world_state, const web::R
 	{
 		if(!request.fuzzing)
 			conPrint("handleDeleteTransactionPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleCreateParcelPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		User* user = LoginHandlers::getLoggedInUser(world_state, request);
+		runtimeCheck(user);
+
+		ParcelID new_id;
+
+		{ // Lock scope
+
+			WorldStateLock lock(world_state.mutex);
+
+			// Find max parcel id
+			uint32 max_id = 0;
+			for(auto it = world_state.getRootWorldState()->parcels.begin(); it != world_state.getRootWorldState()->parcels.end(); ++it)
+			{
+				if(it->second->id.valid())
+					max_id = myMax(max_id, it->second->id.value());
+			}
+
+			new_id = ParcelID(max_id + 1);
+
+			Parcel* parcel = new Parcel();
+			parcel->id = new_id;
+			parcel->owner_id = user->id;
+			parcel->created_time = TimeStamp::currentTime();
+			//parcel->admin_ids.push_back(UserID(0));
+
+			parcel->verts[0] = Vec2d(-10000, -10000);
+			parcel->verts[1] = Vec2d(-10000 + 1, -10000);
+			parcel->verts[2] = Vec2d(-10000 + 1, -10000 + 1);
+			parcel->verts[3] = Vec2d(-10000, -10000 + 1);
+			parcel->zbounds = Vec2d(-1.0, 4.0);
+			parcel->build();
+
+			world_state.getRootWorldState()->parcels[new_id] = parcel;
+			world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
+			world_state.markAsChanged();
+		} // End lock scope
+
+		world_state.setUserWebMessage(user->id, "Parcel created.");
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(new_id.value()));
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleCreateParcelPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

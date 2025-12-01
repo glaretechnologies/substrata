@@ -164,6 +164,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleRegenerateMultipleParcelScreenshots(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_create_parcel")
+		{
+			AdminHandlers::handleCreateParcelPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_terminate_parcel_auction")
 		{
 			AdminHandlers::handleTerminateParcelAuction(*this->world_state, request, reply_info);
@@ -179,6 +183,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/admin_retry_parcel_mint_post")
 		{
 			AdminHandlers::handleRetryParcelMintPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_set_parcel_vertex")
+		{
+			AdminHandlers::handleSetParcelVertexPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_set_parcel_zbounds")
+		{
+			AdminHandlers::handleSetParcelZBoundsPost(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/admin_set_transaction_state_to_new_post")
 		{
