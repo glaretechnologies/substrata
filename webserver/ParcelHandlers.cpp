@@ -312,11 +312,13 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				page += "<input type=\"submit\" value=\"Set parcel z-bounds\">";
 				page += "</form>";
 
+				const std::string widths_string = toString(parcel->aabb.axisLength(0)) + " " + toString(parcel->aabb.axisLength(1));
+
 				page += "<form action=\"/admin_set_parcel_widths\" method=\"post\">";
 				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
-				page += "<input type=\"text\" name=\"widths_string\" value=\"\">";
+				page += "<input type=\"text\" name=\"widths_string\" value=\"" + widths_string + "\">";
 				page += "<input type=\"submit\" value=\"Set parcel widths\">";
-				page += "</form> (Sets vertices 2, 3, and 4.  Enter a value like '20 25')";
+				page += "</form> (Sets vertices 2, 3, and 4)";
 		}
 
 		} // end lock scope
