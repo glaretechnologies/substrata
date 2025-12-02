@@ -1686,12 +1686,16 @@ void handleCreateParcelPost(ServerAllWorldsState& world_state, const web::Reques
 
 			WorldStateLock lock(world_state.mutex);
 
-			// Find max parcel id
+			// Find max parcel id, also most recently created parcel.
 			uint32 max_id = 0;
+			ParcelRef most_recent_parcel;
 			for(auto it = world_state.getRootWorldState()->parcels.begin(); it != world_state.getRootWorldState()->parcels.end(); ++it)
 			{
 				if(it->second->id.valid())
+				{
 					max_id = myMax(max_id, it->second->id.value());
+					most_recent_parcel = it->second; // Just approximate most recently-created with parcel with greatest id.
+				}
 			}
 
 			new_id = ParcelID(max_id + 1);
@@ -1706,7 +1710,7 @@ void handleCreateParcelPost(ServerAllWorldsState& world_state, const web::Reques
 			parcel->verts[1] = Vec2d(-10000 + 1, -10000);
 			parcel->verts[2] = Vec2d(-10000 + 1, -10000 + 1);
 			parcel->verts[3] = Vec2d(-10000, -10000 + 1);
-			parcel->zbounds = Vec2d(-1.0, 4.0);
+			parcel->zbounds = most_recent_parcel ? most_recent_parcel->zbounds : Vec2d(-1.0, 4.0); // Copy zbounds from most_recent_parcel
 			parcel->build();
 
 			world_state.getRootWorldState()->parcels[new_id] = parcel;
