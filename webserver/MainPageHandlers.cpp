@@ -28,6 +28,14 @@ namespace MainPageHandlers
 {
 
 
+struct AuctionIDLessThan
+{
+	bool operator() (const ParcelAuction* a, const ParcelAuction* b)
+	{
+		return a->id < b->id;
+	}
+};
+
 void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	//std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
@@ -68,14 +76,14 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 		ServerWorldState* root_world = world_state.getRootWorldState().ptr();
 
-		int num_auctions_shown = 0; // Num substrata auctions shown
 		const TimeStamp now = TimeStamp::currentTime();
-		auction_html += "<div class=\"root-auction-list-container\">\n";
-		const ServerWorldState::ParcelMapType& parcels = root_world->getParcels(lock);
-		for(auto it = parcels.begin(); (it != parcels.end()) && (num_auctions_shown < 4); ++it)
-		{
-			Parcel* parcel = it->second.ptr();
 
+		// Collect list of all current auctions
+		SmallVector<const ParcelAuction*, 16> current_auctions;
+		const ServerWorldState::ParcelMapType& parcels = root_world->getParcels(lock);
+		for(auto it = parcels.begin(); it != parcels.end(); ++it)
+		{
+			const Parcel* parcel = it->second.ptr();
 			if(!parcel->parcel_auction_ids.empty())
 			{
 				const uint32 auction_id = parcel->parcel_auction_ids.back(); // Get most recent auction
@@ -83,25 +91,36 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 				if(res != world_state.parcel_auctions.end())
 				{
 					const ParcelAuction* auction = res->second.ptr();
-
 					if(auction->currentlyForSale(now)) // If auction is valid and running:
-					{
-						if(!auction->screenshot_ids.empty())
-						{
-							const uint64 shot_id = auction->screenshot_ids[0]; // Get id of close-in screenshot
-
-							const double cur_price_EUR = auction->computeCurrentAuctionPrice();
-							const double cur_price_BTC = cur_price_EUR * world_state.BTC_per_EUR;
-							const double cur_price_ETH = cur_price_EUR * world_state.ETH_per_EUR;
-
-							auction_html += "<div class=\"root-auction-div\"><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" class=\"root-auction-thumbnail\" alt=\"screenshot\" /></a>  <br/>"
-								"&euro;" + doubleToStringNDecimalPlaces(cur_price_EUR, 2) + " / " + doubleToStringNSigFigs(cur_price_BTC, 2) + "&nbsp;BTC / " + doubleToStringNSigFigs(cur_price_ETH, 2) + "&nbsp;ETH</div>";
-						}
-
-						num_auctions_shown++;
-					}
+						current_auctions.push_back(auction);
 				}
 			}
+		}
+
+		// Sort auctions by ID, smallest (= oldest) first.
+		std::sort(current_auctions.begin(), current_auctions.end(), AuctionIDLessThan());
+
+		// Generate HTML for auctions
+		const int MAX_NUM_AUCTIONS_TO_SHOW = 4;
+		auction_html += "<div class=\"root-auction-list-container\">\n";
+		int num_auctions_shown = 0;
+		for(size_t i=0; (i<current_auctions.size()) && (num_auctions_shown < MAX_NUM_AUCTIONS_TO_SHOW); ++i)
+		{
+			const ParcelAuction* auction = current_auctions[i];
+
+			if(!auction->screenshot_ids.empty())
+			{
+				const uint64 shot_id = auction->screenshot_ids[0]; // Get id of close-in screenshot
+
+				const double cur_price_EUR = auction->computeCurrentAuctionPrice();
+				const double cur_price_BTC = cur_price_EUR * world_state.BTC_per_EUR;
+				const double cur_price_ETH = cur_price_EUR * world_state.ETH_per_EUR;
+
+				auction_html += "<div class=\"root-auction-div\"><a href=\"/parcel_auction/" + toString(auction->id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" class=\"root-auction-thumbnail\" alt=\"screenshot\" /></a>  <br/>"
+					"&euro;" + doubleToStringNDecimalPlaces(cur_price_EUR, 2) + " / " + doubleToStringNSigFigs(cur_price_BTC, 2) + "&nbsp;BTC / " + doubleToStringNSigFigs(cur_price_ETH, 2) + "&nbsp;ETH</div>";
+			}
+
+			num_auctions_shown++;
 		}
 		auction_html += "</div>\n";
 
