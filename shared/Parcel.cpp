@@ -224,6 +224,10 @@ std::string Parcel::districtName() const
 		return "North";
 	else if(id.value() <= 1385)
 		return "Northeast";
+	else if(id.value() <= 1413)
+		return "Hillside";
+	else if(id.value() <= 1489)
+		return "River Mouth";
 	else
 		return "Other";
 }
