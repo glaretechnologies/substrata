@@ -76,8 +76,7 @@ var rect_parcel_ids = document.getElementById("rect_parcel_ids").textContent.spl
 
 var rect_parcel_state = document.getElementById("rect_parcel_state").textContent.split(',').map(s => parseInt(s, /*radix=*/10));
 
-
-
+var highlight_parcel_id = parseInt(document.getElementById("highlight_parcel_id").textContent, /*radix=*/10);
 
 for (let i = 0; i < poly_parcel_ids.length; i++) {
 
