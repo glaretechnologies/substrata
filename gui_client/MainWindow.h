@@ -162,8 +162,6 @@ private:
 	void updateStatusBar();
 	void updateDiagnostics();
 	void runScreenshotCode();
-	void setUpForScreenshot();
-	void saveScreenshot(); // Throws glare::Exception on failure
 
 	virtual void dragEnterEvent(QDragEnterEvent* event) override;
 	virtual void dropEvent(QDropEvent* event) override;
@@ -315,7 +313,6 @@ public:
 	bool taking_map_screenshot;
 	bool test_screenshot_taking;
 	int screenshot_highlight_parcel_id;
-	bool done_screenshot_setup;
 	int screenshot_width_px;
 	float screenshot_ortho_sensor_width_m;
 	Vec3d screenshot_campos;
