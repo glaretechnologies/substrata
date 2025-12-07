@@ -133,7 +133,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	run_as_screenshot_slave(false),
 	taking_map_screenshot(false),
 	test_screenshot_taking(false),
-	done_screenshot_setup(false),
 	running_destructor(false),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	settings(NULL),
@@ -1020,105 +1019,6 @@ void MainWindow::showPlainTextMessageBox(const std::string& title, const std::st
 }
 
 
-// Set up for screenshot-bot type screenshot
-void MainWindow::setUpForScreenshot()
-{
-	if(taking_map_screenshot)
-		gui_client.removeParcelObjects();
-
-	// Highlight requested parcel_id
-	if(screenshot_highlight_parcel_id != -1)
-	{
-		Lock lock(gui_client.world_state->mutex);
-
-		gui_client.addParcelObjects();
-
-		auto res = gui_client.world_state->parcels.find(ParcelID(screenshot_highlight_parcel_id));
-		if(res != gui_client.world_state->parcels.end())
-		{
-			// Deselect any existing gl objects
-			ui->glWidget->opengl_engine->deselectAllObjects();
-
-			gui_client.selected_parcel = res->second;
-			ui->glWidget->opengl_engine->selectObject(gui_client.selected_parcel->opengl_engine_ob);
-			ui->glWidget->opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
-			ui->glWidget->opengl_engine->setSelectionOutlineWidth(6.0f);
-		}
-	}
-
-	ui->glWidget->take_map_screenshot = taking_map_screenshot;
-
-	gui_client.chat_ui.destroy();
-
-	gui_client.gesture_ui.destroy();
-
-	gui_client.minimap = nullptr;
-
-	opengl_engine->getCurrentScene()->cloud_shadows = false;
-
-	done_screenshot_setup = true;
-}
-
-
-static ImageMapUInt8Ref convertQImageToImageMapUInt8(const QImage& qimage)
-{
-	// NOTE: Qt-saved images were doing weird things with parcel border alpha.  Just copy to an ImageMapUInt8 and do the image saving ourselves.
-	const int W = qimage.width();
-	const int H = qimage.height();
-	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
-
-	const int px_byte_stride = qimage.depth() / 8; // depth = bits per pixel
-
-	// Copy to ImageMapUInt8
-	for(int y=0; y<H; ++y)
-	{
-		const uint8* scanline = qimage.constScanLine(y);
-
-		for(int x=0; x<W; ++x)
-		{
-			const QRgb src_px = *(const QRgb*)(scanline + px_byte_stride * x);
-			uint8* dst_px = map->getPixel(x, y);
-			dst_px[0] = (uint8)qRed(src_px);
-			dst_px[1] = (uint8)qGreen(src_px);
-			dst_px[2] = (uint8)qBlue(src_px);
-		}
-	}
-	
-	return map;
-}
-
-
-// For screenshot bot
-void MainWindow::saveScreenshot() // Throws glare::Exception on failure
-{
-	conPrint("Taking screenshot");
-
-#if QT_VERSION_MAJOR >= 6
-	QImage framebuffer = ui->glWidget->grabFramebuffer();
-#else
-	if(opengl_engine.nonNull())
-		opengl_engine->setReadFrameBufferToDefault();// Make sure we are reading from the default framebuffer.  Get an OpenGL error if we don't call this.
-
-	QImage framebuffer = ui->glWidget->grabFrameBuffer();
-#endif
-
-	const int target_viewport_w = taking_map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
-	const int target_viewport_h = taking_map_screenshot ? (screenshot_width_px * 2) : (437 * 2); 
-	
-	if(framebuffer.width() != target_viewport_w)
-		throw glare::Exception("saveScreenshot(): framebuffer width was incorrect: actual: " + toString(framebuffer.width()) + ", target: " + toString(target_viewport_w));
-	if(framebuffer.height() != target_viewport_h)
-		throw glare::Exception("saveScreenshot(): framebuffer height was incorrect: actual: " + toString(framebuffer.height()) + ", target: " + toString(target_viewport_h));
-	
-	QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
-
-	// NOTE: Qt-saved images were doing weird things with parcel border alpha.  Just copy to an ImageMapUInt8 and do the image saving ourselves.
-	ImageMapUInt8Ref map = convertQImageToImageMapUInt8(scaled_img);
-
-	JPEGDecoder::save(map, screenshot_output_path, JPEGDecoder::SaveOptions(/*quality=*/95));
-}
-
-
 static Vec2f GLCoordsForGLWidgetPos(MainWindow* main_window, const Vec2f widget_pos)
 {
 	const int vp_width  = main_window->ui->glWidget->opengl_engine->getViewPortWidth();
@@ -1446,64 +1346,95 @@ void MainWindow::runScreenshotCode()
 
 		const bool loaded_all =
 			(time_since_last_screenshot.elapsed() > 3.0) && // Bit of a hack to allow time for the shadow mapping to render properly
-			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
-			(total_timer.elapsed() >= 4) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
+			(num_obs > 0 || total_timer.elapsed() >= 15.0) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
+			(total_timer.elapsed() >= 4.0) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
 			(num_model_and_tex_tasks == 0) &&
 			(gui_client.num_non_net_resources_downloading == 0) &&
 			(gui_client.num_net_resources_downloading == 0) &&
-			(gui_client.terrain_system.nonNull() && gui_client.terrain_system->isTerrainFullyBuilt());
+			(gui_client.terrain_system && gui_client.terrain_system->isTerrainFullyBuilt());
 
 		if(loaded_all)
 		{
-			if(!done_screenshot_setup)
+			conPrint("Setting up for screenshot...");
+
+			ui->editorDockWidget->hide();
+			ui->chatDockWidget->hide();
+			ui->diagnosticsDockWidget->hide();
+
+			const int target_viewport_w = map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
+			const int target_viewport_h = map_screenshot ? (screenshot_width_px * 2) : (437 * 2);
+
+			conPrint("Setting geometry size...");
+
+			// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
+			ui->glWidget->setGeometry(0, 0, target_viewport_w, target_viewport_h);
+
+			if(taking_map_screenshot)
+				gui_client.removeParcelObjects();
+
+			// Highlight requested parcel_id
+			if(screenshot_highlight_parcel_id != -1)
 			{
-				conPrint("Setting up for screenshot...");
+				Lock lock(gui_client.world_state->mutex);
 
-				ui->editorDockWidget->hide();
-				ui->chatDockWidget->hide();
-				ui->diagnosticsDockWidget->hide();
+				gui_client.addParcelObjects();
 
-				const int target_viewport_w = map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
-				const int target_viewport_h = map_screenshot ? (screenshot_width_px * 2) : (437 * 2);
-
-				conPrint("Setting geometry size...");
-				// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
-				ui->glWidget->setGeometry(0, 0, target_viewport_w, target_viewport_h);
-				setUpForScreenshot();
-			}
-			else
-			{
-				try
+				auto res = gui_client.world_state->parcels.find(ParcelID(screenshot_highlight_parcel_id));
+				if(res != gui_client.world_state->parcels.end())
 				{
-					saveScreenshot();
+					// Deselect any existing gl objects
+					ui->glWidget->opengl_engine->deselectAllObjects();
 
-					// Reset screenshot state
-					screenshot_output_path.clear();
-					done_screenshot_setup = false;
-
-					time_since_last_screenshot.reset();
-
-					if(screenshot_command_socket.nonNull())
-					{
-						screenshot_command_socket->writeInt32(0); // Write success msg
-						screenshot_command_socket->writeStringLengthFirst("Success!");
-					}
+					gui_client.selected_parcel = res->second;
+					ui->glWidget->opengl_engine->selectObject(gui_client.selected_parcel->opengl_engine_ob);
+					ui->glWidget->opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
+					ui->glWidget->opengl_engine->setSelectionOutlineWidth(6.0f);
 				}
-				catch(glare::Exception& e)
+			}
+
+			ui->glWidget->take_map_screenshot = taking_map_screenshot;
+
+			opengl_engine->getCurrentScene()->draw_overlay_objects = false; // Hide UI
+
+			opengl_engine->getCurrentScene()->cloud_shadows = false;
+
+			try
+			{
+				conPrint("Taking screenshot...");
+
+				ui->glWidget->updateGL(); // Make sure QGLWidget::paintGL gets called to set camera transform, sensor width etc.
+
+				opengl_engine->setMainViewportDims(target_viewport_w, target_viewport_h);
+				ImageMapUInt8Ref map = opengl_engine->drawToBufferAndReturnImageMap();
+				if(map->hasAlphaChannel())
+					map = map->extract3ChannelImage();
+
+				JPEGDecoder::save(map, screenshot_output_path, JPEGDecoder::SaveOptions(/*quality=*/95));
+
+				// Reset screenshot state
+				screenshot_output_path.clear();
+
+				time_since_last_screenshot.reset();
+
+				if(screenshot_command_socket.nonNull())
 				{
-					conPrint("Excep while saving screenshot: " + e.what());
+					screenshot_command_socket->writeInt32(0); // Write success msg
+					screenshot_command_socket->writeStringLengthFirst("Success!");
+				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Excep while saving screenshot: " + e.what());
 
-					// Reset screenshot state
-					screenshot_output_path.clear();
-					done_screenshot_setup = false;
+				// Reset screenshot state
+				screenshot_output_path.clear();
 
-					time_since_last_screenshot.reset();
+				time_since_last_screenshot.reset();
 
-					if(screenshot_command_socket.nonNull())
-					{
-						screenshot_command_socket->writeInt32(1); // Write failure msg
-						screenshot_command_socket->writeStringLengthFirst("Exception encountered: " + e.what());
-					}
+				if(screenshot_command_socket.nonNull())
+				{
+					screenshot_command_socket->writeInt32(1); // Write failure msg
+					screenshot_command_socket->writeStringLengthFirst("Exception encountered: " + e.what());
 				}
 			}
 		}
