@@ -97,6 +97,7 @@ static const int button_H = 60;
 
 	TextureParams params;
 	params.use_mipmaps = false;
+	params.filtering = OpenGLTexture::Filtering_Bilinear; // Disable trilinear filtering on the 'click to load' texture on webviews, to avoid stutters while drivers compute Mipmaps.
 	params.allow_compression = false;
 	OpenGLTextureRef tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("click_to_load_" + URL), *map, params);
 	return tex;
