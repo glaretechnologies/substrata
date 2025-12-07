@@ -608,7 +608,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Third Person Camera</string>
+    <string>Third Person Camera       V</string>
    </property>
   </action>
   <action name="actionAdd_Audio_Source">
