@@ -1433,7 +1433,7 @@ void MainWindow::runScreenshotCode()
 
 		const size_t num_model_and_tex_tasks = gui_client.load_item_queue.size() + gui_client.model_and_texture_loader_task_manager.getNumUnfinishedTasks() + gui_client.model_loaded_messages_to_process.size();
 
-		if(time_since_last_waiting_msg.elapsed() > 2.0)
+		if(time_since_last_waiting_msg.elapsed() > 1.0)
 		{
 			conPrint("---------------Waiting for loading to be done for screenshot ---------------");
 			printVar(num_obs);
@@ -1445,9 +1445,9 @@ void MainWindow::runScreenshotCode()
 		}
 
 		const bool loaded_all =
-			(time_since_last_screenshot.elapsed() > 4.0) && // Bit of a hack to allow time for the shadow mapping to render properly
+			(time_since_last_screenshot.elapsed() > 3.0) && // Bit of a hack to allow time for the shadow mapping to render properly
 			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
-			(total_timer.elapsed() >= 8) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
+			(total_timer.elapsed() >= 4) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
 			(num_model_and_tex_tasks == 0) &&
 			(gui_client.num_non_net_resources_downloading == 0) &&
 			(gui_client.num_net_resources_downloading == 0) &&
@@ -2663,7 +2663,7 @@ void MainWindow::on_actionShow_Parcels_triggered()
 
 void MainWindow::on_actionFly_Mode_triggered()
 {
-	gui_client.player_physics.setFlyModeEnabled(ui->actionFly_Mode->isChecked());
+	gui_client.setFlyModeEnabled(ui->actionFly_Mode->isChecked());
 
 	settings->setValue("mainwindow/flyMode", QVariant(ui->actionFly_Mode->isChecked()));
 }
@@ -4531,20 +4531,14 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
-		// Extract animation data from a GLTF file.
+		// Extract the avatar animation data from a GLTF file.
+		// E.g. --extractanims "D:\models\readyplayerme_avatar_animation_18.glb" "D:\models\extracted_avatar_anim.bin"
 		if(parsed_args.isArgPresent("--extractanims"))
 		{
-			// E.g. --extractanims "D:\models\readyplayerme_avatar_animation_17.glb" "D:\models\extracted_avatar_anim.bin"
 			const std::string input_path  = parsed_args.getArgStringValue("--extractanims", 0);
 			const std::string output_path = parsed_args.getArgStringValue("--extractanims", 1);
 
-			// Extract anims
-			GLTFLoadedData data;
-			Reference<BatchedMesh> mesh = FormatDecoderGLTF::loadGLBFile(input_path, data);
-
-			FileOutStream file(output_path);
-			mesh->animation_data.writeToStream(file);
-
+			AvatarGraphics::extractAvatarAnimInfo(input_path, output_path);
 			return 0;
 		}
 

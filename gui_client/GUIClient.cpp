@@ -5326,6 +5326,20 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 }
 
 
+void GUIClient::setFlyModeEnabled(bool enabled)
+{
+	player_physics.setFlyModeEnabled(enabled);
+	if(enabled)
+	{
+		// Jump off the ground a bit so it's clear that we started flying
+		if(player_physics.onGroundRecently())
+		{
+			player_physics.processMoveUp(20.f, /*runpressed=*/false, this->cam_controller);
+		}
+	}
+}
+
+
 void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 {
 	ZoneScoped; // Tracy profiler

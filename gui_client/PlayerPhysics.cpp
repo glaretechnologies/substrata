@@ -179,6 +179,8 @@ void PlayerPhysics::processMoveUp(float factor, bool runpressed, CameraControlle
 	last_runpressed = runpressed;
 	if(fly_mode || (cam.current_cam_mode == CameraController::CameraMode_FreeCamera))
 		move_desired_vel += Vec3f(0,0,1) * factor * move_speed * doRunFactor(runpressed);
+
+	this->gravity_enabled = true;
 }
 
 

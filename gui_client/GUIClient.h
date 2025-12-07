@@ -382,6 +382,8 @@ public:
 
 	void processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out);
 
+	void setFlyModeEnabled(bool enabled);
+
 	void enableMaterialisationEffectOnOb(WorldObject& ob);
 	void enableMaterialisationEffectOnAvatar(Avatar& ob);
 

@@ -124,6 +124,8 @@ public:
 
 	const Vec3d& getLastVel() const { return last_vel; }
 
+	static void extractAvatarAnimInfo(const std::string& input_glb_path, const std::string& output_path);
+
 	Reference<GLObject> selected_ob_beam;
 	
 	Reference<GLObject> skinned_gl_ob;
