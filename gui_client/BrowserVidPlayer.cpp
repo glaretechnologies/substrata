@@ -468,6 +468,9 @@ EM_JS(int, makeHTMLVideoElement, (const char* http_URL, int autoplay, int loop, 
 	// There's a bug in Chrome where the muted attribute doesn't work.  Work around it:  (see https://stackoverflow.com/questions/47638344/muted-autoplay-in-chrome-still-not-working)
 	if(muted)
 		video_elem.addEventListener("canplay", (event) => { video_elem.muted = true; });
+
+	video_elem.glare_is_playing = false;
+	video_elem.addEventListener("playing", function() { video_elem.glare_is_playing = true; });
 	
 	document.getElementById('background-div').appendChild(video_elem);
 
@@ -505,18 +508,33 @@ EM_JS(void, updateOpenGLTexWithVideoElementFrame, (int tex_handle, int video_ele
 
 	let video_elem = html_view_elem_handle_to_div_map[video_elem_handle];
 
-	let width  = video_elem.videoWidth;
-	let height = video_elem.videoHeight;
+	// Videos may not be able to be autoplayed if no interaction with the page has taken place yet.
+	// Just keep trying to unpause them, this will work once an interaction has taken place.
+	if(video_elem.autoplay && video_elem.paused)
+	{
+		// console.log("Autoplay paused, attempting to play...");
+		video_elem.play()
+			.catch(err => {
+				// An error will be thrown if can't be played due to no interaction yet.
+				//console.log("caught error: " + err);
+			});
+	}
 
-	let gl_tex = GL.textures[tex_handle];
+	if(video_elem.glare_is_playing)
+	{
+		let width  = video_elem.videoWidth;
+		let height = video_elem.videoHeight;
 
-	let gl = GLctx;
+		let gl_tex = GL.textures[tex_handle];
 
-	gl.bindTexture(gl.TEXTURE_2D, gl_tex);
+		let gl = GLctx;
 
-	gl.texSubImage2D(gl.TEXTURE_2D, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0, width, height, /*format=*/gl.RGB, /*type=*/gl.UNSIGNED_BYTE, /*source=*/video_elem);	
-	
-	gl.bindTexture(gl.TEXTURE_2D, null); // unbind
+		gl.bindTexture(gl.TEXTURE_2D, gl_tex);
+
+		gl.texSubImage2D(gl.TEXTURE_2D, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0, width, height, /*format=*/gl.RGB, /*type=*/gl.UNSIGNED_BYTE, /*source=*/video_elem);	
+
+		gl.bindTexture(gl.TEXTURE_2D, null); // unbind
+	}
 });
 
 
