@@ -9,9 +9,11 @@ Copyright Glare Technologies Limited 2021 -
 #include "opengl/OpenGLEngine.h"
 #include "opengl/MeshPrimitiveBuilding.h"
 #include "opengl/OpenGLMeshRenderData.h"
+#include "graphics/FormatDecoderGLTF.h"
 #include "../dll/include/IndigoMesh.h"
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
+#include <utils/FileOutStream.h>
 
 
 AvatarGraphics::AvatarGraphics()
@@ -1073,3 +1075,33 @@ void AvatarGraphics::stopGesture(double cur_time/*, const std::string& gesture_n
 	}
 }
 
+
+void AvatarGraphics::extractAvatarAnimInfo(const std::string& input_glb_path, const std::string& output_path)
+{
+	// Load file with animation data
+	GLTFLoadedData data;
+	Reference<BatchedMesh> mesh = FormatDecoderGLTF::loadGLBFile(input_glb_path, data);
+
+	// Modify floating animation to fix the floating above the ground - avatar is about 33cm too high.
+	{
+		const AnimationDatum* floating_anim = mesh->animation_data.findAnimation("Floating");
+		runtimeCheck(floating_anim != nullptr);
+
+		const int root_node_i = mesh->animation_data.sorted_nodes[1];
+		const PerAnimationNodeData& root_node_data = floating_anim->per_anim_node_data[root_node_i]; // Should be "Hips" node
+
+		runtimeCheck(root_node_data.translation_input_accessor >= 0 && root_node_data.translation_input_accessor < (int)mesh->animation_data.keyframe_times.size());
+		const KeyFrameTimeInfo& time_info = mesh->animation_data.keyframe_times[root_node_data.translation_input_accessor];
+
+		runtimeCheck(root_node_data.translation_output_accessor >= 0 && root_node_data.translation_output_accessor < (int)mesh->animation_data.output_data.size());
+		js::Vector<Vec4f, 16>& root_node_translation_output_data = mesh->animation_data.output_data[root_node_data.translation_output_accessor];
+		for(size_t i=0; i<time_info.times_size; ++i)
+		{
+			Vec4f& trans = root_node_translation_output_data[i];
+			trans[1] -= 0.33; // Adjust down
+		}
+	}
+
+	FileOutStream file(output_path);
+	mesh->animation_data.writeToStream(file);
+}

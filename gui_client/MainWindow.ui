@@ -519,7 +519,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Fly Mode</string>
+    <string>Fly Mode     F</string>
    </property>
   </action>
   <action name="actionAdd_Voxels">
