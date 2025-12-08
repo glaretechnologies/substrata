@@ -4591,7 +4591,7 @@ int main(int argc, char *argv[])
 			mw.initialiseUI();
 
 			if(CEF::initialisationFailed())
-				mw.logMessage("CEF initialisation failed."); // Log CEF initialisation failure now that mw.log_window has been created.
+				mw.logMessage("CEF initialisation failed: " + CEF::getInitialisationFailureErrorString()); // Log CEF initialisation failure now that mw.log_window has been created.
 			else
 				mw.logMessage("CEF initialised successfully.");
 
