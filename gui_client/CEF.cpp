@@ -26,7 +26,7 @@ Copyright Glare Technologies Limited 2022 -
 #if CEF_SUPPORT
 
 
-class GlareCEFApp : public CefApp, public ThreadSafeRefCounted
+class GlareCEFApp : public CefApp, public CefBrowserProcessHandler
 {
 public:
 	GlareCEFApp()
@@ -36,6 +36,12 @@ public:
 
 	~GlareCEFApp()
 	{
+	}
+
+	// CefApp methods:
+	CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override
+	{
+		return this; 
 	}
 
 	virtual void OnBeforeCommandLineProcessing(const CefString& process_type, CefRefPtr<CefCommandLine> command_line) override
@@ -51,6 +57,10 @@ public:
 		command_line->AppendSwitch("use-mock-keychain");
 #endif
 
+		// Needed to stop CEF trying to relaunch the host process (Substrata) when the host process is run as admin.
+		// See https://github.com/chromiumembedded/cef/issues/4051
+		command_line->AppendSwitch("do-not-de-elevate");
+
 		// command_line->AppendSwitch("disable-gpu");
 		// command_line->AppendSwitch("disable-gpu-compositing");
 
@@ -65,6 +75,15 @@ public:
 		}*/
 	}
 
+	// When Substrata is run twice, and tries to init CEF with the same root_cache_path, this is called.
+	// Return true, which will cause the CEF init to fail in the second Substrata processes, but at least it won't pop up a Chromium browser window.
+	// See https://github.com/chromiumembedded/cef/issues/4052
+	virtual bool OnAlreadyRunningAppRelaunch(CefRefPtr<CefCommandLine> command_line, const CefString& current_directory) override
+	{
+		// conPrint("------------------OnAlreadyRunningAppRelaunch----------------------");
+		return true;
+	}
+	
 	CefRefPtr<LifeSpanHandler> lifespan_handler;
 	
 	IMPLEMENT_REFCOUNTING(GlareCEFApp);
@@ -73,6 +92,7 @@ public:
 
 static bool CEF_initialised = false;
 static bool CEF_initialisation_failed = false;
+static std::string CEF_init_failure_reason;
 CefRefPtr<GlareCEFApp> glare_cef_app;
 
 
@@ -106,6 +126,12 @@ bool CEF::initialisationFailed()
 #else
 	return false;
 #endif
+}
+
+
+std::string CEF::getInitialisationFailureErrorString()
+{
+	return CEF_init_failure_reason;
 }
 
 
@@ -179,7 +205,12 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 		CEF_initialised = true;
 	else
 	{
-		conPrint("CefInitialize failed.");
+		const int cef_exit_code = CefGetExitCode();
+		if(cef_exit_code == CEF_RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED)
+			CEF_init_failure_reason = "Only one Substrata app running an embedded browser at once is supported.";
+		else
+			CEF_init_failure_reason = "Code " + toString(cef_exit_code);
+		conPrint("CefInitialize failed: " + CEF_init_failure_reason);
 		CEF_initialisation_failed = true;
 	}
 
