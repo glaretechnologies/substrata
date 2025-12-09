@@ -142,6 +142,7 @@
     <addaction name="actionSummon_Bike"/>
     <addaction name="actionSummon_Hovercar"/>
     <addaction name="actionSummon_Boat"/>
+    <addaction name="actionSummon_Jet_Ski"/>
     <addaction name="actionSummon_Car"/>
    </widget>
    <addaction name="menuEdit"/>
@@ -755,6 +756,14 @@
   <action name="actionGo_Back">
    <property name="text">
     <string>Go Back</string>
+   </property>
+  </action>
+  <action name="actionSummon_Jet_Ski">
+   <property name="text">
+    <string>Summon Jet Ski</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+J</string>
    </property>
   </action>
  </widget>

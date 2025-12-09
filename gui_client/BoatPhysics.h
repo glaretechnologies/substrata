@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2023 -
 class CameraController;
 class PhysicsWorld;
 class ParticleManager;
+class TerrainDecalManager;
 
 
 struct BoatPhysicsSettings
@@ -43,7 +44,8 @@ class BoatPhysics final : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	BoatPhysics(WorldObjectRef object, JPH::BodyID boat_body_id, BoatPhysicsSettings settings, ParticleManager* particle_manager);
+	BoatPhysics(WorldObjectRef object, JPH::BodyID boat_body_id, BoatPhysicsSettings settings, PhysicsWorld& physics_world, ParticleManager* particle_manager,
+		TerrainDecalManager* terrain_decal_manager);
 	~BoatPhysics();
 
 	WorldObject* getControlledObject() override { return world_object; }
@@ -76,6 +78,7 @@ public:
 private:
 	WorldObject* world_object;
 	ParticleManager* particle_manager;
+	TerrainDecalManager* terrain_decal_manager;
 	BoatPhysicsSettings settings;
 	JPH::BodyID body_id;
 	bool user_in_driver_seat;
@@ -83,4 +86,15 @@ private:
 	PCG32 rng;
 
 	float righting_time_remaining;
+	float shape_volume;
+	
+	struct SplashPoint
+	{
+		GLARE_ALIGNED_16_NEW_DELETE
+
+		Vec4f pos_os;
+		float right_sign; // +1 if right side, -1 if on left side.
+		//bool immersed;
+	};
+	js::Vector<SplashPoint> splash_points;
 };

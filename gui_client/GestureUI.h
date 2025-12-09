@@ -81,6 +81,7 @@ private:
 	GLUITextButtonRef summon_bike_button;
 	GLUITextButtonRef summon_car_button;
 	GLUITextButtonRef summon_boat_button;
+	GLUITextButtonRef summon_jetski_button;
 	GLUITextButtonRef summon_hovercar_button;
 
 	GLUIRef gl_ui;

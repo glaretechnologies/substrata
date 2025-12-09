@@ -103,6 +103,10 @@ SeatSettings::SeatSettings()
 
 	arm_down_angle = 2.1;
 	arm_out_angle = 0.3;
+
+	upper_arm_shoulder_lift_angle = 0.0;
+
+	lower_arm_up_angle = 0.5;
 }
 
 
@@ -119,6 +123,8 @@ static SeatSettings parseSeatSettings(pugi::xml_node seat_elem, const SeatSettin
 	seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", default_seat_settings.rotate_foot_out_angle);
 	seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", default_seat_settings.arm_down_angle);
 	seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", default_seat_settings.arm_out_angle);
+	seat_settings.upper_arm_shoulder_lift_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_arm_shoulder_lift_angle", default_seat_settings.upper_arm_shoulder_lift_angle);
+	seat_settings.lower_arm_up_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_arm_up_angle", default_seat_settings.lower_arm_up_angle);
 
 	return seat_settings;
 }
@@ -219,6 +225,9 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 				boat_settings->propellor_point_os = parseVec3WithDefault(boat_elem, "propellor_point_os", Vec3d(0, 0.2, -6.2)).toVec4fPoint(); // +z is backwards in beatminer boat model
 				boat_settings->propellor_sideways_offset = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "propellor_sideways_offset", 1.0);
 				boat_settings->rudder_deflection_force_factor = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "rudder_deflection_force_factor", 500.0);
+				boat_settings->thrust_vector_lateral_amount = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "thrust_vector_lateral_amount", 0.0);
+				
+				boat_settings->jet_particle_initial_width = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "jet_particle_initial_width", 1.0);
 				
 				boat_settings->front_cross_sectional_area = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "front_cross_sectional_area", 2.0);
 				boat_settings->side_cross_sectional_area = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "side_cross_sectional_area", 4.0);
@@ -226,6 +235,15 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 
 				boat_settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_1", Quatf::identity());
 				boat_settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(boat_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+
+				for(pugi::xml_node splash_elem = boat_elem.child("splash_point"); splash_elem; splash_elem = splash_elem.next_sibling("splash_point"))
+				{
+					BoatScriptSettings::SplashPoint splash_point;
+					splash_point.point_os = parseVec3(splash_elem, "point_os").toVec4fPoint();
+					splash_point.right_sign = (float)XMLParseUtils::parseDouble(splash_elem, "right_sign");
+
+					boat_settings->splash_points.push_back(splash_point);
+				}
 
 				for(pugi::xml_node seat_elem = boat_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
 				{

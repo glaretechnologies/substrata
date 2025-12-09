@@ -39,6 +39,10 @@ struct SeatSettings
 
 	float arm_down_angle; // radians
 	float arm_out_angle; // radians
+
+	float upper_arm_shoulder_lift_angle;
+
+	float lower_arm_up_angle; // radians
 };
 
 
@@ -95,10 +99,23 @@ struct BoatScriptSettings : public VehicleScriptedSettings
 	Vec4f propellor_point_os;
 	float propellor_sideways_offset;
 	float rudder_deflection_force_factor;
+	float thrust_vector_lateral_amount; // left/right thrust vectoring For jetskis
+	
+	float jet_particle_initial_width;
 	
 	float front_cross_sectional_area;
 	float side_cross_sectional_area;
 	float top_cross_sectional_area;
+	
+	struct SplashPoint
+	{
+		GLARE_ALIGNED_16_NEW_DELETE
+
+		Vec4f point_os;
+		float right_sign; // +1 if right side, -1 if on left side.
+	};
+
+	std::vector<SplashPoint> splash_points;
 };
 
 
