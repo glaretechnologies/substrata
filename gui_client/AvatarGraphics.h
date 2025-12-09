@@ -62,6 +62,8 @@ struct PoseConstraint
 	float rotate_foot_out_angle; // radians.
 	float arm_down_angle; // radians.  from overhead
 	float arm_out_angle; // radians. from straight out in front
+	float upper_arm_shoulder_lift_angle;
+	float lower_arm_up_angle; // radians.  From straight out from upper arm.  Positive number means bend lower arm forwards at elbow.
 
 	bool sitting;
 };

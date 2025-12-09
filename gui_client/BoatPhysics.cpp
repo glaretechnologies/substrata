@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
 #include "ParticleManager.h"
+#include "TerrainDecalManager.h"
 #include "JoltUtils.h"
 #include <StringUtils.h>
 #include <ConPrint.h>
@@ -17,17 +18,40 @@ Copyright Glare Technologies Limited 2023 -
 #include <Jolt/Physics/PhysicsSystem.h>
 
 
-BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysicsSettings settings_, ParticleManager* particle_manager_)
+BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysicsSettings settings_, PhysicsWorld& physics_world, ParticleManager* particle_manager_,
+	TerrainDecalManager* terrain_decal_manager_)
 {
 	world_object = object.ptr();
 	body_id = body_id_;
 	settings = settings_;
 	particle_manager = particle_manager_;
+	terrain_decal_manager =terrain_decal_manager_;
 	righting_time_remaining = -1;
 	user_in_driver_seat = false;
 
-	if(world_object->physics_object.nonNull())
+	if(world_object->physics_object)
 		world_object->physics_object->use_zero_linear_drag = true; // We will do the drag computations ourself in BoatPhysics::update().
+
+	// Get body shape volume
+	{
+		JPH::Body* body = physics_world.physics_system->GetBodyLockInterface().TryGetBody(body_id_);
+		if(body)
+		{
+			this->shape_volume = body->GetShape()->GetVolume();
+			if(this->shape_volume == 0.f) // Some shape types (e.g. triangle shape) return 0.  Shouldn't be used for boats, but handle anyway.
+				this->shape_volume = 1.f;
+		}
+		else
+			this->shape_volume = 1.f;
+	}
+
+	splash_points.resize(settings.script_settings->splash_points.size());
+	for(size_t i=0; i<splash_points.size(); ++i)
+	{
+		splash_points[i].pos_os = settings.script_settings->splash_points[i].point_os;
+		splash_points[i].right_sign = myClamp(settings.script_settings->splash_points[i].right_sign, -1.f, 1.f);
+		//splash_points[i].immersed = false;
+	}
 }
 
 
@@ -137,7 +161,7 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 	const Vec4f linear_vel = toVec4fVec(body_interface.GetLinearVelocity(body_id));
 
 	//const float speed = toVec4fVec(body_interface.GetLinearVelocity(body_id)).length();
-	const float fowards_vel = dot(linear_vel, forward_vec_ws);
+	const float forwards_vel = dot(linear_vel, forward_vec_ws);
 
 	if(user_in_driver_seat)
 	{
@@ -145,44 +169,52 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 		if (right != 0.0f || forward != 0.0f)
 			body_interface.ActivateBody(body_id);
 
-		const Vec4f propellor_point = to_world * settings.script_settings->propellor_point_os;
+		const Vec4f propellor_point_ws = to_world * settings.script_settings->propellor_point_os;
 
 		if(forward != 0)
 		{
-			const Vec4f forwards_control_force = forward_vec_ws * settings.script_settings->thrust_force * forward;
-
-			body_interface.AddForce(body_id, toJoltVec3(forwards_control_force), toJoltVec3(propellor_point));
-
-			// Add some foam
-			const float propellor_offset = settings.script_settings->propellor_sideways_offset;
-			const Vec4f positions[2] = { propellor_point - right_vec_ws * propellor_offset, propellor_point + right_vec_ws * propellor_offset };
-			for(int i=0; i<2; ++i)
+			if(propellor_point_ws[2] <= physics_world.getWaterZ())
 			{
-				for(int z=0; z<4; ++z)
+				const Vec4f forwards_control_force = normalise(forward_vec_ws - up_vec_ws * 0.2f - right_vec_ws * right * /*0.3f*/settings.script_settings->thrust_vector_lateral_amount) * 
+					settings.script_settings->thrust_force * forward;
+
+				body_interface.AddForce(body_id, toJoltVec3(forwards_control_force), toJoltVec3(propellor_point_ws));
+
+				// Add some foam
+				const float propellor_offset = settings.script_settings->propellor_sideways_offset;
+				const Vec4f positions[2] = { propellor_point_ws - right_vec_ws * propellor_offset, propellor_point_ws + right_vec_ws * propellor_offset };
+				for(int i=0; i<2; ++i)
 				{
-					Particle particle;
-					particle.pos = positions[i];
-					particle.area = 0.000001f;
-					const float xy_spread = 1.f;
-					const float vel = physics_input.SHIFT_down ? 7.f : 5.f; //std::fabs(forward) * 5.0f; // Use 'forward' input magnitude for more spray when boosting
-					particle.vel = forward_vec_ws * (forward * -5.f) + Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), rng.unitRandom() * 2, 0) * vel;
-					particle.colour = Colour3f(0.6f);
-					particle.particle_type = Particle::ParticleType_Foam;
-					particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
-					particle.width = 1;
-					particle.dwidth_dt = 1;
-					particle.die_when_hit_surface = true;
-					particle_manager->addParticle(particle);
+					for(int z=0; z<3; ++z)
+					{
+						Particle particle;
+						particle.pos = positions[i];
+						particle.area = 0.000001f;
+						
+						//const float vel = physics_input.SHIFT_down ? 7.f : 5.f; //std::fabs(forward) * 5.0f; // Use 'forward' input magnitude for more spray when boosting
+						const float vel = physics_input.SHIFT_down ? 2.f : 1.f; //std::fabs(forward) * 5.0f; // Use 'forward' input magnitude for more spray when boosting
+						const float xy_spread = vel * 0.5f;
+						particle.vel = forward_vec_ws * (forward * -vel) - 
+							right_vec_ws * right * 3.f * settings.script_settings->thrust_vector_lateral_amount + 
+							Vec4f(xy_spread * (-0.5f + rng.unitRandom()), xy_spread * (-0.5f + rng.unitRandom()), 2.f + rng.unitRandom() * 4, 0) * vel;
+						particle.colour = Colour3f(0.6f);
+						particle.particle_type = Particle::ParticleType_Foam;
+						particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+						particle.width = myClamp(settings.script_settings->jet_particle_initial_width, 0.01f, 2.f);
+						particle.dwidth_dt = 1;
+						particle.die_when_hit_surface = true;
+						particle_manager->addParticle(particle);
+					}
 				}
 			}
 		}
 
 		if(right != 0)
 		{
-			const Vec4f rudder_deflection_force = right_vec_ws * -right * fowards_vel * settings.script_settings->rudder_deflection_force_factor;
+			const Vec4f rudder_deflection_force = right_vec_ws * -right * forwards_vel * settings.script_settings->rudder_deflection_force_factor;
 			//const Vec4f thruster_force = right_vec_ws * settings.boat_mass * -0.2 * right;
 			const Vec4f total_force = rudder_deflection_force;//TEMP + thruster_force;
-			const Vec4f steering_point = propellor_point; // to_world * Vec4f(0,0,0,1) - forward_vec_ws * 3.0f; // TEMP HACK TODO position where rudder should be
+			const Vec4f steering_point = propellor_point_ws; // to_world * Vec4f(0,0,0,1) - forward_vec_ws * 3.0f; // TEMP HACK TODO position where rudder should be
 			body_interface.AddForce(body_id, toJoltVec3(total_force), toJoltVec3(steering_point));
 
 			//const JPH::Vec3 steering_torque = (desired_angular_vel - angular_vel) * settings.boat_mass * 3.5f;
@@ -193,15 +225,12 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 
 
 	//--------- Apply aerodynamic drag and lift forces ------
-	float lift_and_drag_submerged_factor;
-	//if(world_object->physics_object->last_submerged_volume > 4)
-	//	lift_submerged_factor = 1;
-	//else if(
-		lift_and_drag_submerged_factor = Maths::smoothStep(3.f, 7.f, world_object->physics_object->last_submerged_volume);
-		//printVar(lift_and_drag_submerged_factor);
+	const float forwards_submerged_fraction = world_object->physics_object->last_submerged_volume / this->shape_volume;
+	const float side_submerged_fraction     = world_object->physics_object->last_submerged_volume / this->shape_volume;
+	const float top_submerged_fraction      = Maths::smoothStep(0.f, 1.f, world_object->physics_object->last_submerged_volume); // As soon as 1m^3 is underwater, consider total bottom cross section under water
 
 	const float v_mag = linear_vel.length();
-	if((lift_and_drag_submerged_factor > 0) && v_mag > 1.0e-3f)
+	if((world_object->physics_object->last_submerged_volume > 0) && (v_mag > 1.0e-3f))
 	{
 		const Vec4f normed_linear_vel = linear_vel / v_mag;
 		
@@ -209,32 +238,33 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 		const float rho = 1020.f; // water density, kg m^-3
 
 		// Compute drag force on front/back of vehicle
-		const float forwards_area = settings.script_settings->front_cross_sectional_area; // 2.f; // TEMP HACK APPROX
+		const float forwards_area = settings.script_settings->front_cross_sectional_area;
 		const float projected_forwards_area = absDot(normed_linear_vel, forward_vec_ws) * forwards_area;
-		const float forwards_C_d = 0.1f; // drag coefficient  (Tesla model S drag coeffcient is about 0.2 apparently)
-		const float forwards_F_d = 0.5f * rho * v_mag*v_mag * forwards_C_d * projected_forwards_area;
+		const float forwards_C_d = 0.1f; // drag coefficient  (Tesla model S drag coefficient is about 0.2 apparently)
+		const float forwards_F_d = 0.5f * rho * v_mag*v_mag * forwards_C_d * projected_forwards_area * forwards_submerged_fraction;
 
 		// Compute drag force on side of vehicle
-		const float side_area = settings.script_settings->side_cross_sectional_area; // 4.f; // TEMP HACK APPROX
+		const float side_area = settings.script_settings->side_cross_sectional_area;
 		const float projected_side_area = absDot(normed_linear_vel, right_vec_ws) * side_area;
 		const float side_C_d = 0.5f; // drag coefficient - roughly that of a sphere
-		const float side_F_d = 0.5f * rho * v_mag*v_mag * side_C_d * projected_side_area;
+		const float side_F_d = 0.5f * rho * v_mag*v_mag * side_C_d * projected_side_area * side_submerged_fraction;
 
 		// Compute drag force on top of vehicle
-		const float top_area = settings.script_settings->top_cross_sectional_area; // 8.f; // TEMP HACK APPROX
+		const float top_area = settings.script_settings->top_cross_sectional_area;
 		const float projected_top_bottom_area = absDot(normed_linear_vel, up_vec_ws) * top_area;
 		const float top_C_d = 0.75f; // drag coefficient
-		const float top_F_d = 0.5f * rho * v_mag*v_mag * top_C_d * projected_top_bottom_area;
+		const float top_F_d = 0.5f * rho * v_mag*v_mag * top_C_d * projected_top_bottom_area * top_submerged_fraction;
 
 		const float total_F_d = forwards_F_d + side_F_d + top_F_d;
-		const Vec4f F_d = normed_linear_vel * -total_F_d * lift_and_drag_submerged_factor;
+		const Vec4f F_d = normed_linear_vel * -total_F_d /** lift_and_drag_submerged_factor */;
 		body_interface.AddForce(body_id, toJoltVec3(F_d));
 
 
 		// Compute lift force on bottom/top of vehicle.
 		// Lift force is by definition orthogonal to the incoming flow direction, which means orthogonal to the linear velocity in our case.
-
-		const Vec4f lift_force_application_point = toVec4fVec(body_interface.GetCenterOfMassPosition(body_id)) - Vec4f(0,0,1,0); // Lower force application point to under waterline.
+		if(0) // TEMP: disable lift force for now, makes boats quite unstable.
+		{
+		const Vec4f lift_force_application_point = toVec4fVec(body_interface.GetCenterOfMassPosition(body_id)) - Vec4f(0,0,-0.2,0); // Lower force application point to under waterline.
 
 		const Vec4f up_lift_force_dir = removeComponentInDir(up_vec_ws, normed_linear_vel);
 		if(up_lift_force_dir.length() > 1.0e-3f)
@@ -249,7 +279,7 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 			{
 				if(projected_bottom_area > 0)
 				{
-					const float bottom_L = 0.5f * rho * v_mag*v_mag * projected_bottom_area * bottom_C_L * lift_and_drag_submerged_factor;
+					const float bottom_L = 0.5f * rho * v_mag*v_mag * projected_bottom_area * bottom_C_L * top_submerged_fraction;
 					body_interface.AddForce(body_id, toJoltVec3(normalise(up_lift_force_dir) * bottom_L), toJoltVec3(lift_force_application_point));
 				}
 			}
@@ -264,7 +294,7 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 			const float projected_right_area = dot(normed_linear_vel, right_vec_ws) * side_area;
 			if(projected_right_area > 0)
 			{
-				const float right_L = 0.5f * rho * v_mag*v_mag * projected_right_area * right_C_L * lift_and_drag_submerged_factor;
+				const float right_L = 0.5f * rho * v_mag*v_mag * projected_right_area * right_C_L * side_submerged_fraction;
 				//conPrint("Applying lift force to left: " + toString(right_L));
 				body_interface.AddForce(body_id, toJoltVec3(-normalise(right_lift_force_dir) * right_L), toJoltVec3(lift_force_application_point));
 			}
@@ -274,11 +304,51 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 			const float left_C_L = liftCoeffForCosTheta(-right_dot);
 			if(projected_left_area > 0)
 			{
-				const float left_L = 0.5f * rho * v_mag*v_mag * projected_left_area * left_C_L * lift_and_drag_submerged_factor;
+				const float left_L = 0.5f * rho * v_mag*v_mag * projected_left_area * left_C_L * side_submerged_fraction;
 				body_interface.AddForce(body_id, toJoltVec3(normalise(right_lift_force_dir) * left_L), toJoltVec3(lift_force_application_point));
 			}
 		}
+		}
 	}
+
+	// Emit splashed water particles from splash points, with velocity proportional to boat velocity.
+	for(size_t i=0; i<splash_points.size(); ++i)
+	{
+		if(linear_vel.length() > 5)
+		{
+			const Vec4f point_ws = to_world * splash_points[i].pos_os;
+			const bool point_immersed = point_ws[2] < physics_world.getWaterZ();
+
+			const Vec4f right_vel_dir = crossProduct(linear_vel, Vec4f(0,0,1,0));
+
+			const Vec4f side_vel_dir = right_vel_dir * splash_points[i].right_sign;
+
+			const Vec4f side_dir = right_vec_ws * splash_points[i].right_sign;
+
+			if(point_immersed && (dot(normalise(linear_vel), side_dir) > -0.5)) // Don't emit splashes from trailing sides if boat sliding sideways.
+			{
+				const int num_particles = 2;
+				for(int z=0; z<num_particles; ++z)
+				{
+					Particle particle;
+					particle.pos = point_ws;
+					particle.area = 0.01f;
+					particle.vel = 
+						linear_vel   * (0.6f + (-0.5f + rng.unitRandom())*0.1f) + 
+						side_vel_dir * (0.3f + (-0.5f + rng.unitRandom())*0.1f) + 
+						Vec4f(0,0,1,0) * linear_vel.length() * (0.1f + (-0.5f + rng.unitRandom())*0.08f);
+					particle.colour = Colour3f(0.6f);
+					particle.particle_type = Particle::ParticleType_Foam;
+					particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+					particle.width = 0.4f;
+					particle.dwidth_dt = 1;
+					particle.die_when_hit_surface = true;
+					particle_manager->addParticle(particle);
+				}
+			}
+		}
+	}
+
 
 	const Vec4f up_ws = Vec4f(0,0,1,0);
 	const Vec4f no_roll_vehicle_right_ws = normalise(crossProduct(forward_vec_ws, up_ws));
@@ -309,9 +379,6 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 
 		righting_time_remaining -= dtime;
 	}
-
-	//const float speed_km_h = v_mag * (3600.0f / 1000.f);
-	//conPrint("speed (km/h): " + doubleToStringNDecimalPlaces(speed_km_h, 1));
 
 	return events;
 }

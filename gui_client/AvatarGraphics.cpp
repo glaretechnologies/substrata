@@ -225,14 +225,16 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				{
 					const Matrix4f last_left_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[left_arm_node_i].last_pre_proc_to_object; // last left-arm bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_left_arm_bone_to_object_space);
-					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0),  pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle);
+					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0),  pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle) *
+						Quatf::fromAxisAndAngle(Vec4f(0,0,1,0), -pose_constraint.upper_arm_shoulder_lift_angle);
 					// Note that node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform, so we want to undo the bone-to-object-space rotation last (so it should be on left)
 					skinned_gl_ob->anim_node_data[left_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
 				{
 					const Matrix4f last_right_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[right_arm_node_i].last_pre_proc_to_object; // last right-arm bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_right_arm_bone_to_object_space);
-					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle);
+					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle) * 
+						Quatf::fromAxisAndAngle(Vec4f(0,0,1,0), pose_constraint.upper_arm_shoulder_lift_angle);
 					skinned_gl_ob->anim_node_data[right_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
 			}
@@ -242,8 +244,8 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				right_forearm_node_i >= 0 && right_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size())
 			{
 				// Bend lower arms (at elbow)
-				skinned_gl_ob->anim_node_data[left_forearm_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(-0.5f);
-				skinned_gl_ob->anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(-0.5f);
+				skinned_gl_ob->anim_node_data[left_forearm_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(-pose_constraint.lower_arm_up_angle);
+				skinned_gl_ob->anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(-pose_constraint.lower_arm_up_angle);
 			}
 			
 			

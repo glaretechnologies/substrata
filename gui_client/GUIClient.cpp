@@ -7681,6 +7681,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 									pose_constraint.rotate_foot_out_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].rotate_foot_out_angle;
 									pose_constraint.arm_down_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_down_angle;
 									pose_constraint.arm_out_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_out_angle;
+									pose_constraint.upper_arm_shoulder_lift_angle			= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_arm_shoulder_lift_angle;
+									pose_constraint.lower_arm_up_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_arm_up_angle;
 								}
 								else
 								{
@@ -7752,6 +7754,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 										pose_constraint.rotate_foot_out_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].rotate_foot_out_angle;
 										pose_constraint.arm_down_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_down_angle;
 										pose_constraint.arm_out_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_out_angle;
+										pose_constraint.upper_arm_shoulder_lift_angle			= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_arm_shoulder_lift_angle;
+										pose_constraint.lower_arm_up_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_arm_up_angle;
 									}
 									else
 									{
@@ -11049,6 +11053,8 @@ void GUIClient::summonBoat()
 	float angle;
 	(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
 
+	const URLString boat_model_URL = "poweryacht3_2_glb_17116251394697619807.bmesh";
+
 	// Search for existing summoned boat, if we find it, move it to in front of user.
 	{
 		Lock lock(world_state->mutex);
@@ -11059,7 +11065,8 @@ void GUIClient::summonBoat()
 			WorldObject* ob = it.getValue().ptr();
 			if(ob->creator_id == logged_in_user_id && // If we created this object
 				//BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) && // And this object was summoned
-				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::BoatScript>()) // And it has a boat script
+				ob->vehicle_script && ob->vehicle_script.isType<Scripting::BoatScript>() && // And it has a boat script
+				(ob->model_url == boat_model_URL))
 			{
 				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
 					existing_ob_to_summon = ob;
@@ -11100,7 +11107,7 @@ void GUIClient::summonBoat()
 
 	WorldObjectRef new_world_object = new WorldObject();
 
-	new_world_object->model_url = "poweryacht3_2_glb_17116251394697619807.bmesh";
+	new_world_object->model_url = boat_model_URL;
 	new_world_object->max_model_lod_level = 2;
 
 	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
@@ -11117,6 +11124,110 @@ void GUIClient::summonBoat()
 	new_world_object->script = FileUtils::readEntireFileTextMode(this->resources_dir_path + "/summoned_boat_script.xml");
 
 	new_world_object->mass = 5000;
+
+	setMaterialFlagsForObject(new_world_object.ptr());
+
+	// Send CreateObject message to server
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+}
+
+
+void GUIClient::summonJetSki()
+{
+	if(!this->logged_in_user_id.valid())
+		throw glare::Exception("You must be logged in to summon a Jet Ski.");
+
+	const js::AABBox aabb_os(Vec4f(-1.167f, -0.423f, -0.122f, 1), Vec4f(1.087f, 0.423f, 0.641f, 1)); // Got from diagnostics widget
+
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
+		Vec3d(0,0,-1.67) + // Move down by eye height to ground
+		Vec3d(0, 0, 1.0493f); // Move up off ground.  TEMP HARDCODED
+
+	// Get desired rotation from script.
+	const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>()/2); // NOTE: from jet ski script (model_to_y_forwards_rot_1 etc.)
+
+	const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAvatarAngles().x);
+
+	Vec4f axis;
+	float angle;
+	(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
+
+	const URLString jetski_model_URL = "Jet_Ski_obj_3200017390617214853.bmesh";
+
+	// Search for existing summoned jet ski, if we find it, move it to in front of user.
+	{
+		Lock lock(world_state->mutex);
+
+		WorldObject* existing_ob_to_summon = NULL;
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			WorldObject* ob = it.getValue().ptr();
+			if((ob->creator_id == logged_in_user_id) && // If we created this object
+				ob->vehicle_script && ob->vehicle_script.isType<Scripting::BoatScript>() && // And it has a boat script
+				(ob->model_url == jetski_model_URL)) // ANd it uses the Jet ski model
+			{
+				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
+					existing_ob_to_summon = ob;
+			}
+		}
+
+		if(existing_ob_to_summon)
+		{
+			conPrint("Found summoned object, moving to in front of user.");
+
+			runtimeCheck(existing_ob_to_summon->vehicle_script.nonNull());
+
+			doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, aabb_os, /*summoning_object=*/true);
+
+			enableMaterialisationEffectOnOb(*existing_ob_to_summon);
+
+			return;
+		}
+	}
+
+	conPrint("Creating new jet ski object...");
+
+
+
+
+	// Load materials:
+	IndigoXMLDoc doc(this->resources_dir_path + "/jet_ski_mats.xml");
+
+	pugi::xml_node root = doc.getRootElement();
+
+	std::vector<WorldMaterialRef> materials;
+	for(pugi::xml_node n = root.child("material"); n; n = n.next_sibling("material"))
+	{
+		materials.push_back(WorldMaterial::loadFromXMLElem("jet_ski_mats.xml", /*convert_rel_paths_to_abs_disk_paths=*/false, n));
+	}
+
+
+
+	WorldObjectRef new_world_object = new WorldObject();
+
+	new_world_object->model_url = jetski_model_URL;
+	new_world_object->max_model_lod_level = 2;
+
+	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
+
+	new_world_object->uid = UID(0); // A new UID will be assigned by server
+	new_world_object->materials = materials;
+	new_world_object->pos = pos;
+	new_world_object->axis = Vec3f(axis);
+	new_world_object->angle = angle;
+	new_world_object->scale = Vec3f(1.6f);
+	new_world_object->setAABBOS(aabb_os);
+	new_world_object->centre_of_mass_offset_os = Vec3f(0, 0, -0.2f);
+
+	new_world_object->script = FileUtils::readEntireFileTextMode(this->resources_dir_path + "/summoned_jet_ski_script.xml");
+
+	new_world_object->mass = 265;
 
 	setMaterialFlagsForObject(new_world_object.ptr());
 
@@ -11876,7 +11987,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 
 		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
-		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, particle_manager.ptr());
+		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, *physics_world, particle_manager.ptr(), terrain_decal_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::BikeScript>())
 	{

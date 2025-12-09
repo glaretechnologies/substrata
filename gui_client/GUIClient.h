@@ -213,6 +213,7 @@ public:
 	void summonBike();
 	void summonHovercar();
 	void summonBoat();
+	void summonJetSki();
 	void summonCar();
 	void objectTransformEdited();
 	void objectEdited();
