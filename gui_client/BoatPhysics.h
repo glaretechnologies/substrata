@@ -75,10 +75,18 @@ public:
 
 	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 
+	void setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine) override;
+	void updateDebugVisObjects() override;
+
+
 private:
+	void removeVisualisationObs();
+
 	WorldObject* world_object;
 	ParticleManager* particle_manager;
 	TerrainDecalManager* terrain_decal_manager;
+	PhysicsWorld* m_physics_world;
+	OpenGLEngine* m_opengl_engine;
 	BoatPhysicsSettings settings;
 	JPH::BodyID body_id;
 	bool user_in_driver_seat;
@@ -95,6 +103,11 @@ private:
 		Vec4f pos_os;
 		float right_sign; // +1 if right side, -1 if on left side.
 		//bool immersed;
+		Reference<GLObject> debug_gl_ob;
 	};
 	js::Vector<SplashPoint> splash_points;
+
+	Reference<GLObject> propellor_point_gl_obs[2];
+
+	bool show_debug_vis_obs;
 };
