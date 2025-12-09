@@ -118,7 +118,10 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 	if(physics_input.SHIFT_down) // boost!
 		forward *= 2.f;
 
-	forward = myMax(forward, myMax(physics_input.left_trigger, physics_input.right_trigger) * 2.f);
+	if(forward == 0.0f)
+		forward = myMax(physics_input.left_trigger, physics_input.right_trigger) * 2.f;
+	if(forward < 0.0f)
+		forward *= 0.2f; // Use less power for reversing.
 
 	// Steering
 	right = physics_input.axis_left_x;
