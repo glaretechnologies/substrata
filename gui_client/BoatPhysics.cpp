@@ -26,8 +26,11 @@ BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysic
 	settings = settings_;
 	particle_manager = particle_manager_;
 	terrain_decal_manager =terrain_decal_manager_;
+	m_physics_world = &physics_world;
+	m_opengl_engine = nullptr;
 	righting_time_remaining = -1;
 	user_in_driver_seat = false;
+	show_debug_vis_obs = false;
 
 	if(world_object->physics_object)
 		world_object->physics_object->use_zero_linear_drag = true; // We will do the drag computations ourself in BoatPhysics::update().
@@ -57,6 +60,7 @@ BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysic
 
 BoatPhysics::~BoatPhysics()
 {
+	removeVisualisationObs();
 }
 
 
@@ -446,4 +450,72 @@ Vec4f BoatPhysics::getLinearVel(PhysicsWorld& physics_world) const
 {
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 	return toVec4fVec(body_interface.GetLinearVelocity(body_id));
+}
+
+
+void BoatPhysics::setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine)
+{
+	this->show_debug_vis_obs = enabled;
+	this->m_opengl_engine = &opengl_engine;
+
+	if(!enabled)
+		removeVisualisationObs();
+}
+
+
+void BoatPhysics::updateDebugVisObjects()
+{
+	if(show_debug_vis_obs)
+	{
+		const Matrix4f ob_to_world = getBodyTransform(*m_physics_world);
+
+		// Add/update splash points
+		for(size_t i=0; i<splash_points.size(); ++i)
+		{
+			const float radius = 0.07f;
+			if(splash_points[i].debug_gl_ob.isNull())
+			{
+				splash_points[i].debug_gl_ob = m_opengl_engine->makeSphereObject(radius, Colour4f(0,1,0,1));
+				m_opengl_engine->addObject(splash_points[i].debug_gl_ob);
+			}
+
+			splash_points[i].debug_gl_ob->ob_to_world_matrix = ob_to_world * Matrix4f::translationMatrix(splash_points[i].pos_os) * Matrix4f::uniformScaleMatrix(radius);
+
+			m_opengl_engine->updateObjectTransformData(*splash_points[i].debug_gl_ob);
+		}
+
+		// Add update propellor points
+		for(size_t i=0; i<2; ++i)
+		{
+			const float radius = 0.07f;
+			if(propellor_point_gl_obs[i].isNull())
+			{
+				propellor_point_gl_obs[i] = m_opengl_engine->makeSphereObject(radius, Colour4f(1,0,0,1));
+				m_opengl_engine->addObject(propellor_point_gl_obs[i]);
+			}
+
+			const Vec4f right_y_for(1,0,0,0);
+			const Matrix4f R_inv = ((settings.script_settings->model_to_y_forwards_rot_2 * settings.script_settings->model_to_y_forwards_rot_1).conjugate()).toMatrix();
+			const Vec4f right_os = R_inv * right_y_for;
+			const Vec4f right_vec_ws = ob_to_world * right_os;
+
+			const Vec4f propellor_point_ws = ob_to_world * settings.script_settings->propellor_point_os;
+			const float propellor_offset = settings.script_settings->propellor_sideways_offset;
+			const Vec4f positions[2] = { propellor_point_ws - right_vec_ws * propellor_offset, propellor_point_ws + right_vec_ws * propellor_offset };
+
+			propellor_point_gl_obs[i]->ob_to_world_matrix = Matrix4f::translationMatrix(positions[i]) * Matrix4f::uniformScaleMatrix(radius);
+
+			m_opengl_engine->updateObjectTransformData(*propellor_point_gl_obs[i]);
+		}
+	}
+}
+
+
+void BoatPhysics::removeVisualisationObs()
+{
+	for(size_t i=0; i<splash_points.size(); ++i)
+		checkRemoveObAndSetRefToNull(*m_opengl_engine, splash_points[i].debug_gl_ob);
+
+	for(size_t i=0; i<2; ++i)
+		checkRemoveObAndSetRefToNull(*m_opengl_engine, propellor_point_gl_obs[i]);
 }
