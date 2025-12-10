@@ -75,6 +75,7 @@ public:
 		}*/
 	}
 
+#if CEF_VERSION_MAJOR >= 139
 	// When Substrata is run twice, and tries to init CEF with the same root_cache_path, this is called.
 	// Return true, which will cause the CEF init to fail in the second Substrata processes, but at least it won't pop up a Chromium browser window.
 	// See https://github.com/chromiumembedded/cef/issues/4052
@@ -83,6 +84,7 @@ public:
 		// conPrint("------------------OnAlreadyRunningAppRelaunch----------------------");
 		return true;
 	}
+#endif
 	
 	CefRefPtr<LifeSpanHandler> lifespan_handler;
 	
@@ -205,12 +207,14 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 		CEF_initialised = true;
 	else
 	{
+#if CEF_VERSION_MAJOR >= 139
 		const int cef_exit_code = CefGetExitCode();
 		if(cef_exit_code == CEF_RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED)
 			CEF_init_failure_reason = "Only one Substrata app running an embedded browser at once is supported.";
 		else
 			CEF_init_failure_reason = "Code " + toString(cef_exit_code);
 		conPrint("CefInitialize failed: " + CEF_init_failure_reason);
+#endif
 		CEF_initialisation_failed = true;
 	}
 
