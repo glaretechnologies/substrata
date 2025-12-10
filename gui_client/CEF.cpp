@@ -133,7 +133,11 @@ bool CEF::initialisationFailed()
 
 std::string CEF::getInitialisationFailureErrorString()
 {
+#if CEF_SUPPORT
 	return CEF_init_failure_reason;
+#else
+	return std::string();
+#endif
 }
 
 
