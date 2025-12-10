@@ -6207,9 +6207,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				last_foostep_side = (last_foostep_side + 1) % 2;
 
 				// 4cm left/right, 40cm forwards.
-				const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) +
-					cam_controller.getForwardsVec().toVec4fVector() * 0.4f +
-					cam_controller.getRightVec().toVec4fVector() * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
+				const Vec4f on_ground_forwards = normalise(xyplane_vel).toVec4fVector();
+				const Vec4f on_ground_right = normalise(crossProduct(on_ground_forwards, Vec4f(0,0,1,0)));
+				const Vec4f footstrike_pos = campos - Vec4f(0, 0, PlayerPhysics::getEyeHeight(), 0) +
+					on_ground_forwards * 0.4f +
+					on_ground_right * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
 				
 				// conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3) + ", playing " + last_footstep_timer.elapsedStringNSigFigs(3) + " after last footstep");
 

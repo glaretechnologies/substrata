@@ -50,7 +50,7 @@ public:
 	void setEyePosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
 	void setCapsuleBottomPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
 
-	static float getEyeHeight();
+	static float getEyeHeight(); // e.g. Standard eye/camera height above ground.  1.67 m.
 
 	// Adds to desired velocity (move_desired_vel).
 	void processMoveForwards(float factor, bool runpressed, CameraController& cam); // factor should be -1 for move backwards, 1 otherwise.
