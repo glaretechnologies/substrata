@@ -146,6 +146,29 @@ static bool areMatsDefaultCarMats(WorldObject* object)
 }
 
 
+static const Colour3f jetski_default_cols[] = {
+	Colour3f(1.f, 1.f, 1.f),
+};
+
+
+static bool areMatsDefaultJetSkiMats(WorldObject* object)
+{
+	static_assert(staticArrayNumElems(jetski_default_cols) == 1);
+
+	if(object->materials.size() != 1)
+		return false;
+
+	for(size_t i=0; i<1; ++i)
+		if(object->materials[i]->colour_rgb != jetski_default_cols[i])
+			return false;
+
+	if(object->materials[0]->colour_texture_url != "jetski_low_lambert1_BaseColor_png_1351070408415712052.png")
+		return false;
+
+	return true;
+}
+
+
 // Delete all vehicles that haven't been used for a while, and that use the default mesh and materials.
 void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_worlds_state)
 {
@@ -157,6 +180,7 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 	int num_hovercars_deleted = 0;
 	int num_boats_deleted = 0;
 	int num_cars_deleted = 0;
+	int num_jetskis_deleted = 0;
 
 	for(auto it = all_worlds_state->world_states.begin(); it != all_worlds_state->world_states.end(); ++it)
 	{
@@ -199,6 +223,13 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 					delete_ob = true;
 				}
 
+				if((object->model_url == "Jet_Ski_obj_3200017390617214853.bmesh") && areMatsDefaultJetSkiMats(object)) // From GUIClient::summonJetSki()
+				{
+					conPrint("WorldMaintenance::removeOldVehicles(): Removing jet ski with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
+					num_jetskis_deleted++;
+					delete_ob = true;
+				}
+
 				if(delete_ob)
 				{
 					// Mark object as dead
@@ -212,7 +243,7 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 		}
 	}
 
-	if((num_bikes_deleted > 0) || (num_hovercars_deleted > 0) || (num_boats_deleted > 0) || (num_cars_deleted > 0))
+	if((num_bikes_deleted > 0) || (num_hovercars_deleted > 0) || (num_boats_deleted > 0) || (num_cars_deleted > 0) || (num_jetskis_deleted > 0))
 		conPrint("WorldMaintenance::removeOldVehicles(): removed " + toString(num_bikes_deleted) + " bike(s), " + toString(num_hovercars_deleted) + " hovercar(s), " + 
-			toString(num_cars_deleted) + " car(s) and " + toString(num_boats_deleted) + " boat(s).");
+			toString(num_cars_deleted) + " car(s), " + toString(num_boats_deleted) + " boat(s) and " + toString(num_jetskis_deleted) + " jetskis(s)");
 }
