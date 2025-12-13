@@ -199,7 +199,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	sent_perform_gesture_without_stop_gesture(false),
 	use_lightmaps(true),
 	cur_loading_model_lod_level(-1),
-	obs_with_scripts(/*empty val=*/WorldObjectRef())
+	obs_with_scripts(/*empty val=*/WorldObjectRef()),
+	ui_hidden(false)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -7685,6 +7686,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 									pose_constraint.arm_out_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_out_angle;
 									pose_constraint.upper_arm_shoulder_lift_angle			= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_arm_shoulder_lift_angle;
 									pose_constraint.lower_arm_up_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_arm_up_angle;
+									//pose_constraint.left_hand_hold_point_os					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].left_hand_hold_point_os;
+									//pose_constraint.right_hand_hold_point_os				= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].right_hand_hold_point_os;
 								}
 								else
 								{
@@ -7758,6 +7761,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 										pose_constraint.arm_out_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_out_angle;
 										pose_constraint.upper_arm_shoulder_lift_angle			= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_arm_shoulder_lift_angle;
 										pose_constraint.lower_arm_up_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_arm_up_angle;
+										//pose_constraint.left_hand_hold_point_os					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].left_hand_hold_point_os;
+										//pose_constraint.right_hand_hold_point_os				= controller->getSettings().seat_settings[avatar->vehicle_seat_index].right_hand_hold_point_os;
 									}
 									else
 									{
@@ -15457,6 +15462,8 @@ void GUIClient::keyPressed(KeyEvent& e)
 
 		if(this->selected_parcel.nonNull())
 			deselectParcel();
+
+		unhideUIIfHidden();
 	}
 
 	if(selected_ob.nonNull() && selected_ob->web_view_data.nonNull()) // If we have a web-view object selected, send keyboard input to it:
@@ -15856,6 +15863,37 @@ void GUIClient::setNotificationsVisible(bool visible)
 {
 	for(auto it = notifications.begin(); it != notifications.end(); ++it)
 		it->text_view->setVisible(visible);
+}
+
+
+void GUIClient::hideUI()
+{
+	gesture_ui.setVisible(false);
+	misc_info_ui.setVisible(false);
+	chat_ui.setVisible(false);
+	photo_mode_ui.setVisible(false);
+	if(minimap)
+		minimap->setVisible(false);
+
+	showInfoNotification("Hiding user interface.  Press [ESC] to unhide");
+
+	ui_hidden = true;
+}
+
+
+void GUIClient::unhideUIIfHidden()
+{
+	if(ui_hidden)
+	{
+		gesture_ui.setVisible(true);
+		misc_info_ui.setVisible(true);
+		chat_ui.setVisible(true);
+		photo_mode_ui.setVisible(true);
+		if(minimap)
+			minimap->setVisible(true);
+
+		ui_hidden = false;
+	}
 }
 
 

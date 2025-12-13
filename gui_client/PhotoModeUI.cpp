@@ -180,6 +180,13 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		upload_photo_button->handler = this;
 		gl_ui->addWidget(upload_photo_button);
 	}
+	{
+		GLUITextButton::CreateArgs args;
+		args.tooltip = "Hide user interface";
+		hide_ui_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Hide UI", Vec2f(0), args);
+		hide_ui_button->handler = this;
+		gl_ui->addWidget(hide_ui_button);
+	}
 
 	{
 		GLUIInertWidget::CreateArgs args;
@@ -235,6 +242,7 @@ void PhotoModeUI::destroy()
 	checkRemoveAndDeleteWidget(gl_ui, take_screenshot_button);
 	checkRemoveAndDeleteWidget(gl_ui, show_screenshots_button);
 	checkRemoveAndDeleteWidget(gl_ui, upload_photo_button);
+	checkRemoveAndDeleteWidget(gl_ui, hide_ui_button);
 	checkRemoveAndDeleteWidget(gl_ui, background_ob);
 
 	checkRemoveAndDeleteWidget(gl_ui, upload_background_ob);
@@ -275,6 +283,7 @@ void PhotoModeUI::setVisible(bool visible)
 		take_screenshot_button->setVisible(visible);
 		show_screenshots_button->setVisible(visible);
 		upload_photo_button->setVisible(visible);
+		hide_ui_button->setVisible(visible);
 
 		background_ob->setVisible(visible);
 
@@ -399,6 +408,9 @@ void PhotoModeUI::updateWidgetPositions()
 		cur_y -= upload_photo_button->rect.getWidths().y + margin;
 		upload_photo_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
 
+		cur_y -= hide_ui_button->rect.getWidths().y + margin;
+		hide_ui_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
+
 		// Set the transform of the transparent background quad behind sliders.
 		{
 			const float back_margin = gl_ui->getUIWidthForDevIndepPixelWidth(10);
@@ -492,6 +504,7 @@ void PhotoModeUI::viewportResized(int w, int h)
 		autofocus_eye_button->rebuild();
 		show_screenshots_button->rebuild();
 		upload_photo_button->rebuild();
+		hide_ui_button->rebuild();
 
 		updateWidgetPositions();
 	}
@@ -604,6 +617,12 @@ void PhotoModeUI::eventOccurred(GLUICallbackEvent& event)
 			{
 				showUploadPhotoWidget();
 			}
+
+			event.accepted = true;
+		}
+		else if(event.widget == hide_ui_button.ptr())
+		{
+			gui_client->hideUI();
 
 			event.accepted = true;
 		}

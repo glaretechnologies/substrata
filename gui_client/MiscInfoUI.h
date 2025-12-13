@@ -69,4 +69,6 @@ private:
 	GLUIRef gl_ui;
 
 	Reference<OpenGLEngine> opengl_engine;
+
+	bool visible;
 };

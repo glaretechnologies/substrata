@@ -65,6 +65,7 @@ private:
 	std::list<ChatMessage> messages;
 
 	bool expanded;
+	bool visible;
 	OverlayObjectRef background_overlay_ob;
 	GLUIButtonRef collapse_button;
 	GLUIButtonRef expand_button;

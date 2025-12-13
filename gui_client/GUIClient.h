@@ -261,6 +261,8 @@ public:
 	void showScriptMessage(const std::string& message);
 	void updateNotifications(double cur_time);
 	void setNotificationsVisible(bool visible);
+	void hideUI();
+	void unhideUIIfHidden();
 	void updateParcelGraphics();
 	void assignLODChunkSubMeshPlaceholderToOb(const LODChunk* chunk, WorldObject* const ob);
 	void updateLODChunkGraphics();
@@ -875,4 +877,6 @@ public:
 	std::vector<std::string> navigation_stack;
 
 	URLWhitelist url_whitelist;
+
+	bool ui_hidden;
 };

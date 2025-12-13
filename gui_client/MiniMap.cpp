@@ -41,7 +41,8 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 	last_requested_campos(Vec3d(-1000000)),
 	last_requested_tile_z(-1000),
 	map_width_ws(500.f),
-	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
+	visible(true)
 {
 	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
@@ -124,7 +125,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 
 
 	updateWidgetPositions();
-	setWidgetVisibilityForExpanded();
+	setWidgetVisibility();
 }
 
 
@@ -205,29 +206,31 @@ static float getTileWidthWSForTileZ(int tile_z)
 }
 
 
-void MiniMap::setVisible(bool visible)
+void MiniMap::setVisible(bool visible_)
 {
-	this->expand_button->setVisible(visible && !expanded);
-	this->collapse_button->setVisible(visible && expanded);
+	visible = visible_;
 
-	setMapAndMarkersVisible(visible && expanded);
+	setWidgetVisibility();
 }
 
 
-void MiniMap::setMapAndMarkersVisible(bool visible)
+void MiniMap::setWidgetVisibility()
 {
-	if(gl_ui.nonNull())
+	if(gl_ui)
 	{
-		minimap_image->setVisible(visible);
+		this->expand_button->setVisible(visible && !expanded);
+		this->collapse_button->setVisible(visible && expanded);
+
+		minimap_image->setVisible(expanded && visible);
 
 		for(int j=0; j<TILE_GRID_RES; ++j)
 		for(int i=0; i<TILE_GRID_RES; ++i)
 		{
 			MapTile& tile = tiles.elem(i, j);
-			tile.ob->draw = visible;
+			tile.ob->draw = expanded && visible;
 		}
 
-		arrow_image->setVisible(visible);
+		arrow_image->setVisible(expanded && visible);
 
 		// Set visibility of avatar markers
 		if(gui_client->world_state.nonNull())
@@ -236,10 +239,10 @@ void MiniMap::setMapAndMarkersVisible(bool visible)
 			for(auto it = gui_client->world_state->avatars.begin(); it != gui_client->world_state->avatars.end(); ++it)
 			{
 				if(it->second->minimap_marker.nonNull())
-					it->second->minimap_marker->setVisible(visible);
+					it->second->minimap_marker->setVisible(expanded && visible);
 
 				if(it->second->minimap_marker_arrow.nonNull())
-					it->second->minimap_marker_arrow->setVisible(visible);
+					it->second->minimap_marker_arrow->setVisible(expanded && visible);
 			}
 		}
 	}
@@ -714,6 +717,7 @@ void MiniMap::handleMouseMoved(MouseEvent& mouse_event)
 
 	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(mouse_event.gl_coords);
 
+	// Show collapse button if mouse is over the (visible) minimap
 	if(expanded)
 	{
 		const float extra_mouse_over_px = 10;
@@ -724,7 +728,7 @@ void MiniMap::handleMouseMoved(MouseEvent& mouse_event)
 			coords.x > (last_minimap_bot_left_pos.x - to_button_left_w) && 
 			coords.y > (last_minimap_bot_left_pos.y - gl_ui->getUIWidthForDevIndepPixelWidth(extra_mouse_over_px));
 
-		collapse_button->setVisible(mouse_over);
+		collapse_button->setVisible(mouse_over && visible);
 	}
 }
 
@@ -929,15 +933,6 @@ void MiniMap::removeMarkerForAvatar(Avatar* avatar)
 //}
 
 
-void MiniMap::setWidgetVisibilityForExpanded()
-{
-	setMapAndMarkersVisible(expanded);
-
-	collapse_button->setVisible(expanded);
-	expand_button->setVisible(!expanded);
-}
-
-
 void MiniMap::eventOccurred(GLUICallbackEvent& event)
 {
 	if(event.widget == this->collapse_button.ptr())
@@ -951,7 +946,7 @@ void MiniMap::eventOccurred(GLUICallbackEvent& event)
 		expanded = true;
 	}
 
-	setWidgetVisibilityForExpanded();
+	setWidgetVisibility();
 
 	gui_client->getSettingsStore()->setBoolValue("setting/show_minimap", expanded);
 }

@@ -95,6 +95,7 @@ private:
 	GLUIButtonRef take_screenshot_button;
 	GLUITextButtonRef show_screenshots_button;
 	GLUITextButtonRef upload_photo_button;
+	GLUITextButtonRef hide_ui_button;
 
 	GLUIInertWidgetRef background_ob;
 
