@@ -11,7 +11,8 @@ Copyright Glare Technologies Limited 2022 -
 
 
 MiscInfoUI::MiscInfoUI()
-:	gui_client(NULL)
+:	gui_client(NULL),
+	visible(true)
 {}
 
 
@@ -80,8 +81,10 @@ void MiscInfoUI::destroy()
 }
 
 
-void MiscInfoUI::setVisible(bool visible)
+void MiscInfoUI::setVisible(bool visible_)
 {
+	visible = visible_;
+
 	if(movement_button) 
 		movement_button->setVisible(visible);
 
@@ -219,7 +222,7 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 		for(int z=0; z<10; ++z) // For digit val z at digit place i:
 		{
 			const bool should_draw = (digit_val == z) && ((speed_int >= place_1_val) || (i == 2 && speed_int == 0)); // Don't show leading zeroes.  But if speed = 0, we do need to show one zero.
-			prebuilt_digits[z*3 + i]->setVisible(should_draw);
+			prebuilt_digits[z*3 + i]->setVisible(should_draw && visible);
 		}
 	}
 
@@ -235,7 +238,7 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 		gl_ui->addWidget(unit_string_view);
 	}
 	else
-		unit_string_view->setVisible(true);
+		unit_string_view->setVisible(true && visible);
 
 	updateWidgetPositions();
 }

@@ -48,7 +48,6 @@ public:
 	~MiniMap();
 
 	void setVisible(bool visible); // Set expand, collapse button visibility, plus call setMapAndMarkersVisible().
-	void setMapAndMarkersVisible(bool visible);
 
 	void think();
 
@@ -69,7 +68,7 @@ public:
 
 	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex);
 private:
-	void setWidgetVisibilityForExpanded();
+	void setWidgetVisibility();
 	void checkUpdateTilesForCurCamPosition();
 	void updateWidgetPositions();
 	void setTileOverlayObjectTransforms();
@@ -85,6 +84,7 @@ private:
 	GLUIImageRef arrow_image;
 
 	bool expanded;
+	bool visible;
 	GLUIButtonRef collapse_button;
 	GLUIButtonRef expand_button;
 

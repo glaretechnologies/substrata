@@ -15,7 +15,8 @@ Copyright Glare Technologies Limited 2024 -
 
 ChatUI::ChatUI()
 :	gui_client(NULL),
-	expanded(true)
+	expanded(true),
+	visible(true)
 {}
 
 
@@ -39,6 +40,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 	const bool default_chat_expanded = true;
 #endif
 	expanded = gui_client_->getSettingsStore()->getBoolValue("setting/show_chat", /*default_value=*/default_chat_expanded);
+	visible = true;
 	last_background_top_right_pos = Vec2f(0.f);
 
 	try
@@ -134,10 +136,18 @@ void ChatUI::destroy()
 }
 
 
-void ChatUI::setVisible(bool visible)
+void ChatUI::setVisible(bool visible_)
 {
+	visible = visible_;
+
 	if(!isInitialisedFully())
 		return;
+
+	for(auto it = messages.begin(); it != messages.end(); ++it)
+	{
+		it->name_text->setVisible(visible);
+		it->msg_text->setVisible(visible);
+	}
 
 	background_overlay_ob->draw = visible && expanded;
 	chat_line_edit->setVisible(visible && expanded);
@@ -190,7 +200,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
 		name_args.background_alpha = 0;
 		name_args.max_width = text_area_w;
 		chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name), Vec2f(0.f), name_args);
-		chatmessage.name_text->setVisible(this->expanded);
+		chatmessage.name_text->setVisible(this->expanded && visible);
 		gl_ui->addWidget(chatmessage.name_text);
 	}
 	{
@@ -200,7 +210,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage)
 		msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x;// + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
 		msg_args.max_width = text_area_w;
 		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(chatmessage.msg), Vec2f(0.f), msg_args);
-		chatmessage.msg_text->setVisible(this->expanded);
+		chatmessage.msg_text->setVisible(this->expanded && visible);
 		gl_ui->addWidget(chatmessage.msg_text);
 	}
 }
@@ -268,6 +278,7 @@ void ChatUI::handleMouseMoved(MouseEvent& mouse_event)
 
 	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(mouse_event.gl_coords);
 
+	// Show collapse button if mouse is over the (visible) chat widget
 	if(expanded)
 	{
 		//const float msgs_background_ob_y = -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(50);
@@ -282,7 +293,7 @@ void ChatUI::handleMouseMoved(MouseEvent& mouse_event)
 			coords.x < (last_background_top_right_pos.x + to_button_right_w) && 
 			coords.y < (last_background_top_right_pos.y + gl_ui->getUIWidthForDevIndepPixelWidth(extra_mouse_over_px));
 
-		collapse_button->setVisible(mouse_over);
+		collapse_button->setVisible(mouse_over && visible);
 	}
 }
 
@@ -376,16 +387,16 @@ void ChatUI::updateWidgetTransforms()
 
 void ChatUI::setWidgetVisibilityForExpanded()
 {
-	background_overlay_ob->draw = expanded;
-	collapse_button->setVisible(expanded);
-	expand_button->setVisible(!expanded);
-	chat_line_edit->setVisible(expanded);
+	background_overlay_ob->draw = expanded && visible;
+	collapse_button->setVisible(expanded && visible);
+	expand_button->setVisible(!expanded && visible);
+	chat_line_edit->setVisible(expanded && visible);
 
 	for(auto it = messages.begin(); it != messages.end(); ++it)
 	{
 		ChatMessage& msg = *it;
-		msg.name_text->setVisible(expanded);
-		msg.msg_text->setVisible(expanded);
+		msg.name_text->setVisible(expanded && visible);
+		msg.msg_text->setVisible(expanded && visible);
 	}
 }
 
