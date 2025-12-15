@@ -8563,6 +8563,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			{
 				showErrorNotification(m->error_message);
 			}
+			logMessage("Client disconnected from server " + (m->closed_gracefully ? std::string("gracefully") : std::string("ungracefully")) + ": " + m->error_message);
 			this->connection_state = ServerConnectionState_NotConnected;
 
 			this->logged_in_user_id = UserID::invalidUserID();
