@@ -42,7 +42,7 @@ void LoadScriptTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
-		result_msg_queue->enqueue(new LogMessage("Error while loading script: " + e.what()));
+		// result_msg_queue->enqueue(new LogMessage("Error while loading script: " + e.what()));
 	}
 	catch(std::bad_alloc&)
 	{

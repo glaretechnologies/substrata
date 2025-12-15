@@ -7671,6 +7671,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								{
 									// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that the avatar position is consistent with the vehicle model.
 									const bool use_smoothed_network_transform = cur_seat_index != 0;
+									//const Matrix4f ob_to_world = vehicle_controller_inside->getObjectToWorldTransform(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
 									pose_constraint.sitting = true;
 									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
 									pose_constraint.model_to_y_forwards_rot_1				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_1;
@@ -7686,8 +7687,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 									pose_constraint.arm_out_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_out_angle;
 									pose_constraint.upper_arm_shoulder_lift_angle			= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_arm_shoulder_lift_angle;
 									pose_constraint.lower_arm_up_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_arm_up_angle;
-									//pose_constraint.left_hand_hold_point_os					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].left_hand_hold_point_os;
-									//pose_constraint.right_hand_hold_point_os				= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].right_hand_hold_point_os;
+									//pose_constraint.left_hand_hold_point_ws					= ob_to_world * vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].left_hand_hold_point_os;
+									//pose_constraint.right_hand_hold_point_ws				= ob_to_world * vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].right_hand_hold_point_os;
 								}
 								else
 								{
@@ -7761,8 +7762,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 										pose_constraint.arm_out_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_out_angle;
 										pose_constraint.upper_arm_shoulder_lift_angle			= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_arm_shoulder_lift_angle;
 										pose_constraint.lower_arm_up_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_arm_up_angle;
-										//pose_constraint.left_hand_hold_point_os					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].left_hand_hold_point_os;
-										//pose_constraint.right_hand_hold_point_os				= controller->getSettings().seat_settings[avatar->vehicle_seat_index].right_hand_hold_point_os;
+										//pose_constraint.left_hand_hold_point_ws					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].left_hand_hold_point_os;
+										//pose_constraint.right_hand_hold_point_ws				= controller->getSettings().seat_settings[avatar->vehicle_seat_index].right_hand_hold_point_os;
 									}
 									else
 									{
@@ -8716,7 +8717,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_flags = m->user_flags;
 			this->logged_in_avatar_settings = m->avatar_settings;
 
-			conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
+			logMessage("Logged in as '" + m->username + "', id " + toString(this->logged_in_user_id.value()));
 
 			recolourParcelsForLoggedInState();
 			ui_interface->updateWorldSettingsControlsEditable();

@@ -204,6 +204,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		// Do streaming decompression of objects
 
 		ZoneScopedN("ClientThread: handling ObjectInitialSendCompressed"); // Tracy profiler
+		Timer timer;
+		out_msg_queue->enqueue(new LogMessage("ClientThread: starting ObjectInitialSendCompressed handling..."));
 
 		if(msg_len < msg_header_size_B + sizeof(uint64)) // Message should contain decompressed_size uint64.
 			throw glare::Exception("Invalid message size: " + toString(msg_len));
@@ -302,6 +304,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		// NOTE: do we need to flush the decompression stream here?
 
 		// conPrint("ObjectInitialSendCompressed: Final num objects decoded: " + toString(num_obs_decoded));
+		out_msg_queue->enqueue(new LogMessage("ClientThread ObjectInitialSendCompressed handling: read " + toString(num_obs_decoded) + 
+			" objects from " + uInt64ToStringCommaSeparated(compressed_size) + " B (compressed) in " + timer.elapsedStringNPlaces(3))); // Inform MainWindow
 		return;
 	}
 
