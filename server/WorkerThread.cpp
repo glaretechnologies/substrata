@@ -2430,8 +2430,8 @@ void WorkerThread::doRun()
 
 								socket->writeUInt64(packet.buf.size()); // Write decompressed size
 
-								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(obs.size()) + " object(s) (orig size: " + toString(packet.buf.size()) + 
-									" B, compressed size: " + toString(m_temp_buf.size()) + " B, compression took " + timer.elapsedStringMSWIthNSigFigs(4) + ")");
+								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(obs.size()) + " object(s) (orig size: " + uInt64ToStringCommaSeparated(packet.buf.size()) + 
+									" B, compressed size: " + uInt64ToStringCommaSeparated(m_temp_buf.size()) + " B, compression took " + timer.elapsedStringMSWIthNSigFigs(4) + ")");
 
 								if(!is_websocket_connection)
 								{

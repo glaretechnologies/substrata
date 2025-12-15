@@ -301,11 +301,10 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			}
 		}
 
-		// NOTE: do we need to flush the decompression stream here?
-
 		// conPrint("ObjectInitialSendCompressed: Final num objects decoded: " + toString(num_obs_decoded));
 		out_msg_queue->enqueue(new LogMessage("ClientThread ObjectInitialSendCompressed handling: read " + toString(num_obs_decoded) + 
-			" objects from " + uInt64ToStringCommaSeparated(compressed_size) + " B (compressed) in " + timer.elapsedStringNPlaces(3))); // Inform MainWindow
+			" objects from " + uInt64ToStringCommaSeparated(compressed_size) + " B (compressed), " + 
+			uInt64ToStringCommaSeparated(decompressed_size) + " B (decompressed) in " + timer.elapsedStringNPlaces(3)));
 		return;
 	}
 
@@ -1248,10 +1247,8 @@ void ClientThread::doRun()
 
 		
 #endif
-		conPrint("ClientThread Connecting to " + hostname + ":" + toString(port) + "...");
-
+		out_msg_queue->enqueue(new LogMessage("ClientThread Connecting to " + hostname + ":" + toString(port) + "..."));
 		out_msg_queue->enqueue(new ClientConnectingToServerMessage(server_ip));
-
 
 #if EMSCRIPTEN
 		socket = new EmscriptenWebSocket();
@@ -1396,11 +1393,13 @@ void ClientThread::doRun()
 	{
 		conPrint("ClientThread: Socket error: " + e.what());
 		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what(), /*closed_gracefully=*/e.excepType() == MySocketExcep::ExcepType_ConnectionClosedGracefully));
+		return;
 	}
 	catch(glare::Exception& e)
 	{
 		conPrint("ClientThread: glare::Exception: " + e.what());
 		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what(), /*closed_gracefully=*/false));
+		return;
 	}
 
 	out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage());
