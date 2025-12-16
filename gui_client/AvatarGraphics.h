@@ -47,6 +47,8 @@ struct AnimToPlay
 #endif
 struct PoseConstraint
 {
+	GLARE_ALIGNED_16_NEW_DELETE
+
 	PoseConstraint() : sitting(false), upper_leg_rot_around_thigh_bone_angle(0) {}
 
 	// For sitting:
@@ -64,6 +66,8 @@ struct PoseConstraint
 	float arm_out_angle; // radians. from straight out in front
 	float upper_arm_shoulder_lift_angle;
 	float lower_arm_up_angle; // radians.  From straight out from upper arm.  Positive number means bend lower arm forwards at elbow.
+	Vec4f left_hand_hold_point_ws;
+	Vec4f right_hand_hold_point_ws;
 
 	bool sitting;
 };
@@ -199,9 +203,62 @@ private:
 	int left_forearm_node_i;
 	int right_forearm_node_i;
 
+	int left_shoulder_node_i;
+	int right_shoulder_node_i;
+
+	int left_hand_node_i;
+	int right_hand_node_i;
+
 	int hips_node_i;
 
 	int spine2_node_i;
+
+
+
+	int LeftHandThumb1_i;
+	int LeftHandThumb2_i;
+	int LeftHandThumb3_i;
+	int LeftHandThumb4_i;
+	int LeftHandIndex1_i;
+	int LeftHandIndex2_i;
+	int LeftHandIndex3_i;
+	int LeftHandIndex4_i;
+	int LeftHandMiddle1_i;
+	int LeftHandMiddle2_i;
+	int LeftHandMiddle3_i;
+	int LeftHandMiddle4_i;
+	int LeftHandRing1_i;
+	int LeftHandRing2_i;
+	int LeftHandRing3_i;
+	int LeftHandRing4_i;
+	int LeftHandPinky1_i;
+	int LeftHandPinky2_i;
+	int LeftHandPinky3_i;
+	int LeftHandPinky4_i;
+
+	int RightHandThumb1_i;
+	int RightHandThumb2_i;
+	int RightHandThumb3_i;
+	int RightHandThumb4_i;
+	int RightHandIndex1_i;
+	int RightHandIndex2_i;
+	int RightHandIndex3_i;
+	int RightHandIndex4_i;
+	int RightHandMiddle1_i;
+	int RightHandMiddle2_i;
+	int RightHandMiddle3_i;
+	int RightHandMiddle4_i;
+	int RightHandRing1_i;
+	int RightHandRing2_i;
+	int RightHandRing3_i;
+	int RightHandRing4_i;
+	int RightHandPinky1_i;
+	int RightHandPinky2_i;
+	int RightHandPinky3_i;
+	int RightHandPinky4_i;
+
+	float upper_right_arm_len, lower_right_arm_len;
+	float upper_left_arm_len, lower_left_arm_len;
 };
 
 

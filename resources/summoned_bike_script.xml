@@ -18,6 +18,9 @@
 
 			<arm_down_angle>2.6</arm_down_angle>
 			<arm_out_angle>0.3</arm_out_angle>
+
+			<left_hand_hold_point_os>-0.18 0.23 -0.45</left_hand_hold_point_os>
+			<right_hand_hold_point_os>0.2 0.23 -0.45</right_hand_hold_point_os>
 		</seat>
 	</bike>
 </script>

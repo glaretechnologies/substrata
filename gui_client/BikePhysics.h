@@ -73,6 +73,8 @@ public:
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
 	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
 
+	Matrix4f getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const override;
+
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
 	JPH::BodyID getBodyID() const override { return bike_body_id; }
@@ -131,6 +133,7 @@ private:
 	Reference<GLObject> desired_bike_up_vec_gl_ob;
 
 	std::vector<Reference<GLObject>> convex_hull_pts_gl_obs;
+	std::vector<Reference<GLObject>> hand_hold_point_gl_obs;
 	
 	Vec4f last_desired_up_vec;
 	Vec4f last_force_point;

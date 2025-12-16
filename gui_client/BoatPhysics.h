@@ -36,7 +36,7 @@ struct BoatPhysicsSettings
 
 /*=====================================================================
 BoatPhysics
----------------
+-----------
 
 =====================================================================*/
 class BoatPhysics final : public VehiclePhysics
@@ -68,6 +68,8 @@ public:
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
 	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
+
+	Matrix4f getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const override;
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
@@ -108,6 +110,7 @@ private:
 	js::Vector<SplashPoint> splash_points;
 
 	Reference<GLObject> propellor_point_gl_obs[2];
+	std::vector<Reference<GLObject>> hand_hold_point_gl_obs;
 
 	bool show_debug_vis_obs;
 };

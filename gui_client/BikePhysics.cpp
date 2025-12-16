@@ -824,7 +824,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 Vec4f BikePhysics::getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 {
 	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world, seat_index, use_smoothed_network_transform);
-	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to appox head position
+	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to approx head position
 }
 
 
@@ -863,10 +863,10 @@ Matrix4f BikePhysics::getWheelToWorldTransform(PhysicsWorld& physics_world, int 
 // model/object space to y-forward space = R
 // y-forward space to model/object space = R^-1
 // 
-// seat_to_object = seat_translation_model_space * R^1
+// seat_to_object = seat_translation_model_space * R^-1
 //
 // So  
-// Seat_to_world = object_to_world * seat_translation_model_space * R^1
+// Seat_to_world = object_to_world * seat_translation_model_space * R^-1
 Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 { 
 	if(seat_index < settings.script_settings->seat_settings.size())
@@ -887,6 +887,15 @@ Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint3
 		assert(0);
 		return Matrix4f::identity();
 	}
+}
+
+
+Matrix4f BikePhysics::getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const
+{
+	if(use_smoothed_network_transform && world_object->physics_object)
+		return world_object->physics_object->getSmoothedObToWorldNoScaleMatrix();
+	else
+		return getBodyTransform(physics_world);
 }
 
 
@@ -1125,6 +1134,35 @@ void BikePhysics::updateDebugVisObjects()
 
 			opengl_engine.updateObjectTransformData(*desired_bike_up_vec_gl_ob);
 		}
+
+
+		// Add hand hold points
+		hand_hold_point_gl_obs.resize(settings.script_settings->seat_settings.size() * 2);
+		for(size_t z=0; z<settings.script_settings->seat_settings.size(); ++z)
+		{
+			const Scripting::SeatSettings& seat_settings = settings.script_settings->seat_settings[z];
+
+			const Vec4f pos_os[2] = { seat_settings.left_hand_hold_point_os, seat_settings.right_hand_hold_point_os };
+			for(size_t i=0; i<2; ++i)
+			{
+				const int hold_point_index = (int)z*2 + (int)i;
+
+				if(isFinite(pos_os[i][0]))
+				{
+					const float radius = 0.04f;
+					if(!hand_hold_point_gl_obs[hold_point_index])
+					{
+						hand_hold_point_gl_obs[hold_point_index] = m_opengl_engine->makeSphereObject(radius, Colour4f(0,1,1,1));
+						m_opengl_engine->addObject(hand_hold_point_gl_obs[hold_point_index]);
+					}
+
+					const Vec4f pos_ws = getBodyTransform(*m_physics_world) * pos_os[i];
+					hand_hold_point_gl_obs[hold_point_index]->ob_to_world_matrix = Matrix4f::translationMatrix(pos_ws) * Matrix4f::uniformScaleMatrix(radius);
+
+					m_opengl_engine->updateObjectTransformData(*hand_hold_point_gl_obs[hold_point_index]);
+				}
+			}
+		}
 	}
 }
 
@@ -1151,5 +1189,8 @@ void BikePhysics::removeVisualisationObs()
 		for(size_t i=0; i<convex_hull_pts_gl_obs.size(); ++i)
 			m_opengl_engine->removeObject(convex_hull_pts_gl_obs[i]);
 		convex_hull_pts_gl_obs.clear();
+
+		for(size_t i=0; i<hand_hold_point_gl_obs.size(); ++i)
+			checkRemoveObAndSetRefToNull(*m_opengl_engine, hand_hold_point_gl_obs[i]);
 	}
 }

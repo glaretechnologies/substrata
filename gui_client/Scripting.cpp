@@ -107,6 +107,9 @@ SeatSettings::SeatSettings()
 	upper_arm_shoulder_lift_angle = 0.0;
 
 	lower_arm_up_angle = 0.5;
+
+	left_hand_hold_point_os  = Vec4f(std::numeric_limits<float>::quiet_NaN());
+	right_hand_hold_point_os = Vec4f(std::numeric_limits<float>::quiet_NaN());
 }
 
 
@@ -125,6 +128,8 @@ static SeatSettings parseSeatSettings(pugi::xml_node seat_elem, const SeatSettin
 	seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", default_seat_settings.arm_out_angle);
 	seat_settings.upper_arm_shoulder_lift_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_arm_shoulder_lift_angle", default_seat_settings.upper_arm_shoulder_lift_angle);
 	seat_settings.lower_arm_up_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_arm_up_angle", default_seat_settings.lower_arm_up_angle);
+	seat_settings.left_hand_hold_point_os	= parseVec3WithDefault(seat_elem, "left_hand_hold_point_os",  Vec3d(std::numeric_limits<double>::quiet_NaN())).toVec4fPoint();
+	seat_settings.right_hand_hold_point_os	= parseVec3WithDefault(seat_elem, "right_hand_hold_point_os", Vec3d(std::numeric_limits<double>::quiet_NaN())).toVec4fPoint();
 
 	return seat_settings;
 }

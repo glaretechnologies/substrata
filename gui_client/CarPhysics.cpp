@@ -565,6 +565,15 @@ Matrix4f CarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32
 }
 
 
+Matrix4f CarPhysics::getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const
+{
+	if(use_smoothed_network_transform && world_object->physics_object)
+		return world_object->physics_object->getSmoothedObToWorldNoScaleMatrix();
+	else
+		return getBodyTransform(physics_world);
+}
+
+
 Vec4f CarPhysics::getLinearVel(PhysicsWorld& physics_world) const
 {
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
