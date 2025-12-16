@@ -14,9 +14,9 @@ static const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in W
 static bool VERBOSE = false;
 
 
-ProximityLoader::ProximityLoader(float load_distance_)
-:	load_distance(load_distance_),
-	load_distance2(load_distance_ * load_distance_),
+ProximityLoader::ProximityLoader()
+:	load_distance(0),
+	load_distance2(0),
 	ob_grid(
 		CELL_WIDTH, // grid cell width
 		1 << 10 // expected_num_items = num buckets
@@ -39,6 +39,13 @@ ProximityLoader::~ProximityLoader()
 {}
 
 
+void ProximityLoader::initialise(float load_distance_)
+{
+	load_distance = load_distance_;
+	load_distance2 = load_distance_ * load_distance_;
+}
+
+
 void ProximityLoader::setLoadDistance(float new_load_distance)
 {
 	const Vec4i old_begin = ob_grid.bucketIndicesForPoint(last_cam_pos - Vec4f(load_distance, load_distance, load_distance, 0));
@@ -48,7 +55,6 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 	this->load_distance = new_load_distance;
 	this->load_distance2 = new_load_distance*new_load_distance;
 	
-
 	const Vec4i new_begin = ob_grid.bucketIndicesForPoint(last_cam_pos - Vec4f(new_load_distance, new_load_distance, new_load_distance, 0));
 	const Vec4i new_end   = ob_grid.bucketIndicesForPoint(last_cam_pos + Vec4f(new_load_distance, new_load_distance, new_load_distance, 0));
 
@@ -57,6 +63,7 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 
 
 	[[maybe_unused]] int num_iters = 0;
+	[[maybe_unused]] int num_new_cells = 0;
 	for(int z = upper_begin[2]; z <= upper_end[2]; ++z)
 	for(int y = upper_begin[1]; y <= upper_end[1]; ++y)
 	for(int x = upper_begin[0]; x <= upper_end[0]; ++x)
@@ -104,11 +111,12 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 		{
 			//conPrint("setLoadDistance(): Loading cell " + cell_coords.toString());
 			callbacks->newCellInProximity(cell_coords);
+			num_new_cells++;
 		}
 
 		num_iters++;
 	}
-	//printVar(num_iters);
+	//conPrint("ProximityLoader::setLoadDistance: called newCellInProximity for " + toString(num_new_cells) + " cells after iterating over " + toString(num_iters) + " cells");
 }
 
 
@@ -188,6 +196,10 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 	{
 		//conPrint("ProximityLoader: walking grid cells, new_cam_pos: " + new_cam_pos.toStringNSigFigs(3));
 
+		[[maybe_unused]] int num_iters = 0;
+		[[maybe_unused]] int num_new_cells = 0;
+		//Timer timer;
+
 		// Iterate over grid cells around last_cam_pos
 		// Unload any objects outside of load_distance of new_cam_pos
 		const Vec4i old_begin = ob_grid.bucketIndicesForPoint(last_cam_pos - Vec4f(load_distance, load_distance, load_distance, 0));
@@ -231,40 +243,52 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 			const Vec4i begin = ob_grid.bucketIndicesForPoint(new_cam_pos - Vec4f(load_distance, load_distance, load_distance, 0));
 			const Vec4i end   = ob_grid.bucketIndicesForPoint(new_cam_pos + Vec4f(load_distance, load_distance, load_distance, 0));
 
-			for(int z = begin[2]; z <= end[2]; ++z)
-			for(int y = begin[1]; y <= end[1]; ++y)
-			for(int x = begin[0]; x <= end[0]; ++x)
-			{
-				//const HashedObGridBucket& bucket = ob_grid.getBucketForIndices(x, y, z);
-				//for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
-				//{
-				//	WorldObject* ob = it->ptr();
-				//	const float new_dist2 = ob->pos.toVec4fPoint().getDist2(new_cam_pos);
-				//	const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
-				//	if(new_dist2 <= ob_load_dist2) // If object is now inside of loading distance
-				//	{
-				//		if(!ob->in_proximity)
-				//		{
-				//			if(VERBOSE) conPrint("ProximityLoader: Loading object " + ob->uid.toString());
-				//			ob->in_proximity = true;
-				//			callbacks->loadObject(ob);
-				//		}
-				//	}
-				//}
+			// conPrint("old_begin: " + old_begin.toString());
+			// conPrint("old_end  : " + old_end.toString());
+			// conPrint("begin    : " + begin.toString());
+			// conPrint("end      : " + end.toString());
 
-				const Vec3<int> cell_coords(x, y, z);
-				const bool is_in_old_cells =
-					x >= old_begin[0] && y >= old_begin[1] && z >= old_begin[2] &&
-					x <= old_end[0]   && y <= old_end[1]   && z <= old_end[2];
-				if(!is_in_old_cells)
+			if((begin != old_begin) || (end != old_end)) // If we are just interested in cells we only need to iterate when the cell ranges change.
+			{
+				for(int z = begin[2]; z <= end[2]; ++z)
+				for(int y = begin[1]; y <= end[1]; ++y)
+				for(int x = begin[0]; x <= end[0]; ++x)
 				{
-					if(VERBOSE) conPrint("ProximityLoader: Loading cell " + cell_coords.toString());
-					callbacks->newCellInProximity(cell_coords);
+					//const HashedObGridBucket& bucket = ob_grid.getBucketForIndices(x, y, z);
+					//for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
+					//{
+					//	WorldObject* ob = it->ptr();
+					//	const float new_dist2 = ob->pos.toVec4fPoint().getDist2(new_cam_pos);
+					//	const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
+					//	if(new_dist2 <= ob_load_dist2) // If object is now inside of loading distance
+					//	{
+					//		if(!ob->in_proximity)
+					//		{
+					//			if(VERBOSE) conPrint("ProximityLoader: Loading object " + ob->uid.toString());
+					//			ob->in_proximity = true;
+					//			callbacks->loadObject(ob);
+					//		}
+					//	}
+					//}
+
+					const Vec3<int> cell_coords(x, y, z);
+					const bool is_in_old_cells =
+						x >= old_begin[0] && y >= old_begin[1] && z >= old_begin[2] &&
+						x <= old_end[0]   && y <= old_end[1]   && z <= old_end[2];
+					if(!is_in_old_cells)
+					{
+						if(VERBOSE) conPrint("ProximityLoader: Loading cell " + cell_coords.toString());
+						callbacks->newCellInProximity(cell_coords);
+						num_new_cells++;
+					}
+					num_iters++;
 				}
 			}
 		}
 
 		this->last_cam_pos = new_cam_pos;
+
+		// conPrint("ProximityLoader::updateCamPos: called newCellInProximity for " + toString(num_new_cells) + " cells after iterating over " + toString(num_iters) + " cells in " + timer.elapsedStringMSWIthNSigFigs(4));
 	}
 }
 
