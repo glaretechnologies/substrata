@@ -711,7 +711,7 @@ void MainWindow::logMessage(const std::string& msg) // Append to LogWindow log d
 {
 	//this->logfile << msg << "\n";
 	if(this->log_window && !running_destructor)
-		this->log_window->appendLine(msg);
+		this->log_window->appendLine(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + " s:   " + msg);
 }
 
 
