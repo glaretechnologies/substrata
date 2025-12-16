@@ -394,7 +394,7 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 Vec4f BoatPhysics::getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 {
 	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world, seat_index, use_smoothed_network_transform);
-	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to appox head position
+	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to approx head position
 }
 
 
@@ -446,6 +446,15 @@ Matrix4f BoatPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint3
 		assert(0);
 		return Matrix4f::identity();
 	}
+}
+
+
+Matrix4f BoatPhysics::getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const
+{
+	if(use_smoothed_network_transform && world_object->physics_object)
+		return world_object->physics_object->getSmoothedObToWorldNoScaleMatrix();
+	else
+		return getBodyTransform(physics_world);
 }
 
 
@@ -510,6 +519,34 @@ void BoatPhysics::updateDebugVisObjects()
 
 			m_opengl_engine->updateObjectTransformData(*propellor_point_gl_obs[i]);
 		}
+
+		// Add hand hold points
+		hand_hold_point_gl_obs.resize(settings.script_settings->seat_settings.size() * 2);
+		for(size_t z=0; z<settings.script_settings->seat_settings.size(); ++z)
+		{
+			const Scripting::SeatSettings& seat_settings = settings.script_settings->seat_settings[z];
+
+			const Vec4f pos_os[2] = { seat_settings.left_hand_hold_point_os, seat_settings.right_hand_hold_point_os };
+			for(size_t i=0; i<2; ++i)
+			{
+				const int hold_point_index = (int)z*2 + (int)i;
+
+				if(isFinite(pos_os[i][0]))
+				{
+					const float radius = 0.04f;
+					if(!hand_hold_point_gl_obs[hold_point_index])
+					{
+						hand_hold_point_gl_obs[hold_point_index] = m_opengl_engine->makeSphereObject(radius, Colour4f(0,1,1,1));
+						m_opengl_engine->addObject(hand_hold_point_gl_obs[hold_point_index]);
+					}
+
+					const Vec4f pos_ws = ob_to_world * pos_os[i];
+					hand_hold_point_gl_obs[hold_point_index]->ob_to_world_matrix = Matrix4f::translationMatrix(pos_ws) * Matrix4f::uniformScaleMatrix(radius);
+
+					m_opengl_engine->updateObjectTransformData(*hand_hold_point_gl_obs[hold_point_index]);
+				}
+			}
+		}
 	}
 }
 
@@ -521,4 +558,7 @@ void BoatPhysics::removeVisualisationObs()
 
 	for(size_t i=0; i<2; ++i)
 		checkRemoveObAndSetRefToNull(*m_opengl_engine, propellor_point_gl_obs[i]);
+
+	for(size_t i=0; i<hand_hold_point_gl_obs.size(); ++i)
+		checkRemoveObAndSetRefToNull(*m_opengl_engine, hand_hold_point_gl_obs[i]);
 }

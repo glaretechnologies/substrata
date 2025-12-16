@@ -43,6 +43,9 @@ struct SeatSettings
 	float upper_arm_shoulder_lift_angle;
 
 	float lower_arm_up_angle; // radians
+
+	Vec4f left_hand_hold_point_os;
+	Vec4f right_hand_hold_point_os;
 };
 
 
@@ -106,7 +109,7 @@ struct BoatScriptSettings : public VehicleScriptedSettings
 	float front_cross_sectional_area;
 	float side_cross_sectional_area;
 	float top_cross_sectional_area;
-	
+
 	struct SplashPoint
 	{
 		GLARE_ALIGNED_16_NEW_DELETE

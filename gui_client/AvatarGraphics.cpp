@@ -78,6 +78,23 @@ static float mod2PiDiff(float x)
 }
 
 
+inline static void setProceduralRotation(js::Vector<GLObjectAnimNodeData, 16>& anim_node_data, const int node_index, const Quatf& rot)
+{
+	if(node_index >= 0 && node_index < (int)anim_node_data.size())
+	{
+		anim_node_data[node_index].procedural_rot_mask = 0xFFFFFFFF;
+		anim_node_data[node_index].procedural_rot = rot;
+	}
+}
+
+
+inline static void clearProceduralRotation(js::Vector<GLObjectAnimNodeData, 16>& anim_node_data, const int node_index)
+{
+	if(node_index >= 0 && node_index < (int)anim_node_data.size())
+		anim_node_data[node_index].procedural_rot_mask = 0;
+}
+
+
 void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& cam_rotation, 
 	bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override, 
 	const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, const PoseConstraint& pose_constraint, AnimEvents& anim_events_out)
@@ -85,20 +102,23 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 	if(dt == 0.0) // May happen in web client, avoid dividing by zero below.
 		return;
 
-	if(false) // debug_avatar_basis_ob.isNull())
+	if(false && !debug_avatar_basis_ob)
 	{
 		debug_avatar_basis_ob = engine.allocateObject();
 		debug_avatar_basis_ob->mesh_data = MeshPrimitiveBuilding::make3DBasisArrowMesh(*engine.vert_buf_allocator); // Base will be at origin, tip will lie at (1, 0, 0)
 		debug_avatar_basis_ob->materials.resize(3);
-		debug_avatar_basis_ob->materials[0].albedo_linear_rgb = Colour3f(0.9f, 0.5f, 0.3f);
-		debug_avatar_basis_ob->materials[1].albedo_linear_rgb = Colour3f(0.5f, 0.9f, 0.5f);
-		debug_avatar_basis_ob->materials[2].albedo_linear_rgb = Colour3f(0.3f, 0.5f, 0.9f);
+		debug_avatar_basis_ob->materials[0].albedo_linear_rgb = Colour3f(0.9f, 0.1f, 0.1f);
+		debug_avatar_basis_ob->materials[1].albedo_linear_rgb = Colour3f(0.1f, 0.9f, 0.1f);
+		debug_avatar_basis_ob->materials[2].albedo_linear_rgb = Colour3f(0.1f, 0.1f, 0.9f);
 		debug_avatar_basis_ob->ob_to_world_matrix = Matrix4f::translationMatrix(1000, 0, 0);
 		engine.addObject(debug_avatar_basis_ob);
 	}
 
-	if(skinned_gl_ob.nonNull())
+	if(skinned_gl_ob && skinned_gl_ob->mesh_data)
 	{
+		const AnimationData& anim_data = skinned_gl_ob->mesh_data->animation_data;
+		js::Vector<GLObjectAnimNodeData, 16>& anim_node_data = skinned_gl_ob->anim_node_data;
+
 		if(cur_time >= skinned_gl_ob->transition_end_time && skinned_gl_ob->next_anim_i != -1)
 		{
 			skinned_gl_ob->current_anim_i = skinned_gl_ob->next_anim_i;
@@ -218,73 +238,373 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				skinned_gl_ob->anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::rotationAroundZAxis( pose_constraint.rotate_foot_out_angle) * /*move lower leg out=*/Matrix4f::rotationAroundYAxis(-pose_constraint.lower_leg_apart_angle) * Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
 			}
 
-			// Arms:
-			if(	left_arm_node_i >= 0  && left_arm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
-				right_arm_node_i >= 0 && right_arm_node_i < (int)skinned_gl_ob->anim_node_data.size())
+
+			// Inverse kinematics for left arm grab
+			const bool do_left_arm_IK_grab = isFinite(pose_constraint.left_hand_hold_point_ws[0]);
+			if(do_left_arm_IK_grab &&
+				left_shoulder_node_i >= 0  && left_shoulder_node_i < (int)anim_node_data.size() &&
+				left_arm_node_i >= 0  && left_arm_node_i < (int)anim_node_data.size() &&
+				left_forearm_node_i >= 0  && left_forearm_node_i < (int)anim_node_data.size() &&
+				left_hand_node_i >= 0  && left_hand_node_i < (int)anim_node_data.size())
 			{
+				const Vec4f last_shoulder_pos_os = anim_node_data[left_arm_node_i    ].node_hierarchical_to_object.getColumn(3);
+				const Vec4f last_elbow_pos_os    = anim_node_data[left_forearm_node_i].node_hierarchical_to_object.getColumn(3);
+
+				// Compute distance from shoulder to hand hold position
+				const Vec4f last_shoulder_pos_ws = skinned_gl_ob->ob_to_world_matrix * last_shoulder_pos_os;
+				const Vec4f last_elbow_pos_ws    = skinned_gl_ob->ob_to_world_matrix * last_elbow_pos_os;
+
+				// DEBUG: Set transform of debug basis arrows.
+				//debug_avatar_basis_ob->ob_to_world_matrix = Matrix4f::translationMatrix(last_elbow_pos_ws) * Matrix4f::uniformScaleMatrix(1.2f);
+				/*debug_avatar_basis_ob->ob_to_world_matrix = skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[left_forearm_node_i].node_hierarchical_to_object;
+				engine.updateObjectTransformData(*debug_avatar_basis_ob);*/
+
+				// Make the target wrist position a few cm out from the handlebar, in the direction of the shoulder.
+				const Vec4f sideways_out_dir_ws = normalise(crossProduct(last_shoulder_pos_ws - pose_constraint.left_hand_hold_point_ws, Vec4f(0,0,1,0)));
+				const Vec4f target_wrist_pos_ws = pose_constraint.left_hand_hold_point_ws + normalise(last_shoulder_pos_ws - 
+					pose_constraint.left_hand_hold_point_ws) * 0.08 - 
+					Vec4f(0,0,0.05, 0) + sideways_out_dir_ws * 0.02f;
+				const float hold_shoulder_len = target_wrist_pos_ws.getDist(last_shoulder_pos_ws);
+				
+				const Vec4f hold_pos_os = world_to_ob_matrix * target_wrist_pos_ws;
+
+				/*
+				From OpenGLEngine:
+				const Matrix4f last_pre_proc_to_object = (node_data.parent_index == -1) ? TRS : (node_matrices[node_data.parent_index] * node_data.retarget_adjustment * TRS); // Transform without procedural_transform applied
+				const Matrix4f node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform; 
+				 
+				so 
+				hand_T = lower_arm_T * hand_retarget_T * hand_TRS * hand_procedural_T
+				lower_arm_T = upper_arm_T * lower_arm_retarget_T * lower_arm_TRS * lower_arm_procedural_T
+				upper_arm_T = shoulder_T * upper_arm_retarget_T * upper_arm_TRS * upper_arm_procedural_T
+
+				hand_T = [upper_arm_T * lower_arm_retarget_T * lower_arm_TRS * lower_arm_procedural_T] * hand_retarget_T * hand_TRS * hand_procedural_T
+				
+				wrist_pos = hand_T * (0,0,0) 
+				*/
+				
+				// https://en.wikipedia.org/wiki/Law_of_cosines
+				const float a = upper_left_arm_len;
+				const float b = lower_left_arm_len;
+				const float c = hold_shoulder_len;
+				const float cos_gamma = (a*a + b*b - c*c) / (2*a*b);
+				const float gamma = (cos_gamma > -1.f && cos_gamma < 1.f) ? std::acos(cos_gamma) : Maths::pi<float>();
+
+				anim_node_data[left_forearm_node_i ].procedural_rot_mask = 0xFFFFFFFF;
+				anim_node_data[left_forearm_node_i ].procedural_rot = Quatf::xAxisRot(Maths::pi<float>() + gamma);
+				anim_node_data[left_forearm_node_i ].procedural_transform = Matrix4f::identity();
+
+				// upper-arm to object space transformation matrix, without procedural IK rotation.
+				const Matrix4f upper_arm_T = 
+					anim_node_data[left_shoulder_node_i].node_hierarchical_to_object * // shoulder_T
+					anim_data.nodes[left_arm_node_i].retarget_adjustment * // upper_arm_retarget_T
+					Matrix4f::translationMatrix(anim_data.nodes[left_arm_node_i].trans); // upper_arm_TRS  [no rotation]
+					// no procedural transform
+
+				// Compute object-space to upper-arm space transformation matrix, will be used later.
+				Matrix4f ob_to_upper_arm_T;
+				upper_arm_T.getInverseForAffine3Matrix(ob_to_upper_arm_T);
+
+				const Vec4f unrotated_wrist_pos_os = 
+					upper_arm_T * 
+					(anim_data.nodes[left_forearm_node_i].retarget_adjustment * 
+					(Matrix4f::translationMatrix(anim_data.nodes[left_forearm_node_i].trans) * (anim_node_data[left_forearm_node_i ].procedural_rot.toMatrix() * // Lower arm TRS
+					(anim_data.nodes[left_hand_node_i].retarget_adjustment * 
+					(Matrix4f::translationMatrix(anim_data.nodes[left_hand_node_i].trans)/* * skinned_gl_ob->anim_node_data[left_hand_node_i ].procedural_rot.toMatrix()*/ * // hand TRS
+					Vec4f(0,0,0,1))))));
+
+				const Vec4f unrotated_wrist_pos_ws = skinned_gl_ob->ob_to_world_matrix * unrotated_wrist_pos_os;
+
+				// Rotate arm around shoulder so that the shoulder-wrist vector is aligned with shoulder-hold.
+				Vec4f rotate_axis_os = crossProduct(unrotated_wrist_pos_os - last_shoulder_pos_os, hold_pos_os - last_shoulder_pos_os);
+				if(rotate_axis_os.length() > 0.001f)
 				{
-					const Matrix4f last_left_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[left_arm_node_i].last_pre_proc_to_object; // last left-arm bone to object space (y-up) transformation.
+					rotate_axis_os = normalise(rotate_axis_os);
+					const Vec4f rotate_axis_arm_space = ob_to_upper_arm_T * rotate_axis_os;
+					const float rotate_angle = acos(dot(normalise(unrotated_wrist_pos_os - last_shoulder_pos_os), normalise(hold_pos_os - last_shoulder_pos_os)));
+			
+					anim_node_data[left_arm_node_i].procedural_rot_mask = 0xFFFFFFFF; // Don't apply animation rotation, apply procedural_rot instead
+					anim_node_data[left_arm_node_i].procedural_rot = Quatf::fromAxisAndAngle(rotate_axis_arm_space, rotate_angle);
+					anim_node_data[left_arm_node_i ].procedural_transform = Matrix4f::identity();
+				}
+			}
+			else // Else not doing inverse kinematics for left arm:
+			{
+				if(left_arm_node_i >= 0  && left_arm_node_i < (int)anim_node_data.size())
+				{
+					const Matrix4f last_left_arm_bone_to_object_space = anim_node_data[left_arm_node_i].last_pre_proc_to_object; // last left-arm bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_left_arm_bone_to_object_space);
-					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0),  pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle) *
-						Quatf::fromAxisAndAngle(Vec4f(0,0,1,0), -pose_constraint.upper_arm_shoulder_lift_angle);
+					const Quatf desired_rot_os = /*rot out=*/Quatf::yAxisRot(pose_constraint.arm_out_angle) * /*rot down=*/Quatf::xAxisRot(pose_constraint.arm_down_angle) *
+						Quatf::zAxisRot(-pose_constraint.upper_arm_shoulder_lift_angle);
 					// Note that node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform, so we want to undo the bone-to-object-space rotation last (so it should be on left)
-					skinned_gl_ob->anim_node_data[left_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
+					anim_node_data[left_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
-				{
-					const Matrix4f last_right_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[right_arm_node_i].last_pre_proc_to_object; // last right-arm bone to object space (y-up) transformation.
-					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_right_arm_bone_to_object_space);
-					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle) * 
-						Quatf::fromAxisAndAngle(Vec4f(0,0,1,0), pose_constraint.upper_arm_shoulder_lift_angle);
-					skinned_gl_ob->anim_node_data[right_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
-				}
-			}
 
-
-			if(	left_forearm_node_i >= 0  && left_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
-				right_forearm_node_i >= 0 && right_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size())
-			{
 				// Bend lower arms (at elbow)
-				skinned_gl_ob->anim_node_data[left_forearm_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(-pose_constraint.lower_arm_up_angle);
-				skinned_gl_ob->anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(-pose_constraint.lower_arm_up_angle);
+				if(left_forearm_node_i >= 0  && left_forearm_node_i < (int)anim_node_data.size())
+				{
+					anim_node_data[left_forearm_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(-pose_constraint.lower_arm_up_angle);
+				}
 			}
+
+
+			// Inverse kinematics for right arm grab.  Code very similar to left arm code above.
+			const bool do_right_arm_IK_grab = isFinite(pose_constraint.right_hand_hold_point_ws[0]);
+			if(do_right_arm_IK_grab &&
+				right_shoulder_node_i >= 0  && right_shoulder_node_i < (int)anim_node_data.size() &&
+				right_arm_node_i >= 0  && right_arm_node_i < (int)anim_node_data.size() &&
+				right_forearm_node_i >= 0  && right_forearm_node_i < (int)anim_node_data.size() &&
+				right_hand_node_i >= 0  && right_hand_node_i < (int)anim_node_data.size())
+			{
+				const Vec4f last_shoulder_pos_os = anim_node_data[right_arm_node_i    ].node_hierarchical_to_object.getColumn(3);
+				const Vec4f last_elbow_pos_os    = anim_node_data[right_forearm_node_i].node_hierarchical_to_object.getColumn(3);
+
+				const Vec4f last_shoulder_pos_ws = skinned_gl_ob->ob_to_world_matrix * last_shoulder_pos_os;
+				const Vec4f last_elbow_pos_ws    = skinned_gl_ob->ob_to_world_matrix * last_elbow_pos_os;
+
+				// Make the target wrist position a few cm out from the handlebar, in the direction of the shoulder.
+				const Vec4f sideways_out_dir_ws = normalise(crossProduct(last_shoulder_pos_ws - pose_constraint.right_hand_hold_point_ws, Vec4f(0,0,1,0)));
+				const Vec4f target_wrist_pos_ws = pose_constraint.right_hand_hold_point_ws + normalise(last_shoulder_pos_ws - 
+					pose_constraint.right_hand_hold_point_ws) * 0.08 - 
+					Vec4f(0,0,0.05, 0) + sideways_out_dir_ws * 0.02f;
+				const float hold_shoulder_len = target_wrist_pos_ws.getDist(last_shoulder_pos_ws);
+				
+				const Vec4f hold_pos_os = world_to_ob_matrix * target_wrist_pos_ws;
+
+				// https://en.wikipedia.org/wiki/Law_of_cosines
+				const float a = upper_right_arm_len;
+				const float b = lower_right_arm_len;
+				const float c = hold_shoulder_len;
+				const float cos_gamma = (a*a + b*b - c*c) / (2*a*b);
+				const float gamma = (cos_gamma > -1.f && cos_gamma < 1.f) ? std::acos(cos_gamma) : Maths::pi<float>();
+
+				anim_node_data[right_forearm_node_i ].procedural_rot_mask = 0xFFFFFFFF;
+				anim_node_data[right_forearm_node_i ].procedural_rot = Quatf::xAxisRot(Maths::pi<float>() + gamma);
+				anim_node_data[right_forearm_node_i ].procedural_transform = Matrix4f::identity();
+
+				// upper-arm to object space transformation matrix, without procedural IK rotation.
+				Matrix4f upper_arm_T = 
+					anim_node_data[right_shoulder_node_i].node_hierarchical_to_object * // shoulder_T
+					anim_data.nodes[right_arm_node_i].retarget_adjustment * // upper_arm_retarget_T
+					Matrix4f::translationMatrix(anim_data.nodes[right_arm_node_i].trans); // upper_arm_TRS  [no rotation]
+					// no procedural transform
+
+				Matrix4f ob_to_upper_arm_T;
+				upper_arm_T.getInverseForAffine3Matrix(ob_to_upper_arm_T);
+
+				const Vec4f unrotated_wrist_pos_os = 
+					upper_arm_T * 
+					(anim_data.nodes[right_forearm_node_i].retarget_adjustment * 
+					(Matrix4f::translationMatrix(anim_data.nodes[right_forearm_node_i].trans) * (anim_node_data[right_forearm_node_i ].procedural_rot.toMatrix() * // Lower arm TRS
+					(anim_data.nodes[right_hand_node_i].retarget_adjustment * 
+					(Matrix4f::translationMatrix(anim_data.nodes[right_hand_node_i].trans) * // hand TRS
+					Vec4f(0,0,0,1))))));
+
+				const Vec4f unrotated_wrist_pos_ws = skinned_gl_ob->ob_to_world_matrix * unrotated_wrist_pos_os;
+
+				// DEBUG VIS POSITION
+				//debug_avatar_basis_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pose_constraint.right_hand_hold_point_ws) * Matrix4f::uniformScaleMatrix(0.5f);
+				//engine.updateObjectTransformData(*debug_avatar_basis_ob);
+
+				// Rotate arm around shoulder so that the shoulder-wrist vector is aligned with shoulder-hold.
+				Vec4f rotate_axis_os = crossProduct(unrotated_wrist_pos_os - last_shoulder_pos_os, hold_pos_os - last_shoulder_pos_os);
+				if(rotate_axis_os.length() > 0.001f)
+				{
+					rotate_axis_os = normalise(rotate_axis_os);
+					const Vec4f rotate_axis_arm_space = ob_to_upper_arm_T * rotate_axis_os;
+					const float rotate_angle = acos(dot(normalise(unrotated_wrist_pos_os - last_shoulder_pos_os), normalise(hold_pos_os - last_shoulder_pos_os)));
 			
-			
+					anim_node_data[right_arm_node_i].procedural_rot_mask = 0xFFFFFFFF; // Don't apply animation rotation, apply procedural_rot instead
+					anim_node_data[right_arm_node_i].procedural_rot = Quatf::fromAxisAndAngle(rotate_axis_arm_space, rotate_angle);
+					anim_node_data[right_arm_node_i].procedural_transform = Matrix4f::identity();
+				}
+			}
+			else // Else not doing IK for right arm:
+			{
+				if(right_arm_node_i >= 0 && right_arm_node_i < (int)anim_node_data.size())
+				{
+					const Matrix4f last_right_arm_bone_to_object_space = anim_node_data[right_arm_node_i].last_pre_proc_to_object; // last right-arm bone to object space (y-up) transformation.
+					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_right_arm_bone_to_object_space);
+					const Quatf desired_rot_os = /*rot out=*/Quatf::yAxisRot(-pose_constraint.arm_out_angle) * /*rot down=*/Quatf::xAxisRot(pose_constraint.arm_down_angle) * 
+						Quatf::zAxisRot(pose_constraint.upper_arm_shoulder_lift_angle);
+					anim_node_data[right_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
+				}
+
+				// Bend lower arms (at elbow)
+				if(right_forearm_node_i >= 0 && right_forearm_node_i < (int)anim_node_data.size())
+				{
+					anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(-pose_constraint.lower_arm_up_angle);
+				}
+			}
+
+			//------------------- Set grabbing pose for hands and fingers if doing IK grabbing -----------------------
+
+			// NOTE: z-axis is down for both hands
+			if(do_left_arm_IK_grab)
+				setProceduralRotation(anim_node_data, left_hand_node_i, 
+					Quatf::xAxisRot(-0.6f) *  // rotate hand up around wrist 
+					Quatf::yAxisRot(-0.2f) *  // rotate hand around lower arm bone.
+					Quatf::zAxisRot(-0.5f) // Rotate hand outwards roughly around up vector at wrist
+				); 
+
+			if(do_right_arm_IK_grab)
+				setProceduralRotation(anim_node_data, right_hand_node_i, 
+					Quatf::xAxisRot(-0.6f) *  // rotate hand up around wrist 
+					Quatf::yAxisRot(-0.2f) *  // rotate hand around lower arm bone.
+					Quatf::zAxisRot(0.5f) // Rotate hand outwards roughly around up vector at wrist
+				); 
+
+			// DEBUG VIS Node transform
+			//if(debug_avatar_basis_ob && left_hand_node_i >= 0 && left_hand_node_i < skinned_gl_ob->anim_node_data.size())
+			//{
+			//	debug_avatar_basis_ob->ob_to_world_matrix = skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[left_hand_node_i].node_hierarchical_to_object * Matrix4f::uniformScaleMatrix(0.5f);
+			//	engine.updateObjectTransformData(*debug_avatar_basis_ob);
+			//}
+
+			if(do_left_arm_IK_grab)
+			{
+				setProceduralRotation(anim_node_data, LeftHandThumb1_i, Quatf::zAxisRot(0.5) * Quatf::xAxisRot(0.9));
+				setProceduralRotation(anim_node_data, LeftHandThumb2_i, Quatf::yAxisRot(0.0) * Quatf::zAxisRot(-0.2));
+				setProceduralRotation(anim_node_data, LeftHandThumb3_i, Quatf::xAxisRot(0.9) * Quatf::zAxisRot(-1.1));
+			}
+
+			if(do_right_arm_IK_grab)
+			{
+				setProceduralRotation(anim_node_data, RightHandThumb1_i, Quatf::zAxisRot(-0.5) * Quatf::xAxisRot(0.9));
+				setProceduralRotation(anim_node_data, RightHandThumb2_i, Quatf::yAxisRot(0.0) * Quatf::zAxisRot(0.2));
+				setProceduralRotation(anim_node_data, RightHandThumb3_i, Quatf::xAxisRot(0.9) * Quatf::zAxisRot(1.1));
+			}
+
+			const float joint_1_rot = 1.0f;
+			const float joint_2_rot = 0.7f;
+			const float joint_3_rot = 1.2f;
+			if(do_left_arm_IK_grab)
+			{
+				setProceduralRotation(anim_node_data, LeftHandIndex1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, LeftHandIndex2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, LeftHandIndex3_i, Quatf::xAxisRot(joint_3_rot));
+
+				setProceduralRotation(anim_node_data, LeftHandMiddle1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, LeftHandMiddle2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, LeftHandMiddle3_i, Quatf::xAxisRot(joint_3_rot));
+
+				setProceduralRotation(anim_node_data, LeftHandRing1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, LeftHandRing2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, LeftHandRing3_i, Quatf::xAxisRot(joint_3_rot));
+
+				setProceduralRotation(anim_node_data, LeftHandPinky1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, LeftHandPinky2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, LeftHandPinky3_i, Quatf::xAxisRot(joint_3_rot));
+			}
+
+			if(do_right_arm_IK_grab)
+			{
+				setProceduralRotation(anim_node_data, RightHandIndex1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, RightHandIndex2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, RightHandIndex3_i, Quatf::xAxisRot(joint_3_rot));
+
+				setProceduralRotation(anim_node_data, RightHandMiddle1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, RightHandMiddle2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, RightHandMiddle3_i, Quatf::xAxisRot(joint_3_rot));
+
+				setProceduralRotation(anim_node_data, RightHandRing1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, RightHandRing2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, RightHandRing3_i, Quatf::xAxisRot(joint_3_rot));
+
+				setProceduralRotation(anim_node_data, RightHandPinky1_i, Quatf::xAxisRot(joint_1_rot));
+				setProceduralRotation(anim_node_data, RightHandPinky2_i, Quatf::xAxisRot(joint_2_rot));
+				setProceduralRotation(anim_node_data, RightHandPinky3_i, Quatf::xAxisRot(joint_3_rot));
+			}
+
 		}
 		else // Else if not sitting:
 		{
 			// Reset any procedural_transforms we set to the identity matrix.
-			if(hips_node_i >= 0 && hips_node_i < (int)skinned_gl_ob->anim_node_data.size()) // Upper torso
+			if(hips_node_i >= 0 && hips_node_i < (int)anim_node_data.size()) // Upper torso
 			{
-				skinned_gl_ob->anim_node_data[hips_node_i].procedural_transform = Matrix4f::identity();
+				anim_node_data[hips_node_i].procedural_transform = Matrix4f::identity();
 			}
 
-			if(	left_up_leg_node_i >= 0  && left_up_leg_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
-				right_up_leg_node_i >= 0 && right_up_leg_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			if(	left_up_leg_node_i >= 0  && left_up_leg_node_i < (int)anim_node_data.size() && 
+				right_up_leg_node_i >= 0 && right_up_leg_node_i < (int)anim_node_data.size())
 			{
-				skinned_gl_ob->anim_node_data[left_up_leg_node_i].procedural_transform = Matrix4f::identity();
-				skinned_gl_ob->anim_node_data[right_up_leg_node_i].procedural_transform = Matrix4f::identity();
+				anim_node_data[left_up_leg_node_i].procedural_transform = Matrix4f::identity();
+				anim_node_data[right_up_leg_node_i].procedural_transform = Matrix4f::identity();
 			}
 
-			if(	left_knee_node_i >= 0  && left_knee_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
-				right_knee_node_i >= 0 && right_knee_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			if(	left_knee_node_i >= 0  && left_knee_node_i < (int)anim_node_data.size() && 
+				right_knee_node_i >= 0 && right_knee_node_i < (int)anim_node_data.size())
 			{
-				skinned_gl_ob->anim_node_data[left_knee_node_i].procedural_transform = Matrix4f::identity();
-				skinned_gl_ob->anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::identity();
+				anim_node_data[left_knee_node_i].procedural_transform = Matrix4f::identity();
+				anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::identity();
 			}
 
-			if(	left_arm_node_i >= 0  && left_arm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
-				right_arm_node_i >= 0 && right_arm_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			if(	left_arm_node_i >= 0  && left_arm_node_i < (int)anim_node_data.size() && 
+				right_arm_node_i >= 0 && right_arm_node_i < (int)anim_node_data.size())
 			{
-				skinned_gl_ob->anim_node_data[left_arm_node_i ].procedural_transform = Matrix4f::identity();
-				skinned_gl_ob->anim_node_data[right_arm_node_i ].procedural_transform = Matrix4f::identity();
+				anim_node_data[left_arm_node_i ].procedural_transform = Matrix4f::identity();
+				anim_node_data[right_arm_node_i ].procedural_transform = Matrix4f::identity();
 			}
 
-			if(	left_forearm_node_i >= 0  && left_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
-				right_forearm_node_i >= 0 && right_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			if(	left_forearm_node_i >= 0  && left_forearm_node_i < (int)anim_node_data.size() && 
+				right_forearm_node_i >= 0 && right_forearm_node_i < (int)anim_node_data.size())
 			{
-				skinned_gl_ob->anim_node_data[left_forearm_node_i].procedural_transform = Matrix4f::identity();
-				skinned_gl_ob->anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::identity();
+				anim_node_data[left_forearm_node_i].procedural_transform = Matrix4f::identity();
+				anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::identity();
 			}
+
+
+			clearProceduralRotation(anim_node_data, left_arm_node_i); 
+			clearProceduralRotation(anim_node_data, left_forearm_node_i); 
+
+			clearProceduralRotation(anim_node_data, right_arm_node_i); 
+			clearProceduralRotation(anim_node_data, right_forearm_node_i); 
+
+			clearProceduralRotation(anim_node_data, left_hand_node_i); 
+			clearProceduralRotation(anim_node_data, right_hand_node_i); 
+
+			clearProceduralRotation(anim_node_data, LeftHandThumb1_i);
+			clearProceduralRotation(anim_node_data, LeftHandThumb2_i);
+			clearProceduralRotation(anim_node_data, LeftHandThumb3_i);
+
+			clearProceduralRotation(anim_node_data, LeftHandIndex1_i);
+			clearProceduralRotation(anim_node_data, LeftHandIndex2_i);
+			clearProceduralRotation(anim_node_data, LeftHandIndex3_i);
+
+			clearProceduralRotation(anim_node_data, LeftHandMiddle1_i);
+			clearProceduralRotation(anim_node_data, LeftHandMiddle2_i);
+			clearProceduralRotation(anim_node_data, LeftHandMiddle3_i);
+
+			clearProceduralRotation(anim_node_data, LeftHandRing1_i);
+			clearProceduralRotation(anim_node_data, LeftHandRing2_i);
+			clearProceduralRotation(anim_node_data, LeftHandRing3_i);
+
+			clearProceduralRotation(anim_node_data, LeftHandPinky1_i);
+			clearProceduralRotation(anim_node_data, LeftHandPinky2_i);
+			clearProceduralRotation(anim_node_data, LeftHandPinky3_i);
+
+
+			clearProceduralRotation(anim_node_data, RightHandThumb1_i);
+			clearProceduralRotation(anim_node_data, RightHandThumb2_i);
+			clearProceduralRotation(anim_node_data, RightHandThumb3_i);
+
+			clearProceduralRotation(anim_node_data, RightHandIndex1_i);
+			clearProceduralRotation(anim_node_data, RightHandIndex2_i);
+			clearProceduralRotation(anim_node_data, RightHandIndex3_i);
+
+			clearProceduralRotation(anim_node_data, RightHandMiddle1_i);
+			clearProceduralRotation(anim_node_data, RightHandMiddle2_i);
+			clearProceduralRotation(anim_node_data, RightHandMiddle3_i);
+
+			clearProceduralRotation(anim_node_data, RightHandRing1_i);
+			clearProceduralRotation(anim_node_data, RightHandRing2_i);
+			clearProceduralRotation(anim_node_data, RightHandRing3_i);
+
+			clearProceduralRotation(anim_node_data, RightHandPinky1_i);
+			clearProceduralRotation(anim_node_data, RightHandPinky2_i);
+			clearProceduralRotation(anim_node_data, RightHandPinky3_i);
+
+			
 
 
 
@@ -521,9 +841,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		last_vel = vel;
 
 
-		// Set transform of debug basis arrows.
-		// debug_avatar_basis_ob->ob_to_world_matrix = skinned_gl_ob->ob_to_world_matrix;
-		// engine.updateObjectTransformData(*debug_avatar_basis_ob);
+		
 
 
 		// Check node indices are in-bounds
@@ -897,6 +1215,8 @@ void AvatarGraphics::build()
 	turn_left_anim_i  = findAnimation(*skinned_gl_ob, "Left Turn");
 	turn_right_anim_i = findAnimation(*skinned_gl_ob, "Right Turn");
 
+	const AnimationData& anim_data = skinned_gl_ob->mesh_data->animation_data;
+
 	// root_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("player_rig");
 	neck_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Neck");
 	head_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Head");
@@ -919,9 +1239,80 @@ void AvatarGraphics::build()
 	left_forearm_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftForeArm");
 	right_forearm_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightForeArm");
 
+	left_shoulder_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftShoulder");
+	right_shoulder_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightShoulder");
+
+	left_hand_node_i   = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftHand");
+	right_hand_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightHand");
 
 	hips_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Hips");
 	spine2_node_i =  skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Spine2");
+
+
+	LeftHandThumb1_i   = anim_data.getNodeIndex("LeftHandThumb1");
+	LeftHandThumb2_i   = anim_data.getNodeIndex("LeftHandThumb2");
+	LeftHandThumb3_i   = anim_data.getNodeIndex("LeftHandThumb3");
+	LeftHandThumb4_i   = anim_data.getNodeIndex("LeftHandThumb4");
+	LeftHandIndex1_i   = anim_data.getNodeIndex("LeftHandIndex1");
+	LeftHandIndex2_i   = anim_data.getNodeIndex("LeftHandIndex2");
+	LeftHandIndex3_i   = anim_data.getNodeIndex("LeftHandIndex3");
+	LeftHandIndex4_i   = anim_data.getNodeIndex("LeftHandIndex4");
+	LeftHandMiddle1_i  = anim_data.getNodeIndex("LeftHandMiddle1");
+	LeftHandMiddle2_i  = anim_data.getNodeIndex("LeftHandMiddle2");
+	LeftHandMiddle3_i  = anim_data.getNodeIndex("LeftHandMiddle3");
+	LeftHandMiddle4_i  = anim_data.getNodeIndex("LeftHandMiddle4");
+	LeftHandRing1_i    = anim_data.getNodeIndex("LeftHandRing1");
+	LeftHandRing2_i    = anim_data.getNodeIndex("LeftHandRing2");
+	LeftHandRing3_i    = anim_data.getNodeIndex("LeftHandRing3");
+	LeftHandRing4_i    = anim_data.getNodeIndex("LeftHandRing4");
+	LeftHandPinky1_i   = anim_data.getNodeIndex("LeftHandPinky1");
+	LeftHandPinky2_i   = anim_data.getNodeIndex("LeftHandPinky2");
+	LeftHandPinky3_i   = anim_data.getNodeIndex("LeftHandPinky3");
+	LeftHandPinky4_i   = anim_data.getNodeIndex("LeftHandPinky4");
+
+	RightHandThumb1_i   = anim_data.getNodeIndex("RightHandThumb1");
+	RightHandThumb2_i   = anim_data.getNodeIndex("RightHandThumb2");
+	RightHandThumb3_i   = anim_data.getNodeIndex("RightHandThumb3");
+	RightHandThumb4_i   = anim_data.getNodeIndex("RightHandThumb4");
+	RightHandIndex1_i   = anim_data.getNodeIndex("RightHandIndex1");
+	RightHandIndex2_i   = anim_data.getNodeIndex("RightHandIndex2");
+	RightHandIndex3_i   = anim_data.getNodeIndex("RightHandIndex3");
+	RightHandIndex4_i   = anim_data.getNodeIndex("RightHandIndex4");
+	RightHandMiddle1_i  = anim_data.getNodeIndex("RightHandMiddle1");
+	RightHandMiddle2_i  = anim_data.getNodeIndex("RightHandMiddle2");
+	RightHandMiddle3_i  = anim_data.getNodeIndex("RightHandMiddle3");
+	RightHandMiddle4_i  = anim_data.getNodeIndex("RightHandMiddle4");
+	RightHandRing1_i    = anim_data.getNodeIndex("RightHandRing1");
+	RightHandRing2_i    = anim_data.getNodeIndex("RightHandRing2");
+	RightHandRing3_i    = anim_data.getNodeIndex("RightHandRing3");
+	RightHandRing4_i    = anim_data.getNodeIndex("RightHandRing4");
+	RightHandPinky1_i   = anim_data.getNodeIndex("RightHandPinky1");
+	RightHandPinky2_i   = anim_data.getNodeIndex("RightHandPinky2");
+	RightHandPinky3_i   = anim_data.getNodeIndex("RightHandPinky3");
+	RightHandPinky4_i   = anim_data.getNodeIndex("RightHandPinky4");
+
+	if(left_arm_node_i >= 0 && left_forearm_node_i >= 0 && left_hand_node_i >= 0)
+	{
+		const Vec4f raw_shoulder_pos_os = anim_data.getNodePositionModelSpace(left_arm_node_i,     /*use retarget adjustment=*/true);
+		const Vec4f raw_elbow_pos_os    = anim_data.getNodePositionModelSpace(left_forearm_node_i, /*use retarget adjustment=*/true);
+		const Vec4f raw_wrist_pos_os    = anim_data.getNodePositionModelSpace(left_hand_node_i,    /*use retarget adjustment=*/true);
+		upper_left_arm_len = raw_shoulder_pos_os.getDist(raw_elbow_pos_os);
+		lower_left_arm_len = raw_elbow_pos_os.getDist(raw_wrist_pos_os);
+	}
+	else
+		upper_left_arm_len = lower_left_arm_len = 0.3f;
+
+	if(right_arm_node_i >= 0 && right_forearm_node_i >= 0 && right_hand_node_i >= 0)
+	{
+		const Vec4f raw_shoulder_pos_os = anim_data.getNodePositionModelSpace(right_arm_node_i,     /*use retarget adjustment=*/true);
+		const Vec4f raw_elbow_pos_os    = anim_data.getNodePositionModelSpace(right_forearm_node_i, /*use retarget adjustment=*/true);
+		const Vec4f raw_wrist_pos_os    = anim_data.getNodePositionModelSpace(right_hand_node_i,    /*use retarget adjustment=*/true);
+		upper_right_arm_len = raw_shoulder_pos_os.getDist(raw_elbow_pos_os);
+		lower_right_arm_len = raw_elbow_pos_os.getDist(raw_wrist_pos_os);
+	}
+	else
+		upper_right_arm_len = lower_right_arm_len = 0.3;
+
 
 	skinned_gl_ob->current_anim_i = idle_anim_i; // current_anim_i will be 0 on GLObject creation, which is waving anim or something, set to idle anim.
 }
@@ -931,6 +1322,8 @@ void AvatarGraphics::destroy(OpenGLEngine& engine)
 {
 	checkRemoveObAndSetRefToNull(engine, skinned_gl_ob);
 	checkRemoveObAndSetRefToNull(engine, selected_ob_beam);
+
+	checkRemoveObAndSetRefToNull(engine, debug_avatar_basis_ob);
 }
 
 
