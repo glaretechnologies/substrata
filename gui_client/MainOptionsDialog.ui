@@ -45,16 +45,16 @@
          </size>
         </property>
         <property name="minimum">
-         <double>50.000000000000000</double>
+         <double>100.000000000000000</double>
         </property>
         <property name="maximum">
-         <double>10000.000000000000000</double>
+         <double>2000.000000000000000</double>
         </property>
         <property name="singleStep">
          <double>10.000000000000000</double>
         </property>
         <property name="value">
-         <double>500.000000000000000</double>
+         <double>2000.000000000000000</double>
         </property>
        </widget>
       </item>

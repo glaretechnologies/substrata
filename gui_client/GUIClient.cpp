@@ -118,14 +118,6 @@ Copyright Glare Technologies Limited 2024 -
 #include <zstd.h>
 
 
-static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
-static const float ob_load_distance = 2000.f;
-// See also  // TEMP HACK: set a smaller max loading distance for CV features in ClientThread.cpp
-
-std::vector<AvatarRef> test_avatars;
-std::vector<double> test_avatar_phases;
-
-
 static const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
 static const Colour4f PICKED_UP_OUTLINE_COLOUR = Colour4f::fromHTMLHexString("69fa2d"); // light green
 static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f09a13"); // orange
@@ -143,6 +135,9 @@ static const URLString DEFAULT_AVATAR_MODEL_URL = "xbot.bmesh"; // This file sho
 
 static const float MIN_SPOTLIGHT_CONE_ANGLE = 0.087266f;
 
+static std::vector<AvatarRef> test_avatars;
+static std::vector<double> test_avatar_phases;
+
 
 GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args)
 :	base_dir_path(base_dir_path_),
@@ -159,9 +154,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
 	process_model_loaded_next(true),
-	proximity_loader(/*load distance=*/ob_load_distance),
-	load_distance(ob_load_distance),
-	load_distance2(ob_load_distance*ob_load_distance),
+	load_distance(0),
+	load_distance2(0),
 	client_tls_config(NULL),
 	last_foostep_side(0),
 	last_animated_tex_time(0),
@@ -336,6 +330,15 @@ void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Refere
 
 	PhysicsWorld::init(); // init Jolt stuff
 
+	// Clamp maximum load distance to 2000 (it may be larger if user set it to a large value while the spinner max was 10000).
+	// Large load distances have issues with many newCellInProximity calls being made from ProximityLoader, resulting in many QueryObjects messages
+	// being sent to the server.
+	const float dist = myClamp((float)settings->getDoubleValue(/*MainOptionsDialog::objectLoadDistanceKey()*/"ob_load_distance", /*default val=*/defaultObjectLoadDistance()),
+		/*min=*/minObjectLoadDistance(), /*max=*/maxObjectLoadDistance());
+	proximity_loader.initialise(dist);
+	this->load_distance = dist;
+	this->load_distance2 = dist*dist;
+
 
 #if !defined(EMSCRIPTEN)
 	// Create and init TLS client config
@@ -382,14 +385,6 @@ void GUIClient::postConnectInitialise()
 	// With Emscripten we use an ephemeral virtual file system, so no point in saving resource manager state to it.
 	save_resources_db_thread_manager.addThread(new SaveResourcesDBThread(resource_manager, resources_db_path));
 #endif
-
-
-
-	const float dist = (float)settings->getDoubleValue(/*MainOptionsDialog::objectLoadDistanceKey()*/"ob_load_distance", /*default val=*/2000.0);
-	proximity_loader.setLoadDistance(dist);
-	this->load_distance = dist;
-	this->load_distance2 = dist*dist;
-
 
 
 	garbage_deleter_thread_manager.addThread(new GarbageDeleterThread());
@@ -580,6 +575,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	// Build ground plane graphics and physics data
 	ground_quad_mesh_opengl_data = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,1,0,0), /*res=*/16);
+	const double ground_quad_w = 2000.0;
 	ground_quad_shape = PhysicsWorld::createGroundQuadShape(ground_quad_w);
 
 
@@ -4534,6 +4530,14 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 	showInfoNotification("Updated avatar.");
 
 	conPrint("GUIClient::updateOurAvatarModel() done.");
+}
+
+
+void GUIClient::setObjectLoadDistance(float new_dist)
+{
+	proximity_loader.setLoadDistance(new_dist);
+	load_distance = new_dist;
+	load_distance2 = new_dist*new_dist;
 }
 
 

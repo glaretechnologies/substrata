@@ -2884,10 +2884,8 @@ void MainWindow::on_actionOptions_triggered()
 	const int code = d.exec();
 	if(code == QDialog::Accepted)
 	{
-		const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble();
-		gui_client.proximity_loader.setLoadDistance(dist);
-		gui_client.load_distance = dist;
-		gui_client.load_distance2 = dist*dist;
+		const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/(double)GUIClient::defaultObjectLoadDistance()).toDouble();
+		gui_client.setObjectLoadDistance(dist);
 
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 		gui_client.opengl_engine->setSSAOEnabled(settings->value(MainOptionsDialog::SSAOKey(), /*default val=*/false).toBool());

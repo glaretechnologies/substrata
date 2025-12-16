@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "../qt/QtUtils.h"
 #include "../qt/SignalBlocker.h"
+#include "GUIClient.h"
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QSettings>
 #include <utils/ComObHandle.h>
@@ -15,6 +16,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/Exception.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
+#include <maths/mathstypes.h>
 #include "../rtaudio/RtAudio.h"
 
 #if defined(_WIN32)
@@ -143,7 +145,8 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 
 	const bool use_custom_cache_dir = settings->value(useCustomCacheDirKey(), /*default val=*/false).toBool();
 
-	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox,		settings->value(objectLoadDistanceKey(),	/*default val=*/2000.0).toDouble());
+	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox,		myClamp<double>(settings->value(objectLoadDistanceKey(), /*default val=*/(double)GUIClient::defaultObjectLoadDistance()).toDouble(),
+		/*min=*/GUIClient::minObjectLoadDistance(), /*max=*/GUIClient::maxObjectLoadDistance()));
 	SignalBlocker::setChecked(this->shadowsCheckBox,				settings->value(shadowsKey(),				/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->SSAOCheckBox,					settings->value(SSAOKey(),					/*default val=*/true).toBool());

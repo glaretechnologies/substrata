@@ -161,6 +161,15 @@ public:
 
 	void shutdown();
 
+
+	// Large load distances (>> 2000) have issues with many newCellInProximity calls being made from ProximityLoader, resulting in many QueryObjects messages
+	// being sent to the server.  So cap at 2000
+	// NOTE: Should match spinbox values in MainOptionsDialog.ui.
+	static float minObjectLoadDistance() { return 100.f; }
+	static float maxObjectLoadDistance() { return 2000.f; }
+	static float defaultObjectLoadDistance() { return 2000.f; }
+
+
 	void timerEvent(const MouseCursorState& mouse_cursor_state);
 
 
@@ -403,6 +412,8 @@ public:
 	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
 	void updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials);
+
+	void setObjectLoadDistance(float new_dist);
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -749,10 +760,10 @@ public:
 	Mutex particles_creation_buf_mutex;
 	js::Vector<Particle, 16> particles_creation_buf GUARDED_BY(particles_creation_buf_mutex);
 
-
+private:
 	ProximityLoader proximity_loader;
 	float load_distance, load_distance2;
-
+public:
 	enum ServerConnectionState
 	{
 		ServerConnectionState_NotConnected,

@@ -39,9 +39,10 @@ This allows MainWindow to send a QueryObjects message to the server.
 class ProximityLoader
 {
 public:
-	ProximityLoader(float load_distance);
+	ProximityLoader();
 	~ProximityLoader();
 
+	void initialise(float load_distance);
 	void setLoadDistance(float new_load_distance);
 	float getLoadDistance() const { return load_distance; }
 
