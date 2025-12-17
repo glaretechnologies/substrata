@@ -244,6 +244,14 @@ void GlWidget::initializeGL()
 {
 	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
 
+	const std::string opengl_vendor	= std::string((const char*)glGetString(GL_VENDOR));
+	const bool is_AMD    = StringUtils::containsString(toLowerCase(opengl_vendor), "ati") || StringUtils::containsString(toLowerCase(opengl_vendor), "amd");
+	const bool is_Nvidia = StringUtils::containsString(toLowerCase(opengl_vendor), "nvidia");
+
+	// Only enable SSAO/SSGI by default on AMD and Nvidia GPUs, which are likely to be more powerful than stuff like (integrated) Intel GPUs, which
+	// struggle with SSAO/SSGI.
+	const bool default_use_SSAO = is_AMD || is_Nvidia;
+
 	bool shadows = true;
 	bool use_MSAA = true;
 	bool bloom = true;
@@ -253,7 +261,7 @@ void GlWidget::initializeGL()
 		shadows  = settings->value(MainOptionsDialog::shadowsKey(),	/*default val=*/true).toBool();
 		use_MSAA = settings->value(MainOptionsDialog::MSAAKey(),	/*default val=*/true).toBool();
 		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/true).toBool();
-		use_SSAO = settings->value(MainOptionsDialog::SSAOKey(),    /*default val=*/true).toBool();
+		use_SSAO = settings->value(MainOptionsDialog::SSAOKey(),    /*default val=*/default_use_SSAO).toBool();
 	}
 
 	// Enable debug output (glDebugMessageCallback) in Debug and RelWithDebugInfo mode, e.g. when BUILD_TESTS is 1.
