@@ -28,6 +28,7 @@ struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 struct _SDL_GameController;
 class RenderStatsWidget;
+class MiniDmpSender;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -368,4 +369,6 @@ public:
 
 	Reference<RenderStatsWidget> CPU_render_stats_widget;
 	Reference<RenderStatsWidget> GPU_render_stats_widget;
+
+	MiniDmpSender* minidump_sender;
 };

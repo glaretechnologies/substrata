@@ -117,6 +117,8 @@ static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f0
 
 static std::vector<std::string> qt_debug_msgs;
 
+static FileOutStream* log_file = nullptr;
+
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget* parent)
 :	base_dir_path(base_dir_path_),
@@ -137,7 +139,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	settings(NULL),
 	user_details(NULL),
-	ui(NULL)
+	ui(NULL),
+	minidump_sender(NULL)
 	//game_controller(NULL)
 {
 	ZoneScoped; // Tracy profiler
@@ -295,9 +298,7 @@ void MainWindow::initialiseUI()
 
 	// Create the LogWindow early so we can log stuff to it.
 	log_window = new LogWindow(this, settings);
-
 	connect(log_window, SIGNAL(openServerScriptLogSignal()), this, SLOT(openServerScriptLogSlot()));
-
 
 	logMessage("Qt version: " + std::string(qVersion()));
 	logMessage("CEF version: " + CEF::CEFVersionString());
@@ -709,9 +710,16 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 
 void MainWindow::logMessage(const std::string& msg) // Append to LogWindow log display
 {
-	//this->logfile << msg << "\n";
+	const std::string timestamped_msg = doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + " s:   " + msg;
+
 	if(this->log_window && !running_destructor)
-		this->log_window->appendLine(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + " s:   " + msg);
+		this->log_window->appendLine(timestamped_msg);
+
+	if(log_file)
+	{
+		log_file->getFileStream() << timestamped_msg;
+		log_file->getFileStream() << "\n";
+	}
 }
 
 
@@ -730,9 +738,8 @@ void MainWindow::luaErrorOccurred(const std::string& msg, UID object_uid)
 void MainWindow::logAndConPrintMessage(const std::string& msg) // Print to stdout and append to LogWindow log display
 {
 	conPrint(msg);
-	//this->logfile << msg << "\n";
-	if(this->log_window && !running_destructor)
-		this->log_window->appendLine(msg);
+
+	logMessage(msg);
 }
 
 
@@ -771,6 +778,11 @@ void MainWindow::setTextAsLoggedIn(const std::string& username)
 {
 	if(user_details)
 		user_details->setTextAsLoggedIn(username);
+
+#if BUGSPLAT_SUPPORT
+	if(minidump_sender)
+		minidump_sender->setDefaultUserName(StringUtils::UTF8ToPlatformUnicodeEncoding(username).c_str());
+#endif
 }
 
 
@@ -4383,23 +4395,37 @@ static void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, 
 }
 
 
+static bool bugSplatExceptionCallback(UINT nCode, LPVOID lpVal1, LPVOID lpVal2)
+{
+	if(nCode == MDSCB_EXCEPTIONCODE)
+	{
+		// Flush the log file to ensure all buffered data is written to disk.
+		if(log_file)
+			log_file->flush();
+	}
+	return false; // Continue with default BugSplat handling
+}
+
+
 int main(int argc, char *argv[])
 {
 	ZoneScoped; // Tracy profiler
 
+	MiniDmpSender* minidump_sender = nullptr;
 #ifdef BUGSPLAT_SUPPORT
 	if(shouldEnableBugSplat())
 	{
 		ZoneScopedN("Bugsplat initialization"); // Tracy profiler
 
 		// BugSplat initialization.
-		new MiniDmpSender(
+		minidump_sender = new MiniDmpSender(
 			L"Substrata", // database
 			L"Substrata", // app
 			StringUtils::UTF8ToPlatformUnicodeEncoding(cyberspace_version).c_str(), // version
 			NULL, // app identifier
 			MDSF_USEGUARDMEMORY | MDSF_LOGFILE | MDSF_PREVENTHIJACKING // flags
 		);
+		minidump_sender->setCallback(bugSplatExceptionCallback);
 
 		// The following calls add support for collecting crashes for abort(), vectored exceptions, out of memory,
 		// pure virtual function calls, and for invalid parameters for OS functions.
@@ -4436,13 +4462,29 @@ int main(int argc, char *argv[])
 
 		GUIClient::staticInit();
 
+
+		const std::string cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
+		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
+
+		try
+		{
+			log_file = new FileOutStream(appdata_path + "/log.txt", /*openmode=*/std::ios::out);
+
+#ifdef BUGSPLAT_SUPPORT
+			if(minidump_sender)
+				minidump_sender->sendAdditionalFile(StringUtils::UTF8ToPlatformUnicodeEncoding(appdata_path + "/log.txt").c_str());
+#endif
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Failed to open log file for writing: " + e.what());
+		}
+
 #if defined(_WIN32)
 		// Initialize the Media Foundation platform.
 		WMFVideoReader::initialiseWMF();
 #endif
 
-		const std::string cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
-		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 
 		QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
 	
@@ -4571,6 +4613,7 @@ int main(int argc, char *argv[])
 			// So do the bare minimum of initialisation, call connectToServer, then do the reset (setting up UI etc.)
 
 			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
+			mw.minidump_sender = minidump_sender;
 
 			// If the user didn't explicitly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
 			if(!server_URL_explicitly_specified)
@@ -4643,6 +4686,9 @@ int main(int argc, char *argv[])
 #if defined(_WIN32)
 		WMFVideoReader::shutdownWMF();
 #endif
+
+		delete log_file;
+		log_file = nullptr;
 		
 		GUIClient::staticShutdown();
 
