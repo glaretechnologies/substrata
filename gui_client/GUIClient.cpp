@@ -828,11 +828,27 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	}
 	else
 	{
+		bool allow_async_GPU_uploads = true;
+		try
+		{
+			const std::string val = PlatformUtils::getEnvironmentVariable("SUBSTRATA_ALLOW_ASYNC_GPU_UPLOADS");
+			if(toLowerCase(val) == "false")
+			{
+				logMessage("!!!!! Disallowing async GPU upload usage due to SUBSTRATA_ALLOW_ASYNC_GPU_UPLOADS env var being set to false !!!!!");
+				allow_async_GPU_uploads = false;
+			}
+		}
+		catch(glare::Exception& )
+		{}
+
 		// If we can't create a dedicated upload thread, use async uploads with VBO/PBO pools, except on Mac on which async stuff is broken (of course).
 #if !defined(__APPLE__)
-		pbo_pool = new PBOPool();
-		vbo_pool       = new VBOPool(GL_ARRAY_BUFFER);
-		index_vbo_pool = new VBOPool(GL_ELEMENT_ARRAY_BUFFER); // WebGL requires index data and vertex data to be kept separate
+		if(allow_async_GPU_uploads)
+		{
+			pbo_pool = new PBOPool();
+			vbo_pool       = new VBOPool(GL_ARRAY_BUFFER);
+			index_vbo_pool = new VBOPool(GL_ELEMENT_ARRAY_BUFFER); // WebGL requires index data and vertex data to be kept separate
+		}
 #endif
 	}
 
