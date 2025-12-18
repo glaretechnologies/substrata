@@ -242,8 +242,6 @@ public:
 	virtual void kill() override;
 
 	void killConnection();
-
-	bool all_objects_received;
 private:
 	void readAndHandleMessage(uint32 peer_protocol_version);
 	void handleObjectInitialSend(RandomAccessInStream& msg_stream);
