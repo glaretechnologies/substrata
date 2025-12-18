@@ -803,7 +803,20 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	// The preferred way to do uploads to the GPU is on a dedicated thread.  Using a dedicated thread avoids the many potential (and actual) stalls in various OpenGL calls on the main thread, even with async uploads.
 	// Currently I have only implemented this on Windows.  It may be possible on some other platforms as well.
-	if(ui_interface->supportsSharedGLContexts())
+	bool allow_gl_upload_thread = true;
+	try
+	{
+		const std::string val = PlatformUtils::getEnvironmentVariable("SUBSTRATA_ALLOW_GL_UPLOAD_THREAD");
+		if(toLowerCase(val) == "false")
+		{
+			logMessage("!!!!! Disallowing OpenGLUploadThread usage due to SUBSTRATA_ALLOW_GL_UPLOAD_THREAD env var being set to false !!!!!");
+			allow_gl_upload_thread = false;
+		}
+	}
+	catch(glare::Exception& )
+	{}
+
+	if(ui_interface->supportsSharedGLContexts() && allow_gl_upload_thread)
 	{
 		opengl_upload_thread = new OpenGLUploadThread();
 		opengl_upload_thread->gl_context = ui_interface->makeNewSharedGLContext();
