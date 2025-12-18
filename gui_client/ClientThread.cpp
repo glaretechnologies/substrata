@@ -42,7 +42,6 @@ ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_q
 	hostname(hostname_),
 	port(port_),
 	initial_world_name(initial_world_name_),
-	all_objects_received(false),
 	config(config_),
 	world_ob_pool_allocator(world_ob_pool_allocator_),
 	send_data_to_socket(false),
@@ -321,9 +320,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 	{
 	case Protocol::AllObjectsSent:
 		{
-			// conPrint("All objects finished sending.");
 			// This message has no payload.
-			this->all_objects_received = true;
 			break;
 		}
 	case Protocol::AudioStreamToServerStarted:
