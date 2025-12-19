@@ -4401,7 +4401,10 @@ static bool bugSplatExceptionCallback(UINT nCode, LPVOID lpVal1, LPVOID lpVal2)
 	{
 		// Flush the log file to ensure all buffered data is written to disk.
 		if(log_file)
+		{
+			log_file->getFileStream() << (doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + " s:   Crash caught by BugSplat.");
 			log_file->flush();
+		}
 	}
 	return false; // Continue with default BugSplat handling
 }
