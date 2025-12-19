@@ -1085,11 +1085,31 @@ static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL
 {
 	ZoneScoped; // Tracy profiler
 
+	// TEMP:
+	bool allow_CEF_shared_textures = true;
+	try
+	{
+		const std::string val = PlatformUtils::getEnvironmentVariable("SUBSTRATA_ALLOW_CEF_SHARED_TEXTURES");
+		if(toLowerCase(val) == "false")
+		{
+			gui_client->logMessage("!!!!! Disabling CEF shared textures as SUBSTRATA_ALLOW_CEF_SHARED_TEXTURES is set to false. !!!!!");
+			allow_CEF_shared_textures = false;
+		}
+	}
+	catch(glare::Exception& )
+	{}
+
 #if defined(_WIN32) && (CEF_VERSION_MAJOR >= 139) // The shared GPU texture stuff is only implemented for Windows for now.  We also need a version of CEF that supports it.
-	const bool use_shared_gpu_textures = opengl_engine->GL_EXT_memory_object_support && opengl_engine->GL_EXT_memory_object_win32_support; // && opengl_engine->GL_EXT_win32_keyed_mutex_support;
+	const bool use_shared_gpu_textures = opengl_engine->GL_EXT_memory_object_support && opengl_engine->GL_EXT_memory_object_win32_support && allow_CEF_shared_textures; // && opengl_engine->GL_EXT_win32_keyed_mutex_support;
 #else
 	const bool use_shared_gpu_textures = false;
 #endif
+
+	//TEMP: 
+	gui_client->logMessage("opengl_engine->GL_EXT_memory_object_support: " + boolToString(opengl_engine->GL_EXT_memory_object_support));
+	gui_client->logMessage("opengl_engine->GL_EXT_memory_object_win32_support: " + boolToString(opengl_engine->GL_EXT_memory_object_win32_support));
+
+	gui_client->logMessage("Creating new CEF browser for URL '" + URL + "' (use_shared_gpu_textures: " + boolToString(use_shared_gpu_textures) + ")...");
 
 	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(
 		new EmbeddedBrowserRenderHandler(viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, opengl_engine, use_shared_gpu_textures), 
@@ -1106,7 +1126,7 @@ static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL
 	browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
 	if(!browser->cef_browser)
 		throw glare::Exception("Failed to create CEF browser");
-	gui_client->logMessage("Created new CEF browser (use_shared_gpu_textures: " + boolToString(use_shared_gpu_textures) + ")");
+	
 
 	// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
 	// See https://bitbucket.org/chromiumembedded/cef/issues/3319/burst-of-uncaptured-audio-after-creating
