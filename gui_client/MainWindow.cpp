@@ -4636,7 +4636,20 @@ int main(int argc, char *argv[])
 
 			// Do rest of initialisation now we have called connectToServer().
 			mw.gui_client.postConnectInitialise();
-			CEF::initialiseCEF(cyberspace_base_dir_path, appdata_path);
+
+			// TEMP:
+			bool enable_CEF = true;
+			try
+			{
+				const std::string val = PlatformUtils::getEnvironmentVariable("SUBSTRATA_ENABLE_CEF");
+				if(toLowerCase(val) == "false")
+					enable_CEF = false;
+			}
+			catch(glare::Exception& )
+			{}
+
+			if(enable_CEF)
+				CEF::initialiseCEF(cyberspace_base_dir_path, appdata_path);
 
 			open_even_filter->main_window = &mw;
 
@@ -4648,10 +4661,15 @@ int main(int argc, char *argv[])
 
 			mw.initialiseUI();
 
-			if(CEF::initialisationFailed())
-				mw.logMessage("CEF initialisation failed: " + CEF::getInitialisationFailureErrorString()); // Log CEF initialisation failure now that mw.log_window has been created.
+			if(!enable_CEF)
+				mw.logMessage("!!!!! Disallowing CEF usage due to SUBSTRATA_ENABLE_CEF env var being set to false !!!!!");
 			else
-				mw.logMessage("CEF initialised successfully.");
+			{
+				if(CEF::initialisationFailed())
+					mw.logMessage("CEF initialisation failed: " + CEF::getInitialisationFailureErrorString()); // Log CEF initialisation failure now that mw.log_window has been created.
+				else
+					mw.logMessage("CEF initialised successfully.");
+			}
 
 			mw.show(); // Calls glWidget->initializeGL() which initialises OpenGLEngine.
 
