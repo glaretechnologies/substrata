@@ -41,7 +41,8 @@ PlayerPhysics::PlayerPhysics()
 	last_runpressed(false),
 	//time_since_on_ground(0),
 	campos_z_delta(0),
-	gravity_enabled(true)
+	gravity_enabled(true),
+	allow_sliding(true)
 {
 }
 
@@ -226,6 +227,9 @@ public:
 UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, double cur_time, Vec4f& campos_out)
 {
 	UpdateEvents events;
+
+	// True if the player intended to move
+	this->allow_sliding = move_desired_vel != Vec3f(0.f);
 
 	Vec3f vel = toVec3f(jolt_character->GetLinearVelocity());
 
@@ -491,6 +495,19 @@ void PlayerPhysics::OnContactAdded(const JPH::CharacterVirtual *inCharacter, con
 			contacted_events.push_back(ContactedEvent({physics_ob, inSubShapeID2, toVec3f(inContactPosition)}));
 		}
 	}
+}
+
+
+// Anti-sliding code adapted from Jolt Samples\Tests\Character\CharacterVirtualTest.cpp
+void PlayerPhysics::OnContactSolve(const JPH::CharacterVirtual* inCharacter, const JPH::BodyID& inBodyID2, const JPH::SubShapeID& inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, JPH::Vec3Arg inContactVelocity, const JPH::PhysicsMaterial* inContactMaterial, JPH::Vec3Arg inCharacterVelocity, JPH::Vec3& ioNewCharacterVelocity)
+{
+	// Ignore callbacks for other characters than the player
+	if(inCharacter != jolt_character)
+		return;
+
+	// Don't allow the player to slide down static not-too-steep surfaces when not actively moving and when not on a moving platform
+	if(!allow_sliding && inContactVelocity.IsNearZero() && !inCharacter->IsSlopeTooSteep(inContactNormal))
+		ioNewCharacterVelocity = JPH::Vec3::sZero();
 }
 
 
