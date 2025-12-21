@@ -58,7 +58,8 @@ Copyright Glare Technologies Limited 2023 -
 class EmbeddedBrowserRenderHandler : public CefRenderHandler
 {
 public:
-	EmbeddedBrowserRenderHandler(int viewport_width_, int viewport_height_, GUIClient* gui_client_, WorldObject* ob_, size_t mat_index_, bool apply_to_emission_texture_, OpenGLEngine* opengl_engine_, bool use_shared_gpu_textures_)
+	EmbeddedBrowserRenderHandler(int viewport_width_, int viewport_height_, GUIClient* gui_client_, WorldObject* ob_, size_t mat_index_, bool apply_to_emission_texture_, 
+		OpenGLEngine* opengl_engine_, bool use_shared_gpu_textures_, OpenGLTexture::Wrapping wrapping)
 	:	opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false), num_messages_logged(0)
 	{
 		ZoneScoped; // Tracy profiler
@@ -77,7 +78,7 @@ public:
 
 			OpenGLTextureRef new_tex = new OpenGLTexture(viewport_width, viewport_height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
 				OpenGLTexture::Filtering_Bilinear,
-				OpenGLTexture::Wrapping_Clamp,
+				wrapping,
 				/*has mipmaps=*/false
 			);
 
@@ -1080,13 +1081,12 @@ public:
 };
 
 
-static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLEngine* opengl_engine,
-	const std::string& root_page)
+static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, 
+	OpenGLTexture::Wrapping wrapping, OpenGLEngine* opengl_engine, const std::string& root_page)
 {
 	ZoneScoped; // Tracy profiler
 
-	// TEMP:
-	bool allow_CEF_shared_textures = true;
+	/*bool allow_CEF_shared_textures = true;
 	try
 	{
 		const std::string val = PlatformUtils::getEnvironmentVariable("SUBSTRATA_ALLOW_CEF_SHARED_TEXTURES");
@@ -1097,22 +1097,18 @@ static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL
 		}
 	}
 	catch(glare::Exception& )
-	{}
+	{}*/
 
 #if defined(_WIN32) && (CEF_VERSION_MAJOR >= 139) // The shared GPU texture stuff is only implemented for Windows for now.  We also need a version of CEF that supports it.
-	const bool use_shared_gpu_textures = opengl_engine->GL_EXT_memory_object_support && opengl_engine->GL_EXT_memory_object_win32_support && allow_CEF_shared_textures; // && opengl_engine->GL_EXT_win32_keyed_mutex_support;
+	const bool use_shared_gpu_textures = opengl_engine->shouldUseSharedTextures() /*&& allow_CEF_shared_textures*/; // && opengl_engine->GL_EXT_win32_keyed_mutex_support;
 #else
 	const bool use_shared_gpu_textures = false;
 #endif
 
-	//TEMP: 
-	gui_client->logMessage("opengl_engine->GL_EXT_memory_object_support: " + boolToString(opengl_engine->GL_EXT_memory_object_support));
-	gui_client->logMessage("opengl_engine->GL_EXT_memory_object_win32_support: " + boolToString(opengl_engine->GL_EXT_memory_object_win32_support));
-
 	gui_client->logMessage("Creating new CEF browser for URL '" + URL + "' (use_shared_gpu_textures: " + boolToString(use_shared_gpu_textures) + ")...");
 
 	Reference<EmbeddedBrowserCEFBrowser> browser = new EmbeddedBrowserCEFBrowser(
-		new EmbeddedBrowserRenderHandler(viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, opengl_engine, use_shared_gpu_textures), 
+		new EmbeddedBrowserRenderHandler(viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, opengl_engine, use_shared_gpu_textures, wrapping), 
 		CEF::getLifespanHandler(), gui_client, ob, root_page, viewport_width, viewport_height);
 
 	CefWindowInfo window_info;
@@ -1163,11 +1159,11 @@ EmbeddedBrowser::~EmbeddedBrowser()
 }
 
 
-void EmbeddedBrowser::create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLEngine* opengl_engine, const std::string& root_page)
+void EmbeddedBrowser::create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLTexture::Wrapping wrapping, OpenGLEngine* opengl_engine, const std::string& root_page)
 {
 #if CEF_SUPPORT
 	this->embedded_cef_browser = NULL;
-	this->embedded_cef_browser = createBrowser(URL, viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, opengl_engine, root_page);
+	this->embedded_cef_browser = createBrowser(URL, viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, wrapping, opengl_engine, root_page);
 #endif
 }
 

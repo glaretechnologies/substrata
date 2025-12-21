@@ -32,11 +32,12 @@ Copyright Glare Technologies Limited 2023 -
 #endif
 
 
-AnimatedTexData::AnimatedTexData(size_t mat_index_, bool is_refl_tex_)
+AnimatedTexData::AnimatedTexData(size_t mat_index_, bool is_refl_tex_, bool use_WMF_for_vid_playback_)
 :	shared_handle(nullptr),
 	error_occurred(false),
 	mat_index(mat_index_),
-	is_refl_tex(is_refl_tex_)
+	is_refl_tex(is_refl_tex_),
+	use_WMF_for_vid_playback(use_WMF_for_vid_playback_)
 {
 }
 
@@ -53,7 +54,7 @@ AnimatedTexData::~AnimatedTexData()
 }
 
 
-#if USE_WMF_FOR_MP4_PLAYBACK
+#if WMF_MP4_PLAYBACK_SUPPORT
 struct CreateWMFVideoReaderTask : public glare::Task
 {
 	void run(size_t /*thread_index*/) override
@@ -90,223 +91,228 @@ struct CreateWMFVideoReaderTask : public glare::Task
 void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
 	double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum)
 {
-#if USE_WMF_FOR_MP4_PLAYBACK
-	if(!video_reader && !tex_path.empty())
+#if WMF_MP4_PLAYBACK_SUPPORT
+	if(use_WMF_for_vid_playback)
 	{
-		if(!error_occurred)
+		if(!video_reader && !tex_path.empty())
 		{
-			if(!create_vid_reader_task)
+			if(!error_occurred)
 			{
-				ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
-				if(resource && resource->isPresent())
+				if(!create_vid_reader_task)
 				{
-					gui_client->logMessage("Creating WMFVideoReader to play vid, URL: " + std::string(tex_path));
-
-					create_vid_reader_task = new CreateWMFVideoReaderTask();
-					create_vid_reader_task->path_or_URL = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
-					create_vid_reader_task->dx_device_manager = dx_device_manager;
-
-					task_manager.addTask(create_vid_reader_task);
-				}
-			}
-			else
-			{
-				// create_vid_reader_task has already been created, see if it is finished:
-				{
-					Lock lock(create_vid_reader_task->mutex);
-					if(!create_vid_reader_task->error_str.empty()) // If an error occurred:
+					ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
+					if(resource && resource->isPresent())
 					{
-						gui_client->logMessage("Error while creating WMFVideoReader for URL '" + std::string(tex_path) + "': " + create_vid_reader_task->error_str);
-						error_occurred = true;
+						gui_client->logMessage("Creating WMFVideoReader to play vid, URL: " + std::string(tex_path));
+
+						create_vid_reader_task = new CreateWMFVideoReaderTask();
+						create_vid_reader_task->path_or_URL = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
+						create_vid_reader_task->dx_device_manager = dx_device_manager;
+
+						task_manager.addTask(create_vid_reader_task);
 					}
-					else if(create_vid_reader_task->video_reader_result)
-						video_reader = create_vid_reader_task->video_reader_result;
 				}
-
-				if(error_occurred || video_reader) // If the create_vid_reader_task was finished:
-					create_vid_reader_task = nullptr;
-			}
-		}
-	}
-
-	if(video_reader)
-	{
-		// Process any decoded frames: either add to audio_frame_queue or video_frame_queue.
-		{
-			Lock lock(video_reader->frame_queue.getMutex());
-			while(video_reader->frame_queue.unlockedNonEmpty())
-			{
-				Reference<SampleInfo> frame = video_reader->frame_queue.unlockedDequeue();
-				if(frame->is_audio)
-					video_reader->audio_frame_queue.push_back(frame);
 				else
-					video_reader->video_frame_queue.push_back(frame);
+				{
+					// create_vid_reader_task has already been created, see if it is finished:
+					{
+						Lock lock(create_vid_reader_task->mutex);
+						if(!create_vid_reader_task->error_str.empty()) // If an error occurred:
+						{
+							gui_client->logMessage("Error while creating WMFVideoReader for URL '" + std::string(tex_path) + "': " + create_vid_reader_task->error_str);
+							error_occurred = true;
+						}
+						else if(create_vid_reader_task->video_reader_result)
+							video_reader = create_vid_reader_task->video_reader_result;
+					}
+
+					if(error_occurred || video_reader) // If the create_vid_reader_task was finished:
+						create_vid_reader_task = nullptr;
+				}
 			}
 		}
 
-		// Process any audio frames we have queued: mix down to mono and append to the audio source buffer.
-		while(video_reader->audio_frame_queue.nonEmpty())
+		if(video_reader)
 		{
-			Reference<SampleInfo> front_frame = video_reader->audio_frame_queue.popAndReturnFront();
-
-			assert(front_frame->is_audio);
-			WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
-
-			//conPrint("got audio frame, buffer size: " + toString(front_frame->buffer_len_B) + " B");
-			const uint32 bytes_per_sample = front_frame->bits_per_sample / 8;
-			runtimeCheck((bytes_per_sample > 0) && (front_frame->num_channels > 0)); // Avoid divide by zero
-			const uint64 num_samples = front_frame->buffer_len_B / bytes_per_sample / front_frame->num_channels;
-
-			if(!ob->audio_source && !BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED))
+			// Process any decoded frames: either add to audio_frame_queue or video_frame_queue.
 			{
-				// Create audio source
-				ob->audio_source = new glare::AudioSource();
-
-				// Create a streaming audio source.
-				ob->audio_source->type = glare::AudioSource::SourceType_Streaming;
-				ob->audio_source->pos = ob->getCentroidWS();
-				ob->audio_source->debugname = "animated tex: " + tex_path;
-				ob->audio_source->sampling_rate = front_frame->sample_rate_hz;// gui_client->audio_engine.getSampleRate();
-				ob->audio_source->volume = myClamp(ob->audio_volume, 0.f, 10.f);
-
+				Lock lock(video_reader->frame_queue.getMutex());
+				while(video_reader->frame_queue.unlockedNonEmpty())
 				{
-					Lock lock(gui_client->world_state->mutex);
-
-					const Parcel* parcel = gui_client->world_state->getParcelPointIsIn(ob->pos);
-					ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+					Reference<SampleInfo> frame = video_reader->frame_queue.unlockedDequeue();
+					if(frame->is_audio)
+						video_reader->audio_frame_queue.push_back(frame);
+					else
+						video_reader->video_frame_queue.push_back(frame);
 				}
-
-				gui_client->audio_engine.addSource(ob->audio_source);
 			}
 
-			// Copy to our audio source
-			if(ob->audio_source)
+			// Process any audio frames we have queued: mix down to mono and append to the audio source buffer.
+			while(video_reader->audio_frame_queue.nonEmpty())
 			{
-				temp_buf.resizeNoCopy(num_samples);
+				Reference<SampleInfo> front_frame = video_reader->audio_frame_queue.popAndReturnFront();
 
-				if(bytes_per_sample == 2)
+				assert(front_frame->is_audio);
+				WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
+
+				//conPrint("got audio frame, buffer size: " + toString(front_frame->buffer_len_B) + " B");
+				const uint32 bytes_per_sample = front_frame->bits_per_sample / 8;
+				runtimeCheck((bytes_per_sample > 0) && (front_frame->num_channels > 0)); // Avoid divide by zero
+				const uint64 num_samples = front_frame->buffer_len_B / bytes_per_sample / front_frame->num_channels;
+
+				if(!ob->audio_source && !BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED))
 				{
-					const int16* const src_data = (const int16*)wmf_frame->frame_buffer;
-					if(front_frame->num_channels == 1)
+					// Create audio source
+					ob->audio_source = new glare::AudioSource();
+
+					// Create a streaming audio source.
+					ob->audio_source->type = glare::AudioSource::SourceType_Streaming;
+					ob->audio_source->pos = ob->getCentroidWS();
+					ob->audio_source->debugname = "animated tex: " + tex_path;
+					ob->audio_source->sampling_rate = front_frame->sample_rate_hz;// gui_client->audio_engine.getSampleRate();
+					ob->audio_source->volume = myClamp(ob->audio_volume, 0.f, 10.f);
+
 					{
-						runtimeCheck(num_samples * sizeof(int16) <= wmf_frame->buffer_len_B);
-						for(int z=0; z<num_samples; ++z)
-							temp_buf[z] = (float)src_data[z] * (1.f / std::numeric_limits<int16>::max());
+						Lock lock(gui_client->world_state->mutex);
+
+						const Parcel* parcel = gui_client->world_state->getParcelPointIsIn(ob->pos);
+						ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
 					}
-					else if(front_frame->num_channels == 2)
+
+					gui_client->audio_engine.addSource(ob->audio_source);
+				}
+
+				// Copy to our audio source
+				if(ob->audio_source)
+				{
+					temp_buf.resizeNoCopy(num_samples);
+
+					if(bytes_per_sample == 2)
 					{
-						runtimeCheck(num_samples * 2 * sizeof(int16) <= wmf_frame->buffer_len_B);
-						for(int z=0; z<num_samples; ++z)
+						const int16* const src_data = (const int16*)wmf_frame->frame_buffer;
+						if(front_frame->num_channels == 1)
 						{
-							const float left  = (float)src_data[z*2 + 0] * (1.f / std::numeric_limits<int16>::max());
-							const float right = (float)src_data[z*2 + 1] * (1.f / std::numeric_limits<int16>::max());
-							temp_buf[z] = (left + right) * 0.5f;
+							runtimeCheck(num_samples * sizeof(int16) <= wmf_frame->buffer_len_B);
+							for(int z=0; z<num_samples; ++z)
+								temp_buf[z] = (float)src_data[z] * (1.f / std::numeric_limits<int16>::max());
+						}
+						else if(front_frame->num_channels == 2)
+						{
+							runtimeCheck(num_samples * 2 * sizeof(int16) <= wmf_frame->buffer_len_B);
+							for(int z=0; z<num_samples; ++z)
+							{
+								const float left  = (float)src_data[z*2 + 0] * (1.f / std::numeric_limits<int16>::max());
+								const float right = (float)src_data[z*2 + 1] * (1.f / std::numeric_limits<int16>::max());
+								temp_buf[z] = (left + right) * 0.5f;
+							}
+						}
+						else
+						{
+							for(int z=0; z<num_samples; ++z)
+								temp_buf[z] = 0.f;
 						}
 					}
 					else
 					{
+						// TODO: handle other bytes per sample
 						for(int z=0; z<num_samples; ++z)
 							temp_buf[z] = 0.f;
 					}
-				}
-				else
-				{
-					// TODO: handle other bytes per sample
-					for(int z=0; z<num_samples; ++z)
-						temp_buf[z] = 0.f;
-				}
 
-				ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
-				// conPrint("Added " + toString(num_samples) + " samples, num samples in ob->audio_source->buffer: " + toString(ob->audio_source->buffer.size()));
+					ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+					// conPrint("Added " + toString(num_samples) + " samples, num samples in ob->audio_source->buffer: " + toString(ob->audio_source->buffer.size()));
+				}
 			}
-		}
 
 
 
-		// Check the video frame queue to see if there is a frame due to be presented.
-		if(video_reader->video_frame_queue.nonEmpty())
-		{
-			Reference<SampleInfo> front_frame = video_reader->video_frame_queue.front(); // Look at front video frame, but don't remove from queue yet.
-			assert(!front_frame->is_audio);
-			if(!front_frame->is_EOS_marker)
+			// Check the video frame queue to see if there is a frame due to be presented.
+			if(video_reader->video_frame_queue.nonEmpty())
 			{
-				WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
-
-				// conPrint("frame_time: " + toString(front_frame->frame_time) + ", video_reader->timer: " + toString(video_reader->timer.elapsed()));
-				if(front_frame->frame_time <= video_reader->timer.elapsed()) // If the play time has reached the frame presentation time, then present the frame:
+				Reference<SampleInfo> front_frame = video_reader->video_frame_queue.front(); // Look at front video frame, but don't remove from queue yet.
+				assert(!front_frame->is_audio);
+				if(!front_frame->is_EOS_marker)
 				{
-					video_reader->video_frame_queue.pop_front(); // Remove from queue
+					WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
 
-					// If the object with the video applied is visible, copy the video frame to another texture and assign it to the object.
-					if(in_view_frustum)
+					// conPrint("frame_time: " + toString(front_frame->frame_time) + ", video_reader->timer: " + toString(video_reader->timer.elapsed()));
+					if(front_frame->frame_time <= video_reader->timer.elapsed()) // If the play time has reached the frame presentation time, then present the frame:
 					{
-						// conPrint("Presenting frame with time " + toString(front_frame->frame_time));
+						video_reader->video_frame_queue.pop_front(); // Remove from queue
 
-						if(!texture_copy)
+						// If the object with the video applied is visible, copy the video frame to another texture and assign it to the object.
+						if(in_view_frustum)
 						{
-							texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
-							shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
-						}
-				
-						//----------------- Do the texture copy -----------------
-						Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
+							// conPrint("Presenting frame with time " + toString(front_frame->frame_time));
 
-
-						//====================== Create an OpenGL texture to show the video ========================
-						if(video_display_opengl_tex.isNull())
-						{
-							gl_mem_ob = new OpenGLMemoryObject();
-
-							gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
-
+							if(!texture_copy)
 							{
-								//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
-
-								video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
-									OpenGLTexture::Filtering_Bilinear, 
-									(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
-									/*has mipmaps=*/false, -1, 0, gl_mem_ob);
-
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
-								glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
+								texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
+								shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
 							}
+				
+							//----------------- Do the texture copy -----------------
+							Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
 
-							if(is_refl_tex)
-								ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
-							else
-								ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
-							ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
-							opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+
+							//====================== Create an OpenGL texture to show the video ========================
+							if(video_display_opengl_tex.isNull())
+							{
+								gl_mem_ob = new OpenGLMemoryObject();
+
+								gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
+
+								{
+									//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
+
+									video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
+										OpenGLTexture::Filtering_Bilinear, 
+										(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
+										/*has mipmaps=*/false, -1, 0, gl_mem_ob);
+
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
+									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
+								}
+
+								if(is_refl_tex)
+									ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
+								else
+									ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
+								ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
+								opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+							}
 						}
 					}
 				}
-			}
-			else // Else if frame is EOS marker:
-			{
-				video_reader->video_frame_queue.pop_front(); // Remove from queue
-
-				if(BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP))
+				else // Else if frame is EOS marker:
 				{
-					// conPrint("Received EOS, seeking to beginning...");
-					video_reader->seekToStart(); // Resets timer as well
-				}
-			}
-		} // End if(front_frame)
+					video_reader->video_frame_queue.pop_front(); // Remove from queue
 
-		// Start doing some new sample reads if needed.
-		assert(video_reader->audio_frame_queue.empty()); // We should have processed all audio samples.
-		const int TARGET_NUM_FRAMES_DECODED_OR_DECODING = 6;
-		const int num_additional_samples_needed = myMax(0, TARGET_NUM_FRAMES_DECODED_OR_DECODING - (int)video_reader->video_frame_queue.size() - (int)video_reader->num_pending_reads);
-		for(int i=0; i<num_additional_samples_needed; ++i)
-			video_reader->startReadingNextSample();
+					// For video object types, use the VIDEO_LOOP flag, otherwise for generic objects with a mp4 texture, always loop.
+					const bool loop = (ob->object_type == WorldObject::ObjectType_Video) ? BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP) : true;
+					if(loop)
+					{
+						// conPrint("Received EOS, seeking to beginning...");
+						video_reader->seekToStart(); // Resets timer as well
+					}
+				}
+			} // End if(front_frame)
+
+			// Start doing some new sample reads if needed.
+			assert(video_reader->audio_frame_queue.empty()); // We should have processed all audio samples.
+			const int TARGET_NUM_FRAMES_DECODED_OR_DECODING = 6;
+			const int num_additional_samples_needed = myMax(0, TARGET_NUM_FRAMES_DECODED_OR_DECODING - (int)video_reader->video_frame_queue.size() - (int)video_reader->num_pending_reads);
+			for(int i=0; i<num_additional_samples_needed; ++i)
+				video_reader->startReadingNextSample();
+		}
 	}
 
-
-#else // else if !USE_WMF_FOR_MP4_PLAYBACK:
+#endif // WMF_MP4_PLAYBACK_SUPPORT
 
 #if CEF_SUPPORT
+	if(!use_WMF_for_vid_playback)
 	if(CEF::isInitialised())
 	{
 		if(browser.isNull() && !tex_path.empty())
@@ -353,20 +359,20 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 			const std::string data_URL = makeDataURL(html);
 
 			Reference<EmbeddedBrowser> new_browser = new EmbeddedBrowser();
-			new_browser->create(data_URL, width, height, gui_client, ob, /*mat index=*/mat_index, /*apply_to_emission_texture=*/!is_refl_tex, opengl_engine);
+			new_browser->create(data_URL, width, height, gui_client, ob, /*mat index=*/mat_index, /*apply_to_emission_texture=*/!is_refl_tex,
+				/*wrapping=*/(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
+				opengl_engine);
 
 			browser = new_browser;
 		}
 	}
 #endif // CEF_SUPPORT
-
-#endif // end if !USE_WMF_FOR_MP4_PLAYBACK
 }
 
 
 void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob)
 {
-#if USE_WMF_FOR_MP4_PLAYBACK
+#if WMF_MP4_PLAYBACK_SUPPORT
 	if(video_reader)
 	{
 		gui_client->logMessage("Closing video_reader (out of view distance).");
@@ -399,7 +405,7 @@ void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine*
 			ob->audio_source = NULL;
 		}
 	}
-#else // else if !USE_WMF_FOR_MP4_PLAYBACK:
+#endif // WMF_MP4_PLAYBACK_SUPPORT
 
 #if CEF_SUPPORT
 	// Close any browsers for animated textures on this object.
@@ -416,8 +422,6 @@ void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine*
 		}
 	}
 #endif // CEF_SUPPORT
-
-#endif // end if !USE_WMF_FOR_MP4_PLAYBACK
 }
 
 
@@ -508,22 +512,33 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(OpenGLEngine* opengl_eng
 		if(hasExtension(mat.tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/true);
+				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/true, animated_tex_manager.use_WMF_for_vid_playback);
 		}
 
 		// Emission tex
 		if(hasExtension(mat.emission_tex_path, "mp4"))
 		{
 			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
-				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/false);
+				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/false, animated_tex_manager.use_WMF_for_vid_playback);
 		}
 	}
 }
 
 
 AnimatedTextureManager::AnimatedTextureManager()
-:	last_num_textures_visible_and_close(0)
+:	last_num_textures_visible_and_close(0),
+	use_WMF_for_vid_playback(false)
 {
+}
+
+
+void AnimatedTextureManager::init(OpenGLEngine* opengl_engine)
+{
+	use_WMF_for_vid_playback = false;
+
+#if WMF_MP4_PLAYBACK_SUPPORT
+	use_WMF_for_vid_playback = opengl_engine->shouldUseSharedTextures();
+#endif
 }
 
 

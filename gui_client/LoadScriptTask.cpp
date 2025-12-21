@@ -40,7 +40,7 @@ void LoadScriptTask::run(size_t thread_index)
 		result_msg_queue->enqueue(msg);
 #endif
 	}
-	catch(glare::Exception& e)
+	catch(glare::Exception&)
 	{
 		// result_msg_queue->enqueue(new LogMessage("Error while loading script: " + e.what()));
 	}
