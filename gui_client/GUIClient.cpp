@@ -481,6 +481,9 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		OpenGLTexture::Wrapping_Repeat, false, -1, /* num array images=*/1);
 
 
+	animated_texture_manager->init(opengl_engine.ptr());
+
+
 	gl_ui = new GLUI();
 	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts, &this->stack_allocator);
 
@@ -8473,7 +8476,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 
-			audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
+			audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3", 
 				(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 		}
 		break;
@@ -9262,7 +9265,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 
 	if(selected_ob.nonNull())
 	{
-		msg += std::string("\nSelected object: \n");
+		msg += std::string("\n----------- Selected object: -----------\n");
 
 		msg += "UID: " + selected_ob->uid.toString() + "\n";
 		msg += "pos: " + selected_ob->pos.toStringMaxNDecimalPlaces(3) + "\n";
@@ -9296,7 +9299,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 					{
 						if(!selected_ob->materials.empty() && selected_ob->materials[i])
 							msg += "mat " + toString(i) + " min lod level: " + toString(selected_ob->materials[i]->minLODLevel()) + "\n";
-						msg += "mat " + toString(i) + " tex: " + toString(mat.albedo_texture->xRes()) + "x" + toString(mat.albedo_texture->yRes()) + " (" + getNiceByteSize(mat.albedo_texture->getTotalStorageSizeB()) + "), " + 
+						msg += "mat " + toString(i) + " albedo tex: " + toString(mat.albedo_texture->xRes()) + "x" + toString(mat.albedo_texture->yRes()) + " (" + getNiceByteSize(mat.albedo_texture->getTotalStorageSizeB()) + "), " + 
 							getStringForGLInternalFormat(mat.albedo_texture->getInternalFormat()) + " \n";
 					}
 					msg += "mat " + toString(i) + " colourTexHasAlpha(): " + toString(selected_ob->materials[i]->colourTexHasAlpha()) + "\n";
@@ -9309,6 +9312,8 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 				}
 			}
 		}
+
+		msg += std::string("----------------------------------------\n");
 	}
 
 #if TRACE_ALLOCATIONS
@@ -12759,7 +12764,7 @@ void GUIClient::changeToDifferentWorld(const URLParseResults& parse_res)
 	this->received_world_settings_since_connect_or_world_change = false;
 
 
-	audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
+	audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3", 
 		(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 }
 

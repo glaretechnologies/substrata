@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/Timer.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
+#include <opengl/OpenGLTexture.h>
 #include <map>
 class GUIClient;
 class WorldObject;
@@ -34,7 +35,7 @@ public:
 	EmbeddedBrowser();
 	~EmbeddedBrowser();
 
-	void create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, 
+	void create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLTexture::Wrapping wrapping,
 		OpenGLEngine* opengl_engine, const std::string& root_page = "");
 
 	void updateRootPage(const std::string& root_page);

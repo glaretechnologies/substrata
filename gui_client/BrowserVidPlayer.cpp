@@ -277,7 +277,7 @@ void BrowserVidPlayer::createNewBrowserPlayer(GUIClient* gui_client, OpenGLEngin
 
 	const std::string use_url = "https://localdomain/"; // URL to serve the root page
 
-	browser->create(use_url, width, height, gui_client, ob, /*mat index=*/0, /*apply_to_emission_texture=*/true, opengl_engine, root_page);
+	browser->create(use_url, width, height, gui_client, ob, /*mat index=*/0, /*apply_to_emission_texture=*/true, OpenGLTexture::Wrapping_Clamp, opengl_engine, root_page);
 
 	this->loaded_video_url = video_URL;
 }
@@ -293,7 +293,7 @@ EM_JS(int, makeHTMLViewJS, (), {
 	document.getElementById('iframe-container-camera').appendChild(new_div);
 
 	// Make handle, insert into global handle->div map
-	let handle = next_html_view_elem_handle;
+	let handle = next_html_view_elem_handle; // NOTE: next_html_view_elem_handle is defined in webserver_public_files\webclient-aux.js
 	next_html_view_elem_handle++;
 	html_view_elem_handle_to_div_map[handle] = new_div;
 
@@ -531,7 +531,7 @@ EM_JS(void, updateOpenGLTexWithVideoElementFrame, (int tex_handle, int video_ele
 
 		gl.bindTexture(gl.TEXTURE_2D, gl_tex);
 
-		gl.texSubImage2D(gl.TEXTURE_2D, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0, width, height, /*format=*/gl.RGB, /*type=*/gl.UNSIGNED_BYTE, /*source=*/video_elem);	
+		gl.texSubImage2D(gl.TEXTURE_2D, /*level=*/0, /*xoffset=*/0, /*yoffset=*/0, width, height, /*format=*/gl.RGB, /*type=*/gl.UNSIGNED_BYTE, /*source=*/video_elem);
 
 		gl.bindTexture(gl.TEXTURE_2D, null); // unbind
 	}

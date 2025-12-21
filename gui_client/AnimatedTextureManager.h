@@ -34,13 +34,13 @@ struct CreateWMFVideoReaderTask;
 
 // Use a Windows Media Foundation (WMF)-based player on Windows, and a Chromium Embedded Framework (CEF)-based player on other systems.
 #ifdef _WIN32
-#define USE_WMF_FOR_MP4_PLAYBACK 1
+#define WMF_MP4_PLAYBACK_SUPPORT 1
 #endif
 
 
 struct AnimatedTexData : public RefCounted
 { 
-	AnimatedTexData(size_t mat_index, bool is_refl_tex);
+	AnimatedTexData(size_t mat_index, bool is_refl_tex, bool use_WMF_for_vid_playback);
 	~AnimatedTexData();
 
 	static double maxVidPlayDist() { return 20.0; }
@@ -49,7 +49,7 @@ struct AnimatedTexData : public RefCounted
 		double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum);
 	void checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob);
 
-#if USE_WMF_FOR_MP4_PLAYBACK
+#if WMF_MP4_PLAYBACK_SUPPORT
 	Reference<WMFVideoReader> video_reader;
 	ComObHandle<ID3D11Texture2D> texture_copy;
 	Reference<OpenGLTexture> video_display_opengl_tex;
@@ -57,14 +57,16 @@ struct AnimatedTexData : public RefCounted
 	js::Vector<float> temp_buf;
 
 	Reference<CreateWMFVideoReaderTask> create_vid_reader_task;
-#else
-	Reference<EmbeddedBrowser> browser;
 #endif
+
+	Reference<EmbeddedBrowser> browser;
 
 	/*HANDLE*/void* shared_handle;
 	bool error_occurred;
 	size_t mat_index;
 	bool is_refl_tex;
+
+	bool use_WMF_for_vid_playback;
 };
 
 
@@ -134,6 +136,8 @@ class AnimatedTextureManager : public ThreadSafeRefCounted
 public:
 	AnimatedTextureManager();
 
+	void init(OpenGLEngine* opengl_engine);
+
 	void think(GUIClient* gui_client, OpenGLEngine* opengl_engine, double anim_time, double dt);
 
 	std::string diagnostics();
@@ -146,4 +150,6 @@ public:
 	std::map<OpenGLTextureKey, Reference<AnimatedTexInfo>> tex_info;
 
 	int last_num_textures_visible_and_close;
+
+	bool use_WMF_for_vid_playback;
 };

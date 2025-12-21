@@ -4640,7 +4640,6 @@ int main(int argc, char *argv[])
 			// Do rest of initialisation now we have called connectToServer().
 			mw.gui_client.postConnectInitialise();
 
-			// TEMP:
 			bool enable_CEF = true;
 			try
 			{
