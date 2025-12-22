@@ -4397,6 +4397,7 @@ static void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, 
 }
 
 
+#ifdef BUGSPLAT_SUPPORT
 static bool bugSplatExceptionCallback(UINT nCode, LPVOID lpVal1, LPVOID lpVal2)
 {
 	if(nCode == MDSCB_EXCEPTIONCODE)
@@ -4410,6 +4411,7 @@ static bool bugSplatExceptionCallback(UINT nCode, LPVOID lpVal1, LPVOID lpVal2)
 	}
 	return false; // Continue with default BugSplat handling
 }
+#endif
 
 
 int main(int argc, char *argv[])
