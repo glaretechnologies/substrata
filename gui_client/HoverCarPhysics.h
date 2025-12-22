@@ -45,7 +45,7 @@ class HoverCarPhysics final : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id, HoverCarPhysicsSettings settings, ParticleManager* particle_manager);
+	HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id, HoverCarPhysicsSettings settings, PhysicsWorld& physics_world, ParticleManager* particle_manager);
 	~HoverCarPhysics();
 
 	WorldObject* getControlledObject() override { return world_object; }
@@ -67,9 +67,9 @@ public:
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
-	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
+	Matrix4f getSeatToWorldTransformNoScale(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
 
-	Matrix4f getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const override;
+	Matrix4f getObjectToWorldTransformNoScale(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const override;
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
@@ -77,7 +77,12 @@ public:
 
 	const Scripting::VehicleScriptedSettings& getSettings() const override { return *settings.script_settings; }
 
+	void setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine) override;
+	void updateDebugVisObjects() override;
+
 private:
+	void removeVisualisationObs();
+
 	WorldObject* world_object;
 	HoverCarPhysicsSettings settings;
 	JPH::BodyID car_body_id;
@@ -86,4 +91,13 @@ private:
 
 	PCG32 rng;
 	ParticleManager* particle_manager;
+
+	PhysicsWorld* m_physics_world;
+	OpenGLEngine* m_opengl_engine;
+
+	// Debug vis:
+	bool show_debug_vis_obs;
+	Reference<GLObject> raycast_origin_gl_ob;
+
+	Vec4f last_trace_origin_ws;
 };

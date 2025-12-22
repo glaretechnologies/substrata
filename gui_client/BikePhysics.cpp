@@ -823,7 +823,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 Vec4f BikePhysics::getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 {
-	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world, seat_index, use_smoothed_network_transform);
+	const Matrix4f seat_to_world = getSeatToWorldTransformNoScale(physics_world, seat_index, use_smoothed_network_transform);
 	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to approx head position
 }
 
@@ -867,7 +867,7 @@ Matrix4f BikePhysics::getWheelToWorldTransform(PhysicsWorld& physics_world, int 
 //
 // So  
 // Seat_to_world = object_to_world * seat_translation_model_space * R^-1
-Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
+Matrix4f BikePhysics::getSeatToWorldTransformNoScale(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 { 
 	if(seat_index < settings.script_settings->seat_settings.size())
 	{
@@ -890,7 +890,7 @@ Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint3
 }
 
 
-Matrix4f BikePhysics::getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const
+Matrix4f BikePhysics::getObjectToWorldTransformNoScale(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const
 {
 	if(use_smoothed_network_transform && world_object->physics_object)
 		return world_object->physics_object->getSmoothedObToWorldNoScaleMatrix();

@@ -7725,9 +7725,9 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								{
 									// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that the avatar position is consistent with the vehicle model.
 									const bool use_smoothed_network_transform = cur_seat_index != 0;
-									const Matrix4f ob_to_world = vehicle_controller_inside->getObjectToWorldTransform(*this->physics_world, use_smoothed_network_transform);
+									const Matrix4f ob_to_world = vehicle_controller_inside->getObjectToWorldTransformNoScale(*this->physics_world, use_smoothed_network_transform);
 									pose_constraint.sitting = true;
-									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
+									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransformNoScale(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
 									pose_constraint.model_to_y_forwards_rot_1				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_1;
 									pose_constraint.model_to_y_forwards_rot_2				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_2;
 									pose_constraint.upper_body_rot_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_body_rot_angle;
@@ -7801,9 +7801,9 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 
 									if(avatar->vehicle_seat_index < controller->getSettings().seat_settings.size())
 									{
-										const Matrix4f ob_to_world = controller->getObjectToWorldTransform(*this->physics_world, /*use_smoothed_network_transform=*/true);
+										const Matrix4f ob_to_world = controller->getObjectToWorldTransformNoScale(*this->physics_world, /*use_smoothed_network_transform=*/true);
 										pose_constraint.sitting = true;
-										pose_constraint.seat_to_world							= controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
+										pose_constraint.seat_to_world							= controller->getSeatToWorldTransformNoScale(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
 										pose_constraint.model_to_y_forwards_rot_1				= controller->getSettings().model_to_y_forwards_rot_1;
 										pose_constraint.model_to_y_forwards_rot_2				= controller->getSettings().model_to_y_forwards_rot_2;
 										pose_constraint.upper_body_rot_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_body_rot_angle;
@@ -7872,7 +7872,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						if(controller_res != vehicle_controllers.end())
 						{
 							VehiclePhysics* controller = controller_res->second.ptr();
-							const Matrix4f seat_to_world = controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
+							const Matrix4f seat_to_world = controller->getSeatToWorldTransformNoScale(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
 
 							use_nametag_pos = seat_to_world * Vec4f(0,0,1.0f,1);
 						}
@@ -12041,7 +12041,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 
 		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
-		controller = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, particle_manager.ptr());
+		controller = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, *physics_world, particle_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::BoatScript>())
 	{
@@ -15139,7 +15139,7 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 		const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
 		const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
 
-		const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0);
+		const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransformNoScale(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0);
 		// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
 
 		vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
