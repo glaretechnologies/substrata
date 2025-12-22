@@ -20,12 +20,13 @@ class MainOptionsDialog : public QDialog, private Ui_MainOptionsDialog
 {
 	Q_OBJECT
 public:
-	MainOptionsDialog(QSettings* settings_);
+	MainOptionsDialog(QSettings* settings_, bool only_load_most_important_obs_default);
 
 	~MainOptionsDialog();
 
 	// Strings associated with registry keys.
 	static const QString objectLoadDistanceKey() { return "ob_load_distance"; }
+	static const QString onlyLoadMostImportantObsKey() { return "only_load_most_important_obs"; }
 
 	static const QString shadowsKey() { return "setting/shadows"; }
 

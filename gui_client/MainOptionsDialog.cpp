@@ -131,7 +131,7 @@ static std::vector<std::string> getAudioInputDeviceNames()
 }
 
 
-MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
+MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_important_obs_default)
 :	settings(settings_)
 {
 	setupUi(this);
@@ -147,6 +147,7 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 
 	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox,		myClamp<double>(settings->value(objectLoadDistanceKey(), /*default val=*/(double)GUIClient::defaultObjectLoadDistance()).toDouble(),
 		/*min=*/GUIClient::minObjectLoadDistance(), /*max=*/GUIClient::maxObjectLoadDistance()));
+	SignalBlocker::setChecked(this->onlyLoadImportantCheckBox,		settings->value(onlyLoadMostImportantObsKey(), /*default val=*/only_load_most_important_obs_default).toBool());
 	SignalBlocker::setChecked(this->shadowsCheckBox,				settings->value(shadowsKey(),				/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->SSAOCheckBox,					settings->value(SSAOKey(),					/*default val=*/true).toBool());
@@ -188,6 +189,7 @@ MainOptionsDialog::~MainOptionsDialog()
 void MainOptionsDialog::accepted()
 {
 	settings->setValue(objectLoadDistanceKey(),						this->loadDistanceDoubleSpinBox->value());
+	settings->setValue(onlyLoadMostImportantObsKey(),				this->onlyLoadImportantCheckBox->isChecked());
 	settings->setValue(shadowsKey(),								this->shadowsCheckBox->isChecked());
 	settings->setValue(MSAAKey(),									this->MSAACheckBox->isChecked());
 	settings->setValue(SSAOKey(),									this->SSAOCheckBox->isChecked());

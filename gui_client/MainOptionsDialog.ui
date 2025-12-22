@@ -58,6 +58,13 @@
         </property>
        </widget>
       </item>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="onlyLoadImportantCheckBox">
+        <property name="text">
+         <string>Only load most important nearby objects</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>

@@ -194,7 +194,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	use_lightmaps(true),
 	cur_loading_model_lod_level(-1),
 	obs_with_scripts(/*empty val=*/WorldObjectRef()),
-	ui_hidden(false)
+	ui_hidden(false),
+	only_load_most_important_obs(false)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -471,6 +472,11 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	ZoneScoped; // Tracy profiler
 
 	opengl_engine = opengl_engine_;
+
+
+	this->only_load_most_important_obs = settings->getBoolValue(/*MainOptionsDialog::onlyLoadMostImportantObsKey=*/"only_load_most_important_obs", /*default value=*/onlyLoadMostImportantObjectsDefaultValue());
+
+
 
 	opengl_engine->setReloadShadersCallback(this);
 
@@ -4063,11 +4069,8 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
-#if EMSCRIPTEN
-		const float proj_len_viewable_threshold = 0.02f;
-		const float min_load_distance2 = Maths::square(60.f); // Load everything <= this distance.
-#endif
-		const float load_distance2_ = this->load_distance2;
+		const float proj_len_viewable_threshold = only_load_most_important_obs ? 0.02f : 0.f; // Objects with a projected length >= this value will be loaded
+		const float load_everything_distance2   = only_load_most_important_obs ? Maths::square(60.f) : this->load_distance2; // Load everything <= this distance.
 
 		glare::FastIterMapValueInfo<UID, WorldObjectRef>* const objects_data = this->world_state->objects.vector.data();
 		const size_t objects_size                                            = this->world_state->objects.vector.size();
@@ -4091,17 +4094,13 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 			const Vec4f centroid = ob->getCentroidWS();
 
 			const float cam_to_ob_d2 = ob->getCentroidWS().getDist2(cam_pos);
-			//const float cam_to_ob_d2 = ob->getAABBWS().getClosestPointInAABB(cam_pos).getDist2(cam_pos);
-#if EMSCRIPTEN
+			//const float cam_to_ob_d2 = ob->getAABBWS().getClosestPointInAABB(cam_pos).getDist2(cam_pos); // More robust but slower. use?
+
 			const float recip_dist = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(cam_to_ob_d2)));
 			//assert(epsEqual(recip_dist, 1 / sqrt(cam_to_ob_d2)));
-
 			const float proj_len = ob->getBiasedAABBLength() * recip_dist;
 
-			bool in_proximity = (proj_len > proj_len_viewable_threshold) || (cam_to_ob_d2 <= min_load_distance2);
-#else
-			bool in_proximity = cam_to_ob_d2 < load_distance2_;
-#endif
+			bool in_proximity = (proj_len > proj_len_viewable_threshold) || (cam_to_ob_d2 <= load_everything_distance2);
 
 			// If this object is in a chunk region, and we are displaying the chunk, then don't show the object.
 			const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
@@ -4570,6 +4569,12 @@ void GUIClient::setObjectLoadDistance(float new_dist)
 	proximity_loader.setLoadDistance(new_dist);
 	load_distance = new_dist;
 	load_distance2 = new_dist*new_dist;
+}
+
+
+void GUIClient::setOnlyLoadMostImportantObs(bool only_load_most_important_obs_)
+{
+	only_load_most_important_obs = only_load_most_important_obs_;
 }
 
 
@@ -5379,6 +5384,19 @@ void GUIClient::setFlyModeEnabled(bool enabled)
 			player_physics.processMoveUp(20.f, /*runpressed=*/false, this->cam_controller);
 		}
 	}
+}
+
+
+bool GUIClient::onlyLoadMostImportantObjectsDefaultValue()
+{
+	assert(opengl_engine);
+#if EMSCRIPTEN
+	return true;
+#else
+	if(opengl_engine && opengl_engine->openglDriverVendorIsIntel())
+		return true;
+#endif
+	return false;
 }
 
 

@@ -2892,12 +2892,14 @@ void MainWindow::on_actionOptions_triggered()
 {
 	const std::string prev_audio_input_dev_name = QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
 
-	MainOptionsDialog d(this->settings);
+	MainOptionsDialog d(this->settings, gui_client.onlyLoadMostImportantObjectsDefaultValue());
 	const int code = d.exec();
 	if(code == QDialog::Accepted)
 	{
 		const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/(double)GUIClient::defaultObjectLoadDistance()).toDouble();
 		gui_client.setObjectLoadDistance(dist);
+
+		gui_client.setOnlyLoadMostImportantObs(settings->value(MainOptionsDialog::onlyLoadMostImportantObsKey(), /*default val=*/gui_client.onlyLoadMostImportantObjectsDefaultValue()).toBool());
 
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 		gui_client.opengl_engine->setSSAOEnabled(settings->value(MainOptionsDialog::SSAOKey(), /*default val=*/false).toBool());
