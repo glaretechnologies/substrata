@@ -168,6 +168,7 @@ public:
 	static float minObjectLoadDistance() { return 100.f; }
 	static float maxObjectLoadDistance() { return 2000.f; }
 	static float defaultObjectLoadDistance() { return 2000.f; }
+	bool onlyLoadMostImportantObjectsDefaultValue();
 
 
 	void timerEvent(const MouseCursorState& mouse_cursor_state);
@@ -414,6 +415,8 @@ public:
 	void updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials);
 
 	void setObjectLoadDistance(float new_dist);
+
+	void setOnlyLoadMostImportantObs(bool only_load_most_important_obs);
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -890,4 +893,6 @@ public:
 	URLWhitelist url_whitelist;
 
 	bool ui_hidden;
+
+	bool only_load_most_important_obs;
 };
