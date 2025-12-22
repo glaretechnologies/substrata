@@ -17,14 +17,18 @@ Copyright Glare Technologies Limited 2023 -
 #include <Jolt/Physics/PhysicsSystem.h>
 
 
-HoverCarPhysics::HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, HoverCarPhysicsSettings settings_, ParticleManager* particle_manager_)
-:	particle_manager(particle_manager_)
+HoverCarPhysics::HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, HoverCarPhysicsSettings settings_, PhysicsWorld& physics_world, ParticleManager* particle_manager_)
+:	particle_manager(particle_manager_),
+	m_opengl_engine(nullptr),
+	show_debug_vis_obs(false)
 {
 	world_object = object.ptr();
+	m_physics_world = &physics_world;
 	car_body_id = car_body_id_;
 	settings = settings_;
 	unflip_up_force_time_remaining = -1;
 	user_in_driver_seat = false;
+	last_trace_origin_ws = Vec4f(0,0,0,1);
 }
 
 
@@ -109,7 +113,7 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 		JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 
 		// On user input, assure that the car is active
-		if (right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
+		if(right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
 			body_interface.ActivateBody(car_body_id);
 
 
@@ -321,10 +325,18 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 
 		// ---------------------- Shoot a ray down, spawn dust particles where it hits ----------------------
-		// TODO: make work for over water as well, currently water surface is not an intersectable object.
 
 		// Ideally the trace origin is just under the object, not inside the object itself.
-		const Vec4f trace_origin = to_world * Vec4f(0, -0.2f, 0, 1);
+		const Vec4f up_ms = R_inv * Vec4f(0,0,1,0); // Up vector in model space
+		const Matrix4f ob_to_world = to_world * Matrix4f::scaleMatrix(world_object->scale.x, world_object->scale.y, world_object->scale.z); // with scale
+		const Vec4f trace_origin_ws = ob_to_world * (world_object->opengl_engine_ob->mesh_data->aabb_os.centroid() - 
+			Vec4f(
+				up_ms[0] * world_object->opengl_engine_ob->mesh_data->aabb_os.axisLength(0) * 0.51f, 
+				up_ms[1] * world_object->opengl_engine_ob->mesh_data->aabb_os.axisLength(1) * 0.51f,
+				up_ms[2] * world_object->opengl_engine_ob->mesh_data->aabb_os.axisLength(2) * 0.51f,
+				0));
+
+		this->last_trace_origin_ws = trace_origin_ws;
 
 		const Vec4f side_vec  =
 			right_vec_ws   * (-0.5f + rng.unitRandom()) + 
@@ -333,14 +345,14 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 		RayTraceResult trace_results;
 		const float max_trace_dist = 12.f;
-		physics_world.traceRay(trace_origin, trace_dir, max_trace_dist, /*ignore body id=*/JPH::BodyID(), trace_results);
+		physics_world.traceRay(trace_origin_ws, trace_dir, max_trace_dist, /*ignore body id=*/JPH::BodyID(), trace_results);
 
-		float water_hit_dist = (physics_world.getWaterZ() - trace_origin[2]) / trace_dir[2];
+		float water_hit_dist = (physics_world.getWaterZ() - trace_origin_ws[2]) / trace_dir[2];
 
 		// If trace hit water surface, and water hit distance is less than other object hit distance, or no other hit:
 		if((water_hit_dist >= 0) && (water_hit_dist < max_trace_dist) && (!trace_results.hit_object || (trace_results.hit_t > water_hit_dist)))
 		{
-			const Vec4f hitpos = trace_origin + trace_dir * water_hit_dist;
+			const Vec4f hitpos = trace_origin_ws + trace_dir * water_hit_dist;
 			const float vel = Maths::lerp(20.f, 6.f, water_hit_dist / max_trace_dist);
 
 			for(int z=0; z<4; ++z)
@@ -365,7 +377,7 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 		{
 			if(trace_results.hit_object)
 			{
-				const Vec4f hitpos = trace_origin + trace_dir * trace_results.hit_t;
+				const Vec4f hitpos = trace_origin_ws + trace_dir * trace_results.hit_t;
 
 				for(int z=0; z<1; ++z)
 				{
@@ -391,17 +403,14 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 
 	} // end if user_in_driver_seat
 
-	// const float speed_km_h = v_mag * (3600.0f / 1000.f);
-	// conPrint("speed (km/h): " + doubleToStringNDecimalPlaces(speed_km_h, 1));
-
 	return events;
 }
 
 
 Vec4f HoverCarPhysics::getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 {
-	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world, seat_index, use_smoothed_network_transform);
-	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to appox head position
+	const Matrix4f seat_to_world = getSeatToWorldTransformNoScale(physics_world, seat_index, use_smoothed_network_transform);
+	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to approx head position
 }
 
 
@@ -433,7 +442,7 @@ Matrix4f HoverCarPhysics::getBodyTransform(PhysicsWorld& physics_world) const
 //
 // So  
 // Seat_to_world = object_to_world * seat_translation_model_space * R^1
-Matrix4f HoverCarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
+Matrix4f HoverCarPhysics::getSeatToWorldTransformNoScale(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const
 { 
 	if(seat_index < settings.script_settings->seat_settings.size())
 	{
@@ -456,7 +465,7 @@ Matrix4f HoverCarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, u
 }
 
 
-Matrix4f HoverCarPhysics::getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const
+Matrix4f HoverCarPhysics::getObjectToWorldTransformNoScale(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const
 {
 	if(use_smoothed_network_transform && world_object->physics_object)
 		return world_object->physics_object->getSmoothedObToWorldNoScaleMatrix();
@@ -469,4 +478,41 @@ Vec4f HoverCarPhysics::getLinearVel(PhysicsWorld& physics_world) const
 {
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 	return toVec4fVec(body_interface.GetLinearVelocity(car_body_id));
+}
+
+
+void HoverCarPhysics::setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine)
+{
+	this->show_debug_vis_obs = enabled;
+	this->m_opengl_engine = &opengl_engine;
+
+	if(!enabled)
+		removeVisualisationObs();
+}
+
+
+void HoverCarPhysics::updateDebugVisObjects()
+{
+	if(show_debug_vis_obs)
+	{
+		const float radius = 0.1f;
+		if(!raycast_origin_gl_ob)
+		{
+			raycast_origin_gl_ob = m_opengl_engine->makeSphereObject(radius, Colour4f(0,1,0,0.5));
+			m_opengl_engine->addObject(raycast_origin_gl_ob);
+		}
+
+		raycast_origin_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(last_trace_origin_ws) * Matrix4f::uniformScaleMatrix(radius);
+
+		m_opengl_engine->updateObjectTransformData(*raycast_origin_gl_ob);
+	}
+}
+
+
+void HoverCarPhysics::removeVisualisationObs()
+{
+	if(m_opengl_engine)
+	{
+		checkRemoveObAndSetRefToNull(m_opengl_engine, raycast_origin_gl_ob);
+	}
 }

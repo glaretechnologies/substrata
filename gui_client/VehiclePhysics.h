@@ -53,13 +53,15 @@ public:
 
 	virtual float getThirdPersonCamTraceSelfAvoidanceDist() const = 0; // How far to ignore hits for when tracing backwards.
 
+	// The object-to-world transform for the Jolt physics object for the vehicle.
+	// Note that this does not have any scaling, as any scaling is baked into the object shape when creating it as a scaled shape.
 	virtual Matrix4f getBodyTransform(PhysicsWorld& physics_world) const = 0;
 
 	// Return a transformation from seat space to world space.  The transformation should just rotate and translate, but not scale.
-	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
-	virtual Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const = 0;
+	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0), up is (0,0,1).
+	virtual Matrix4f getSeatToWorldTransformNoScale(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const = 0;
 
-	virtual Matrix4f getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const = 0;
+	virtual Matrix4f getObjectToWorldTransformNoScale(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const = 0;
 
 	virtual Vec4f getLinearVel(PhysicsWorld& physics_world) const = 0;
 

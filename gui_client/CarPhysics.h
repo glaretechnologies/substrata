@@ -69,9 +69,9 @@ public:
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
-	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
+	Matrix4f getSeatToWorldTransformNoScale(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
 
-	Matrix4f getObjectToWorldTransform(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const override;
+	Matrix4f getObjectToWorldTransformNoScale(PhysicsWorld& physics_world, bool use_smoothed_network_transform) const override;
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
