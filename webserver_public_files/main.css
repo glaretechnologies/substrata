@@ -51,6 +51,10 @@ td
 {
 	vertical-align: top;
 }
+a
+{
+	color: #25617e;
+}
 .main
 {
 	min-height: 400px;
