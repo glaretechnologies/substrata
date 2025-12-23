@@ -39,7 +39,7 @@ Experience long view distances and massive worlds.-->
 
 <div class="root-rest-of-body">
 
-<h2>About</h2>
+<h2>Welcome to the Substrata metaverse</h2>
 <p>
 Chat with other users, race motorcycles against them, build in your own personal world, or buy a land parcel and build your metaverse presence in the main world.
 </p>
@@ -47,21 +47,33 @@ Chat with other users, race motorcycles against them, build in your own personal
 Substrata is almost completely open-source, check out the source code <a href="https://github.com/glaretechnologies/substrata">on GitHub here</a>.
 </p>
 
-<p><a href="/about_substrata">Read about our goals and plans for Substrata</a></p>
-<p><a href="/about_scripting">Scripting in Substrata</a></p>
-<p><a href="/running_your_own_server">Running your own Substrata server</a></p>
+
+
+<h2>Photos</h2>
+
+PHOTOS_HTML
 
 <h2 id="downloads">Downloads</h2>
 <p>You can enter <a href="/webclient">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.12_Setup.exe">Substrata_v1.6.12_Setup.exe</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.25_Setup.exe">Substrata_v1.6.25_Setup.exe</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.12_x64.pkg">Substrata_v1.6.12_x64.pkg</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.25_x64.pkg">Substrata_v1.6.25_x64.pkg</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.12.tar.gz">Substrata_v1.6.12.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.24.tar.gz">Substrata_v1.6.24.tar.gz</a>
 </p>
+
+
+
+<h2>Latest News</h2>
+
+LATEST_NEWS_HTML
+
+<a href="/news">See all news</a> or find us on Twitter/X:
+<a href="https://twitter.com/SubstrataVr" ><img width="20px" src="/files/twitter.png" />@SubstrataVr</a>
+
 
 
 <h2 id="createaworld">Create a World</h2>
@@ -73,18 +85,6 @@ Create your own Substrata world for free!
 <input type="submit" value="Create World">
 </form>
 
-<h2>Latest News</h2>
-
-LATEST_NEWS_HTML
-
-<a href="/news">See all news</a> or find us on Twitter/X:
-<a href="https://twitter.com/SubstrataVr" ><img width="20px" src="/files/twitter.png" />@SubstrataVr</a>
-
-<h2>Events</h2>
-
-EVENTS_HTML
-
-<a href="/events">See all events</a> or <a href="/create_event">Create an event</a>
 
 <h2>Buy a land parcel</h2>
 
@@ -103,20 +103,18 @@ LAND_PARCELS_FOR_SALE_HTML
 </p>
 -->
 
-<h2>Photos</h2>
+<h2>Events</h2>
 
-PHOTOS_HTML
+EVENTS_HTML
 
-<h2>Screenshots</h2>
+<a href="/events">See all events</a> or <a href="/create_event">Create an event</a>
 
-<div class="screenshot-container">
-<a href="/files/screenshot_1681705718.jpg"><img src="/files/screenshot_1681705718_320.jpg" class="root-screenshot-img"/></a>
-<a href="/files/screenshot_1681735424.jpg"><img src="/files/screenshot_1681735424_320.jpg" class="root-screenshot-img"/></a>
-<a href="/files/screenshot_1646832805.jpg"><img src="/files/screenshot_1646832805_320.jpg" class="root-screenshot-img"/></a>
-<a href="/files/screenshot_1677157540.jpg"><img src="/files/screenshot_1677157540_320.jpg" class="root-screenshot-img"/></a>
-<a href="/files/screenshot_1658323708.jpg"><img src="/files/screenshot_1658323708_320.jpg" class="root-screenshot-img"/></a>
-<a href="/files/screenshot_1681830037.jpg"><img src="/files/screenshot_1681830037_320.jpg" class="root-screenshot-img"/></a>
-</div>
+<h2>Docs</h2>
+<p><a href="/about_substrata">Read about our goals and plans for Substrata</a></p>
+<p><a href="/about_scripting">Scripting in Substrata</a></p>
+<p><a href="/running_your_own_server">Running your own Substrata server</a></p>
+
+<br/><br/>
 
 </div> <!-- end root-rest-of-body div-->
 
