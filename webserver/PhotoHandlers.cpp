@@ -130,9 +130,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 			throw glare::Exception("Failed to parse photo_id");
 
 
-		std::string page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*//*"Photo #" + toString(photo_id) + ""*/"");
-		page += "<div class=\"main\">   \n";
-
+		std::string page;
 
 		{ // lock scope
 			WorldStateLock lock(world_state.mutex);
@@ -147,13 +145,42 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 			if(photo->state == Photo::State_deleted)
 			{
+				page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*//*"Photo #" + toString(photo_id) + ""*/"");
 				page += "Photo has been deleted.";
 			}
 			else
 			{
-				// Insert image tag
 				const std::string fullsize_image_URL = "/photo_image/" + toString(photo->id);
 				const std::string midsize_image_URL = "/photo_midsize_image/" + toString(photo->id);
+
+				// Look up creator username
+				std::string creator_username;
+				{
+					auto user_res = world_state.user_id_to_users.find(photo->creator_id);
+					if(user_res == world_state.user_id_to_users.end())
+						creator_username = "[No user found]";
+					else
+						creator_username = user_res->second->name;
+				}
+
+				const std::string this_page_url = "https://" + request.getHostHeader() + "/photo/" + toString(photo_id);
+
+				// Add some meta tags for 'Twitter cards' which allow an image-based preview for tweets that refer to this page.  See https://developer.x.com/en/docs/x-for-websites/cards/overview/summary-card-with-large-image
+				const std::string meta_header_tags = 
+					"\t\t<meta property=\"og:title\" content=\"Photo by " + web::Escaping::HTMLEscape(creator_username) + " in Substrata\" />      \n"
+					"\t\t<meta property=\"og:description\" content=\"" +  web::Escaping::HTMLEscape(photo->caption) + "\" />		 \n"
+					"\t\t<meta property=\"og:image\" content=\"https://" + request.getHostHeader() + midsize_image_URL + "\" />		\n"
+					"\t\t<meta property=\"og:url\" content=\"" + this_page_url + "\" />	  \n"
+					"\t\t<meta property=\"og:type\" content=\"article\" />		  \n"
+					"\t\t<meta name=\"twitter:card\" content=\"summary_large_image\" />	   \n"
+					"\t\t<meta name=\"twitter:site\" content=\"@SubstrataVr\" />	 ";
+
+				page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*//*"Photo #" + toString(photo_id) + ""*/"", /*extra header tags=*/meta_header_tags);
+				page += "<div class=\"main\">   \n";
+
+
+				// Insert image tag
+				
 				page += "<a href=\"" + fullsize_image_URL + "\"><img src=\"" + midsize_image_URL + "\"  class=\"photo-midsize-img\"/></a>"; // width=\"800px\"
 
 				page += "<figcaption><i>" + web::Escaping::HTMLEscape(photo->caption) + "</i></figcaption>\n";
@@ -169,17 +196,8 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 						page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 				}
 
-				// Look up owner username
-				{
-					std::string owner_username;
-					auto user_res = world_state.user_id_to_users.find(photo->creator_id);
-					if(user_res == world_state.user_id_to_users.end())
-						owner_username = "[No user found]";
-					else
-						owner_username = user_res->second->name;
+				page += "<p>Photo by <i>" + web::Escaping::HTMLEscape(creator_username) + "</i></p>   \n";
 
-					page += "<p>Photo by <i>" + web::Escaping::HTMLEscape(owner_username) + "</i></p>   \n";
-				}
 
 				// Look up parcel it was taken in, if any
 				std::string parcel_descr;
@@ -224,6 +242,12 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 				page += "<p><a href=\"" + webclient_URL + "\">Visit location in web browser</a></p>";
 				page += "<p><a href=\"" + sub_URL + "\">Visit location in native app</a></p>";
+
+				// Create 'Share on X' link.
+				page += "<p><a href=\"https://twitter.com/intent/tweet?text=" + web::Escaping::URLEscape(photo->caption + "\nPhoto by " + creator_username + " in Substrata") + 
+					"&url=" + web::Escaping::URLEscape(this_page_url) + 
+					"&via=SubstrataVr\" target=\"_blank\" rel=\"noopener noreferrer\"><img src=\"/files/X-logo-black-small.png\" height=\"20px\"/>Share on X</a></p>";
+				//&hashtags=Substrata
 
 				if(logged_in_user_is_photo_owner || logged_in_user_is_god_user)
 				{
