@@ -42,7 +42,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 		if(!parser.parseUnsignedInt(parcel_id))
 			throw glare::Exception("Failed to parse parcel id");
 
-		const std::string extra_header_tags = WebServerResponseUtils::getMapHeaderTags();
+		std::string extra_header_tags = WebServerResponseUtils::getMapHeaderTags();
 
 		std::string page;
 
@@ -61,33 +61,20 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 			const bool logged_in_user_is_parcel_owner = logged_in_user && (parcel->owner_id == logged_in_user->id); // If the user is logged in and owns this parcel:
 
-			std::string show_title;
-			if(!parcel->title.empty())
-				show_title = parcel->title;
-			else
-				show_title = "Parcel #" + toString(parcel_id);
-
-			page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/show_title, extra_header_tags);
-			page += "<div class=\"main\">   \n";
-
-			if(logged_in_user_is_parcel_owner)
-				page += "<p><a href=\"/edit_parcel_title?parcel_id=" + parcel->id.toString() + "\">Edit title</a></p>";
-
-
-			if(logged_in_user)
-			{
-				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
-				if(!msg.empty())
-					page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
-			}
+			const std::string use_parcel_title = parcel->getUseTitle();
 
 			// Lookup and display any photos taken of this parcel
+			std::string first_image_path; // Path of first image (photo or screenshot found), to be used for twitter card metadata.
+			std::string images_html;
 			for(auto it = world_state.photos.begin(); it != world_state.photos.end(); ++it)
 			{
 				const Photo* photo = it->second.ptr();
 				if(photo->parcel_id.value() == parcel_id)
 				{
-					page += "<div class=\"inline-block\"><a href=\"/photo/" + toString(photo->id) + "\"><img src=\"" + photo->thumbnailSizeImageURLPath() + "\" alt=\"photo\" /></a></div>   \n";
+					images_html += "<div class=\"inline-block\"><a href=\"/photo/" + toString(photo->id) + "\"><img src=\"" + photo->thumbnailSizeImageURLPath() + "\" alt=\"photo\" /></a></div>   \n";
+
+					if(first_image_path.empty())
+						first_image_path = photo->midSizeImageURLPath();
 				}
 			}
 
@@ -101,11 +88,50 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				{
 					Screenshot* shot = shot_res->second.ptr();
 					if(shot->state == Screenshot::ScreenshotState_notdone)
-						page += "<div class=\"inline-block\">Screenshot processing...</div>     \n";
+						images_html += "<div class=\"inline-block\">Screenshot processing...</div>     \n";
 					else
-						page += "<div class=\"inline-block\"><a href=\"/screenshot/" + toString(screenshot_id) + "\"><img src=\"/screenshot/" + toString(screenshot_id) + "\" width=\"320px\" alt=\"screenshot\" /></a></div>   \n";
+					{
+						images_html += "<div class=\"inline-block\"><a href=\"/screenshot/" + toString(screenshot_id) + "\"><img src=\"/screenshot/" + toString(screenshot_id) + "\" width=\"320px\" alt=\"screenshot\" /></a></div>   \n";
+
+						if(first_image_path.empty())
+							first_image_path = "/screenshot/" + toString(screenshot_id);
+					}
 				}
 			}
+
+
+
+			// Add some meta tags for 'Twitter cards' which allow an image-based preview for tweets that refer to this page.  See https://developer.x.com/en/docs/x-for-websites/cards/overview/summary-card-with-large-image
+			if(!first_image_path.empty())
+			{
+				const std::string this_page_url = "https://" + request.getHostHeader() + "/parcel/" + toString(parcel_id);
+
+				extra_header_tags += 
+					"\t\t<meta property=\"og:title\" content=\"" + web::Escaping::HTMLEscape(use_parcel_title) + "\" />      \n"
+					"\t\t<meta property=\"og:description\" content=\"" +  web::Escaping::HTMLEscape(parcel->description) + "\" />		 \n"
+					"\t\t<meta property=\"og:image\" content=\"https://" + request.getHostHeader() + first_image_path + "\" />		\n"
+					"\t\t<meta property=\"og:url\" content=\"" + this_page_url + "\" />	  \n"
+					"\t\t<meta property=\"og:type\" content=\"article\" />		  \n"
+					"\t\t<meta name=\"twitter:card\" content=\"summary_large_image\" />	   \n"
+					"\t\t<meta name=\"twitter:site\" content=\"@SubstrataVr\" />	 ";
+			}
+
+
+			page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/use_parcel_title, extra_header_tags);
+			page += "<div class=\"main\">   \n";
+
+			if(logged_in_user_is_parcel_owner)
+				page += "<p><a href=\"/edit_parcel_title?parcel_id=" + parcel->id.toString() + "\">Edit title</a></p>";
+
+
+			if(logged_in_user)
+			{
+				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+				if(!msg.empty())
+					page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+			}
+
+			page += images_html;
 
 			const Vec3d pos = parcel->getVisitPosition();
 			

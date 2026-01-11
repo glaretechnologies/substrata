@@ -52,6 +52,7 @@ public:
 	Vec3d getVisitPosition() const;
 	bool isAdjacentTo(const Parcel& other) const;
 	std::string districtName() const;
+	std::string getUseTitle() const { return (!title.empty()) ? title : ("Parcel #" + id.toString()); }
 
 	bool userIsParcelAdmin(const UserID user_id) const;
 	bool userIsParcelWriter(const UserID user_id) const;

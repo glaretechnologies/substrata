@@ -115,7 +115,7 @@ const std::string getMapHeaderTags()
 	/*return "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.css\"\
 		integrity=\"sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==\"\
 		crossorigin=\"\"/>";*/
-	return "<link rel=\"stylesheet\" href=\"/files/leaflet.css\" />";
+	return "\t\t<link rel=\"stylesheet\" href=\"/files/leaflet.css\" />\n";
 }
 
 
@@ -134,10 +134,12 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 	// Get parcel polygon boundaries.  Some parcels are rectangles, so we will handle those as a special case optimisation where we can just write a rectangle.
 	std::vector<Vec2d> poly_verts;
 	std::vector<int> poly_parcel_ids;
+	std::vector<std::string> poly_parcel_names; // empty string if parcel title is empty and so should use the default "Parcel #xx" title.
 	std::vector<int> poly_parcel_state; // 0 = owned by MrAdmin and not on auction, 1 = owned by MrAdmin and for auction, 2 = owned by someone else
 
 	std::vector<Rect2d> rect_bounds;
 	std::vector<int> rect_parcel_ids;
+	std::vector<std::string> rect_parcel_names;
 	std::vector<int> rect_parcel_state;
 
 	const TimeStamp now = TimeStamp::currentTime();
@@ -150,10 +152,12 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 
 		poly_verts.reserve(44 * 4);
 		poly_parcel_ids.reserve(44);
+		poly_parcel_names.reserve(44);
 		poly_parcel_state.reserve(44);
 
 		rect_bounds.reserve(root_world->parcels.size());
 		rect_parcel_ids.reserve(root_world->parcels.size());
+		rect_parcel_names.reserve(root_world->parcels.size());
 		rect_parcel_state.reserve(root_world->parcels.size());
 
 		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
@@ -185,6 +189,7 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 			{
 				rect_bounds.push_back(Rect2d(Vec2d(parcel->aabb_min.x, parcel->aabb_min.y), Vec2d(parcel->aabb_max.x, parcel->aabb_max.y)));
 				rect_parcel_ids.push_back((int)parcel->id.value());
+				rect_parcel_names.push_back(parcel->title.empty() ? std::string() : parcel->title);
 				rect_parcel_state.push_back(state);
 			}
 			else
@@ -193,6 +198,7 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 					poly_verts.push_back(parcel->verts[i]);
 
 				poly_parcel_ids.push_back((int)parcel->id.value());
+				poly_parcel_names.push_back(parcel->title.empty() ? std::string() : parcel->title);
 				poly_parcel_state.push_back(state);
 			}
 		}
@@ -216,6 +222,15 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		var_js += toString(poly_parcel_ids[i]);
 		if(i + 1 < poly_parcel_ids.size())
 			var_js += ", ";
+	}
+	var_js += "</div>\n";
+
+	var_js += "<div class=\"hidden\" id=\"poly_parcel_names\">";
+	for(size_t i=0; i<poly_parcel_names.size(); ++i)
+	{
+		var_js += StringUtils::replaceCharacter(web::Escaping::HTMLEscape(poly_parcel_names[i]), ';', '_'); // Use ';' as a separator, so remove from name.
+		if(i + 1 < poly_parcel_names.size())
+			var_js += ";"; // Use ';' as separator between names.
 	}
 	var_js += "</div>\n";
 
@@ -246,6 +261,15 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		var_js += toString(rect_parcel_ids[i]);
 		if(i + 1 < rect_parcel_ids.size())
 			var_js += ", ";
+	}
+	var_js += "</div>\n";
+
+	var_js += "<div class=\"hidden\" id=\"rect_parcel_names\">";
+	for(size_t i=0; i<rect_parcel_names.size(); ++i)
+	{
+		var_js += StringUtils::replaceCharacter(web::Escaping::HTMLEscape(rect_parcel_names[i]), ';', '_'); // Use ';' as a separator, so remove from name.
+		if(i + 1 < rect_parcel_names.size())
+			var_js += ";"; // Use ';' as separator between names.
 	}
 	var_js += "</div>\n";
 
