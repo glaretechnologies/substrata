@@ -177,12 +177,14 @@
 				//console.log("locateFile(): path: " + path + ", prefix: " + prefix)
 				let suffix = ""
 				if (path === "gui_client.data") {
+					prefix = "/webclient/"; // make work if page is /visit/parcel/xx, which otherwise would request /visit/parcel/gui_client.data
 					suffix = "?hash=GUI_CLIENT_DATA_HASH";
 				}
 				else if (path == "gui_client.wasm") {
 					suffix = "?hash=GUI_CLIENT_WASM_HASH";
 				}
 				//console.log("Using suffix '" + suffix + "'");
+				//console.log("returning path '" + prefix + path + suffix + "'...");
 				return prefix + path + suffix;
 			}
 		};

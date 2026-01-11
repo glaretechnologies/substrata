@@ -722,11 +722,11 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			}
 				
 		}
-		else if(::hasPrefix(request.path, "/webclient/") || request.path == "/webclient" || request.path == "/gui_client.data")
+		else if(::hasPrefix(request.path, "/webclient/") || request.path == "/webclient" || ::hasPrefix(request.path, "/visit/") || request.path == "/visit" || request.path == "/gui_client.data")
 		{
 			std::string path;
 			bool cache = true;
-			if(request.path == "/webclient")
+			if(request.path == "/webclient" || ::hasPrefix(request.path, "/visit/") || request.path == "/visit")
 			{
 				path = "webclient.html";
 				cache = false; // /webclient html needs to be uncached, as it may change, especially with new cache-busting URLs for updated files like gui_client.wasm.

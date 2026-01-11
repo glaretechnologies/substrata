@@ -119,6 +119,12 @@ void URLParser::processQueryKeyValues(const std::map<std::string, std::string>& 
 		res.parsed_heading = true;
 	}
 
+	if(query_keyvalues.count("parcel"))
+	{
+		res.parcel_uid = stringToInt(query_keyvalues.find("parcel")->second);
+		res.parsed_parcel_uid = true;
+	}
+
 	if(query_keyvalues.count("sun_vert_angle"))
 	{
 		res.sun_vert_angle = stringToDouble(query_keyvalues.find("sun_vert_angle")->second);

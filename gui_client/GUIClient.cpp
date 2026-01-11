@@ -15350,7 +15350,7 @@ void GUIClient::loggedInButtonClicked()
 
 std::string GUIClient::getCurrentWebClientURLPath() const
 {
-	std::string url_path = "/webclient?";
+	std::string url_path = "/visit?";
 
 	if(!this->server_worldname.empty()) // Append world if != empty string.
 		url_path += "world=" + web::Escaping::URLEscape(this->server_worldname) + '&';

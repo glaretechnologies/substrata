@@ -125,7 +125,7 @@ void renderWorldPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 
 			//page += "<p>Access</p>\n";
 			const std::string hostname = request.getHostHeader(); // Find the hostname the request was sent to
-			const std::string webclient_URL = (request.tls_connection ? std::string("https") : std::string("http")) + "://" + hostname + "/webclient?world=" + URLEscapeWorldName(world_name);
+			const std::string webclient_URL = (request.tls_connection ? std::string("https") : std::string("http")) + "://" + hostname + "/visit?world=" + URLEscapeWorldName(world_name);
 			page += "<p>Visit in web browser: <a href=\"" + webclient_URL + "\">" + web::Escaping::HTMLEscape(webclient_URL) + "</a></p>";
 
 			const std::string native_URL = "sub://" + hostname + "/" + world_name;
