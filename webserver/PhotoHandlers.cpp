@@ -200,14 +200,14 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 
 				// Look up parcel it was taken in, if any
-				std::string parcel_descr;
+				std::string parcel_title;
 				if(photo->parcel_id.valid())
 				{
 					auto parcel_res = root_world->parcels.find(photo->parcel_id);
 					if(parcel_res != root_world->parcels.end())
 					{
 						const Parcel* parcel = parcel_res->second.ptr();
-						parcel_descr = parcel->description.substr(0, 100);
+						parcel_title = parcel->getUseTitle();
 					}
 				}
 
@@ -216,10 +216,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 				page += "<p>Location: ";
 				if(photo->parcel_id.valid())
 				{
-					if(parcel_descr.empty())
-						page += "<a href=\"/parcel/" + toString(photo->parcel_id.value()) + "\">Parcel " + toString(photo->parcel_id.value()) + "</a>";
-					else
-						page += "<a href=\"/parcel/" + toString(photo->parcel_id.value()) + "\">" + web::Escaping::HTMLEscape(parcel_descr) + "</a>";
+					page += "<a href=\"/parcel/" + toString(photo->parcel_id.value()) + "\">" + web::Escaping::HTMLEscape(parcel_title) + "</a>";
 				}
 				else
 					page += "<a href=\"/world/" + WorldHandlers::URLEscapeWorldName(photo->world_name) + "\">" + (photo->world_name.empty() ? "Main world" : web::Escaping::HTMLEscape(photo->world_name)) + "</a>";
