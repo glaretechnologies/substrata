@@ -7069,7 +7069,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			
 				// Enqueue ParcelFullUpdate
 				MessageUtils::initPacket(scratch_packet, Protocol::ParcelFullUpdate);
-				writeToNetworkStream(*parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
+				writeParcelToNetworkStream(*parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}

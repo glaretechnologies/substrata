@@ -1008,7 +1008,7 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 
 				// Build ParcelCreated message in scratch_packet
 				MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
-				writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
+				writeParcelToNetworkStream(*parcel, scratch_packet, client_protocol_version);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet to packet
@@ -1042,7 +1042,7 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 
 				// Send ParcelCreated message
 				MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
-				writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
+				writeParcelToNetworkStream(*parcel, scratch_packet, client_protocol_version);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -2486,7 +2486,7 @@ void WorkerThread::doRun()
 								WorldStateLock lock(world_state->mutex);
 								scratch_packet.writeUInt64(cur_world_state->getParcels(lock).size()); // Write num parcels
 								for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
-									writeToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
+									writeParcelToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
 							}
 							MessageUtils::updatePacketLengthField(scratch_packet);
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
@@ -2499,7 +2499,7 @@ void WorkerThread::doRun()
 							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
 							Parcel temp_parcel;
-							readFromNetworkStreamGivenID(msg_buffer, temp_parcel, client_protocol_version);
+							readParcelFromNetworkStreamGivenID(msg_buffer, temp_parcel, client_protocol_version);
 
 							// If client is not logged in, refuse parcel modification.
 							if(!client_user_id.valid())

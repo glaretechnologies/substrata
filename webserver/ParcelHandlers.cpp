@@ -44,8 +44,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 		const std::string extra_header_tags = WebServerResponseUtils::getMapHeaderTags();
 
-		std::string page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Parcel #" + toString(parcel_id) + "", extra_header_tags);
-		page += "<div class=\"main\">   \n";
+		std::string page;
 
 		{ // lock scope
 			WorldStateLock lock(world_state.mutex);
@@ -62,6 +61,18 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 			const bool logged_in_user_is_parcel_owner = logged_in_user && (parcel->owner_id == logged_in_user->id); // If the user is logged in and owns this parcel:
 
+			std::string show_title;
+			if(!parcel->title.empty())
+				show_title = parcel->title;
+			else
+				show_title = "Parcel #" + toString(parcel_id);
+
+			page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/show_title, extra_header_tags);
+			page += "<div class=\"main\">   \n";
+
+			if(logged_in_user_is_parcel_owner)
+				page += "<p><a href=\"/edit_parcel_title?parcel_id=" + parcel->id.toString() + "\">Edit title</a></p>";
+
 
 			if(logged_in_user)
 			{
@@ -70,9 +81,17 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 					page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 			}
 
-			//page += "<div>Parcel " + parcel->id.toString() + "</div>";
+			// Lookup and display any photos taken of this parcel
+			for(auto it = world_state.photos.begin(); it != world_state.photos.end(); ++it)
+			{
+				const Photo* photo = it->second.ptr();
+				if(photo->parcel_id.value() == parcel_id)
+				{
+					page += "<div class=\"inline-block\"><a href=\"/photo/" + toString(photo->id) + "\"><img src=\"" + photo->thumbnailSizeImageURLPath() + "\" alt=\"photo\" /></a></div>   \n";
+				}
+			}
 
-			// Lookup screenshot object for auction
+			// Lookup screenshot objects for parcel
 			for(size_t z=0; z<parcel->screenshot_ids.size(); ++z)
 			{
 				const uint64 screenshot_id = parcel->screenshot_ids[z];
@@ -367,6 +386,38 @@ void renderEditParcelDescriptionPage(ServerAllWorldsState& world_state, const we
 }
 
 
+void renderEditParcelTitlePage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	const int parcel_id = request.getURLIntParam("parcel_id");
+
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request, "Edit parcel title");
+	page += "<div class=\"main\">   \n";
+
+	{ // Lock scope
+
+		Lock lock(world_state.mutex);
+
+		// Lookup parcel
+		const auto res = world_state.getRootWorldState()->parcels.find(ParcelID(parcel_id));
+		if(res != world_state.getRootWorldState()->parcels.end())
+		{
+			Parcel* parcel = res->second.ptr();
+
+			page += "<form action=\"/edit_parcel_title_post\" method=\"post\" id=\"usrform\">";
+			page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + toString(parcel_id) + "\"><br>";
+			page += "<textarea rows=\"8\" cols=\"80\" name=\"title\" form=\"usrform\">" + web::Escaping::HTMLEscape(parcel->title) + "</textarea><br>";
+			page += "<input type=\"submit\" value=\"Update title\">";
+			page += "</form>";
+		}
+	} // End lock scope
+
+	page += "</div>   \n"; // end main div
+	page += WebServerResponseUtils::standardFooter(request, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 void renderAddParcelWriterPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	const int parcel_id = request.getURLIntParam("parcel_id");
@@ -627,6 +678,12 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
 				{
 					parcel->description = new_descrip.str();
+					if(parcel->description.size() > Parcel::MAX_DESCRIPTION_SIZE)
+					{
+						parcel->description = parcel->description.substr(0, Parcel::MAX_DESCRIPTION_SIZE);
+						world_state.setUserWebMessage(logged_in_user->id, "Description was too long, trimmed");
+					}
+
 					world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
 					world_state.markAsChanged();
@@ -642,6 +699,56 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 	{
 		if(!request.fuzzing)
 			conPrint("handleEditParcelDescriptionPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleEditParcelTitlePost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
+		const web::UnsafeString new_title = request.getPostField("title");
+
+		{ // Lock scope
+
+			WorldStateLock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
+				{
+					parcel->title = new_title.str();
+					if(parcel->title.size() > Parcel::MAX_TITLE_SIZE)
+					{
+						parcel->title = parcel->title.substr(0, Parcel::MAX_TITLE_SIZE);
+						world_state.setUserWebMessage(logged_in_user->id, "Title was too long, trimmed");
+					}
+
+					world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
+
+					world_state.markAsChanged();
+
+					world_state.setUserWebMessage(logged_in_user->id, "Updated title.");
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + parcel_id.toString());
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleEditParcelTitlePost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

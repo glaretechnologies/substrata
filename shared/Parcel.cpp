@@ -503,7 +503,7 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape
 #endif // GUI_CLIENT
 
 
-static const uint32 PARCEL_SERIALISATION_VERSION = 9;
+static const uint32 PARCEL_SERIALISATION_VERSION = 10;
 /*
 Version 3: added all_writeable.
 Version 4: Added auction data
@@ -512,6 +512,7 @@ Version 6: Added screenshot_ids (serialised to disk only, not over network)
 Version 7: Added nft_status, minting_transaction_id (serialised to disk only, not over network)
 Version 8: Added flags
 Version 9: Added spawn_point
+Version 10: Added title
 */
 
 
@@ -566,6 +567,15 @@ static void writeToStreamCommon(const Parcel& parcel, OutStream& stream, bool wr
 	}
 	else
 		writeToStream(parcel.spawn_point, stream); // Always write spawn point to disk.
+
+	if(writing_to_network_stream)
+	{
+		// Only write title if the other end is using protocol version >= 45.
+		if(peer_protocol_version >= 45) // title was added in protocol version 45.
+			stream.writeStringLengthFirst(parcel.title);
+	}
+	else
+		stream.writeStringLengthFirst(parcel.title); // Always write title to disk.
 }
 
 
@@ -573,7 +583,7 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 {
 	parcel.owner_id = readUserIDFromStream(stream);
 	parcel.created_time.readFromStream(stream);
-	parcel.description = stream.readStringLengthFirst(10000);
+	parcel.description = stream.readStringLengthFirst(Parcel::MAX_DESCRIPTION_SIZE);
 
 	// Read admin_ids
 	{
@@ -651,6 +661,19 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 			parcel.spawn_point = readVec3FromStream<double>(stream);
 	}
 
+	// Read title
+	if(reading_network_stream)
+	{
+		if(peer_protocol_version >= 45) // title was added in protocol version 45.
+			parcel.title = stream.readStringLengthFirst(Parcel::MAX_TITLE_SIZE);
+	}
+	else
+	{
+		if(version >= 10) // title was added in serialisation version 10.
+			parcel.title = stream.readStringLengthFirst(Parcel::MAX_TITLE_SIZE);
+	}
+
+
 	parcel.build();
 }
 
@@ -704,7 +727,7 @@ void readFromStream(InStream& stream, Parcel& parcel) // Read from file stream
 }
 
 
-void writeToNetworkStream(const Parcel& parcel, OutStream& stream, uint32 peer_protocol_version)
+void writeParcelToNetworkStream(const Parcel& parcel, OutStream& stream, uint32 peer_protocol_version)
 {
 	writeToStreamCommon(parcel, stream, /*writing_to_network_stream=*/true, peer_protocol_version);
 
@@ -722,7 +745,7 @@ void writeToNetworkStream(const Parcel& parcel, OutStream& stream, uint32 peer_p
 }
 
 
-void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel, uint32 peer_protocol_version) // UID will have been read already
+void readParcelFromNetworkStreamGivenID(RandomAccessInStream& stream, Parcel& parcel, uint32 peer_protocol_version) // UID will have been read already
 {
 	readFromStreamCommon(stream, /*version=*/PARCEL_SERIALISATION_VERSION, parcel, /*reading_network_stream=*/true, peer_protocol_version);
 
@@ -762,6 +785,8 @@ void Parcel::copyNetworkStateFrom(const Parcel& other, bool restrict_changes)
 
 	if(allow_all_changes)
 		created_time = other.created_time;
+
+	title = other.title;
 	description = other.description;
 
 	admin_ids = other.admin_ids;

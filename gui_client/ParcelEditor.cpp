@@ -10,7 +10,8 @@ ParcelEditor::ParcelEditor(QWidget *parent)
 :	QWidget(parent)
 {
 	setupUi(this);
-
+	
+	connect(this->titleLineEdit,				SIGNAL(textChanged(const QString&)),this, SIGNAL(parcelChanged()));
 	connect(this->descriptionTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(parcelChanged()));
 	connect(this->allWriteableCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(parcelChanged()));
 	connect(this->muteOutsideAudioCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(parcelChanged()));
@@ -35,6 +36,10 @@ void ParcelEditor::setFromParcel(const Parcel& parcel)
 	this->ownerLabel->setText(QtUtils::toQString(owner_name));
 	this->createdTimeLabel->setText(QtUtils::toQString(parcel.created_time.timeAgoDescription()));
 
+	{
+		SignalBlocker b(this->titleLineEdit);
+		this->titleLineEdit->setText(QtUtils::toQString(parcel.title));
+	}
 	{
 		SignalBlocker b(this->descriptionTextEdit);
 		this->descriptionTextEdit->setPlainText(QtUtils::toQString(parcel.description));
@@ -61,9 +66,22 @@ void ParcelEditor::setFromParcel(const Parcel& parcel)
 }
 
 
+template <class StringType>
+static void checkStringSize(StringType& s, size_t max_size)
+{
+	// TODO: throw exception instead?
+	if(s.size() > max_size)
+		s = s.substr(0, max_size);
+}
+
+
 void ParcelEditor::toParcel(Parcel& parcel_out)
 {
+	parcel_out.title = QtUtils::toStdString(this->titleLineEdit->text());
+	checkStringSize(parcel_out.title, Parcel::MAX_TITLE_SIZE);
+
 	parcel_out.description = QtUtils::toStdString(this->descriptionTextEdit->toPlainText());
+	checkStringSize(parcel_out.description, Parcel::MAX_DESCRIPTION_SIZE);
 
 	parcel_out.all_writeable = this->allWriteableCheckBox->isChecked();
 

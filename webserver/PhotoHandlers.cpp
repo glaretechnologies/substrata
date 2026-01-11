@@ -150,8 +150,8 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 			}
 			else
 			{
-				const std::string fullsize_image_URL = "/photo_image/" + toString(photo->id);
-				const std::string midsize_image_URL = "/photo_midsize_image/" + toString(photo->id);
+				const std::string fullsize_image_URL = photo->fullSizeImageURLPath();
+				const std::string midsize_image_URL  = photo->midSizeImageURLPath();
 
 				// Look up creator username
 				std::string creator_username;
