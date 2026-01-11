@@ -234,7 +234,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 				const std::string sub_URL = "sub://" + hostname + "/" + WorldHandlers::URLEscapeWorldName(photo->world_name) + "?" + pos_and_heading_part;
 				
-				const std::string webclient_URL = (request.tls_connection ? std::string("https") : std::string("http")) + "://" + hostname + "/webclient?world=" + WorldHandlers::URLEscapeWorldName(photo->world_name) + 
+				const std::string webclient_URL = (request.tls_connection ? std::string("https") : std::string("http")) + "://" + hostname + "/visit?world=" + WorldHandlers::URLEscapeWorldName(photo->world_name) + 
 					"&" + pos_and_heading_part;
 
 				page += "<p><a href=\"" + webclient_URL + "\">Visit location in web browser</a></p>";

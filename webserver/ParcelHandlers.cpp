@@ -135,10 +135,12 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			const Vec3d pos = parcel->getVisitPosition();
 			
-			const std::string weclient_URL = "/webclient?x=" + doubleToStringMaxNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringMaxNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringMaxNDecimalPlaces(pos.z, 1);
-			const std::string sub_URL = "sub://substrata.info/?x=" + doubleToStringMaxNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringMaxNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringMaxNDecimalPlaces(pos.z, 1);
+			const std::string hostname = request.getHostHeader(); // Find the hostname the request was sent to
+
+			const std::string webclient_URL = "/visit/parcel/" + toString(parcel_id);
+			const std::string sub_URL = "sub://" + hostname + "/parcel/" + toString(parcel_id);
 			
-			page += "<p><a href=\"" + weclient_URL + "\">Visit in web browser</a><br/></p>   \n";
+			page += "<p><a href=\"" + webclient_URL + "\">Visit in web browser</a><br/></p>   \n";
 			//page += "<p>For the best experience, enter this URL into the location bar in the Substrata client: " + sub_URL + "</p>";
 			page += "<p>Visit in Substrata: <a href=\"" + sub_URL + "\">" + sub_URL + "</a><br/>(Click or enter URL into location bar in Substrata client)</p>   \n";
 

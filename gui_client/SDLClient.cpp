@@ -33,6 +33,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/PlatformUtils.h>
 #include <utils/FileUtils.h>
 #include <utils/ConPrint.h>
+#include <utils/Parser.h>
 #include <utils/StringUtils.h>
 #include <utils/LimitedAllocator.h>
 #include <utils/ComObHandle.h>
@@ -176,6 +177,11 @@ static double cur_canvas_css_H = 800;
 // Define getLocationHost() function
 EM_JS(char*, getLocationHost, (), {
 	return stringToNewUTF8(window.location.host);
+});
+
+// Define getLocationPathname() function
+EM_JS(char*, getLocationPathname, (), {
+	return stringToNewUTF8(window.location.pathname);
 });
 
 // Define getLocationSearch() function
@@ -562,10 +568,35 @@ int main(int argc, char** argv)
 		free(location_host_str);
 
 		url_parse_results.hostname = location_host;
-		
+
+		char* location_path_str = getLocationPathname();
+		const std::string location_path(location_path_str);
+		free(location_path_str);
+
 		char* search_str = getLocationSearch(); // Get the query part of the URL, will be something like "?world=bleh&x=1&y=2&z=3", or just the empty string
 		const std::string search(search_str);
 		free(search_str);
+
+		// Parse location path to extract parcel ID if present.
+		{
+			Parser path_parser(location_path);
+			if(path_parser.parseCString("/webclient/"))
+			{
+			}
+			else if(path_parser.parseCString("/visit/"))
+			{
+			}
+
+			if(path_parser.parseCString("parcel/"))
+			{
+				int parcel_id;
+				if(path_parser.parseInt(parcel_id))
+				{
+					url_parse_results.parcel_uid = parcel_id;
+					url_parse_results.parsed_parcel_uid = true;
+				}
+			}
+		}
 
 		if(search.size() >= 1)
 		{
