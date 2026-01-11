@@ -16,7 +16,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <Reference.h>
 #include <string>
 #include <OutStream.h>
-#include <InStream.h>
+#include <RandomAccessInStream.h>
 #include <DatabaseKey.h>
 struct GLObject;
 class PhysicsObject;
@@ -77,6 +77,7 @@ public:
 	ParcelID id;
 	UserID owner_id;
 	TimeStamp created_time;
+	std::string title;
 	std::string description;
 	std::vector<UserID> admin_ids;
 	std::vector<UserID> writer_ids;
@@ -117,6 +118,9 @@ public:
 	std::vector<std::string> admin_names;
 	std::vector<std::string> writer_names;
 
+	static const size_t MAX_DESCRIPTION_SIZE                = 10000;
+	static const size_t MAX_TITLE_SIZE                      = 1000;
+
 
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
@@ -140,8 +144,8 @@ typedef Reference<Parcel> ParcelRef;
 void writeToStream(const Parcel& parcel, OutStream& stream); // Write to file stream
 void readFromStream(InStream& stream, Parcel& parcel); // Read from file stream
 
-void writeToNetworkStream(const Parcel& parcel, OutStream& stream, uint32 peer_protocol_version); // write without version
-void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel, uint32 peer_protocol_version);
+void writeParcelToNetworkStream(const Parcel& parcel, OutStream& stream, uint32 peer_protocol_version); // write without version
+void readParcelFromNetworkStreamGivenID(RandomAccessInStream& stream, Parcel& parcel, uint32 peer_protocol_version);
 
 
 struct ParcelRefHash

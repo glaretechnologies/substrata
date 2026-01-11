@@ -268,6 +268,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ParcelHandlers::handleEditParcelDescriptionPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/edit_parcel_title_post")
+		{
+			ParcelHandlers::handleEditParcelTitlePost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/add_parcel_writer_post")
 		{
 			ParcelHandlers::handleAddParcelWriterPost(*this->world_state, request, reply_info);
@@ -410,6 +414,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/edit_parcel_description")
 		{
 			ParcelHandlers::renderEditParcelDescriptionPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/edit_parcel_title")
+		{
+			ParcelHandlers::renderEditParcelTitlePage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/add_parcel_writer")
 		{

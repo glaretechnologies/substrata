@@ -31,6 +31,10 @@ public:
 
 	void writeToStream(RandomAccessOutStream& stream) const;
 
+	std::string fullSizeImageURLPath()       const { return "/photo_image/"         + toString(id); }
+	std::string midSizeImageURLPath()        const { return "/photo_midsize_image/" + toString(id); }
+	std::string thumbnailSizeImageURLPath()  const { return "/photo_thumb_image/"   + toString(id); }
+
 	static const size_t MAX_CAPTION_SIZE = 10000;
 	static const size_t MAX_WORLD_NAME_SIZE = 1000;
 

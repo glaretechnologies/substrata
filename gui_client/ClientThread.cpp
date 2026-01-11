@@ -949,7 +949,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			ParcelRef parcel = new Parcel();
 			const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
-			readFromNetworkStreamGivenID(msg_buffer, *parcel, peer_protocol_version);
+			readParcelFromNetworkStreamGivenID(msg_buffer, *parcel, peer_protocol_version);
 			parcel->id = parcel_id;
 			parcel->state = Parcel::State_JustCreated;
 			parcel->from_remote_dirty = true;
@@ -992,7 +992,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 					
 					ParcelRef parcel = new Parcel();
 					const ParcelID parcel_id = readParcelIDFromStream(sub_buffer_view);
-					readFromNetworkStreamGivenID(sub_buffer_view, *parcel, peer_protocol_version);
+					readParcelFromNetworkStreamGivenID(sub_buffer_view, *parcel, peer_protocol_version);
 					parcel->id = parcel_id;
 					parcel->state = Parcel::State_JustCreated;
 					parcel->from_remote_dirty = true;
@@ -1038,17 +1038,17 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 				if(res != world_state->parcels.end())
 				{
 					Parcel* parcel = res->second.getPointer();
-					readFromNetworkStreamGivenID(msg_buffer, *parcel, peer_protocol_version);
+					readParcelFromNetworkStreamGivenID(msg_buffer, *parcel, peer_protocol_version);
 					read = true;
 					parcel->from_remote_dirty = true;
 					world_state->dirty_from_remote_parcels.insert(parcel);
 				}
 
-				// Make sure we have read the whole pracel from the network stream
+				// Make sure we have read the whole parcel from the network stream
 				if(!read)
 				{
 					Parcel dummy;
-					readFromNetworkStreamGivenID(msg_buffer, dummy, peer_protocol_version);
+					readParcelFromNetworkStreamGivenID(msg_buffer, dummy, peer_protocol_version);
 				}
 			}
 			break;
