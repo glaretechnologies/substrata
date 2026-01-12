@@ -63,18 +63,26 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			const std::string use_parcel_title = parcel->getUseTitle();
 
-			// Lookup and display any photos taken of this parcel
+
+			//------------------------------- Build photos grid view HTML --------------------------
+			std::string images_html = "<div class=\"generic-image-container\">\n";
+
 			std::string first_image_path; // Path of first image (photo or screenshot found), to be used for twitter card metadata.
-			std::string images_html;
-			for(auto it = world_state.photos.begin(); it != world_state.photos.end(); ++it)
+
+			// Lookup and display any photos taken of this parcel
+			const int max_num_photos_to_display = 7; // For a 3x3 grid of images, with 2 spots for the screenshots.
+			int num_photos_displayed = 0;
+			for(auto it = world_state.photos.rbegin(); (it != world_state.photos.rend()) && (num_photos_displayed < max_num_photos_to_display); ++it)
 			{
 				const Photo* photo = it->second.ptr();
-				if(photo->parcel_id.value() == parcel_id)
+				if((photo->parcel_id.value() == parcel_id) && (photo->state == Photo::State_published))
 				{
-					images_html += "<div class=\"inline-block\"><a href=\"/photo/" + toString(photo->id) + "\"><img src=\"" + photo->thumbnailSizeImageURLPath() + "\" alt=\"photo\" /></a></div>   \n";
+					images_html += "<a href=\"/photo/" + toString(photo->id) + "\"><img class=\"generic-image\" src=\"" + photo->midSizeImageURLPath() + "\" alt=\"photo\" /></a>   \n";
 
 					if(first_image_path.empty())
 						first_image_path = photo->midSizeImageURLPath();
+
+					num_photos_displayed++;
 				}
 			}
 
@@ -91,13 +99,15 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 						images_html += "<div class=\"inline-block\">Screenshot processing...</div>     \n";
 					else
 					{
-						images_html += "<div class=\"inline-block\"><a href=\"/screenshot/" + toString(screenshot_id) + "\"><img src=\"/screenshot/" + toString(screenshot_id) + "\" width=\"320px\" alt=\"screenshot\" /></a></div>   \n";
+						images_html += "<a href=\"/screenshot/" + toString(screenshot_id) + "\"><img class=\"generic-image\" src=\"/screenshot/" + toString(screenshot_id) + "\" alt=\"screenshot\" /></a>   \n";
 
 						if(first_image_path.empty())
 							first_image_path = "/screenshot/" + toString(screenshot_id);
 					}
 				}
 			}
+
+			images_html += "</div>\n";
 
 
 

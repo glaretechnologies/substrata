@@ -415,19 +415,6 @@ a
 	opacity: 0;
 }
 
-.screenshot-container {
-	display: grid;
-	/*auto-fit: Fit whatever columns there are into the space. Prefer expanding columns to fill space rather than empty columns.*/
-	grid-template-columns: repeat(auto-fit, minmax( /*min=*/ 230px, /*max=*/ 230px));
-	grid-auto-flow: row;
-	gap: 15px 15px;
-}
-
-.root-screenshot-img {
-	width: 230px;
-	height: 131px;
-	object-fit: cover;
-}
 
 .photo-container {
 	display: grid;
@@ -447,6 +434,27 @@ a
 .photo-midsize-img {
 	max-width: 100%;
 }
+
+
+/* Used on parcel page for both screenshots and photos */
+.generic-image-container {
+	display: grid;
+	/*auto-fit: Fit whatever columns there are into the space. Prefer expanding columns to fill space rather than empty columns.*/
+	grid-template-columns: repeat(auto-fit, minmax( /*min=*/ 320px, /*max=*/ 320px));
+	grid-auto-flow: row;
+	gap: 15px 15px;
+}
+
+.generic-image {
+	width: 320px;
+	height: 240px;
+	object-fit: cover;
+	display: block; /*to remove whitespace under the image: https://www.tutorialrepublic.com/faq/how-to-remove-white-space-under-an-image-using-css.php */
+}
+
+
+
+
 
 
 .article-image {

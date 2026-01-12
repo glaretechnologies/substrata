@@ -22,6 +22,8 @@ Photo
 -----
 A photo / screenshot that a user captured in the substrata client photo mode, 
 and then uploaded to the server.
+
+See WorkerThreadUploadPhotoHandling.cpp/.h for more code.
 =====================================================================*/
 class Photo : public ThreadSafeRefCounted
 {
