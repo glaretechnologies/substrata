@@ -223,6 +223,11 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 				page += ", x: " + toString((int)photo->cam_pos.x) + ", y: " + toString((int)photo->cam_pos.y) + "</p>  \n";
 
+				if(logged_in_user_is_photo_owner || logged_in_user_is_god_user)
+				{
+					page += "<p><a href=\"/edit_photo_parcel?photo_id=" + toString(photo_id) + "\">Edit photo parcel ID</a></p>\n";
+				}
+
 
 				// See GUIClient::getCurrentWebClientURLPath()
 				const Vec3d pos = photo->cam_pos;
@@ -267,6 +272,104 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 	}
 	catch(glare::Exception& e)
 	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void renderEditPhotoParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const int photo_id = request.getURLIntParam("photo_id");
+
+		std::string page = WebServerResponseUtils::standardHeader(world_state, request, "Edit photo parcel");
+		page += "<div class=\"main\">   \n";
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup photo
+			const auto res = world_state.photos.find((uint64)photo_id);
+			if(res != world_state.photos.end())
+			{
+				Photo* photo = res->second.ptr();
+
+				page += "<form action=\"/edit_photo_parcel_post\" method=\"post\" id=\"usrform\">";
+				page += "<input type=\"hidden\" name=\"photo_id\" value=\"" + toString(photo_id) + "\"><br>";
+				page += "parcel ID: <input type=\"number\" name=\"parcel_id\" value=\"" + photo->parcel_id.toString() + "\"><br>";
+				page += "<input type=\"submit\" value=\"Update photo parcel ID\">";
+				page += "</form>";
+			}
+		} // End lock scope
+
+		page += "</div>   \n"; // end main div
+		page += WebServerResponseUtils::standardFooter(request, true);
+
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("renderEditPhotoParcelPage error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleEditPhotoParcelPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const int photo_id = request.getPostIntField("photo_id");
+		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+
+			// See if the parcel exists.  TEMP: just assuming root world.
+			Reference<ServerWorldState> root_world = world_state.getRootWorldState();
+			auto parcel_res = root_world->parcels.find(parcel_id);
+			if(parcel_res == root_world->parcels.end())
+			{
+				if(logged_in_user)
+					world_state.setUserWebMessage(logged_in_user->id, "No parcel with that ID found.");
+			}
+			else
+			{
+				// Lookup photo
+				const auto res = world_state.photos.find(photo_id);
+				if(res != world_state.photos.end())
+				{
+					Photo* photo = res->second.ptr();
+
+					if(logged_in_user && ((photo->creator_id == logged_in_user->id) || isGodUser(logged_in_user->id))) // If the user is logged in and created this photo, or if this is the god/superadmin user:
+					{
+						photo->parcel_id = parcel_id;
+
+						world_state.setUserWebMessage(logged_in_user->id, "Photo Parcel ID updated.");
+
+						world_state.addPhotoAsDBDirty(photo);
+					}
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/photo/" + toString(photo_id));
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleEditPhotoParcelPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

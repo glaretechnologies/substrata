@@ -328,6 +328,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			WorldHandlers::handleEditWorldPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/edit_photo_parcel_post")
+		{
+			PhotoHandlers::handleEditPhotoParcelPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/delete_photo_post")
 		{
 			PhotoHandlers::handleDeletePhotoPost(*this->world_state, request, reply_info);
@@ -578,6 +582,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/photo_thumb_image/")) // Photo ID follows
 		{
 			PhotoHandlers::handlePhotoThumbnailImageRequest(*world_state, *data_store, request, reply_info);
+		}
+		else if(request.path == "/edit_photo_parcel")
+		{
+			PhotoHandlers::renderEditPhotoParcelPage(*world_state, request, reply_info);
 		}
 		else if(request.path == "/tile")
 		{
