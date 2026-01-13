@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <ConPrint.h>
 #include <Exception.h>
 #include <SocketInterface.h>
+#include <HTTPClient.h>
 #include <URL.h>
 #include <Lock.h>
 #include <StringUtils.h>
@@ -205,6 +206,33 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 
 		socket->writeUInt32(Protocol::PhotoUploadSucceeded);
 		socket->flush();
+
+
+		// Post the photo URL on the photo discord channel
+		if(server->world_state->credentialExists("discord_photo_webhook_URL"))
+		{
+			try
+			{
+				HTTPClientRef client = new HTTPClient();
+
+				const std::string URL = server->world_state->getCredential("discord_photo_webhook_URL");
+				const std::string post_content = 
+					"{ \"content\": \"https://substrata.info/photo/" + toString(photo->id) + "\" }";
+
+				std::string response_data;
+				HTTPClient::ResponseInfo response = client->sendPost(URL, post_content, 
+					/*content_type=*/"application/json", response_data);
+
+				conPrint("Discord webhook response code: " + toString(response.response_code));
+				conPrint("Discord webhook response message: " + response.response_message);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("handlePhotoUploadConnection: Error while doing Discord photo post: " + e.what());
+			}
+		}
+		else
+			conPrint("Skipping posting photo to discord channel as 'discord_photo_webhook_URL' credential not set.");
 	}
 	catch(glare::Exception& e)
 	{

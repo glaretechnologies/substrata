@@ -301,6 +301,7 @@ public:
 	// Then saves the updates to disk.
 	void saveSanitisedDatabase();
 
+	bool credentialExists(const std::string& key);
 	std::string getCredential(const std::string& key); // Throws glare::Exception if not found
 
 	UID getNextObjectUID(); // Gets and then increments next_object_uid.  Locks mutex.
