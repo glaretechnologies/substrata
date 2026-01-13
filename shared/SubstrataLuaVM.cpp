@@ -70,7 +70,9 @@ enum StringAtomEnum
 	Atom_materials,
 	Atom_audio_loop,
 	Atom_playAudio, // resets cur read index to start of audio, starts playing the audio (unpauses if paused)
-	Atom_isPlayingAudio, //
+	Atom_isPlayingAudio,
+	Atom_startPlayingAnimation,
+	Atom_getAnimationIndex,
 
 	// WorldMaterial
 	Atom_colour,
@@ -101,6 +103,7 @@ enum StringAtomEnum
 	Atom_onUserExitedParcel,
 	Atom_onUserEnteredVehicle,
 	Atom_onUserExitedVehicle,
+	Atom_onChatMessage,
 };
 
 static StringAtom string_atoms[] = 
@@ -136,6 +139,8 @@ static StringAtom string_atoms[] =
 	StringAtom({"audio_loop",				Atom_audio_loop,				}),
 	StringAtom({"playAudio",				Atom_playAudio,					}),
 	StringAtom({"isPlayingAudio",			Atom_isPlayingAudio,			}),
+	StringAtom({"startPlayingAnimation",	Atom_startPlayingAnimation,		}),
+	StringAtom({"getAnimationIndex",		Atom_getAnimationIndex,			}),
 
 	// WorldMaterial
 	StringAtom({"colour",					Atom_colour,					}),
@@ -166,6 +171,7 @@ static StringAtom string_atoms[] =
 	StringAtom({"onUserExitedParcel",		Atom_onUserExitedParcel,		}),
 	StringAtom({"onUserEnteredVehicle",		Atom_onUserEnteredVehicle,		}),
 	StringAtom({"onUserExitedVehicle",		Atom_onUserExitedVehicle,		}),
+	StringAtom({"onChatMessage",			Atom_onChatMessage,				}),
 };
 
 
@@ -520,6 +526,10 @@ static int luaAddEventListener(lua_State* state)
 	case Atom_onUserExitedVehicle:
 		assert(stringEqual(event_name, "onUserExitedVehicle"));
 		added = ob_event_handlers->onUserExitedVehicle_handlers.addHandler(handler_func);
+		break;
+	case Atom_onChatMessage:
+		assert(stringEqual(event_name, "onChatMessage"));
+		added = ob_event_handlers->onChatMessage_handlers.addHandler(handler_func);
 		break;
 	default:
 		throw glare::Exception("Unknown event '" + std::string(event_name) + "'" + errorContextString(state));
@@ -1127,6 +1137,77 @@ static int isPlayingAudio(lua_State* state)
 }
 
 
+static int startPlayingAnimation(lua_State* state)
+{
+	// arg 1: ob : WorldObject
+	// arg 2: animation_index : Number
+
+	checkNumArgs(state, /*num_args_required*/2);
+
+#if GUI_CLIENT
+	
+	// Get object UID from arg 1.
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+	const int animation_index = (int)LuaUtils::getDoubleArg(state, /*index=*/2);
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
+	
+	if(ob->opengl_engine_ob)
+	{
+		if(ob->opengl_engine_ob->next_anim_i != -1)
+		{
+			ob->opengl_engine_ob->current_anim_i = ob->opengl_engine_ob->next_anim_i;
+		}
+
+		ob->opengl_engine_ob->next_anim_i = animation_index;
+
+		const double cur_time = Clock::getTimeSinceInit();
+		const double TRANSITION_PERIOD = 0.3; // TODO: set this with a default arg?
+
+		ob->opengl_engine_ob->transition_start_time = cur_time;
+		ob->opengl_engine_ob->transition_end_time   = cur_time + TRANSITION_PERIOD;
+	}
+#endif
+
+	return 0; // Count of returned values
+}
+
+
+// Try and find an animation for an object by name.  Return -1 if no such animation found.
+static int getAnimationIndex(lua_State* state)
+{
+	// arg 1: ob : WorldObject
+	// arg 2: animation_name: String
+
+	checkNumArgs(state, /*num_args_required*/2);
+
+	int result_anim_index = -1;
+#if GUI_CLIENT
+	
+	// Get object UID
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+	const std::string animation_name = LuaUtils::getStringArg(state, /*index=*/2);
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
+	
+	if(ob->opengl_engine_ob && ob->opengl_engine_ob->mesh_data)
+		result_anim_index = ob->opengl_engine_ob->mesh_data->animation_data.getAnimationIndex(animation_name);
+
+#endif
+	lua_pushnumber(state, result_anim_index);
+
+	return 1; // Count of returned values
+}
+
+
 // C++ implementation of __index for WorldObject class. Used when a WorldObject table field is read from.
 static int worldObjectClassIndexMetaMethod(lua_State* state)
 {
@@ -1240,6 +1321,14 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "isPlayingAudio"));
 		lua_pushcfunction(state, isPlayingAudio, "isPlayingAudio");
 		break;
+	case Atom_startPlayingAnimation:
+		assert(stringEqual(key_str, "startPlayingAnimation"));
+		lua_pushcfunction(state, startPlayingAnimation, "startPlayingAnimation");
+		break;
+	case Atom_getAnimationIndex:
+		assert(stringEqual(key_str, "getAnimationIndex"));
+		lua_pushcfunction(state, getAnimationIndex, "getAnimationIndex");
+		break;
 	case Atom_audio_loop:
 		assert(stringEqual(key_str, "audio_loop"));
 		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP));
@@ -1299,7 +1388,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	// Check permissions before we update object.
 	// A script has permissions to modify an object if and only if the creator of the script is also the creator of the object.
 	if(ob->creator_id != script_evaluator->world_object->creator_id)
-		throw glare::Exception("Script does not have permissions to modifiy object (ob UID: " + uid.toString() + ")");
+		throw glare::Exception("Script does not have permissions to modify object (ob UID: " + uid.toString() + ")");
 
 
 	bool transform_changed = false;

@@ -8742,6 +8742,24 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					web::Escaping::HTMLEscape(m->msg) + "</p>");
 
 				chat_ui.appendMessage(m->name, col, ": " + m->msg);
+
+
+				// Execute any onChatMessage event handlers.
+				if(m->sender_avatar_uid.valid())
+				{
+					WorldStateLock lock(world_state->mutex);
+					
+					WorldObjectRef* const objects_data = scripted_ob_proximity_checker.objects.vector.data(); // NOTE: scripted_ob_proximity_checker just has all objects with Lua scripts currently.
+					const size_t objects_size          = scripted_ob_proximity_checker.objects.vector.size();
+					for(size_t i=0; i<objects_size; ++i)
+					{
+						WorldObject* ob = objects_data[i].ptr();
+						if(ob->event_handlers && ob->event_handlers->onChatMessage_handlers.nonEmpty())
+						{
+							ob->event_handlers->executeOnChatMessageHandlers(m->sender_avatar_uid, m->msg, lock);
+						}
+					}
+				}
 			}
 		}
 		break;

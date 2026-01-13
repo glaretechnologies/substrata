@@ -143,6 +143,14 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 			world_object->getOrCreateEventHandlers()->onUserExitedParcel_handlers.addHandler(handler_func);
 		}
 	}
+	{
+		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onChatMessage");
+		if(func_info.ref != LUA_NOREF)
+		{
+			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+			world_object->getOrCreateEventHandlers()->onChatMessage_handlers.addHandler(handler_func);
+		}
+	}
 }
 
 
@@ -430,6 +438,42 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID
 
 		pushAvatarTableOntoStack(avatar_uid);
 		pushWorldObjectTableOntoStack(vehicle_ob_uid);
+
+		// Call function
+		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+	}
+	catch(std::exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+}
+
+
+void LuaScriptEvaluator::doOnChatMessage(int func_ref, UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock) noexcept
+{
+	// conPrint("LuaScriptEvaluator: doOnChatMessage");
+	if(hit_error || (func_ref == LUA_NOREF))
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+
+		lua_script->resetExecutionTimeCounter();
+
+		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+
+		pushAvatarTableOntoStack(avatar_uid);
+
+		LuaUtils::pushString(lua_script->thread_state, message);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value

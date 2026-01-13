@@ -171,7 +171,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		Matrix4f lean_matrix = Matrix4f::identity();
 
 		// float turn_forwards_nudge = 0;
-		double new_anim_transition_duration = 0.3; // Duration of the blend period, if we have a new animation to transiton to.
+		double new_anim_transition_duration = 0.3; // Duration of the blend period, if we have a new animation to transition to.
 		
 		const Vec4f up_os(0,1,0,0);
 
