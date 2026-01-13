@@ -2585,9 +2585,25 @@ void WorkerThread::doRun()
 								MessageUtils::initPacket(scratch_packet, Protocol::ChatMessageID);
 								scratch_packet.writeStringLengthFirst(client_user_name);
 								scratch_packet.writeStringLengthFirst(msg);
+								writeToStream(client_avatar_uid, scratch_packet);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet);
+
+
+								// Execute any onChatMessage event handlers.
+								{
+									WorldStateLock lock(world_state->mutex);
+									const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
+									for(auto it = objects.begin(); it != objects.end(); ++it) // TEMP: slow linear scan
+									{
+										WorldObject* ob = it->second.ptr();
+										if(ob->event_handlers && ob->event_handlers->onChatMessage_handlers.nonEmpty())
+										{
+											ob->event_handlers->executeOnChatMessageHandlers(client_avatar_uid, msg, lock);
+										}
+									}
+								}
 							}
 							break;
 						}

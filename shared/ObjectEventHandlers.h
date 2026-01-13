@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/WeakReference.h>
 #include <vector>
+#include <string>
 class WorldStateLock;
 
 
@@ -53,6 +54,7 @@ public:
 	void executeOnUserExitedParcelHandlers(UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock);
 	void executeOnUserEnteredVehicleHandlers(UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock);
 	void executeOnUserExitedVehicleHandlers(UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock);
+	void executeOnChatMessageHandlers(UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock);
 
 	HandlerList onUserUsedObject_handlers;
 	HandlerList onUserTouchedObject_handlers;
@@ -62,4 +64,5 @@ public:
 	HandlerList onUserExitedParcel_handlers;
 	HandlerList onUserEnteredVehicle_handlers;
 	HandlerList onUserExitedVehicle_handlers;
+	HandlerList onChatMessage_handlers;
 };

@@ -1075,7 +1075,12 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			//conPrint("ChatMessage");
 			const std::string name = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 			const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-			out_msg_queue->enqueue(new ChatMessage(name, msg));
+
+			UID sender_avatar_uid;
+			if(!msg_buffer.endOfStream())
+				sender_avatar_uid = readUIDFromStream(msg_buffer);
+
+			out_msg_queue->enqueue(new ChatMessage(name, msg, sender_avatar_uid));
 			break;
 		}
 	case Protocol::UserSelectedObject:

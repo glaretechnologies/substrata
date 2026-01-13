@@ -178,3 +178,19 @@ void ObjectEventHandlers::executeOnUserExitedVehicleHandlers(UID avatar_uid, UID
 			onUserExitedVehicle_handlers.removeHandlerAtIndex(z); // This handler is dead, remove the reference to it from our handler list.
 	}
 }
+
+
+void ObjectEventHandlers::executeOnChatMessageHandlers(UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock)
+{
+	for(size_t z=0; z<onChatMessage_handlers.handler_funcs.size(); )
+	{
+		HandlerFunc& handler_func = onChatMessage_handlers.handler_funcs[z];
+		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		{
+			eval->doOnChatMessage(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, message, world_state_lock);
+			z++;
+		}
+		else
+			onChatMessage_handlers.removeHandlerAtIndex(z); // This handler is dead, remove the reference to it from our handler list.
+	}
+}
