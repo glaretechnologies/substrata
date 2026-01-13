@@ -1728,6 +1728,14 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 }
 
 
+bool ServerAllWorldsState::credentialExists(const std::string& key)
+{
+	Lock lock(mutex);
+
+	return server_credentials.creds.find(key) != server_credentials.creds.end();
+}
+
+
 std::string ServerAllWorldsState::getCredential(const std::string& key) // Throws glare::Exception if not found
 {
 	Lock lock(mutex);
