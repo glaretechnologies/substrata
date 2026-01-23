@@ -160,6 +160,14 @@ void renderEditChatBotPage(ServerAllWorldsState& world_state, const web::Request
 						page += "<h3>Misc Settings</h3>";
 						page += "<div>World: " + (world_it->first.empty() ? "Main World" : web::Escaping::HTMLEscape(world_it->first)) + "</div>";
 						page += "<div>Chatbot created: " + chatbot->created_time.dayString() + "</div>";
+
+
+						page += "<div class=\"grouped-region\">";
+						page += "<form action=\"/delete_chatbot_post\" method=\"post\">";
+						page += "<input type=\"hidden\" name=\"chatbot_id\" value=\"" + toString(chatbot_id) + "\">";
+						page += "<input type=\"submit\" class=\"delete-chatbot\" value=\"Delete Chatbot\">";
+						page += "</form>";
+						page += "</div>"; // End grouped-region div
 					}
 					else
 						throw glare::Exception("You must be the owner of this chatbot to view this page.");
@@ -168,6 +176,9 @@ void renderEditChatBotPage(ServerAllWorldsState& world_state, const web::Request
 		} // End lock scope
 
 		page += "</div>   \n"; // end main div
+
+		page += "<script src=\"/files/chatbot.js\"></script>";
+
 		page += WebServerResponseUtils::standardFooter(request, true);
 
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
@@ -445,6 +456,63 @@ void handleEditChatBotPost(ServerAllWorldsState& world_state, const web::Request
 		} // End lock scope
 
 		web::ResponseUtils::writeRedirectTo(reply_info, "/edit_chatbot?chatbot_id=" + toString(chatbot_id));
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleEditChatBotPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleDeleteChatBotPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const int chatbot_id = request.getPostIntField("chatbot_id");
+		
+		{ // Lock scope
+
+			WorldStateLock lock(world_state.mutex);
+
+			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+			if(!logged_in_user)
+				throw glare::Exception("You must be logged in to view this page.");
+
+			// Lookup chatbot
+			// Look through all worlds.  NOTE: slow
+			for(auto it = world_state.world_states.begin(); it != world_state.world_states.end(); ++it)
+			{
+				ServerWorldState* world = it->second.ptr();
+				const auto res = world->getChatBots(lock).find((uint64)chatbot_id);
+				if(res != world->getChatBots(lock).end())
+				{
+					ChatBot* chatbot = res->second.ptr();
+					if((chatbot->owner_id == logged_in_user->id) || isGodUser(logged_in_user->id))
+					{
+						// Remove from dirty-set, so it's not updated in DB.
+						world->getDBDirtyChatBots(lock).erase(chatbot);
+
+						// Add DB record to list of records to be deleted.
+						world_state.db_records_to_delete.insert(chatbot->database_key);
+
+						world->getChatBots(lock).erase(chatbot->id);
+
+						world_state.markAsChanged();
+
+						world_state.setUserWebMessage(logged_in_user->id, "Deleted chatbot.");
+					}
+					else
+						throw glare::Exception("You must be the owner of this chatbot to edit it.");
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/account"); // Redirect back to user account page.
 	}
 	catch(glare::Exception& e)
 	{

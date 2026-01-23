@@ -361,6 +361,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ChatBotHandlers::handleNewChatBotPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/delete_chatbot_post")
+		{
+			ChatBotHandlers::handleDeleteChatBotPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
