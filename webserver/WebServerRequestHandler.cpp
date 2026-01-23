@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "RequestHandler.h"
 #include "ResourceHandlers.h"
 #include "PhotoHandlers.h"
+#include "ChatBotHandlers.h"
 #include "SubEventHandlers.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include <webserver/PayPalHandlers.h>
@@ -336,6 +337,30 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			PhotoHandlers::handleDeletePhotoPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/edit_chatbot_post")
+		{
+			ChatBotHandlers::handleEditChatBotPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/copy_user_avatar_settings_post")
+		{
+			ChatBotHandlers::handleCopyUserAvatarSettingsPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/update_info_tool_function_post")
+		{
+			ChatBotHandlers::handleUpdateInfoToolFunctionPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/delete_info_tool_function_post")
+		{
+			ChatBotHandlers::handleDeleteInfoToolFunctionPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/add_new_info_tool_function_post")
+		{
+			ChatBotHandlers::handleAddNewInfoToolFunctionPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/create_new_chatbot_post")
+		{
+			ChatBotHandlers::handleNewChatBotPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
@@ -586,6 +611,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/edit_photo_parcel")
 		{
 			PhotoHandlers::renderEditPhotoParcelPage(*world_state, request, reply_info);
+		}
+		else if(request.path == "/edit_chatbot")
+		{
+			ChatBotHandlers::renderEditChatBotPage(*world_state, request, reply_info);
+		}
+		else if(request.path == "/new_chatbot")
+		{
+			ChatBotHandlers::renderNewChatBotPage(*world_state, request, reply_info);
 		}
 		else if(request.path == "/tile")
 		{

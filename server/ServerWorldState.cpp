@@ -69,6 +69,23 @@ void readServerWorldStateFromStream(RandomAccessInStream& stream, ServerWorldSta
 }
 
 
+AvatarRef ServerWorldState::createAndInsertAvatarForChatBot(ServerAllWorldsState* all_world_state, const ChatBot* chatbot, WorldStateLock& /*world_state_lock*/)
+{
+	AvatarRef avatar = new Avatar();
+	avatar->uid = all_world_state->getNextAvatarUID();
+	avatar->name = chatbot->name;
+	avatar->avatar_settings = chatbot->avatar_settings;
+	avatar->pos = chatbot->pos;
+	avatar->rotation = Vec3f(0, Maths::pi_2<float>(), chatbot->heading);
+	avatar->state = Avatar::State_JustCreated;
+	avatar->other_dirty = true;
+
+	avatars[avatar->uid] = avatar;
+
+	return avatar;
+}
+
+
 ServerAllWorldsState::ServerAllWorldsState()
 :	lua_vms(/*empty key=*/UserID::invalidUserID())
 {
@@ -78,6 +95,7 @@ ServerAllWorldsState::ServerAllWorldsState()
 	next_object_uid = UID(0);
 	next_order_uid = 0;
 	next_sub_eth_transaction_uid = 0;
+	next_chatbot_uid = 0;
 
 	setWorldState(/*world name=*/"", new ServerWorldState());
 
@@ -143,6 +161,7 @@ static const uint32 LOD_CHUNK_CHUNK = 116;
 static const uint32 SUB_EVENT_CHUNK = 117;
 static const uint32 MIGRATION_VERSION_CHUNK = 118;
 static const uint32 PHOTO_CHUNK = 119;
+static const uint32 CHATBOT_CHUNK = 120;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -180,6 +199,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_resources = 0;
 	size_t num_worlds = 0;
 	size_t num_photos = 0;
+	size_t num_chatbots = 0;
 
 	bool is_pre_database_format = false;
 	{
@@ -373,6 +393,26 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					photo->database_key = database_key;
 					photos[photo->id] = photo;
 					num_photos++;
+				}
+				else if(chunk == CHATBOT_CHUNK)
+				{
+					// Read world name
+					const std::string world_name = stream.readStringLengthFirst(10000);
+
+					// Create ServerWorldState for world name if needed
+					if(world_states.count(world_name) == 0) 
+						setWorldState(/*world name=*/world_name, new ServerWorldState());
+
+					// Deserialise ChatBot
+					ChatBotRef chatbot = new ChatBot();
+					readChatBotFromStream(stream, *chatbot);
+					chatbot->world = world_states[world_name].ptr();
+
+					next_chatbot_uid = myMax(chatbot->id + 1, next_chatbot_uid);
+
+					chatbot->database_key = database_key;
+					world_states[world_name]->getChatBots(lock)[chatbot->id] = chatbot;
+					num_chatbots++;
 				}
 				else if(chunk == SUB_ETH_TRANSACTIONS_CHUNK)
 				{
@@ -775,7 +815,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
 		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " + 
-		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s), " + toString(num_photos) + " photo(s), " + toString(num_worlds) + " world(s), in " + timer.elapsedStringNSigFigs(4));
+		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s), " + toString(num_photos) + " photo(s), " + toString(num_worlds) + " world(s), " + 
+		toString(num_chatbots) + " chatbot(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -1221,6 +1262,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_events = 0;
 		size_t num_worlds = 0;
 		size_t num_photos = 0;
+		size_t num_chatbots = 0;
 
 		// First, delete any records in db_records_to_delete.  (This has the keys of deleted objects etc..)
 		for(auto it = db_records_to_delete.begin(); it != db_records_to_delete.end(); ++it)
@@ -1319,6 +1361,27 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 				}
 
 				world_state->getDBDirtyLODChunks(lock).clear();
+			}
+
+			// Write ChatBots
+			{
+				for(auto it=world_state->getDBDirtyChatBots(lock).begin(); it != world_state->getDBDirtyChatBots(lock).end(); ++it)
+				{
+					ChatBot* chatbot = it->ptr();
+					temp_buf.clear();
+					temp_buf.writeUInt32(CHATBOT_CHUNK);
+					temp_buf.writeStringLengthFirst(world_name); // Write world name
+					chatbot->writeToStream(temp_buf);
+
+					if(!chatbot->database_key.valid())
+						chatbot->database_key = database.allocUnusedKey(); // Get a new key
+
+					database.updateRecord(chatbot->database_key, ArrayRef<uint8>(temp_buf.buf));
+
+					num_chatbots++;
+				}
+
+				world_state->getDBDirtyChatBots(lock).clear();
 			}
 
 			// Save the world settings if dirty
@@ -1717,6 +1780,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		if(num_lod_chunks > 0)            msg += toString(num_lod_chunks) + " LOD chunk(s), ";
 		if(num_events > 0)                msg += toString(num_events) + " event(s), ";
 		if(num_photos > 0)                msg += toString(num_photos) + " photo(s), ";
+		if(num_chatbots > 0)              msg += toString(num_chatbots) + " chatbot(s), ";
 		removeSuffixInPlace(msg, ", ");
 		msg += " in " + timer.elapsedStringNSigFigs(4);
 		conPrint(msg);
@@ -1846,6 +1910,22 @@ uint64 ServerAllWorldsState::getNextPhotoUID()
 }
 
 
+uint64 ServerAllWorldsState::getNextChatBotUID()
+{
+	/*Lock lock(mutex);
+
+	uint64 highest_id = 0;
+
+	for(auto it = chatbots.begin(); it != chatbots.end(); ++it)
+		highest_id = myMax(highest_id, it->first);
+
+	return highest_id + 1;*/
+
+	Lock lock(mutex);
+	return next_chatbot_uid++;
+}
+
+
 ObjectStorageItemRef ServerAllWorldsState::getOrCreateObjectStorageItem(const ObjectStorageKey& key)
 {
 	auto res = object_storage_items.find(key);
@@ -1909,7 +1989,8 @@ FeatureFlagInfo::FeatureFlagInfo()
 :	feature_flags(
 		ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG | // Enable scripts by default
 		ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG | 
-		ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG
+		ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG |
+		ServerAllWorldsState::CHATBOTS_FEATURE_FLAG
 	),
 	db_dirty(false) 
 {}

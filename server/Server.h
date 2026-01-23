@@ -18,6 +18,7 @@ class WorkerThread;
 class SubstrataLuaVM;
 class LuaHTTPRequestManager;
 class LuaHTTPRequest;
+class SocketBufferOutStream;
 
 
 class ServerConfig
@@ -39,6 +40,8 @@ public:
 	bool do_lua_http_request_rate_limiting; // Should we rate-limit HTTP requests made by Lua scripts?
 
 	bool enable_LOD_chunking; // Should we generate LOD chunks?
+
+	std::string AI_model_id; // Default value = "xai/grok-4-1-fast-non-reasoning"
 };
 
 
@@ -140,6 +143,10 @@ public:
 	// Called when we receive a UDP packet from a client, which allows the client remote UDP port to be known.
 	void clientUDPPortBecameKnown(UID client_avatar_uid, const IPAddress& ip_addr, int client_UDP_port);
 
+	// Enqueues packet to all WorkerThreads connected to the given world.
+	// Thread-safe, can be called from any thread.
+	void enqueuePacketToBroadcastForWorld(const SocketBufferOutStream& packet_buffer, ServerWorldState* world);
+
 
 	Reference<ServerAllWorldsState> world_state;
 
@@ -151,6 +158,8 @@ public:
 	ThreadManager udp_handler_thread_manager;
 
 	ThreadManager dyn_tex_updater_thread_manager;
+
+	ThreadManager llm_thread_manager;
 
 	ThreadSafeQueue<Reference<ThreadMessage> > message_queue; // Contains messages from worker threads to the main server thread.
 

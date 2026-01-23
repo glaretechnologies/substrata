@@ -45,7 +45,7 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 	std::string page;
 
 	{ // lock scope
-		Lock lock(world_state.mutex);
+		WorldStateLock lock(world_state.mutex);
 
 		const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 		if(logged_in_user == NULL)
@@ -119,6 +119,27 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 				page += "<div><a href=\"/event/" + toString(event->id) + "\">" + web::Escaping::HTMLEscape(event->title) + "</a></div>";
 			}
 		}
+
+		//-------------------------------- List chatbots owned/created by user --------------------------------
+		page += "<h2>ChatBots</h2>\n";
+		{
+			// Look through all chatbots in all worlds.  NOTE: slow
+			for(auto world_it = world_state.world_states.begin(); world_it != world_state.world_states.end(); ++world_it)
+			{
+				ServerWorldState* world = world_it->second.ptr();
+				for(auto it = world->getChatBots(lock).begin(); it != world->getChatBots(lock).end(); ++it)
+				{
+					const ChatBot* chatbot = it->second.ptr();
+					if(chatbot->owner_id == logged_in_user->id)
+					{
+						// This chatbot belongs to the user
+						page += "<div><a href=\"/edit_chatbot?chatbot_id=" + toString(chatbot->id) + "\">" + web::Escaping::HTMLEscape(chatbot->name) + " (ID: " + toString(chatbot->id) + ")</a></div>";
+					}
+				}
+			}
+		}
+
+
 
 
 		page += "<h2>Ethereum</h2>\n";

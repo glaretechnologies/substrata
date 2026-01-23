@@ -531,3 +531,15 @@ a
 .feature-disabled {
 	color: darkred;
 }
+
+
+
+.full-width {
+	width: 96%;
+}
+
+.grouped-region {
+	background: #f4f4f4;
+	padding: 1em;
+	margin-bottom: 1em;
+}
