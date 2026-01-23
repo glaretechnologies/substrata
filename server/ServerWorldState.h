@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "ParcelAuction.h"
 #include "Screenshot.h"
 #include "Photo.h"
+#include "ChatBot.h"
 #include "SubEthTransaction.h"
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
@@ -33,6 +34,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <map>
 #include <unordered_set>
 class ServerWorldState;
+class ServerAllWorldsState;
 class WebDataStore;
 
 
@@ -227,6 +229,7 @@ public:
 	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }
 	void addWorldObjectAsDBDirty(const WorldObjectRef ob, WorldStateLock& /*world_state_lock*/) { db_dirty_world_objects.insert(ob); }
 	void addLODChunkAsDBDirty   (const LODChunkRef ob,    WorldStateLock& /*world_state_lock*/) { db_dirty_lod_chunks.insert(ob); }
+	void addChatBotAsDBDirty    (const ChatBotRef ob,     WorldStateLock& /*world_state_lock*/) { db_dirty_chatbots.insert(ob); }
 
 	void writeToStream(RandomAccessOutStream& stream) const;
 
@@ -243,11 +246,13 @@ public:
 	typedef std::map<ParcelID, ParcelRef> ParcelMapType;
 	typedef std::map<Vec3i, LODChunkRef> LODChunkMapType;
 	typedef std::unordered_set<WorldObjectRef, WorldObjectRefHash> DirtyFromRemoteObjectSetType;
+	typedef std::map<uint64, ChatBotRef> ChatBotMapType;
 
 	AvatarMapType&     getAvatars(WorldStateLock& /*world_state_lock*/) { return avatars; }
 	ObjectMapType&     getObjects(WorldStateLock& /*world_state_lock*/) { return objects; }
 	ParcelMapType&     getParcels(WorldStateLock& /*world_state_lock*/) { return parcels; }
 	LODChunkMapType& getLODChunks(WorldStateLock& /*world_state_lock*/) { return lod_chunks; }
+	ChatBotMapType&    getChatBots(WorldStateLock& /*world_state_lock*/) { return chatbots; }
 	
 	ParcelMapType parcels; // TODO: make private.  Lots of compile errors to fix when doing so.
 
@@ -255,16 +260,20 @@ public:
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash>& getDBDirtyWorldObjects(WorldStateLock& /*world_state_lock*/) { return db_dirty_world_objects; }
 	std::unordered_set<ParcelRef, ParcelRefHash>&           getDBDirtyParcels(WorldStateLock& /*world_state_lock*/) { return db_dirty_parcels; }
 	std::unordered_set<LODChunkRef, LODChunkRefHash>&       getDBDirtyLODChunks(WorldStateLock& /*world_state_lock*/) { return db_dirty_lod_chunks; }
+	std::unordered_set<ChatBotRef, ChatBotRefHash>&         getDBDirtyChatBots(WorldStateLock& /*world_state_lock*/) { return db_dirty_chatbots; }
 
+	AvatarRef createAndInsertAvatarForChatBot(ServerAllWorldsState* all_world_state, const ChatBot* chatbot, WorldStateLock& /*world_state_lock*/);
 private:
 	ObjectMapType objects;
 	DirtyFromRemoteObjectSetType dirty_from_remote_objects; // TODO: could just use vector for this, and avoid duplicates by checking object dirty flag.
 	AvatarMapType avatars;
 	LODChunkMapType lod_chunks;
+	ChatBotMapType chatbots;
 
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash>	db_dirty_world_objects;
 	std::unordered_set<ParcelRef, ParcelRefHash>			db_dirty_parcels;
 	std::unordered_set<LODChunkRef, LODChunkRefHash>		db_dirty_lod_chunks;
+	std::unordered_set<ChatBotRef, ChatBotRefHash>			db_dirty_chatbots;
 };
 
 typedef Reference<ServerWorldState> ServerWorldStateRef;
@@ -312,6 +321,7 @@ public:
 	uint64 getNextNewsPostUID();
 	uint64 getNextEventUID();
 	uint64 getNextPhotoUID();
+	uint64 getNextChatBotUID();
 
 	ObjectStorageItemRef getOrCreateObjectStorageItem(const ObjectStorageKey& key) REQUIRES(mutex); // Throws exception if too many items for object already created.
 	void clearObjectStorageItems() REQUIRES(mutex); // Just for tests
@@ -388,6 +398,7 @@ public:
 	static const uint64 SERVER_SCRIPT_EXEC_FEATURE_FLAG                   = 1; // Is server-side script execution enabled?
 	static const uint64 LUA_HTTP_REQUESTS_FEATURE_FLAG                    = 2; // Are Lua-initiated HTTP requests enabled?
 	static const uint64 DO_WORLD_MAINTENANCE_FEATURE_FLAG                 = 4; // Should world maintenance tasks run? (e.g. WorldMaintenance::removeOldVehicles())
+	static const uint64 CHATBOTS_FEATURE_FLAG                             = 8; // Should ChatBots run?
 	FeatureFlagInfo feature_flag_info GUARDED_BY(mutex);
 
 
@@ -450,6 +461,7 @@ private:
 	UID next_avatar_uid GUARDED_BY(mutex);
 	uint64 next_order_uid GUARDED_BY(mutex);
 	uint64 next_sub_eth_transaction_uid GUARDED_BY(mutex);
+	uint64 next_chatbot_uid GUARDED_BY(mutex);
 
 	Database database GUARDED_BY(mutex);
 };

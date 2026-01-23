@@ -128,6 +128,19 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		page_out += "<input type=\"number\" name=\"new_value\" value=\"" + toString(do_world_maintenance_enabled ? 1 : 0) + "\">";
 		page_out += "<input type=\"submit\" value=\"Do world maintenance (e.g. remove old bikes) (1 / 0)\" onclick=\"return confirm('Are you sure you want to change world maintenance?');\" >";
 		page_out += "</form>";
+
+
+		const bool chatbots_enabled = BitUtils::isBitSet(world_state.feature_flag_info.feature_flags, ServerAllWorldsState::CHATBOTS_FEATURE_FLAG);
+
+		page_out += "<p>Run chatbots: " + (chatbots_enabled ? 
+			std::string("<span class=\"feature-enabled\">enabled</span>") : std::string("<span class=\"feature-disabled\">disabled</span>")) + 
+			"</p>";
+
+		page_out += "<form action=\"/admin_set_feature_flag_post\" method=\"post\">";
+		page_out += "<input type=\"hidden\" name=\"flag_bit_index\" value=\"" + toString(BitUtils::highestSetBitIndex(ServerAllWorldsState::CHATBOTS_FEATURE_FLAG)) + "\">";
+		page_out += "<input type=\"number\" name=\"new_value\" value=\"" + toString(chatbots_enabled ? 1 : 0) + "\">";
+		page_out += "<input type=\"submit\" value=\"Run chatbots\" onclick=\"return confirm('Are you sure you want to change chatbots?');\" >";
+		page_out += "</form>";
 	}
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
