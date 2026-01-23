@@ -8,7 +8,7 @@ Generated at 2016-01-12 12:24:54 +1300
 
 
 #include "ResourceManager.h"
-#include "WorldObject.h"
+#include "URLUtils.h"
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
@@ -210,7 +210,7 @@ URLString Avatar::getLODModelURLForLevel(const URLString& base_model_url, int lo
 	if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
 		return base_model_url;
 
-	return WorldObject::makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version);
+	return URLUtils::makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, /*allocator=*/nullptr);
 }
 
 
@@ -271,7 +271,7 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ro
 
 	const double delayed_time = cur_time - delay;
 	// Search through history for first snapshot
-	int begin = 0;
+	int begin = -1;
 	for(int i=(int)next_snapshot_i-HISTORY_BUF_SIZE; i<(int)next_snapshot_i; ++i)
 	{
 		const int modi = Maths::intMod(i, HISTORY_BUF_SIZE);
@@ -281,6 +281,8 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ro
 			break;
 		}
 	}
+	if(begin == -1) // If not found any snapshot with time > delayed_time:
+		begin = Maths::intMod((int)next_snapshot_i - 2, HISTORY_BUF_SIZE);
 
 	const int end = Maths::intMod(begin + 1, HISTORY_BUF_SIZE);
 
@@ -288,7 +290,7 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ro
 	if(snapshot_times[end] == snapshot_times[begin])
 		t = 0;
 	else
-		t  = (float)((delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin])); // Interpolation fraction
+		t  = myMin(1.f, (float)((delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin]))); // Interpolation fraction
 
 	pos_out      = Maths::uncheckedLerp(pos_snapshots[begin], pos_snapshots[end], t);
 	rotation_out = Maths::uncheckedLerp(rotation_snapshots[begin], rotation_snapshots[end], t);
