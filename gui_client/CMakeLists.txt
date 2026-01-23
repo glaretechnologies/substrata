@@ -514,6 +514,8 @@ SET(shared_files
 ../shared/WorldDetails.cpp
 ../shared/WorldDetails.h
 ../shared/URLString.h
+../shared/URLUtils.cpp
+../shared/URLUtils.h
 )
 
 SET(client_indigo_files

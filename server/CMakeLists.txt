@@ -61,6 +61,8 @@ SET(shared_files
 ../shared/LODChunk.h
 ../shared/WorldDetails.cpp
 ../shared/WorldDetails.h
+../shared/URLUtils.cpp
+../shared/URLUtils.h
 )
 
 
