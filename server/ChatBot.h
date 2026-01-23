@@ -99,8 +99,8 @@ public:
 	Vec3d pos;
 	float heading;
 
-	static const int MAX_BASE_PROMPT_SIZE = 10000;
-	std::string base_prompt; // Actually custom_prompt
+	static const int MAX_CUSTOM_PROMPT_PART_SIZE = 10000;
+	std::string custom_prompt_part;
 
 	std::map<std::string, Reference<ChatBotToolFunction>> info_tool_functions; // Map from function name to ChatBotToolFunction ref.  Tool functions that the LLM can call.
 

@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "SubEthTransaction.h"
 #include "MeshLODGenThread.h"
 #include "WorkerThreadUploadPhotoHandling.h"
+#include "LLMThread.h"
 #include "../webserver/LoginHandlers.h"
 #include "../shared/Protocol.h"
 #include "../shared/ProtocolStructs.h"
@@ -124,17 +125,7 @@ static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::str
 // Enqueues packet to all WorkerThreads connected to the same world.
 void WorkerThread::enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer)
 {
-	Lock lock(server->worker_thread_manager.getMutex());
-	for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
-	{
-		assert(dynamic_cast<WorkerThread*>(i->ptr()));
-		WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
-
-		if(worker_thread->cur_world_state.ptr() == this->cur_world_state.ptr()) // If connected to the same world as this thread:
-		{
-			worker_thread->enqueueDataToSend(packet_buffer);
-		}
-	}
+	server->enqueuePacketToBroadcastForWorld(packet_buffer, this->cur_world_state.ptr());
 }
 
 
@@ -2591,9 +2582,11 @@ void WorkerThread::doRun()
 								enqueuePacketToBroadcast(scratch_packet);
 
 
-								// Execute any onChatMessage event handlers.
+								
 								{
 									WorldStateLock lock(world_state->mutex);
+
+									// Execute any onChatMessage event handlers.
 									const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
 									for(auto it = objects.begin(); it != objects.end(); ++it) // TEMP: slow linear scan
 									{
@@ -2603,7 +2596,44 @@ void WorkerThread::doRun()
 											ob->event_handlers->executeOnChatMessageHandlers(client_avatar_uid, msg, lock);
 										}
 									}
-								}
+
+									//-------- Pass chat message to any nearby chatbots --------
+
+									// Find position of the avatar that sent the chat message (the avatar for this thread's client)
+									Vec3d sender_position(0,0,0);
+									AvatarRef sender_avatar;
+									{
+										auto res = cur_world_state->getAvatars(lock).find(client_avatar_uid);
+										if(res != cur_world_state->getAvatars(lock).end())
+										{
+											sender_avatar = res->second;
+											sender_position = res->second->pos;
+										}
+									}
+
+									const double MAX_CHAT_HEAR_DIST = 6;
+
+									for(auto& it : cur_world_state->getChatBots(lock))
+									{
+										ChatBot* bot = it.second.ptr();
+										if(bot->pos.getDist2(sender_position) < Maths::square(MAX_CHAT_HEAR_DIST))
+										{
+											if(bot->llm_thread.isNull())
+											{
+												// Create a LLM thread for the chatbot.
+												// TODO: handle thread creation failure in some way here?
+												Reference<LLMThread> llm_thread = bot->createLLMThread(server, lock);
+												llm_thread->out_msg_queue = &server->message_queue;
+												llm_thread->credentials = &server->world_state->server_credentials;
+												bot->llm_thread = llm_thread;
+
+												server->llm_thread_manager.addThread(llm_thread);
+											}
+
+											bot->processHeardChatMessage(lock, msg, sender_avatar, client_user_name, server);
+										}
+									}
+								} // End lock scope
 							}
 							break;
 						}

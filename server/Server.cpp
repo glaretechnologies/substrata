@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "Server.h"
 
 
+#include "ServerConfig.h"
 #include "ListenerThread.h"
 #include "UDPHandlerThread.h"
 #include "MeshLODGenThread.h"
@@ -16,6 +17,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "WorldCreation.h"
 #include "LuaHTTPRequestManager.h"
 #include "WorldMaintenance.h"
+#include "LLMThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/MessageUtils.h"
@@ -193,6 +195,11 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.update_parcel_sales					= XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
 	config.do_lua_http_request_rate_limiting	= XMLParseUtils::parseBoolWithDefault(root_elem, "do_lua_http_request_rate_limiting", /*default val=*/true);
 	config.enable_LOD_chunking					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_LOD_chunking", /*default val=*/true);
+	config.AI_model_id							= XMLParseUtils::parseStringWithDefault(root_elem, "AI_model_id", /*default val=*/"xai/grok-4-1-fast-non-reasoning");
+	config.shared_LLM_prompt_part				= XMLParseUtils::parseStringWithDefault(root_elem, "shared_LLM_prompt_part", /*default val=*/
+		std::string("You are a helpful bot in the Substrata Metaverse.\n") + 
+		"When a user first talks to you, wave hello to them using the perform_wave_gesture tool function, or bow to them using the perform_bow_gesture tool function.\n"
+	);
 	return config;
 }
 
@@ -296,6 +303,7 @@ int main(int argc, char *argv[])
 		}
 
 		server.config = server_config;
+		server.world_state->server_config = server_config;
 
 		// Parse server credentials
 		try
@@ -585,6 +593,29 @@ int main(int argc, char *argv[])
 			conPrint("Not creating any Lua scripts for objects, server-side script execution is disabled.");
 		//----------------------------------------------- End create any Lua scripts for objects -----------------------------------------------
 
+		// Create avatars for ChatBots
+		if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::CHATBOTS_FEATURE_FLAG))
+		{
+			WorldStateLock lock(server.world_state->mutex);
+			for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
+			{
+				Reference<ServerWorldState> world_state = world_it->second;
+				for(auto it = world_state->getChatBots(lock).begin(); it != world_state->getChatBots(lock).end(); ++it)
+				{
+					ChatBot* chatbot = it->second.ptr();
+
+					AvatarRef avatar = world_state->createAndInsertAvatarForChatBot(server.world_state.ptr(), chatbot, lock);
+
+					chatbot->avatar_uid = avatar->uid;
+					chatbot->avatar = avatar;
+				}
+			}
+		}
+		else
+			conPrint("Chatbots are disabled via the ChatBot feature flag.");
+
+
+
 		Timer save_state_timer;
 
 		// A map from world to packet data to send to clients connected to that world.
@@ -772,8 +803,10 @@ int main(int argc, char *argv[])
 								ob->event_handlers->executeOnUserExitedParcelHandlers(parcel_msg->avatar_uid, parcel_msg->object_uid, parcel_msg->parcel_id, world_lock);
 						}
 					}
-					else if(NewResourceGenerated* gen_msg = dynamic_cast<NewResourceGenerated*>(msg.ptr()))
+					else if(dynamic_cast<NewResourceGenerated*>(msg.ptr()))
 					{
+						NewResourceGenerated* gen_msg = static_cast<NewResourceGenerated*>(msg.ptr());
+
 						// Send NewResourceOnServer message to connected clients
 						{
 							MessageUtils::initPacket(scratch_packet, Protocol::NewResourceOnServer);
@@ -786,6 +819,44 @@ int main(int argc, char *argv[])
 								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
 								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(scratch_packet);
 							}
+						}
+					}
+					else if(dynamic_cast<AIChatResponseDataMessage*>(msg.ptr()))
+					{
+						AIChatResponseDataMessage* chat_msg = static_cast<AIChatResponseDataMessage*>(msg.ptr());
+
+						// These messages come from LLMThreads and are sent when some streaming data is received from a LLM cloud server.
+						// Pass on to the relevant chatbot.
+						{
+							ChatBotRef chatbot = chat_msg->chatbot.upgradeToStrongRef();
+							if(chatbot)
+							{
+								WorldStateLock world_lock(server.world_state->mutex);
+								chatbot->handleLLMChatResponse(chat_msg->message, &server, world_lock);
+							}
+						}
+					}
+					else if(dynamic_cast<AIChatResponseDoneMessage*>(msg.ptr()))
+					{
+						AIChatResponseDoneMessage* done_msg = static_cast<AIChatResponseDoneMessage*>(msg.ptr());
+
+						{
+							ChatBotRef chatbot = done_msg->chatbot.upgradeToStrongRef();
+							if(chatbot)
+							{
+								WorldStateLock world_lock(server.world_state->mutex);
+								chatbot->handleLLMChatResponseDone(&server, world_lock);
+							}
+						}
+					}
+					else if(dynamic_cast<AIToolFunctionCallMessage*>(msg.ptr()))
+					{
+						AIToolFunctionCallMessage* tool_msg = static_cast<AIToolFunctionCallMessage*>(msg.ptr());
+						ChatBotRef chatbot = tool_msg->chatbot.upgradeToStrongRef();
+						if(chatbot)
+						{
+							WorldStateLock world_lock(server.world_state->mutex);
+							chatbot->handleLLMToolFunctionCall(tool_msg->calls, &server, world_lock);
 						}
 					}
 				}
@@ -1036,6 +1107,28 @@ int main(int argc, char *argv[])
 					}
 
 					dirty_from_remote_objects.clear();
+
+
+					// Call think() on chatbots
+					const ServerWorldState::ChatBotMapType& chatbots = world_state->getChatBots(lock);
+					for(auto i = chatbots.begin(); i != chatbots.end(); ++i)
+					{
+						ChatBot* chatbot = i->second.ptr();
+
+						try
+						{
+							ChatBot::ThinkResults results = chatbot->think(&server, lock); // TODO: only do on active chatbots.
+							if(results.llm_thread_being_killed)
+							{
+								server.llm_thread_manager.removeThread(results.llm_thread_being_killed);
+							}
+						}
+						catch(glare::Exception& e)
+						{
+							conPrint("Exception executing chatbot->think: " + e.what());
+						}
+					}
+
 				} // End for each server world
 
 
@@ -1202,6 +1295,7 @@ Server::~Server()
 	conPrint("Stopping Server threads...");
 
 	// Stop any threads that may refer to other data members first
+	llm_thread_manager.killThreadsBlocking();
 	dyn_tex_updater_thread_manager.killThreadsBlocking();
 	udp_handler_thread_manager.killThreadsBlocking();
 	mesh_lod_gen_thread_manager.killThreadsBlocking();
@@ -1340,6 +1434,24 @@ void Server::clientUDPPortBecameKnown(UID client_avatar_uid, const IPAddress& ip
 		conPrint("Server::clientUDPPortBecameKnown(): client with client_avatar_uid " + client_avatar_uid.toString() + ", ip_addr: " + ip_addr.toString() + ", has port: " + toString(client_UDP_port));
 	}
 }
+
+
+// Enqueues packet to all WorkerThreads connected to the same world.
+void Server::enqueuePacketToBroadcastForWorld(const SocketBufferOutStream& packet_buffer, ServerWorldState* world)
+{
+	Lock lock(worker_thread_manager.getMutex());
+	for(auto i = worker_thread_manager.getThreads().begin(); i != worker_thread_manager.getThreads().end(); ++i)
+	{
+		assert(dynamic_cast<WorkerThread*>(i->ptr()));
+		WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
+
+		if(worker_thread->cur_world_state.ptr() == world) // If connected to the given world:
+		{
+			worker_thread->enqueueDataToSend(packet_buffer);
+		}
+	}
+}
+
 
 
 void Server::clientDisconnected(WorkerThread* worker_thread)
