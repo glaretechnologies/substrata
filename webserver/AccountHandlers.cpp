@@ -123,6 +123,7 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		//-------------------------------- List chatbots owned/created by user --------------------------------
 		page += "<h2>ChatBots</h2>\n";
 		{
+			int num_chatbots = 0;
 			// Look through all chatbots in all worlds.  NOTE: slow
 			for(auto world_it = world_state.world_states.begin(); world_it != world_state.world_states.end(); ++world_it)
 			{
@@ -134,10 +135,16 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 					{
 						// This chatbot belongs to the user
 						page += "<div><a href=\"/edit_chatbot?chatbot_id=" + toString(chatbot->id) + "\">" + web::Escaping::HTMLEscape(chatbot->name) + " (ID: " + toString(chatbot->id) + ")</a></div>";
+						num_chatbots++;
 					}
 				}
 			}
+
+			if(num_chatbots == 0)
+				page += "<p>You haven't created any chatbots.</p>";
 		}
+
+		page += "<p><a href=\"/new_chatbot\">Create a new ChatBot</a></p>";
 
 
 

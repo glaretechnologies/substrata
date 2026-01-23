@@ -32,6 +32,8 @@ namespace ChatBotHandlers
 
 	void handleEditChatBotPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
+	void handleDeleteChatBotPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+
 	void handleCopyUserAvatarSettingsPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	
 	void handleUpdateInfoToolFunctionPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
