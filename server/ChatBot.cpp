@@ -343,7 +343,7 @@ Reference<LLMThread> ChatBot::createLLMThread(Server* server, WorldStateLock& lo
 
 	
 	Reference<LLMThread> new_llm_thread = new LLMThread(server->config.AI_model_id);
-	new_llm_thread->base_prompt_json_escaped = web::Escaping::JSONEscape(this->base_prompt);
+	new_llm_thread->base_prompt_json_escaped = web::Escaping::JSONEscape(server->config.shared_LLM_prompt_part + this->custom_prompt_part);
 	new_llm_thread->tools_json = tools_json;
 	new_llm_thread->chatbot = this;
 	return new_llm_thread;
@@ -378,7 +378,7 @@ void ChatBot::writeToStream(RandomAccessOutStream& stream)
 	::writeToStream(pos, stream);
 	stream.writeFloat(heading);
 
-	stream.writeStringLengthFirst(base_prompt);
+	stream.writeStringLengthFirst(custom_prompt_part);
 
 	// Write info_tool_functions
 	stream.writeUInt32((uint32)info_tool_functions.size());
@@ -419,7 +419,7 @@ void readChatBotFromStream(RandomAccessInStream& stream, ChatBot& chatbot)
 	chatbot.pos = ::readVec3FromStream<double>(stream);
 	chatbot.heading = stream.readFloat();
 
-	chatbot.base_prompt = stream.readStringLengthFirst(ChatBot::MAX_BASE_PROMPT_SIZE);
+	chatbot.custom_prompt_part = stream.readStringLengthFirst(ChatBot::MAX_CUSTOM_PROMPT_PART_SIZE);
 
 	// Read info_tool_functions
 	const uint32 info_tool_functions_size = stream.readUInt32();

@@ -74,18 +74,21 @@ void renderEditChatBotPage(ServerAllWorldsState& world_state, const web::Request
 						page += "</div>";
 
 
-						page += "<div>Position:<br/> x: <input type=\"number\" name=\"pos_x\" value=\"" + toString(chatbot->pos.x) + "\"> " + 
-							"y: <input type=\"number\" name=\"pos_y\" value=\"" + toString(chatbot->pos.y) + "\"> " + 
-							"z: <input type=\"number\" name=\"pos_z\" value=\"" + toString(chatbot->pos.z) + "\"> </div>";
+						page += std::string("<div>Position:<br/> ") + 
+							"x: <input type=\"number\" step=\"any\" name=\"pos_x\" value=\"" + toString(chatbot->pos.x) + "\"> " + 
+							"y: <input type=\"number\" step=\"any\" name=\"pos_y\" value=\"" + toString(chatbot->pos.y) + "\"> " + 
+							"z: <input type=\"number\" step=\"any\" name=\"pos_z\" value=\"" + toString(chatbot->pos.z) + "\"> </div>";
 
-						page += "<div>Heading:<br/> <input type=\"number\" name=\"heading\" value=\"" + toString(chatbot->heading) + "\"></div>";
+						page += "<div>Heading:<br/> <input type=\"number\" step=\"any\" name=\"heading\" value=\"" + toString(chatbot->heading) + "\"></div>";
 
 						
 
+						page += "<p>Built-in prompt part:</p>";
+						page += "<p>" + web::Escaping::HTMLEscape(world_state.server_config.shared_LLM_prompt_part) + "</p>";
 
 						page += "<div class=\"form-field\">";
-						page += "<label for=\"base_prompt\">Prompt:</label><br/>";
-						page += "<textarea rows=\"20\" class=\"full-width\" id=\"base_prompt\" name=\"base_prompt\">" + web::Escaping::HTMLEscape(chatbot->base_prompt) + "</textarea>";
+						page += "<label for=\"base_prompt\">Custom prompt part:</label><br/>";
+						page += "<textarea rows=\"20\" class=\"full-width\" id=\"base_prompt\" name=\"base_prompt\">" + web::Escaping::HTMLEscape(chatbot->custom_prompt_part) + "</textarea>";
 						page += "</div>";
 
 						page += "<input type=\"submit\" value=\"Save Changes\">";
@@ -404,15 +407,24 @@ void handleEditChatBotPost(ServerAllWorldsState& world_state, const web::Request
 								world_state.setUserWebMessage(logged_in_user->id, "Name exceeded max length of " + toString(ChatBot::MAX_NAME_SIZE) + " chars, truncated.");
 							}
 
-							chatbot->base_prompt = new_base_prompt.str();
-							if(chatbot->base_prompt.size() > ChatBot::MAX_BASE_PROMPT_SIZE)
+							chatbot->custom_prompt_part = new_base_prompt.str();
+							if(chatbot->custom_prompt_part.size() > ChatBot::MAX_CUSTOM_PROMPT_PART_SIZE)
 							{
-								chatbot->base_prompt = chatbot->base_prompt.substr(0, ChatBot::MAX_BASE_PROMPT_SIZE);
-								world_state.setUserWebMessage(logged_in_user->id, "Prompt exceeded max length of " + toString(ChatBot::MAX_BASE_PROMPT_SIZE) + " chars, truncated.");
+								chatbot->custom_prompt_part = chatbot->custom_prompt_part.substr(0, ChatBot::MAX_CUSTOM_PROMPT_PART_SIZE);
+								world_state.setUserWebMessage(logged_in_user->id, "Prompt exceeded max length of " + toString(ChatBot::MAX_CUSTOM_PROMPT_PART_SIZE) + " chars, truncated.");
 							}
 
 							chatbot->pos = new_pos;
 							chatbot->heading = (float)new_heading;
+
+
+							// Update the avatar's position
+							if(chatbot->avatar)
+							{
+								chatbot->avatar->pos = new_pos;
+								chatbot->avatar->rotation = Vec3f(0, Maths::pi_2<float>(), chatbot->heading);
+								chatbot->avatar->transform_dirty = true;
+							}
 
 
 							world->addChatBotAsDBDirty(chatbot, lock);

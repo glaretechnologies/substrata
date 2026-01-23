@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/WorldStateLock.h"
 #include "../shared/LODChunk.h"
 #include "../shared/SubstrataLuaVM.h"
+#include "ServerConfig.h"
 #include "NewsPost.h"
 #include "SubEvent.h"
 #include "User.h"
@@ -102,12 +103,6 @@ struct MigrationVersionInfo
 	uint32 migration_version;
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.
-};
-
-
-struct ServerCredentials
-{
-	std::map<std::string, std::string> creds;
 };
 
 
@@ -448,6 +443,7 @@ public:
 	WebDataStore* web_data_store; // Since we pass around ServerAllWorldsState for all the web request handlers, just store a pointer to web_data_store so we can access it.
 
 	ServerCredentials server_credentials;
+	ServerConfig server_config;
 
 	mutable ::WorldStateMutex mutex;
 private:
