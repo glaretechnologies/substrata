@@ -495,6 +495,15 @@ void handleDeleteChatBotPost(ServerAllWorldsState& world_state, const web::Reque
 					ChatBot* chatbot = res->second.ptr();
 					if((chatbot->owner_id == logged_in_user->id) || isGodUser(logged_in_user->id))
 					{
+						// Remove avatar
+						if(chatbot->avatar)
+						{
+							// Mark as dead so it will be removed in server.cpp main loop.
+							chatbot->avatar->state = Avatar::State_Dead;
+							chatbot->avatar->other_dirty = true;
+						}
+
+
 						// Remove from dirty-set, so it's not updated in DB.
 						world->getDBDirtyChatBots(lock).erase(chatbot);
 
