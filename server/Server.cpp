@@ -594,7 +594,7 @@ int main(int argc, char *argv[])
 		//----------------------------------------------- End create any Lua scripts for objects -----------------------------------------------
 
 		// Create avatars for ChatBots
-		if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::CHATBOTS_FEATURE_FLAG))
+		//if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::CHATBOTS_FEATURE_FLAG))
 		{
 			WorldStateLock lock(server.world_state->mutex);
 			for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
@@ -611,8 +611,8 @@ int main(int argc, char *argv[])
 				}
 			}
 		}
-		else
-			conPrint("Chatbots are disabled via the ChatBot feature flag.");
+		//else
+		//	conPrint("Chatbots are disabled via the ChatBot feature flag.");
 
 
 
