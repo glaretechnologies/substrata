@@ -889,8 +889,11 @@ static void markLODChunkAsNeedsRebuildForChangedObject(ServerWorldState* world_s
 		auto res = world_state->getLODChunks(lock).find(chunk_coords);
 		if(res != world_state->getLODChunks(lock).end())
 		{
-			conPrint("Marking LODChunk " + chunk_coords.toString() + " as needs_rebuild=true");
-			res->second->needs_rebuild = true;
+			if(!res->second->needs_rebuild)
+			{
+				// conPrint("Marking LODChunk " + chunk_coords.toString() + " as needs_rebuild=true");
+				res->second->needs_rebuild = true;
+			}
 		}
 	}
 }
