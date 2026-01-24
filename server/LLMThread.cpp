@@ -506,7 +506,7 @@ void LLMThread::handleData(ArrayRef<uint8> chunk, const HTTPClient::ResponseInfo
 										//const std::string role = delta_node.getChildStringValue(json_parser, "role");
 										const std::string& content = delta_node.getChildStringValue(json_parser, "content");
 
-										conPrint("------Received content:------\n" + content);
+										// conPrint("------Received content:------\n" + content);
 
 										this->current_assistant_response.content += content;
 
