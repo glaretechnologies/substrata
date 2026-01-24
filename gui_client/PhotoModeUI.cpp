@@ -378,7 +378,7 @@ void PhotoModeUI::updateWidgetPositions()
 		cur_y -= autofocus_off_button->rect.getWidths().y + margin;
 
 		const float label_w  = autofocus_label->rect.getWidths().x;
-		autofocus_label->setPos(*gl_ui, Vec2f(1 - 0.3f - label_w - margin, cur_y + gl_ui->getUIWidthForDevIndepPixelWidth(8)));
+		autofocus_label->setPos(Vec2f(1 - 0.3f - label_w - margin, cur_y + gl_ui->getUIWidthForDevIndepPixelWidth(8)));
 
 		autofocus_off_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
 
@@ -446,7 +446,7 @@ void PhotoModeUI::updateWidgetPositions()
 			upload_image_widget->setPosAndDims(Vec2f(-1.f + (2.f - upload_im_w) / 2.f, upload_dialog_y), Vec2f(upload_im_w, upload_im_h)); // Centre-align horizontally
 
 			upload_dialog_y -= caption_line_edit->rect.getWidths().y + margin;
-			caption_label->setPos(*gl_ui, Vec2f(upload_dialog_x, upload_dialog_y + gl_ui->getUIWidthForDevIndepPixelWidth(10)));
+			caption_label->setPos(Vec2f(upload_dialog_x, upload_dialog_y + gl_ui->getUIWidthForDevIndepPixelWidth(10)));
 			caption_line_edit->setPos(Vec2f(caption_label->rect.getMax().x + margin, upload_dialog_y));
 			caption_line_edit->setWidth(dialog_content_w/2 - (caption_label->rect.getMax().x + margin));
 
@@ -480,13 +480,13 @@ void PhotoModeUI::updateSliderPosition(PhotoModeSlider& slider, float margin, fl
 	float cur_x = 1.f - value_w - slider_w - label_w - x_margin * 3;
 
 	float text_y_offset = gl_ui->getUIWidthForDevIndepPixelWidth(4); // To align with the slider
-	slider.label->setPos(*gl_ui, Vec2f(cur_x, cur_y + text_y_offset));
+	slider.label->setPos(Vec2f(cur_x, cur_y + text_y_offset));
 	cur_x += label_w + x_margin;
 
 	slider.slider->setPosAndDims(/*botleft=*/Vec2f(cur_x, cur_y), /*dims=*/Vec2f(slider_w, gl_ui->getUIWidthForDevIndepPixelWidth(21)));
 	cur_x += slider_w + x_margin;
 
-	slider.value_view->setPos(*gl_ui, Vec2f(cur_x, cur_y + text_y_offset));
+	slider.value_view->setPos(Vec2f(cur_x, cur_y + text_y_offset));
 }
 
 

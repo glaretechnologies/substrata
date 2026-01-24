@@ -503,6 +503,10 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
+	// Chat UI should be drawn above the movement button if present.
+	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
+	chat_ui.setDrawAreaBottomLeftY(bottom_left_y);
+
 	photo_mode_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui, this->settings);
 	photo_mode_ui.setVisible(false);
 
@@ -5167,7 +5171,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 				{
 					Vec2f botleft(normed_coords.x, normed_coords.y);
 
-					ob->diagnostic_text_view->setPos(*gl_ui, botleft);
+					ob->diagnostic_text_view->setPos(botleft);
 				}
 			}
 		}
@@ -14581,6 +14585,14 @@ void GUIClient::viewportResized(int w, int h)
 	ob_info_ui.viewportResized(w, h);
 	misc_info_ui.viewportResized(w, h);
 	hud_ui.viewportResized(w, h);
+
+	// Chat UI should be drawn above the movement button if present.
+	if(gl_ui)
+	{
+		const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
+		chat_ui.setDrawAreaBottomLeftY(bottom_left_y);
+	}
+
 	chat_ui.viewportResized(w, h);
 	photo_mode_ui.viewportResized(w, h);
 	if(minimap)
@@ -15884,7 +15896,7 @@ void GUIClient::updateNotifications(double cur_time)
 	int i=0;
 	for(auto it = notifications.begin(); it != notifications.end(); ++it, ++i)
 	{
-		it->text_view->setPos(*gl_ui, 
+		it->text_view->setPos( 
 			Vec2f(
 				myMax(-1.f, -it->text_view->getRect().getWidths().x / 2.f),
 				//-gl_ui->getUIWidthForDevIndepPixelWidth(150), 
@@ -15919,7 +15931,7 @@ void GUIClient::updateNotifications(double cur_time)
 	i=0;
 	for(auto it = script_messages.begin(); it != script_messages.end(); ++it, ++i)
 	{
-		it->text_view->setPos(*gl_ui, 
+		it->text_view->setPos(
 			Vec2f(
 				myMax(-1.f, -it->text_view->getRect().getWidths().x / 2.f),
 				gl_ui->getViewportMinMaxY() * 0.5f //  - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)

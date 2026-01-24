@@ -178,7 +178,10 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 			avatar->hud_marker = im;
 		}
 		else
-			avatar->hud_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width), /*z=*/AVATAR_MARKER_DOT_Z);
+		{
+			avatar->hud_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width));
+			avatar->hud_marker->setZ(AVATAR_MARKER_DOT_Z);
+		}
 
 		avatar->hud_marker->setVisible(on_screen);
 

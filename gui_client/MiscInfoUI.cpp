@@ -325,7 +325,7 @@ void MiscInfoUI::updateWidgetPositions()
 
 			const float vert_margin = 50.f / opengl_engine->getViewPortWidth(); // 50 pixels
 
-			admin_msg_text_view->setPos(*gl_ui, /*botleft=*/Vec2f(-0.4f, min_max_y - text_dims.y - vert_margin));
+			admin_msg_text_view->setPos(/*botleft=*/Vec2f(-0.4f, min_max_y - text_dims.y - vert_margin));
 		}
 		
 
@@ -335,10 +335,10 @@ void MiscInfoUI::updateWidgetPositions()
 		for(int i=0; i<(int)prebuilt_digits.size(); ++i)
 		{
 			const int digit_place = i % 3;
-			prebuilt_digits[i]->setPos(*gl_ui, Vec2f(0.f + (-3 + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y));
+			prebuilt_digits[i]->setPos(Vec2f(0.f + (-3 + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y));
 		}
 		if(unit_string_view.nonNull())
-			unit_string_view->setPos(*gl_ui, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y));
+			unit_string_view->setPos(/*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y));
 
 
 		if(movement_button)
