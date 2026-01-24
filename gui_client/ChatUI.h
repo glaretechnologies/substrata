@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <opengl/ui/GLUITextView.h>
 #include <opengl/ui/GLUIImage.h>
 #include <opengl/ui/GLUILineEdit.h>
+#include <opengl/ui/GLUIGridContainer.h>
 #include "ClientThread.h"
 
 
@@ -39,6 +40,8 @@ public:
 
 	void viewportResized(int w, int h);
 
+	void setDrawAreaBottomLeftY(float draw_area_bottom_left_y);
+
 	void handleMouseMoved(MouseEvent& mouse_event);
 
 	virtual void eventOccurred(GLUICallbackEvent& event);
@@ -52,21 +55,21 @@ private:
 		Colour3f avatar_colour;
 		std::string avatar_name, msg;
 
-		GLUITextViewRef name_text;
+		//GLUITextViewRef name_text;
 		GLUITextViewRef msg_text;
 	};
 
 	void setWidgetVisibilityForExpanded();
 	void updateWidgetTransforms();
 	void recreateMessageTextViews();
-	void recreateTextViewsForMessage(ChatMessage& msg);
+	void recreateTextViewsForMessage(ChatMessage& msg, int row_index);
 
 
 	std::list<ChatMessage> messages;
 
 	bool expanded;
 	bool visible;
-	OverlayObjectRef background_overlay_ob;
+	GLUIGridContainerRef grid_container;
 	GLUIButtonRef collapse_button;
 	GLUIButtonRef expand_button;
 	Vec2i last_viewport_dims;
@@ -74,7 +77,7 @@ private:
 	GLUIRef gl_ui;
 	Reference<OpenGLEngine> opengl_engine;
 	
-	Vec2f last_background_top_right_pos;
+	float draw_area_bottom_left_y;
 
 	GLUILineEditRef chat_line_edit;
 };

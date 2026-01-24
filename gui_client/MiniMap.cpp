@@ -741,7 +741,8 @@ void MiniMap::updateWidgetPositions()
 		{
 			const float minimap_width = computeMiniMapWidth();
 			const float y_margin = computeMiniMapTopMargin();
-			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - x_margin, gl_ui->getViewportMinMaxY() - minimap_width - y_margin), Vec2f(minimap_width), BACKGROUND_IMAGE_Z);
+			minimap_image->setPosAndDims(Vec2f(1 - minimap_width - x_margin, gl_ui->getViewportMinMaxY() - minimap_width - y_margin), Vec2f(minimap_width));
+			minimap_image->setZ(BACKGROUND_IMAGE_Z);
 
 			//last_minimap_bot_left_pos = minimap_image->rect.getMin();
 
@@ -886,7 +887,10 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 		avatar->minimap_marker = im;
 	}
 	else
-		avatar->minimap_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width), /*z=*/AVATAR_MARKER_IMAGE_Z);
+	{
+		avatar->minimap_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width));
+		avatar->minimap_marker->setZ(AVATAR_MARKER_IMAGE_Z);
+	}
 
 	// Create (if needed) and/or position marker arrow.
 	const float arrow_im_width = gl_ui->getUIWidthForDevIndepPixelWidth(14);
