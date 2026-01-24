@@ -518,7 +518,7 @@ void handleDeleteChatBotPost(ServerAllWorldsState& world_state, const web::Reque
 	catch(glare::Exception& e)
 	{
 		if(!request.fuzzing)
-			conPrint("handleEditChatBotPost error: " + e.what());
+			conPrint("handleDeleteChatBotPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -576,7 +576,7 @@ void handleCopyUserAvatarSettingsPost(ServerAllWorldsState& world_state, const w
 	catch(glare::Exception& e)
 	{
 		if(!request.fuzzing)
-			conPrint("handleEditChatBotPost error: " + e.what());
+			conPrint("handleCopyUserAvatarSettingsPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -644,7 +644,7 @@ void handleUpdateInfoToolFunctionPost(ServerAllWorldsState& world_state, const w
 	catch(glare::Exception& e)
 	{
 		if(!request.fuzzing)
-			conPrint("handleEditChatBotPost error: " + e.what());
+			conPrint("handleUpdateInfoToolFunctionPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -696,7 +696,7 @@ void handleDeleteInfoToolFunctionPost(ServerAllWorldsState& world_state, const w
 	catch(glare::Exception& e)
 	{
 		if(!request.fuzzing)
-			conPrint("handleEditChatBotPost error: " + e.what());
+			conPrint("handleDeleteInfoToolFunctionPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
