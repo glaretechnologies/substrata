@@ -161,8 +161,8 @@ void renderEditChatBotPage(ServerAllWorldsState& world_state, const web::Request
 						page += "<div>World: " + (world_it->first.empty() ? "Main World" : web::Escaping::HTMLEscape(world_it->first)) + "</div>";
 						page += "<div>Chatbot created: " + chatbot->created_time.dayString() + "</div>";
 
-
-						page += "<div class=\"grouped-region\">";
+						page += "<h3>Delete ChatBot</h3>";
+						page += "<div class=\"danger-zone\">";
 						page += "<form action=\"/delete_chatbot_post\" method=\"post\">";
 						page += "<input type=\"hidden\" name=\"chatbot_id\" value=\"" + toString(chatbot_id) + "\">";
 						page += "<input type=\"submit\" class=\"delete-chatbot\" value=\"Delete Chatbot\">";
@@ -429,12 +429,13 @@ void handleEditChatBotPost(ServerAllWorldsState& world_state, const web::Request
 							chatbot->heading = (float)new_heading;
 
 
-							// Update the avatar's position
+							// Update the avatar's state
 							if(chatbot->avatar)
 							{
+								chatbot->avatar->name = chatbot->name;
 								chatbot->avatar->pos = new_pos;
 								chatbot->avatar->rotation = Vec3f(0, Maths::pi_2<float>(), chatbot->heading);
-								chatbot->avatar->transform_dirty = true;
+								chatbot->avatar->other_dirty = true;
 							}
 
 
@@ -552,6 +553,13 @@ void handleCopyUserAvatarSettingsPost(ServerAllWorldsState& world_state, const w
 					if((chatbot->owner_id == logged_in_user->id) || isGodUser(logged_in_user->id))
 					{
 						chatbot->avatar_settings = logged_in_user->avatar_settings; // Copy the avatar settings
+
+						// Update the avatar's state
+						if(chatbot->avatar)
+						{
+							chatbot->avatar->avatar_settings = chatbot->avatar_settings;
+							chatbot->avatar->other_dirty = true;
+						}
 
 						world->addChatBotAsDBDirty(chatbot, lock);
 						world_state.markAsChanged();

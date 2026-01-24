@@ -543,3 +543,10 @@ a
 	padding: 1em;
 	margin-bottom: 1em;
 }
+
+.danger-zone {
+	background: #e97e7e;
+	width: 96%;
+	text-align: right;
+	padding: 0.5em;
+}
