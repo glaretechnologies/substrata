@@ -165,15 +165,17 @@ static ServerCredentials parseServerCredentials(const std::string& server_state_
 	while(!parser.eof())
 	{
 		string_view key, value;
-		if(!parser.parseToChar(':', key))
-			throw glare::Exception("Error parsing key from '" + path + "'.");
+		parser.parseToCharOrEOF(':', key);
+		if(parser.eof())
+			break;
+
 		if(!parser.parseChar(':'))
 			throw glare::Exception("Error parsing ':' from '" + path + "'.");
 
 		parser.parseWhiteSpace();
 		parser.parseLine(value);
 
-		creds.creds[toString(key)] = ::stripHeadAndTailWhitespace(toString(value));
+		creds.creds[::stripHeadAndTailWhitespace(toString(key))] = ::stripHeadAndTailWhitespace(toString(value));
 	}
 
 	return creds;
