@@ -1690,14 +1690,14 @@ void handleCreateParcelPost(ServerAllWorldsState& world_state, const web::Reques
 
 	try
 	{
-		User* user = LoginHandlers::getLoggedInUser(world_state, request);
-		runtimeCheck(user);
-
 		ParcelID new_id;
 
 		{ // Lock scope
 
 			WorldStateLock lock(world_state.mutex);
+
+			User* user = LoginHandlers::getLoggedInUser(world_state, request);
+			runtimeCheck(user);
 
 			// Find max parcel id, also most recently created parcel.
 			uint32 max_id = 0;
@@ -1729,9 +1729,9 @@ void handleCreateParcelPost(ServerAllWorldsState& world_state, const web::Reques
 			world_state.getRootWorldState()->parcels[new_id] = parcel;
 			world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 			world_state.markAsChanged();
-		} // End lock scope
 
-		world_state.setUserWebMessage(user->id, "Parcel created.");
+			world_state.setUserWebMessage(user->id, "Parcel created.");
+		} // End lock scope
 
 		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(new_id.value()));
 	}
