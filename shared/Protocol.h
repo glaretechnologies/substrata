@@ -39,13 +39,14 @@ CyberspaceProtocolVersion
 43: Added sending mesh optimisation version to client
 44: Added ChangeToDifferentWorld
 45: Added Parcel title
+46: Added UserMovedNearToAvatar, UserMovedAwayFromAvatar messages.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 45;
+const uint32 CyberspaceProtocolVersion = 46;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;

@@ -8077,30 +8077,33 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 
 
 						// Send UserMovedNearToAvatar/UserMovedAwayFromAvatar messages to server if needed.  Used by chatbot code.
-						const double AVATAR_NEARBY_DIST = 6;
-						const bool near_avatar = avatar->pos.getDist2(this->cam_controller.getFirstPersonPosition()) < Maths::square(AVATAR_NEARBY_DIST);
-						if(near_avatar)
+						if(server_protocol_version >= 46) // UserMovedNearToAvatar, UserMovedAwayFromAvatar messages were added in protocol version 46.
 						{
-							if(!avatar->in_proximity)
+							const double AVATAR_NEARBY_DIST = 6;
+							const bool near_avatar = avatar->pos.getDist2(this->cam_controller.getFirstPersonPosition()) < Maths::square(AVATAR_NEARBY_DIST);
+							if(near_avatar)
 							{
-								// Send UserMovedNearToAvatar message to server
-								MessageUtils::initPacket(scratch_packet, Protocol::UserMovedNearToAvatar);
-								::writeToStream(avatar->uid, scratch_packet);
-								enqueueMessageToSend(*this->client_thread, scratch_packet);
+								if(!avatar->in_proximity)
+								{
+									// Send UserMovedNearToAvatar message to server
+									MessageUtils::initPacket(scratch_packet, Protocol::UserMovedNearToAvatar);
+									::writeToStream(avatar->uid, scratch_packet);
+									enqueueMessageToSend(*this->client_thread, scratch_packet);
 
-								avatar->in_proximity = true;
+									avatar->in_proximity = true;
+								}
 							}
-						}
-						else
-						{
-							if(avatar->in_proximity)
+							else
 							{
-								// Send UserMovedAwayFromAvatar message to server
-								MessageUtils::initPacket(scratch_packet, Protocol::UserMovedAwayFromAvatar);
-								::writeToStream(avatar->uid, scratch_packet);
-								enqueueMessageToSend(*this->client_thread, scratch_packet);
+								if(avatar->in_proximity)
+								{
+									// Send UserMovedAwayFromAvatar message to server
+									MessageUtils::initPacket(scratch_packet, Protocol::UserMovedAwayFromAvatar);
+									::writeToStream(avatar->uid, scratch_packet);
+									enqueueMessageToSend(*this->client_thread, scratch_packet);
 
-								avatar->in_proximity = false;
+									avatar->in_proximity = false;
+								}
 							}
 						}
 					}
