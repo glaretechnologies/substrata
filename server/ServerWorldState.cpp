@@ -77,6 +77,7 @@ AvatarRef ServerWorldState::createAndInsertAvatarForChatBot(ServerAllWorldsState
 	avatar->avatar_settings = chatbot->avatar_settings;
 	avatar->pos = chatbot->pos;
 	avatar->rotation = Vec3f(0, Maths::pi_2<float>(), chatbot->heading);
+	avatar->flags = Avatar::CHATBOT_FLAG;
 	avatar->state = Avatar::State_JustCreated;
 	avatar->other_dirty = true;
 

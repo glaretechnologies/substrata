@@ -39,10 +39,11 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 		map->set(220);
 
 		const int font_size_px = 30;
-		Reference<TextRendererFontFace> font = fonts->getFontFaceForSize(/*font size px=*/font_size_px).ptr();
+		Reference<TextRendererFontFace> font       = fonts      ->getFontFaceForSize(/*font size px=*/font_size_px).ptr();
+		Reference<TextRendererFontFace> emoji_font = emoji_fonts->getFontFaceForSize(/*font size px=*/font_size_px).ptr();
 		
 		const int padding = 20;
-		font->drawText(*map, hypercard_content, padding, padding + font_size_px, Colour3f(30.f / 255.f), /*render SDF=*/false);
+		fonts->renderer->drawText(*map, hypercard_content, padding, padding + font_size_px, Colour3f(30.f / 255.f), /*render SDF=*/false, font.ptr(), emoji_font.ptr());
 
 
 		// Don't do compression, as it will avoid compression's block artifacts, plus it allows us to use a 1-channel texture, which saves memory on platforms (mobile) where DXT compression isn't supported anyway.

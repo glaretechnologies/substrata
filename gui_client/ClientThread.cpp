@@ -1319,7 +1319,7 @@ void ClientThread::doRun()
 		if(peer_protocol_version >= 42)
 		{
 			// Send client capabilities
-			const uint32 client_capabilities = Protocol::STREAMING_COMPRESSED_OBJECT_SUPPORT;
+			const uint32 client_capabilities = Protocol::STREAMING_COMPRESSED_OBJECT_SUPPORT | Protocol::SENDS_USER_MOVED_CHATBOT_MSGS;
 			socket->writeUInt32(client_capabilities);
 		}
 

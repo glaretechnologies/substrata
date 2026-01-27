@@ -34,6 +34,7 @@ public:
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<glare::FastPoolAllocator> texture_loaded_msg_allocator;
 	Reference<TextRendererFontFaceSizeSet> fonts;
+	Reference<TextRendererFontFaceSizeSet> emoji_fonts;
 	std::string hypercard_content;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 	Reference<glare::Allocator> worker_allocator;

@@ -58,12 +58,19 @@ public:
 	ChatBot();
 	~ChatBot();
 
-	// Threadsafe, will be called from WorkerThreads but only when the world lock is held.
-	Reference<LLMThread> createLLMThread(Server* server, WorldStateLock& lock);
+	
+
+	struct EventHandlerResults
+	{
+		Reference<LLMThread> new_llm_thread;
+	};
+
+	[[nodiscard]] EventHandlerResults userMovedNearToBotAvatar(AvatarRef other_avatar, Server* server, WorldStateLock& lock);
+	[[nodiscard]] EventHandlerResults userMovedAwayFromBotAvatar(AvatarRef other_avatar, Server* server, WorldStateLock& lock);
 
 	// A user/avatar sent a chat message, which this bot is in range of.
 	// Threadsafe, will be called from WorkerThreads but only when the world lock is held.
-	void processHeardChatMessage(WorldStateLock& lock, const std::string& msg, AvatarRef sender_avatar, const std::string& avatar_name, Server* server);
+	[[nodiscard]] EventHandlerResults processHeardChatMessage(const std::string& msg, AvatarRef sender_avatar, const std::string& avatar_name, Server* server, uint32 client_capabilities, WorldStateLock& lock);
 
 	// Handle some (partial, streaming) chat data coming back from an LLM cloud server.
 	// Called from the main thread only, in server.cpp.
@@ -79,10 +86,15 @@ public:
 	struct ThinkResults
 	{
 		Reference<LLMThread> llm_thread_being_killed;
+		Reference<LLMThread> new_llm_thread;
 	};
 	ThinkResults think(Server* server, WorldStateLock& world_lock);
 
 	void writeToStream(RandomAccessOutStream& stream);
+
+
+
+
 
 	uint64 id;
 
@@ -113,21 +125,32 @@ public:
 	UID avatar_uid; // UID of the avatar of the chatbot.
 	Reference<Avatar> avatar; // avatar of the chatbot.
 
-	Reference<Avatar> chatting_with_av; // Avatar we are chatting with, may be null if not chatting with anyone.
+	// Information about an avatar that is or was nearby the chatbot.
+	struct OtherAvatarInfo
+	{
+		OtherAvatarInfo() : conversing(false) {}
+		Timer attention_timer;
+		Timer time_since_last_greeted_other_av;
+		Timer time_since_farewelled_other_av;
+		bool conversing; // Are we in a conversation with this other avatar.
+	};
+	std::map<Reference<Avatar>, OtherAvatarInfo> other_avatar_info;
+	Reference<const Avatar> look_target_avatar; // Avatar we should look at, may be null if not chatting with anyone.
 
 private:
-	void sendChatMessage(const string_view message, Server* server);
+	void sendChatMessage(const string_view message, Server* server, WorldStateLock& world_lock);
+	Reference<LLMThread> createLLMThread(Server* server);
 
 	// The response from the LLM is streamed back from the cloud server, however we only want to chat in complete sentences, not in fragments of sentences.  So we will scan the accumulated response for sentence ends.
 	size_t next_sentence_start_index; // Index into total_llm_response.  Index at which the next sentence starts, e.g. 1 place past end of last sentence.
 	size_t next_sentence_search_pos; // Current search position in total_llm_response for a sentence end.
 	std::string total_llm_response;
 
-	Timer sentences_received_timer; // Once we have received a complete sentence from the LLVM server, start this timer.  When it has completed, send any queued sentences.
+	Timer sentences_received_timer; // Once we have received a complete sentence from the LLM server, start this timer.  When it has completed, send any queued sentences.
 
 	Timer repeating_gesture_timer; // This will be unpaused and reset when a repeating gesture such as waving starts.  When it hits some elapsed time, we will stop the gesture.
 
-	Timer time_since_last_interaction;
+	Timer time_since_last_LLM_activity; // Time since we sent a message or received a message rom the LLM server.  After this hits some threshold, kill the LLM thread.
 
 	SocketBufferOutStream scratch_packet;
 };
