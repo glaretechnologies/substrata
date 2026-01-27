@@ -75,7 +75,11 @@ struct LLMChatMessage
 class SendAIChatPostContent : public ThreadMessage
 {
 public:
+	SendAIChatPostContent() : should_send_to_server_immediately(true)  {}
+
 	std::string message; // Unescaped.
+
+	bool should_send_to_server_immediately;
 };
 
 

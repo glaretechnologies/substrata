@@ -2256,6 +2256,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 						task->hypercard_content = ob->content;
 						task->opengl_engine = opengl_engine;
 						task->fonts = this->gl_ui->getFonts();
+						task->emoji_fonts = this->gl_ui->getEmojiFonts();
 						task->worker_allocator = worker_allocator;
 						task->texture_loaded_msg_allocator = texture_loaded_msg_allocator;
 						task->upload_thread = opengl_upload_thread;
@@ -7610,9 +7611,9 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 
 					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
 						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
-						web::Escaping::HTMLEscape(avatar->name) + "</span> left.</i>");
+						web::Escaping::HTMLEscape(avatar->getUseName()) + "</span> left.</i>");
 
-					chat_ui.appendMessage(avatar->name, avatar->name_colour, " left.");
+					chat_ui.appendMessage(avatar->getUseName(), avatar->name_colour, " left.");
 
 					// Remove any OpenGL object for it
 					avatar->graphics.destroy(*opengl_engine);
@@ -7681,7 +7682,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						if(!our_avatar)
 						{
 							// Add nametag object for avatar
-							avatar->nametag_gl_ob = makeNameTagGLObject(avatar->name);
+							avatar->nametag_gl_ob = makeNameTagGLObject(avatar->getUseName());
 
 							// Set transform to be above avatar.  This transform will be updated later.
 							avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
@@ -8073,7 +8074,38 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						hud_ui.updateMarkerForAvatar(avatar, Vec3d(use_nametag_pos)); // Update marker on HUD
 						if(minimap)
 							minimap->updateMarkerForAvatar(avatar, Vec3d(use_nametag_pos)); // Update marker on minimap
+
+
+						// Send UserMovedNearToAvatar/UserMovedAwayFromAvatar messages to server if needed.  Used by chatbot code.
+						const double AVATAR_NEARBY_DIST = 6;
+						const bool near_avatar = avatar->pos.getDist2(this->cam_controller.getFirstPersonPosition()) < Maths::square(AVATAR_NEARBY_DIST);
+						if(near_avatar)
+						{
+							if(!avatar->in_proximity)
+							{
+								// Send UserMovedNearToAvatar message to server
+								MessageUtils::initPacket(scratch_packet, Protocol::UserMovedNearToAvatar);
+								::writeToStream(avatar->uid, scratch_packet);
+								enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+								avatar->in_proximity = true;
+							}
+						}
+						else
+						{
+							if(avatar->in_proximity)
+							{
+								// Send UserMovedAwayFromAvatar message to server
+								MessageUtils::initPacket(scratch_packet, Protocol::UserMovedAwayFromAvatar);
+								::writeToStream(avatar->uid, scratch_packet);
+								enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+								avatar->in_proximity = false;
+							}
+						}
 					}
+
+
 
 
 					avatar->other_dirty = false;
@@ -8641,21 +8673,26 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			const AvatarIsHereMessage* m = checkedDowncastPtr<const AvatarIsHereMessage>(msg);
 
-			if(world_state.nonNull())
+			if(world_state)
 			{
 				Lock lock(this->world_state->mutex);
 
 				auto res = this->world_state->avatars.find(m->avatar_uid);
 				if(res != this->world_state->avatars.end())
 				{
-					Avatar* avatar = res->second.getPointer();
+					const Avatar* avatar = res->second.getPointer();
 
-					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
-						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
-						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> is here.</i>");
-					ui_interface->updateOnlineUsersList();
+					if(!avatar->isChatBotAvatar()) // Don't announce that Chatbots are here.
+					{
+						const std::string use_name = avatar->getUseName();
 
-					chat_ui.appendMessage(avatar->name, avatar->name_colour, " is here.");
+						ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
+							toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
+							")\">" + web::Escaping::HTMLEscape(use_name) + "</span> is here.</i>");
+						ui_interface->updateOnlineUsersList();
+
+						chat_ui.appendMessage(use_name, avatar->name_colour, " is here.");
+					}
 				}
 			}
 		}
@@ -8672,12 +8709,14 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				if(res != this->world_state->avatars.end())
 				{
 					const Avatar* avatar = res->second.getPointer();
+					const std::string use_name = avatar->getUseName();
+
 					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
 						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
-						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>");
+						")\">" + web::Escaping::HTMLEscape(use_name) + "</span> joined.</i>");
 					ui_interface->updateOnlineUsersList();
 
-					chat_ui.appendMessage(avatar->name, avatar->name_colour, " joined.");
+					chat_ui.appendMessage(use_name, avatar->name_colour, " joined.");
 				}
 			}
 		}
@@ -8730,22 +8769,23 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			{
 				// Look up sending avatar name colour.  TODO: could do this with sending avatar UID, would be faster + simpler.
 				Colour3f col(0.8f);
+				std::string use_avatar_name = m->name;
 				{
 					Lock lock(this->world_state->mutex);
 
-					for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+					auto res = this->world_state->avatars.find(m->sender_avatar_uid);
+					if(res != this->world_state->avatars.end())
 					{
-						const Avatar* avatar = it->second.getPointer();
-						if(avatar->name == m->name)
-							col = avatar->name_colour;
+						use_avatar_name = res->second->getUseName();
+						col = res->second->name_colour;
 					}
 				}
 
 				ui_interface->appendChatMessage(
-					"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(m->name) + "</span>: " +
+					"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(use_avatar_name) + "</span>: " +
 					web::Escaping::HTMLEscape(m->msg) + "</p>");
 
-				chat_ui.appendMessage(m->name, col, ": " + m->msg);
+				chat_ui.appendMessage(use_avatar_name, col, ": " + m->msg);
 
 
 				// Execute any onChatMessage event handlers.
@@ -11840,6 +11880,7 @@ void GUIClient::objectEdited()
 									task->hypercard_content = selected_ob->content;
 									task->opengl_engine = opengl_engine;
 									task->fonts = this->gl_ui->getFonts();
+									task->emoji_fonts = this->gl_ui->getEmojiFonts();
 									task->worker_allocator = worker_allocator;
 									task->texture_loaded_msg_allocator = texture_loaded_msg_allocator;
 									task->upload_thread = opengl_upload_thread;
@@ -14604,9 +14645,10 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 {
 	ZoneScopedN("makeNameTagGLObject"); // Tracy profiler
 
-	TextRendererFontFace* font = gl_ui->getFont(/*font_size_px=*/36, /*emoji=*/false);
+	TextRendererFontFace*       font = gl_ui->getFont(/*font_size_px=*/36, /*emoji=*/false);
+	TextRendererFontFace* emoji_font = gl_ui->getFont(/*font_size_px=*/36, /*emoji=*/true);
 
-	const TextRendererFontFace::SizeInfo size_info = font->getTextSize(nametag);
+	const TextRenderer::SizeInfo size_info = font->getTextSize(nametag);
 
 	const int use_font_height = size_info.max_bounds.y; //text_renderer_font->getFontSizePixels();
 	const int padding_x = (int)(use_font_height * 1.0f);
@@ -14615,7 +14657,7 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 	ImageMapUInt8Ref map = new ImageMapUInt8(size_info.glyphSize().x + padding_x * 2, use_font_height + padding_y * 2, 3);
 	map->set(240);
 
-	font->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f), /*render SDF=*/false);
+	font->renderer->drawText(*map, nametag, padding_x, padding_y + use_font_height, Colour3f(0.05f), /*render SDF=*/false, font, emoji_font);
 
 
 	GLObjectRef gl_ob = opengl_engine->allocateObject();

@@ -129,14 +129,15 @@ void LLMThread::doRun()
 
 						trimChatMessageHistory();
 
-						sendChatRequestToLLMServer(cur_ai_model, http_client);
+						if(msg->should_send_to_server_immediately)
+							sendChatRequestToLLMServer(cur_ai_model, http_client);
 					}
 					else if(dynamic_cast<SendAIChatToolCallResult*>(msg_.ptr()))
 					{
 						// Append a tool call function result to the chat history, and send to LLM server.
 						SendAIChatToolCallResult* msg = static_cast<SendAIChatToolCallResult*>(msg_.ptr());
 
-						conPrint("LLMThread: received SendAIChatToolCallResult");
+						conPrint("LLMThread: received SendAIChatToolCallResult.  (should_send_to_server_immediately=" + boolToString(msg->should_send_to_server_immediately) + ")");
 
 						// Append message to back of chat history
 						{
@@ -470,7 +471,7 @@ void LLMThread::handleData(ArrayRef<uint8> chunk, const HTTPClient::ResponseInfo
 						{
 							if(parser.parseCString("[DONE]"))
 							{
-								conPrint("=======Received [DONE]======");
+								// conPrint("=======Received [DONE]======");
 
 								// Add total response to chat history
 								this->chat_messages.push_back(current_assistant_response);

@@ -79,6 +79,11 @@ const uint32 AvatarStopGesture		= 1011;
 const uint32 AvatarEnteredVehicle	= 1100;
 const uint32 AvatarExitedVehicle	= 1101;
 
+
+const uint32 UserMovedNearToAvatar		= 1200;
+const uint32 UserMovedAwayFromAvatar	= 1201;
+
+
 const uint32 ChatMessageID			= 2000;
 
 const uint32 ObjectCreated			= 3000;
@@ -189,6 +194,7 @@ const uint32 PhotoUploadFailed		= 14001;
 
 // Client capabilities
 const uint32 STREAMING_COMPRESSED_OBJECT_SUPPORT	= 0x1; // Can the client handle ObjectInitialSendCompressed messages?
+const uint32 SENDS_USER_MOVED_CHATBOT_MSGS			= 0x2;//  Does the client send UserMovedNearToAvatar and userMovedAwayFromBotAvatar msgs?
 
 // Server capabilities
 const uint32 OBJECT_TEXTURE_BASISU_SUPPORT			= 0x1;

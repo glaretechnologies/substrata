@@ -2621,23 +2621,71 @@ void WorkerThread::doRun()
 										ChatBot* bot = it.second.ptr();
 										if(bot->pos.getDist2(sender_position) < Maths::square(MAX_CHAT_HEAR_DIST))
 										{
-											if(bot->llm_thread.isNull())
-											{
-												// Create a LLM thread for the chatbot.
-												// TODO: handle thread creation failure in some way here?
-												Reference<LLMThread> llm_thread = bot->createLLMThread(server, lock);
-												llm_thread->out_msg_queue = &server->message_queue;
-												llm_thread->credentials = &server->world_state->server_credentials;
-												bot->llm_thread = llm_thread;
-
-												server->llm_thread_manager.addThread(llm_thread);
-											}
-
-											bot->processHeardChatMessage(lock, msg, sender_avatar, client_user_name, server);
+											ChatBot::EventHandlerResults res = bot->processHeardChatMessage(msg, sender_avatar, client_user_name, server, client_capabilities, lock);
+											if(res.new_llm_thread)
+												server->llm_thread_manager.addThread(res.new_llm_thread);
 										}
 									}
 								} // End lock scope
 							}
+							break;
+						}
+					case Protocol::UserMovedNearToAvatar:
+						{
+							const UID avatar_uid = readUIDFromStream(msg_buffer); // avatar the user moved nearby to.
+
+							// Lookup chatbot for avatar
+							{
+								WorldStateLock lock(world_state->mutex);
+
+								// Get the avatar that moved close to the bot avatar (the avatar for this thread's client)
+								AvatarRef sender_avatar;
+								auto av_res = cur_world_state->getAvatars(lock).find(client_avatar_uid);
+								if(av_res != cur_world_state->getAvatars(lock).end())
+									sender_avatar = av_res->second;
+
+								// Find the chatbot the user moved near to
+								for(auto& it : cur_world_state->getChatBots(lock))
+								{
+									ChatBot* bot = it.second.ptr();
+									if((bot->avatar_uid == avatar_uid) && bot->avatar)
+									{
+										ChatBot::EventHandlerResults res = bot->userMovedNearToBotAvatar(sender_avatar, server, lock);
+										if(res.new_llm_thread)
+											server->llm_thread_manager.addThread(res.new_llm_thread);
+									}
+								}
+							} // End lock scope
+
+							break;
+						}
+					case Protocol::UserMovedAwayFromAvatar:
+						{
+							const UID avatar_uid = readUIDFromStream(msg_buffer); // avatar the user moved away from.
+
+							// Lookup chatbot for avatar
+							{
+								WorldStateLock lock(world_state->mutex);
+
+								// Get the avatar that moved away from the bot avatar (the avatar for this thread's client)
+								AvatarRef sender_avatar;
+								auto av_res = cur_world_state->getAvatars(lock).find(client_avatar_uid);
+								if(av_res != cur_world_state->getAvatars(lock).end())
+									sender_avatar = av_res->second;
+
+								// Find the chatbot the user moved away from
+								for(auto& it : cur_world_state->getChatBots(lock))
+								{
+									ChatBot* bot = it.second.ptr();
+									if((bot->avatar_uid == avatar_uid) && bot->avatar)
+									{
+										ChatBot::EventHandlerResults res = bot->userMovedAwayFromBotAvatar(sender_avatar, server, lock);
+										if(res.new_llm_thread)
+											server->llm_thread_manager.addThread(res.new_llm_thread);
+									}
+								}
+							} // End lock scope
+
 							break;
 						}
 					case Protocol::UserSelectedObject:

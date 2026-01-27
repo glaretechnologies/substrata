@@ -106,11 +106,15 @@ public:
 	bool isOurAvatar() const { return our_avatar; }
 #endif
 
+	bool isChatBotAvatar() const { return (flags & CHATBOT_FLAG) != 0; }
+
 	static Colour3f defaultMat0Col() { return Colour3f(0.5f, 0.6f, 0.7f); }
 	static Colour3f defaultMat1Col() { return Colour3f(0.8f); }
 	static constexpr float default_mat0_metallic_frac = 0.5f;
 	static constexpr float default_mat1_metallic_frac = 0.0f;
 	static constexpr float default_mat0_roughness = 0.3f;
+
+	std::string getUseName() const { return isChatBotAvatar() ? (name + " \xF0\x9F\xA4\x96") : name; } // \xF0\x9F\xA4\x96 is Unicode char with codepoint U+1F916 - "Robot Face".
 
 
 	UID uid;
@@ -118,6 +122,10 @@ public:
 	AvatarSettings avatar_settings;
 	Vec3d pos;
 	Vec3f rotation; // (roll, pitch, heading)
+
+	static const uint32 CHATBOT_FLAG                             = 1; // Is this avatar the avatar of a ChatBot?
+	uint32 flags;
+
 	uint32 anim_state; // See AvatarGraphics::ANIM_STATE_IN_AIR flag etc..
 	uint32 last_physics_input_bitflags;
 
@@ -138,6 +146,8 @@ public:
 	//Reference<GLObject> opengl_engine_ob;
 #if GUI_CLIENT
 	bool our_avatar;
+
+	bool in_proximity; // Is the avatar currently in proximity to camera?  For UserMovedNearToAvatar and UserMovedAwayFromAvatar messages.
 
 	Colour3f name_colour;
 

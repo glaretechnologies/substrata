@@ -992,7 +992,7 @@ void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 		for(auto entry : gui_client.world_state->avatars)
 		{
 			AvatarNameInfo info;
-			info.name   = entry.second->name;
+			info.name   = entry.second->getUseName();
 			info.colour = entry.second->name_colour;
 			names.push_back(info);
 		}

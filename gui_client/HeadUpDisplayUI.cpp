@@ -170,8 +170,12 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		if(avatar->hud_marker.isNull()) // If marker does not exist yet:
 		{
 			// Create marker dot
-			GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name, AVATAR_MARKER_DOT_Z);
-			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
+			GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->getUseName(), AVATAR_MARKER_DOT_Z);
+			if(avatar->isChatBotAvatar())
+				im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
+			else
+				im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
+
 			im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
 			gl_ui->addWidget(im);

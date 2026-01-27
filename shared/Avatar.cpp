@@ -47,6 +47,8 @@ const Matrix4f obToWorldMatrix(const Avatar& ob)
 
 Avatar::Avatar()
 {
+	flags = 0;
+
 	transform_dirty = false;
 	other_dirty = false;
 	//opengl_engine_ob = NULL;
@@ -59,6 +61,7 @@ Avatar::Avatar()
 
 #if GUI_CLIENT
 	our_avatar = false;
+	in_proximity = false;
 	audio_stream_sampling_rate = 0;
 	audio_stream_id = 0;
 
@@ -330,6 +333,8 @@ void Avatar::copyNetworkStateFrom(const Avatar& other)
 	rotation = other.rotation;
 
 	avatar_settings.copyNetworkStateFrom(other.avatar_settings);
+
+	flags = other.flags;
 }
 
 
@@ -412,6 +417,8 @@ void writeAvatarToNetworkStream(const Avatar& avatar, RandomAccessOutStream& str
 	writeToStream(avatar.pos, stream);
 	writeToStream(avatar.rotation, stream);
 	writeAvatarSettingsToStream(avatar.avatar_settings, stream);
+
+	stream.writeUInt32(avatar.flags);
 }
 
 
@@ -421,4 +428,9 @@ void readAvatarFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& a
 	avatar.pos			= readVec3FromStream<double>(stream);
 	avatar.rotation		= readVec3FromStream<float>(stream);
 	readAvatarSettingsFromStream(stream, avatar.avatar_settings);
+
+	if(!stream.endOfStream())
+	{
+		avatar.flags = stream.readUInt32();
+	}
 }

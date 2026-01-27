@@ -879,7 +879,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker.isNull()) // If marker does not exist yet:
 	{
 		// Create marker dot
-		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->name);
+		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->getUseName());
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
@@ -898,7 +898,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker_arrow.isNull()) // If marker arrow does not exist yet:
 	{
 		// Create marker arrow
-		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->name);
+		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->getUseName());
 		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 			

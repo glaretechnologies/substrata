@@ -79,11 +79,11 @@ static const int button_H = 60;
 
 	{
 		const std::string text = "Click below to load";
-		const TextRendererFontFace::SizeInfo size_info = font->getTextSize(text);
+		const TextRenderer::SizeInfo size_info = font->getTextSize(text);
 		font->drawText(*map, text, W/2 - size_info.glyphSize().x/2, H/2 - 23, Colour3f(0,0,0), /*render SDF=*/false);
 	}
 	{
-		const TextRendererFontFace::SizeInfo size_info = font->getTextSize(URL);
+		const TextRenderer::SizeInfo size_info = font->getTextSize(URL);
 		font->drawText(*map, URL, W/2 - size_info.glyphSize().x/2, H/2, Colour3f(0,0,0), /*render SDF=*/false);
 	}
 
@@ -91,7 +91,7 @@ static const int button_H = 60;
 	Drawing::drawRect(*map, /*x0=*/W/2 - button_W/2, /*y0=*/button_top_y, /*wdith=*/button_W, /*height=*/button_H, col);
 
 
-	const TextRendererFontFace::SizeInfo load_size_info = font->getTextSize("Load");
+	const TextRenderer::SizeInfo load_size_info = font->getTextSize("Load");
 	font->drawText(*map, "Load", W/2 - load_size_info.glyphSize().x/2, button_top_y + button_H - 22, Colour3f(30.f / 255), /*render SDF=*/false);
 
 

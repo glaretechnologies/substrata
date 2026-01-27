@@ -1120,10 +1120,12 @@ int main(int argc, char *argv[])
 						try
 						{
 							ChatBot::ThinkResults results = chatbot->think(&server, lock); // TODO: only do on active chatbots.
+
+							if(results.new_llm_thread)
+								server.llm_thread_manager.addThread(results.new_llm_thread);
+
 							if(results.llm_thread_being_killed)
-							{
 								server.llm_thread_manager.removeThread(results.llm_thread_being_killed);
-							}
 						}
 						catch(glare::Exception& e)
 						{
