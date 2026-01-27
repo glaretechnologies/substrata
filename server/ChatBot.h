@@ -129,7 +129,7 @@ public:
 	struct OtherAvatarInfo
 	{
 		OtherAvatarInfo() : conversing(false) {}
-		Timer attention_timer;
+		Timer attention_timer; // How long the other avatar has been staring at the chatbot avatar.
 		Timer time_since_last_greeted_other_av;
 		Timer time_since_farewelled_other_av;
 		bool conversing; // Are we in a conversation with this other avatar.
