@@ -419,6 +419,9 @@ ChatBot::ThinkResults ChatBot::think(Server* server, WorldStateLock& world_lock)
 		const Avatar* other_avatar = it->first.ptr();
 		if(other_avatar->state == Avatar::State_Dead)
 		{
+			if(this->look_target_avatar == other_avatar)
+				this->look_target_avatar = nullptr;
+
 			// Remove avatar from avatar map
 			auto old_avatar_iterator = it;
 			it++;
