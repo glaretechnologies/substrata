@@ -197,6 +197,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.update_parcel_sales					= XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
 	config.do_lua_http_request_rate_limiting	= XMLParseUtils::parseBoolWithDefault(root_elem, "do_lua_http_request_rate_limiting", /*default val=*/true);
 	config.enable_LOD_chunking					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_LOD_chunking", /*default val=*/true);
+	config.enable_registration				= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_registration", /*default val=*/true);
 	config.AI_model_id							= XMLParseUtils::parseStringWithDefault(root_elem, "AI_model_id", /*default val=*/"xai/grok-4-1-fast-non-reasoning");
 	config.shared_LLM_prompt_part				= XMLParseUtils::parseStringWithDefault(root_elem, "shared_LLM_prompt_part", /*default val=*/
 		std::string("You are a helpful bot in the Substrata Metaverse.\n") + 
