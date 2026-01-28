@@ -53,16 +53,20 @@ Substrata is almost completely open-source, check out the source code <a href="h
 
 PHOTOS_HTML
 
+<p>
+<a href="/photos">View all photos</a>
+</p>
+
 <h2 id="downloads">Downloads</h2>
 <p>You can enter <a href="/webclient">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.25_Setup.exe">Substrata_v1.6.25_Setup.exe</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.26_Setup.exe">Substrata_v1.6.26_Setup.exe</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.25_x64.pkg">Substrata_v1.6.25_x64.pkg</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.26_x64.pkg">Substrata_v1.6.26_x64.pkg</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.24.tar.gz">Substrata_v1.6.24.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.26.tar.gz">Substrata_v1.6.26.tar.gz</a>
 </p>
 
 
@@ -113,6 +117,7 @@ EVENTS_HTML
 <p><a href="/about_substrata">Read about our goals and plans for Substrata</a></p>
 <p><a href="/about_scripting">Scripting in Substrata</a></p>
 <p><a href="/running_your_own_server">Running your own Substrata server</a></p>
+<p><a href="/about_chatbots">Chatbots in Substrata</a></p>
 
 <br/><br/>
 
