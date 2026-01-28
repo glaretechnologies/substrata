@@ -2909,7 +2909,7 @@ void WorkerThread::doRun()
 								{
 									msg_to_client = "Server is in read-only mode, you can't sign up right now.";
 								}
-								else if (!server->config.enable_registration)
+								else if(!server->config.enable_registration)
 								{
 									msg_to_client = "Server is not currently accepting new registrations.";
 								}
