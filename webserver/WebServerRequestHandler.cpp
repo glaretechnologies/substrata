@@ -600,6 +600,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			PhotoHandlers::handlePhotoPageRequest(*world_state, *data_store, request, reply_info);
 		}
+		else if(request.path == "/photos")
+		{
+			PhotoHandlers::handlePhotosPageRequest(*world_state, *data_store, request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/photo_image/")) // Photo ID follows
 		{
 			PhotoHandlers::handlePhotoImageRequest(*world_state, *data_store, request, reply_info);
