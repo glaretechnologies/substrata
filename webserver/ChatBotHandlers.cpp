@@ -77,9 +77,12 @@ void renderEditChatBotPage(ServerAllWorldsState& world_state, const web::Request
 						page += std::string("<div>Position:<br/> ") + 
 							"x: <input type=\"number\" step=\"any\" name=\"pos_x\" value=\"" + toString(chatbot->pos.x) + "\"> " + 
 							"y: <input type=\"number\" step=\"any\" name=\"pos_y\" value=\"" + toString(chatbot->pos.y) + "\"> " + 
-							"z: <input type=\"number\" step=\"any\" name=\"pos_z\" value=\"" + toString(chatbot->pos.z) + "\"> </div>";
+							"z: <input type=\"number\" step=\"any\" name=\"pos_z\" value=\"" + toString(chatbot->pos.z) + "\"> " + 
+							"<div class=\"field-description\">Eye position of chatbot avatar.  Z=up.</div></div>";
 
-						page += "<div>Heading:<br/> <input type=\"number\" step=\"any\" name=\"heading\" value=\"" + toString(chatbot->heading) + "\"></div>";
+						page += "<br/>";
+						page += "<div>Heading:<br/> <input type=\"number\" step=\"any\" name=\"heading\" value=\"" + toString(chatbot->heading) + "\">" + 
+							"<div class=\"field-description\">Default facing direction.  Counter-clockwise rotation in radians from looking in positive x direction.  0 = look east.   1.57 = look north.  3.14 = look west.  4.71 = look south. </div></div>";
 
 						
 
@@ -89,6 +92,7 @@ void renderEditChatBotPage(ServerAllWorldsState& world_state, const web::Request
 						page += "<div class=\"form-field\">";
 						page += "<label for=\"base_prompt\">Custom prompt part:</label><br/>";
 						page += "<textarea rows=\"20\" class=\"full-width\" id=\"base_prompt\" name=\"base_prompt\">" + web::Escaping::HTMLEscape(chatbot->custom_prompt_part) + "</textarea>";
+						page += "<div class=\"field-description\">Max 10,000 characters</div>";
 						page += "</div>";
 
 						page += "<input type=\"submit\" value=\"Save Changes\">";
@@ -123,6 +127,7 @@ void renderEditChatBotPage(ServerAllWorldsState& world_state, const web::Request
 							page += "<div class=\"form-field\">";
 							page += "Result content:<br/>";
 							page += "<textarea rows=\"10\" class=\"full-width\" name=\"result_content\">" + web::Escaping::HTMLEscape(func->result_content) + "</textarea>";
+							page += "<div class=\"field-description\">Max 100,000 characters</div>";
 							page += "</div>";
 
 							page += "<input type=\"submit\" value=\"Save Changes to Function\">";
