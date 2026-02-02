@@ -1,0 +1,93 @@
+
+<p>
+Chatbots in Substrata are AI-powered bots that can chat with users.  They can be shopkeepers, guides, or storytellers for your parcel!
+</p>
+<p>
+Chatbots can be created either on a land parcel that a user owns, or in one of the user's personal worlds.
+</p>
+<p>
+Chatbots are currently free to add for any Substrata users.  Their personality and conversation can be customised also - read on for how to do this!
+</p>
+
+<img src="/files/mr_valentine_bot.jpg" alt="Example of a chatbot avatar in Substrata, created by @bitpixi." width="600px"/>
+<div class="caption">A chatbot in Substrata (by @bitpixi)</div>
+
+<h2>Creating a chatbot</h2>
+<p>
+Chatbots are created on the Substrata website.
+</p>
+<p>
+First, you must have created and be logged in to your Substrata account on the Substrata website.
+</p>
+<p>
+Next, go to your <a href="/account">user account page</a>.  (The link to this is at the top right of all substrata web pages).   Scroll down until you reach the 'ChatBots' section, where there is a link to
+<a href="/new_chatbot">Create a new Chatbot</a>.
+</p>
+<p>
+There are two pieces of information required on the 'New ChatBot' page.  The first is the <b>world</b> to create the chatbot in.  
+Leave this field empty to create the chatbot in the main (default) world.   If you want to create a chatbot in one of your personal worlds, you can enter the name of your personal world here.
+</p>
+<p>The <b>position</b> is where the chatbot will stand when created.   If you are creating in the main world, then this position must be in one of your land parcels.
+</p>
+<p>TIP: to find a good position, use the Substrata client to walk around, then when you have found a good spot, copy the coordinates from the URL. Don't worry if the position is not perfect, you can tweak it later.
+</p>
+<p>
+Once you have entered that information, click <b>Create ChatBot</b>.  If the position is valid, you will be taken to the 'Edit ChatBot' page.
+</p>
+<p>
+Your chatbot should now appear in the Substrata world you chose.
+</p>
+
+
+<h2>Chatbot Settings</h2>
+
+<h3>name</h3>
+The name of the chatbot.  The robot emoji or "(bot)" will be automatically appended on the Substrata client.
+
+<h3>position</h3>
+The eye position of where the chatbot will stand.  Units are metres. The z-coord is up and should be 1.67 metres above the ground.
+
+<h3>heading</h3>
+Default facing direction of the chatbot. Counter-clockwise rotation in radians from looking in positive x direction. 0 = look east. 1.57 = look north. 3.14 = look west. 4.71 = look south.
+The chatbot will however turn to face users.
+
+<h3>Custom prompt part:</h3>
+<p>
+This is appended to the built-in prompt part to form the whole prompt for the LLM conversation.</p>
+<p>
+You can tell the chatbot what is around them, what their purpose is, and how to speak. For example:
+</p>
+<p>
+<i>You are a pirate, standing on John's pirate ship.  Your purpose is to greet visitors and invite them to join you on the pirate ship.  You will speak like a pirate.</i>
+</p>
+Alternatively:
+
+<p>
+<i>You are a friendly shopkeeper at Sam's fishing shop.   Your purpose is to greet visitors and sell your wares.   You will speak in a friendly and jovial tone.</i>
+</p>
+
+<h3>Tool Info Functions</h3>
+<p>
+The prompt is limited to 10,000 characters.   Tool info functions allow the chatbot to ingest extra information when it thinks it needs it.
+</p><p>
+For example, if you are making a bot to help users with Lua scripting, then you could create a function called <i>get_lua_info</i>, with <b>description</b> <i>Call this function to get 
+information about the Lua scripting language</i>.  
+Then in the <b>Result Content</b> field you can enter a large amount of text about Lua.  (up to 100,000 chars).  
+</p>
+<p>
+In this way the chatbot can fetch information about a topic when it needs it, and not earlier, keeping LLM inference speed and costs low.
+</p>
+
+
+<h3>Avatar Settings</h3>
+
+<p>
+Chatbots can use custom 3d models for their avatars, just like users in Substrata.   To set a custom avatar model for your chatbot, first set it for you as the user, 
+with the <b>Avatar Settings</b> dialog (Avatar &gt; Avatar Settings) in the native client, or the Avatar Settings button near the top-left of the screen in the web client.
+</p>
+<p>
+Once you are happy with the 3d model on your avatar, just click the <b>Copy user's current avatar settings for ChatBot</b> button to apply it to the chatbot as well.
+</p>
+
+
+<a href="/">&lt; Home</a>																			
