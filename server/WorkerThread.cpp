@@ -1342,19 +1342,26 @@ void WorkerThread::doRun()
 							const uint32 flags         = msg_buffer.readUInt32();
 							const uint32 stream_id     = msg_buffer.readUInt32();
 
-							if(!BitUtils::isBitSet(flags, 0x1u)) // If renew flag is not set:
-								conPrint("WorkerThread: received Protocol::AudioStreamToServerStarted without renew flag");
-
-							// Send message to all clients
+							if(!client_user_id.valid())
 							{
-								MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
-								writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
-								scratch_packet.writeUInt32(sampling_rate);
-								scratch_packet.writeUInt32(flags);
-								scratch_packet.writeUInt32(stream_id);
-								MessageUtils::updatePacketLengthField(scratch_packet);
+								writeErrorMessageToClient(socket, "You must be logged in for audio streaming.");
+							}
+							else
+							{
+								if(!BitUtils::isBitSet(flags, 0x1u)) // If renew flag is not set:
+									conPrint("WorkerThread: received Protocol::AudioStreamToServerStarted without renew flag");
 
-								enqueuePacketToBroadcast(scratch_packet);
+								// Send message to all clients
+								{
+									MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
+									writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
+									scratch_packet.writeUInt32(sampling_rate);
+									scratch_packet.writeUInt32(flags);
+									scratch_packet.writeUInt32(stream_id);
+									MessageUtils::updatePacketLengthField(scratch_packet);
+
+									enqueuePacketToBroadcast(scratch_packet);
+								}
 							}
 
 							break;
@@ -1363,13 +1370,20 @@ void WorkerThread::doRun()
 						{
 							conPrint("WorkerThread: received Protocol::AudioStreamToServerEnded");
 
-							// Send message to all clients
+							if(!client_user_id.valid())
 							{
-								MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerEnded);
-								writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
-								MessageUtils::updatePacketLengthField(scratch_packet);
+								writeErrorMessageToClient(socket, "You must be logged in for audio streaming.");
+							}
+							else
+							{
+								// Send message to all clients
+								{
+									MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerEnded);
+									writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
+									MessageUtils::updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(scratch_packet);
+									enqueuePacketToBroadcast(scratch_packet);
+								}
 							}
 
 							break;
