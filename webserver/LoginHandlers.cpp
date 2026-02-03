@@ -314,6 +314,8 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 	{
 		if(world_state.isInReadOnlyMode())
 			throw glare::Exception("Server is in read-only mode, signups disabled currently.");
+		if(!world_state.server_config.enable_registration)
+			throw glare::Exception("Server is not currently accepting new registrations.");
 
 		const web::UnsafeString username		= request_info.getPostField("username");
 		const web::UnsafeString email			= request_info.getPostField("email");

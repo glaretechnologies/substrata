@@ -1373,7 +1373,7 @@ void PhysicsWorld::think(double dt)
 						total_volume, submerged_volume, relative_centre_of_buoyancy,
 						buoyancy, // inBuoyancy
 						physics_ob->use_zero_linear_drag ? 0.f : 0.1f, // inLinearDrag
-						0.8f, // inAngularDrag
+						3.0f, // inAngularDrag
 						JPH::Vec3Arg(0,0,0), // inFluidVelocity
 						JPH::Vec3Arg(0,0,-9.81f), // inGravity
 						(float)dt // inDeltaTime
