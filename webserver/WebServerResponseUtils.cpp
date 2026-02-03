@@ -43,15 +43,16 @@ const std::string standardHTMLHeader(WebDataStore& data_store, const web::Reques
 	// i.ytimg.com is youtube's (thumbnail) image server.
 	// The Content-Security-Policy could also be returned as a HTTP response header.
 	return
-		"	<!DOCTYPE html>																									\n"
-		"	<html>																											\n"
-		"		<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">		\n"
+		"<!DOCTYPE html>\n"
+		"<html>\n"
+		"	<head>\n"
+		"		<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
 		"		<meta http-equiv=\"Content-Security-Policy\" content=\"frame-src youtube.com www.youtube.com player.vimeo.com vimeocdn.com; img-src 'self' i.ytimg.com i.vimeocdn.com; default-src 'self';\" />	\n" 
-		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>												\n"
-		"		<link href=\"/files/main.css?hash=" + data_store.main_css_hash + "\" rel=\"stylesheet\" />														\n"
-		"		<link rel=\"icon\" type=\"image/png\" href=\"/files/favicon.png\">											\n"
+		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>\n"
+		"		<link href=\"/files/main.css?hash=" + data_store.main_css_hash + "\" rel=\"stylesheet\" />\n"
+		"		<link rel=\"icon\" type=\"image/png\" href=\"/files/favicon.png\">\n"
 		+ extra_header_tags + 
-		"		</head>																										\n";
+		"	</head>\n";
 }
 
 

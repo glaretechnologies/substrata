@@ -880,7 +880,10 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	{
 		// Create marker dot
 		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->getUseName());
-		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
+		if(avatar->isChatBotAvatar())
+			im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
+		else
+			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 
 		gl_ui->addWidget(im);
@@ -899,7 +902,10 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	{
 		// Create marker arrow
 		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->getUseName());
-		im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
+		if(avatar->isChatBotAvatar())
+			im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
+		else
+			im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 		im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
 			
 		gl_ui->addWidget(im);

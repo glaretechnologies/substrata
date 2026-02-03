@@ -277,6 +277,60 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 }
 
 
+void handlePhotosPageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		std::string page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Photos");
+		page += "<div class=\"main\">   \n";
+
+		{ // lock scope
+			WorldStateLock lock(world_state.mutex);
+
+			// There is similar code in MainPageHandlers::renderRootPage().
+			// TODO: pagination for more than 200 photos.
+
+			page += "<p>Add your own photos using the photo mode in Substrata!</p>\n";
+
+			page += "<div class=\"photo-container\">\n";
+			const int max_num_photos_to_display = 200;
+			int num_photos_displayed = 0;
+			for(auto it = world_state.photos.rbegin(); (it != world_state.photos.rend()) && (num_photos_displayed < max_num_photos_to_display); ++it)
+			{
+				const Photo* photo = it->second.ptr();
+				if(photo->state == Photo::State_published)
+				{
+					page += "<a href=\"/photo/";
+					page += toString(photo->id);
+					page += "\"><img src=\"/photo_thumb_image/";
+					page += toString(photo->id);
+					page += "\" class=\"root-photo-img\" title=\"";
+					page += web::Escaping::HTMLEscape(photo->caption);
+					page += "\"/></a>";
+
+					num_photos_displayed++;
+				}
+			}
+
+			page += "</div>\n";
+
+		} // end lock scope
+
+		page += "</div>   \n"; // end main div
+
+		page += WebServerResponseUtils::standardFooter(request, true);
+
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handlePhotosPageRequest error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
 void renderEditPhotoParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	try

@@ -544,6 +544,11 @@ a
 	margin-bottom: 1em;
 }
 
+.field-description {
+	color: #444;
+	font-size: 0.8em;
+}
+
 .danger-zone {
 	background: #e97e7e;
 	width: 96%;

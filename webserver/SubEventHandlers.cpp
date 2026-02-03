@@ -104,7 +104,7 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 
 				page += "<h3 class=\"event-description-header\">Description</h3>\n";
 				page += "<div class=\"event-description\">\n";
-				page += web::Escaping::HTMLEscape(event->description);
+				page += StringUtils::replaceAll(web::Escaping::HTMLEscape(event->description), "\n", "<br>");
 				page += "</div>\n";
 
 				if(logged_in_user_is_event_owner)
