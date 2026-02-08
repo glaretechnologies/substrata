@@ -46,7 +46,6 @@ FileUtils.rm_r("data/resources/sprites", :verbose=>true)
 
 FileUtils.rm("data/resources/grass clump billboard 2 normals.png", :verbose=>true) # Grass is not used in Web build currently.
 FileUtils.rm("data/resources/grass clump billboard 2.png", :verbose=>true) # Grass is not used in Web build currently.
-FileUtils.rm("data/resources/extracted_avatar_anim.bin", :verbose=>true) # This file is explictly downloaded in GUiClient.
 FileUtils.rm("data/resources/foam_windowed.basis", :verbose=>true) # This file is explictly downloaded in TerrainDecalManager.
 
 FileUtils.cp_r(glare_core + "/opengl/shaders", "data", :verbose=>true)
@@ -88,8 +87,6 @@ FileUtils.cp_r(substrata_dir + "/webclient/webclient.html",            cyberspac
 FileUtils.cp_r(substrata_dir + "/webclient/webclient.html",            cyberspace_output + "/test_builds",                                  :verbose=>true)
 FileUtils.cp_r(substrata_dir + "/resources/sprites",                   cyb_output_resources_dir,                                            :verbose=>true)
 FileUtils.cp_r(substrata_dir + "/resources/sprites",                   cyb_output_test_builds_resources_dir,                                :verbose=>true)
-FileUtils.cp_r(substrata_dir + "/resources/extracted_avatar_anim.bin", cyb_output_resources_dir             + "/extracted_avatar_anim.bin", :verbose=>true)
-FileUtils.cp_r(substrata_dir + "/resources/extracted_avatar_anim.bin", cyb_output_test_builds_resources_dir + "/extracted_avatar_anim.bin", :verbose=>true)
 FileUtils.cp_r(substrata_dir + "/resources/foam_windowed.basis",       cyb_output_resources_dir             + "/foam_windowed.basis",       :verbose=>true)
 FileUtils.cp_r(substrata_dir + "/resources/foam_windowed.basis",       cyb_output_test_builds_resources_dir + "/foam_windowed.basis",       :verbose=>true)
 

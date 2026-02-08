@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "AddObjectDialog.h"
 #include "ModelLoading.h"
+#include "AnimationManager.h"
 #include "../shared/ResourceManager.h"
 #include "../indigo/TextureServer.h"
 #include "graphics/SRGBUtils.h"
@@ -30,12 +31,13 @@ Copyright Glare Technologies Limited 2022 -
 #include <QtCore/QTimer>
 
 
-AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings_, Reference<ResourceManager> resource_manager_)
+AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings_, Reference<ResourceManager> resource_manager_, AnimationManager* anim_manager_)
 :	base_dir_path(base_dir_path_),
 	settings(settings_),
 	resource_manager(resource_manager_),
 	done_initial_load(false),
-	pre_ob_to_world_matrix(Matrix4f::identity())
+	pre_ob_to_world_matrix(Matrix4f::identity()),
+	anim_manager(anim_manager_)
 {
 	setupUi(this);
 
@@ -134,6 +136,19 @@ void AvatarSettingsDialog::animationComboBoxIndexChanged(int index)
 }
 
 
+static const char* anim_names[] = {
+	"Walking",
+	"Idle",
+	"Walking Backward",
+	"Running",
+	"Running Backward",
+	"Floating",
+	"Flying",
+	"Left Turn",
+	"Right Turn",
+};
+
+
 void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, bool show_error_dialogs)
 {
 	const std::string use_local_path = local_path.empty() ? 
@@ -201,8 +216,13 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		//printVar(foot_bottom_height);
 		if(true)
 		{
-			FileInStream file(base_dir_path + "/data/resources/extracted_avatar_anim.bin");
-			preview_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+			// Append the first animation (Idle) and build the retargetting data.
+			preview_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(*anim_manager->getAnimation("Idle.subanim", *resource_manager));
+		
+			// Append all the other animations
+			for(size_t i=0; i<staticArrayNumElems(anim_names); ++i)
+				preview_gl_ob->mesh_data->animation_data.appendAnimationData(*anim_manager->getAnimation(URLString(anim_names[i]) + ".subanim", *resource_manager));
+
 
 			// If we loaded the extracted_avatar_anim bone data, then the avatar will be floating off the ground for female leg lengths, so move down.
 			//eye_height_adjustment = -1.67 + original_left_eye_pos[1];

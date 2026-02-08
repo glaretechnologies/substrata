@@ -31,13 +31,13 @@ GestureUI::~GestureUI()
 static const char* gestures[] = {
 	"Clapping",						"",				"Loop",		"",
 	"Dancing",						"AnimHead",		"Loop",		"",
+	"Dancing 2",					"AnimHead",		"Loop",		"",
 	"Excited",						"AnimHead",		"Loop",		"6.5666666",
 	"Looking",						"AnimHead",		"",			"8.016666",
 	"Quick Informal Bow",			"AnimHead",		"",			"2.75",
 	"Rejected",						"AnimHead",		"",			"4.8166666",
 	"Sit",							"",				"Loop",		"",
 	"Sitting On Ground",			"",				"Loop",		"",
-	"Sitting Talking",				"",				"Loop",		"",
 	"Sleeping Idle",				"AnimHead",		"Loop",		"",
 	"Standing React Death Forward",	"AnimHead",		"",			"3.6833334",
 	"Waving 1",						"",				"Loop",		"",
@@ -373,7 +373,7 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 					{
 						if(button->toggled)
 						{
-							gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/loop);
+							gui_client->performGestureClicked(/*gesture name=*/event.widget->client_data, animate_head, /*loop anim=*/loop);
 
 							if(!loop)
 								untoggle_button_time = timer.elapsed() + ::stringToDouble(gestures[i+3]); // Make button untoggle when gesture has finished.
@@ -381,10 +381,10 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 								untoggle_button_time = -1;
 						}
 						else
-							gui_client->stopGestureClicked(event.widget->client_data);
+							gui_client->stopGestureClicked(/*gesture name=*/event.widget->client_data);
 					}
 					else
-						gui_client->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/false);
+						gui_client->performGestureClicked(/*gesture name=*/event.widget->client_data, animate_head, /*loop anim=*/false);
 
 					// Untoggle any other toggled buttons.
 					for(size_t z=0; z<gesture_buttons.size(); ++z)

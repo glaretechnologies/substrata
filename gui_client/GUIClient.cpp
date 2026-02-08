@@ -293,29 +293,6 @@ void GUIClient::staticShutdown()
 }
 
 
-#if EMSCRIPTEN
-
-static void onAnimDataLoad(unsigned int firstarg, void* userdata_arg, const char* filename)
-{
-	// conPrint("onAnimDataLoad: " + std::string(filename) + ", firstarg: " + toString(firstarg));
-
-	GUIClient* gui_client = (GUIClient*)userdata_arg;
-	gui_client->extracted_anim_data_loaded = true;
-}
-
-static void onAnimDataError(unsigned int, void* userdata_arg, int http_status_code)
-{
-	conPrint("onAnimDataError: " + toString(http_status_code));
-}
-
-static void onAnimDataProgress(unsigned int, void* userdata_arg, int percent_complete)
-{
-	// conPrint("onAnimDataProgress: " + toString(percent_complete));
-}
-
-#endif // EMSCRIPTEN
-
-
 // Initialise everything needed for the initial ClientThread launch.
 void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator_)
 {
@@ -350,6 +327,20 @@ void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Refere
 	tls_config_insecure_noverifyname(client_tls_config);
 #endif
 }
+
+
+// These animations will be included in both the web and native distributions.
+static const char* movement_anim_names[] = {
+	"Idle",
+	"Walking",
+	"Walking Backward",
+	"Running",
+	"Running Backward",
+	"Floating",
+	"Flying",
+	"Left Turn",
+	"Right Turn",
+};
 
 
 // Initialises various things not needed for the initial ClientThread launch.
@@ -393,10 +384,12 @@ void GUIClient::postConnectInitialise()
 
 	// Add default avatar mesh as an external resource.
 	if(resource_manager->getExistingResourceForURL(DEFAULT_AVATAR_MODEL_URL).isNull())
-	{
-		ResourceRef resource = new Resource(/*URL=*/DEFAULT_AVATAR_MODEL_URL, /*local (abs) path=*/resources_dir_path + "/" + toStdString(DEFAULT_AVATAR_MODEL_URL), Resource::State_Present, UserID(), /*external_resource=*/true);
-		resource_manager->addResource(resource);
-	}
+		resource_manager->addExternalResource(/*URL=*/DEFAULT_AVATAR_MODEL_URL, /*local (abs) path=*/resources_dir_path + "/" + toStdString(DEFAULT_AVATAR_MODEL_URL));
+
+
+	// Add built-in animations as external resources
+	for(size_t i=0; i<staticArrayNumElems(movement_anim_names); ++i)
+		resource_manager->addExternalResource(/*URL=*/URLString(movement_anim_names[i]) + ".subanim", /*local (abs) path=*/resources_dir_path + "/animations/" + std::string(movement_anim_names[i]) + ".subanim");
 
 
 	// Add capsule mesh resource (used for audio objects)
@@ -404,7 +397,7 @@ void GUIClient::postConnectInitialise()
 	if(!resource_manager->isFileForURLPresent(capsule_model_URL))
 	{
 		const std::string capsule_local_model_path = resources_dir_path + "/" + toStdString(capsule_model_URL);
-		resource_manager->addResource(new Resource(capsule_model_URL, capsule_local_model_path, Resource::State_Present, UserID(), /*external resource=*/true));
+		resource_manager->addExternalResource(/*URL=*/capsule_model_URL, /*local (abs) path=*/capsule_local_model_path);
 	}
 
 	// Init audio engine immediately if we are not on the web.  Web browsers need to wait for an input gesture is completed before trying to play sounds.
@@ -736,6 +729,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	
 	// TEMP: make an avatar for testing of animation retargeting etc.
+#if 0
 	if(false) // test_avatars.empty() && extracted_anim_data_loaded)
 	{
 		//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
@@ -779,7 +773,10 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 				FileInStream file(resources_dir_path + "/extracted_avatar_anim.bin");
 #endif
 				
-				test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+				AnimationData extracted_anim_data;
+				extracted_anim_data.readFromStream(file);
+
+				test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(extracted_anim_data);
 			}
 
 			test_avatar->graphics.build();
@@ -798,6 +795,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			opengl_engine->addObject(test_avatar->graphics.skinned_gl_ob);
 		}
 	}
+#endif
 
 	// TEMP: Load a GLB object directly into the graphics engine for testing.
 	if(false)
@@ -1664,6 +1662,32 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const URLString& URL) const
 }
 
 
+// Handle finished downloading a ".subanim" file.
+void GUIClient::handleDownloadedAnimationResource(const std::string local_path, const ResourceRef& resource)
+{
+	conPrint("GUIClient::handleDownloadedAnimationResource(): local_path: " + local_path);
+
+	const std::string gesture_name = toStdString(::removeDotAndExtension(resource->URL));
+
+	conPrint("gesture_name: " + gesture_name);
+
+	// Iterate over avatars, peform gesture for any avatars that were waiting for the gesture anim to download.
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* av = it->second.getPointer();
+			if(av->graphics.pending_gesture_name == gesture_name)
+			{
+				const double cur_time = Clock::getTimeSinceInit();
+				av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
+			}
+		}
+	}
+}
+
+
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it, if we are not already downloading it.
 void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
@@ -2027,7 +2051,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	// The other way we could do it is by creating a non-unit quad mesh Jolt shape, but I think the decorated unit quad will be faster.
 
 	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
-	const Vec3f scale(rect_os.getWidths().x, rect_os.getWidths().y, 1.f);
+	const Vec3f scale(myMax(0.001f, rect_os.getWidths().x), myMax(0.001f, rect_os.getWidths().y), 1.f);
 	const Vec3f translation(rect_os.getMin().x, rect_os.getMin().y, 0);
 	physics_ob->shape = PhysicsWorld::createScaledAndTranslatedShapeForShape(this->text_quad_shape, translation, scale);
 	physics_ob->is_sensor = ob->isSensor();
@@ -2921,14 +2945,15 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 	// Load animation data for ready-player-me type avatars
 	if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
 	{
-#if EMSCRIPTEN
-		FileInStream file("/extracted_avatar_anim.bin");
-#else
-		FileInStream file(resources_dir_path + "/extracted_avatar_anim.bin");
-#endif
 		const GLMemUsage old_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
 
-		avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+		// Append the first animation (Idle) and build the retargetting data.
+		avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(*animation_manager.getAnimation("Idle.subanim", *resource_manager));
+
+		// Append all the other animations
+		for(size_t i=0; i<staticArrayNumElems(movement_anim_names); ++i)
+			if(!stringEqual(movement_anim_names[i], "Idle"))
+				avatar->graphics.skinned_gl_ob->mesh_data->animation_data.appendAnimationData(*animation_manager.getAnimation(URLString(movement_anim_names[i]) + ".subanim", *resource_manager));
 
 		const GLMemUsage new_mem_usage = avatar->graphics.skinned_gl_ob->mesh_data->getTotalMemUsage();
 
@@ -2963,7 +2988,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 		if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
 		{
 			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-			avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
+			avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim, animation_manager, *resource_manager);
 		}
 	}
 
@@ -8730,16 +8755,29 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
 			{
-				if(world_state.nonNull())
+				const URLString anim_resource_URL = URLString(m->gesture_name) + ".subanim";
+				if(resource_manager->isFileForURLPresent(anim_resource_URL))
 				{
-					Lock lock(this->world_state->mutex);
-
-					auto res = this->world_state->avatars.find(m->avatar_uid);
-					if(res != this->world_state->avatars.end())
+					if(world_state)
 					{
-						Avatar* avatar = res->second.getPointer();
-						avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name));
+						Lock lock(this->world_state->mutex);
+
+						auto res = this->world_state->avatars.find(m->avatar_uid);
+						if(res != this->world_state->avatars.end())
+						{
+							Avatar* avatar = res->second.getPointer();
+							avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name), animation_manager, *resource_manager);
+						}
 					}
+				}
+				else
+				{
+					// Start downloading the animation resource (if it isn't already present).
+					DownloadingResourceInfo info;
+					info.pos = cam_controller.getPosition();
+					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
+					info.used_by_other = true;
+					startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
 				}
 			}
 		}
@@ -9166,7 +9204,6 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						if(isDownloadingResourceCurrentlyNeeded(URL))
 						{
 							// If we just downloaded a texture, start loading it.
-							// NOTE: Do we want to check this texture is actually used by an object?
 							if(ImageDecoding::hasSupportedImageExtension(local_path))
 							{
 								//conPrint("Downloaded texture resource, loading it...");
@@ -9233,6 +9270,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								{
 									print("Error while loading object: " + e.what());
 								}
+							}
+							else if(hasExtension(local_path, "subanim"))
+							{
+								handleDownloadedAnimationResource(local_path, resource);
 							}
 							else
 							{
@@ -12642,20 +12683,6 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 
 	//-------------------------------- Do connect process --------------------------------
 
-	// Start downloading extracted_avatar_anim.bin with an Async HTTP request.
-	// When it's done this->extracted_anim_data_loaded will be set in onAnimDataLoad().
-	// We will postpone loading avatar models until extracted_avatar_anim.bin is loaded.
-#if EMSCRIPTEN
-	if(!extracted_anim_data_loaded)
-	{
-		const std::string http_URL = "/webclient/data/resources/extracted_avatar_anim.bin";
-
-		const std::string local_abs_path = "/extracted_avatar_anim.bin";
-
-		emscripten_async_wget2(http_URL.c_str(), local_abs_path.c_str(), /*requesttype =*/"GET", /*POST params=*/"", /*userdata arg=*/this, onAnimDataLoad, onAnimDataError, onAnimDataProgress);
-	}
-#endif
-
 	// Move player position back to near origin.
 	this->cam_controller.setAngles(Vec3d(/*heading=*/::degreeToRad(parse_res.heading), /*pitch=*/Maths::pi_2<double>(), /*roll=*/0));
 	this->cam_controller.setFirstAndThirdPersonPositions(spawn_pos);
@@ -14952,17 +14979,38 @@ void GUIClient::performGestureClicked(const std::string& gesture_name, bool anim
 	// Change camera view to third person if it's not already, so we can see the gesture
 	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
 
+	const URLString anim_resource_URL = URLString(gesture_name) + ".subanim";
+
+	if(resource_manager->isFileForURLPresent(anim_resource_URL))
 	{
 		Lock lock(this->world_state->mutex);
 
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 		{
 			Avatar* av = it->second.getPointer();
+			if(av->isOurAvatar())
+				av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim, animation_manager, *resource_manager);
+		}
+	}
+	else
+	{
+		// Start downloading the animation resource.
+		{
+			DownloadingResourceInfo info;
+			info.pos = cam_controller.getPosition();
+			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
+			info.used_by_other = true;
+			startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
+		}
 
-			const bool our_avatar = av->uid == this->client_avatar_uid;
-			if(our_avatar)
+		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+		{
+			Lock lock(this->world_state->mutex);
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 			{
-				av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
+				Avatar* av = it->second.getPointer();
+				if(av->isOurAvatar())
+					av->graphics.setPendingGesture(gesture_name, animate_head, loop_anim);
 			}
 		}
 	}

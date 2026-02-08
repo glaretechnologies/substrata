@@ -230,6 +230,15 @@ void ResourceManager::setResourceAsLocallyPresentForURL(const URLString& URL) //
 }
 
 
+void ResourceManager::addExternalResource(const URLString& URL, const std::string& local_abs_path)
+{
+	assert(FileUtils::fileExists(local_abs_path));
+
+	ResourceRef resource = new Resource(URL, local_abs_path, Resource::State_Present, UserID(), /*external_resource=*/true);
+	addResource(resource);
+}
+
+
 const std::string ResourceManager::pathForURL(const URLString& URL)
 {
 	Lock lock(mutex);
