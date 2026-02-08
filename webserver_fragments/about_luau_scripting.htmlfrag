@@ -193,6 +193,15 @@ Called when a user avatar exits a vehicle.
 </div>
 
 
+<div class="code-func-definition">onChatMessage(avatar : Avatar, message : String)</div>
+
+<div class="code-arg"><span class="code-arg-code">avatar : Avatar</span><span class="code-arg-descrip">The avatar of the user that sent the message.</span></div>
+<div class="code-arg"><span class="code-arg-code">message : String</span><span class="code-arg-descrip">The chat message</span></div>
+
+<div class="code-func-description">
+Called when a user sends a chat message.
+</div>
+
 
 <h2>Global functions</h2>
 
@@ -256,7 +265,7 @@ Destroys a timer.  Has no effect if the timer has already completed (for non-rep
 <div class="code-func-definition">addEventListener(event_name : string, ob_uid : number, handler : Function) : number</div>
 
 <div class="code-arg"><span class="code-arg-code">event_name : string</span><span class="code-arg-descrip">The name of the event.  Valid event names are 
-"onUserUsedObject", "onUserTouchedObject", "onUserMovedNearToObject", "onUserMovedAwayFromObject", "onUserEnteredParcel", "onUserExitedParcel", "onUserEnteredVehicle", "onUserExitedVehicle"</span></div>
+"onUserUsedObject", "onUserTouchedObject", "onUserMovedNearToObject", "onUserMovedAwayFromObject", "onUserEnteredParcel", "onUserExitedParcel", "onUserEnteredVehicle", "onUserExitedVehicle", "onChatMessage"</span></div>
 
 <div class="code-arg"><span class="code-arg-code">ob_uid : number</span><span class="code-arg-descrip">UID of the object that the event will be listened on.  For example, for onUserTouchedObject, this is the UID of the object
 that will have to be touched to trigger the touch event.</span></div>
@@ -277,7 +286,7 @@ addEventListener("onUserTouchedObject", 583, onUserTouchedObject)
 
 
 
-<div class="code-func-definition">doHTTPGetRequestAsync(URL : string, additional_header_lines : table, onDone : function, onError : function)</div>
+<div class="code-func-definition" id="doHTTPGetRequestAsync">doHTTPGetRequestAsync(URL : string, additional_header_lines : table, onDone : function, onError : function)</div>
 
 <div class="code-arg"><span class="code-arg-code">URL : string</span><span class="code-arg-descrip">The URL to request.  Should be a http or https URL.</span></div>
 
@@ -583,7 +592,7 @@ Friction of the physics body (dimensionless number, usually between 0 and 1, 0 =
 <div class="code-attr"><span class="code-attr-code">restitution : number</span><span class="code-attr-descrip">Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response).</span></div>
 <div class="code-attr"><span class="code-attr-code">centre_of_mass_offset_os : Vec3f</span><span class="code-attr-descrip">Offset of centre of mass of object, in object coordinates.  Can be used to e.g. give a vehicle a lower centre of mass than by default.</span></div>
 <div class="code-attr"><span class="code-attr-code">audio_source_url : string</span><span class="code-attr-descrip">
-Substrata URL of the audio source for this object.   Can be a mp3 or wav URL</span></div>
+Substrata URL of the audio source for this object.   Can be a .mp3 or .wav URL.</span></div>
 <div class="code-attr"><span class="code-attr-code">audio_volume : number</span><span class="code-attr-descrip">
 Volume factor for audio source.  Default is 1.</span></div>
 
@@ -597,9 +606,17 @@ Returns the number of materials of the object.</span></div>
 <div class="code-attr"><span class="code-attr-code">getMaterial(mat_index : number) : Material</span><span class="code-attr-descrip">
 Returns the material of the object with the given index.</span></div>
 
+<div class="code-attr"><span class="code-attr-code">startPlayingAnimation(animation_index : number)</span><span class="code-attr-descrip">
+Starts playing the 3d model animation with the given (zero-based) index.</span></div>
 
+<div class="code-attr"><span class="code-attr-code">getAnimationIndex(animation_name: String) : number</span><span class="code-attr-descrip">
+Search for an animation with the given name, and return its zero-based index if found.  Return -1 if the animation was not found.</span></div>
 
+<div class="code-attr"><span class="code-attr-code">playAudio()</span><span class="code-attr-descrip">
+Resets the current playback position to the start of the audio (as determined by audio_source_url), starts playing the audio.  Unpauses playback if paused.</span></div>
 
+<div class="code-attr"><span class="code-attr-code">isPlayingAudio()</span><span class="code-attr-descrip">
+Returns if the object is currently playing audio or not.</span></div>
 
 <div class="code-func-definition">Material</div>
 
@@ -649,22 +666,7 @@ This is approximately the position of the eyes of the avatar for a standard avat
 
 <h2>Examples</h2>
 
-<p>
-Here is a very simple script that shows a message to a user when they touch an object:
-</p>
-
-<pre class="code-block">
---lua
-
-function onUserTouchedObject(av : Avatar, ob : Object)
-	showMessageToUser("Hi " .. av.name .. ", you touched the red cube!", av)
-end
-</pre>
-<p>
-Which has this result in-world when you walk into the red cube:
-</p>
-<img src="/files/touched_cube.JPG" width="1000px" />
-
+<a href="/example_luau_scripts">Luau scripting examples</a>
 
 
 <br/><br/>

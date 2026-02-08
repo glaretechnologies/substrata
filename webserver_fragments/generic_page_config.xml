@@ -27,4 +27,10 @@
 		<fragment_path>car_scripting.htmlfrag</fragment_path>
 		<page_title>Car Scripting</page_title>
 	</page>
+	
+	<page>
+		<url_path>/about_chatbots</url_path>
+		<fragment_path>about_chatbots.htmlfrag</fragment_path>
+		<page_title>Chatbots</page_title>
+	</page>
 </pages>
