@@ -52,7 +52,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 			GLUIGridContainer::CreateArgs container_args;
 			container_args.background_colour = chat_background_col;
 			container_args.background_alpha = 0.0f;
-			container_args.cell_padding_px = 10;
+			container_args.cell_padding_px = 12;
 			grid_container = new GLUIGridContainer(*gl_ui, opengl_engine, container_args);
 			grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
 			gl_ui->addWidget(grid_container);
@@ -209,6 +209,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage, int row_index
 	{
 		GLUITextView::CreateArgs msg_args;
 		msg_args.font_size_px = font_size_px;
+		msg_args.padding_px = 9;
 		msg_args.background_alpha = 0.3f;
 		msg_args.background_corner_radius_px = corner_radius_px;
 		//msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x;// + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
