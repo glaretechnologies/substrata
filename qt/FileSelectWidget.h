@@ -64,8 +64,6 @@ private:
 	QString internal_filename, internal_filter;
 	QString default_path, settings_key;
 
-	QSettings settings;
-
 	Type type;
 
 	bool readonly;
