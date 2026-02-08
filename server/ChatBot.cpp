@@ -87,6 +87,9 @@ ChatBot::EventHandlerResults ChatBot::userMovedNearToBotAvatar(AvatarRef other_a
 		other_avatar_info[other_avatar].time_since_farewelled_other_av.pause();
 	}
 
+	if(this->look_target_avatar.isNull())
+		this->look_target_avatar = other_avatar;
+
 	return res;
 }
 
@@ -448,12 +451,12 @@ ChatBot::ThinkResults ChatBot::think(Server* server, WorldStateLock& world_lock)
 			}
 
 			// If the other avatar has been looking at this chatbot for a while, and a conversation with it has not yet been started:
-			if(other_av_info.attention_timer.isRunning() && (other_av_info.attention_timer.elapsed() > 2.0) && !other_av_info.conversing)
+			if(other_av_info.attention_timer.isRunning() && (other_av_info.attention_timer.elapsed() > 1.5) && !other_av_info.conversing)
 			{
 				// Start conversing with the other avatar.
 
 				const bool greeted_other_av_recently = other_av_info.time_since_last_greeted_other_av.isRunning() && (other_av_info.time_since_last_greeted_other_av.elapsed() < GREETING_COOLDOWN_PERIOD);
-				conPrint("----User paid attention to chatbot for 2 seconds.  (greeted_other_av_recently=" + boolToString(greeted_other_av_recently) + ")----");
+				conPrint("----User paid attention to chatbot for 1.5 seconds.  (greeted_other_av_recently=" + boolToString(greeted_other_av_recently) + ")----");
 
 				// Append a 'XX is standing near by' message to conversation, which should trigger a "hello" response from the LLM.  Only do this if we haven't done so recently, to avoid spamming chat. 
 				if(!greeted_other_av_recently)
