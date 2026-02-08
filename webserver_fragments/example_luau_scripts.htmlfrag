@@ -112,6 +112,7 @@ end
 </pre>
 
 
+
 <h2>Showing information by updating text using an external HTTP API</h2>
 <p>
 This script shows how to fetch information from somewhere else on the web, using the <a href="/about_luau_scripting#doHTTPPostRequestAsync">doHTTPPostRequestAsync</a> function.  We will use it to get the current Ethereum gas price from Infura, and update a text object in substrata
@@ -159,6 +160,43 @@ if(IS_SERVER) then
 	createTimer(onTimerEvent, 60.0, true) -- Call onTimerEvent every 60 seconds, repeatedly.
 else
 	print("running on client, not doing anything.")
+end
+</pre>
+
+
+
+
+<h2>Showing information by updating text using an external HTTP API (again)</h2>
+<p>
+This script shows how to fetch information from somewhere else on the web, using the <a href="/about_luau_scripting#doHTTPGetRequestAsync">doHTTPGetRequestAsync</a> function.  We will use it to get the current Eth/USD exchange rate from Coinbase, and update a text object in 
+Substrata with it.
+</p>
+
+<pre class="code-block">
+--lua
+
+function onDone(res)
+	local json_data = parseJSON(buffer.tostring(res.body_data))
+	local price_num = tonumber(json_data.data.rates.USD)
+	this_object.content = "Eth price: " .. string.format("%d", price_num) .. " USD"
+end
+
+function onError(res)
+	print("error_code: " .. tostring(res.error_code))
+end
+
+function onTimerEvent()
+	print("Fetching current ETH/USD rate...")
+
+	-- See https://docs.cdp.coinbase.com/coinbase-app/docs/api-exchange-rates
+
+	doHTTPGetRequestAsync("https://api.coinbase.com/v2/exchange-rates?currency=ETH",
+ 		{}, -- additional header lines
+		onDone, onError)
+end
+
+if(IS_SERVER) then
+	createTimer(onTimerEvent, 60.0, true)
 end
 </pre>
 
