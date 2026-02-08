@@ -17,7 +17,6 @@ FileSelectWidget::FileSelectWidget(QWidget* parent)
 :	QWidget(parent),
 	default_path(QDir::home().path()),
 	settings_key("mainwindow/lastFileSelectDir"),
-	settings("Glare Technologies", "Cyberspace"),
 	type(Type_File),
 	readonly(false),
 	force_use_last_dir_setting(false)
@@ -93,6 +92,8 @@ void FileSelectWidget::setSettingsKey(const QString& key)
 void FileSelectWidget::openFileDialog()
 {
 	QString previous_file = "";
+
+	QSettings settings("Glare Technologies", "Cyberspace");
 
 	// Check file exists when using as last path.  Fixes not opening to last dir for URLs. (that are not valid files)
 	if(!this->filePath->text().isEmpty() && FileUtils::fileExists(QtUtils::toStdString(this->filePath->text())) && !force_use_last_dir_setting)
