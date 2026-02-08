@@ -183,7 +183,6 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	server_capabilities(0),
 	settings(NULL),
 	ui_interface(NULL),
-	extracted_anim_data_loaded(false),
 	server_using_lod_chunks(false),
 	server_has_basis_textures(false),
 	server_has_basisu_terrain_detail_maps(false),
@@ -7598,17 +7597,6 @@ void GUIClient::handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<Me
 // Update avatar graphics (transform, animation pose etc.) for all avatars.
 void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& our_cam_angles, bool our_move_impulse_zero)
 {
-#if EMSCRIPTEN
-	// Wait until we have done the async load of extracted_anim_data.bin before we start loading avatars.
-	// This is not optimal (could download models/textures while we are loading extracted_anim_data.bin), but that would be complicated to code 
-	// so this will do for now.
-	if(!extracted_anim_data_loaded)
-	{
-		// conPrint("GUIClient::updateAvatarGraphics(): waiting until extracted_anim_data_loaded...");
-		return;
-	}
-#endif
-
 	// Update avatar graphics
 	temp_av_positions.clear();
 	if(world_state.nonNull())
@@ -9177,8 +9165,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			const ResourceDownloadedMessage* m = checkedDowncastPtr<const ResourceDownloadedMessage>(msg);
 			const URLString& URL = m->URL;
 			ResourceRef resource = m->resource;
+
+#if !defined(EMSCRIPTEN)
 			logMessage("Resource downloaded: '" + toStdString(URL) + "'");
-			//conPrint("Resource downloaded: '" + URL + "'");
+#endif
 
 			if(world_state.nonNull())
 			{

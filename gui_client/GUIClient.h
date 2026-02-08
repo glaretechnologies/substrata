@@ -813,8 +813,6 @@ public:
 
 	js::Vector<Reference<ThreadMessage>, 16> temp_msgs;
 
-	bool extracted_anim_data_loaded;
-
 	URLParseResults last_url_parse_results;
 
 	struct Notification
