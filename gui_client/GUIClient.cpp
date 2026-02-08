@@ -767,11 +767,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 				
 			// Load animation data
 			{
-#if EMSCRIPTEN
-				FileInStream file("/extracted_avatar_anim.bin");
-#else
-				FileInStream file(resources_dir_path + "/extracted_avatar_anim.bin");
-#endif
 				
 				AnimationData extracted_anim_data;
 				extracted_anim_data.readFromStream(file);
