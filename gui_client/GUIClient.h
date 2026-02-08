@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
+#include "AnimationManager.h"
 #include "URLParser.h"
 #include "WorldState.h"
 #include "URLWhitelist.h"
@@ -295,6 +296,7 @@ public:
 	bool isResourceCurrentlyNeededForObject(const URLString& url, const WorldObject* ob) const;
 	bool isResourceCurrentlyNeededForObjectGivenIsDependency(const URLString& url, const WorldObject* ob) const;
 	bool isDownloadingResourceCurrentlyNeeded(const URLString& url) const;
+	void handleDownloadedAnimationResource(const std::string local_path, const Reference<Resource>& resource);
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersWorldOrGodUser();
@@ -580,6 +582,8 @@ public:
 	glare::TaskManager* high_priority_task_manager;
 
 	MeshManager mesh_manager;
+
+	AnimationManager animation_manager;
 
 	std::string server_hostname; // e.g. "substrata.info" or "localhost"
 	std::string server_worldname; // e.g. "" or "ono-sendai"

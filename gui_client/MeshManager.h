@@ -149,7 +149,7 @@ MeshManager
 -----------
 Caches OpenGLMeshRenderData and physics shapes loaded from disk and built.
 
-NOTE: Do we need to make this class threadsafe?  Or are all methods called on the main thread (in particular meshDataBecameUnused()?)
+In general all methods are called on the main thread (in particular meshDataBecameUnused())
 =====================================================================*/
 class MeshManager
 {
@@ -177,11 +177,9 @@ public:
 
 	void trimMeshMemoryUsage();
 
-	//Mutex& getMutex() { return mutex; }
 private:
 	void checkRunningOnMainThread() const;
 
-	//mutable Mutex mutex;
 	ManagerWithCache<URLString, Reference<MeshData>, URLStringHasher> model_URL_to_mesh_map;
 
 	ManagerWithCache<MeshManagerPhysicsShapeKey, Reference<PhysicsShapeData>, MeshManagerPhysicsShapeKeyHasher> physics_shape_map;

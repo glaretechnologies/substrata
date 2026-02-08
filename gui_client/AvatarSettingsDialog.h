@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <graphics/BatchedMesh.h>
 #include <QtCore/QString>
 class QSettings;
+class AnimationManager;
 struct GLObject;
 
 
@@ -31,7 +32,7 @@ class AvatarSettingsDialog : public QDialog, private Ui_AvatarSettingsDialog
 {
 	Q_OBJECT
 public:
-	AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings, Reference<ResourceManager> resource_manager);
+	AvatarSettingsDialog(const std::string& base_dir_path_, QSettings* settings, Reference<ResourceManager> resource_manager, AnimationManager* anim_manager);
 	~AvatarSettingsDialog();
 
 	//std::string getAvatarName();
@@ -70,6 +71,7 @@ public:
 	Matrix4f pre_ob_to_world_matrix;
 
 	Reference<TextureServer> texture_server;
+	AnimationManager* anim_manager;
 };
 
 #ifdef _WIN32

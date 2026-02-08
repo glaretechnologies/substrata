@@ -62,6 +62,9 @@ public:
 
 	void setResourceAsLocallyPresentForURL(const URLString& URL); // Threadsafe
 
+	// External resources are stored locally outside of base_resources_dir.
+	void addExternalResource(const URLString& URL, const std::string& local_abs_path);
+
 	// Get local, absolute path for the URL.
 	// NOTE: currently has the side-effect of adding a resource to the resource map if it was not already present.
 	const std::string pathForURL(const URLString& URL); // Throws glare::Exception if URL is invalid.

@@ -1509,7 +1509,7 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 
 void MainWindow::on_actionAvatarSettings_triggered()
 {
-	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager);
+	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager, &gui_client.animation_manager);
 	const int res = dialog.exec();
 	ui->glWidget->makeCurrent();// Change back from the dialog GL context to the mainwindow GL context.
 
@@ -3953,6 +3953,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	if(e->key() == Qt::Key_F6)
 	{
 		ui->glWidget->opengl_engine->show_ssao = !ui->glWidget->opengl_engine->show_ssao;
+		conPrint("Toggling show_ssao to " + boolToString(ui->glWidget->opengl_engine->show_ssao));
 	}
 	if(e->key() == Qt::Key_F7)
 	{
@@ -4509,7 +4510,7 @@ int main(int argc, char *argv[])
 		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify hostname to connect to
 		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to
 		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to, when a user has clicked on a substrata URL hyperlink.
-		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string); // Extract animation data
+		syntax["--processanims"] = std::vector<ArgumentParser::ArgumentType>(); // Build animation data
 		syntax["--screenshotslave"] = std::vector<ArgumentParser::ArgumentType>(); // Run GUI as a screenshot-taking slave.
 		syntax["--testscreenshot"] = std::vector<ArgumentParser::ArgumentType>(); // Test screenshot taking
 		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
@@ -4526,14 +4527,10 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
-		// Extract the avatar animation data from a GLTF file.
-		// E.g. --extractanims "D:\models\readyplayerme_avatar_animation_18.glb" "D:\models\extracted_avatar_anim.bin"
-		if(parsed_args.isArgPresent("--extractanims"))
+		// Build .subanim processed animation files from animation GLBs.
+		if(parsed_args.isArgPresent("--processanims"))
 		{
-			const std::string input_path  = parsed_args.getArgStringValue("--extractanims", 0);
-			const std::string output_path = parsed_args.getArgStringValue("--extractanims", 1);
-
-			AvatarGraphics::extractAvatarAnimInfo(input_path, output_path);
+			AvatarGraphics::processAnimationData();
 			return 0;
 		}
 
