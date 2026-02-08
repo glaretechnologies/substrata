@@ -1378,21 +1378,12 @@ void processAvatarModelFile(unsigned char* data, int length, const char* filenam
 		// TEMP: Load animation data for ready-player-me type avatars
 		float foot_bottom_height = original_toe_pos[1] - 0.0362269469f; // Should be ~= 0
 
-		bool do_retargetting = true;
-#if EMSCRIPTEN
-		do_retargetting = gui_client->extracted_anim_data_loaded;
-#endif
-
-		if(do_retargetting && results.batched_mesh)
+		if(results.batched_mesh)
 		{
-#if EMSCRIPTEN
-			FileInStream file("/extracted_avatar_anim.bin");
-#else
-			FileInStream file(gui_client->resources_dir_path + "/extracted_avatar_anim.bin");
-#endif
 			// Do retargetting on a copy as we don't want to send the animation data with all animations from extracted_avatar_anim.bin to the server when uploading the mesh.
 			AnimationData animation_data_copy = results.batched_mesh->animation_data;
-			animation_data_copy.loadAndRetargetAnim(file);
+
+			animation_data_copy.loadAndRetargetAnim(*gui_client->animation_manager.getAnimation("Idle.subanim", *gui_client->resource_manager));
 
 			Vec4f new_toe_pos = animation_data_copy.getNodePositionModelSpace("LeftToe_End", /*use_retarget_adjustment=*/true);
 			conPrint("new_toe_pos: " + new_toe_pos.toStringNSigFigs(4));
