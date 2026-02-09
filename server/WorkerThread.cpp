@@ -1432,6 +1432,7 @@ void WorkerThread::doRun()
 
 
 							// Get gesture animation file if we don't have it
+							if(client_user_id.valid()) // Only do for logged-in users
 							{
 								const URLString anim_URL = URLString(gesture_name) + ".subanim";
 								sendGetFileMessageIfNeeded(anim_URL);
