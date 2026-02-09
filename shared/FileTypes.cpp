@@ -16,5 +16,6 @@ bool FileTypes::hasSupportedExtension(const string_view path)
 		ModelLoading::hasSupportedModelExtension(path) ||
 		ImageDecoding::hasSupportedImageExtension(path) ||
 		hasAudioFileExtension(path) ||
-		hasSupportedVideoFileExtension(path);		
+		hasSupportedVideoFileExtension(path) ||
+		::hasExtension(path, "subanim");
 }
