@@ -4806,35 +4806,43 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 			bool at_least_one_geom_or_tex_uploaded = false;
 
-			//------------------------------------------- Check any current geometry uploads to see if they have completed ------------------------------------------- 
-			//Timer timer2;
-			async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), opengl_engine->getCurrentScene()->frame_num, /*loaded_geom_out=*/temp_uploaded_geom_infos);
-			//const double elapsed = timer2.elapsed();
-			//if(elapsed > 0.0001)
-			//	conPrint("-----------checkForUploadedGeometry() took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms------------------");
-			for(size_t i=0; i<temp_uploaded_geom_infos.size(); ++i) // Process any completed uploaded geometry
+			try
 			{
-				vbo_pool->vboBecameUnused(temp_uploaded_geom_infos[i].vert_vbo); // Return VBO to pool of unused VBOs
-				if(temp_uploaded_geom_infos[i].index_vbo)
-					index_vbo_pool->vboBecameUnused(temp_uploaded_geom_infos[i].index_vbo); // Return VBO to pool of unused VBOs
-
-
-				Reference<AsyncGeometryUploading> loading_info_ref = temp_uploaded_geom_infos[i].user_info.downcast<AsyncGeometryUploading>(); // Get our info about this upload
-				AsyncGeometryUploading& loading_info = *loading_info_ref;
-
-				try
+				//------------------------------------------- Check any current geometry uploads to see if they have completed ------------------------------------------- 
+				//Timer timer2;
+				async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), opengl_engine->getCurrentScene()->frame_num, /*loaded_geom_out=*/temp_uploaded_geom_infos); // Can throw if VBO space allocation fails
+				//const double elapsed = timer2.elapsed();
+				//if(elapsed > 0.0001)
+				//	conPrint("-----------checkForUploadedGeometry() took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms------------------");
+				for(size_t i=0; i<temp_uploaded_geom_infos.size(); ++i) // Process any completed uploaded geometry
 				{
-					// Process the finished upload (assign mesh to objects etc.)
-					handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, temp_uploaded_geom_infos[i].meshdata, loading_info.physics_shape,
-						loading_info.voxel_subsample_factor, loading_info.voxel_hash);
-				}
-				catch(glare::Exception& e)
-				{
-					logMessage("Error while handling uploaded mesh data: " + e.what());
-				}
+					vbo_pool->vboBecameUnused(temp_uploaded_geom_infos[i].vert_vbo); // Return VBO to pool of unused VBOs
+					if(temp_uploaded_geom_infos[i].index_vbo)
+						index_vbo_pool->vboBecameUnused(temp_uploaded_geom_infos[i].index_vbo); // Return VBO to pool of unused VBOs
 
-				at_least_one_geom_or_tex_uploaded = true;
+
+					Reference<AsyncGeometryUploading> loading_info_ref = temp_uploaded_geom_infos[i].user_info.downcast<AsyncGeometryUploading>(); // Get our info about this upload
+					AsyncGeometryUploading& loading_info = *loading_info_ref;
+
+					try
+					{
+						// Process the finished upload (assign mesh to objects etc.)
+						handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, temp_uploaded_geom_infos[i].meshdata, loading_info.physics_shape,
+							loading_info.voxel_subsample_factor, loading_info.voxel_hash);
+					}
+					catch(glare::Exception& e)
+					{
+						logAndConPrintMessage("Error while handling uploaded mesh data: " + e.what());
+					}
+
+					at_least_one_geom_or_tex_uploaded = true;
+				}
 			}
+			catch(glare::Exception& e)
+			{
+				logAndConPrintMessage("Excep while uploading geometry: " + e.what());
+			}
+
 			temp_uploaded_geom_infos.clear();
 
 
@@ -5065,7 +5073,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 			}
 			catch(glare::Exception& e)
 			{
-				conPrint("Excep while creating or starting to upload texture: " + e.what());
+				logAndConPrintMessage("Excep while creating or starting to upload texture: " + e.what());
 			}
 		}
 	}
