@@ -2978,11 +2978,12 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 	if(our_avatar)
 	{
 		std::string gesture_name;
+		URLString gesture_URL;
 		bool animate_head, loop_anim;
-		if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+		if(gesture_ui.getCurrentGesturePlaying(gesture_name, gesture_URL, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
 		{
 			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-			avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim, animation_manager, *resource_manager);
+			avatar->graphics.performGesture(cur_time, gesture_name, gesture_URL, animate_head, loop_anim, animation_manager, *resource_manager);
 		}
 	}
 
@@ -8746,7 +8747,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
 			{
-				const URLString anim_resource_URL = URLString(m->gesture_name) + ".subanim";
+				// For backwards compatibility, if gesture_URL was not sent, just use the gesture name with ".subanim" appended.
+				const URLString anim_resource_URL = m->gesture_URL.empty() ? (URLString(m->gesture_name) + ".subanim") : m->gesture_URL;
+				const bool anim_head = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+				const bool anim_loop = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_LOOP);
 				if(resource_manager->isFileForURLPresent(anim_resource_URL))
 				{
 					if(world_state)
@@ -8757,7 +8761,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						if(res != this->world_state->avatars.end())
 						{
 							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name), animation_manager, *resource_manager);
+							avatar->graphics.performGesture(cur_time, m->gesture_name, anim_resource_URL, anim_head, anim_loop, animation_manager, *resource_manager);
 						}
 					}
 				}
@@ -8873,6 +8877,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			ui_interface->updateWorldSettingsControlsEditable();
 
 			misc_info_ui.showLoggedInButton(m->username);
+
+			// If this server has sent the user's custom gesture settings, update the gesture UI with them.
+			if(!m->gesture_settings.gesture_settings.empty())
+				gesture_ui.setCurrentGestureSettings(m->gesture_settings);
+
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
@@ -14965,14 +14974,12 @@ void GUIClient::reloadShaders()
 }
 
 
-void GUIClient::performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim)
+void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim)
 {
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
 	// Change camera view to third person if it's not already, so we can see the gesture
 	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
-
-	const URLString anim_resource_URL = URLString(gesture_name) + ".subanim";
 
 	if(resource_manager->isFileForURLPresent(anim_resource_URL))
 	{
@@ -14982,7 +14989,7 @@ void GUIClient::performGestureClicked(const std::string& gesture_name, bool anim
 		{
 			Avatar* av = it->second.getPointer();
 			if(av->isOurAvatar())
-				av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim, animation_manager, *resource_manager);
+				av->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, animation_manager, *resource_manager);
 		}
 	}
 	else
@@ -15003,16 +15010,20 @@ void GUIClient::performGestureClicked(const std::string& gesture_name, bool anim
 			{
 				Avatar* av = it->second.getPointer();
 				if(av->isOurAvatar())
-					av->graphics.setPendingGesture(gesture_name, animate_head, loop_anim);
+					av->graphics.setPendingGesture(gesture_name, anim_resource_URL, animate_head, loop_anim);
 			}
 		}
 	}
 
 	// Send AvatarPerformGesture message
 	{
+		const uint32 flags = (animate_head ? SingleGestureSettings::FLAG_ANIMATE_HEAD : 0) | (loop_anim ? SingleGestureSettings::FLAG_LOOP : 0);
+
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 		writeToStream(this->client_avatar_uid, scratch_packet);
 		scratch_packet.writeStringLengthFirst(gesture_name);
+		scratch_packet.writeStringLengthFirst(anim_resource_URL);
+		scratch_packet.writeUInt32(flags);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -15508,6 +15519,19 @@ void GUIClient::goBack()
 
 		visitSubURL(URL, /*push_prev_URL_on_nav_stack=*/false);
 	}
+}
+
+
+void GUIClient::gestureSettingsChanged(const GestureSettings& new_gesture_settings)
+{
+	// Send UserGestureSettingsChanged message to server
+	MessageUtils::initPacket(scratch_packet, Protocol::UserGestureSettingsChanged);
+	new_gesture_settings.writeToStream(scratch_packet);
+	enqueueMessageToSend(*client_thread, scratch_packet);
+
+
+	// Update gesture UI.
+	gesture_ui.setCurrentGestureSettings(new_gesture_settings);
 }
 
 

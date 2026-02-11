@@ -269,6 +269,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/GarbageDeleterThread.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/GarbageDeleterThread.h
 ${CMAKE_SOURCE_DIR}/gui_client/AnimationManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/AnimationManager.h
+${CMAKE_SOURCE_DIR}/gui_client/GestureManagerUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/GestureManagerUI.h
 )
 
 

@@ -1426,7 +1426,7 @@ static float getAnimLength(const AnimationData& animation_data, int anim_i)
 }
 
 
-void AvatarGraphics::performGesture(double cur_time, const std::string& gesture_name, bool animate_head, bool loop_anim, AnimationManager& animation_manager, ResourceManager& resource_manager)
+void AvatarGraphics::performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, AnimationManager& animation_manager, ResourceManager& resource_manager)
 {
 	try
 	{
@@ -1456,7 +1456,7 @@ void AvatarGraphics::performGesture(double cur_time, const std::string& gesture_
 				if(this->gesture_anim.anim_i < 0) // If the avatar animation data does not have the animation yet:
 				{
 					// Get the animation data from the animation manager: (Will load from the resource manager if in resource manager but not animation manager yet)
-					Reference<AnimationData> anim = animation_manager.getAnimationIfPresent(URLString(gesture_name + ".subanim"), resource_manager);
+					Reference<AnimationData> anim = animation_manager.getAnimationIfPresent(gesture_anim_URL, resource_manager);
 
 					if(anim)
 					{
@@ -1504,9 +1504,10 @@ void AvatarGraphics::stopGesture(double cur_time/*, const std::string& gesture_n
 }
 
 
-void AvatarGraphics::setPendingGesture(const std::string& gesture_name, bool animate_head, bool loop_anim)
+void AvatarGraphics::setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim)
 {
 	this->pending_gesture_name = gesture_name;
+	this->pending_gesture_URL = gesture_anim_URL;
 	this->pending_gesture_animate_head = animate_head;
 	this->pending_gesture_loop_anim = loop_anim;
 }
@@ -1514,9 +1515,63 @@ void AvatarGraphics::setPendingGesture(const std::string& gesture_name, bool ani
 
 void AvatarGraphics::performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager)
 {
-	this->performGesture(cur_time, pending_gesture_name, pending_gesture_animate_head, pending_gesture_loop_anim, animation_manager, resource_manager);
+	this->performGesture(cur_time, pending_gesture_name, pending_gesture_URL, pending_gesture_animate_head, pending_gesture_loop_anim, animation_manager, resource_manager);
 
 	this->pending_gesture_name.clear();
+	this->pending_gesture_URL.clear();
+}
+
+
+// Particularly for mixamo data.
+// Returns animation length
+float AvatarGraphics::processAndConvertGLBAnimToSubanim(const std::string& glb_path, const std::string& anim_name, const std::string& output_subanim_path)
+{
+	GLTFLoadedData gltf_data;
+	BatchedMeshRef anim_data = FormatDecoderGLTF::loadGLBFile(glb_path, gltf_data);
+
+	FileOutStream file(output_subanim_path);
+	
+	// Write magic number/string ("SUBA")
+	const char magic_num[] = { 'S', 'U', 'B', 'A' };
+	file.writeData(magic_num, 4);
+
+	// Checks num anims = 1.  TODO: handle files with more than 1 animation? Just discard after the first?
+	if(anim_data->animation_data.animations.size() != 1)
+		throw glare::Exception("file must have exactly one animation in it.");
+
+	AnimationDatum& anim = *anim_data->animation_data.animations[0];
+	anim.name = anim_name;
+
+	// Remove "mixamorig:" prefix from node names, as some node names are hard-coded in Substrata without the mixamo prefix.
+	for(size_t i=0; i<anim_data->animation_data.nodes.size(); ++i)
+		anim_data->animation_data.nodes[i].name = ::eatPrefix(anim_data->animation_data.nodes[i].name, "mixamorig:");
+
+
+	anim_data->animation_data.removeInverseBindMatrixScaling(); // Mixamo animations exported from Blender have some scales of 100 and 0.01 due to use of cm units.  Remove this.
+
+
+	// Modify floating animation to fix the floating above the ground - avatar is about 33cm too high.
+	if(anim_name == "Floating")
+	{
+		const int root_node_i = anim_data->animation_data.sorted_nodes[1];
+		const PerAnimationNodeData& root_node_data = anim.raw_per_anim_node_data[root_node_i]; // Should be "Hips" node
+		assert(anim_data->animation_data.nodes[root_node_i].name == "Hips");
+
+		runtimeCheck(root_node_data.translation_output_accessor >= 0 && root_node_data.translation_output_accessor < (int)anim_data->animation_data.output_data.size());
+		js::Vector<Vec4f, 16>& root_node_translation_output_data = anim_data->animation_data.output_data[root_node_data.translation_output_accessor];
+		for(size_t i=0; i<root_node_translation_output_data.size(); ++i)
+		{
+			Vec4f& trans = root_node_translation_output_data[i];
+			trans[2] += 0.33; // Adjust down by 33 cm
+		}
+	}
+
+
+	anim_data->animation_data.removeUnneededOutputData();
+
+	anim_data->animation_data.writeToStream(file);
+
+	return anim_data->animation_data.animations[0]->anim_len;
 }
 
 
@@ -1524,55 +1579,12 @@ static void processAnimation(const std::string& glb_path)
 {
 	conPrint("Processing animation '" + glb_path + "'...");
 
+	// Take the animation name from the GLB filename.  Don't use the actual name of the animation as read from the GLB contents, because it is something generic like "mixamo".
 	const std::string anim_name = ::removeDotAndExtension(FileUtils::getFilename(glb_path));
 
-	GLTFLoadedData gltf_data;
-	BatchedMeshRef anim_data = FormatDecoderGLTF::loadGLBFile(glb_path, gltf_data);
-
 	const std::string output_path = ::removeDotAndExtension(glb_path) + ".subanim";
-
-	{
-		FileOutStream file(output_path);
+	AvatarGraphics::processAndConvertGLBAnimToSubanim(glb_path, anim_name, output_path);
 	
-		// Write magic number/string ("SUBA")
-		const char magic_num[] = { 'S', 'U', 'B', 'A' };
-		file.writeData(magic_num, 4);
-
-		runtimeCheck(anim_data->animation_data.animations.size() == 1);
-		AnimationDatum& anim = *anim_data->animation_data.animations[0];
-		anim.name = anim_name;
-
-		// Remove "mixamorig:" prefix from node names, as some node names are hard-coded in Substrata without the mixamo prefix.
-		for(size_t i=0; i<anim_data->animation_data.nodes.size(); ++i)
-			anim_data->animation_data.nodes[i].name = ::eatPrefix(anim_data->animation_data.nodes[i].name, "mixamorig:");
-
-
-		anim_data->animation_data.removeInverseBindMatrixScaling(); // Mixamo animations exported from Blender have some scales of 100 and 0.01 due to use of cm units.  Remove this.
-
-
-		// Modify floating animation to fix the floating above the ground - avatar is about 33cm too high.
-		if(anim_name == "Floating")
-		{
-			const int root_node_i = anim_data->animation_data.sorted_nodes[1];
-			const PerAnimationNodeData& root_node_data = anim.raw_per_anim_node_data[root_node_i]; // Should be "Hips" node
-			assert(anim_data->animation_data.nodes[root_node_i].name == "Hips");
-
-			runtimeCheck(root_node_data.translation_output_accessor >= 0 && root_node_data.translation_output_accessor < (int)anim_data->animation_data.output_data.size());
-			js::Vector<Vec4f, 16>& root_node_translation_output_data = anim_data->animation_data.output_data[root_node_data.translation_output_accessor];
-			for(size_t i=0; i<root_node_translation_output_data.size(); ++i)
-			{
-				Vec4f& trans = root_node_translation_output_data[i];
-				trans[2] += 0.33; // Adjust down by 33 cm
-			}
-		}
-
-
-		anim_data->animation_data.removeUnneededOutputData();
-
-		anim_data->animation_data.printStats();
-	
-		anim_data->animation_data.writeToStream(file);
-	}
 	conPrint("\tWrote to '" + output_path + "'.");
 	conPrint("");
 

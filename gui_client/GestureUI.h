@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
+#include "../shared/GestureSettings.h"
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
 #include <opengl/ui/GLUITextButton.h>
@@ -14,12 +15,14 @@ Copyright Glare Technologies Limited 2021 -
 
 
 class GUIClient;
+class GestureManagerUI;
 
 
 /*=====================================================================
 GestureUI
 ---------
-
+Buttons for playing gestures.
+Also some misc. other buttons like microphone and photo mode buttons.
 =====================================================================*/
 class GestureUI : public GLUICallbackHandler
 {
@@ -32,6 +35,8 @@ public:
 
 	void think();
 
+	void setCurrentGestureSettings(const GestureSettings& gesture_settings);
+
 	//bool handleMouseClick(const Vec2f& gl_coords);
 	//bool handleMouseMoved(const Vec2f& gl_coords);
 	void viewportResized(int w, int h);
@@ -42,7 +47,7 @@ public:
 
 	// Get the current gesture being performed, according to the UI state (i.e. which button is toggled).
 	// Returns true if a gesture is being performed, false otherwise.
-	bool getCurrentGesturePlaying(std::string& gesture_name_out, bool& animate_head_out, bool& loop_out);
+	bool getCurrentGesturePlaying(std::string& gesture_name_out, URLString& gesture_URL_out, bool& animate_head_out, bool& loop_out);
 
 	void stopAnyGesturePlaying();
 
@@ -52,15 +57,19 @@ public:
 
 	void setCurrentMicLevel(float linear_level, float display_level);
 
-	static bool animateHead(const std::string& gesture);
-	static bool loopAnim(const std::string& gesture);
-
 private:
+	void rebuildGestureWidgets();
 	void updateWidgetPositions();
 //public:
 	GUIClient* gui_client;
 
 	std::vector<GLUIButtonRef> gesture_buttons;
+
+	GLUIButtonRef edit_gestures_button;
+	Reference<GestureManagerUI> gesture_manager;
+	GLUIButtonRef close_gesture_manager_button;
+
+	GestureSettings gesture_settings;
 
 	GLUIButtonRef expand_button;
 	GLUIButtonRef collapse_button;
