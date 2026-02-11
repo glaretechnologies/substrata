@@ -163,10 +163,6 @@ void GestureManagerUI::viewportResized(int w, int h)
 }
 
 
-void GestureManagerUI::setVisible(bool visible)
-{}
-
-
 void GestureManagerUI::eventOccurred(GLUICallbackEvent& event)
 {
 	if(gui_client)

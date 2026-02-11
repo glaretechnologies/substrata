@@ -520,6 +520,8 @@ SET(shared_files
 ../shared/URLString.h
 ../shared/URLUtils.cpp
 ../shared/URLUtils.h
+../shared/GestureSettings.cpp
+../shared/GestureSettings.h
 )
 
 SET(client_indigo_files
