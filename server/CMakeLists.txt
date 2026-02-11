@@ -63,6 +63,8 @@ SET(shared_files
 ../shared/WorldDetails.h
 ../shared/URLUtils.cpp
 ../shared/URLUtils.h
+../shared/GestureSettings.cpp
+../shared/GestureSettings.h
 )
 
 
