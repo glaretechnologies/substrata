@@ -89,14 +89,14 @@ void WorkerThread::sendGetFileMessageIfNeeded(const URLString& resource_URL)
 	// See if we have this file on the server already
 	{
 		const ResourceRef resource = server->world_state->resource_manager->getExistingResourceForURL(resource_URL);
-		if(resource.nonNull() && (resource->getState() == Resource::State_Present))
+		if(resource && resource->isPresent())
 		{
 			// Check hash?
-			conPrintIfNotFuzzing("resource file with URL '" + toStdString(resource_URL) + "' already present on disk.");
+			// conPrintIfNotFuzzing("resource file with URL '" + toStdString(resource_URL) + "' already present on disk.");
 		}
 		else
 		{
-			conPrintIfNotFuzzing("resource file with URL '" + toStdString(resource_URL) + "' not present on disk, sending get file message to client.");
+			conPrintIfNotFuzzing("resource with URL '" + toStdString(resource_URL) + "' not present, sending GetFile message to client.");
 
 			// We need the file from the client.
 			// Send the client a 'get file' message
@@ -1084,6 +1084,7 @@ void WorkerThread::doRun()
 	UserID client_user_id = UserID::invalidUserID(); // Will be an invalid reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
 	std::string client_user_name;
 	AvatarSettings client_user_avatar_settings;
+	GestureSettings client_gesture_settings;
 	uint32 client_user_flags = 0;
 
 	bool logged_in_user_is_lightmapper_bot = false; // Just for updating the last_lightmapper_bot_contact_time.
@@ -1185,6 +1186,7 @@ void WorkerThread::doRun()
 					client_user_name = cookie_logged_in_user->name;
 					client_user_avatar_settings = cookie_logged_in_user->avatar_settings; // TODO: clone materials?
 					client_user_flags = cookie_logged_in_user->flags;
+					client_gesture_settings = cookie_logged_in_user->gesture_settings;
 				}
 			}
 
@@ -1196,6 +1198,7 @@ void WorkerThread::doRun()
 				scratch_packet.writeStringLengthFirst(client_user_name);
 				writeAvatarSettingsToStream(client_user_avatar_settings, scratch_packet);
 				scratch_packet.writeUInt32(client_user_flags);
+				client_gesture_settings.writeToStream(scratch_packet);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1419,24 +1422,29 @@ void WorkerThread::doRun()
 							//conPrint("AvatarPerformGesture");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 							const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
+							URLString gesture_URL;
+							if(!msg_buffer.endOfStream())
+								gesture_URL = URLString(msg_buffer.readStringLengthFirst(10000));
+							uint32 flags = 0;
+							if(!msg_buffer.endOfStream())
+								flags = msg_buffer.readUInt32();
 
-							//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
+							conPrint("Received AvatarPerformGesture: gesture_name: '" + gesture_name + "', gesture_URL: '" + toStdString(gesture_URL) + "', flags: " + toString(flags));
 
 							// Enqueue AvatarPerformGesture messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 							writeToStream(avatar_uid, scratch_packet);
 							scratch_packet.writeStringLengthFirst(gesture_name);
+							scratch_packet.writeStringLengthFirst(gesture_URL);
+							scratch_packet.writeUInt32(flags);
 							MessageUtils::updatePacketLengthField(scratch_packet);
 
 							enqueuePacketToBroadcast(scratch_packet);
 
 
 							// Get gesture animation file if we don't have it
-							if(client_user_id.valid()) // Only do for logged-in users
-							{
-								const URLString anim_URL = URLString(gesture_name) + ".subanim";
-								sendGetFileMessageIfNeeded(anim_URL);
-							}
+							if(client_user_id.valid() && hasExtension(gesture_URL, "subanim")) // Only do for logged-in users
+								sendGetFileMessageIfNeeded(gesture_URL);
 
 							break;
 						}
@@ -2854,6 +2862,7 @@ void WorkerThread::doRun()
 										client_user_name = user->name;
 										client_user_avatar_settings = user->avatar_settings;
 										client_user_flags = user->flags;
+										client_gesture_settings = user->gesture_settings;
 
 										logged_in = true;
 									}
@@ -2872,6 +2881,7 @@ void WorkerThread::doRun()
 								scratch_packet.writeStringLengthFirst(username);
 								writeAvatarSettingsToStream(client_user_avatar_settings, scratch_packet);
 								scratch_packet.writeUInt32(client_user_flags);
+								client_gesture_settings.writeToStream(scratch_packet);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -3186,6 +3196,31 @@ void WorkerThread::doRun()
 
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 							socket->flush();
+
+							break;
+						}
+					case Protocol::UserGestureSettingsChanged:
+						{
+							conPrintIfNotFuzzing("UserGestureSettingsChanged");
+						
+							readGestureSettingsFromStream(msg_buffer, client_gesture_settings);
+
+							// Store gesture settings in the user data
+							if(client_user_id.valid())
+							{
+								if(!world_state->isInReadOnlyMode())
+								{
+									auto res2 = world_state->user_id_to_users.find(client_user_id);
+									if(res2 != world_state->user_id_to_users.end())
+									{
+										Reference<User> client_user = res2->second;
+										client_user->gesture_settings = client_gesture_settings;
+										world_state->addUserAsDBDirty(client_user);
+
+										conPrintIfNotFuzzing("Updated user gesture settings.");
+									}
+								}
+							}
 
 							break;
 						}

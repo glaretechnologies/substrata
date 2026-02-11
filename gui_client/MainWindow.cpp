@@ -4249,6 +4249,37 @@ void* MainWindow::getID3D11Device() const
 }
 
 
+std::string MainWindow::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key)
+{
+	QString previous_file = "";
+
+	QSettings local_settings("Glare Technologies", "Cyberspace");
+
+	std::string filter; // e.g. "Images (*.png *.xpm *.jpg);;Text files (*.txt);;XML files (*.xml)"  (see https://doc.qt.io/qt-6/qfiledialog.html)
+	for(size_t i=0; i<file_type_filters.size(); ++i)
+	{
+		const FileTypeFilter& f = file_type_filters[i];
+		filter += f.description + " (";
+		for(size_t z=0; z<f.file_types.size(); ++z)
+		{
+			filter += "*." + f.file_types[z];
+			if(z + 1 < f.file_types.size())
+				filter += " ";
+		}
+		filter += ")";
+		if(i + 1 < file_type_filters.size())
+			filter += ";;";
+	}
+
+	const QString file = QFileDialog::getOpenFileName(this, QtUtils::toQString(caption), previous_file, QtUtils::toQString(filter));
+
+	if(!file.isNull())
+		local_settings.setValue(QtUtils::toQString(settings_key), QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(file)))); // Store dir selected
+
+	return QtUtils::toStdString(file);
+}
+
+
 // The mouse was double-clicked on a web-view object
 void MainWindow::webViewMouseDoubleClicked(QMouseEvent* e)
 {

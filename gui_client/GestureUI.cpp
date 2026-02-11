@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "GUIClient.h"
+#include "GestureManagerUI.h"
 #include <settings/SettingsStore.h>
 #include <graphics/SRGBUtils.h>
 #include <tracy/Tracy.hpp>
@@ -24,51 +25,6 @@ GestureUI::~GestureUI()
 {}
 
 
-// Column 0: Animation name
-// Column 1: Should the animation data control the head (e.g. override the procedural lookat anim)?
-// Column 2: Should the animation automatically loop.
-// Column 3: Animation duration (from debug output in OpenGLEngine.cpp, conPrint("anim_datum_a..  etc..")
-static const char* gestures[] = {
-	"Clapping",						"",				"Loop",		"",
-	"Dancing",						"AnimHead",		"Loop",		"",
-	"Dancing 2",					"AnimHead",		"Loop",		"",
-	"Excited",						"AnimHead",		"Loop",		"6.5666666",
-	"Looking",						"AnimHead",		"",			"8.016666",
-	"Quick Informal Bow",			"AnimHead",		"",			"2.75",
-	"Rejected",						"AnimHead",		"",			"4.8166666",
-	"Sit",							"",				"Loop",		"",
-	"Sitting On Ground",			"",				"Loop",		"",
-	"Sleeping Idle",				"AnimHead",		"Loop",		"",
-	"Standing React Death Forward",	"AnimHead",		"",			"3.6833334",
-	"Waving 1",						"",				"Loop",		"",
-	"Waving 2",						"",				"",			"3.1833334",
-	"Yawn",							"AnimHead",		"",			"8.35"
-};
-
-static const int NUM_GESTURE_FIELDS = 4;
-
-static_assert((staticArrayNumElems(gestures) % NUM_GESTURE_FIELDS) == 0, "(staticArrayNumElems(gestures) % NUM_GESTURE_FIELDS) == 0");
-
-bool GestureUI::animateHead(const std::string& gesture)
-{
-	for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
-		if(gestures[i] == gesture)
-			return std::string(gestures[i+1]) == "AnimHead";
-	assert(0);
-	return false;
-}
-
-
-bool GestureUI::loopAnim(const std::string& gesture)
-{
-	for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
-		if(gestures[i] == gesture)
-			return std::string(gestures[i+2]) == "Loop";
-	assert(0);
-	return false;
-}
-
-
 void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	ZoneScoped; // Tracy profiler
@@ -80,21 +36,26 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	gestures_visible        = gui_client->getSettingsStore()->getBoolValue("GestureUI/gestures_visible",        /*default val=*/false);
 	vehicle_buttons_visible = false;
 
-	const float min_max_y = gl_ui->getViewportMinMaxY();
+	// Start with the default gestures.  These can be overridden with the user's custom settings when they log in.
+	this->gesture_settings = GestureSettings::defaultGestureSettings();
 
-	for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
+	rebuildGestureWidgets();
+
 	{
-		const std::string gesture_name = gestures[i];
-
 		GLUIButton::CreateArgs args;
-		args.tooltip = gesture_name;
-		GLUIButtonRef button = new GLUIButton(*gl_ui, opengl_engine,  gui_client->resources_dir_path + "/buttons/" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), args);
-		button->toggleable = true;
-		button->client_data = gesture_name;
-		button->handler = this;
-		gl_ui->addWidget(button);
+		args.tooltip = "Manage gestures";
+		edit_gestures_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/plus.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		edit_gestures_button->handler = this;
+		gl_ui->addWidget(edit_gestures_button);
+	}
 
-		gesture_buttons.push_back(button);
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Close gesture manager";
+		close_gesture_manager_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/white_x.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		close_gesture_manager_button->handler = this;
+		gl_ui->addWidget(close_gesture_manager_button);
+		close_gesture_manager_button->setVisible(false);
 	}
 
 	// Create left and right tab buttons
@@ -204,6 +165,9 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 
 void GestureUI::destroy()
 {
+	checkRemoveAndDeleteWidget(gl_ui, edit_gestures_button);
+	gesture_manager = NULL;
+
 	checkRemoveAndDeleteWidget(gl_ui, expand_button);
 	checkRemoveAndDeleteWidget(gl_ui, collapse_button);
 	checkRemoveAndDeleteWidget(gl_ui, vehicle_button);
@@ -226,6 +190,38 @@ void GestureUI::destroy()
 }
 
 
+void GestureUI::rebuildGestureWidgets()
+{
+	// Remove existing gesture buttons (if any)
+	for(size_t i=0; i<gesture_buttons.size(); ++i)
+		gl_ui->removeWidget(gesture_buttons[i]);
+	gesture_buttons.resize(0);
+
+
+	// Add gesture buttons
+	const float min_max_y = gl_ui->getViewportMinMaxY();
+
+	for(size_t i=0; i<gesture_settings.gesture_settings.size(); ++i)
+	{
+		const SingleGestureSettings& setting = gesture_settings.gesture_settings[i];
+
+		const std::string gesture_name = setting.friendly_name;
+
+		const std::string tex_name = GestureSettings::isDefaultGestureName(setting.friendly_name) ? setting.friendly_name : "Waving 1";
+
+		GLUIButton::CreateArgs args;
+		args.tooltip = gesture_name;
+		GLUIButtonRef button = new GLUIButton(*gl_ui, opengl_engine,  gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), args);
+		button->toggleable = true;
+		button->client_data = gesture_name;
+		button->handler = this;
+		gl_ui->addWidget(button);
+
+		gesture_buttons.push_back(button);
+	}
+}
+
+
 void GestureUI::think()
 {
 	if(gl_ui.nonNull())
@@ -239,6 +235,19 @@ void GestureUI::think()
 			untoggle_button_time = -1;
 		}
 	}
+
+	if(gesture_manager)
+		gesture_manager->think();
+}
+
+
+void GestureUI::setCurrentGestureSettings(const GestureSettings& gesture_settings_)
+{
+	gesture_settings = gesture_settings_;
+
+	rebuildGestureWidgets();
+
+	updateWidgetPositions();
 }
 
 
@@ -266,6 +275,15 @@ void GestureUI::updateWidgetPositions()
 {
 	if(gl_ui.nonNull())
 	{
+		if(gesture_manager)
+		{
+			gesture_manager->updateWidgetPositions();
+
+			const Vec2f close_dims = Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(25));
+			const Vec2f close_margin = Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(8)); // Extra margin around close button
+			close_gesture_manager_button->setPosAndDims(gesture_manager->grid_container->getRect().getMax() - close_dims - close_margin, close_dims);
+		}
+
 		const float min_max_y = gl_ui->getViewportMinMaxY();
 
 		const float BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS);
@@ -278,12 +296,17 @@ void GestureUI::updateWidgetPositions()
 		const float GESTURES_LEFT_X = gestures_visible ? (1 - (BUTTON_W * NUM_BUTTONS_PER_ROW + SPACING * NUM_BUTTONS_PER_ROW)) : 1000;
 
 		const float gestures_bottom_margin = (GESTURES_LEFT_X < 0.3f) ? gl_ui->getUIWidthForDevIndepPixelWidth(120) : SPACING; // If gesture buttons would overlap with other buttons (e.g. on narrow screens), move up.
+		float max_gesture_buttons_y = -min_max_y + gestures_bottom_margin;
 		for(size_t i=0; i<gesture_buttons.size(); ++i)
 		{
 			const float x = (i % NUM_BUTTONS_PER_ROW) * (BUTTON_W + SPACING) + GESTURES_LEFT_X;
 			const float y = (i / NUM_BUTTONS_PER_ROW) * (BUTTON_H + SPACING);
 			gesture_buttons[i]->setPosAndDims(Vec2f(x, -min_max_y + y + gestures_bottom_margin), Vec2f(BUTTON_W, BUTTON_H));
+			gesture_buttons[i]->setVisible(gestures_visible);
+			max_gesture_buttons_y = myMax(max_gesture_buttons_y, gesture_buttons[i]->getRect().getMax().y);
 		}
+
+		edit_gestures_button->setPosAndDims(Vec2f(GESTURES_LEFT_X, max_gesture_buttons_y + SPACING), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(40)));
 
 		if(collapse_button)
 		{
@@ -360,31 +383,33 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 		GLUIButton* button = dynamic_cast<GLUIButton*>(event.widget);
 		if(button)
 		{
-			for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
+			for(size_t i=0; i<gesture_settings.gesture_settings.size(); ++i)
 			{
-				const std::string gesture_name = gestures[i];
+				const std::string gesture_name = gesture_settings.gesture_settings[i].friendly_name;
 				if(gesture_name == event.widget->client_data)
 				{
 					event.accepted = true;
-					const bool animate_head = std::string(gestures[i+1]) == "AnimHead";
-					const bool loop			= std::string(gestures[i+2]) == "Loop";
+					const bool animate_head = BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+					const bool loop			= BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_LOOP);
+
+					const URLString& anim_URL = gesture_settings.gesture_settings[i].anim_URL;
 
 					if(button->toggleable)
 					{
 						if(button->toggled)
 						{
-							gui_client->performGestureClicked(/*gesture name=*/event.widget->client_data, animate_head, /*loop anim=*/loop);
+							gui_client->performGestureClicked(gesture_name, anim_URL, animate_head, /*loop anim=*/loop);
 
 							if(!loop)
-								untoggle_button_time = timer.elapsed() + ::stringToDouble(gestures[i+3]); // Make button untoggle when gesture has finished.
+								untoggle_button_time = timer.elapsed() + gesture_settings.gesture_settings[i].anim_duration; // Make button untoggle when gesture has finished.
 							else
 								untoggle_button_time = -1;
 						}
 						else
-							gui_client->stopGestureClicked(/*gesture name=*/event.widget->client_data);
+							gui_client->stopGestureClicked(gesture_name);
 					}
 					else
-						gui_client->performGestureClicked(/*gesture name=*/event.widget->client_data, animate_head, /*loop anim=*/false);
+						gui_client->performGestureClicked(gesture_name, anim_URL, animate_head, /*loop anim=*/false);
 
 					// Untoggle any other toggled buttons.
 					for(size_t z=0; z<gesture_buttons.size(); ++z)
@@ -406,6 +431,13 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 				gestures_visible = false;
 				updateWidgetPositions();
 				gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
+			}
+			else if(button == close_gesture_manager_button.ptr())
+			{
+				event.accepted = true;
+				gestures_visible = false;
+				this->gesture_manager = nullptr;
+				close_gesture_manager_button->setVisible(false);
 			}
 			else if(button == vehicle_button.ptr())
 			{
@@ -448,6 +480,24 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 					microphone_button->tooltip = "Disable microphone for voice chat";
 				else
 					microphone_button->tooltip = "Enable microphone for voice chat";
+			}
+		}
+
+		if(event.widget == edit_gestures_button.ptr())
+		{
+			// hide gestures
+			event.accepted = true;
+			gestures_visible = false;
+			updateWidgetPositions();
+			gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
+
+			if(!gesture_manager)
+			{
+				gesture_manager = new GestureManagerUI(opengl_engine, gui_client, gl_ui, this->gesture_settings);
+
+				close_gesture_manager_button->setVisible(true);
+
+				updateWidgetPositions();
 			}
 		}
 
@@ -533,7 +583,7 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 }
 
 
-bool GestureUI::getCurrentGesturePlaying(std::string& gesture_name_out, bool& animate_head_out, bool& loop_out)
+bool GestureUI::getCurrentGesturePlaying(std::string& gesture_name_out, URLString& gesture_URL_out, bool& animate_head_out, bool& loop_out)
 {
 	for(size_t z=0; z<gesture_buttons.size(); ++z)
 	{
@@ -542,15 +592,16 @@ bool GestureUI::getCurrentGesturePlaying(std::string& gesture_name_out, bool& an
 			const std::string button_gesture_name = gesture_buttons[z]->client_data;
 
 			// Find matching gesture
-			for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
+			for(size_t i=0; i<gesture_settings.gesture_settings.size(); ++i)
 			{
-				const std::string gesture_name = gestures[i];
+				const std::string gesture_name = gesture_settings.gesture_settings[i].friendly_name;
 				if(button_gesture_name == gesture_name)
 				{
-					const bool animate_head = std::string(gestures[i+1]) == "AnimHead";
-					const bool loop			= std::string(gestures[i+2]) == "Loop";
+					const bool animate_head = BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+					const bool loop			= BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_LOOP);
 
 					gesture_name_out = gesture_name;
+					gesture_URL_out = gesture_settings.gesture_settings[i].anim_URL;
 					animate_head_out = animate_head;
 					loop_out = loop;
 					return true;

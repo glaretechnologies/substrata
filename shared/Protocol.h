@@ -40,13 +40,14 @@ CyberspaceProtocolVersion
 44: Added ChangeToDifferentWorld
 45: Added Parcel title
 46: Added UserMovedNearToAvatar, UserMovedAwayFromAvatar messages.
+47: Added UserGestureSettingsChanged message.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 46;
+const uint32 CyberspaceProtocolVersion = 47;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -83,6 +84,9 @@ const uint32 AvatarExitedVehicle	= 1101;
 
 const uint32 UserMovedNearToAvatar		= 1200;
 const uint32 UserMovedAwayFromAvatar	= 1201;
+
+
+const uint32 UserGestureSettingsChanged = 1300;
 
 
 const uint32 ChatMessageID			= 2000;

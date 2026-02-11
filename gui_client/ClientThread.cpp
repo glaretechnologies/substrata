@@ -486,10 +486,20 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			//conPrint("AvatarPerformGesture");
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 			const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
+			URLString gesture_URL;
+			if(!msg_buffer.endOfStream())
+				gesture_URL = URLString(msg_buffer.readStringLengthFirst(10000));
+			uint32 flags = 0;
+			if(!msg_buffer.endOfStream())
+				flags = msg_buffer.readUInt32();
 
 			//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
 
-			out_msg_queue->enqueue(new AvatarPerformGestureMessage(avatar_uid, gesture_name));
+			Reference<AvatarPerformGestureMessage> gesture_msg = new AvatarPerformGestureMessage(avatar_uid, gesture_name);
+			gesture_msg->gesture_URL = gesture_URL;
+			gesture_msg->flags = flags;
+
+			out_msg_queue->enqueue(gesture_msg);
 
 			break;
 		}
@@ -1127,6 +1137,12 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 				logged_in_user_flags = msg_buffer.readUInt32();
 
 			msg->user_flags = logged_in_user_flags;
+
+
+			// Read gesture settings if present in message
+			if(!msg_buffer.endOfStream())
+				readGestureSettingsFromStream(msg_buffer, msg->gesture_settings);
+
 
 			out_msg_queue->enqueue(msg);
 

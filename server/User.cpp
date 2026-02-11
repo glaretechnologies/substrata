@@ -143,8 +143,9 @@ void User::setNewPasswordAndSalt(const std::string& new_password)
 }
 
 
-static const uint32 USER_SERIALISATION_VERSION = 5;
+static const uint32 USER_SERIALISATION_VERSION = 6;
 
+// Version 6: Added gesture_settings
 // Version 5: Added flags
 // Version 4: Added avatar_settings
 // Version 3: Added controlled_eth_address
@@ -173,6 +174,8 @@ void writeUserToStream(const User& user, RandomAccessOutStream& stream)
 		writeToStream(user.password_resets[i], stream);
 
 	writeAvatarSettingsToStream(user.avatar_settings, stream);
+
+	user.gesture_settings.writeToStream(stream);
 
 	stream.writeUInt32(user.flags);
 }
@@ -213,6 +216,9 @@ void readUserFromStream(RandomAccessInStream& stream, User& user)
 
 	if(v >= 4)
 		readAvatarSettingsFromStream(stream, user.avatar_settings);
+
+	if(v >= 6)
+		readGestureSettingsFromStream(stream, user.gesture_settings);
 
 	if(v >= 5)
 		user.flags = stream.readUInt32();
