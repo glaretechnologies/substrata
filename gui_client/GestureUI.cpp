@@ -366,6 +366,8 @@ void GestureUI::setVisible(bool visible)
 		for(size_t i=0; i<gesture_buttons.size(); ++i)
 			gesture_buttons[i]->setVisible(visible);
 
+		edit_gestures_button->setVisible(visible);
+
 		collapse_button->setVisible(visible);
 		expand_button->setVisible(visible);
 		vehicle_button->setVisible(visible);

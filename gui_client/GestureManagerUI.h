@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <opengl/ui/GLUITextView.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 #include <opengl/ui/GLUIGridContainer.h>
+#include <opengl/ui/GLUICheckBox.h>
 
 
 class GUIClient;
@@ -50,6 +51,8 @@ private:
 	{
 		GLUIImageRef gesture_image;
 		GLUITextViewRef name_text;
+		GLUICheckBoxRef animate_head_checkbox;
+		GLUICheckBoxRef loop_checkbox;
 		GLUIButtonRef remove_gesture_button;
 	};
 	std::vector<PerGestureUI> gestures;
