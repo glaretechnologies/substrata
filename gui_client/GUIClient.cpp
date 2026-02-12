@@ -5398,7 +5398,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		input_out.clear();
 	}
 
-	if(move_key_pressed)
+	if(move_key_pressed && (this->cam_controller.current_cam_mode == CameraController::CameraMode_Standard))
 	{
 		stopGesture();
 		gesture_ui.stopAnyGesturePlaying();
