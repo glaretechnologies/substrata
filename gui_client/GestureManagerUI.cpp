@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "../shared/ResourceManager.h"
 #include <utils/FileUtils.h>
 #include <utils/FileInStream.h>
+#include <utils/PlatformUtils.h>
 
 
 GestureManagerUI::GestureManagerUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_, const GestureSettings& gesture_settings_)
@@ -43,6 +44,8 @@ GestureManagerUI::~GestureManagerUI()
 	{
 		checkRemoveAndDeleteWidget(gl_ui, gestures[i].gesture_image);
 		checkRemoveAndDeleteWidget(gl_ui, gestures[i].name_text);
+		checkRemoveAndDeleteWidget(gl_ui, gestures[i].animate_head_checkbox);
+		checkRemoveAndDeleteWidget(gl_ui, gestures[i].loop_checkbox);
 		checkRemoveAndDeleteWidget(gl_ui, gestures[i].remove_gesture_button);
 	}
 
@@ -59,6 +62,8 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 	{
 		checkRemoveAndDeleteWidget(gl_ui, gestures[i].gesture_image);
 		checkRemoveAndDeleteWidget(gl_ui, gestures[i].name_text);
+		checkRemoveAndDeleteWidget(gl_ui, gestures[i].animate_head_checkbox);
+		checkRemoveAndDeleteWidget(gl_ui, gestures[i].loop_checkbox);
 		checkRemoveAndDeleteWidget(gl_ui, gestures[i].remove_gesture_button);
 	}
 	gestures.clear();
@@ -72,21 +77,53 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 	{
 		const SingleGestureSettings& setting = gesture_settings.gesture_settings[i];
 
+		int cell_x = 0;
+
 		// If this isn't one of the default gestures, fall back to to using "Waving 1" button texture for now.
 		const std::string tex_name = GestureSettings::isDefaultGestureName(setting.friendly_name) ? setting.friendly_name : "Waving 1";
 
 		GLUIImageRef gesture_image = new GLUIImage(*gl_ui, opengl_engine, /*tex path=*/gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", Vec2f(0.f), Vec2f(0.05f), "");
 		gesture_image->immutable_dims = true;
 
-		grid_container->setCellWidget(/*x=*/0, /*y=*/(int)i, gesture_image);
+		grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, gesture_image);
 
+		
 		GLUITextViewRef gesture_name_text;
 		{
 			GLUITextView::CreateArgs text_args;
 			text_args.background_alpha = 0;
 			text_args.tooltip = toStdString(setting.anim_URL);
 			gesture_name_text = new GLUITextView(*gl_ui, opengl_engine, setting.friendly_name, Vec2f(0.f), text_args);
-			grid_container->setCellWidget(/*x=*/1, /*y=*/(int)i, gesture_name_text);
+			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, gesture_name_text);
+		}
+
+		const Colour3f checkbox_box_col(0.2f);
+		const Colour3f checkbox_mouseover_col(0.3f);
+
+		GLUICheckBoxRef animate_head_checkbox;
+		{
+			GLUICheckBox::CreateArgs args;
+			args.tooltip = "Gesture animation controls head";
+			args.box_colour = checkbox_box_col;
+			args.mouseover_box_colour = checkbox_mouseover_col;
+			args.checked = BitUtils::isBitSet(setting.flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+			animate_head_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", Vec2f(0), Vec2f(0.1f), args);
+			animate_head_checkbox->immutable_dims = true;
+			animate_head_checkbox->handler = this;
+			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, animate_head_checkbox);
+		}
+		
+		GLUICheckBoxRef loop_checkbox;
+		{
+			GLUICheckBox::CreateArgs args;
+			args.tooltip = "Loop gesture animation";
+			args.box_colour = checkbox_box_col;
+			args.mouseover_box_colour = checkbox_mouseover_col;
+			args.checked = BitUtils::isBitSet(setting.flags, SingleGestureSettings::FLAG_LOOP);
+			loop_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", Vec2f(0), Vec2f(0.1f), args);
+			loop_checkbox->immutable_dims = true;
+			loop_checkbox->handler = this;
+			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, loop_checkbox);
 		}
 
 		GLUIButtonRef remove_gesture_button;
@@ -96,13 +133,15 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			remove_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/white_x.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
 			remove_gesture_button->immutable_dims = true;
 			remove_gesture_button->handler = this;
-			grid_container->setCellWidget(/*x=*/2, /*y=*/(int)i, remove_gesture_button);
+			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, remove_gesture_button);
 		}
 
 		PerGestureUI ui;
 		ui.gesture_image = gesture_image;
 		ui.name_text = gesture_name_text;
 		ui.remove_gesture_button = remove_gesture_button;
+		ui.animate_head_checkbox = animate_head_checkbox;
+		ui.loop_checkbox = loop_checkbox;
 		gestures.push_back(ui);
 	}
 
@@ -110,6 +149,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Add a new gesture";
 		add_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/plus.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		add_gesture_button->immutable_dims = true;
 		add_gesture_button->handler = this;
 		gl_ui->addWidget(add_gesture_button);
 
@@ -143,10 +183,11 @@ void GestureManagerUI::updateWidgetPositions()
 		{
 			gestures[i].gesture_image        ->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS)));
 			gestures[i].remove_gesture_button->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(22)));
+			gestures[i].animate_head_checkbox->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(22)));
+			gestures[i].loop_checkbox        ->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(22)));
 		}
 
-
-		add_gesture_button->setPosAndDims(Vec2f(0.f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS)));
+		add_gesture_button->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS)));
 
 
 		grid_container->setPosAndDims(Vec2f(-1.f + margin, -gl_ui->getViewportMinMaxY() + margin), Vec2f(myMax(0.01f, 2.f - 2*margin), myMax(0.01f, 2*gl_ui->getViewportMinMaxY() - 2*margin)));
@@ -279,6 +320,30 @@ void GestureManagerUI::eventOccurred(GLUICallbackEvent& event)
 					event.accepted = true;
 					break;
 				}
+			}
+		}
+
+
+		for(size_t i=0; i<gestures.size(); ++i)
+		{
+			if(gestures[i].animate_head_checkbox.ptr() == event.widget)
+			{
+				BitUtils::setOrZeroBit(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_ANIMATE_HEAD, gestures[i].animate_head_checkbox->isChecked());
+
+				gui_client->gestureSettingsChanged(gesture_settings);
+
+				event.accepted = true;
+				break;
+			}
+
+			if(gestures[i].loop_checkbox.ptr() == event.widget)
+			{
+				BitUtils::setOrZeroBit(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_LOOP, gestures[i].loop_checkbox->isChecked());
+
+				gui_client->gestureSettingsChanged(gesture_settings);
+
+				event.accepted = true;
+				break;
 			}
 		}
 	}
