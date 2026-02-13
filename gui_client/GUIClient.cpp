@@ -1661,18 +1661,14 @@ void GUIClient::handleDownloadedAnimationResource(const std::string local_path, 
 {
 	conPrint("GUIClient::handleDownloadedAnimationResource(): local_path: " + local_path);
 
-	const std::string gesture_name = toStdString(::removeDotAndExtension(resource->URL));
-
-	conPrint("gesture_name: " + gesture_name);
-
-	// Iterate over avatars, peform gesture for any avatars that were waiting for the gesture anim to download.
+	// Iterate over avatars, perform gesture for any avatars that were waiting for the gesture anim to download.
 	{
 		Lock lock(this->world_state->mutex);
 
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 		{
 			Avatar* av = it->second.getPointer();
-			if(av->graphics.pending_gesture_name == gesture_name)
+			if(av->graphics.pending_gesture_URL == resource->URL)
 			{
 				const double cur_time = Clock::getTimeSinceInit();
 				av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
