@@ -567,3 +567,15 @@ void* SDLUIInterface::getID3D11Device() const
 {
 	return d3d11_device;
 }
+
+
+std::string SDLUIInterface::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key)
+{
+#if EMSCRIPTEN
+	gui_client->showErrorNotification("Open file dialog not implemented for web yet, use native client instead");
+#else
+	gui_client->showErrorNotification("Open file dialog not implemented for SDL yet.");
+	assert(0);
+#endif
+	return "";
+}

@@ -74,7 +74,7 @@ public:
 	ResourceRef resource;
 	TextureParams tex_params;
 	bool is_terrain_map;
-	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.Reference<LoadedBuffer> loaded_buffer;
+	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
 	Reference<glare::Allocator> worker_allocator;
 
 	Reference<OpenGLUploadThread> upload_thread;
