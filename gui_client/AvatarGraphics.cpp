@@ -1611,7 +1611,7 @@ static void processAnimation(const std::string& glb_path)
 // Execute with --processanims
 void AvatarGraphics::processAnimationData()
 {
-	const std::string animations_dir = "D:\\models\\animations";
+	const std::string animations_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_TRUNK_DIR") + "/source_resources/animations";
 
 	const char* anim_names[] = {
 		"Walking",
