@@ -8751,7 +8751,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				const URLString anim_resource_URL = m->gesture_URL.empty() ? (URLString(m->gesture_name) + ".subanim") : m->gesture_URL;
 				const bool anim_head = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
 				const bool anim_loop = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_LOOP);
-				if(resource_manager->isFileForURLPresent(anim_resource_URL))
+				if(resource_manager->isFileForURLPresent(anim_resource_URL)) // If the gesture animation file is present on the local disk:
 				{
 					if(world_state)
 					{
@@ -8767,12 +8767,23 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				}
 				else
 				{
-					// Start downloading the animation resource (if it isn't already present).
+					// Start downloading the animation resource.
 					DownloadingResourceInfo info;
 					info.pos = cam_controller.getPosition();
 					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
 					info.used_by_other = true;
 					startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
+
+					// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+					{
+						Lock lock(this->world_state->mutex);
+						auto res = this->world_state->avatars.find(m->avatar_uid);
+						if(res != this->world_state->avatars.end())
+						{
+							Avatar* avatar = res->second.getPointer();
+							avatar->graphics.setPendingGesture(m->gesture_name, anim_resource_URL, anim_head, anim_loop);
+						}
+					}
 				}
 			}
 		}
@@ -8792,6 +8803,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					{
 						Avatar* avatar = res->second.getPointer();
 						avatar->graphics.stopGesture(cur_time);
+						avatar->graphics.clearPendingGesture(); // Since we have received a stop-gesture message for this avatar, we don't want to start playing the anim when we download the animation file.
 					}
 				}
 			}
@@ -15054,8 +15066,6 @@ void GUIClient::stopGesture()
 	}
 
 	// Send AvatarStopGesture message
-	// If we are not logged in, we can't perform a gesture, so don't send a AvatarStopGesture message or we will just get error messages back from the server.
-	//if(this->logged_in_user_id.valid())
 	if(sent_perform_gesture_without_stop_gesture) // Make sure we don't spam AvatarStopGesture messages.
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);

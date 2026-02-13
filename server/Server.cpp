@@ -1460,6 +1460,18 @@ void Server::enqueuePacketToBroadcastForWorld(const SocketBufferOutStream& packe
 	}
 }
 
+// Enqueues packet to all WorkerThreads.
+void Server::enqueuePacketToBroadcastForAllWorlds(const SocketBufferOutStream& packet_buffer)
+{
+	Lock lock(worker_thread_manager.getMutex());
+	for(auto i = worker_thread_manager.getThreads().begin(); i != worker_thread_manager.getThreads().end(); ++i)
+	{
+		assert(dynamic_cast<WorkerThread*>(i->ptr()));
+		WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
+
+		worker_thread->enqueueDataToSend(packet_buffer);
+	}
+}
 
 
 void Server::clientDisconnected(WorkerThread* worker_thread)
