@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/FileInStream.h>
 #include <utils/FileOutStream.h>
 #include <utils/FileUtils.h>
+#include <utils/PlatformUtils.h>
 
 
 AvatarGraphics::AvatarGraphics()
