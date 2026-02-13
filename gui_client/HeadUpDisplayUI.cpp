@@ -59,7 +59,7 @@ void HeadUpDisplayUI::think()
 
 void HeadUpDisplayUI::viewportResized(int w, int h)
 {
-	if(gl_ui.nonNull())
+	if(gl_ui)
 	{
 		updateWidgetPositions();
 	}
@@ -99,7 +99,7 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 
 	Vec2f ui_coords;
 	bool visible = gui_client->getGLUICoordsForPoint(moved_avatar_pos.toVec4fPoint(), ui_coords);
-	const bool should_display = visible && (avatar_pos.getDist(gui_client->cam_controller.getPosition()) > 40.0);
+	const bool should_display = visible && (avatar_pos.getDist(gui_client->cam_controller.getPosition()) > 40.0) && !avatar->isChatBotAvatar();
 	if(should_display)
 	{
 #if 0
@@ -171,9 +171,9 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		{
 			// Create marker dot
 			GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->getUseName(), AVATAR_MARKER_DOT_Z);
-			if(avatar->isChatBotAvatar())
-				im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
-			else
+			//if(avatar->isChatBotAvatar())
+			//	im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
+			//else
 				im->setColour(toLinearSRGB(Colour3f(5,0,0))); // Glowing red colour
 
 			im->setMouseOverColour(toLinearSRGB(Colour3f(5))); // Glowing white
@@ -210,23 +210,23 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 	}
 	else // Else if shouldn't display marker:
 	{
-		if(avatar->hud_marker.nonNull())
-			avatar->hud_marker->setPosAndDims(Vec2f(-1000.0f), Vec2f(0.1f)); // Position off-screen
-		if(avatar->hud_marker_arrow.nonNull())
-			avatar->hud_marker_arrow->setPosAndDims(Vec2f(-1000.0f), Vec2f(0.1f)); // Position off-screen
+		if(avatar->hud_marker)
+			avatar->hud_marker->setVisible(false);
+		if(avatar->hud_marker_arrow)
+			avatar->hud_marker_arrow->setVisible(false);
 	}
 }
 
 
 void HeadUpDisplayUI::removeMarkerForAvatar(Avatar* avatar)
 {
-	if(avatar->hud_marker.nonNull())
+	if(avatar->hud_marker)
 	{
 		gl_ui->removeWidget(avatar->hud_marker);
 		avatar->hud_marker = NULL;
 	}
 
-	if(avatar->hud_marker_arrow.nonNull())
+	if(avatar->hud_marker_arrow)
 	{
 		gl_ui->removeWidget(avatar->hud_marker_arrow);
 		avatar->hud_marker_arrow = NULL;
