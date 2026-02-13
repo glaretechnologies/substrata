@@ -239,7 +239,6 @@ void GestureManagerUI::eventOccurred(GLUICallbackEvent& event)
 								// Read magic number
 								char buf[4];
 								file.readData(buf, 4); 
-								// TODO: check
 								if(buf[0] != 'S' || buf[1] != 'U' || buf[2] != 'B' || buf[3] != 'A')
 									throw glare::Exception("Invalid magic number/string loading '" + toString(selected_path) + "'");
 
