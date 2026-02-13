@@ -9075,7 +9075,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(world_state.nonNull())
 			{
-				conPrint("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
+				logMessage("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
 
 				// A download of this resource may have failed earlier, but should succeed now.
 				resource_manager->removeFromDownloadFailedURLs(m->URL);
@@ -9162,6 +9162,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								}
 							}
 						}
+
+						if(::hasExtension(m->URL, "subanim")) // Just consider all animations (used for gestures) needed for now.
+							need_resource = true;
 
 						const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
 						conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
