@@ -325,7 +325,7 @@ void WorkerThread::handleResourceUploadConnection()
 			scratch_packet.writeStringLengthFirst(URL);
 			MessageUtils::updatePacketLengthField(scratch_packet);
 
-			enqueuePacketToBroadcast(scratch_packet);
+			server->enqueuePacketToBroadcastForAllWorlds(scratch_packet);
 		}
 
 

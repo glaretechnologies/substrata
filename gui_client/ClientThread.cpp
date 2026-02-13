@@ -1075,7 +1075,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			//conPrint("Received NewResourceOnServer message from server.");
 			const URLString url = toURLString(msg_buffer.readStringLengthFirst(MAX_STRING_LEN));
-			//conPrint("url: '" + url + "'");
+			//conPrint("url: '" + toStdString(url) + "'");
 
 			out_msg_queue->enqueue(new NewResourceOnServerMessage(url));
 			break;

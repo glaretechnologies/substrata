@@ -132,6 +132,7 @@ public:
 	void stopGesture(double cur_time/*, const std::string& gesture_name*/);
 
 	void setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim); // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
+	void clearPendingGesture();
 	void performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager);
 
 	const Vec3d& getLastVel() const { return last_vel; }

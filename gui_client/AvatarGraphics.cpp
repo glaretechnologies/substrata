@@ -1514,6 +1514,13 @@ void AvatarGraphics::setPendingGesture(const std::string& gesture_name, const UR
 }
 
 
+void AvatarGraphics::clearPendingGesture()
+{
+	this->pending_gesture_name.clear();
+	this->pending_gesture_URL.clear();
+}
+
+
 void AvatarGraphics::performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager)
 {
 	this->performGesture(cur_time, pending_gesture_name, pending_gesture_URL, pending_gesture_animate_head, pending_gesture_loop_anim, animation_manager, resource_manager);
