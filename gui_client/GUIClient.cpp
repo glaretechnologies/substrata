@@ -1662,22 +1662,29 @@ void GUIClient::handleDownloadedAnimationResource(const std::string& local_path,
 {
 	conPrint("GUIClient::handleDownloadedAnimationResource(): local_path: " + local_path);
 
-	if(loaded_buffer)
-		animation_manager.loadAnimFromBuffer(resource->URL, loaded_buffer); // Explicitly load into the animation manager from the in-mem buffer (loaded_buffer) instead of from disk/resource manager.
-
-	// Iterate over avatars, perform gesture for any avatars that were waiting for the gesture anim to download.
+	try
 	{
-		Lock lock(this->world_state->mutex);
+		if(loaded_buffer)
+			animation_manager.loadAnimFromBuffer(resource->URL, loaded_buffer); // Explicitly load into the animation manager from the in-mem buffer (loaded_buffer) instead of from disk/resource manager.
 
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		// Iterate over avatars, perform gesture for any avatars that were waiting for the gesture anim to download.
 		{
-			Avatar* av = it->second.getPointer();
-			if(av->graphics.pending_gesture_URL == resource->URL)
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 			{
-				const double cur_time = Clock::getTimeSinceInit();
-				av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
+				Avatar* av = it->second.getPointer();
+				if(av->graphics.pending_gesture_URL == resource->URL)
+				{
+					const double cur_time = Clock::getTimeSinceInit();
+					av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
+				}
 			}
 		}
+	}
+	catch(glare::Exception& e)
+	{
+		logAndConPrintMessage("Error while loading animation: " + e.what());
 	}
 }
 
@@ -8997,7 +9004,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
 				physics_world->setWaterZ(use_water_z);
 			}
-		}
+				}
 		break;
 		case Msg_WorldDetailsReceivedMessage:
 		{
