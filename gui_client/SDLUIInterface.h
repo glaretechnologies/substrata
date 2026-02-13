@@ -131,6 +131,10 @@ public:
 	virtual	void* getID3D11Device() const override;
 
 
+	// File selection
+	virtual std::string showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key) override; // Returns path to file selected or empty string if cancelled.
+
+
 	SDL_Window* window;
 	SDL_GLContext gl_context;
 	std::string logged_in_username;

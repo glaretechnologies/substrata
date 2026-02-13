@@ -12,6 +12,8 @@ Copyright Glare Technologies Limited 2026 -
 #include <string>
 struct AnimationData;
 class ResourceManager;
+class RandomAccessInStream;
+struct LoadedBuffer;
 
 
 /*=====================================================================
@@ -32,9 +34,12 @@ public:
 	Reference<AnimationData> getAnimationIfPresent(const URLString& anim_url, ResourceManager& resource_manager); // returns null if not found
 	Reference<AnimationData> getAnimation(const URLString& anim_url, ResourceManager& resource_manager); // Throws excep if not found
 
+	void loadAnimFromBuffer(const URLString& anim_url, const Reference<LoadedBuffer>& loaded_buffer);
+
 	std::string getDiagnostics() const;
 
 private:
+	Reference<AnimationData> loadAnimFromStream(RandomAccessInStream& stream, const URLString& anim_url);
 	void checkRunningOnMainThread() const;
 
 	std::map<URLString, Reference<AnimationData>> animations;

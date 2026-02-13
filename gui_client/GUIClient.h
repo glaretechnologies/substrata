@@ -298,7 +298,7 @@ public:
 	bool isResourceCurrentlyNeededForObject(const URLString& url, const WorldObject* ob) const;
 	bool isResourceCurrentlyNeededForObjectGivenIsDependency(const URLString& url, const WorldObject* ob) const;
 	bool isDownloadingResourceCurrentlyNeeded(const URLString& url) const;
-	void handleDownloadedAnimationResource(const std::string local_path, const Reference<Resource>& resource);
+	void handleDownloadedAnimationResource(const std::string& local_path, const Reference<Resource>& resource, Reference<LoadedBuffer> loaded_buffer);
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersWorldOrGodUser();

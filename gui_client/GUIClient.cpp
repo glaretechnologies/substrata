@@ -1657,9 +1657,13 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const URLString& URL) const
 
 
 // Handle finished downloading a ".subanim" file.
-void GUIClient::handleDownloadedAnimationResource(const std::string local_path, const ResourceRef& resource)
+// For emscripten, load from 'loaded_buffer' memory buffer instead of from resource on disk.
+void GUIClient::handleDownloadedAnimationResource(const std::string& local_path, const ResourceRef& resource, Reference<LoadedBuffer> loaded_buffer) 
 {
 	conPrint("GUIClient::handleDownloadedAnimationResource(): local_path: " + local_path);
+
+	if(loaded_buffer)
+		animation_manager.loadAnimFromBuffer(resource->URL, loaded_buffer); // Explicitly load into the animation manager from the in-mem buffer (loaded_buffer) instead of from disk/resource manager.
 
 	// Iterate over avatars, perform gesture for any avatars that were waiting for the gesture anim to download.
 	{
@@ -9286,7 +9290,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							}
 							else if(hasExtension(local_path, "subanim"))
 							{
-								handleDownloadedAnimationResource(local_path, resource);
+								handleDownloadedAnimationResource(local_path, resource, m->loaded_buffer);
 							}
 							else
 							{
