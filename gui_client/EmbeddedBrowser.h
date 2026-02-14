@@ -38,6 +38,8 @@ public:
 	void create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLTexture::Wrapping wrapping,
 		OpenGLEngine* opengl_engine, const std::string& root_page = "");
 
+	void think();
+
 	void updateRootPage(const std::string& root_page);
 	void navigate(const std::string& URL);
 
@@ -56,4 +58,14 @@ public:
 
 private:
 	Reference<EmbeddedBrowserCEFBrowser> embedded_cef_browser;
+
+	std::string URL;
+	int viewport_width, viewport_height;
+	GUIClient* gui_client;
+	WorldObject* ob;
+	size_t mat_index;
+	bool apply_to_emission_texture;
+	OpenGLTexture::Wrapping wrapping;
+	OpenGLEngine* opengl_engine;
+	std::string root_page;
 };
