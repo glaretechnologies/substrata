@@ -84,6 +84,9 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 	defaultTerrainZDoubleSpinBox->setValue(world_settings.terrain_spec.default_terrain_z);
 	waterZDoubleSpinBox->setValue(world_settings.terrain_spec.water_z);
 	waterCheckBox->setChecked(BitUtils::isBitSet(world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
+
+	SignalBlocker::setValue(this->sunThetaSettingRealControl, ::radToDegree(world_settings.sun_theta));
+	SignalBlocker::setValue(this->sunPhiSettingRealControl,   ::radToDegree(world_settings.sun_phi));
 }
 
 
@@ -140,6 +143,9 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 	world_settings_out.terrain_spec.default_terrain_z = (float)defaultTerrainZDoubleSpinBox->value();
 	world_settings_out.terrain_spec.water_z = (float)waterZDoubleSpinBox->value();
 	world_settings_out.terrain_spec.flags = (waterCheckBox->isChecked() ? TerrainSpec::WATER_ENABLED_FLAG : 0);
+
+	world_settings_out.sun_theta = ::degreeToRad(this->sunThetaSettingRealControl->value());
+	world_settings_out.sun_phi   = ::degreeToRad(this->sunPhiSettingRealControl  ->value());
 }
 
 
@@ -168,6 +174,9 @@ void WorldSettingsWidget::updateControlsEditable()
 	defaultTerrainZDoubleSpinBox->setReadOnly(!editable);
 	waterZDoubleSpinBox->setReadOnly(!editable);
 	waterCheckBox->setEnabled(editable);
+
+	sunThetaSettingRealControl->setEnabled(editable);
+	sunPhiSettingRealControl  ->setEnabled(editable);
 
 	applyPushButton->setEnabled(editable);
 }
