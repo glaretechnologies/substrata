@@ -25,7 +25,7 @@
         <x>0</x>
         <y>0</y>
         <width>1027</width>
-        <height>69</height>
+        <height>180</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2"/>
@@ -142,7 +142,7 @@
      </property>
     </widget>
    </item>
-   <item row="12" column="1">
+   <item row="14" column="1">
     <spacer name="verticalSpacer_2">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -158,7 +158,7 @@
      </property>
     </spacer>
    </item>
-   <item row="13" column="1">
+   <item row="15" column="1">
     <widget class="QPushButton" name="applyPushButton">
      <property name="text">
       <string>Apply</string>
@@ -196,6 +196,37 @@
      </property>
     </widget>
    </item>
+   <item row="12" column="1">
+    <widget class="RealControl" name="sunThetaSettingRealControl">
+     <property name="maximum">
+      <double>120.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="12" column="0">
+    <widget class="QLabel" name="label_9">
+     <property name="text">
+      <string>Sun angle from vertical</string>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="1">
+    <widget class="RealControl" name="sunPhiSettingRealControl">
+     <property name="maximum">
+      <double>720.000000000000000</double>
+     </property>
+     <property name="singleStep">
+      <double>5.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="0">
+    <widget class="QLabel" name="label_10">
+     <property name="text">
+      <string>Sun azimuthal angle</string>
+     </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <customwidgets>
@@ -203,6 +234,11 @@
    <class>FileSelectWidget</class>
    <extends>QLineEdit</extends>
    <header>../qt/FileSelectWidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>RealControl</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>../qt/RealControl.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

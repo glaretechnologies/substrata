@@ -46,7 +46,7 @@ struct TerrainSpec
 /*=====================================================================
 WorldSettings
 -------------
-
+Settings that apply to a whole world, for example the terrain heightmaps and colour maps.
 =====================================================================*/
 class WorldSettings
 {
@@ -66,6 +66,9 @@ public:
 	void copyNetworkStateFrom(const WorldSettings& other);
 
 	TerrainSpec terrain_spec;
+
+	float sun_theta;
+	float sun_phi;
 
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.

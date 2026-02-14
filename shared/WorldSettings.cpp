@@ -21,6 +21,9 @@ WorldSettings::WorldSettings()
 	terrain_spec.default_terrain_z = 0;
 	terrain_spec.flags = 0;
 
+	sun_phi = 1.f;
+	sun_theta = Maths::pi<float>() / 4;
+
 	db_dirty = false;
 }
 
@@ -60,7 +63,7 @@ void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 }
 
 
-static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 3;
+static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 4;
 
 
 void WorldSettings::writeToStream(OutStream& stream) const
@@ -100,6 +103,9 @@ void WorldSettings::writeToStream(OutStream& stream) const
 		buffer.writeStringLengthFirst(section_spec.tree_mask_map_URL);
 	}
 
+	buffer.writeFloat(sun_theta);
+	buffer.writeFloat(sun_phi);
+
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)buffer.buf.size();
 	std::memcpy(buffer.buf.data() + sizeof(uint32), &buffer_size, sizeof(uint32));
@@ -112,6 +118,9 @@ void WorldSettings::writeToStream(OutStream& stream) const
 void WorldSettings::copyNetworkStateFrom(const WorldSettings& other)
 {
 	terrain_spec = other.terrain_spec;
+
+	sun_theta = other.sun_theta;
+	sun_phi   = other.sun_phi;
 }
 
 
@@ -166,6 +175,12 @@ void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 			TerrainSpecSection& section_spec = settings.terrain_spec.section_specs[i];
 			section_spec.tree_mask_map_URL = buffer_stream.readStringLengthFirst(/*max_string_length=*/1024);
 		}
+	}
+
+	if(version >= 4)
+	{
+		settings.sun_theta = buffer_stream.readFloat();
+		settings.sun_phi   = buffer_stream.readFloat();
 	}
 
 	// We effectively skip any remaining data we have not processed by discarding buffer_stream.
