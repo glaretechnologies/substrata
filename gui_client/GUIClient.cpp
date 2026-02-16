@@ -7809,7 +7809,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								// Build seat-to-world transform from seat data
 								const Vec3f& seat_pos = currently_sitting_on_seat->type_data.seat_data.sitting_position;
 								const Vec3f& seat_rot = currently_sitting_on_seat->type_data.seat_data.sitting_rotation;
-								const Matrix4f seat_rot_matrix = Matrix4f::rotationMatrix(seat_rot.x, seat_rot.y, seat_rot.z);
+								const Matrix4f seat_rot_matrix = Matrix4f::rotationAroundXAxis(seat_rot.x) * Matrix4f::rotationAroundYAxis(seat_rot.y) * Matrix4f::rotationAroundZAxis(seat_rot.z);
 								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(seat_pos.x, seat_pos.y, seat_pos.z) * seat_rot_matrix;
 								pose_constraint.upper_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.upper_leg_angle;
 								pose_constraint.lower_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.lower_leg_angle;

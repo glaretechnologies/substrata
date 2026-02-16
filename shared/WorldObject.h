@@ -371,10 +371,6 @@ public:
 		float lower_leg_angle; // Angle of lower legs (shins) in radians
 		float left_arm_angle;  // Angle of left arm in radians
 		float right_arm_angle; // Angle of right arm in radians
-
-		SeatTypeData() : sitting_position(0,0,0.5f), sitting_rotation(0,0,0), 
-			upper_leg_angle(1.5f), lower_leg_angle(1.5f), 
-			left_arm_angle(0.3f), right_arm_angle(0.3f) {}
 	};
 
 	union TypeData

@@ -633,8 +633,13 @@ static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
 		ob.type_data.spotlight_data.cone_end_angle   = 0.451026811796262f; // = std::acos(0.9f);  (old fixed value)
 		break;
 	case WorldObject::ObjectType_Seat:
-		// SeatTypeData has a constructor that sets the defaults
-		ob.type_data.seat_data = WorldObject::SeatTypeData();
+		// Set default values for SeatTypeData
+		ob.type_data.seat_data.sitting_position = Vec3f(0, 0, 0.5f);
+		ob.type_data.seat_data.sitting_rotation = Vec3f(0, 0, 0);
+		ob.type_data.seat_data.upper_leg_angle = 1.5f;
+		ob.type_data.seat_data.lower_leg_angle = 1.5f;
+		ob.type_data.seat_data.left_arm_angle = 0.3f;
+		ob.type_data.seat_data.right_arm_angle = 0.3f;
 		break;
 	default:
 		break;
