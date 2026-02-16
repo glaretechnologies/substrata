@@ -1091,6 +1091,199 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="seatGroupBox">
+     <property name="title">
+      <string>Seat</string>
+     </property>
+     <layout class="QFormLayout" name="seatFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="seatPosXLabel">
+        <property name="text">
+         <string>Position X:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="RealControl" name="seatPosXDoubleSpinBox">
+        <property name="suffix">
+         <string> m</string>
+        </property>
+        <property name="minimum">
+         <double>-10.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>10.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.010000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="seatPosYLabel">
+        <property name="text">
+         <string>Position Y:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="RealControl" name="seatPosYDoubleSpinBox">
+        <property name="suffix">
+         <string> m</string>
+        </property>
+        <property name="minimum">
+         <double>-10.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>10.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.010000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="seatPosZLabel">
+        <property name="text">
+         <string>Position Z:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="RealControl" name="seatPosZDoubleSpinBox">
+        <property name="suffix">
+         <string> m</string>
+        </property>
+        <property name="minimum">
+         <double>-10.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>10.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.010000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="seatRotationLabel">
+        <property name="text">
+         <string>Rotation (deg):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="RealControl" name="seatRotationDoubleSpinBox">
+        <property name="suffix">
+         <string> deg</string>
+        </property>
+        <property name="minimum">
+         <double>-180.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>180.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="upperLegAngleLabel">
+        <property name="text">
+         <string>Upper leg angle:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="RealControl" name="upperLegAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="lowerLegAngleLabel">
+        <property name="text">
+         <string>Lower leg angle:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="RealControl" name="lowerLegAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="leftArmAngleLabel">
+        <property name="text">
+         <string>Left arm angle:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="RealControl" name="leftArmAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>-3.141592653589793</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="rightArmAngleLabel">
+        <property name="text">
+         <string>Right arm angle:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="RealControl" name="rightArmAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>-3.141592653589793</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <spacer name="bottomSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>

@@ -275,6 +275,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -286,6 +287,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -297,6 +299,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->show();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -308,6 +311,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->show();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -319,6 +323,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->hide();
 		this->videoGroupBox->hide();
@@ -330,6 +335,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->hide();
 		this->videoGroupBox->show();
@@ -341,6 +347,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -352,6 +359,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->hide();
 		this->videoGroupBox->hide();
@@ -363,6 +371,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->show();
 		this->modelFileSelectWidget->show();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -393,6 +402,22 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		SignalBlocker::setValue(this->spotlightEndAngleSpinBox,   ::radToDegree(ob.type_data.spotlight_data.cone_end_angle));
 
 		updateSpotlightColourButton();
+	}
+
+	// For seat:
+	if(ob.object_type == WorldObject::ObjectType_Seat)
+	{
+		SignalBlocker::setValue(this->seatPosXDoubleSpinBox, ob.type_data.seat_data.sitting_position.x);
+		SignalBlocker::setValue(this->seatPosYDoubleSpinBox, ob.type_data.seat_data.sitting_position.y);
+		SignalBlocker::setValue(this->seatPosZDoubleSpinBox, ob.type_data.seat_data.sitting_position.z);
+		
+		// Using heading angle (z-rotation) for the rotation control
+		SignalBlocker::setValue(this->seatRotationDoubleSpinBox, ::radToDegree(ob.type_data.seat_data.sitting_rotation.z));
+		
+		SignalBlocker::setValue(this->upperLegAngleDoubleSpinBox, ob.type_data.seat_data.upper_leg_angle);
+		SignalBlocker::setValue(this->lowerLegAngleDoubleSpinBox, ob.type_data.seat_data.lower_leg_angle);
+		SignalBlocker::setValue(this->leftArmAngleDoubleSpinBox, ob.type_data.seat_data.left_arm_angle);
+		SignalBlocker::setValue(this->rightArmAngleDoubleSpinBox, ob.type_data.seat_data.right_arm_angle);
 	}
 
 
@@ -552,6 +577,24 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 
 		ob_out.type_data.spotlight_data.cone_start_angle = ::degreeToRad(this->spotlightStartAngleSpinBox->value());
 		ob_out.type_data.spotlight_data.cone_end_angle   = ::degreeToRad(this->spotlightEndAngleSpinBox->value());
+	}
+
+	// For seat:
+	if(ob_out.object_type == WorldObject::ObjectType_Seat)
+	{
+		ob_out.type_data.seat_data.sitting_position.x = (float)this->seatPosXDoubleSpinBox->value();
+		ob_out.type_data.seat_data.sitting_position.y = (float)this->seatPosYDoubleSpinBox->value();
+		ob_out.type_data.seat_data.sitting_position.z = (float)this->seatPosZDoubleSpinBox->value();
+		
+		// Set rotation using heading angle (z-rotation), keep roll and pitch at 0
+		ob_out.type_data.seat_data.sitting_rotation.x = 0.0f;
+		ob_out.type_data.seat_data.sitting_rotation.y = 0.0f;
+		ob_out.type_data.seat_data.sitting_rotation.z = ::degreeToRad(this->seatRotationDoubleSpinBox->value());
+		
+		ob_out.type_data.seat_data.upper_leg_angle = (float)this->upperLegAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.lower_leg_angle = (float)this->lowerLegAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.left_arm_angle = (float)this->leftArmAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.right_arm_angle = (float)this->rightArmAngleDoubleSpinBox->value();
 	}
 
 	const URLString new_audio_source_url = toURLString(QtUtils::toStdString(this->audioFileWidget->filename()));
