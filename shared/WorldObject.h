@@ -378,6 +378,7 @@ public:
 		SpotLightTypeData spotlight_data;
 		SeatTypeData seat_data;
 
+		TypeData() noexcept : spotlight_data() {}  // Explicitly initialize the trivial member to allow union default construction
 	} type_data;
 
 

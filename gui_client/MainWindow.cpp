@@ -1786,7 +1786,7 @@ void MainWindow::on_actionAdd_Seat_triggered()
 	// Default material
 	new_world_object->materials.push_back(new WorldMaterial());
 	new_world_object->materials.back()->colour_rgb = Colour3f(0.4f, 0.5f, 0.6f);
-	new_world_object->materials.back()->opacity = 0.5f;
+	new_world_object->materials.back()->opacity = ScalarVal(0.5f);
 
 	new_world_object->setAABBOS(gui_client.seat_opengl_mesh->aabb_os);
 
