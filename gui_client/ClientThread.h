@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/UserID.h"
 #include "../shared/Avatar.h"
 #include "../shared/WorldDetails.h"
+#include "../shared/GestureSettings.h"
 #include <networking/IPAddress.h>
 #include <utils/MessageableThread.h>
 #include <utils/Platform.h>
@@ -46,6 +47,8 @@ public:
 	AvatarPerformGestureMessage(const UID avatar_uid_, const std::string& gesture_name_) : ThreadMessage(Msg_AvatarPerformGestureMessage), avatar_uid(avatar_uid_), gesture_name(gesture_name_) {}
 	UID avatar_uid;
 	std::string gesture_name;
+	URLString gesture_URL;
+	uint32 flags;
 };
 
 
@@ -171,6 +174,7 @@ public:
 	std::string username;
 	AvatarSettings avatar_settings;
 	uint32 user_flags;
+	GestureSettings gesture_settings;
 };
 
 

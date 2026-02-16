@@ -123,6 +123,10 @@ public:
 	// Thread-safe, can be called from any thread.
 	void enqueuePacketToBroadcastForWorld(const SocketBufferOutStream& packet_buffer, ServerWorldState* world);
 
+	// Enqueues packet to all WorkerThreads.
+	// Thread-safe, can be called from any thread.
+	void enqueuePacketToBroadcastForAllWorlds(const SocketBufferOutStream& packet_buffer);
+
 
 	Reference<ServerAllWorldsState> world_state;
 

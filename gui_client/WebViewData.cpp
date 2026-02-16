@@ -353,6 +353,8 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 			// and use that to just invalidate the dirty part.
 			if(browser && ob->opengl_engine_ob)
 			{
+				browser->think();
+
 				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 				if(ob_visible && !previous_is_visible) // If webview just became visible:
 				{

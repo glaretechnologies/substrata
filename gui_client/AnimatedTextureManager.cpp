@@ -365,6 +365,9 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 
 			browser = new_browser;
 		}
+
+		if(browser)
+			browser->think();
 	}
 #endif // CEF_SUPPORT
 }

@@ -16,6 +16,18 @@ Copyright Glare Technologies Limited 2022 -
 #include <iostream>
 
 
+// Export some symbols to indicate to the system that we want to run on a dedicated GPU if present.
+// See https://stackoverflow.com/a/39047129
+// Hopefully this will make CEF use the same GPU as the main substrata process.
+#if defined(_WIN32)
+extern "C"
+{
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+#endif
+
+
 class WebViewDataCEFApp : public CefApp, public CefBrowserProcessHandler
 {
 	// CefApp methods:

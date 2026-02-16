@@ -60,7 +60,7 @@ class EmbeddedBrowserRenderHandler : public CefRenderHandler
 public:
 	EmbeddedBrowserRenderHandler(int viewport_width_, int viewport_height_, GUIClient* gui_client_, WorldObject* ob_, size_t mat_index_, bool apply_to_emission_texture_, 
 		OpenGLEngine* opengl_engine_, bool use_shared_gpu_textures_, OpenGLTexture::Wrapping wrapping)
-	:	opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false), num_messages_logged(0)
+	:	opengl_engine(opengl_engine_), gui_client(gui_client_), ob(ob_), discarded_dirty_updates(false), num_messages_logged(0), error_occurred_in_accelerated_paint(false)
 	{
 		ZoneScoped; // Tracy profiler
 
@@ -264,6 +264,8 @@ public:
 				if(num_messages_logged == MAX_NUM_LOG_MESSAGES)
 					conPrint("Not logging any more errors, reached max.");
 			}
+
+			error_occurred_in_accelerated_paint = true;
 		}
 	}
 #endif
@@ -330,6 +332,8 @@ public:
 	bool use_shared_gpu_textures;
 
 	bool discarded_dirty_updates; // Set to true if we didn't update the buffer when a rectangle was dirty, because the webview object was not visible by the camera.
+
+	bool error_occurred_in_accelerated_paint;
 
 	int viewport_width, viewport_height;
 
@@ -1082,7 +1086,7 @@ public:
 
 
 static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, 
-	OpenGLTexture::Wrapping wrapping, OpenGLEngine* opengl_engine, const std::string& root_page)
+	OpenGLTexture::Wrapping wrapping, OpenGLEngine* opengl_engine, const std::string& root_page, bool allow_shared_GPU_texture)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -1100,7 +1104,7 @@ static Reference<EmbeddedBrowserCEFBrowser> createBrowser(const std::string& URL
 	{}*/
 
 #if defined(_WIN32) && (CEF_VERSION_MAJOR >= 139) // The shared GPU texture stuff is only implemented for Windows for now.  We also need a version of CEF that supports it.
-	const bool use_shared_gpu_textures = opengl_engine->shouldUseSharedTextures() /*&& allow_CEF_shared_textures*/; // && opengl_engine->GL_EXT_win32_keyed_mutex_support;
+	const bool use_shared_gpu_textures = opengl_engine->shouldUseSharedTextures() && allow_shared_GPU_texture /*&& allow_CEF_shared_textures*/; // && opengl_engine->GL_EXT_win32_keyed_mutex_support;
 #else
 	const bool use_shared_gpu_textures = false;
 #endif
@@ -1159,29 +1163,66 @@ EmbeddedBrowser::~EmbeddedBrowser()
 }
 
 
-void EmbeddedBrowser::create(const std::string& URL, int viewport_width, int viewport_height, GUIClient* gui_client, WorldObject* ob, size_t mat_index, bool apply_to_emission_texture, OpenGLTexture::Wrapping wrapping, OpenGLEngine* opengl_engine, const std::string& root_page)
+void EmbeddedBrowser::create(const std::string& URL_, int viewport_width_, int viewport_height_, GUIClient* gui_client_, WorldObject* ob_, size_t mat_index_, bool apply_to_emission_texture_, 
+	OpenGLTexture::Wrapping wrapping_, OpenGLEngine* opengl_engine_, const std::string& root_page_)
 {
+	URL = URL_;
+	viewport_width = viewport_width_;
+	viewport_height = viewport_height_;
+	gui_client = gui_client_;
+	ob = ob_;
+	mat_index = mat_index_;
+	apply_to_emission_texture = apply_to_emission_texture_;
+	wrapping = wrapping_;
+	opengl_engine = opengl_engine_;
+	root_page = root_page_;
+
 #if CEF_SUPPORT
 	this->embedded_cef_browser = NULL;
-	this->embedded_cef_browser = createBrowser(URL, viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, wrapping, opengl_engine, root_page);
+	this->embedded_cef_browser = createBrowser(URL, viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, wrapping, opengl_engine, root_page, /*allow_shared_GPU_texture=*/true);
 #endif
 }
 
 
-void EmbeddedBrowser::updateRootPage(const std::string& root_page)
+void EmbeddedBrowser::think()
 {
 #if CEF_SUPPORT
-	if(embedded_cef_browser)
-		embedded_cef_browser->cef_client->root_page = root_page;
+	if(this->embedded_cef_browser)
+	{
+		if(this->embedded_cef_browser->mRenderHandler->error_occurred_in_accelerated_paint)
+		{
+			gui_client->logAndConPrintMessage("Error encountered in accelerated paint, falling back to embedded browser without GPU texture sharing...");
+
+			this->embedded_cef_browser->onWebViewDataDestroyed(); // The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
+			this->embedded_cef_browser->requestExit();
+			this->embedded_cef_browser = NULL;
+
+
+			this->embedded_cef_browser = createBrowser(URL, viewport_width, viewport_height, gui_client, ob, mat_index, apply_to_emission_texture, wrapping, opengl_engine, root_page, /*allow_shared_GPU_texture=*/false);
+		}
+	}
 #endif
 }
 
 
-void EmbeddedBrowser::navigate(const std::string& URL)
+void EmbeddedBrowser::updateRootPage(const std::string& mew_root_page)
 {
+	root_page = mew_root_page;
+
 #if CEF_SUPPORT
 	if(embedded_cef_browser)
-		embedded_cef_browser->navigate(URL);
+		embedded_cef_browser->cef_client->root_page = mew_root_page;
+#endif
+}
+
+
+void EmbeddedBrowser::navigate(const std::string& new_URL)
+{
+	URL = new_URL;
+
+#if CEF_SUPPORT
+	if(embedded_cef_browser)
+		embedded_cef_browser->navigate(new_URL);
 #endif
 }
 

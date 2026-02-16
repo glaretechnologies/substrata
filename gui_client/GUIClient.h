@@ -96,6 +96,7 @@ class VBOPool;
 class PBOPool;
 class VBO;
 class PBO;
+class GestureSettings;
 namespace Scripting { class ObjectScriptsEvaluator; }
 
 
@@ -194,7 +195,7 @@ public:
 	virtual void reloadShaders() override;
 	//----------------------- End ReloadShadersCallback interface -----------------------
 
-	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
+	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim);
 	void stopGestureClicked(const std::string& gesture_name);
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
@@ -248,6 +249,7 @@ public:
 	std::string getCurrentWebClientURLPath() const;
 	std::string getCurrentURL() const;
 	void goBack();
+	void gestureSettingsChanged(const GestureSettings& new_gesture_settings);
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
@@ -296,7 +298,7 @@ public:
 	bool isResourceCurrentlyNeededForObject(const URLString& url, const WorldObject* ob) const;
 	bool isResourceCurrentlyNeededForObjectGivenIsDependency(const URLString& url, const WorldObject* ob) const;
 	bool isDownloadingResourceCurrentlyNeeded(const URLString& url) const;
-	void handleDownloadedAnimationResource(const std::string local_path, const Reference<Resource>& resource);
+	void handleDownloadedAnimationResource(const std::string& local_path, const Reference<Resource>& resource, Reference<LoadedBuffer> loaded_buffer);
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersWorldOrGodUser();

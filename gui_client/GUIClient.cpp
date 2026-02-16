@@ -1657,27 +1657,34 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const URLString& URL) const
 
 
 // Handle finished downloading a ".subanim" file.
-void GUIClient::handleDownloadedAnimationResource(const std::string local_path, const ResourceRef& resource)
+// For emscripten, load from 'loaded_buffer' memory buffer instead of from resource on disk.
+void GUIClient::handleDownloadedAnimationResource(const std::string& local_path, const ResourceRef& resource, Reference<LoadedBuffer> loaded_buffer) 
 {
 	conPrint("GUIClient::handleDownloadedAnimationResource(): local_path: " + local_path);
 
-	const std::string gesture_name = toStdString(::removeDotAndExtension(resource->URL));
-
-	conPrint("gesture_name: " + gesture_name);
-
-	// Iterate over avatars, peform gesture for any avatars that were waiting for the gesture anim to download.
+	try
 	{
-		Lock lock(this->world_state->mutex);
+		if(loaded_buffer)
+			animation_manager.loadAnimFromBuffer(resource->URL, loaded_buffer); // Explicitly load into the animation manager from the in-mem buffer (loaded_buffer) instead of from disk/resource manager.
 
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		// Iterate over avatars, perform gesture for any avatars that were waiting for the gesture anim to download.
 		{
-			Avatar* av = it->second.getPointer();
-			if(av->graphics.pending_gesture_name == gesture_name)
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 			{
-				const double cur_time = Clock::getTimeSinceInit();
-				av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
+				Avatar* av = it->second.getPointer();
+				if(av->graphics.pending_gesture_URL == resource->URL)
+				{
+					const double cur_time = Clock::getTimeSinceInit();
+					av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
+				}
 			}
 		}
+	}
+	catch(glare::Exception& e)
+	{
+		logAndConPrintMessage("Error while loading animation: " + e.what());
 	}
 }
 
@@ -2978,11 +2985,12 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 	if(our_avatar)
 	{
 		std::string gesture_name;
+		URLString gesture_URL;
 		bool animate_head, loop_anim;
-		if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+		if(gesture_ui.getCurrentGesturePlaying(gesture_name, gesture_URL, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
 		{
 			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-			avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim, animation_manager, *resource_manager);
+			avatar->graphics.performGesture(cur_time, gesture_name, gesture_URL, animate_head, loop_anim, animation_manager, *resource_manager);
 		}
 	}
 
@@ -5397,7 +5405,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		input_out.clear();
 	}
 
-	if(move_key_pressed)
+	if(move_key_pressed && (this->cam_controller.current_cam_mode == CameraController::CameraMode_Standard))
 	{
 		stopGesture();
 		gesture_ui.stopAnyGesturePlaying();
@@ -8746,8 +8754,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
 			{
-				const URLString anim_resource_URL = URLString(m->gesture_name) + ".subanim";
-				if(resource_manager->isFileForURLPresent(anim_resource_URL))
+				// For backwards compatibility, if gesture_URL was not sent, just use the gesture name with ".subanim" appended.
+				const URLString anim_resource_URL = m->gesture_URL.empty() ? (URLString(m->gesture_name) + ".subanim") : m->gesture_URL;
+				const bool anim_head = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+				const bool anim_loop = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_LOOP);
+				if(resource_manager->isFileForURLPresent(anim_resource_URL)) // If the gesture animation file is present on the local disk:
 				{
 					if(world_state)
 					{
@@ -8757,18 +8768,29 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						if(res != this->world_state->avatars.end())
 						{
 							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name), animation_manager, *resource_manager);
+							avatar->graphics.performGesture(cur_time, m->gesture_name, anim_resource_URL, anim_head, anim_loop, animation_manager, *resource_manager);
 						}
 					}
 				}
 				else
 				{
-					// Start downloading the animation resource (if it isn't already present).
+					// Start downloading the animation resource.
 					DownloadingResourceInfo info;
 					info.pos = cam_controller.getPosition();
 					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
 					info.used_by_other = true;
 					startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
+
+					// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+					{
+						Lock lock(this->world_state->mutex);
+						auto res = this->world_state->avatars.find(m->avatar_uid);
+						if(res != this->world_state->avatars.end())
+						{
+							Avatar* avatar = res->second.getPointer();
+							avatar->graphics.setPendingGesture(m->gesture_name, anim_resource_URL, anim_head, anim_loop);
+						}
+					}
 				}
 			}
 		}
@@ -8788,6 +8810,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					{
 						Avatar* avatar = res->second.getPointer();
 						avatar->graphics.stopGesture(cur_time);
+						avatar->graphics.clearPendingGesture(); // Since we have received a stop-gesture message for this avatar, we don't want to start playing the anim when we download the animation file.
 					}
 				}
 			}
@@ -8873,6 +8896,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			ui_interface->updateWorldSettingsControlsEditable();
 
 			misc_info_ui.showLoggedInButton(m->username);
+
+			// If this server has sent the user's custom gesture settings, update the gesture UI with them.
+			if(!m->gesture_settings.gesture_settings.empty())
+				gesture_ui.setCurrentGestureSettings(m->gesture_settings);
+
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
@@ -8976,6 +9004,21 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
 				physics_world->setWaterZ(use_water_z);
 			}
+
+			if(opengl_engine)
+			{
+				const float sun_phi   = this->connected_world_settings.sun_phi;
+				const float sun_theta = this->connected_world_settings.sun_theta;
+				opengl_engine->setEnvMapTransform(Matrix3f::rotationAroundZAxis(sun_phi));
+
+				{
+					OpenGLMaterial env_mat;
+					env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
+					opengl_engine->setEnvMat(env_mat);
+				}
+
+				opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0)));
+			}
 		}
 		break;
 		case Msg_WorldDetailsReceivedMessage:
@@ -9066,7 +9109,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(world_state.nonNull())
 			{
-				conPrint("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
+				logMessage("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
 
 				// A download of this resource may have failed earlier, but should succeed now.
 				resource_manager->removeFromDownloadFailedURLs(m->URL);
@@ -9153,6 +9196,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								}
 							}
 						}
+
+						if(::hasExtension(m->URL, "subanim")) // Just consider all animations (used for gestures) needed for now.
+							need_resource = true;
 
 						const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
 						conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
@@ -9266,7 +9312,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							}
 							else if(hasExtension(local_path, "subanim"))
 							{
-								handleDownloadedAnimationResource(local_path, resource);
+								handleDownloadedAnimationResource(local_path, resource, m->loaded_buffer);
 							}
 							else
 							{
@@ -14965,14 +15011,12 @@ void GUIClient::reloadShaders()
 }
 
 
-void GUIClient::performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim)
+void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim)
 {
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
 	// Change camera view to third person if it's not already, so we can see the gesture
 	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
-
-	const URLString anim_resource_URL = URLString(gesture_name) + ".subanim";
 
 	if(resource_manager->isFileForURLPresent(anim_resource_URL))
 	{
@@ -14982,7 +15026,7 @@ void GUIClient::performGestureClicked(const std::string& gesture_name, bool anim
 		{
 			Avatar* av = it->second.getPointer();
 			if(av->isOurAvatar())
-				av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim, animation_manager, *resource_manager);
+				av->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, animation_manager, *resource_manager);
 		}
 	}
 	else
@@ -15003,16 +15047,20 @@ void GUIClient::performGestureClicked(const std::string& gesture_name, bool anim
 			{
 				Avatar* av = it->second.getPointer();
 				if(av->isOurAvatar())
-					av->graphics.setPendingGesture(gesture_name, animate_head, loop_anim);
+					av->graphics.setPendingGesture(gesture_name, anim_resource_URL, animate_head, loop_anim);
 			}
 		}
 	}
 
 	// Send AvatarPerformGesture message
 	{
+		const uint32 flags = (animate_head ? SingleGestureSettings::FLAG_ANIMATE_HEAD : 0) | (loop_anim ? SingleGestureSettings::FLAG_LOOP : 0);
+
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 		writeToStream(this->client_avatar_uid, scratch_packet);
 		scratch_packet.writeStringLengthFirst(gesture_name);
+		scratch_packet.writeStringLengthFirst(anim_resource_URL);
+		scratch_packet.writeUInt32(flags);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -15040,8 +15088,6 @@ void GUIClient::stopGesture()
 	}
 
 	// Send AvatarStopGesture message
-	// If we are not logged in, we can't perform a gesture, so don't send a AvatarStopGesture message or we will just get error messages back from the server.
-	//if(this->logged_in_user_id.valid())
 	if(sent_perform_gesture_without_stop_gesture) // Make sure we don't spam AvatarStopGesture messages.
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
@@ -15508,6 +15554,19 @@ void GUIClient::goBack()
 
 		visitSubURL(URL, /*push_prev_URL_on_nav_stack=*/false);
 	}
+}
+
+
+void GUIClient::gestureSettingsChanged(const GestureSettings& new_gesture_settings)
+{
+	// Send UserGestureSettingsChanged message to server
+	MessageUtils::initPacket(scratch_packet, Protocol::UserGestureSettingsChanged);
+	new_gesture_settings.writeToStream(scratch_packet);
+	enqueueMessageToSend(*client_thread, scratch_packet);
+
+
+	// Update gesture UI.
+	gesture_ui.setCurrentGestureSettings(new_gesture_settings);
 }
 
 

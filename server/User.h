@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2017 -
 #include "../shared/UserID.h"
 #include "../shared/WorldMaterial.h"
 #include "../shared/Avatar.h"
+#include "../shared/GestureSettings.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <string>
@@ -76,6 +77,8 @@ public:
 	std::vector<PasswordReset> password_resets; // pending password reset tokens
 
 	AvatarSettings avatar_settings;
+
+	GestureSettings gesture_settings;
 
 	static const uint32 WORLD_GARDENER_FLAG           = 1; // Can this user add objects outside of parcels
 	static const uint32 ALLOW_DYN_TEX_UPDATE_CHECKING = 2; // Will the user's dynamic_texture_update scripts be run by the server?

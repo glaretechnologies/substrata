@@ -46,13 +46,6 @@ AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QS
 	this->usernameLabel->hide();
 	this->usernameLineEdit->hide();
 
-	std::string display_str;
-
-	display_str += "<br/><a href=\"https://substrata.readyplayer.me/\">Create a ReadyPlayerMe avatar</a>.  After creating, download and select in file browser above.";
-
-	this->createReadyPlayerMeLabel->setText(QtUtils::toQString(display_str));
-	this->createReadyPlayerMeLabel->setOpenExternalLinks(true);
-
 	this->avatarPreviewGLWidget->init(base_dir_path, settings_, texture_server);
 
 	// Load main window geometry and state

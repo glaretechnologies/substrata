@@ -146,4 +146,13 @@ public:
 	virtual void makeGLContextCurrent(void* context) = 0;
 
 	virtual	void* getID3D11Device() const = 0;
+
+
+	// File selection
+	struct FileTypeFilter
+	{
+		std::string description; // e.g. "Images"
+		std::vector<std::string> file_types; // e.g. "png", "jpg"
+	};
+	virtual std::string showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key) = 0; // Returns path to file selected or empty string if cancelled.
 };
