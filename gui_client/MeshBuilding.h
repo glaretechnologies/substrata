@@ -41,6 +41,9 @@ public:
 	// Loads mesh data into current OpenGL context.
 	static MeshBuildingResults makeImageCube(VertexBufferAllocator& allocator);
 
+	// Make a squashed cube mesh for seats (like a sandwich)
+	static MeshBuildingResults makeSeatMesh(VertexBufferAllocator& allocator);
+
 	static MeshBuildingResults makeSpotlightMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator);
 
 	static MeshBuildingResults makePortalMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator);

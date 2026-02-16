@@ -150,6 +150,124 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAlloca
 }
 
 
+// Make a squashed cube for seat visualization (squashed on z-axis like a sandwich)
+MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocator& allocator)
+{
+	Indigo::MeshRef mesh = new Indigo::Mesh();
+	mesh->num_uv_mappings = 1;
+
+	const float z_scale = 0.1f; // Squash factor for the seat (makes it look like a thin cushion)
+
+	unsigned int v_start = 0;
+	// x=0 face
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(0,0,z_scale));
+		mesh->addVertex(Indigo::Vec3f(0,1,z_scale));
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// x=1 face
+	{
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,z_scale));
+		mesh->addVertex(Indigo::Vec3f(1,0,z_scale));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// y=0 face
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,z_scale));
+		mesh->addVertex(Indigo::Vec3f(0,0,z_scale));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// y=1 face
+	{
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->addVertex(Indigo::Vec3f(0,1,z_scale));
+		mesh->addVertex(Indigo::Vec3f(1,1,z_scale));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// z=0 face (bottom)
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// z=z_scale face (top - the seat surface)
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,z_scale));
+		mesh->addVertex(Indigo::Vec3f(1,0,z_scale));
+		mesh->addVertex(Indigo::Vec3f(1,1,z_scale));
+		mesh->addVertex(Indigo::Vec3f(0,1,z_scale));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+
+	mesh->endOfModel();
+
+	Reference<OpenGLMeshRenderData> seat_opengl_mesh = GLMeshBuilding::buildIndigoMesh(&allocator, mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+
+	MeshBuildingResults results;
+	results.opengl_mesh_data = seat_opengl_mesh;
+	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	results.indigo_mesh = mesh;
+	return results;
+}
+
+
 MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator)
 {
 	ZoneScoped; // Tracy profiler

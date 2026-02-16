@@ -463,6 +463,8 @@ public:
 	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
 	uint32 cur_seat_index; // Current vehicle seat index.
 
+	WorldObject* currently_sitting_on_seat; // Seat object that the avatar is currently sitting on, or NULL if not sitting.
+
 	double last_vehicle_renewal_msg_time;
 
 	Timer time_since_last_timer_ev;
@@ -537,6 +539,9 @@ public:
 
 	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
 	PhysicsShape spotlight_shape;
+
+	Reference<OpenGLMeshRenderData> seat_opengl_mesh;
+	PhysicsShape seat_shape;
 
 	Reference<OpenGLMeshRenderData> portal_opengl_mesh;
 	PhysicsShape portal_shape;
