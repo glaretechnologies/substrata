@@ -195,9 +195,9 @@ public:
 	virtual void reloadShaders() override;
 	//----------------------- End ReloadShadersCallback interface -----------------------
 
-	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim);
+	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags);
 	void stopGestureClicked(const std::string& gesture_name);
-	void performGestureOnOurAvatar(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double global_start_time);
+	void performGestureOnOurAvatar(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags, double global_start_time);
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
 	void setPhotoModeEnabled(bool enabled);

@@ -131,12 +131,8 @@ public:
 	Vec4f getLastLeftEyePosition() const;
 	Vec4f getLastRightEyePosition() const;
 
-	void performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double start_global_time, double time_offset, AnimationManager& animation_manager, ResourceManager& resource_manager);
-	void stopGesture(double cur_time/*, const std::string& gesture_name*/);
-
-	void setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double start_global_time); // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
-	void clearPendingGesture();
-	void performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager);
+	void performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 gesture_flags, double start_global_time, double time_offset, AnimationManager& animation_manager, ResourceManager& resource_manager);
+	void stopGesture(double cur_time);
 
 	const Vec3d& getLastVel() const { return last_vel; }
 
@@ -274,20 +270,6 @@ private:
 	float upper_right_arm_len, lower_right_arm_len;
 	float upper_left_arm_len, lower_left_arm_len;
 
-public:
-	std::string current_gesture_name;
-	URLString current_gesture_URL;
-	bool current_gesture_animate_head;
-	bool current_gesture_loop_anim;
-	double current_gesture_start_global_time;
-
-	std::string pending_gesture_name; // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
-	URLString pending_gesture_URL;
-	bool pending_gesture_animate_head;
-	bool pending_gesture_loop_anim;
-	double pending_gesture_start_global_time;
-
-private:
 	Avatar* avatar;
 	bool our_avatar;
 	Reference<PhysicsObject> physics_ob;

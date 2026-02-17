@@ -1674,10 +1674,10 @@ void GUIClient::handleDownloadedAnimationResource(const std::string& local_path,
 			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 			{
 				Avatar* av = it->second.getPointer();
-				if(av->graphics.pending_gesture_URL == resource->URL)
+				if(av->pending_gesture_URL == resource->URL)
 				{
 					const double cur_time = Clock::getTimeSinceInit();
-					av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
+					av->performPendingGesture(cur_time, animation_manager, *resource_manager);
 				}
 			}
 		}
@@ -2980,18 +2980,21 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
 
-	// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
-	const bool our_avatar = avatar->uid == this->client_avatar_uid;
-	if(our_avatar)
+
+	// See if there is a gesture animation we should be playing, and if so, play it.
+	if(!avatar->current_gesture_name.empty())
 	{
-		std::string gesture_name;
-		URLString gesture_URL;
-		bool animate_head, loop_anim;
-		if(gesture_ui.getCurrentGesturePlaying(gesture_name, gesture_URL, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
-		{
-			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-			avatar->graphics.performGesture(cur_time, gesture_name, gesture_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime(), /*time offset=*/0, animation_manager, *resource_manager);
-		}
+		const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+
+		// Sync playback.
+		// Consider at some time t, 10 seconds from now:
+		// t = cur_time + 10
+		// and start_global_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
+		// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - start_global_time))
+		// = 10 + (105 - 100) = 10 + 5 = 15
+		const double time_offset = world_state->getCurrentGlobalTime() - avatar->current_gesture_start_global_time;
+
+		avatar->performGesture(cur_time, avatar->current_gesture_name, avatar->current_gesture_URL, avatar->current_gesture_flags, avatar->current_gesture_start_global_time, time_offset, animation_manager, *resource_manager);
 	}
 
 	// conPrint("GUIClient::loadPresentAvatarModel done");
@@ -8757,8 +8760,6 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			{
 				// For backwards compatibility, if gesture_URL was not sent, just use the gesture name with ".subanim" appended.
 				const URLString anim_resource_URL = m->gesture_URL.empty() ? (URLString(m->gesture_name) + ".subanim") : m->gesture_URL;
-				const bool anim_head = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
-				const bool anim_loop = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_LOOP);
 				if(resource_manager->isFileForURLPresent(anim_resource_URL)) // If the gesture animation file is present on the local disk:
 				{
 					if(world_state)
@@ -8777,7 +8778,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							const double time_offset = world_state->getCurrentGlobalTime() - m->start_global_time;
 
 							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.performGesture(cur_time, m->gesture_name, anim_resource_URL, anim_head, anim_loop, m->start_global_time, time_offset, animation_manager, *resource_manager);
+							avatar->performGesture(cur_time, m->gesture_name, anim_resource_URL, m->flags, m->start_global_time, time_offset, animation_manager, *resource_manager);
 						}
 					}
 				}
@@ -8797,7 +8798,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						if(res != this->world_state->avatars.end())
 						{
 							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.setPendingGesture(m->gesture_name, anim_resource_URL, anim_head, anim_loop, m->start_global_time);
+							avatar->setPendingGesture(m->gesture_name, anim_resource_URL, m->flags, m->start_global_time);
 						}
 					}
 				}
@@ -8818,8 +8819,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					if(res != this->world_state->avatars.end())
 					{
 						Avatar* avatar = res->second.getPointer();
-						avatar->graphics.stopGesture(cur_time);
-						avatar->graphics.clearPendingGesture(); // Since we have received a stop-gesture message for this avatar, we don't want to start playing the anim when we download the animation file.
+						avatar->stopGesture(cur_time);
+						avatar->clearPendingGesture(); // Since we have received a stop-gesture message for this avatar, we don't want to start playing the anim when we download the animation file.
 					}
 				}
 			}
@@ -13990,7 +13991,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 			else if(results.hit_object->userdata && results.hit_object->userdata_type == 3) // If we hit an avatar:
 			{
 				const Avatar* avatar = (const Avatar*)results.hit_object->userdata;
-				if(avatar && !avatar->graphics.current_gesture_name.empty())
+				if(avatar && !avatar->current_gesture_name.empty())
 				{
 					ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to join gesture" : "Press [A] to join gesture", cursor_gl_coords);
 					show_mouseover_info_ui = true;
@@ -15029,9 +15030,9 @@ void GUIClient::reloadShaders()
 }
 
 
-void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim)
+void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, uint32 gesture_flags)
 {
-	performGestureOnOurAvatar(gesture_name, anim_resource_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime());
+	performGestureOnOurAvatar(gesture_name, anim_resource_URL, gesture_flags, world_state->getCurrentGlobalTime());
 }
 
 
@@ -15073,7 +15074,7 @@ void GUIClient::stopGestureClicked(const std::string& gesture_name)
 }
 
 
-void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim, double global_start_time)
+void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const URLString& anim_resource_URL, uint32 gesture_flags, double global_start_time)
 {
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
@@ -15099,7 +15100,7 @@ void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const
 				// = 10 + (105 - 100) = 10 + 5 = 15
 				const double time_offset = cur_global_time - global_start_time;
 
-				av->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, global_start_time, time_offset, animation_manager, *resource_manager);
+				av->performGesture(cur_time, gesture_name, anim_resource_URL, gesture_flags, global_start_time, time_offset, animation_manager, *resource_manager);
 			}
 		}
 	}
@@ -15121,20 +15122,18 @@ void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const
 			{
 				Avatar* av = it->second.getPointer();
 				if(av->isOurAvatar())
-					av->graphics.setPendingGesture(gesture_name, anim_resource_URL, animate_head, loop_anim, cur_global_time);
+					av->setPendingGesture(gesture_name, anim_resource_URL, gesture_flags, cur_global_time);
 			}
 		}
 	}
 
 	// Send AvatarPerformGesture message
 	{
-		const uint32 flags = (animate_head ? SingleGestureSettings::FLAG_ANIMATE_HEAD : 0) | (loop_anim ? SingleGestureSettings::FLAG_LOOP : 0);
-
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 		writeToStream(this->client_avatar_uid, scratch_packet);
 		scratch_packet.writeStringLengthFirst(gesture_name);
 		scratch_packet.writeStringLengthFirst(anim_resource_URL);
-		scratch_packet.writeUInt32(flags);
+		scratch_packet.writeUInt32(gesture_flags);
 		scratch_packet.writeDouble(global_start_time);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -15529,12 +15528,12 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 			{
 				const Avatar* hit_avatar = (const Avatar*)results.hit_object->userdata;
 
-				if(hit_avatar && !hit_avatar->graphics.current_gesture_name.empty()) // If the avatar is performing a gesture:
+				if(hit_avatar && !hit_avatar->current_gesture_name.empty()) // If the avatar is performing a gesture:
 				{
 					// Perform the same gesture on our avatar
-					performGestureOnOurAvatar(hit_avatar->graphics.current_gesture_name, hit_avatar->graphics.current_gesture_URL, 
-						hit_avatar->graphics.current_gesture_animate_head, hit_avatar->graphics.current_gesture_loop_anim,
-						hit_avatar->graphics.current_gesture_start_global_time);
+					performGestureOnOurAvatar(hit_avatar->current_gesture_name, hit_avatar->current_gesture_URL, 
+						hit_avatar->current_gesture_flags,
+						hit_avatar->current_gesture_start_global_time);
 				}
 			}
 		}

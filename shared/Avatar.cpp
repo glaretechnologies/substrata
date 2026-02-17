@@ -328,6 +328,56 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ro
 }
 
 
+void Avatar::setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 gesture_flags, double start_global_time)
+{
+	this->pending_gesture_name = gesture_name;
+	this->pending_gesture_URL = gesture_anim_URL;
+	this->pending_gesture_flags = gesture_flags;
+	this->pending_gesture_start_global_time = start_global_time;
+}
+
+
+void Avatar::clearPendingGesture()
+{
+	this->pending_gesture_name.clear();
+	this->pending_gesture_URL.clear();
+}
+
+
+#if GUI_CLIENT
+void Avatar::performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 gesture_flags, double start_global_time, double time_offset, AnimationManager& animation_manager, ResourceManager& resource_manager)
+{
+	current_gesture_name = gesture_name;
+	current_gesture_URL = gesture_anim_URL;
+	current_gesture_flags = gesture_flags;
+	current_gesture_start_global_time = start_global_time;
+
+	graphics.performGesture(cur_time, gesture_name, gesture_anim_URL, gesture_flags, start_global_time, time_offset, animation_manager, resource_manager);
+}
+
+
+void Avatar::performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager)
+{
+	performGesture(cur_time, pending_gesture_name, pending_gesture_URL, pending_gesture_flags, pending_gesture_start_global_time, /*time_offset=*/0, animation_manager, resource_manager);
+
+	this->pending_gesture_name.clear();
+	this->pending_gesture_URL.clear();
+}
+
+
+
+void Avatar::stopGesture(double cur_time)
+{
+	current_gesture_name.clear();
+	current_gesture_URL.clear();
+
+	graphics.stopGesture(cur_time);
+}
+
+
+#endif // GUI_CLIENT
+
+
 void Avatar::copyNetworkStateFrom(const Avatar& other)
 {
 	// NOTE: The data in here needs to match that in readFromNetworkStreamGivenUID()

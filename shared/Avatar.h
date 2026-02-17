@@ -117,6 +117,15 @@ public:
 	std::string getUseName() const { return isChatBotAvatar() ? (name + " \xF0\x9F\xA4\x96") : name; } // \xF0\x9F\xA4\x96 is Unicode char with codepoint U+1F916 - "Robot Face".
 
 
+	void setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags, double start_global_time); // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
+	void clearPendingGesture();
+
+#if GUI_CLIENT
+	void performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags, double start_global_time, double time_offset, AnimationManager& animation_manager, ResourceManager& resource_manager);
+	void performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager);
+	void stopGesture(double cur_time);
+#endif
+
 	UID uid;
 	std::string name;
 	AvatarSettings avatar_settings;
@@ -201,6 +210,17 @@ public:
 	double snapshot_times[HISTORY_BUF_SIZE]; // Time as measured by Clock::getTimeSinceInit().
 	//double last_snapshot_time;
 	uint32 next_snapshot_i;
+
+
+	std::string current_gesture_name;
+	URLString current_gesture_URL;
+	uint32 current_gesture_flags;
+	double current_gesture_start_global_time;
+
+	std::string pending_gesture_name; // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
+	URLString pending_gesture_URL;
+	uint32 pending_gesture_flags;
+	double pending_gesture_start_global_time;
 };
 
 
