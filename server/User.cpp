@@ -74,7 +74,7 @@ void User::sendPasswordResetEmail(const EmailSendingInfo& sending_info)
 	args.from_name = sending_info.from_name;
 	args.from_email_addr = sending_info.from_email_addr;
 
-	args.to_name = sending_info.from_name + " user";
+	args.to_name = this->name;
 	args.to_email_addr = this->email_address;
 
 	args.subject = sending_info.from_name + "Password Reset";
@@ -223,4 +223,5 @@ void readUserFromStream(RandomAccessInStream& stream, User& user)
 	if(v >= 5)
 		user.flags = stream.readUInt32();
 }
+
 
