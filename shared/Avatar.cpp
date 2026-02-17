@@ -84,6 +84,11 @@ Avatar::Avatar()
 #endif
 	anim_state = 0;
 	last_physics_input_bitflags = 0;
+
+	current_gesture_flags = 0;
+	current_gesture_start_global_time = 0;
+	pending_gesture_flags = 0;
+	pending_gesture_start_global_time = 0;
 }
 
 
