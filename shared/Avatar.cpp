@@ -46,6 +46,9 @@ const Matrix4f obToWorldMatrix(const Avatar& ob)
 
 
 Avatar::Avatar()
+#if GUI_CLIENT
+:	graphics(this)
+#endif
 {
 	flags = 0;
 

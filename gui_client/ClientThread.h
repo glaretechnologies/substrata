@@ -49,6 +49,7 @@ public:
 	std::string gesture_name;
 	URLString gesture_URL;
 	uint32 flags;
+	double start_global_time;
 };
 
 

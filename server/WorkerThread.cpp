@@ -1422,14 +1422,22 @@ void WorkerThread::doRun()
 							//conPrint("AvatarPerformGesture");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 							const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
+
 							URLString gesture_URL;
 							if(!msg_buffer.endOfStream())
 								gesture_URL = URLString(msg_buffer.readStringLengthFirst(10000));
+
 							uint32 flags = 0;
 							if(!msg_buffer.endOfStream())
 								flags = msg_buffer.readUInt32();
 
-							conPrint("Received AvatarPerformGesture: gesture_name: '" + gesture_name + "', gesture_URL: '" + toStdString(gesture_URL) + "', flags: " + toString(flags));
+							double start_global_time = 0;
+							if(!msg_buffer.endOfStream())
+								start_global_time = msg_buffer.readDouble();
+							
+
+							conPrint("Received AvatarPerformGesture: gesture_name: '" + gesture_name + "', gesture_URL: '" + toStdString(gesture_URL) + "', flags: " + toString(flags) + 
+								", start_global_time: " + doubleToStringNSigFigs(start_global_time, 4));
 
 							// Enqueue AvatarPerformGesture messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
@@ -1437,6 +1445,7 @@ void WorkerThread::doRun()
 							scratch_packet.writeStringLengthFirst(gesture_name);
 							scratch_packet.writeStringLengthFirst(gesture_URL);
 							scratch_packet.writeUInt32(flags);
+							scratch_packet.writeDouble(start_global_time);
 							MessageUtils::updatePacketLengthField(scratch_packet);
 
 							enqueuePacketToBroadcast(scratch_packet);
