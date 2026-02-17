@@ -18,8 +18,11 @@ Copyright Glare Technologies Limited 2021 -
 #include <vector>
 struct GLObject;
 class OpenGLEngine;
+class PhysicsWorld;
+class PhysicsObject;
 class AnimationManager;
 class ResourceManager;
+class Avatar;
 
 
 struct AnimEvents
@@ -100,7 +103,7 @@ We could solve this by allowing blends of more than 2 animations, or by not blen
 class AvatarGraphics : public ThreadSafeRefCounted
 {
 public:
-	AvatarGraphics();
+	AvatarGraphics(Avatar* avatar);
 	~AvatarGraphics();
 
 	// anim_state flags
@@ -109,13 +112,13 @@ public:
 	static const uint32 ANIM_STATE_MOVE_IMPULSE_ZERO = 4; // Is the player not pressing down any move keys.
 
 	// xyplane_speed_rel_ground_override is the speed from the local physics sim.
-	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override,
+	void setOverallTransform(OpenGLEngine& engine, PhysicsWorld& physics_world, const Vec3d& pos, const Vec3f& rotation, bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override,
 		const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, const PoseConstraint& pose_constraint, AnimEvents& anim_events_out);
 
-	void build();
+	void build(bool our_avatar);
 	//void create(OpenGLEngine& engine, const std::string& URL);
 
-	void destroy(OpenGLEngine& engine);
+	void destroy(OpenGLEngine& engine, PhysicsWorld& physics_world);
 	
 	void setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target_pos); // create or update beam
 	void hideSelectedObBeam(OpenGLEngine& engine);
@@ -128,10 +131,10 @@ public:
 	Vec4f getLastLeftEyePosition() const;
 	Vec4f getLastRightEyePosition() const;
 
-	void performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, AnimationManager& animation_manager, ResourceManager& resource_manager);
+	void performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double start_global_time, double time_offset, AnimationManager& animation_manager, ResourceManager& resource_manager);
 	void stopGesture(double cur_time/*, const std::string& gesture_name*/);
 
-	void setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim); // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
+	void setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double start_global_time); // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
 	void clearPendingGesture();
 	void performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager);
 
@@ -272,10 +275,22 @@ private:
 	float upper_left_arm_len, lower_left_arm_len;
 
 public:
+	std::string current_gesture_name;
+	URLString current_gesture_URL;
+	bool current_gesture_animate_head;
+	bool current_gesture_loop_anim;
+	double current_gesture_start_global_time;
+
 	std::string pending_gesture_name; // Set if we wanted this avatar to perform the gesture but the animation file wasn't present.  To play when it's downloaded.
 	URLString pending_gesture_URL;
 	bool pending_gesture_animate_head;
 	bool pending_gesture_loop_anim;
+	double pending_gesture_start_global_time;
+
+private:
+	Avatar* avatar;
+	bool our_avatar;
+	Reference<PhysicsObject> physics_ob;
 };
 
 

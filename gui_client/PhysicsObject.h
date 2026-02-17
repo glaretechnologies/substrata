@@ -78,7 +78,7 @@ public:
 	bool is_sensor;
 
 	void* userdata;
-	int userdata_type; // 0 = WorldObject, 1 = Parcel, 2 = InstanceInfo
+	int userdata_type; // 0 = WorldObject, 1 = Parcel, 2 = InstanceInfo, 3 = Avatar
 
 	UID ob_uid; // Just for debugging.
 

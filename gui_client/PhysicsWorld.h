@@ -220,3 +220,13 @@ inline void checkRemoveObAndSetRefToNull(const Reference<PhysicsWorld>& physics_
 		physics_object = nullptr;
 	}
 }
+
+
+inline void checkRemoveObAndSetRefToNull(PhysicsWorld& physics_world, Reference<PhysicsObject>& physics_object)
+{
+	if(physics_object)
+	{
+		physics_world.removeObject(physics_object);
+		physics_object = nullptr;
+	}
+}

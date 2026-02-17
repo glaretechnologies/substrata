@@ -995,7 +995,7 @@ void GUIClient::shutdown()
 	obs_with_animated_tex.clear();
 
 	for(size_t i=0; i<test_avatars.size(); ++i)
-		test_avatars[i]->graphics.destroy(*opengl_engine); // Remove any OpenGL object for it
+		test_avatars[i]->graphics.destroy(*opengl_engine, *physics_world); // Remove any OpenGL object for it
 
 
 	disconnectFromServerAndClearAllObjects();
@@ -1470,7 +1470,7 @@ void GUIClient::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 
 void GUIClient::removeAndDeleteGLObjectForAvatar(Avatar& av)
 {
-	av.graphics.destroy(*opengl_engine);
+	av.graphics.destroy(*opengl_engine, *physics_world);
 
 	av.mesh_data = NULL;
 }
@@ -2962,7 +2962,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 		mesh_manager.meshMemoryAllocatedChanged(old_mem_usage, new_mem_usage);
 	}
 
-	avatar->graphics.build();
+	avatar->graphics.build(avatar->our_avatar);
 
 	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 
@@ -2990,7 +2990,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 		if(gesture_ui.getCurrentGesturePlaying(gesture_name, gesture_URL, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
 		{
 			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-			avatar->graphics.performGesture(cur_time, gesture_name, gesture_URL, animate_head, loop_anim, animation_manager, *resource_manager);
+			avatar->graphics.performGesture(cur_time, gesture_name, gesture_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime(), /*time offset=*/0, animation_manager, *resource_manager);
 		}
 	}
 
@@ -7640,7 +7640,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 					chat_ui.appendMessage(avatar->getUseName(), avatar->name_colour, " left.");
 
 					// Remove any OpenGL object for it
-					avatar->graphics.destroy(*opengl_engine);
+					avatar->graphics.destroy(*opengl_engine, *physics_world);
 
 					// Remove nametag OpenGL object
 					checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
@@ -7690,7 +7690,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						print("(Re)Loading avatar model. model URL: " + toStdString(avatar->avatar_settings.model_url) + ", Avatar name: " + avatar->name);
 
 						// Remove any existing model and nametag
-						avatar->graphics.destroy(*opengl_engine);
+						avatar->graphics.destroy(*opengl_engine, *physics_world);
 						
 						checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob); // Remove nametag ob
 						checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
@@ -7876,7 +7876,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						}
 						 
 						AnimEvents anim_events;
-						avatar->graphics.setOverallTransform(*opengl_engine, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
+						avatar->graphics.setOverallTransform(*opengl_engine, *physics_world, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
 							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, pose_constraint, anim_events);
 						
 						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike && !pose_constraint.sitting) // If avatar is on ground, and the anim played a footstrike
@@ -7894,7 +7894,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 
 					
 					// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
-					Vec4f use_nametag_pos = pos.toVec4fPoint(); // Also used for red dot in HeadUpDisplay
+					// Use the last head position (animated) for the nametag position.  Matches better for animations with root motion and shorter avatars etc.
+					Vec4f use_nametag_pos = avatar->graphics.getLastHeadPosition(); // Also used for red dot in HeadUpDisplay
 					if(avatar->entered_vehicle)
 					{
 						const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
@@ -8767,8 +8768,16 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						auto res = this->world_state->avatars.find(m->avatar_uid);
 						if(res != this->world_state->avatars.end())
 						{
+							// Sync playback.
+							// Consider at some time t, 10 seconds from now:
+							// t = cur_time + 10
+							// and start_global_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
+							// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - start_global_time))
+							// = 10 + (105 - 100) = 10 + 5 = 15
+							const double time_offset = world_state->getCurrentGlobalTime() - m->start_global_time;
+
 							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.performGesture(cur_time, m->gesture_name, anim_resource_URL, anim_head, anim_loop, animation_manager, *resource_manager);
+							avatar->graphics.performGesture(cur_time, m->gesture_name, anim_resource_URL, anim_head, anim_loop, m->start_global_time, time_offset, animation_manager, *resource_manager);
 						}
 					}
 				}
@@ -8788,7 +8797,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						if(res != this->world_state->avatars.end())
 						{
 							Avatar* avatar = res->second.getPointer();
-							avatar->graphics.setPendingGesture(m->gesture_name, anim_resource_URL, anim_head, anim_loop);
+							avatar->graphics.setPendingGesture(m->gesture_name, anim_resource_URL, anim_head, anim_loop, m->start_global_time);
 						}
 					}
 				}
@@ -10677,7 +10686,7 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 		{
 			Avatar* avatar = res->second.getPointer();
 
-			avatar->graphics.destroy(*opengl_engine);
+			avatar->graphics.destroy(*opengl_engine, *physics_world);
 
 			// Remove nametag OpenGL object
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
@@ -12626,7 +12635,7 @@ void GUIClient::clearAllObjects()
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 
-			avatar->graphics.destroy(*opengl_engine);
+			avatar->graphics.destroy(*opengl_engine, *physics_world);
 
 			hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
 			if(minimap)
@@ -13978,6 +13987,15 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 					}
 				}
 			}
+			else if(results.hit_object->userdata && results.hit_object->userdata_type == 3) // If we hit an avatar:
+			{
+				const Avatar* avatar = (const Avatar*)results.hit_object->userdata;
+				if(avatar && !avatar->graphics.current_gesture_name.empty())
+				{
+					ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to join gesture" : "Press [A] to join gesture", cursor_gl_coords);
+					show_mouseover_info_ui = true;
+				}
+			}
 		}
 
 		if(!show_mouseover_info_ui)
@@ -15013,58 +15031,7 @@ void GUIClient::reloadShaders()
 
 void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim)
 {
-	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-	// Change camera view to third person if it's not already, so we can see the gesture
-	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
-
-	if(resource_manager->isFileForURLPresent(anim_resource_URL))
-	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-		{
-			Avatar* av = it->second.getPointer();
-			if(av->isOurAvatar())
-				av->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, animation_manager, *resource_manager);
-		}
-	}
-	else
-	{
-		// Start downloading the animation resource.
-		{
-			DownloadingResourceInfo info;
-			info.pos = cam_controller.getPosition();
-			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
-			info.used_by_other = true;
-			startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
-		}
-
-		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
-		{
-			Lock lock(this->world_state->mutex);
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-			{
-				Avatar* av = it->second.getPointer();
-				if(av->isOurAvatar())
-					av->graphics.setPendingGesture(gesture_name, anim_resource_URL, animate_head, loop_anim);
-			}
-		}
-	}
-
-	// Send AvatarPerformGesture message
-	{
-		const uint32 flags = (animate_head ? SingleGestureSettings::FLAG_ANIMATE_HEAD : 0) | (loop_anim ? SingleGestureSettings::FLAG_LOOP : 0);
-
-		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
-		writeToStream(this->client_avatar_uid, scratch_packet);
-		scratch_packet.writeStringLengthFirst(gesture_name);
-		scratch_packet.writeStringLengthFirst(anim_resource_URL);
-		scratch_packet.writeUInt32(flags);
-
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
-	}
-	sent_perform_gesture_without_stop_gesture = true;
+	performGestureOnOurAvatar(gesture_name, anim_resource_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime());
 }
 
 
@@ -15103,6 +15070,76 @@ void GUIClient::stopGesture()
 void GUIClient::stopGestureClicked(const std::string& gesture_name)
 {
 	stopGesture();
+}
+
+
+void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim, double global_start_time)
+{
+	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+
+	const double cur_global_time = world_state->getCurrentGlobalTime();
+
+	// Change camera view to third person if it's not already, so we can see the gesture
+	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
+
+	if(resource_manager->isFileForURLPresent(anim_resource_URL))
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* av = it->second.getPointer();
+			if(av->isOurAvatar())
+			{
+				// Sync playback.
+				// Consider at some time t, 10 seconds from now:
+				// t = cur_time + 10
+				// and global_start_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
+				// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - global_start_time))
+				// = 10 + (105 - 100) = 10 + 5 = 15
+				const double time_offset = cur_global_time - global_start_time;
+
+				av->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, global_start_time, time_offset, animation_manager, *resource_manager);
+			}
+		}
+	}
+	else
+	{
+		// Start downloading the animation resource.
+		{
+			DownloadingResourceInfo info;
+			info.pos = cam_controller.getPosition();
+			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
+			info.used_by_other = true;
+			startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
+		}
+
+		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+		{
+			Lock lock(this->world_state->mutex);
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+			{
+				Avatar* av = it->second.getPointer();
+				if(av->isOurAvatar())
+					av->graphics.setPendingGesture(gesture_name, anim_resource_URL, animate_head, loop_anim, cur_global_time);
+			}
+		}
+	}
+
+	// Send AvatarPerformGesture message
+	{
+		const uint32 flags = (animate_head ? SingleGestureSettings::FLAG_ANIMATE_HEAD : 0) | (loop_anim ? SingleGestureSettings::FLAG_LOOP : 0);
+
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+		writeToStream(this->client_avatar_uid, scratch_packet);
+		scratch_packet.writeStringLengthFirst(gesture_name);
+		scratch_packet.writeStringLengthFirst(anim_resource_URL);
+		scratch_packet.writeUInt32(flags);
+		scratch_packet.writeDouble(global_start_time);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+	sent_perform_gesture_without_stop_gesture = true;
 }
 
 
@@ -15486,6 +15523,18 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 					MessageUtils::initPacket(scratch_packet, Protocol::UserUsedObjectMessage);
 					writeToStream(ob->uid, scratch_packet);
 					enqueueMessageToSend(*client_thread, scratch_packet);
+				}
+			} // end if(hit object)
+			else if(results.hit_object->userdata && results.hit_object->userdata_type == 3) // else if we hit an avatar:
+			{
+				const Avatar* hit_avatar = (const Avatar*)results.hit_object->userdata;
+
+				if(hit_avatar && !hit_avatar->graphics.current_gesture_name.empty()) // If the avatar is performing a gesture:
+				{
+					// Perform the same gesture on our avatar
+					performGestureOnOurAvatar(hit_avatar->graphics.current_gesture_name, hit_avatar->graphics.current_gesture_URL, 
+						hit_avatar->graphics.current_gesture_animate_head, hit_avatar->graphics.current_gesture_loop_anim,
+						hit_avatar->graphics.current_gesture_start_global_time);
 				}
 			}
 		}
