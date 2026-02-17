@@ -77,7 +77,7 @@ void User::sendPasswordResetEmail(const EmailSendingInfo& sending_info)
 	args.to_name = this->name;
 	args.to_email_addr = this->email_address;
 
-	args.subject = sending_info.from_name + "Password Reset";
+	args.subject = sending_info.from_name + " Password Reset";
 	args.contents = "To reset your " + sending_info.from_name + " password, please visit the following URL: https://" + sending_info.reset_webserver_hostname + "/reset_password_email?token=" + reset_token + "<br>This link will be valid for one hour.";
 
 	SMTPClient::sendEmail(args);
@@ -223,5 +223,6 @@ void readUserFromStream(RandomAccessInStream& stream, User& user)
 	if(v >= 5)
 		user.flags = stream.readUInt32();
 }
+
 
 
