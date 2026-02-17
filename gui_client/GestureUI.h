@@ -45,10 +45,6 @@ public:
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 
-	// Get the current gesture being performed, according to the UI state (i.e. which button is toggled).
-	// Returns true if a gesture is being performed, false otherwise.
-	bool getCurrentGesturePlaying(std::string& gesture_name_out, URLString& gesture_URL_out, uint32& gesture_flags_out);
-
 	void stopAnyGesturePlaying();
 
 	//void turnOffSelfieMode();

@@ -586,33 +586,6 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 }
 
 
-bool GestureUI::getCurrentGesturePlaying(std::string& gesture_name_out, URLString& gesture_URL_out, uint32& gesture_flags_out)
-{
-	for(size_t z=0; z<gesture_buttons.size(); ++z)
-	{
-		if(gesture_buttons[z]->toggled)
-		{
-			const std::string button_gesture_name = gesture_buttons[z]->client_data;
-
-			// Find matching gesture
-			for(size_t i=0; i<gesture_settings.gesture_settings.size(); ++i)
-			{
-				const std::string gesture_name = gesture_settings.gesture_settings[i].friendly_name;
-				if(button_gesture_name == gesture_name)
-				{
-					gesture_name_out = gesture_name;
-					gesture_URL_out   = gesture_settings.gesture_settings[i].anim_URL;
-					gesture_flags_out = gesture_settings.gesture_settings[i].flags;
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
-}
-
-
 void GestureUI::stopAnyGesturePlaying()
 {
 	// Untoggle any toggled buttons.
