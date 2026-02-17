@@ -47,7 +47,7 @@ public:
 
 	// Get the current gesture being performed, according to the UI state (i.e. which button is toggled).
 	// Returns true if a gesture is being performed, false otherwise.
-	bool getCurrentGesturePlaying(std::string& gesture_name_out, URLString& gesture_URL_out, bool& animate_head_out, bool& loop_out);
+	bool getCurrentGesturePlaying(std::string& gesture_name_out, URLString& gesture_URL_out, uint32& gesture_flags_out);
 
 	void stopAnyGesturePlaying();
 

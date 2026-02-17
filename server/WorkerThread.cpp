@@ -963,6 +963,22 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+
+
+				// If the avatar is playing a gesture currently, send an AvatarPerformGesture message for it
+				if(!avatar->current_gesture_URL.empty())
+				{
+					// Enqueue AvatarPerformGesture messages to worker threads to send
+					MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+					writeToStream(avatar->uid, scratch_packet);
+					scratch_packet.writeStringLengthFirst(avatar->current_gesture_name);
+					scratch_packet.writeStringLengthFirst(avatar->current_gesture_URL);
+					scratch_packet.writeUInt32(avatar->current_gesture_flags);
+					scratch_packet.writeDouble(avatar->current_gesture_start_global_time);
+					MessageUtils::updatePacketLengthField(scratch_packet);
+
+					packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				}
 			}
 		} // End lock scope
 
@@ -1439,6 +1455,22 @@ void WorkerThread::doRun()
 							conPrint("Received AvatarPerformGesture: gesture_name: '" + gesture_name + "', gesture_URL: '" + toStdString(gesture_URL) + "', flags: " + toString(flags) + 
 								", start_global_time: " + doubleToStringNSigFigs(start_global_time, 4));
 
+
+							// Mark the avatar as currently performing the gesture
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									avatar->current_gesture_name = gesture_name;
+									avatar->current_gesture_URL = gesture_URL;
+									avatar->current_gesture_flags = flags;
+									avatar->current_gesture_start_global_time = start_global_time;
+								}
+							}
+
 							// Enqueue AvatarPerformGesture messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 							writeToStream(avatar_uid, scratch_packet);
@@ -1461,6 +1493,19 @@ void WorkerThread::doRun()
 						{
 							//conPrint("AvatarStopGesture");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							// Mark the avatar as not performing the gesture any more
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									avatar->current_gesture_name.clear();
+									avatar->current_gesture_URL.clear();
+								}
+							}
 
 							//if(!client_user_id.valid())
 							//{

@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "AnimationManager.h"
 #include "PhysicsWorld.h"
+#include "../shared/GestureSettings.h"
 #include "opengl/OpenGLEngine.h"
 #include "opengl/MeshPrimitiveBuilding.h"
 #include "opengl/OpenGLMeshRenderData.h"
@@ -1459,13 +1460,10 @@ static float getAnimLength(const AnimationData& animation_data, int anim_i)
 }
 
 
-void AvatarGraphics::performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double start_global_time, double time_offset, AnimationManager& animation_manager, ResourceManager& resource_manager)
+void AvatarGraphics::performGesture(double cur_time, const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 gesture_flags, double start_global_time, double time_offset, AnimationManager& animation_manager, ResourceManager& resource_manager)
 {
-	current_gesture_name = gesture_name;
-	current_gesture_URL = gesture_anim_URL;
-	current_gesture_animate_head = animate_head;
-	current_gesture_loop_anim = loop_anim;
-	current_gesture_start_global_time = start_global_time;
+	const bool animate_head = BitUtils::isBitSet(gesture_flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+	const bool loop_anim    = BitUtils::isBitSet(gesture_flags, SingleGestureSettings::FLAG_LOOP);
 
 	try
 	{
@@ -1528,9 +1526,6 @@ void AvatarGraphics::performGesture(double cur_time, const std::string& gesture_
 
 void AvatarGraphics::stopGesture(double cur_time/*, const std::string& gesture_name*/)
 {
-	current_gesture_name.clear();
-	current_gesture_URL.clear();
-
 	const double tentative_end_time = cur_time + 0.3;
 	if(this->gesture_anim.play_end_time > tentative_end_time)
 	{
@@ -1543,32 +1538,6 @@ void AvatarGraphics::stopGesture(double cur_time/*, const std::string& gesture_n
 			skinned_gl_ob->next_anim_i = idle_anim_i;
 		}
 	}
-}
-
-
-void AvatarGraphics::setPendingGesture(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double start_global_time)
-{
-	this->pending_gesture_name = gesture_name;
-	this->pending_gesture_URL = gesture_anim_URL;
-	this->pending_gesture_animate_head = animate_head;
-	this->pending_gesture_loop_anim = loop_anim;
-	this->pending_gesture_start_global_time = start_global_time;
-}
-
-
-void AvatarGraphics::clearPendingGesture()
-{
-	this->pending_gesture_name.clear();
-	this->pending_gesture_URL.clear();
-}
-
-
-void AvatarGraphics::performPendingGesture(double cur_time, AnimationManager& animation_manager, ResourceManager& resource_manager)
-{
-	this->performGesture(cur_time, pending_gesture_name, pending_gesture_URL, pending_gesture_animate_head, pending_gesture_loop_anim, pending_gesture_start_global_time, /*time_offset=*/0, animation_manager, resource_manager);
-
-	this->pending_gesture_name.clear();
-	this->pending_gesture_URL.clear();
 }
 
 
