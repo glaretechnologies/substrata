@@ -74,11 +74,11 @@ void User::sendPasswordResetEmail(const EmailSendingInfo& sending_info)
 	args.from_name = sending_info.from_name;
 	args.from_email_addr = sending_info.from_email_addr;
 
-	args.to_name = "Substrata user";
+	args.to_name = sending_info.from_name + " user";
 	args.to_email_addr = this->email_address;
 
-	args.subject = "Password Reset";
-	args.contents = "To reset your Substrata password, please visit the following URL: https://" + sending_info.reset_webserver_hostname + "/reset_password_email?token=" + reset_token;
+	args.subject = sending_info.from_name + "Password Reset";
+	args.contents = "To reset your " + sending_info.from_name + " password, please visit the following URL: https://" + sending_info.reset_webserver_hostname + "/reset_password_email?token=" + reset_token + "<br>This link will be valid for one hour.";
 
 	SMTPClient::sendEmail(args);
 
@@ -223,3 +223,4 @@ void readUserFromStream(RandomAccessInStream& stream, User& user)
 	if(v >= 5)
 		user.flags = stream.readUInt32();
 }
+
