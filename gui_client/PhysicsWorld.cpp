@@ -626,6 +626,19 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 }
 
 
+void PhysicsWorld::setNewPosition(PhysicsObject& object, const Vec4f& pos)
+{
+	assert(pos.isFinite());
+
+	object.pos = pos;
+
+	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
+	{
+		physics_system->GetBodyInterface().SetPosition(object.jolt_body_id, /*pos=*/toJoltVec3(pos), JPH::EActivation::DontActivate);
+	}
+}
+
+
 Vec4f PhysicsWorld::getObjectLinearVelocity(const PhysicsObject& object) const
 {
 	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:

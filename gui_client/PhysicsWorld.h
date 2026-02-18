@@ -147,7 +147,10 @@ public:
 
 	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale);
 	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& linear_vel, const Vec4f& angular_vel);
-	
+
+	// Updates position.  Does not activate object.
+	void setNewPosition(PhysicsObject& object, const Vec4f& pos);
+
 	Vec4f getObjectLinearVelocity(const PhysicsObject& object) const;
 	void setLinearAndAngularVelToZero(PhysicsObject& object);
 

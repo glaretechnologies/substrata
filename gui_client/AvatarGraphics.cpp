@@ -148,17 +148,16 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 				shape.jolt_shape = standing_shape;
 				physics_ob = new PhysicsObject(/*collidable=*/false, shape, /*userdata=*/(void*)avatar, /*userdata_type=*/3);
 				physics_ob->pos = pos.toVec4fPoint();
-				physics_ob->rot = Quatf::identity();
+				physics_ob->rot = Quatf::xAxisRot(Maths::pi_2<float>()); // Rotate from the cylinder extending in y direction to extending in z direction.
 				physics_ob->scale = Vec3f(1.f);
 
 				physics_world.addObject(physics_ob);
 			}
 
-			// We will translate the position of the capsule down from eye position to the centre of the avatar.  Also rotate from the cylinder extending in y direction to extending in z direction.
-			// TODO: rotate based on head bone and hip bone relative position?
-
+			// We will translate the position of the capsule down from eye position to the centre of the avatar.
+			// TODO: rotate based on current head bone and hip bone relative position?
 			const Vec4f last_eye_pos = getLastHeadPosition(); // Use animated head position so it works for animations with root motion.
-			physics_world.setNewObToWorldTransform(*physics_ob, last_eye_pos - Vec4f(0, 0, 1.67f / 2, 0), Quatf::xAxisRot(Maths::pi_2<float>()), Vec4f(1.f));
+			physics_world.setNewPosition(*physics_ob, last_eye_pos - Vec4f(0, 0, 1.67f / 2, 0));
 		}
 
 
