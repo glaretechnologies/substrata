@@ -219,7 +219,7 @@ public:
 	// Function to filter out object layers when doing collision query test (return true to allow testing against objects with this layer)
 	virtual bool ShouldCollide(JPH::ObjectLayer inLayer) const
 	{
-		return /*inLayer != Layers::PUSHER_CHARACTER && */inLayer != Layers::NON_COLLIDABLE;
+		return (inLayer != Layers::NON_MOVING_NON_COLLIDABLE) && (inLayer != Layers::MOVING_NON_COLLIDABLE);
 	}
 };
 

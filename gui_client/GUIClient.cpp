@@ -150,6 +150,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	shown_object_modification_error_msg(false),
 	num_frames_since_fps_timer_reset(0),
 	last_fps(0),
+	last_physics_sim_time(0),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
@@ -194,7 +195,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	cur_loading_model_lod_level(-1),
 	obs_with_scripts(/*empty val=*/WorldObjectRef()),
 	ui_hidden(false),
-	only_load_most_important_obs(false)
+	only_load_most_important_obs(false),
+	last_ping_send_time(-1000)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -2807,7 +2809,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 	removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
 
 	// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
-	if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
+	if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->isDynamic() || ob->physics_object->isKinematic())))
 	{
 		destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
 		physics_world->removeObject(ob->physics_object);
@@ -2870,8 +2872,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 		ob->physics_object->scale = useScaleForWorldOb(ob->scale);
 
 		// TEMP HACK
-		ob->physics_object->kinematic = !ob->script.empty();
-		ob->physics_object->dynamic = ob->isDynamic();
+		ob->physics_object->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
 		ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
 		ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
 
@@ -5808,6 +5809,23 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
+
+	if((server_protocol_version >= 48) && (cur_time - last_ping_send_time) > 2.0) // Ping/pong messages were added in protocol version 48.
+	{
+		// Set last_ping_send_time in world_state
+		{
+			Lock lock(world_state->last_ping_send_time_mutex);
+			world_state->last_ping_send_time = cur_time;
+		}
+
+		// Send ping message
+		MessageUtils::initPacket(scratch_packet, Protocol::PingMessage);
+		enqueueMessageToSend(*client_thread, scratch_packet);
+
+		last_ping_send_time = cur_time;
+	}
+
+
 	//ui->indigoView->timerThink();
 
 	updateNotifications(cur_time);
@@ -5872,6 +5890,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	{
 		PERFORMANCEAPI_INSTRUMENT("physics sim");
 		ZoneScopedN("physics sim"); // Tracy profiler
+		Timer physics_sim_timer;
 
 		for(int i=0; i<num_substeps; ++i)
 		{
@@ -5986,6 +6005,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				}
 			}
 		}
+
+		this->last_physics_sim_time = physics_sim_timer.elapsed();
 	}
 
 	if(hasPrefix(touched_portal_target_URL, "sub://"))
@@ -6085,7 +6106,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
 					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
 					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine.
-					if(physics_ob->dynamic || (physics_ob->kinematic && ob->is_path_controlled))
+					if(physics_ob->isDynamic() || (physics_ob->isKinematic() && ob->is_path_controlled))
 					{
 						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
 
@@ -6095,7 +6116,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						{
 							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
 							// We will also reduce smooth_translation and smooth_rotation over time here.
-							if(physics_ob->dynamic)
+							if(physics_ob->isDynamic())
 							{
 								Vec4f unit_axis;
 								float angle;
@@ -6141,7 +6162,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 
 							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
-							if(physics_ob->dynamic && isObjectPhysicsOwnedBySelf(*ob, global_time))
+							if(physics_ob->isDynamic() && isObjectPhysicsOwnedBySelf(*ob, global_time))
 							{
 								JPH::Vec3 linear_vel, angular_vel;
 								body_interface.GetLinearAndAngularVelocity(physics_ob->jolt_body_id, linear_vel, angular_vel);
@@ -9528,6 +9549,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	if(physics_world.nonNull() && do_physics_diagnostics)
 	{
 		msg += "------------Physics------------\n";
+		msg += "physics CPU time: " + doubleToStringNSigFigs(last_physics_sim_time * 1000, 3) + " ms\n";
 		msg += physics_world->getDiagnostics();
 		msg += "------------------------------\n";
 	}
@@ -9552,6 +9574,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 	msg += "main loop CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 	msg += "main loop updateGL time: " + doubleToStringNSigFigs(last_updateGL_time * 1000, 3) + " ms\n";
+	msg += "physics CPU time: " + doubleToStringNSigFigs(last_physics_sim_time * 1000, 3) + " ms\n";
 	msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
 	msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
 	msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
@@ -11740,8 +11763,7 @@ void GUIClient::objectEdited()
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
 
-				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
-				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+				selected_ob->physics_object->motion_type = selected_ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!selected_ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
 
 				selected_ob->physics_object->mass = selected_ob->mass;
 				selected_ob->physics_object->friction = selected_ob->friction;
@@ -11756,8 +11778,8 @@ void GUIClient::objectEdited()
 
 		// Scripted objects (e.g. objects being path controlled), need to be kinematic.  If we enabled a script, but the existing physics object is not kinematic, reload the physics object.
 		const bool physics_rebuild_needed_for_script_enabling = BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED) &&
-			selected_ob->physics_object && !selected_ob->physics_object->kinematic && !selected_ob->script.empty() &&
-			(selected_ob->object_type == WorldObject::ObjectType_Generic ||selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
+			selected_ob->physics_object && !selected_ob->physics_object->isKinematic() && !selected_ob->script.empty() &&
+			(selected_ob->object_type == WorldObject::ObjectType_Generic || selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
 		
 		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
 			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)) ||
@@ -11842,8 +11864,8 @@ void GUIClient::objectEdited()
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
 			
-				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
-				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+				selected_ob->physics_object->motion_type = selected_ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!selected_ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
+
 				selected_ob->physics_object->is_sphere = FileUtils::getFilenameStringView(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
 				selected_ob->physics_object->is_cube = FileUtils::getFilenameStringView(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
 
@@ -12195,7 +12217,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		hover_car_physics_settings.hovercar_mass = ob->mass;
 		hover_car_physics_settings.script_settings = hover_car_script->settings.downcast<Scripting::HoverCarScriptSettings>();
 
-		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
+		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
 
 		controller = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, *physics_world, particle_manager.ptr());
 	}
@@ -12207,7 +12229,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		physics_settings.boat_mass = ob->mass;
 		physics_settings.script_settings = boat_script->settings.downcast<Scripting::BoatScriptSettings>();
 
-		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
+		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
 
 		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, *physics_world, particle_manager.ptr(), terrain_decal_manager.ptr());
 	}
@@ -13706,9 +13728,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		physics_ob->userdata = (void*)(ob.ptr());
 		physics_ob->userdata_type = 0;
 		physics_ob->ob_uid = ob->uid;
-
-		physics_ob->kinematic = !ob->script.empty();
-		physics_ob->dynamic = ob->isDynamic();
+		physics_ob->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
 
 		physics_world->addObject(physics_ob);
 

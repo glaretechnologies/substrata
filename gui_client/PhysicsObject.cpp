@@ -26,8 +26,7 @@ js::AABBox PhysicsShape::getAABBOS() const
 PhysicsObject::PhysicsObject(bool collidable_)
 :	userdata(NULL), userdata_type(0), collidable(collidable_), /*uniform_dist(NULL), total_surface_area(0), */pos(0.f), smooth_translation(0.f), smooth_rotation(Quatf::identity())
 {
-	dynamic = false;
-	kinematic = false;
+	motion_type = MotionType_static;
 #if USE_JOLT
 	is_sphere = false;
 	is_cube = false;
@@ -46,8 +45,7 @@ PhysicsObject::PhysicsObject(bool collidable_)
 PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void* userdata_, int userdata_type_)
 :	shape(shape_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_), smooth_translation(0.f), smooth_rotation(Quatf::identity())/*, uniform_dist(NULL), total_surface_area(0)*/
 {
-	dynamic = false;
-	kinematic = false;
+	motion_type = MotionType_static;
 #if USE_JOLT
 	is_sphere = false;
 	is_cube = false;

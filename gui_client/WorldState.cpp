@@ -20,7 +20,10 @@ WorldState::WorldState()
 	local_time_global_time_received(0),
 	correction_start_time(0),
 	correction_amount(0),
-	objects(UID::invalidUID())
+	objects(UID::invalidUID()),
+	last_ping_send_time(0),
+	min_rtt(1.0e10),
+	received_rtt(false)
 {
 }
 
@@ -71,7 +74,43 @@ void WorldState::clear()
 
 static const double CORRECTION_PERIOD = 2.0;
 
+/*
+Case 1: sending of global_time_1 is slower
 
+      global_time_0                global_time_1
+-------|------------------------------|------------------------------------------> server
+        \                             \
+          \                               \
+            \                                 \
+              \                                   \
+---------------|------------------------------------|----------------------------> client 
+         local_time_0                        local_time_1
+
+               |<---------------------------------->|
+                      local_time_since_last_rcv
+
+-------|-------------------------------------|-----------
+                                     cur_estimated_global_time = global_time_0 + local_time_since_last_rcv
+
+
+
+Case 2: sending of global_time_1 is faster (lower latency).  This means that global_time_1 leads to the more reliable estimate as we are estimating with the lowest observed latency message.
+
+      global_time_0                global_time_1
+-------|------------------------------|------------------------------------------> server
+        \                             \
+          \                            \
+            \                           \
+              \                          \
+---------------|-------------------------|---------------------------------------> client 
+         local_time_0                 local_time_1
+
+               |<----------------------->|
+                   local_time_since_last_rcv
+
+-------|--------------------------|-----------
+               cur_estimated_global_time = global_time_0 + local_time_since_last_rcv
+*/
 void WorldState::updateWithGlobalTimeReceived(double t)
 {
 	Lock lock(mutex);
@@ -85,6 +124,21 @@ void WorldState::updateWithGlobalTimeReceived(double t)
 	}
 	else
 	{
+		// See diagram above
+		const double local_time_since_last_rcv = clock_cur_time - this->local_time_global_time_received;
+		const double cur_estimated_global_time = this->last_global_time_received + local_time_since_last_rcv;
+
+		// conPrint("new global time: " + toString(t) + ", cur_estimated_global_time: " + toString(cur_estimated_global_time));
+
+		if(t > cur_estimated_global_time)
+		{
+			// conPrint("!!!! Accepting as more accurate global time");
+
+			// Accept it as a more accurate global time (less sending latency)
+			this->last_global_time_received = t;
+			this->local_time_global_time_received = clock_cur_time;
+		}
+
 		// 'apply' current correction (offset last_global_time_received by the current correction) to last_global_time_received
 		//const double time_since_correction_start = clock_cur_time - this->correction_start_time;
 		//assert(time_since_correction_start >= 0);
@@ -125,7 +179,22 @@ double WorldState::getCurrentGlobalTime() const
 //
 //	const double offset = use_global_time - Clock::getTimeSinceInit();
 //	printVar(offset);
-	return this->last_global_time_received + time_since_last_rcv;// + correction;
+
+	const double estimated_one_way_latency = received_rtt ? (min_rtt * 0.5) : 0.2;
+
+	return this->last_global_time_received + time_since_last_rcv + estimated_one_way_latency;// + correction;
+}
+
+
+void WorldState::newRoundTripTimeComputed(double rtt)
+{
+	Lock lock(mutex);
+
+	min_rtt = myMin(min_rtt, rtt);
+
+	received_rtt = true;
+
+	// conPrint("newRoundTripTimeComputed(): min_rtt: " + doubleToStringMaxNDecimalPlaces(min_rtt * 1.0e3, 4) + " ms");
 }
 
 

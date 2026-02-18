@@ -76,7 +76,7 @@ CarPhysics::CarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, CarPhysi
 	).Create().Get();
 
 	// Create vehicle body
-	JPH::BodyCreationSettings car_body_settings(car_body_shape, toJoltVec3(cur_pos), toJoltQuat(cur_rot), JPH::EMotionType::Dynamic, Layers::VEHICLES);
+	JPH::BodyCreationSettings car_body_settings(car_body_shape, toJoltVec3(cur_pos), toJoltQuat(cur_rot), JPH::EMotionType::Dynamic, Layers::MOVING);
 	car_body_settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 	car_body_settings.mMassPropertiesOverride.mMass = object->mass;
 	car_body_settings.mUserData = (uint64)object->physics_object.ptr();

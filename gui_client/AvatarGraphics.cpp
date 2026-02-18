@@ -150,6 +150,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 				physics_ob->pos = pos.toVec4fPoint();
 				physics_ob->rot = Quatf::xAxisRot(Maths::pi_2<float>()); // Rotate from the cylinder extending in y direction to extending in z direction.
 				physics_ob->scale = Vec3f(1.f);
+				physics_ob->motion_type = PhysicsObject::MotionType_semi_static; // Not dynamic or kinematic but moves occasionally.
 
 				physics_world.addObject(physics_ob);
 			}

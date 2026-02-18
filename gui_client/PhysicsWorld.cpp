@@ -98,11 +98,10 @@ public:
 	BPLayerInterfaceImpl()
 	{
 		// Create a mapping table from object to broad phase layer
-		mObjectToBroadPhase[Layers::NON_MOVING] = BroadPhaseLayers::NON_MOVING;
-		mObjectToBroadPhase[Layers::MOVING] = BroadPhaseLayers::MOVING;
-		mObjectToBroadPhase[Layers::NON_COLLIDABLE] = BroadPhaseLayers::MOVING; // NOTE: this a good thing to do? // TODO: Change to NON_MOVING?
-		//mObjectToBroadPhase[Layers::INTERACTION_CHARACTER] = BroadPhaseLayers::MOVING;
-		mObjectToBroadPhase[Layers::VEHICLES] = BroadPhaseLayers::MOVING;
+		mObjectToBroadPhase[Layers::NON_MOVING]                = BroadPhaseLayers::NON_MOVING;
+		mObjectToBroadPhase[Layers::MOVING]                    = BroadPhaseLayers::MOVING;
+		mObjectToBroadPhase[Layers::NON_MOVING_NON_COLLIDABLE] = BroadPhaseLayers::NON_MOVING;
+		mObjectToBroadPhase[Layers::MOVING_NON_COLLIDABLE]     = BroadPhaseLayers::MOVING;
 	}
 
 	virtual uint32 GetNumBroadPhaseLayers() const override
@@ -144,12 +143,10 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 			return inLayer2 == BroadPhaseLayers::MOVING;
 		case Layers::MOVING: // If an object is moving, it can collide with both moving and non-moving objects
 			return true;
-		case Layers::NON_COLLIDABLE: // non-collidable objects don't collide with any layers
+		case Layers::NON_MOVING_NON_COLLIDABLE: // non-collidable objects don't collide with any layers
 			return false;
-		//case Layers::INTERACTION_CHARACTER:
-		//	return true; // collide with both moving and non-moving objects
-		case Layers::VEHICLES:
-			return true; // collide with both moving and non-moving objects
+		case Layers::MOVING_NON_COLLIDABLE: // non-collidable objects don't collide with any layers
+			return false;
 		default:
 			assert(false);
 			return false;
@@ -160,12 +157,11 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 
 
 /*
-                         NON_MOVING      MOVING     NON_COLLIDABLE        INTERACTION_CHARACTER       VEHICLES
-NON_MOVING                               y                                y                           y
-MOVING                   y               y                                y                           y
-NON_COLLIDABLE                                                                                         
-INTERACTION_CHARACTER    y               y                                                             
-VEHICLES                 y               y                                                            y
+                            NON_MOVING      MOVING     NON_MOVING_NON_COLLIDABLE   MOVING_NON_COLLIDABLE
+NON_MOVING                                   y                                                          
+MOVING                       y               y                                                          
+NON_MOVING_NON_COLLIDABLE                                                                               
+MOVING_NON_COLLIDABLE                                                                                   
 */
 
 // TODO: Do these layer checks with bitmasks?  Should be faster.
@@ -178,15 +174,13 @@ class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 		switch(inLayer1)
 		{
 		case Layers::NON_MOVING:
-			return (inLayer2 == Layers::MOVING) /*|| (inLayer2 == Layers::INTERACTION_CHARACTER)*/ || (inLayer2 == Layers::VEHICLES); // Non moving only collides with moving
+			return (inLayer2 == Layers::MOVING); // Non moving only collides with moving
 		case Layers::MOVING:
-			return inLayer2 != Layers::NON_COLLIDABLE; // Moving collides with everything apart from Layers::NON_COLLIDABLE
-		case Layers::NON_COLLIDABLE:
+			return (inLayer2 != Layers::NON_MOVING_NON_COLLIDABLE) && (inLayer2 != Layers::MOVING_NON_COLLIDABLE); // Moving collides with everything apart from Layers::NON_COLLIDABLE and MOVING_NON_COLLIDABLE
+		case Layers::NON_MOVING_NON_COLLIDABLE:
 			return false;
-		//case Layers::INTERACTION_CHARACTER:
-		//	return (inLayer2 != Layers::NON_COLLIDABLE) && (inLayer2 != Layers::VEHICLES);
-		case Layers::VEHICLES:
-			return (inLayer2 != Layers::NON_COLLIDABLE)/* && (inLayer2 != Layers::INTERACTION_CHARACTER)*/;
+		case Layers::MOVING_NON_COLLIDABLE:
+			return false;
 		default:
 			assert(false);
 			return false;
@@ -1196,6 +1190,32 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
+	JPH::ObjectLayer layer;
+	if(object->motion_type == PhysicsObject::MotionType_dynamic || object->motion_type == PhysicsObject::MotionType_kinematic || object->motion_type == PhysicsObject::MotionType_semi_static) // If moving:
+	{
+		if(object->collidable)
+			layer = Layers::MOVING;
+		else
+			layer = Layers::MOVING_NON_COLLIDABLE;
+	}
+	else // Else if static:
+	{
+		if(object->collidable)
+			layer = Layers::NON_MOVING;
+		else
+			layer = Layers::NON_MOVING_NON_COLLIDABLE;
+	}
+
+	JPH::EMotionType jolt_motion_type;
+	switch(object->motion_type)
+	{
+	case PhysicsObject::MotionType_dynamic:     jolt_motion_type = JPH::EMotionType::Dynamic;   break;
+	case PhysicsObject::MotionType_kinematic:   jolt_motion_type = JPH::EMotionType::Kinematic; break;
+	case PhysicsObject::MotionType_semi_static: jolt_motion_type = JPH::EMotionType::Static;    break;
+	case PhysicsObject::MotionType_static:      jolt_motion_type = JPH::EMotionType::Static;    break;
+	default:                                    jolt_motion_type = JPH::EMotionType::Static;    break;
+	};
+
 	if(object->is_sphere)
 	{
 		JPH::Ref<JPH::SphereShapeSettings> sphere_shape = new JPH::SphereShapeSettings(0.5f);
@@ -1209,8 +1229,8 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		JPH::BodyCreationSettings sphere_settings(final_shape_settings,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
-			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
+			jolt_motion_type, 
+			layer);
 
 		sphere_settings.mIsSensor = object->is_sensor;
 		sphere_settings.mFriction = myClamp(object->friction, 0.f, 1.f);
@@ -1238,8 +1258,8 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		JPH::BodyCreationSettings cube_settings(final_shape_settings,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
-			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
+			jolt_motion_type, 
+			layer);
 
 		cube_settings.mIsSensor = object->is_sensor;
 		cube_settings.mFriction = myClamp(object->friction, 0.f, 1.f);
@@ -1259,7 +1279,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 			return;
 
 		const bool is_mesh_shape = shape->GetType() == JPH::EShapeType::Mesh;
-		assert(!(object->dynamic && is_mesh_shape)); // We should have built a convex hull shape for dynamic objects.
+		assert(!(object->isDynamic() && is_mesh_shape)); // We should have built a convex hull shape for dynamic objects.
 
 		JPH::Ref<JPH::Shape> final_shape;
 		if(object->scale == Vec3f(1.f))
@@ -1267,13 +1287,14 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		else
 			final_shape = new JPH::ScaledShape(shape, JPH::Vec3(object->scale[0], object->scale[1], object->scale[2]));
 
-		const JPH::EMotionType motion_type  = (object->dynamic && !is_mesh_shape) ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static);
-		const JPH::ObjectLayer object_layer = (object->dynamic && !is_mesh_shape) ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE);
+		// Jolt doesn't support dynamic bodies with mesh shapes, so change to kinematic.
+		if(is_mesh_shape && (object->motion_type == PhysicsObject::MotionType_dynamic))
+			jolt_motion_type = JPH::EMotionType::Kinematic;
 
 		JPH::BodyCreationSettings settings(final_shape,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			motion_type, object_layer);
+			jolt_motion_type, layer);
 		
 		settings.mIsSensor = object->is_sensor;
 		settings.mFriction = myClamp(object->friction, 0.f, 1.f);
@@ -1574,10 +1595,10 @@ std::string PhysicsWorld::getDiagnostics() const
 	}
 	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
-	s += "NON_MOVING layer obs:     " + toString(stats.layer_counts[Layers::NON_MOVING]) + "\n";
-	s += "MOVING layer obs:         " + toString(stats.layer_counts[Layers::MOVING]) + "\n";
-	s += "NON_COLLIDABLE layer obs: " + toString(stats.layer_counts[Layers::NON_COLLIDABLE]) + "\n";
-	s += "VEHICLES layer obs:       " + toString(stats.layer_counts[Layers::VEHICLES]) + "\n";
+	s += "NON_MOVING layer obs:                " + toString(stats.layer_counts[Layers::NON_MOVING]) + "\n";
+	s += "MOVING layer obs:                    " + toString(stats.layer_counts[Layers::MOVING]) + "\n";
+	s += "NON_MOVING_NON_COLLIDABLE layer obs: " + toString(stats.layer_counts[Layers::NON_MOVING_NON_COLLIDABLE]) + "\n";
+	s += "MOVING_NON_COLLIDABLE layer obs:     " + toString(stats.layer_counts[Layers::MOVING_NON_COLLIDABLE]) + "\n";
 
 	return s;
 }

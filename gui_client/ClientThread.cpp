@@ -1247,6 +1247,19 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			}
 			break;
 		}
+	case Protocol::PongMessage:
+		{
+			// Compute RTT right away.
+			double round_trip_time;
+			{
+				Lock lock(world_state->last_ping_send_time_mutex);
+				round_trip_time = Clock::getTimeSinceInit() - world_state->last_ping_send_time;
+			}
+			world_state->newRoundTripTimeComputed(round_trip_time);
+
+			// conPrint("Received PongMessage, RTT: " + doubleToStringMaxNDecimalPlaces(round_trip_time * 1.0e3, 4) + " ms");
+			break;
+		}
 	default:
 		{
 			conPrint("Unknown message id: " + ::toString(msg_type));
