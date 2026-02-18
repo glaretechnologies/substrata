@@ -1227,6 +1227,7 @@ void WorkerThread::doRun()
 				scratch_packet.writeDouble(server->getCurrentGlobalTime());
 				MessageUtils::updatePacketLengthField(scratch_packet);
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				socket->flush();
 			}
 
 			// Send a ServerAdminMessage to client if we have a non-empty message.
@@ -3275,6 +3276,17 @@ void WorkerThread::doRun()
 									}
 								}
 							}
+
+							break;
+						}
+					case Protocol::PingMessage:
+						{
+							// Send pong message back
+							MessageUtils::initPacket(scratch_packet, Protocol::PongMessage);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
 
 							break;
 						}

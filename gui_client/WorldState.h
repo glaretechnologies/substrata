@@ -35,6 +35,7 @@ public:
 	// Just used on clients:
 	void updateWithGlobalTimeReceived(double t);
 	double getCurrentGlobalTime() const;
+	void newRoundTripTimeComputed(double rtt);
 
 	size_t getTotalMemUsage() const;
 
@@ -63,9 +64,15 @@ public:
 	mutable WorldStateMutex mutex;
 
 private:
-	double last_global_time_received GUARDED_BY(mutex);
-	double local_time_global_time_received GUARDED_BY(mutex);
+	double last_global_time_received GUARDED_BY(mutex); // The global time on the server as sent in the best TimeSync message we received from the server.  (best = lowest one-way latency)
+	double local_time_global_time_received GUARDED_BY(mutex); // Clock::getCurTimeRealSec() when we received the best TimeSync message.
 
 	double correction_start_time GUARDED_BY(mutex); // Time we started correcting/skewing to the target time, as measured with Clock::getCurTimeRealSec().
 	double correction_amount GUARDED_BY(mutex); // Clock delta.  At the end of the correction time we want to have changed the current time by this much.
+
+	double min_rtt GUARDED_BY(mutex);
+	bool received_rtt GUARDED_BY(mutex);
+public:
+	Mutex last_ping_send_time_mutex;
+	double last_ping_send_time   GUARDED_BY(last_ping_send_time_mutex); // Clock::getTimeSinceInit() when a ping message was last sent to server
 };

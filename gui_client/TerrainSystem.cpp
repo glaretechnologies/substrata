@@ -1746,9 +1746,7 @@ void TerrainSystem::handleCompletedMakeChunkTask(const TerrainChunkGeneratedMsg&
 		physics_ob->pos = Vec4f(msg.chunk_x, msg.chunk_y, 0, 1);
 		physics_ob->rot = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
 		physics_ob->scale = Vec3f(1.f);
-
-		physics_ob->kinematic = false;
-		physics_ob->dynamic = false;
+		physics_ob->motion_type = PhysicsObject::MotionType_static;
 
 		node.pending_gl_ob = gl_ob;
 		node.pending_physics_ob = physics_ob;

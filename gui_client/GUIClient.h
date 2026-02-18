@@ -598,6 +598,8 @@ public:
 	int num_frames_since_fps_timer_reset;
 	double last_fps;
 
+	double last_physics_sim_time;
+
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
 	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
@@ -900,4 +902,6 @@ public:
 	bool ui_hidden;
 
 	bool only_load_most_important_obs;
+
+	double last_ping_send_time;
 };

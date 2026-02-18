@@ -71,6 +71,9 @@ public:
 	const Matrix4f getObToWorldMatrixNoScale() const;
 	const Matrix4f getWorldToObMatrix() const;
 
+	inline bool isDynamic()   const { return motion_type == MotionType_dynamic; }
+	inline bool isKinematic() const { return motion_type == MotionType_kinematic; }
+
 public:
 	PhysicsShape shape; // This has a ref to the undecorated shape, actual shape used may be a ScaledShape.
 
@@ -106,8 +109,14 @@ public:
 	bool is_sphere;
 	bool is_cube;
 #endif
-	bool dynamic;
-	bool kinematic;
+	enum MotionType
+	{
+		MotionType_dynamic,
+		MotionType_kinematic,
+		MotionType_semi_static, // Not dynamic or kinematic but moves occasionally.  For avatar mouse-picking capsules.
+		MotionType_static
+	};
+	MotionType motion_type;
 
 	bool use_zero_linear_drag; // For buoyancy drag calculations for submerged objects.  Can be set to true to do custom drag calculations.
 	bool underwater; // Is object at least partially underwater?
