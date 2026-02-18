@@ -5810,7 +5810,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
 
-	if((server_protocol_version >= 48) && (cur_time - last_ping_send_time) > 2.0) // Ping/pong messages were added in protocol version 48.
+	if((connection_state == ServerConnectionState_Connected) && (server_protocol_version >= 48) && (cur_time - last_ping_send_time) > 2.0) // Ping/pong messages were added in protocol version 48.
 	{
 		// Set last_ping_send_time in world_state
 		{
