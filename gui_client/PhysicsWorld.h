@@ -163,6 +163,7 @@ public:
 	{
 		size_t mem;
 		size_t num_meshes;
+		std::vector<int> layer_counts;
 	};
 	MemUsageStats getMemUsageStats() const;
 
@@ -172,7 +173,7 @@ public:
 
 	const Vec4f getPosInJolt(const Reference<PhysicsObject>& object);
 
-	size_t getNumObjects() const { return objects_set.size(); }
+	size_t getNumObjects() const;
 	//----------------------------------------------------------------------------------------
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const;
@@ -184,8 +185,6 @@ public:
 	static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape);
 
 	static void test();
-private:
-	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.  TODO: can remove?
 	
 public:
 	mutable Mutex activated_obs_mutex;
