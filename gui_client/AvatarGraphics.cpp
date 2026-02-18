@@ -106,13 +106,12 @@ inline static void clearProceduralRotation(js::Vector<GLObjectAnimNodeData, 16>&
 }
 
 
-// NOTE: fropm player physics
+// NOTE: from player physics
 static const float SPHERE_RAD = 0.3f;
 static const float CYLINDER_HEIGHT = 1.3f; // Chosen so the capsule top is about the same height as the head of xbot.glb.  Can test this by jumping into an overhead ledge :)
 static const float EYE_HEIGHT = 1.67f;
 
 static const float cCharacterHeightStanding = CYLINDER_HEIGHT;
-static const float cCharacterHeightSitting = 0.3f;
 static const float cCharacterRadiusStanding = SPHERE_RAD;
 
 
@@ -158,7 +157,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 			// We will translate the position of the capsule down from eye position to the centre of the avatar.
 			// TODO: rotate based on current head bone and hip bone relative position?
 			const Vec4f last_eye_pos = getLastHeadPosition(); // Use animated head position so it works for animations with root motion.
-			physics_world.setNewPosition(*physics_ob, last_eye_pos - Vec4f(0, 0, 1.67f / 2, 0));
+			physics_world.setNewPosition(*physics_ob, last_eye_pos - Vec4f(0, 0, EYE_HEIGHT / 2.f, 0));
 		}
 
 
