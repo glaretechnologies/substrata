@@ -1178,8 +1178,6 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 	assert(object->scale.isFinite());
 	assert(object->rot.v.isFinite());
 
-	this->objects_set.insert(object);
-
 	if(!object->jolt_body_id.IsInvalid())
 		return; // Jolt body is already built, we don't need to do anything more.
 
@@ -1317,8 +1315,6 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 		newly_activated_obs.erase(object.ptr());
 		//deactivated_obs.erase(object.ptr());
 	}
-
-	this->objects_set.erase(object);
 }
 
 
@@ -1506,26 +1502,30 @@ void PhysicsWorld::OnContactPersisted(const JPH::Body &inBody1, const JPH::Body 
 void PhysicsWorld::clear()
 {
 	// TODO: remove all jolt objects
-
-	this->objects_set.clear();
 }
 
 
 PhysicsWorld::MemUsageStats PhysicsWorld::getMemUsageStats() const
 {
-	HashSet<const JPH::Shape*> meshes(/*empty_key=*/nullptr, /*expected_num_items=*/objects_set.size());
+	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+
+	HashSet<const JPH::Shape*> meshes(/*empty_key=*/nullptr, physics_system->GetNumBodies());
 	MemUsageStats stats;
 	stats.num_meshes = 0;
 	stats.mem = 0;
+	stats.layer_counts.resize(Layers::NUM_LAYERS);
 
 	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
-	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+	
+	JPH::Array<JPH::BodyID> body_ids;
+	physics_system->GetBodies(body_ids);
 
-	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	for(size_t i=0; i<body_ids.size(); ++i)
 	{
-		const PhysicsObject* ob = it->getPointer();
+		if(body_ids[i].IsInvalid())
+			continue;
 
-		const JPH::Shape* shape = body_interface.GetShape(ob->jolt_body_id).GetPtr(); // Get actual possibly-decorated shape used.
+		const JPH::Shape* shape = body_interface.GetShape(body_ids[i]).GetPtr(); // Get actual possibly-decorated shape used.
 		if(shape)
 		{
 			const bool added = meshes.insert(shape).second;
@@ -1536,6 +1536,11 @@ PhysicsWorld::MemUsageStats PhysicsWorld::getMemUsageStats() const
 				stats.mem += shape_stats.mSizeBytes;
 			}
 		}
+
+		const JPH::ObjectLayer layer = body_interface.GetObjectLayer(body_ids[i]);
+		assert(layer < Layers::NUM_LAYERS);
+		if(layer < Layers::NUM_LAYERS)
+			stats.layer_counts[layer]++;
 	}
 
 	for(auto it = visited_shapes.begin(); it != visited_shapes.end(); ++it)
@@ -1553,14 +1558,26 @@ std::string PhysicsWorld::getDiagnostics() const
 {
 	const MemUsageStats stats = getMemUsageStats();
 	std::string s;
-	s += "Objects: " + toString(objects_set.size()) + "\n";
-	s += "Jolt bodies: " + toString(this->physics_system->GetNumBodies()) + "\n";
+
+	const JPH::BodyManager::BodyStats body_stats = physics_system->GetBodyStats();
+
+	s += "Jolt bodies: " + toString(body_stats.mNumBodies) + "\n";
+	s += "max bodies: " + toString(body_stats.mMaxBodies) + "\n";
+	s += "num static bodies: " + toString(body_stats.mNumBodiesStatic) + "\n";
+	s += "num dynamic bodies: " + toString(body_stats.mNumBodiesDynamic) + "\n";
+	s += "num active dynamic bodies: " + toString(body_stats.mNumActiveBodiesDynamic) + "\n";
+	s += "num kinematic bodies: " + toString(body_stats.mNumBodiesKinematic) + "\n";
+	s += "num active kinematic bodies: " + toString(body_stats.mNumActiveBodiesKinematic) + "\n";
 	{
 		Lock lock(activated_obs_mutex);
 		s += "Active bodies: " + toString(this->activated_obs.size()) + "\n";
 	}
 	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
+	s += "NON_MOVING layer obs:     " + toString(stats.layer_counts[Layers::NON_MOVING]) + "\n";
+	s += "MOVING layer obs:         " + toString(stats.layer_counts[Layers::MOVING]) + "\n";
+	s += "NON_COLLIDABLE layer obs: " + toString(stats.layer_counts[Layers::NON_COLLIDABLE]) + "\n";
+	s += "VEHICLES layer obs:       " + toString(stats.layer_counts[Layers::VEHICLES]) + "\n";
 
 	return s;
 }
@@ -1569,16 +1586,16 @@ std::string PhysicsWorld::getDiagnostics() const
 std::string PhysicsWorld::getLoadedMeshes() const
 {
 	std::string s;
-	HashMap<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());
-	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
-	{
-		//const PhysicsObject* ob = it->getPointer();
-		//const bool added = meshes.insert(std::make_pair(ob->shape->raymesh.ptr(), 0)).second;
-		//if(added)
-		//{
-		//	s += ob->shape->raymesh->getName() + "\n";
-		//}
-	}
+	//HashMap<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());
+	//for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	//{
+	//	//const PhysicsObject* ob = it->getPointer();
+	//	//const bool added = meshes.insert(std::make_pair(ob->shape->raymesh.ptr(), 0)).second;
+	//	//if(added)
+	//	//{
+	//	//	s += ob->shape->raymesh->getName() + "\n";
+	//	//}
+	//}
 
 	return s;
 }
@@ -1591,6 +1608,12 @@ const Vec4f PhysicsWorld::getPosInJolt(const Reference<PhysicsObject>& object)
 	const JPH::Vec3 pos = body_interface.GetPosition(object->jolt_body_id);
 
 	return toVec4fPos(pos);
+}
+
+
+size_t PhysicsWorld::getNumObjects() const
+{
+	return physics_system->GetNumBodies();
 }
 
 
