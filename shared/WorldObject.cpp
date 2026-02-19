@@ -638,8 +638,8 @@ static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
 		ob.type_data.seat_data.sitting_rotation = Vec3f(0, 0, 0);
 		ob.type_data.seat_data.upper_leg_angle = 1.0f;
 		ob.type_data.seat_data.lower_leg_angle = 1.2f;
-		ob.type_data.seat_data.left_arm_angle = 1.3f;
-		ob.type_data.seat_data.right_arm_angle = 0.8f;
+		ob.type_data.seat_data.upper_arm_angle = 1.3f;
+		ob.type_data.seat_data.lower_arm_angle = 0.8f;
 		break;
 	default:
 		break;

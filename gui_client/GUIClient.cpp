@@ -7823,7 +7823,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(seat_pos.x, seat_pos.y, seat_pos.z) * seat_rot_matrix;
 								pose_constraint.upper_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.upper_leg_angle;
 								pose_constraint.lower_leg_rot_angle = -std::fabs(currently_sitting_on_seat->type_data.seat_data.lower_leg_angle);
-								pose_constraint.arm_down_angle = currently_sitting_on_seat->type_data.seat_data.left_arm_angle;
+								pose_constraint.arm_down_angle = currently_sitting_on_seat->type_data.seat_data.upper_arm_angle;
 								pose_constraint.arm_out_angle = 0.15f;
 								// Use default values for other pose parameters
 								pose_constraint.model_to_y_forwards_rot_1 = Quatf::identity();
@@ -7834,7 +7834,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								pose_constraint.lower_leg_apart_angle = 0.0f;
 								pose_constraint.rotate_foot_out_angle = 0.0f;
 								pose_constraint.upper_arm_shoulder_lift_angle = 0.0f;
-								pose_constraint.lower_arm_up_angle = currently_sitting_on_seat->type_data.seat_data.right_arm_angle;
+								pose_constraint.lower_arm_up_angle = currently_sitting_on_seat->type_data.seat_data.lower_arm_angle;
 								const float k_disable_ik = std::numeric_limits<float>::quiet_NaN();
 								pose_constraint.left_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
 								pose_constraint.right_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
