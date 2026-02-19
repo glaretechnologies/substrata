@@ -1235,14 +1235,14 @@
        </widget>
       </item>
       <item row="6" column="0">
-       <widget class="QLabel" name="leftArmAngleLabel">
-        <property name="text">
-         <string>Left arm angle:</string>
-        </property>
-       </widget>
+    <widget class="QLabel" name="upperArmAngleLabel">
+     <property name="text">
+      <string>Upper arm angle:</string>
+     </property>
+    </widget>
       </item>
       <item row="6" column="1">
-       <widget class="RealControl" name="leftArmAngleDoubleSpinBox">
+      <widget class="RealControl" name="upperArmAngleDoubleSpinBox">
         <property name="suffix">
          <string> rad</string>
         </property>
@@ -1258,14 +1258,14 @@
        </widget>
       </item>
       <item row="7" column="0">
-       <widget class="QLabel" name="rightArmAngleLabel">
-        <property name="text">
-         <string>Right arm angle:</string>
-        </property>
-       </widget>
+    <widget class="QLabel" name="lowerArmAngleLabel">
+     <property name="text">
+      <string>Lower arm angle:</string>
+     </property>
+    </widget>
       </item>
       <item row="7" column="1">
-       <widget class="RealControl" name="rightArmAngleDoubleSpinBox">
+      <widget class="RealControl" name="lowerArmAngleDoubleSpinBox">
         <property name="suffix">
          <string> rad</string>
         </property>

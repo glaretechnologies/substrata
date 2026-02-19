@@ -119,8 +119,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->seatRotationDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->upperLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->lowerLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->leftArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->rightArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->upperArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->lowerArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 
 
 	this->volumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VOLUME);
@@ -425,8 +425,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		
 		SignalBlocker::setValue(this->upperLegAngleDoubleSpinBox, ob.type_data.seat_data.upper_leg_angle);
 		SignalBlocker::setValue(this->lowerLegAngleDoubleSpinBox, ob.type_data.seat_data.lower_leg_angle);
-		SignalBlocker::setValue(this->leftArmAngleDoubleSpinBox, ob.type_data.seat_data.left_arm_angle);
-		SignalBlocker::setValue(this->rightArmAngleDoubleSpinBox, ob.type_data.seat_data.right_arm_angle);
+		SignalBlocker::setValue(this->upperArmAngleDoubleSpinBox, ob.type_data.seat_data.upper_arm_angle);
+		SignalBlocker::setValue(this->lowerArmAngleDoubleSpinBox, ob.type_data.seat_data.lower_arm_angle);
 	}
 
 
@@ -602,8 +602,8 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		
 		ob_out.type_data.seat_data.upper_leg_angle = (float)this->upperLegAngleDoubleSpinBox->value();
 		ob_out.type_data.seat_data.lower_leg_angle = (float)this->lowerLegAngleDoubleSpinBox->value();
-		ob_out.type_data.seat_data.left_arm_angle = (float)this->leftArmAngleDoubleSpinBox->value();
-		ob_out.type_data.seat_data.right_arm_angle = (float)this->rightArmAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.upper_arm_angle = (float)this->upperArmAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.lower_arm_angle = (float)this->lowerArmAngleDoubleSpinBox->value();
 	}
 
 	const URLString new_audio_source_url = toURLString(QtUtils::toStdString(this->audioFileWidget->filename()));

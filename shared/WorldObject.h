@@ -369,8 +369,8 @@ public:
 		Vec3f sitting_rotation; // Rotation (roll, pitch, heading) for the sitting pose
 		float upper_leg_angle; // Angle of upper legs (thighs) in radians
 		float lower_leg_angle; // Angle of lower legs (shins) in radians
-		float left_arm_angle;  // Angle of left arm in radians
-		float right_arm_angle; // Angle of right arm in radians
+		float upper_arm_angle; // Upper arm angle in radians
+		float lower_arm_angle; // Lower arm angle in radians
 	};
 
 	union TypeData
