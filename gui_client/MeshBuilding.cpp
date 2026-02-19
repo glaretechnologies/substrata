@@ -150,21 +150,27 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAlloca
 }
 
 
-// Make a squashed cube for seat visualization (squashed on z-axis like a sandwich)
+// Make a seat mesh with a backrest to show forward direction
+// The seat is centered at the origin and extends from -0.5 to 0.5 in x and y
 MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocator& allocator)
 {
 	Indigo::MeshRef mesh = new Indigo::Mesh();
 	mesh->num_uv_mappings = 1;
 
-	const float z_scale = 0.1f; // Squash factor for the seat (makes it look like a thin cushion)
+	const float seat_half_size = 0.5f; // Half the width of the seat
+	const float seat_height = 0.1f; // Height (thickness) of the seat cushion
+	const float backrest_height = 0.5f; // Height of the backrest
+	const float backrest_thickness = 0.05f; // Thickness of the backrest
 
 	unsigned int v_start = 0;
-	// x=0 face
+	
+	// Seat cushion (centered at origin)
+	// x=-0.5 face (left)
 	{
-		mesh->addVertex(Indigo::Vec3f(0,0,0));
-		mesh->addVertex(Indigo::Vec3f(0,0,z_scale));
-		mesh->addVertex(Indigo::Vec3f(0,1,z_scale));
-		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, seat_half_size, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
@@ -175,12 +181,12 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
 		v_start += 4;
 	}
-	// x=1 face
+	// x=0.5 face (right)
 	{
-		mesh->addVertex(Indigo::Vec3f(1,0,0));
-		mesh->addVertex(Indigo::Vec3f(1,1,0));
-		mesh->addVertex(Indigo::Vec3f(1,1,z_scale));
-		mesh->addVertex(Indigo::Vec3f(1,0,z_scale));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
@@ -191,12 +197,12 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
 		v_start += 4;
 	}
-	// y=0 face
+	// y=-0.5 face (back - where backrest attaches)
 	{
-		mesh->addVertex(Indigo::Vec3f(0,0,0));
-		mesh->addVertex(Indigo::Vec3f(1,0,0));
-		mesh->addVertex(Indigo::Vec3f(1,0,z_scale));
-		mesh->addVertex(Indigo::Vec3f(0,0,z_scale));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
@@ -207,12 +213,12 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
 		v_start += 4;
 	}
-	// y=1 face
+	// y=0.5 face (front)
 	{
-		mesh->addVertex(Indigo::Vec3f(0,1,0));
-		mesh->addVertex(Indigo::Vec3f(0,1,z_scale));
-		mesh->addVertex(Indigo::Vec3f(1,1,z_scale));
-		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, seat_half_size, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
@@ -225,10 +231,10 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 	}
 	// z=0 face (bottom)
 	{
-		mesh->addVertex(Indigo::Vec3f(0,0,0));
-		mesh->addVertex(Indigo::Vec3f(0,1,0));
-		mesh->addVertex(Indigo::Vec3f(1,1,0));
-		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, seat_half_size, 0));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
@@ -239,12 +245,94 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
 		v_start += 4;
 	}
-	// z=z_scale face (top - the seat surface)
+	// z=seat_height face (top - the seat surface)
 	{
-		mesh->addVertex(Indigo::Vec3f(0,0,z_scale));
-		mesh->addVertex(Indigo::Vec3f(1,0,z_scale));
-		mesh->addVertex(Indigo::Vec3f(1,1,z_scale));
-		mesh->addVertex(Indigo::Vec3f(0,1,z_scale));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, seat_half_size, seat_height));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+
+	// Add backrest (vertical back at y = -0.5)
+	// x=-0.5 face (left side of backrest)
+	{
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size + backrest_thickness, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size + backrest_thickness, seat_height));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// x=0.5 face (right side of backrest)
+	{
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size + backrest_thickness, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size + backrest_thickness, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height + backrest_height));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// y=-0.5 face (back face of backrest - what the sitter sees)
+	{
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height + backrest_height));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// y=-0.5 + backrest_thickness face (front face of backrest)
+	{
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size + backrest_thickness, seat_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size + backrest_thickness, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size + backrest_thickness, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size + backrest_thickness, seat_height));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// Top of backrest
+	{
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(seat_half_size, -seat_half_size + backrest_thickness, seat_height + backrest_height));
+		mesh->addVertex(Indigo::Vec3f(-seat_half_size, -seat_half_size + backrest_thickness, seat_height + backrest_height));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
 		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));

@@ -365,8 +365,6 @@ public:
 
 	struct SeatTypeData
 	{
-		Vec3f sitting_position; // Position offset in object space where the avatar sits
-		Vec3f sitting_rotation; // Rotation (roll, pitch, heading) for the sitting pose
 		float upper_leg_angle; // Angle of upper legs (thighs) in radians
 		float lower_leg_angle; // Angle of lower legs (shins) in radians
 		float upper_arm_angle; // Upper arm angle in radians
