@@ -6260,6 +6260,15 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 			player_physics.setCapsuleBottomPosition(Vec3d(campos) + Vec3d(0,0,-0.75f), linear_vel); // Hack an approximate sitting position
 		}
+		else if(currently_sitting_on_seat != NULL)
+		{
+			const Matrix4f ob_to_world = obToWorldMatrix(*currently_sitting_on_seat);
+			const Vec3f& seat_pos_os = currently_sitting_on_seat->type_data.seat_data.sitting_position;
+			const Vec4f seat_pos_ws = ob_to_world * Vec4f(seat_pos_os.x, seat_pos_os.y, seat_pos_os.z, 1.0f);
+			campos = seat_pos_ws;
+
+			player_physics.setCapsuleBottomPosition(Vec3d(campos) + Vec3d(0,0,-0.75f), Vec4f(0,0,0,0));
+		}
 
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
@@ -14020,6 +14029,12 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 
 							show_mouseover_info_ui = true;
 						}
+					}
+
+					if(ob->object_type == WorldObject::ObjectType_Seat && currently_sitting_on_seat == NULL && vehicle_controller_inside.isNull())
+					{
+						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to sit" : "Press [A] on gamepad to sit", cursor_gl_coords);
+						show_mouseover_info_ui = true;
 					}
 
 					if(ob->vehicle_script.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
