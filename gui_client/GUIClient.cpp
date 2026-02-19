@@ -15482,7 +15482,8 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 
 						// Calculate avatar position on the seat
 						const Matrix4f ob_to_world = obToWorldMatrix(*ob);
-						const Vec4f sitting_pos_os = Vec4f(ob->type_data.seat_data.sitting_position, 1.0f);
+						const Vec3f& seat_pos_os = ob->type_data.seat_data.sitting_position;
+						const Vec4f sitting_pos_os = Vec4f(seat_pos_os.x, seat_pos_os.y, seat_pos_os.z, 1.0f);
 						const Vec4f sitting_pos_ws = ob_to_world * sitting_pos_os;
 
 						// Set the avatar's eye position to the sitting position
