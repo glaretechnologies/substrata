@@ -1053,6 +1053,7 @@ void GUIClient::shutdown()
 	hypercard_quad_opengl_mesh = NULL;
 	image_cube_opengl_mesh = NULL;
 	spotlight_opengl_mesh = NULL;
+	seat_opengl_mesh = NULL;
 	portal_opengl_mesh = NULL;
 	portal_shape = PhysicsShape();
 	cur_loading_mesh_data = NULL;
@@ -6264,8 +6265,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		else if(currently_sitting_on_seat != NULL)
 		{
 			const Matrix4f ob_to_world = obToWorldMatrix(*currently_sitting_on_seat);
-			const Vec3f& seat_pos_os = currently_sitting_on_seat->type_data.seat_data.sitting_position;
-			const Vec4f seat_pos_ws = ob_to_world * Vec4f(seat_pos_os.x, seat_pos_os.y, seat_pos_os.z, 1.0f);
+			const Vec4f seat_pos_os = Vec4f(0.0f, 0.0f, 0.6f, 1.0f);
+			const Vec4f seat_pos_ws = ob_to_world * seat_pos_os;
 			campos = seat_pos_ws;
 
 			player_physics.setCapsuleBottomPosition(Vec3d(campos) + Vec3d(0,0,-0.75f), Vec4f(0,0,0,0));
@@ -7816,11 +7817,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 							{
 								const Matrix4f ob_to_world = obToWorldMatrix(*currently_sitting_on_seat);
 								pose_constraint.sitting = true;
-								// Build seat-to-world transform from seat data
-								const Vec3f& seat_pos = currently_sitting_on_seat->type_data.seat_data.sitting_position;
-								const Vec3f& seat_rot = currently_sitting_on_seat->type_data.seat_data.sitting_rotation;
-								const Matrix4f seat_rot_matrix = Matrix4f::rotationAroundXAxis(seat_rot.x) * Matrix4f::rotationAroundYAxis(seat_rot.y) * Matrix4f::rotationAroundZAxis(seat_rot.z);
-								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(seat_pos.x, seat_pos.y, seat_pos.z) * seat_rot_matrix;
+								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, 0.0f, 0.6f);
 								pose_constraint.upper_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.upper_leg_angle;
 								pose_constraint.lower_leg_rot_angle = -std::fabs(currently_sitting_on_seat->type_data.seat_data.lower_leg_angle);
 								pose_constraint.arm_down_angle = currently_sitting_on_seat->type_data.seat_data.upper_arm_angle;
@@ -7872,6 +7869,43 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						}
 						else
 						{
+							// Handle seat sitting transitions
+							if(avatar->pending_seat_transition == Avatar::SitOnSeat)
+							{
+								assert(avatar->sitting_on_seat.nonNull());
+								if(avatar->sitting_on_seat.nonNull() && avatar->sitting_on_seat->opengl_engine_ob.nonNull())
+								{
+									conPrint("Avatar sat on seat");
+									avatar->pending_seat_transition = Avatar::SeatNoChange;
+								}
+							}
+
+							// Handle seat sitting pose
+							if(avatar->sitting_on_seat.nonNull())
+							{
+								const Matrix4f ob_to_world = obToWorldMatrix(*avatar->sitting_on_seat);
+								pose_constraint.sitting = true;
+								// Position at center with vertical offset, rotation from seat object
+								const float vertical_offset = 0.6f;
+								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, 0.0f, vertical_offset);
+								pose_constraint.upper_leg_rot_angle = avatar->sitting_on_seat->type_data.seat_data.upper_leg_angle;
+								pose_constraint.lower_leg_rot_angle = -std::fabs(avatar->sitting_on_seat->type_data.seat_data.lower_leg_angle);
+								pose_constraint.arm_down_angle = avatar->sitting_on_seat->type_data.seat_data.upper_arm_angle;
+								pose_constraint.arm_out_angle = 0.15f;
+								pose_constraint.model_to_y_forwards_rot_1 = Quatf::identity();
+								pose_constraint.model_to_y_forwards_rot_2 = Quatf::identity();
+								pose_constraint.upper_body_rot_angle = 0.15f;
+								pose_constraint.upper_leg_rot_around_thigh_bone_angle = 0.0f;
+								pose_constraint.upper_leg_apart_angle = 0.15f;
+								pose_constraint.lower_leg_apart_angle = 0.0f;
+								pose_constraint.rotate_foot_out_angle = 0.0f;
+								pose_constraint.upper_arm_shoulder_lift_angle = 0.0f;
+								pose_constraint.lower_arm_up_angle = avatar->sitting_on_seat->type_data.seat_data.lower_arm_angle;
+								const float k_disable_ik = std::numeric_limits<float>::quiet_NaN();
+								pose_constraint.left_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+								pose_constraint.right_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+							}
+
 							if(avatar->pending_vehicle_transition == Avatar::EnterVehicle)
 							{
 								assert(avatar->entered_vehicle.nonNull());
@@ -15499,12 +15533,8 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 
 						// Calculate avatar position on the seat
 						const Matrix4f ob_to_world = obToWorldMatrix(*ob);
-						const Vec3f& seat_pos_os = ob->type_data.seat_data.sitting_position;
-						const Vec4f sitting_pos_os = Vec4f(seat_pos_os.x, seat_pos_os.y, seat_pos_os.z, 1.0f);
-						const Vec4f sitting_pos_ws = ob_to_world * sitting_pos_os;
-
-						// Set the avatar's eye position to the sitting position
-						player_physics.setEyePosition(Vec3d(sitting_pos_ws), /*linear vel=*/Vec4f(0,0,0,0));
+					const Vec4f sitting_pos_os = Vec4f(0.0f, 0.0f, 0.6f, 1.0f);
+					const Vec4f sitting_pos_ws = ob_to_world * sitting_pos_os;
 
 						// Send AvatarSatOnSeat message to server
 						MessageUtils::initPacket(scratch_packet, Protocol::AvatarSatOnSeat);

@@ -634,8 +634,6 @@ static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
 		break;
 	case WorldObject::ObjectType_Seat:
 		// Set default values for SeatTypeData
-		ob.type_data.seat_data.sitting_position = Vec3f(0.5f, 0.8f, 0.12f);
-		ob.type_data.seat_data.sitting_rotation = Vec3f(0, 0, 0);
 		ob.type_data.seat_data.upper_leg_angle = 1.0f;
 		ob.type_data.seat_data.lower_leg_angle = 1.2f;
 		ob.type_data.seat_data.upper_arm_angle = 1.3f;
