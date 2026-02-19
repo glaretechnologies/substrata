@@ -416,12 +416,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	// For seat:
 	if(ob.object_type == WorldObject::ObjectType_Seat)
 	{
-		SignalBlocker::setValue(this->seatPosXDoubleSpinBox, ob.type_data.seat_data.sitting_position.x);
-		SignalBlocker::setValue(this->seatPosYDoubleSpinBox, ob.type_data.seat_data.sitting_position.y);
-		SignalBlocker::setValue(this->seatPosZDoubleSpinBox, ob.type_data.seat_data.sitting_position.z);
-		
-		// Using heading angle (z-rotation) for the rotation control
-		SignalBlocker::setValue(this->seatRotationDoubleSpinBox, ::radToDegree(ob.type_data.seat_data.sitting_rotation.z));
+		// Sitting position and rotation are now determined by the seat object's transform
+		// and a fixed vertical offset, so they are no longer editable
 		
 		SignalBlocker::setValue(this->upperLegAngleDoubleSpinBox, ob.type_data.seat_data.upper_leg_angle);
 		SignalBlocker::setValue(this->lowerLegAngleDoubleSpinBox, ob.type_data.seat_data.lower_leg_angle);
@@ -591,14 +587,8 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	// For seat:
 	if(ob_out.object_type == WorldObject::ObjectType_Seat)
 	{
-		ob_out.type_data.seat_data.sitting_position.x = (float)this->seatPosXDoubleSpinBox->value();
-		ob_out.type_data.seat_data.sitting_position.y = (float)this->seatPosYDoubleSpinBox->value();
-		ob_out.type_data.seat_data.sitting_position.z = (float)this->seatPosZDoubleSpinBox->value();
-		
-		// Set rotation using heading angle (z-rotation), keep roll and pitch at 0
-		ob_out.type_data.seat_data.sitting_rotation.x = 0.0f;
-		ob_out.type_data.seat_data.sitting_rotation.y = 0.0f;
-		ob_out.type_data.seat_data.sitting_rotation.z = ::degreeToRad(this->seatRotationDoubleSpinBox->value());
+		// Sitting position and rotation are now determined by the seat object's transform
+		// and a fixed vertical offset, so they are no longer editable
 		
 		ob_out.type_data.seat_data.upper_leg_angle = (float)this->upperLegAngleDoubleSpinBox->value();
 		ob_out.type_data.seat_data.lower_leg_angle = (float)this->lowerLegAngleDoubleSpinBox->value();
