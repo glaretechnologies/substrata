@@ -7821,17 +7821,17 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								const Matrix4f seat_rot_matrix = Matrix4f::rotationAroundXAxis(seat_rot.x) * Matrix4f::rotationAroundYAxis(seat_rot.y) * Matrix4f::rotationAroundZAxis(seat_rot.z);
 								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(seat_pos.x, seat_pos.y, seat_pos.z) * seat_rot_matrix;
 								pose_constraint.upper_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.upper_leg_angle;
-								pose_constraint.lower_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.lower_leg_angle;
+								pose_constraint.lower_leg_rot_angle = -std::fabs(currently_sitting_on_seat->type_data.seat_data.lower_leg_angle);
 								pose_constraint.arm_down_angle = currently_sitting_on_seat->type_data.seat_data.left_arm_angle;
+								pose_constraint.arm_out_angle = currently_sitting_on_seat->type_data.seat_data.right_arm_angle;
 								// Use default values for other pose parameters
 								pose_constraint.model_to_y_forwards_rot_1 = Quatf::identity();
 								pose_constraint.model_to_y_forwards_rot_2 = Quatf::identity();
-								pose_constraint.upper_body_rot_angle = 0.0f;
+								pose_constraint.upper_body_rot_angle = 0.2f;
 								pose_constraint.upper_leg_rot_around_thigh_bone_angle = 0.0f;
-								pose_constraint.upper_leg_apart_angle = 0.3f;
+								pose_constraint.upper_leg_apart_angle = 0.15f;
 								pose_constraint.lower_leg_apart_angle = 0.0f;
 								pose_constraint.rotate_foot_out_angle = 0.0f;
-								pose_constraint.arm_out_angle = 0.0f;
 								pose_constraint.upper_arm_shoulder_lift_angle = 0.0f;
 								pose_constraint.lower_arm_up_angle = 0.0f;
 								pose_constraint.left_hand_hold_point_ws = Vec4f(0,0,0,1);
