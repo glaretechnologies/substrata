@@ -636,8 +636,8 @@ static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
 		// Set default values for SeatTypeData
 		ob.type_data.seat_data.upper_leg_angle = 1.57f; // ~90 degrees, legs bent forward at hips
 		ob.type_data.seat_data.lower_leg_angle = 1.57f; // ~90 degrees, bent at knees (negated in code)
-		ob.type_data.seat_data.upper_arm_angle = 2.8f; // ~160 degrees from overhead, arms at sides
-		ob.type_data.seat_data.lower_arm_angle = 0.3f; // ~17 degrees, elbows slightly bent forward
+		ob.type_data.seat_data.upper_arm_angle = 2.5f; // ~143 degrees from overhead, arms at sides resting
+		ob.type_data.seat_data.lower_arm_angle = 0.2f; // ~11 degrees, elbows naturally bent
 		break;
 	default:
 		break;

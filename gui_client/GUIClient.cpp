@@ -7815,9 +7815,11 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 							// Handle seat sitting
 							if(currently_sitting_on_seat != NULL)
 							{
-								const Matrix4f ob_to_world = obToWorldMatrix(*currently_sitting_on_seat);
+								// Compute seat transform without scale (like vehicles do) to prevent avatar squashing
+								Matrix4f ob_to_world = Matrix4f::rotationMatrix(normalise(currently_sitting_on_seat->axis.toVec4fVector()), currently_sitting_on_seat->angle);
+								ob_to_world.setColumn(3, Vec4f((float)currently_sitting_on_seat->pos.x, (float)currently_sitting_on_seat->pos.y, (float)currently_sitting_on_seat->pos.z, 1.f) + currently_sitting_on_seat->translation);
 								pose_constraint.sitting = true;
-								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, -0.1f, 0.35f);
+								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, 0.15f, 0.25f);
 								pose_constraint.upper_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.upper_leg_angle;
 								pose_constraint.lower_leg_rot_angle = -std::fabs(currently_sitting_on_seat->type_data.seat_data.lower_leg_angle);
 								pose_constraint.arm_down_angle = currently_sitting_on_seat->type_data.seat_data.upper_arm_angle;
@@ -7883,10 +7885,12 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 							// Handle seat sitting pose
 							if(avatar->sitting_on_seat.nonNull())
 							{
-								const Matrix4f ob_to_world = obToWorldMatrix(*avatar->sitting_on_seat);
+								// Compute seat transform without scale (like vehicles do) to prevent avatar squashing
+								Matrix4f ob_to_world = Matrix4f::rotationMatrix(normalise(avatar->sitting_on_seat->axis.toVec4fVector()), avatar->sitting_on_seat->angle);
+								ob_to_world.setColumn(3, Vec4f((float)avatar->sitting_on_seat->pos.x, (float)avatar->sitting_on_seat->pos.y, (float)avatar->sitting_on_seat->pos.z, 1.f) + avatar->sitting_on_seat->translation);
 								pose_constraint.sitting = true;
-								// Position lower and slightly back so butt touches bottom of seat
-								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, -0.1f, 0.35f);
+								// Use no-scale matrix to prevent avatar squashing, position lower and forward
+								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, 0.15f, 0.25f);
 								pose_constraint.upper_leg_rot_angle = avatar->sitting_on_seat->type_data.seat_data.upper_leg_angle;
 								pose_constraint.lower_leg_rot_angle = -std::fabs(avatar->sitting_on_seat->type_data.seat_data.lower_leg_angle);
 								pose_constraint.arm_down_angle = avatar->sitting_on_seat->type_data.seat_data.upper_arm_angle;
