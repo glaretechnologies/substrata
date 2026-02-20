@@ -100,8 +100,8 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 	std::string page_out;
 	page_out +=
 		"	<hr/>																						\n"
-		"	<div class=\"footer\">Substrata is made by <a href=\"http://glaretechnologies.com\">Glare Technologies</a>.		\n"
-		"	Contact us at contact@glaretechnologies.com<br/>											\n"
+		"	<div class=\"footer\">KingdomVR is based on Substrata, an open source metaverse. Learn more at <a href=\"https://substrata.info/\">substrata.info</a>.		\n"
+		"	Contact us at contact@kingdmvr.com<br/>											\n"
 		"	</div>																						\n"
 		"	<div class=\"footer\"><a href=\"/faq\">F.A.Q.</a> | <a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a> | <a href=\"/map\">Map</a></div>				\n"
 		"	</body>																						\n"
@@ -298,3 +298,4 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 
 
 } // end namespace WebServerResponseUtils
+
