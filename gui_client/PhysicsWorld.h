@@ -66,11 +66,10 @@ public:
 // We will have separate layers for vehicles and the player interaction character, so we can make the interaction character not collide with vehicles it is in.
 namespace Layers
 {
-	static constexpr uint8 NON_MOVING = 0;
-	static constexpr uint8 MOVING = 1;
-	static constexpr uint8 NON_COLLIDABLE = 2;
-	//static constexpr uint8 INTERACTION_CHARACTER = 3;
-	static constexpr uint8 VEHICLES = 3;
+	static constexpr uint8 NON_MOVING = 0; // Static, collidable objects, e.g. buildings.
+	static constexpr uint8 MOVING = 1; // Dynamic, collidable objects, e.g. beach balls and vehicles. Includes kinematic objects like trains.
+	static constexpr uint8 NON_MOVING_NON_COLLIDABLE = 2; // E.g. static objects for which the user has unchecked the 'collidable' checkbox. (holograms, shrubs etc.).  They shouldn't collide with other objects, but we still want them in the engine to do raycasts against.
+	static constexpr uint8 MOVING_NON_COLLIDABLE = 3; // E.g. Avatar capsules for other avatars.  They shouldn't collide with other objects, but we still want them in the engine to do raycasts against.
 	static constexpr uint8 NUM_LAYERS = 4;
 };
 
@@ -147,7 +146,10 @@ public:
 
 	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale);
 	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& linear_vel, const Vec4f& angular_vel);
-	
+
+	// Updates position.  Does not activate object.
+	void setNewPosition(PhysicsObject& object, const Vec4f& pos);
+
 	Vec4f getObjectLinearVelocity(const PhysicsObject& object) const;
 	void setLinearAndAngularVelToZero(PhysicsObject& object);
 
@@ -160,6 +162,7 @@ public:
 	{
 		size_t mem;
 		size_t num_meshes;
+		std::vector<int> layer_counts;
 	};
 	MemUsageStats getMemUsageStats() const;
 
@@ -169,7 +172,7 @@ public:
 
 	const Vec4f getPosInJolt(const Reference<PhysicsObject>& object);
 
-	size_t getNumObjects() const { return objects_set.size(); }
+	size_t getNumObjects() const;
 	//----------------------------------------------------------------------------------------
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const;
@@ -181,8 +184,6 @@ public:
 	static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape);
 
 	static void test();
-private:
-	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.  TODO: can remove?
 	
 public:
 	mutable Mutex activated_obs_mutex;
@@ -217,6 +218,16 @@ inline void checkRemoveObAndSetRefToNull(const Reference<PhysicsWorld>& physics_
 	if(physics_object)
 	{
 		physics_world->removeObject(physics_object);
+		physics_object = nullptr;
+	}
+}
+
+
+inline void checkRemoveObAndSetRefToNull(PhysicsWorld& physics_world, Reference<PhysicsObject>& physics_object)
+{
+	if(physics_object)
+	{
+		physics_world.removeObject(physics_object);
 		physics_object = nullptr;
 	}
 }

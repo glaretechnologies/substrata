@@ -963,6 +963,22 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+
+
+				// If the avatar is playing a gesture currently, send an AvatarPerformGesture message for it
+				if(!avatar->current_gesture_URL.empty())
+				{
+					// Enqueue AvatarPerformGesture messages to worker threads to send
+					MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+					writeToStream(avatar->uid, scratch_packet);
+					scratch_packet.writeStringLengthFirst(avatar->current_gesture_name);
+					scratch_packet.writeStringLengthFirst(avatar->current_gesture_URL);
+					scratch_packet.writeUInt32(avatar->current_gesture_flags);
+					scratch_packet.writeDouble(avatar->current_gesture_start_global_time);
+					MessageUtils::updatePacketLengthField(scratch_packet);
+
+					packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				}
 			}
 		} // End lock scope
 
@@ -1211,6 +1227,7 @@ void WorkerThread::doRun()
 				scratch_packet.writeDouble(server->getCurrentGlobalTime());
 				MessageUtils::updatePacketLengthField(scratch_packet);
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				socket->flush();
 			}
 
 			// Send a ServerAdminMessage to client if we have a non-empty message.
@@ -1422,14 +1439,38 @@ void WorkerThread::doRun()
 							//conPrint("AvatarPerformGesture");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 							const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
+
 							URLString gesture_URL;
 							if(!msg_buffer.endOfStream())
 								gesture_URL = URLString(msg_buffer.readStringLengthFirst(10000));
+
 							uint32 flags = 0;
 							if(!msg_buffer.endOfStream())
 								flags = msg_buffer.readUInt32();
 
-							conPrint("Received AvatarPerformGesture: gesture_name: '" + gesture_name + "', gesture_URL: '" + toStdString(gesture_URL) + "', flags: " + toString(flags));
+							double start_global_time = 0;
+							if(!msg_buffer.endOfStream())
+								start_global_time = msg_buffer.readDouble();
+							
+
+							conPrint("Received AvatarPerformGesture: gesture_name: '" + gesture_name + "', gesture_URL: '" + toStdString(gesture_URL) + "', flags: " + toString(flags) + 
+								", start_global_time: " + doubleToStringNSigFigs(start_global_time, 4));
+
+
+							// Mark the avatar as currently performing the gesture
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									avatar->current_gesture_name = gesture_name;
+									avatar->current_gesture_URL = gesture_URL;
+									avatar->current_gesture_flags = flags;
+									avatar->current_gesture_start_global_time = start_global_time;
+								}
+							}
 
 							// Enqueue AvatarPerformGesture messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
@@ -1437,6 +1478,7 @@ void WorkerThread::doRun()
 							scratch_packet.writeStringLengthFirst(gesture_name);
 							scratch_packet.writeStringLengthFirst(gesture_URL);
 							scratch_packet.writeUInt32(flags);
+							scratch_packet.writeDouble(start_global_time);
 							MessageUtils::updatePacketLengthField(scratch_packet);
 
 							enqueuePacketToBroadcast(scratch_packet);
@@ -1452,6 +1494,19 @@ void WorkerThread::doRun()
 						{
 							//conPrint("AvatarStopGesture");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							// Mark the avatar as not performing the gesture any more
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									avatar->current_gesture_name.clear();
+									avatar->current_gesture_URL.clear();
+								}
+							}
 
 							//if(!client_user_id.valid())
 							//{
@@ -3221,6 +3276,17 @@ void WorkerThread::doRun()
 									}
 								}
 							}
+
+							break;
+						}
+					case Protocol::PingMessage:
+						{
+							// Send pong message back
+							MessageUtils::initPacket(scratch_packet, Protocol::PongMessage);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
 
 							break;
 						}

@@ -486,18 +486,25 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			//conPrint("AvatarPerformGesture");
 			const UID avatar_uid = readUIDFromStream(msg_buffer);
 			const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
+
 			URLString gesture_URL;
 			if(!msg_buffer.endOfStream())
 				gesture_URL = URLString(msg_buffer.readStringLengthFirst(10000));
+
 			uint32 flags = 0;
 			if(!msg_buffer.endOfStream())
 				flags = msg_buffer.readUInt32();
+
+			double start_global_time = 0;
+			if(!msg_buffer.endOfStream())
+				start_global_time = msg_buffer.readDouble();
 
 			//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
 
 			Reference<AvatarPerformGestureMessage> gesture_msg = new AvatarPerformGestureMessage(avatar_uid, gesture_name);
 			gesture_msg->gesture_URL = gesture_URL;
 			gesture_msg->flags = flags;
+			gesture_msg->start_global_time = start_global_time;
 
 			out_msg_queue->enqueue(gesture_msg);
 
@@ -1238,6 +1245,19 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 					world_state->dirty_from_remote_lod_chunks.insert(chunk);
 				}
 			}
+			break;
+		}
+	case Protocol::PongMessage:
+		{
+			// Compute RTT right away.
+			double round_trip_time;
+			{
+				Lock lock(world_state->last_ping_send_time_mutex);
+				round_trip_time = Clock::getTimeSinceInit() - world_state->last_ping_send_time;
+			}
+			world_state->newRoundTripTimeComputed(round_trip_time);
+
+			// conPrint("Received PongMessage, RTT: " + doubleToStringMaxNDecimalPlaces(round_trip_time * 1.0e3, 4) + " ms");
 			break;
 		}
 	default:

@@ -195,8 +195,9 @@ public:
 	virtual void reloadShaders() override;
 	//----------------------- End ReloadShadersCallback interface -----------------------
 
-	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim);
+	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags);
 	void stopGestureClicked(const std::string& gesture_name);
+	void performGestureOnOurAvatar(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags, double global_start_time);
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
 	void setPhotoModeEnabled(bool enabled);
@@ -597,6 +598,8 @@ public:
 	int num_frames_since_fps_timer_reset;
 	double last_fps;
 
+	double last_physics_sim_time;
+
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
 	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
@@ -899,4 +902,6 @@ public:
 	bool ui_hidden;
 
 	bool only_load_most_important_obs;
+
+	double last_ping_send_time;
 };

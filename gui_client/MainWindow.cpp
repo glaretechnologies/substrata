@@ -433,7 +433,7 @@ void MainWindow::initialiseUI()
 			throw glare::Exception("GetAdapter failed: " + PlatformUtils::COMErrorString(hr));
 		DXGI_ADAPTER_DESC desc;
 		adapter->GetDesc(&desc);
-		logMessage("Direct3D device adapter: " + StringUtils::PlatformToUTF8UnicodeEncoding(desc.Description) + ", LUID: {" + toString((uint32)desc.AdapterLuid.LowPart) + ", " + toString(desc.AdapterLuid.HighPart) + "}");
+		logMessage("Direct3D device adapter: " + StringUtils::PlatformToUTF8UnicodeEncoding(desc.Description) + ", LUID: {" + toString((uint32)desc.AdapterLuid.LowPart) + ", " + toString((int32)desc.AdapterLuid.HighPart) + "}");
 	}
 #endif //_WIN32
 

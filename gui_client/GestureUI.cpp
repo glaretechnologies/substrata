@@ -391,16 +391,17 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 				if(gesture_name == event.widget->client_data)
 				{
 					event.accepted = true;
-					const bool animate_head = BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
-					const bool loop			= BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_LOOP);
 
 					const URLString& anim_URL = gesture_settings.gesture_settings[i].anim_URL;
+					const uint32 gesture_flags = gesture_settings.gesture_settings[i].flags;
+
+					const bool loop			= BitUtils::isBitSet(gesture_flags, SingleGestureSettings::FLAG_LOOP);
 
 					if(button->toggleable)
 					{
 						if(button->toggled)
 						{
-							gui_client->performGestureClicked(gesture_name, anim_URL, animate_head, /*loop anim=*/loop);
+							gui_client->performGestureClicked(gesture_name, anim_URL, gesture_flags);
 
 							if(!loop)
 								untoggle_button_time = timer.elapsed() + gesture_settings.gesture_settings[i].anim_duration; // Make button untoggle when gesture has finished.
@@ -411,7 +412,7 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 							gui_client->stopGestureClicked(gesture_name);
 					}
 					else
-						gui_client->performGestureClicked(gesture_name, anim_URL, animate_head, /*loop anim=*/false);
+						gui_client->performGestureClicked(gesture_name, anim_URL, gesture_flags);
 
 					// Untoggle any other toggled buttons.
 					for(size_t z=0; z<gesture_buttons.size(); ++z)
@@ -582,37 +583,6 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 			updateWidgetPositions();
 		}
 	}
-}
-
-
-bool GestureUI::getCurrentGesturePlaying(std::string& gesture_name_out, URLString& gesture_URL_out, bool& animate_head_out, bool& loop_out)
-{
-	for(size_t z=0; z<gesture_buttons.size(); ++z)
-	{
-		if(gesture_buttons[z]->toggled)
-		{
-			const std::string button_gesture_name = gesture_buttons[z]->client_data;
-
-			// Find matching gesture
-			for(size_t i=0; i<gesture_settings.gesture_settings.size(); ++i)
-			{
-				const std::string gesture_name = gesture_settings.gesture_settings[i].friendly_name;
-				if(button_gesture_name == gesture_name)
-				{
-					const bool animate_head = BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
-					const bool loop			= BitUtils::isBitSet(gesture_settings.gesture_settings[i].flags, SingleGestureSettings::FLAG_LOOP);
-
-					gesture_name_out = gesture_name;
-					gesture_URL_out = gesture_settings.gesture_settings[i].anim_URL;
-					animate_head_out = animate_head;
-					loop_out = loop;
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
 }
 
 
