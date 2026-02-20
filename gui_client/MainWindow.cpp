@@ -1778,8 +1778,8 @@ void MainWindow::on_actionAdd_Seat_triggered()
 	// Set default seat data
 	new_world_object->type_data.seat_data.upper_leg_angle = 1.57f; // ~90 degrees, legs bent forward at hips
 	new_world_object->type_data.seat_data.lower_leg_angle = 1.57f; // ~90 degrees, bent at knees (negated in code)
-	new_world_object->type_data.seat_data.upper_arm_angle = 2.5f; // ~143 degrees from overhead, arms at sides resting
-	new_world_object->type_data.seat_data.lower_arm_angle = 0.2f; // ~11 degrees, elbows naturally bent
+	new_world_object->type_data.seat_data.upper_arm_angle = 3.14159f; // π radians, arms straight down
+	new_world_object->type_data.seat_data.lower_arm_angle = 0.1f; // ~6 degrees, very slight elbow bend
 
 	// Default material
 	new_world_object->materials.push_back(new WorldMaterial());
