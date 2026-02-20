@@ -41,7 +41,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	//std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
 
-	std::string page_out = WebServerResponseUtils::standardHTMLHeader(data_store, request_info, /*page title=*/"Substrata");
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(data_store, request_info, /*page title=*/"KingdomVR");
 	page_out +=
 		"	<body class=\"root-body\">\n"
 		"	<div id=\"login\">\n"; // Start login div
@@ -160,7 +160,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 
 		// Build latest news HTML
-		latest_news_html += "<div class=\"root-news-div-container\">\n";		const int max_num_to_display = 4;
+		latest_news_html += "<div class=\"root-news-div-container\">\n";
+		const int max_num_to_display = 4;
 		int num_displayed = 0;
 		for(auto it = world_state.news_posts.rbegin(); it != world_state.news_posts.rend() && num_displayed < max_num_to_display; ++it)
 		{
@@ -189,7 +190,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 
 		// Build events HTML
-		events_html += "<div class=\"root-events-div-container\">\n";		const int max_num_events_to_display = 4;
+		events_html += "<div class=\"root-events-div-container\">\n";
+		const int max_num_events_to_display = 4;
 		int num_events_displayed = 0;
 		for(auto it = world_state.events.rbegin(); (it != world_state.events.rend()) && (num_events_displayed < max_num_events_to_display); ++it)
 		{
@@ -224,7 +226,8 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 		//------------------------------- Build photos grid view HTML --------------------------
 		photos_html.reserve(4096);
-		photos_html += "<div class=\"photo-container\">\n";		const int max_num_photos_to_display = 20;
+		photos_html += "<div class=\"photo-container\">\n";
+		const int max_num_photos_to_display = 20;
 		int num_photos_displayed = 0;
 		for(auto it = world_state.photos.rbegin(); (it != world_state.photos.rend()) && (num_photos_displayed < max_num_photos_to_display); ++it)
 		{
@@ -272,7 +275,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 void renderTermsOfUse(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"KingdomVR");
 
 	page += "<h1>Terms of Service</h1>";
 
@@ -280,7 +283,7 @@ void renderTermsOfUse(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 	page += "<h2>Overview</h2>";
 
-	page += "These terms of service apply to the Substrata website (at substrata.info) and the Substrata virtual world, which is hosted on the Substrata servers and accessed via the Substrata client software.  "
+	page += "These terms of service apply to the KingdomVR website (at kingdmvr.com) and the KingdomVR virtual world, which is hosted on the KingdomVR servers and accessed via the Substrata client software.  "
 		"These together constitute the \"Service\"";
 
 	page += "<h2>General conditions</h2>";
@@ -295,17 +298,17 @@ void renderTermsOfUse(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 	page += "<h2>Parcel ownership</h2>";
 
-	page += "<p>'Not-safe-for-work' parcel content is not currently allowed.  This includes sexual content and violence.</p>";
+	page += "<p>'Not-safe-for-work' parcel content is strictly not allowed.  This includes sexual content and violence.</p>";
 
-	page += "<p>Content that is illegal in Germany, New Zealand, or the USA is not allowed</p>";
+	page += "<p>Content that is illegal in the United States is not allowed</p>";
 
-	page += "<p>Parcel content must not severely and adversely affect the performance or functioning of the Substrata server(s) or client.  (For example, do not upload models with excessive polygon counts or texture resolution)</p>";
+	page += "<p>Parcel content must not severely and adversely affect the performance or functioning of the KingdomVR server(s) or client.  (For example, do not upload models with excessive polygon counts or texture resolution)</p>";
 
 	page += "<p>Do not deliberately attempt to crash or degrade the functioning of the server or other users' clients.</p>";
 
 	page += "<h2>Governing law</h2>";
 
-	page += "These Terms of Service shall be governed by and construed in accordance with the laws of New Zealand.";
+	page += "These Terms of Service shall be governed by and construed in accordance with the laws of the United States of America.";
 
 
 	page += WebServerResponseUtils::standardFooter(request_info, true);
@@ -855,3 +858,4 @@ void renderMapPage(ServerAllWorldsState& world_state, const web::RequestInfo& re
 
 
 } // end namespace MainPageHandlers
+
