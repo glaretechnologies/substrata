@@ -275,9 +275,10 @@ public:
 		ObjectType_WebView = 4,
 		ObjectType_Video = 5, // A YouTube or Twitch video, or mp4 video, with video-specific UI.
 		ObjectType_Text = 6, // Text displayed on a quad
-		ObjectType_Portal = 7 // A portal to another Substrata world or another location in the current world.
+		ObjectType_Portal = 7, // A portal to another Substrata world or another location in the current world.
+		ObjectType_Seat = 8 // A seat that users can sit on
 	};
-	static const uint64 NUM_OBJECT_TYPES = 8;
+	static const uint64 NUM_OBJECT_TYPES = 9;
 
 	static std::string objectTypeString(ObjectType t);
 	static ObjectType objectTypeForString(const std::string& ob_type_string);
@@ -362,10 +363,20 @@ public:
 		float cone_end_angle;
 	};
 
+	struct SeatTypeData
+	{
+		float upper_leg_angle; // Angle of upper legs (thighs) in radians
+		float lower_leg_angle; // Angle of lower legs (shins) in radians
+		float upper_arm_angle; // Upper arm angle in radians
+		float lower_arm_angle; // Lower arm angle in radians
+	};
+
 	union TypeData
 	{
 		SpotLightTypeData spotlight_data;
+		SeatTypeData seat_data;
 
+		TypeData() noexcept : spotlight_data() {}  // Explicitly initialize the trivial member to allow union default construction
 	} type_data;
 
 
