@@ -1776,10 +1776,10 @@ void MainWindow::on_actionAdd_Seat_triggered()
 	new_world_object->scale = Vec3f(seat_w, seat_w, 1.f);
 
 	// Set default seat data
-	new_world_object->type_data.seat_data.upper_leg_angle = 1.0f;
-	new_world_object->type_data.seat_data.lower_leg_angle = 1.2f;
-	new_world_object->type_data.seat_data.upper_arm_angle = 1.3f;
-	new_world_object->type_data.seat_data.lower_arm_angle = 0.8f;
+	new_world_object->type_data.seat_data.upper_leg_angle = 1.57f; // ~90 degrees, legs bent forward at hips
+	new_world_object->type_data.seat_data.lower_leg_angle = 1.57f; // ~90 degrees, bent at knees (negated in code)
+	new_world_object->type_data.seat_data.upper_arm_angle = 1.05f; // ~60 degrees, arms down naturally
+	new_world_object->type_data.seat_data.lower_arm_angle = 0.785f; // ~45 degrees, elbows slightly bent
 
 	// Default material
 	new_world_object->materials.push_back(new WorldMaterial());

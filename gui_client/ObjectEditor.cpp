@@ -113,10 +113,6 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->spotlightStartAngleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->spotlightEndAngleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 
-	connect(this->seatPosXDoubleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->seatPosYDoubleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->seatPosZDoubleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->seatRotationDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->upperLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->lowerLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->upperArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
