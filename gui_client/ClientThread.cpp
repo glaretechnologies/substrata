@@ -584,16 +584,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 				if(res != world_state->avatars.end())
 				{
 					Avatar* avatar = res->second.getPointer();
-
-					auto res2 = world_state->objects.find(seat_ob_uid);
-					if(res2 != world_state->objects.end())
-					{
-						if(avatar->sitting_on_seat != res2.getValue()) // If this avatar is not already sitting on this seat
-						{
-							avatar->sitting_on_seat = res2.getValue();
-							avatar->pending_seat_transition = Avatar::SitOnSeat;
-						}
-					}
+					avatar->pending_seat_uid = seat_ob_uid;
+					avatar->pending_seat_transition = Avatar::SitOnSeat;
 				}
 			}
 

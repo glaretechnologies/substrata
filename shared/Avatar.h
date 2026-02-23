@@ -189,6 +189,7 @@ public:
 		GetUpFromSeat // The avatar should stand up from the seat
 	};
 	PendingSeatTransition pending_seat_transition;
+	UID pending_seat_uid; // The UID of the seat the avatar wants to sit on.
 
 
 	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.
@@ -204,6 +205,8 @@ public:
 #if SERVER
 	// Some state for Lua scripting
 	UID vehicle_inside_uid;
+
+	UID sitting_on_seat_uid; // The UID of the seat world object the avatar is currently sitting on, if any.  Invalid UID otherwise.
 #endif
 
 	/*

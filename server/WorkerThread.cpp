@@ -979,6 +979,18 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 
 					packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 				}
+
+				// If the avatar is sitting on a seat, send an AvatarSatOnSeat messages.  This is so avatars already sitting on seats when this new users joins will be seen to be sitting on seats.
+				if(avatar->sitting_on_seat_uid.valid())
+				{
+					// Write AvatarSatOnSeat message.  NOTE: we may want to replace this with a AvatarIsSittingOnSeat message at some point.
+					MessageUtils::initPacket(scratch_packet, Protocol::AvatarSatOnSeat);
+					writeToStream(avatar->uid, scratch_packet);
+					writeToStream(avatar->sitting_on_seat_uid, scratch_packet);
+					MessageUtils::updatePacketLengthField(scratch_packet);
+
+					packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				}
 			}
 		} // End lock scope
 
@@ -1707,6 +1719,18 @@ void WorkerThread::doRun()
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 							const UID seat_ob_uid = readUIDFromStream(msg_buffer);
 
+							// Mark avatar as on seat
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									avatar->sitting_on_seat_uid = seat_ob_uid;
+								}
+							}
+
 							// Enqueue AvatarSatOnSeat messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarSatOnSeat);
 							writeToStream(avatar_uid, scratch_packet);
@@ -1721,6 +1745,18 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("AvatarGotUpFromSeat");
 
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							// Mark avatar as not sitting on seat
+							{
+								WorldStateLock lock(world_state->mutex);
+								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
+								auto res = avatars.find(avatar_uid);
+								if(res != avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									avatar->sitting_on_seat_uid = UID::invalidUID();
+								}
+							}
 
 							// Enqueue AvatarGotUpFromSeat messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
