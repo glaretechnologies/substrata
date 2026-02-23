@@ -186,7 +186,7 @@ public:
 	{
 		SeatNoChange,
 		SitOnSeat, // The avatar should sit on the seat 'sitting_on_seat' as soon as possible
-		StandUp // The avatar should stand up from the seat
+		GetUpFromSeat // The avatar should stand up from the seat
 	};
 	PendingSeatTransition pending_seat_transition;
 
