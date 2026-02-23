@@ -15618,11 +15618,6 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 						// Set sitting physics shape
 						player_physics.setSittingShape(*physics_world);
 
-						// Calculate avatar position on the seat
-						const Matrix4f ob_to_world = obToWorldMatrix(*ob);
-						const Vec4f sitting_pos_os = Vec4f(0.0f, 0.0f, 0.6f, 1.0f);
-						const Vec4f sitting_pos_ws = ob_to_world * sitting_pos_os;
-
 						// Send AvatarSatOnSeat message to server
 						MessageUtils::initPacket(scratch_packet, Protocol::AvatarSatOnSeat);
 						writeToStream(this->client_avatar_uid, scratch_packet);
