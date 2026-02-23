@@ -7900,10 +7900,11 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 							// Handle seat sitting transitions
 							if(avatar->pending_seat_transition == Avatar::SitOnSeat)
 							{
-								assert(avatar->sitting_on_seat.nonNull());
-								if(avatar->sitting_on_seat.nonNull() && avatar->sitting_on_seat->opengl_engine_ob.nonNull())
+								// Try and find seat object (object may not exist yet as client may not have finished querying it from the server yet)
+								auto res = this->world_state->objects.find(avatar->pending_seat_uid);
+								if(res != this->world_state->objects.end())
 								{
-									conPrint("Avatar sat on seat");
+									avatar->sitting_on_seat = res.getValue();
 									avatar->pending_seat_transition = Avatar::SeatNoChange;
 								}
 							}
@@ -7933,15 +7934,14 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								const float k_disable_ik = std::numeric_limits<float>::quiet_NaN();
 								pose_constraint.left_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
 								pose_constraint.right_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+							}
 
+							if(avatar->pending_seat_transition == Avatar::GetUpFromSeat)
+							{
+								// TODO: trigger getUpFromSeat script event
 
-								if(avatar->pending_seat_transition == Avatar::GetUpFromSeat)
-								{
-									// TODO: trigger getUpFromSeat script event
-
-									avatar->sitting_on_seat = nullptr;
-									avatar->pending_seat_transition = Avatar::SeatNoChange;
-								}
+								avatar->sitting_on_seat = nullptr;
+								avatar->pending_seat_transition = Avatar::SeatNoChange;
 							}
 
 							if(avatar->pending_vehicle_transition == Avatar::EnterVehicle)
