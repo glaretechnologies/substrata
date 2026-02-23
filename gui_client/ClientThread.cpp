@@ -570,6 +570,35 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 			break;
 		}
+	case Protocol::AvatarSatOnSeat:
+		{
+			// conPrint("AvatarSatOnSeat");
+
+			const UID avatar_uid = readUIDFromStream(msg_buffer);
+			const UID seat_ob_uid = readUIDFromStream(msg_buffer);
+
+			if(avatar_uid != this->client_avatar_uid) // Discard AvatarSatOnSeat messages we sent. 
+			{
+				Lock lock(world_state->mutex);
+				auto res = world_state->avatars.find(avatar_uid);
+				if(res != world_state->avatars.end())
+				{
+					Avatar* avatar = res->second.getPointer();
+
+					auto res2 = world_state->objects.find(seat_ob_uid);
+					if(res2 != world_state->objects.end())
+					{
+						if(avatar->sitting_on_seat != res2.getValue()) // If this avatar is not already sitting on this seat
+						{
+							avatar->sitting_on_seat = res2.getValue();
+							avatar->pending_seat_transition = Avatar::SitOnSeat;
+						}
+					}
+				}
+			}
+
+			break;
+		}
 	case Protocol::ObjectTransformUpdate:
 		{
 			//conPrint("ObjectTransformUpdate");

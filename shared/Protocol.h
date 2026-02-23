@@ -82,6 +82,9 @@ const uint32 AvatarStopGesture		= 1011;
 const uint32 AvatarEnteredVehicle	= 1100;
 const uint32 AvatarExitedVehicle	= 1101;
 
+const uint32 AvatarSatOnSeat		= 1110; // Avatar sat down on a seat object
+const uint32 AvatarGotUpFromSeat	= 1111; // Avatar got up from a seat object
+
 
 const uint32 UserMovedNearToAvatar		= 1200;
 const uint32 UserMovedAwayFromAvatar	= 1201;
