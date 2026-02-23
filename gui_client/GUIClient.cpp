@@ -178,7 +178,6 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	frame_num(0),
 	next_lod_changes_begin_i(0),
 	axis_and_rot_obs_enabled(false),
-	currently_sitting_on_seat(NULL),
 	last_vehicle_renewal_msg_time(-1),
 	stack_allocator(/*size (B)=*/22 * 1024 * 1024), // Used for the Jolt physics temp allocator also.
 	arena_allocator(/*size (B)=*/4 * 1024 * 1024), // Used for WorldObject::appendDependencyURLs() etc.
@@ -1475,6 +1474,9 @@ void GUIClient::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 	checkRemoveObAndSetRefToNull(physics_world, ob.physics_object);
 
 	ob.mesh_manager_shape_data = NULL;
+
+	if(this->seat_sitting_on == &ob)
+		this->seat_sitting_on = nullptr;
 
 	// TOOD: removeObScriptingInfo(&ob);
 }
@@ -6276,7 +6278,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 
 		// Get camera position, if we are in a vehicle.
-		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+		if(vehicle_controller_inside) // If we are inside a vehicle:
 		{
 			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
 			const bool use_smoothed_network_transform = cur_seat_index != 0;
@@ -6286,9 +6288,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 			player_physics.setCapsuleBottomPosition(Vec3d(campos) + Vec3d(0,0,-0.75f), linear_vel); // Hack an approximate sitting position
 		}
-		else if(currently_sitting_on_seat != NULL)
+		else if(seat_sitting_on)
 		{
-			const Matrix4f ob_to_world = obToWorldMatrix(*currently_sitting_on_seat);
+			const Matrix4f ob_to_world = obToWorldMatrix(*seat_sitting_on);
 			const Vec4f seat_pos_os = Vec4f(0.0f, 0.0f, 0.6f, 1.0f);
 			const Vec4f seat_pos_ws = ob_to_world * seat_pos_os;
 			campos = seat_pos_ws;
@@ -6299,7 +6301,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
 		// Show vehicle speed on UI
-		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+		if(vehicle_controller_inside) // If we are inside a vehicle:
 		{
 			const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
 			misc_info_ui.showVehicleSpeed(speed_km_h);
@@ -7837,16 +7839,16 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						if(our_avatar)
 						{
 							// Handle seat sitting
-							if(currently_sitting_on_seat != NULL)
+							if(seat_sitting_on.nonNull())
 							{
 								// Compute seat transform without scale (like vehicles do) to prevent avatar squashing
-								Matrix4f ob_to_world = Matrix4f::rotationMatrix(normalise(currently_sitting_on_seat->axis.toVec4fVector()), currently_sitting_on_seat->angle);
-								ob_to_world.setColumn(3, Vec4f((float)currently_sitting_on_seat->pos.x, (float)currently_sitting_on_seat->pos.y, (float)currently_sitting_on_seat->pos.z, 1.f) + currently_sitting_on_seat->translation);
+								Matrix4f ob_to_world = Matrix4f::rotationMatrix(normalise(seat_sitting_on->axis.toVec4fVector()), seat_sitting_on->angle);
+								ob_to_world.setColumn(3, Vec4f((float)seat_sitting_on->pos.x, (float)seat_sitting_on->pos.y, (float)seat_sitting_on->pos.z, 1.f) + seat_sitting_on->translation);
 								pose_constraint.sitting = true;
 								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, -0.1f, 0.1f);
-								pose_constraint.upper_leg_rot_angle = currently_sitting_on_seat->type_data.seat_data.upper_leg_angle;
-								pose_constraint.lower_leg_rot_angle = -std::fabs(currently_sitting_on_seat->type_data.seat_data.lower_leg_angle);
-								pose_constraint.arm_down_angle = currently_sitting_on_seat->type_data.seat_data.upper_arm_angle;
+								pose_constraint.upper_leg_rot_angle = seat_sitting_on->type_data.seat_data.upper_leg_angle;
+								pose_constraint.lower_leg_rot_angle = -std::fabs(seat_sitting_on->type_data.seat_data.lower_leg_angle);
+								pose_constraint.arm_down_angle = seat_sitting_on->type_data.seat_data.upper_arm_angle;
 								pose_constraint.arm_out_angle = 0.55f;
 								// Use default values for other pose parameters
 								pose_constraint.model_to_y_forwards_rot_1 = Quatf::identity();
@@ -7857,7 +7859,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								pose_constraint.lower_leg_apart_angle = 0.0f;
 								pose_constraint.rotate_foot_out_angle = 0.0f;
 								pose_constraint.upper_arm_shoulder_lift_angle = 0.0f;
-								pose_constraint.lower_arm_up_angle = currently_sitting_on_seat->type_data.seat_data.lower_arm_angle;
+								pose_constraint.lower_arm_up_angle = seat_sitting_on->type_data.seat_data.lower_arm_angle;
 								const float k_disable_ik = std::numeric_limits<float>::quiet_NaN();
 								pose_constraint.left_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
 								pose_constraint.right_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
@@ -7931,6 +7933,15 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								const float k_disable_ik = std::numeric_limits<float>::quiet_NaN();
 								pose_constraint.left_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
 								pose_constraint.right_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+
+
+								if(avatar->pending_seat_transition == Avatar::GetUpFromSeat)
+								{
+									// TODO: trigger getUpFromSeat script event
+
+									avatar->sitting_on_seat = nullptr;
+									avatar->pending_seat_transition = Avatar::SeatNoChange;
+								}
 							}
 
 							if(avatar->pending_vehicle_transition == Avatar::EnterVehicle)
@@ -9955,6 +9966,21 @@ bool GUIClient::doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) 
 }
 
 
+bool GUIClient::isAvatarSittingOnSeat(WorldObject& seat_ob) const
+{
+	Lock lock(this->world_state->mutex);
+
+	// Iterate over all avatars (slow linear time of course!), see if any are sitting on this seat.
+	for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+	{
+		const Avatar* avatar = it->second.getPointer();
+		if(avatar->sitting_on_seat.ptr() == &seat_ob)
+			return true;
+	}
+	return false;
+}
+
+
 // Destroy vehicle controllers that are controlling the world object 'ob', as Jolt hits asserts if physics object is swapped out under it.
 void GUIClient::destroyVehiclePhysicsControllingObject(WorldObject* ob)
 {
@@ -9964,8 +9990,8 @@ void GUIClient::destroyVehiclePhysicsControllingObject(WorldObject* ob)
 		vehicle_controller_inside = NULL;
 	
 	// Also clear if we're sitting on this object
-	if(currently_sitting_on_seat == ob)
-		currently_sitting_on_seat = NULL;
+	if(seat_sitting_on == ob)
+		seat_sitting_on = NULL;
 }
 
 
@@ -12741,9 +12767,10 @@ void GUIClient::clearAllObjects()
 {
 	deselectObject();
 
-	vehicle_controller_inside = NULL;
+	vehicle_controller_inside = nullptr;
 	vehicle_controllers.clear();
 
+	seat_sitting_on = nullptr;
 
 	if(world_state)
 	{
@@ -12786,6 +12813,8 @@ void GUIClient::clearAllObjects()
 			Avatar* avatar = it->second.ptr();
 
 			avatar->entered_vehicle = NULL;
+
+			avatar->sitting_on_seat = NULL;
 
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
@@ -14100,7 +14129,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						}
 					}
 
-					if(ob->object_type == WorldObject::ObjectType_Seat && currently_sitting_on_seat == NULL && vehicle_controller_inside.isNull())
+					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() && !isAvatarSittingOnSeat(*ob))
 					{
 						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to sit" : "Press [A] on gamepad to sit", cursor_gl_coords);
 						show_mouseover_info_ui = true;
@@ -15491,13 +15520,13 @@ static bool keyIsDeleteKey(int keycode)
 void GUIClient::useActionTriggered(bool use_mouse_cursor)
 {
 	// If we are sitting on a seat, get up from it
-	if(currently_sitting_on_seat != NULL)
+	if(seat_sitting_on)
 	{
 		WorldStateLock lock(world_state->mutex);
 
-		WorldObject* seat_ob = currently_sitting_on_seat;
+		WorldObjectRef seat_ob = seat_sitting_on;
 
-		currently_sitting_on_seat = NULL; // Clear the currently_sitting_on_seat reference
+		seat_sitting_on = nullptr; // Clear the currently_sitting_on_seat reference
 
 		// Set standing physics shape
 		player_physics.setStandingShape(*physics_world);
@@ -15515,7 +15544,6 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 		// Send AvatarGotUpFromSeat message to server
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
 		writeToStream(this->client_avatar_uid, scratch_packet);
-		writeToStream(seat_ob->uid, scratch_packet); // Write seat object UID
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 		return;
@@ -15582,18 +15610,18 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 				if(ob->object_type == WorldObject::ObjectType_Seat)
 				{
 					// Try to sit on the seat
-					if(this->currently_sitting_on_seat == NULL) // If not currently sitting:
+					if(this->seat_sitting_on.isNull() && !isAvatarSittingOnSeat(*ob)) // If not currently sitting on any seat and no other avatar sitting on the hit seat:
 					{
 						// Sit on the seat
-						this->currently_sitting_on_seat = ob;
+						this->seat_sitting_on = ob;
 
 						// Set sitting physics shape
 						player_physics.setSittingShape(*physics_world);
 
 						// Calculate avatar position on the seat
 						const Matrix4f ob_to_world = obToWorldMatrix(*ob);
-					const Vec4f sitting_pos_os = Vec4f(0.0f, 0.0f, 0.6f, 1.0f);
-					const Vec4f sitting_pos_ws = ob_to_world * sitting_pos_os;
+						const Vec4f sitting_pos_os = Vec4f(0.0f, 0.0f, 0.6f, 1.0f);
+						const Vec4f sitting_pos_ws = ob_to_world * sitting_pos_os;
 
 						// Send AvatarSatOnSeat message to server
 						MessageUtils::initPacket(scratch_packet, Protocol::AvatarSatOnSeat);

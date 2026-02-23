@@ -391,6 +391,7 @@ public:
 	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
 	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob) REQUIRES(world_state->mutex);
 	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) const REQUIRES(world_state->mutex);
+	bool isAvatarSittingOnSeat(WorldObject& seat_ob) const;
 	void destroyVehiclePhysicsControllingObject(WorldObject* ob);
 	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
@@ -464,7 +465,7 @@ public:
 	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
 	uint32 cur_seat_index; // Current vehicle seat index.
 
-	WorldObject* currently_sitting_on_seat; // Seat object that the avatar is currently sitting on, or NULL if not sitting.
+	Reference<WorldObject> seat_sitting_on; // Seat object that the avatar is currently sitting on, or NULL if not sitting.
 
 	double last_vehicle_renewal_msg_time;
 

@@ -1721,12 +1721,10 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("AvatarGotUpFromSeat");
 
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
-							const UID seat_ob_uid = readUIDFromStream(msg_buffer);
 
 							// Enqueue AvatarGotUpFromSeat messages to worker threads to send
 							MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
 							writeToStream(avatar_uid, scratch_packet);
-							writeToStream(seat_ob_uid, scratch_packet);
 							MessageUtils::updatePacketLengthField(scratch_packet);
 							enqueuePacketToBroadcast(scratch_packet);
 
