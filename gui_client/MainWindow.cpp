@@ -1749,6 +1749,57 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 }
 
 
+void MainWindow::on_actionAdd_Seat_triggered()
+{
+	const float seat_w = 0.5f;
+	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + gui_client.cam_controller.getForwardsVec() * 2.0f -
+		Vec3d(0,0,PlayerPhysics::getEyeHeight() * 0.3f);
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = gui_client.haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create seats in a parcel that you have write permissions for.");
+		return;
+	}
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_Seat;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Face player
+	new_world_object->scale = Vec3f(seat_w, seat_w, 1.f);
+
+	// Set default seat data
+	new_world_object->type_data.seat_data.upper_leg_angle = 1.57f; // ~90 degrees, legs bent forward at hips
+	new_world_object->type_data.seat_data.lower_leg_angle = 1.57f; // ~90 degrees, bent at knees (negated in code)
+	new_world_object->type_data.seat_data.upper_arm_angle = 2.65f; // ~152 degrees from overhead, arms down and slightly out
+	new_world_object->type_data.seat_data.lower_arm_angle = 0.1f; // ~6 degrees, very slight elbow bend
+
+	// Default material
+	new_world_object->materials.push_back(new WorldMaterial());
+	new_world_object->materials.back()->colour_rgb = Colour3f(0.4f, 0.5f, 0.6f);
+	new_world_object->materials.back()->opacity = ScalarVal(0.5f);
+
+	new_world_object->setAABBOS(gui_client.seat_opengl_mesh->aabb_os);
+
+	// Send CreateObject message to server
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+	}
+
+	showInfoNotification("Added seat.");
+}
+
+
 void MainWindow::on_actionAdd_Portal_triggered()
 {
 	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + 

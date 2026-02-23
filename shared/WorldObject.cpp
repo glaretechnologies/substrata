@@ -524,6 +524,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Video: return "video";
 	case ObjectType_Text: return "text";
 	case ObjectType_Portal: return "portal";
+	case ObjectType_Seat: return "seat";
 	default: return "Unknown";
 	}
 }
@@ -538,6 +539,7 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 	if(ob_type_string == "video") return ObjectType_Video;
 	if(ob_type_string == "text") return ObjectType_Text;
 	if(ob_type_string == "portal") return ObjectType_Portal;
+	if(ob_type_string == "seat") return ObjectType_Seat;
 	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
 }
 
@@ -577,6 +579,14 @@ static void writeWorldObjectPerTypeData(RandomAccessOutStream& stream, const Wor
 			stream.writeData(&ob.type_data.spotlight_data, sizeof(WorldObject::SpotLightTypeData));
 			break;
 		}
+		case WorldObject::ObjectType_Seat:
+		{
+			// Write length of per-type data
+			stream.writeUInt32(sizeof(WorldObject::SeatTypeData));
+
+			stream.writeData(&ob.type_data.seat_data, sizeof(WorldObject::SeatTypeData));
+			break;
+		}
 		default:
 		{
 			// Write length of per-type data
@@ -598,6 +608,11 @@ static void readWorldObjectPerTypeData(RandomAccessInStream& stream, WorldObject
 			stream.readData(&ob.type_data.spotlight_data, sizeof(WorldObject::SpotLightTypeData));
 			break;
 		}
+		case WorldObject::ObjectType_Seat:
+		{
+			stream.readData(&ob.type_data.seat_data, sizeof(WorldObject::SeatTypeData));
+			break;
+		}
 		default:
 			break;
 	}
@@ -616,6 +631,13 @@ static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
 	case WorldObject::ObjectType_Spotlight:
 		ob.type_data.spotlight_data.cone_start_angle = 0.317560429291521f; // = std::acos(0.95f); (old fixed value)
 		ob.type_data.spotlight_data.cone_end_angle   = 0.451026811796262f; // = std::acos(0.9f);  (old fixed value)
+		break;
+	case WorldObject::ObjectType_Seat:
+		// Set default values for SeatTypeData
+		ob.type_data.seat_data.upper_leg_angle = 1.57f; // ~90 degrees, legs bent forward at hips
+		ob.type_data.seat_data.lower_leg_angle = 1.57f; // ~90 degrees, bent at knees (negated in code)
+		ob.type_data.seat_data.upper_arm_angle = 2.65f; // ~152 degrees from overhead, arms down and slightly out
+		ob.type_data.seat_data.lower_arm_angle = 0.1f; // ~6 degrees, very slight elbow bend
 		break;
 	default:
 		break;

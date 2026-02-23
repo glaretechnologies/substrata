@@ -174,6 +174,7 @@ public:
 
 	Reference<WorldObject> entered_vehicle; // Reference to vehicle object that the avatar has entered, or should enter (e.g. is driving or a passenger)
 	uint32 vehicle_seat_index; // The index of the seat the avatar is sitting in, or will sit in, or was sitting in if the avatar has just exited the vehicle.
+	Reference<WorldObject> sitting_on_seat; // Reference to seat object that the avatar is sitting on
 	enum PendingVehicleTransition
 	{
 		VehicleNoChange,
@@ -181,6 +182,13 @@ public:
 		ExitVehicle // The avatar should exit the vehicle as soon as possible.
 	};
 	PendingVehicleTransition pending_vehicle_transition;
+	enum PendingSeatTransition
+	{
+		SeatNoChange,
+		SitOnSeat, // The avatar should sit on the seat 'sitting_on_seat' as soon as possible
+		StandUp // The avatar should stand up from the seat
+	};
+	PendingSeatTransition pending_seat_transition;
 
 
 	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.

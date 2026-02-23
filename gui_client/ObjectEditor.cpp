@@ -113,6 +113,11 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->spotlightStartAngleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->spotlightEndAngleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 
+	connect(this->upperLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->lowerLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->upperArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->lowerArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+
 
 	this->volumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VOLUME);
 	this->volumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
@@ -163,6 +168,7 @@ void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 	case WorldObject::ObjectType_Video: ob_type = "Video"; break;
 	case WorldObject::ObjectType_Text: ob_type = "Text"; break;
 	case WorldObject::ObjectType_Portal: ob_type = "Portal"; break;
+	case WorldObject::ObjectType_Seat: ob_type = "Seat"; break;
 	}
 
 	std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
@@ -274,6 +280,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -285,6 +292,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -296,6 +304,19 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->show();
+		this->seatGroupBox->hide();
+		this->audioGroupBox->hide();
+		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_Seat)
+	{
+		this->materialsGroupBox->show();
+		this->lightmapGroupBox->hide();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
+		this->seatGroupBox->show();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -307,6 +328,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->hide();
 		this->videoGroupBox->hide();
@@ -318,6 +340,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->hide();
 		this->videoGroupBox->show();
@@ -329,6 +352,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -340,6 +364,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->hide();
 		this->videoGroupBox->hide();
@@ -351,6 +376,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelLabel->show();
 		this->modelFileSelectWidget->show();
 		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -381,6 +407,18 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		SignalBlocker::setValue(this->spotlightEndAngleSpinBox,   ::radToDegree(ob.type_data.spotlight_data.cone_end_angle));
 
 		updateSpotlightColourButton();
+	}
+
+	// For seat:
+	if(ob.object_type == WorldObject::ObjectType_Seat)
+	{
+		// Sitting position and rotation are now determined by the seat object's transform
+		// and a fixed vertical offset, so they are no longer editable
+		
+		SignalBlocker::setValue(this->upperLegAngleDoubleSpinBox, ob.type_data.seat_data.upper_leg_angle);
+		SignalBlocker::setValue(this->lowerLegAngleDoubleSpinBox, ob.type_data.seat_data.lower_leg_angle);
+		SignalBlocker::setValue(this->upperArmAngleDoubleSpinBox, ob.type_data.seat_data.upper_arm_angle);
+		SignalBlocker::setValue(this->lowerArmAngleDoubleSpinBox, ob.type_data.seat_data.lower_arm_angle);
 	}
 
 
@@ -540,6 +578,18 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 
 		ob_out.type_data.spotlight_data.cone_start_angle = ::degreeToRad(this->spotlightStartAngleSpinBox->value());
 		ob_out.type_data.spotlight_data.cone_end_angle   = ::degreeToRad(this->spotlightEndAngleSpinBox->value());
+	}
+
+	// For seat:
+	if(ob_out.object_type == WorldObject::ObjectType_Seat)
+	{
+		// Sitting position and rotation are now determined by the seat object's transform
+		// and a fixed vertical offset, so they are no longer editable
+		
+		ob_out.type_data.seat_data.upper_leg_angle = (float)this->upperLegAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.lower_leg_angle = (float)this->lowerLegAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.upper_arm_angle = (float)this->upperArmAngleDoubleSpinBox->value();
+		ob_out.type_data.seat_data.lower_arm_angle = (float)this->lowerArmAngleDoubleSpinBox->value();
 	}
 
 	const URLString new_audio_source_url = toURLString(QtUtils::toStdString(this->audioFileWidget->filename()));

@@ -1091,6 +1091,107 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="seatGroupBox">
+     <property name="title">
+      <string>Seat</string>
+     </property>
+     <layout class="QFormLayout" name="seatFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="upperLegAngleLabel">
+        <property name="text">
+         <string>Upper leg angle:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="RealControl" name="upperLegAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="lowerLegAngleLabel">
+        <property name="text">
+         <string>Lower leg angle:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="RealControl" name="lowerLegAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+    <widget class="QLabel" name="upperArmAngleLabel">
+     <property name="text">
+      <string>Upper arm angle:</string>
+     </property>
+    </widget>
+      </item>
+      <item row="2" column="1">
+      <widget class="RealControl" name="upperArmAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>-3.141592653589793</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+    <widget class="QLabel" name="lowerArmAngleLabel">
+     <property name="text">
+      <string>Lower arm angle:</string>
+     </property>
+    </widget>
+      </item>
+      <item row="3" column="1">
+      <widget class="RealControl" name="lowerArmAngleDoubleSpinBox">
+        <property name="suffix">
+         <string> rad</string>
+        </property>
+        <property name="minimum">
+         <double>-3.141592653589793</double>
+        </property>
+        <property name="maximum">
+         <double>3.141592653589793</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <spacer name="bottomSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
