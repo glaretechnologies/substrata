@@ -41,7 +41,7 @@ jobs:
       - name: Checkout glare-core
         uses: actions/checkout@v4
         with:
-          repository: glaretechnologies/glare-core
+          repository: JerryBerry12/glare-core
           path: work/glare-core
 
       - name: Checkout winter
