@@ -266,7 +266,7 @@ def buildWindows(config, vs_version)
         puts "Removing 'opensource' from source dir name..."
         puts "old $qt_source_name: #{$qt_source_name}"
         
-        if File.exists?($qt_source_name + "/" + $qt_source_name_without_opensource)
+        if File.exist?($qt_source_name + "/" + $qt_source_name_without_opensource)
             FileUtils.mv($qt_source_name + "/" + $qt_source_name_without_opensource, $qt_source_name_without_opensource, :verbose=>true);
         end
         $qt_source_name = $qt_source_name_without_opensource
@@ -301,7 +301,7 @@ def buildWindows(config, vs_version)
 	else
 		vs_dir = "#{vs_install_drive}:\\Program Files (x86)\\Microsoft Visual Studio #{vs_versions[vs_version]}\\VC"
 	end
-	if !File.exists?(vs_dir)
+	if !File.exist?(vs_dir)
 		puts "Visual Studio dir not found: #{vs_dir}"
 		exit(1)
 	end
@@ -401,7 +401,7 @@ def buildUnix()
 	install_dir_name = getInstallDir()
 	build_dir_name = install_dir_name + "_build"
 
-	if File.exists?(install_dir_name)
+	if File.exist?(install_dir_name)
 		FileUtils.rm_r(install_dir_name)
 		puts "Deleted old install."
 	end
@@ -422,7 +422,7 @@ def buildUnix()
         puts "Removing 'opensource' from source dir name..."
         puts "old $qt_source_name: #{$qt_source_name}"
         
-        if File.exists?($qt_source_name + "/" + $qt_source_name_without_opensource)
+        if File.exist?($qt_source_name + "/" + $qt_source_name_without_opensource)
             FileUtils.mv($qt_source_name + "/" + $qt_source_name_without_opensource, $qt_source_name_without_opensource, :verbose=>true);
         end
         $qt_source_name = $qt_source_name_without_opensource
@@ -586,3 +586,4 @@ end
 }
 
 puts "Total build time: #{Timer.elapsedTime} s"
+
