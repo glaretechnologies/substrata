@@ -125,19 +125,56 @@ jobs:
         run: |
           ruby get_libs.rb
 
-      - name: Build Qt (Release only)
-        working-directory: work/substrata/scripts
+      - name: Provide Qt (Homebrew qt@5) and symlink into work/Qt/5.15.10
+        env:
+          BASE_DIR: ${{ github.workspace }}/work
         run: |
+          set -euxo pipefail
+
+          # heartbeat so long-running run is visible
           (while true; do
-            echo "[heartbeat] qt build running: $(date -u)"
+            echo "[heartbeat] qt provision running: $(date -u)"
             df -h /
             sleep 120
           done) &
           HEARTBEAT_PID=$!
 
-          ruby build_qt.rb --config "$BUILD_CONFIG"
+          # Install Homebrew Qt 5
+          brew update
+          brew install qt@5
 
-          kill $HEARTBEAT_PID
+          QT_PREFIX="$(brew --prefix qt@5)"
+          echo "Homebrew qt@5 prefix: $QT_PREFIX"
+
+          TARGET="$BASE_DIR/Qt/5.15.10"
+
+          # Ensure a clean target and parent dir
+          rm -rf "$TARGET"
+          mkdir -p "$(dirname "$TARGET")"
+          mkdir -p "$TARGET"
+
+          # Symlink common Qt install subdirs into the target layout Substrata expects.
+          for d in bin include lib plugins qml translations mkspecs; do
+            if [ -e "$QT_PREFIX/$d" ]; then
+              ln -s "$QT_PREFIX/$d" "$TARGET/$d"
+            fi
+          done
+
+          # Some Homebrew installs keep frameworks in lib; ensure qmake exists
+          if [ ! -x "$TARGET/bin/qmake" ]; then
+            echo "qmake not found at $TARGET/bin/qmake; listing $QT_PREFIX/bin:"
+            ls -la "$QT_PREFIX/bin" || true
+            kill $HEARTBEAT_PID || true
+            exit 1
+          fi
+
+          # Make sure subsequent steps pick up this Qt
+          export PATH="$TARGET/bin:$PATH"
+          export CMAKE_PREFIX_PATH="$TARGET:$CMAKE_PREFIX_PATH"
+
+          echo "Qt provisioned at $TARGET (symlinked from $QT_PREFIX)"
+
+          kill $HEARTBEAT_PID || true
 
       - name: Configure CMake (Release, no CEF, ARM64)
         run: |
