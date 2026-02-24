@@ -17,10 +17,11 @@ permissions:
 jobs:
   build-macos:
     runs-on: macos-latest
+
     env:
       BASE_DIR: ${{ github.workspace }}/work
 
-      # Matches docs: GLARE_CORE_LIBS is the "programming dir" itself.
+      # Glare build scripts expect these environment variables.
       GLARE_CORE_LIBS: ${{ github.workspace }}/work
       WINTER_DIR: ${{ github.workspace }}/work/winter
       GLARE_CORE_TRUNK_DIR: ${{ github.workspace }}/work/glare-core
@@ -30,7 +31,7 @@ jobs:
       BUILD_CONFIG: "Release"
 
     steps:
-      - name: Checkout this repo (your fork) into work/substrata
+      - name: Checkout this repo (kingdomvr) into work/substrata
         uses: actions/checkout@v4
         with:
           path: work/substrata
@@ -53,6 +54,8 @@ jobs:
           echo "uname -a: $(uname -a)"
           echo "uname -m: $(uname -m)"
           sysctl -n machdep.cpu.brand_string || true
+          ruby --version
+          cmake --version || true
           df -h
 
       - name: Install build prerequisites (Homebrew)
@@ -60,17 +63,11 @@ jobs:
           brew update
           brew install cmake ruby python3 ninja
 
-      - name: Ensure tools are available
-        run: |
-          ruby --version
-          python3 --version
-          cmake --version
-          make --version
-
       - name: Prepare directories
         run: |
           mkdir -p "$BASE_DIR"
           mkdir -p "$CYBERSPACE_OUTPUT"
+          mkdir -p "${{ github.workspace }}/logs"
 
       - name: Build LibreSSL + libjpeg-turbo (Release only)
         working-directory: work/glare-core/scripts
@@ -87,7 +84,7 @@ jobs:
 
           kill $HEARTBEAT_PID
 
-      - name: Build LLVM (Release only, reduced log spam)
+      - name: Build LLVM (Release only, reduced log spam + observable progress)
         working-directory: work/glare-core/scripts
         run: |
           set -euxo pipefail
@@ -97,19 +94,16 @@ jobs:
           LLVM_LOG="$LOG_DIR/llvm_build.log"
           : > "$LLVM_LOG"
 
-          # Background runner: run LLVM build and write all output to a log file.
-          # We do NOT stream full output to Actions logs.
           (
-            ruby build_llvm.rb --config "$BUILD_CONFIG" >"$LLVM_LOG" 2>&1
+            script -q /dev/null ruby build_llvm.rb --config "$BUILD_CONFIG" >"$LLVM_LOG" 2>&1
           ) &
           LLVM_PID=$!
 
-          # Heartbeat: every 30s, print a tiny status line + the first line of the log file (as requested).
-          # Also show disk space every 2 minutes.
           T=0
           while kill -0 "$LLVM_PID" 2>/dev/null; do
-            echo "[heartbeat] llvm still running: $(date -u)  (elapsed ${T}s)"
-            head -n 1 "$LLVM_LOG" || true
+            echo "[heartbeat] llvm still running: $(date -u) (elapsed ${T}s)"
+            echo "[llvm log bytes] $(wc -c < "$LLVM_LOG" 2>/dev/null || echo 0)"
+            tail -n 1 "$LLVM_LOG" || true
             if [ $((T % 120)) -eq 0 ]; then
               df -h /
             fi
@@ -117,7 +111,6 @@ jobs:
             T=$((T + 30))
           done
 
-          # Reap exit code and, if failure, print tail to help debugging.
           wait "$LLVM_PID" || {
             echo "LLVM build failed. Last 200 lines of log:"
             tail -n 200 "$LLVM_LOG" || true
