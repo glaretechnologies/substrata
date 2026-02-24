@@ -18,30 +18,28 @@ jobs:
   build-macos:
     runs-on: macos-latest
     env:
-      # Keep everything under the workspace.
       BASE_DIR: ${{ github.workspace }}/work
 
-      # Match your docs: GLARE_CORE_LIBS is the programming dir itself.
+      # Matches docs: GLARE_CORE_LIBS is the "programming dir" itself.
       GLARE_CORE_LIBS: ${{ github.workspace }}/work
       WINTER_DIR: ${{ github.workspace }}/work/winter
       GLARE_CORE_TRUNK_DIR: ${{ github.workspace }}/work/glare-core
       CYBERSPACE_OUTPUT: ${{ github.workspace }}/work/substrata_output
 
-      # Build options
       CEF_SUPPORT: "OFF"
       BUILD_CONFIG: "Release"
 
     steps:
-      # Check out your fork, but place it in a folder named "substrata" so scripts that assume ../substrata work.
       - name: Checkout this repo (your fork) into work/substrata
         uses: actions/checkout@v4
         with:
           path: work/substrata
 
-      - name: Checkout glare-core
+      - name: Checkout glare-core (JerryBerry12 fork)
         uses: actions/checkout@v4
         with:
           repository: JerryBerry12/glare-core
+          ref: master
           path: work/glare-core
 
       - name: Checkout winter
@@ -50,8 +48,12 @@ jobs:
           repository: glaretechnologies/winter
           path: work/winter
 
-      - name: Show disk space (before)
-        run: df -h
+      - name: Show runner + disk info (before)
+        run: |
+          echo "uname -a: $(uname -a)"
+          echo "uname -m: $(uname -m)"
+          sysctl -n machdep.cpu.brand_string || true
+          df -h
 
       - name: Install build prerequisites (Homebrew)
         run: |
@@ -63,21 +65,67 @@ jobs:
           ruby --version
           python3 --version
           cmake --version
-
-      # Intentionally no actions/cache: GLARE_CORE_LIBS is huge and will exceed included Actions cache storage.
+          make --version
 
       - name: Prepare directories
         run: |
           mkdir -p "$BASE_DIR"
           mkdir -p "$CYBERSPACE_OUTPUT"
 
-      - name: Build dependencies (Release only)
+      - name: Build LibreSSL + libjpeg-turbo (Release only)
         working-directory: work/glare-core/scripts
         run: |
-          # Per your request: force Release-only build in dependency scripts.
+          (while true; do
+            echo "[heartbeat] deps build running: $(date -u)"
+            df -h /
+            sleep 120
+          done) &
+          HEARTBEAT_PID=$!
+
           ruby build_libressl.rb --config "$BUILD_CONFIG"
-          ruby build_llvm.rb --config "$BUILD_CONFIG"
           ruby build_jpegturbo.rb --config "$BUILD_CONFIG"
+
+          kill $HEARTBEAT_PID
+
+      - name: Build LLVM (Release only, reduced log spam)
+        working-directory: work/glare-core/scripts
+        run: |
+          set -euxo pipefail
+
+          LOG_DIR="${{ github.workspace }}/logs"
+          mkdir -p "$LOG_DIR"
+          LLVM_LOG="$LOG_DIR/llvm_build.log"
+          : > "$LLVM_LOG"
+
+          # Background runner: run LLVM build and write all output to a log file.
+          # We do NOT stream full output to Actions logs.
+          (
+            ruby build_llvm.rb --config "$BUILD_CONFIG" >"$LLVM_LOG" 2>&1
+          ) &
+          LLVM_PID=$!
+
+          # Heartbeat: every 30s, print a tiny status line + the first line of the log file (as requested).
+          # Also show disk space every 2 minutes.
+          T=0
+          while kill -0 "$LLVM_PID" 2>/dev/null; do
+            echo "[heartbeat] llvm still running: $(date -u)  (elapsed ${T}s)"
+            head -n 1 "$LLVM_LOG" || true
+            if [ $((T % 120)) -eq 0 ]; then
+              df -h /
+            fi
+            sleep 30
+            T=$((T + 30))
+          done
+
+          # Reap exit code and, if failure, print tail to help debugging.
+          wait "$LLVM_PID" || {
+            echo "LLVM build failed. Last 200 lines of log:"
+            tail -n 200 "$LLVM_LOG" || true
+            exit 1
+          }
+
+          echo "LLVM build finished. Last 50 lines of log:"
+          tail -n 50 "$LLVM_LOG" || true
 
       - name: Get additional libs used by Substrata
         working-directory: work/substrata/scripts
@@ -87,18 +135,30 @@ jobs:
       - name: Build Qt (Release only)
         working-directory: work/substrata/scripts
         run: |
+          (while true; do
+            echo "[heartbeat] qt build running: $(date -u)"
+            df -h /
+            sleep 120
+          done) &
+          HEARTBEAT_PID=$!
+
           ruby build_qt.rb --config "$BUILD_CONFIG"
 
-      - name: Configure CMake (Release, no CEF)
+          kill $HEARTBEAT_PID
+
+      - name: Configure CMake (Release, no CEF, ARM64)
         run: |
           mkdir -p "$BASE_DIR/substrata_build"
           cd "$BASE_DIR/substrata_build"
-          cmake "$BASE_DIR/substrata" -DCEF_SUPPORT="$CEF_SUPPORT" -DCMAKE_BUILD_TYPE="$BUILD_CONFIG"
+          cmake "$BASE_DIR/substrata" \
+            -DCEF_SUPPORT="$CEF_SUPPORT" \
+            -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
+            -DTARGET_ARM64=ON
 
-      - name: Build gui_client
+      - name: Build gui_client (make)
         run: |
           cd "$BASE_DIR/substrata_build"
-          cmake --build . --config "$BUILD_CONFIG" --target gui_client -j 3
+          make gui_client -j 3
 
       - name: Copy runtime files to output (no CEF)
         working-directory: work/substrata/scripts
@@ -123,7 +183,6 @@ jobs:
             exit 1
           fi
 
-          # Remove quarantine attribute if present
           xattr -dr com.apple.quarantine "$APP_PATH" || true
 
           VERSION="$(ruby "$BASE_DIR/substrata/scripts/config.rb" --version || echo "unknown")"
@@ -135,7 +194,6 @@ jobs:
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_path=$BUILD_DIR/$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      # Option A: upload as an Actions artifact, short retention to reduce Actions storage usage.
       - name: Upload artifact (short retention)
         if: ${{ inputs.create_release != 'true' }}
         uses: actions/upload-artifact@v4
@@ -144,7 +202,6 @@ jobs:
           path: ${{ steps.package.outputs.zip_path }}
           retention-days: 1
 
-      # Option B: create a GitHub Release and upload the zip there (better for distribution).
       - name: Validate release inputs
         if: ${{ inputs.create_release == 'true' }}
         run: |
