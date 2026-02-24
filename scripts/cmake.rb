@@ -65,7 +65,7 @@ class CMakeBuild
 		
 		# allow_reconfig controls if the cmake directory will be deleted or if it can be reconfigured.
 		if allow_reconfig == false
-			if File.exists?(@build_dir)
+			if File.exist?(@build_dir)
 				FileUtils.rm_r(@build_dir)
 				puts "#{@build_name} CMake configure: Deleted old build directory."
 			end
@@ -73,7 +73,7 @@ class CMakeBuild
 			FileUtils.mkdir(@build_dir)
 		end
 		
-		if File.exists?(@install_dir)
+		if File.exist?(@install_dir)
 			FileUtils.rm_r(@install_dir)
 			puts "#{@build_name} CMake configure: Deleted old install directory."
 		end
@@ -158,7 +158,7 @@ class CMakeBuild
 		success_file_path = "#{install_dir}/#{successFilename()}"
 
 		# File doesn't exist: build was unsuccessful.
-		if !File.exists?(success_file_path)
+		if !File.exist?(success_file_path)
 			return false
 		end
 
@@ -388,3 +388,4 @@ class CMakeBuild
 		2022 => ["Visual Studio 17", "v143", 'C:\Program Files\Microsoft Visual Studio\2022\Community\Msbuild\Current\Bin\MSBuild.exe']
 	}
 end
+
