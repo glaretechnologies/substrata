@@ -238,7 +238,7 @@ end
 
 def downloadFileHTTPSIfNotOnDisk(disk_path, uri_string)
 
-	if File.exists?(disk_path)
+	if File.exist?(disk_path)
 		puts "Already present on disk at '#{disk_path}', skipping download of '#{uri_string}'."
 		return
 	end
@@ -274,7 +274,7 @@ def extractArchive(archive, silent = false)
 				exec_command("\"#{sevenz_path}\" x #{tar_archive} -y#{silent_flag}")
 				puts "Done."
 
-				if File.exists?(tar_archive)
+				if File.exist?(tar_archive)
 					FileUtils.rm_r(tar_archive)
 				end
 			elsif archive.include?(".zip")
@@ -522,3 +522,4 @@ class Timer
 	end
 
 end
+
