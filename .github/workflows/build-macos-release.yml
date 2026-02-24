@@ -1,0 +1,164 @@
+name: Build macOS gui_client (Release, no CEF)
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "If true, create a GitHub Release and upload the zip there"
+        required: true
+        default: "false"
+      tag_name:
+        description: "Release tag (required if create_release=true), e.g. v0.1.0"
+        required: false
+
+permissions:
+  contents: write # needed only if create_release=true
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    env:
+      # Keep everything under the workspace.
+      BASE_DIR: ${{ github.workspace }}/work
+
+      # Match your docs: GLARE_CORE_LIBS is the programming dir itself.
+      GLARE_CORE_LIBS: ${{ github.workspace }}/work
+      WINTER_DIR: ${{ github.workspace }}/work/winter
+      GLARE_CORE_TRUNK_DIR: ${{ github.workspace }}/work/glare-core
+      CYBERSPACE_OUTPUT: ${{ github.workspace }}/work/substrata_output
+
+      # Build options
+      CEF_SUPPORT: "OFF"
+      BUILD_CONFIG: "Release"
+
+    steps:
+      # Check out your fork, but place it in a folder named "substrata" so scripts that assume ../substrata work.
+      - name: Checkout this repo (your fork) into work/substrata
+        uses: actions/checkout@v4
+        with:
+          path: work/substrata
+
+      - name: Checkout glare-core
+        uses: actions/checkout@v4
+        with:
+          repository: glaretechnologies/glare-core
+          path: work/glare-core
+
+      - name: Checkout winter
+        uses: actions/checkout@v4
+        with:
+          repository: glaretechnologies/winter
+          path: work/winter
+
+      - name: Show disk space (before)
+        run: df -h
+
+      - name: Install build prerequisites (Homebrew)
+        run: |
+          brew update
+          brew install cmake ruby python3 ninja
+
+      - name: Ensure tools are available
+        run: |
+          ruby --version
+          python3 --version
+          cmake --version
+
+      # Intentionally no actions/cache: GLARE_CORE_LIBS is huge and will exceed included Actions cache storage.
+
+      - name: Prepare directories
+        run: |
+          mkdir -p "$BASE_DIR"
+          mkdir -p "$CYBERSPACE_OUTPUT"
+
+      - name: Build dependencies (Release only)
+        working-directory: work/glare-core/scripts
+        run: |
+          # Per your request: force Release-only build in dependency scripts.
+          ruby build_libressl.rb --config "$BUILD_CONFIG"
+          ruby build_llvm.rb --config "$BUILD_CONFIG"
+          ruby build_jpegturbo.rb --config "$BUILD_CONFIG"
+
+      - name: Get additional libs used by Substrata
+        working-directory: work/substrata/scripts
+        run: |
+          ruby get_libs.rb
+
+      - name: Build Qt (Release only)
+        working-directory: work/substrata/scripts
+        run: |
+          ruby build_qt.rb --config "$BUILD_CONFIG"
+
+      - name: Configure CMake (Release, no CEF)
+        run: |
+          mkdir -p "$BASE_DIR/substrata_build"
+          cd "$BASE_DIR/substrata_build"
+          cmake "$BASE_DIR/substrata" -DCEF_SUPPORT="$CEF_SUPPORT" -DCMAKE_BUILD_TYPE="$BUILD_CONFIG"
+
+      - name: Build gui_client
+        run: |
+          cd "$BASE_DIR/substrata_build"
+          cmake --build . --config "$BUILD_CONFIG" --target gui_client -j 3
+
+      - name: Copy runtime files to output (no CEF)
+        working-directory: work/substrata/scripts
+        run: |
+          ruby copy_files_to_output.rb --no_cef
+
+      - name: Show disk space (after build)
+        run: df -h
+
+      - name: Create distributable zip (gui_client.app)
+        id: package
+        run: |
+          set -euxo pipefail
+
+          BUILD_DIR="$BASE_DIR/substrata_build"
+          APP_PATH="$BUILD_DIR/gui_client.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app bundle not found at: $APP_PATH"
+            echo "Listing build dir:"
+            ls -la "$BUILD_DIR"
+            exit 1
+          fi
+
+          # Remove quarantine attribute if present
+          xattr -dr com.apple.quarantine "$APP_PATH" || true
+
+          VERSION="$(ruby "$BASE_DIR/substrata/scripts/config.rb" --version || echo "unknown")"
+          ZIP_NAME="substrata-macos-${VERSION}-gui_client-no-cef.zip"
+
+          cd "$BUILD_DIR"
+          /usr/bin/zip -r "$ZIP_NAME" "gui_client.app"
+
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$BUILD_DIR/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      # Option A: upload as an Actions artifact, short retention to reduce Actions storage usage.
+      - name: Upload artifact (short retention)
+        if: ${{ inputs.create_release != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-gui-client
+          path: ${{ steps.package.outputs.zip_path }}
+          retention-days: 1
+
+      # Option B: create a GitHub Release and upload the zip there (better for distribution).
+      - name: Validate release inputs
+        if: ${{ inputs.create_release == 'true' }}
+        run: |
+          if [ -z "${{ inputs.tag_name }}" ]; then
+            echo "tag_name is required when create_release=true"
+            exit 1
+          fi
+
+      - name: Create GitHub Release (draft) and upload asset
+        if: ${{ inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: ${{ inputs.tag_name }}
+          draft: true
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.zip_path }}
