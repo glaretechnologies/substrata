@@ -393,7 +393,7 @@ jobs:
 
           kill $HEARTBEAT_PID || true
 
-      - name: Configure CMake (Release, CEF flags if provided, ARM64)
+      - name: Configure CMake (Release, CEF flags if provided, ARM64) with sandbox linker fix
         env:
           # pick up CEF_SUPPORT and CEF_ROOT if earlier steps set them via GITHUB_ENV
           CEF_SUPPORT: ${{ env.CEF_SUPPORT }}
@@ -404,7 +404,7 @@ jobs:
           mkdir -p "$BASE_DIR/substrata_build"
           cd "$BASE_DIR/substrata_build"
 
-          # If CEF_ROOT was set earlier, pass it to CMake. Adjust flag name if your CMake uses a different variable.
+          # Build a string of CMake flags for CEF.
           CEF_FLAGS=""
           if [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
             CEF_FLAGS="-DCEF_SUPPORT=ON -DCEF_ROOT=${CEF_ROOT}"
@@ -412,11 +412,20 @@ jobs:
             CEF_FLAGS="-DCEF_SUPPORT=${CEF_SUPPORT}"
           fi
 
-          echo "Running cmake with flags: ${CEF_FLAGS}"
+          # If CEF is enabled on macOS we need to link the Apple sandbox library so cef_sandbox.a's
+          # references (sandbox_apply, sandbox_compile_string, etc.) are resolved.
+          EXTRA_LINK_FLAGS=""
+          if [ "${CEF_SUPPORT}" = "ON" ] || [ "${CEF_SUPPORT}" = "1" ]; then
+            # Add -lsandbox so linker finds sandbox_* symbols.
+            EXTRA_LINK_FLAGS="-lsandbox"
+          fi
+
+          echo "Running cmake with flags: ${CEF_FLAGS} and linker flags: ${EXTRA_LINK_FLAGS}"
           cmake "$BASE_DIR/substrata" \
             ${CEF_FLAGS} \
             -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
-            -DTARGET_ARM64=ON
+            -DTARGET_ARM64=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="${EXTRA_LINK_FLAGS}"
 
       - name: Build gui_client (make)
         run: |
