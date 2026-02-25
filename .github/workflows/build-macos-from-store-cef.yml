@@ -1,5 +1,3 @@
-# Build workflow that downloads prebuilt deps and optional CEF, builds libcef_dll_wrapper if necessary,
-# bundles Qt and CEF into the app, and packages the app.
 name: Build macOS gui_client using stored deps (Release, optional CEF)
 
 on:
@@ -17,7 +15,7 @@ on:
         required: false
         default: ""
       cef_archive_url:
-        description: "Optional direct URL to a prebuilt CEF binary distribution (tar.bz2, tar.gz, or zip). If provided, CEF_SUPPORT will be enabled and the archive will be extracted and the libcef_dll_wrapper built."
+        description: "Optional direct URL to a prebuilt CEF binary distribution (tar.bz2, tar.gz, or zip). If provided, CEF_SUPPORT will be enabled and the archive will be extracted and the libcef_dll_wrapper and cef_sandbox targets will be built if available."
         required: false
         default: ""
 
@@ -171,17 +169,16 @@ jobs:
           echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
           echo "Extracted CEF contents to: $BASE_DIR/cef_binary"
 
-      - name: Build libcef_dll_wrapper (if CEF was provided)
+      - name: Build libcef_dll_wrapper and ensure cef_sandbox exists (if CEF was provided)
         if: ${{ inputs.cef_archive_url != '' }}
         run: |
           set -euxo pipefail
 
-          # Try to detect the extracted CEF top-level directory
+          # Detect the extracted CEF top-level directory
           CAND="$(find "$BASE_DIR/cef_binary" -maxdepth 2 -type d -name 'cef_binary_*' -print -quit || true)"
           if [ -n "$CAND" ]; then
             CEF_EXTRACT="$CAND"
           elif [ -d "$BASE_DIR/cef_binary" ]; then
-            # maybe extracted directly into this dir
             CEF_EXTRACT="$BASE_DIR/cef_binary"
           else
             echo "CEF extraction directory not found under $BASE_DIR/cef_binary"
@@ -190,12 +187,12 @@ jobs:
 
           echo "CEF_EXTRACT detected as: $CEF_EXTRACT"
 
-          # Create libcef_dll_build and configure; force Unix Makefiles to ensure make targets
+          # Create libcef_dll_build and configure; force Unix Makefiles to ensure make targets exist
           BUILD_DIR="$CEF_EXTRACT/libcef_dll_build"
           mkdir -p "$BUILD_DIR"
           cd "$BUILD_DIR"
 
-          # Prefer Unix Makefiles generator so we get makefile targets like libcef_dll_wrapper
+          # Prefer Unix Makefiles generator so we get makefile targets like libcef_dll_wrapper and cef_sandbox
           if ! cmake -G "Unix Makefiles" ..; then
             echo "cmake with 'Unix Makefiles' failed; trying default generator"
             cmake ..
@@ -210,7 +207,36 @@ jobs:
             cmake --build . -- -j 3
           fi
 
-          # sanity check for expected artifact
+          # Attempt to build cef_sandbox target if present (some CEF distributions require this library for mac helper processes)
+          if cmake --build . --target cef_sandbox -- -j 3 2>/tmp/cef_sandbox_build.log; then
+            echo "cef_sandbox target built successfully"
+          else
+            echo "cef_sandbox target build either not present or failed; next we will try to locate any produced cef_sandbox.a"
+            tail -n 200 /tmp/cef_sandbox_build.log || true
+          fi
+
+          # Locate any cef_sandbox.a produced somewhere in the extracted tree
+          SANDBOX_PATH="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)"
+          if [ -n "$SANDBOX_PATH" ]; then
+            echo "Found cef_sandbox.a at: $SANDBOX_PATH"
+            # Ensure expected Release/ and Debug/ directories exist and copy the archive there (CMake expects <cef_dist>/Release/cef_sandbox.a etc.)
+            mkdir -p "$CEF_EXTRACT/Release"
+            mkdir -p "$CEF_EXTRACT/Debug"
+            cp -f "$SANDBOX_PATH" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
+            cp -f "$SANDBOX_PATH" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
+            echo "Copied cef_sandbox.a into $CEF_EXTRACT/Release/cef_sandbox.a and Debug/cef_sandbox.a"
+          else
+            echo "WARNING: cef_sandbox.a not found under $CEF_EXTRACT after build attempts."
+            echo "Listing $BUILD_DIR and $CEF_EXTRACT for debugging:"
+            ls -la "$BUILD_DIR" || true
+            ls -la "$BUILD_DIR/libcef_dll_wrapper" || true
+            find "$CEF_EXTRACT" -maxdepth 3 -type f -name '*sandbox*.a' -print || true
+            # Fail here because Substrata expects cef_sandbox.a present for mac builds (prevents obscure make errors later)
+            echo "ERROR: cef_sandbox.a required by Substrata build not found. You may need to build the full CEF binary distribution or use a different prebuilt archive that includes the sandbox static library."
+            exit 1
+          fi
+
+          # sanity check for wrapper artifact
           if [ ! -f "$BUILD_DIR/libcef_dll_wrapper/libcef_dll_wrapper.a" ]; then
             echo "ERROR: libcef_dll_wrapper.a not found after build. Listing build dir:"
             ls -la "$BUILD_DIR" || true
@@ -222,7 +248,7 @@ jobs:
 
           # Export variables for substrata CMake to consume:
           echo "CEF_ROOT=$CEF_EXTRACT" >> "$GITHUB_ENV"
-          # Ensure CMake sees the variable it reads from the environment:
+          # Ensure CMake sees the environment var it reads from:
           echo "CEF_BINARY_DISTRIB_DIR=$CEF_EXTRACT" >> "$GITHUB_ENV"
           echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
 
