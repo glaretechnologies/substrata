@@ -38,11 +38,10 @@ jobs:
 
       STORE_OWNER: "JerryBerry12"
       STORE_REPO: "kingdomvr-store-deps"
-      STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
 
     steps:
       - name: Fail if STORE_REPO_PAT not set
-        if: ${{ env.STORE_REPO_PAT == '' }}
+        if: ${{ secrets.STORE_REPO_PAT == '' }}
         run: |
           echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
           exit 1
@@ -59,10 +58,12 @@ jobs:
       - name: Install minimal tools (Homebrew)
         run: |
           brew update
-          brew install jq cmake ruby python3 ninja
+          brew install jq
 
       - name: Download deps archive from store repository
         id: download_asset
+        env:
+          STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
         run: |
           set -euxo pipefail
 
@@ -131,6 +132,15 @@ jobs:
           repository: glaretechnologies/winter
           path: work/winter
 
+      - name: Run ls stuff
+        env:
+          BASE_DIR: ${{ github.workspace }}/work
+        run: |
+          ls $BASE_DIR
+          ls $BASE_DIR/llvm
+          ls $BASE_DIR/libressl
+          ls $BASE_DIR/luau
+
       - name: Provide Qt (Homebrew qt@5) and symlink into work/Qt/5.15.10
         env:
           BASE_DIR: ${{ github.workspace }}/work
@@ -174,9 +184,9 @@ jobs:
             exit 1
           fi
 
-          # Make sure subsequent steps pick up this Qt
+          # Make sure subsequent steps pick up this Qt. Use safe expansion in case CMAKE_PREFIX_PATH is unset.
           export PATH="$TARGET/bin:$PATH"
-          export CMAKE_PREFIX_PATH="$TARGET:$CMAKE_PREFIX_PATH"
+          export CMAKE_PREFIX_PATH="$TARGET:${CMAKE_PREFIX_PATH:-}"
 
           echo "Qt provisioned at $TARGET (symlinked from $QT_PREFIX)"
 
