@@ -1,0 +1,473 @@
+# Build workflow that downloads prebuilt deps and optional CEF, bundles Qt, bundles CEF into the app, and packages the app.
+name: Build macOS gui_client using stored deps (Release, no CEF by default; optional CEF)
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "If true, create a GitHub Release and upload the zip there"
+        required: true
+        default: "false"
+      tag_name:
+        description: "Release tag (required if create_release=true), e.g. v0.1.0"
+        required: false
+      deps_release_tag:
+        description: "Tag in the deps store repo to download (optional). If empty, use latest."
+        required: false
+        default: ""
+      cef_archive_url:
+        description: "Optional direct URL to a prebuilt CEF binary distribution (tar.bz2, tar.gz, or zip). If provided, CEF_SUPPORT will be enabled and the archive will be extracted."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+
+    env:
+      BASE_DIR: ${{ github.workspace }}/work
+
+      # Glare build scripts expect these environment variables.
+      GLARE_CORE_LIBS: ${{ github.workspace }}/work
+      WINTER_DIR: ${{ github.workspace }}/work/winter
+      GLARE_CORE_TRUNK_DIR: ${{ github.workspace }}/work/glare-core
+      CYBERSPACE_OUTPUT: ${{ github.workspace }}/work/substrata_output
+
+      # Default is OFF; if user provides cef_archive_url the workflow will enable it at runtime.
+      CEF_SUPPORT: "OFF"
+      BUILD_CONFIG: "Release"
+
+      STORE_OWNER: "JerryBerry12"
+      STORE_REPO: "kingdomvr-store-deps"
+
+    steps:
+      - name: Check STORE_REPO_PAT secret at runtime
+        run: |
+          # Can't reference secrets in step-level 'if' during workflow validation,
+          # so check at runtime instead.
+          if [ -z "${{ secrets.STORE_REPO_PAT }}" ]; then
+            echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
+            exit 1
+          fi
+
+      - name: Show runner + disk info (before)
+        run: |
+          echo "uname -a: $(uname -a)"
+          echo "uname -m: $(uname -m)"
+          sysctl -n machdep.cpu.brand_string || true
+          ruby --version || true
+          cmake --version || true
+          df -h
+
+      - name: Install minimal tools (Homebrew)
+        run: |
+          brew update
+          brew install jq
+
+      - name: Download deps archive from store repository
+        id: download_asset
+        env:
+          STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
+        run: |
+          set -euxo pipefail
+
+          TAG_INPUT="${{ github.event.inputs.deps_release_tag }}"
+          API="https://api.github.com/repos/${STORE_OWNER}/${STORE_REPO}"
+
+          if [ -n "$TAG_INPUT" ]; then
+            echo "Using provided deps tag: $TAG_INPUT"
+            REL_RESP=$(curl -s -H "Authorization: token ${STORE_REPO_PAT}" "${API}/releases/tags/${TAG_INPUT}")
+          else
+            echo "Getting latest deps release"
+            REL_RESP=$(curl -s -H "Authorization: token ${STORE_REPO_PAT}" "${API}/releases/latest")
+          fi
+
+          ASSET_URL=$(echo "$REL_RESP" | jq -r '.assets[0].url // ""')
+          ASSET_NAME=$(echo "$REL_RESP" | jq -r '.assets[0].name // ""')
+
+          if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
+            echo "No assets found in the selected deps release. Response:"
+            echo "$REL_RESP"
+            exit 1
+          fi
+
+          echo "Found asset: $ASSET_NAME"
+          DEST="${{ github.workspace }}/$ASSET_NAME"
+
+          # Download using the asset API url (requires Accept header)
+          curl -L -H "Authorization: token ${STORE_REPO_PAT}" -H "Accept: application/octet-stream" \
+            -o "$DEST" "$ASSET_URL"
+
+          echo "downloaded_asset=$DEST" >> "$GITHUB_OUTPUT"
+
+      - name: Extract archive into $BASE_DIR
+        run: |
+          set -euxo pipefail
+          ARCHIVE="${{ steps.download_asset.outputs.downloaded_asset }}"
+          if [ -z "$ARCHIVE" ] || [ ! -f "$ARCHIVE" ]; then
+            echo "Archive not found at $ARCHIVE - attempting fallback search"
+            ARCHIVE="$(ls ${GITHUB_WORKSPACE}/*kingdomvr-deps*.tar.gz | head -n1 || true)"
+            echo "Fallback archive: $ARCHIVE"
+          fi
+          if [ -z "$ARCHIVE" ] || [ ! -f "$ARCHIVE" ]; then
+            echo "Archive not found."
+            ls -la "${GITHUB_WORKSPACE}"
+            exit 1
+          fi
+          mkdir -p "$BASE_DIR"
+          tar -xzf "$ARCHIVE" -C "$BASE_DIR"
+          echo "Extracted $ARCHIVE -> $BASE_DIR"
+
+      - name: Optionally download & extract prebuilt CEF (enable CEF_SUPPORT)
+        if: ${{ inputs.cef_archive_url != '' }}
+        run: |
+          set -euxo pipefail
+
+          CEF_URL="${{ github.event.inputs.cef_archive_url }}"
+          echo "Downloading CEF archive from: $CEF_URL"
+
+          mkdir -p "${{ github.workspace }}/cef_download"
+          CEF_ARCHIVE="${{ github.workspace }}/cef_download/cef_archive"
+          # Support common archive extensions; preserve extension for extraction.
+          EXT="${CEF_URL##*.}"
+          case "$EXT" in
+            bz2|tbz2)
+              CEF_ARCHIVE="${CEF_ARCHIVE}.tar.bz2"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR/cef_binary"
+              tar -xjf "$CEF_ARCHIVE" -C "$BASE_DIR/cef_binary"
+              ;;
+            gz|tgz)
+              CEF_ARCHIVE="${CEF_ARCHIVE}.tar.gz"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR/cef_binary"
+              tar -xzf "$CEF_ARCHIVE" -C "$BASE_DIR/cef_binary"
+              ;;
+            zip)
+              CEF_ARCHIVE="${CEF_ARCHIVE}.zip"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR/cef_binary"
+              unzip -q "$CEF_ARCHIVE" -d "$BASE_DIR/cef_binary"
+              ;;
+            *)
+              # Try curl + tar auto-detect (best-effort)
+              CEF_ARCHIVE="${CEF_ARCHIVE}.tar.gz"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR/cef_binary"
+              tar -xzf "$CEF_ARCHIVE" -C "$BASE_DIR/cef_binary" || { echo "Extraction failed; try providing a .tar.bz2/.tar.gz/.zip URL"; exit 1; }
+              ;;
+          esac
+
+          # Expose CEF_ROOT and enable CEF_SUPPORT for subsequent steps
+          echo "CEF_ROOT=$BASE_DIR/cef_binary" >> "$GITHUB_ENV"
+          echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
+          echo "Extracted CEF contents to: $BASE_DIR/cef_binary"
+          echo "Note: workflow will attempt to copy Chromium Embedded Framework.framework and helper apps into the .app bundle before packaging."
+
+      - name: Checkout this repo (kingdomvr) into work/substrata (reclone)
+        uses: actions/checkout@v4
+        with:
+          path: work/substrata
+
+      - name: Checkout glare-core (JerryBerry12 fork) (reclone)
+        uses: actions/checkout@v4
+        with:
+          repository: JerryBerry12/glare-core
+          ref: master
+          path: work/glare-core
+
+      - name: Checkout winter (reclone)
+        uses: actions/checkout@v4
+        with:
+          repository: glaretechnologies/winter
+          path: work/winter
+
+      - name: Provide Qt (Homebrew qt@5) and symlink into work/Qt/5.15.10
+        env:
+          BASE_DIR: ${{ github.workspace }}/work
+        run: |
+          set -euxo pipefail
+
+          # heartbeat so long-running run is visible
+          (while true; do
+            echo "[heartbeat] qt provision running: $(date -u)"
+            df -h /
+            sleep 120
+          done) &
+          HEARTBEAT_PID=$!
+
+          # Install Homebrew Qt 5
+          brew update
+          brew install qt@5
+
+          QT_PREFIX="$(brew --prefix qt@5)"
+          echo "Homebrew qt@5 prefix: $QT_PREFIX"
+
+          TARGET="$BASE_DIR/Qt/5.15.10"
+
+          # Ensure a clean target and parent dir
+          rm -rf "$TARGET"
+          mkdir -p "$(dirname "$TARGET")"
+          mkdir -p "$TARGET"
+
+          # Symlink common Qt install subdirs into the target layout Substrata expects.
+          for d in bin include lib plugins qml translations mkspecs; do
+            if [ -e "$QT_PREFIX/$d" ]; then
+              ln -s "$QT_PREFIX/$d" "$TARGET/$d"
+            fi
+          done
+
+          if [ ! -x "$TARGET/bin/qmake" ]; then
+            echo "qmake not found at $TARGET/bin/qmake; listing $QT_PREFIX/bin:"
+            ls -la "$QT_PREFIX/bin" || true
+            kill $HEARTBEAT_PID || true
+            exit 1
+          fi
+
+          # Make sure subsequent steps pick up this Qt. Use safe expansion in case CMAKE_PREFIX_PATH is unset.
+          export PATH="$TARGET/bin:$PATH"
+          export CMAKE_PREFIX_PATH="$TARGET:${CMAKE_PREFIX_PATH:-}"
+
+          echo "Qt provisioned at $TARGET (symlinked from $QT_PREFIX)"
+
+          kill $HEARTBEAT_PID || true
+
+      - name: Configure CMake (Release, no CEF by default, ARM64)
+        env:
+          # pick up CEF_SUPPORT and CEF_ROOT if the optional CEF step ran (GITHUB_ENV writes will persist)
+          CEF_SUPPORT: ${{ env.CEF_SUPPORT }}
+        run: |
+          set -euxo pipefail
+
+          mkdir -p "$BASE_DIR/substrata_build"
+          cd "$BASE_DIR/substrata_build"
+
+          # If CEF_ROOT was set earlier, pass it to CMake. Many projects use -DCEF_ROOT or -DCEF_BINARY_DIR; adjust if your CMake uses a different variable.
+          CEF_FLAGS=""
+          if [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
+            CEF_FLAGS="-DCEF_SUPPORT=ON -DCEF_ROOT=${CEF_ROOT}"
+          else
+            CEF_FLAGS="-DCEF_SUPPORT=${CEF_SUPPORT}"
+          fi
+
+          echo "Running cmake with flags: ${CEF_FLAGS}"
+          cmake "$BASE_DIR/substrata" \
+            ${CEF_FLAGS} \
+            -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
+            -DTARGET_ARM64=ON
+
+      - name: Build gui_client (make)
+        run: |
+          cd "$BASE_DIR/substrata_build"
+          make gui_client -j 3
+
+      - name: Locate the real built app (prefer substrata_output GUI that contains the binary), copy prebuilt CEF into it (if present), and run macdeployqt
+        run: |
+          set -euxo pipefail
+
+          # Prefer any gui_client.app under substrata_output that actually contains a binary
+          APP=""
+          if [ -d "$BASE_DIR/substrata_output" ]; then
+            APP="$(find "$BASE_DIR/substrata_output" -type d -name "gui_client.app" -print0 2>/dev/null | xargs -0 -n1 -I{} sh -c '[ -f "{}/Contents/MacOS/gui_client" ] && printf "%s\n" "{}" && exit 0 || true' || true | head -n1 || true)"
+          fi
+
+          # Fallback to possible build dir app
+          if [ -z "$APP" ] && [ -d "$BASE_DIR/substrata_build" ]; then
+            if [ -f "$BASE_DIR/substrata_build/gui_client.app/Contents/MacOS/gui_client" ]; then
+              APP="$BASE_DIR/substrata_build/gui_client.app"
+            fi
+          fi
+
+          # Final fallback: search whole BASE_DIR
+          if [ -z "$APP" ]; then
+            while IFS= read -r dir; do
+              if [ -f "$dir/Contents/MacOS/gui_client" ]; then
+                APP="$dir"
+                break
+              fi
+            done < <(find "$BASE_DIR" -type d -name "gui_client.app" -print 2>/dev/null)
+          fi
+
+          if [ -z "$APP" ]; then
+            echo "No gui_client.app with binary found. Debug listings:"
+            echo "Contents of substrata_build:"
+            ls -la "$BASE_DIR/substrata_build" || true
+            echo "Contents of substrata_output:"
+            ls -la "$BASE_DIR/substrata_output" || true
+            echo "Attempting to locate any gui_client.app:"
+            find "$BASE_DIR" -type d -name "gui_client.app" -maxdepth 5 -print || true
+            exit 1
+          fi
+
+          echo "Found built app at: $APP"
+
+          # If we downloaded/extracted CEF, try to copy it into the app before bundling
+          if [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
+            echo "CEF_ROOT is set to: $CEF_ROOT - attempting to copy CEF runtime into $APP"
+
+            # Find a Chromium Embedded Framework.framework inside the extracted CEF
+            CEF_FRAMEWORK="$(find "$CEF_ROOT" -type d -name 'Chromium Embedded Framework.framework' -print -quit || true)"
+            if [ -n "$CEF_FRAMEWORK" ]; then
+              mkdir -p "$APP/Contents/Frameworks"
+              echo "Copying framework: $CEF_FRAMEWORK -> $APP/Contents/Frameworks/"
+              cp -R "$CEF_FRAMEWORK" "$APP/Contents/Frameworks/" || true
+            else
+              echo "No Chromium Embedded Framework.framework found under $CEF_ROOT. Listing $CEF_ROOT for debug:"
+              ls -la "$CEF_ROOT" || true
+            fi
+
+            # Copy helper apps found in the CEF distribution into Contents/Frameworks (or adjust if you want other target)
+            while IFS= read -r helper; do
+              [ -n "$helper" ] || continue
+              echo "Copying helper app: $helper -> $APP/Contents/Frameworks/"
+              cp -R "$helper" "$APP/Contents/Frameworks/" || true
+            done < <(find "$CEF_ROOT" -type d -name "*Helper*.app" -maxdepth 3 -print || true)
+          fi
+
+          QT_PREFIX="$(brew --prefix qt@5)"
+          MACDEPLOYQT="$QT_PREFIX/bin/macdeployqt"
+
+          if [ ! -x "$MACDEPLOYQT" ]; then
+            echo "macdeployqt not found at $MACDEPLOYQT"
+            echo "Qt prefix contents:"
+            ls -la "$QT_PREFIX/bin" || true
+            exit 1
+          fi
+
+          echo "Running macdeployqt on $APP"
+          "$MACDEPLOYQT" "$APP" -verbose=2 || {
+            echo "macdeployqt failed on $APP"
+            exit 1
+          }
+
+          echo "macdeployqt finished. Verifying bundling:"
+          echo "Linked libraries for the binary:"
+          otool -L "$APP/Contents/MacOS/gui_client" || true
+          echo "Contents/Frameworks:"
+          ls -la "$APP/Contents/Frameworks" || true
+          echo "Contents/PlugIns (if present):"
+          ls -la "$APP/Contents/PlugIns" || true
+
+      - name: Copy runtime files to output (no CEF flag passed earlier still respected by script)
+        working-directory: work/substrata/scripts
+        run: |
+          ruby copy_files_to_output.rb --no_cef
+
+      - name: Ensure final output app is bundled (run macdeployqt again if copy moved/created the final app; and copy CEF into final app if needed)
+        run: |
+          set -euxo pipefail
+
+          # Find final app (prefer substrata_output root, then test_builds)
+          FINAL_APP="$(find "$BASE_DIR/substrata_output" -type d -name "gui_client.app" -print -quit || true)"
+
+          if [ -z "$FINAL_APP" ]; then
+            FINAL_APP="$BASE_DIR/substrata_output/test_builds/gui_client.app"
+          fi
+
+          if [ -z "$FINAL_APP" ] || [ ! -d "$FINAL_APP" ]; then
+            echo "Final app not found after copy. Listing substrata_output for debug:"
+            ls -la "$BASE_DIR/substrata_output" || true
+            find "$BASE_DIR" -type d -name "gui_client.app" -print || true
+            exit 1
+          fi
+
+          echo "Final app located at: $FINAL_APP"
+
+          if [ ! -f "$FINAL_APP/Contents/MacOS/gui_client" ]; then
+            echo "Final app is missing the gui_client binary at: $FINAL_APP/Contents/MacOS/gui_client"
+            echo "Dumping final app contents for debug:"
+            ls -la "$FINAL_APP/Contents" || true
+            exit 1
+          fi
+
+          # If CEF_ROOT exists and we haven't copied frameworks to final app, copy now
+          if [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
+            CEF_FRAMEWORK="$(find "$CEF_ROOT" -type d -name 'Chromium Embedded Framework.framework' -print -quit || true)"
+            if [ -n "$CEF_FRAMEWORK" ]; then
+              mkdir -p "$FINAL_APP/Contents/Frameworks"
+              cp -R "$CEF_FRAMEWORK" "$FINAL_APP/Contents/Frameworks/" || true
+            fi
+            while IFS= read -r helper; do
+              [ -n "$helper" ] || continue
+              cp -R "$helper" "$FINAL_APP/Contents/Frameworks/" || true
+            done < <(find "$CEF_ROOT" -type d -name "*Helper*.app" -maxdepth 3 -print || true)
+          fi
+
+          # Ensure macdeployqt has been run on final app (harmless if already done)
+          QT_PREFIX="$(brew --prefix qt@5)"
+          MACDEPLOYQT="$QT_PREFIX/bin/macdeployqt"
+
+          echo "Running macdeployqt on final app: $FINAL_APP"
+          "$MACDEPLOYQT" "$FINAL_APP" -verbose=2 || {
+            echo "macdeployqt (final) failed on $FINAL_APP"
+            exit 1
+          }
+
+          echo "Final macdeployqt run finished. Verification:"
+          otool -L "$FINAL_APP/Contents/MacOS/gui_client" || true
+          ls -la "$FINAL_APP/Contents/Frameworks" || true
+          ls -la "$FINAL_APP/Contents/PlugIns" || true
+
+      - name: Show disk space (after build)
+        run: df -h
+
+      - name: Create distributable zip (gui_client.app) from final output app
+        id: package
+        run: |
+          set -euxo pipefail
+
+          # Locate the final app again
+          FINAL_APP="$(find "$BASE_DIR/substrata_output" -type d -name "gui_client.app" -print -quit || true)"
+          if [ -z "$FINAL_APP" ]; then
+            FINAL_APP="$(find "$BASE_DIR" -type d -name "gui_client.app" -print -quit || true)"
+          fi
+
+          if [ -z "$FINAL_APP" ] || [ ! -d "$FINAL_APP" ]; then
+            echo "Final app not found for packaging. Debug:"
+            ls -la "$BASE_DIR/substrata_output" || true
+            find "$BASE_DIR" -type d -name "gui_client.app" -print || true
+            exit 1
+          fi
+
+          echo "Packaging app at: $FINAL_APP"
+
+          xattr -dr com.apple.quarantine "$FINAL_APP" || true
+
+          VERSION="$(ruby "$BASE_DIR/substrata/scripts/config.rb" --version || echo "unknown")"
+          ZIP_NAME="substrata-macos-${VERSION}-gui_client-no-cef.zip"
+          ZIP_PATH="${{ github.workspace }}/$ZIP_NAME"
+
+          cd "$(dirname "$FINAL_APP")"
+          /usr/bin/zip -r "$ZIP_PATH" "$(basename "$FINAL_APP")"
+
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact (short retention)
+        if: ${{ inputs.create_release != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-gui-client
+          path: ${{ steps.package.outputs.zip_path }}
+          retention-days: 1
+
+      - name: Validate release inputs
+        if: ${{ inputs.create_release == 'true' }}
+        run: |
+          if [ -z "${{ inputs.tag_name }}" ]; then
+            echo "tag_name is required when create_release=true"
+            exit 1
+          fi
+
+      - name: Create GitHub Release (draft) and upload asset
+        if: ${{ inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: ${{ inputs.tag_name }}
+          draft: true
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.zip_path }}
