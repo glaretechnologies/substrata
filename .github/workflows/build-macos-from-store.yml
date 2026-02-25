@@ -1,0 +1,258 @@
+# Download deps archive from private store repo, extract to work/, reclone sources, provision Qt, and continue building gui_client
+# Based on original workflow at: https://github.com/KingdomVR/kingdomvr/blob/3afd38bdd3c638e4e38765fea60fcc3099db5d6d/.github/workflows/build-macos-release.yml
+name: Build macOS gui_client using stored deps (Release, no CEF)
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "If true, create a GitHub Release and upload the zip there"
+        required: true
+        default: "false"
+      tag_name:
+        description: "Release tag (required if create_release=true), e.g. v0.1.0"
+        required: false
+      deps_release_tag:
+        description: "Tag in the deps store repo to download (optional). If empty, use latest."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+
+    env:
+      BASE_DIR: ${{ github.workspace }}/work
+
+      # Glare build scripts expect these environment variables.
+      GLARE_CORE_LIBS: ${{ github.workspace }}/work
+      WINTER_DIR: ${{ github.workspace }}/work/winter
+      GLARE_CORE_TRUNK_DIR: ${{ github.workspace }}/work/glare-core
+      CYBERSPACE_OUTPUT: ${{ github.workspace }}/work/substrata_output
+
+      CEF_SUPPORT: "OFF"
+      BUILD_CONFIG: "Release"
+
+      STORE_OWNER: "JerryBerry12"
+      STORE_REPO: "kingdomvr-store-deps"
+
+    steps:
+      - name: Fail if STORE_REPO_PAT not set
+        if: ${{ secrets.STORE_REPO_PAT == '' }}
+        run: |
+          echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
+          exit 1
+
+      - name: Show runner + disk info (before)
+        run: |
+          echo "uname -a: $(uname -a)"
+          echo "uname -m: $(uname -m)"
+          sysctl -n machdep.cpu.brand_string || true
+          ruby --version || true
+          cmake --version || true
+          df -h
+
+      - name: Install minimal tools (Homebrew)
+        run: |
+          brew update
+          brew install jq
+
+      - name: Download deps archive from store repository
+        id: download_asset
+        env:
+          STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
+        run: |
+          set -euxo pipefail
+
+          TAG_INPUT="${{ github.event.inputs.deps_release_tag }}"
+          API="https://api.github.com/repos/${STORE_OWNER}/${STORE_REPO}"
+
+          if [ -n "$TAG_INPUT" ]; then
+            echo "Using provided deps tag: $TAG_INPUT"
+            REL_RESP=$(curl -s -H "Authorization: token ${STORE_REPO_PAT}" "${API}/releases/tags/${TAG_INPUT}")
+          else
+            echo "Getting latest deps release"
+            REL_RESP=$(curl -s -H "Authorization: token ${STORE_REPO_PAT}" "${API}/releases/latest")
+          fi
+
+          ASSET_URL=$(echo "$REL_RESP" | jq -r '.assets[0].url // ""')
+          ASSET_NAME=$(echo "$REL_RESP" | jq -r '.assets[0].name // ""')
+
+          if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
+            echo "No assets found in the selected deps release. Response:"
+            echo "$REL_RESP"
+            exit 1
+          fi
+
+          echo "Found asset: $ASSET_NAME"
+          DEST="${{ github.workspace }}/$ASSET_NAME"
+
+          # Download using the asset API url (requires Accept header)
+          curl -L -H "Authorization: token ${STORE_REPO_PAT}" -H "Accept: application/octet-stream" \
+            -o "$DEST" "$ASSET_URL"
+
+          echo "downloaded_asset=$DEST" >> "$GITHUB_OUTPUT"
+
+      - name: Extract archive into $BASE_DIR
+        run: |
+          set -euxo pipefail
+          ARCHIVE="${{ steps.download_asset.outputs.downloaded_asset }}"
+          if [ -z "$ARCHIVE" ] || [ ! -f "$ARCHIVE" ]; then
+            echo "Archive not found at $ARCHIVE - attempting fallback search"
+            ARCHIVE="$(ls ${GITHUB_WORKSPACE}/*kingdomvr-deps*.tar.gz | head -n1 || true)"
+            echo "Fallback archive: $ARCHIVE"
+          fi
+          if [ -z "$ARCHIVE" ] || [ ! -f "$ARCHIVE" ]; then
+            echo "Archive not found."
+            ls -la "${GITHUB_WORKSPACE}"
+            exit 1
+          fi
+          mkdir -p "$BASE_DIR"
+          tar -xzf "$ARCHIVE" -C "$BASE_DIR"
+          echo "Extracted $ARCHIVE -> $BASE_DIR"
+
+      - name: Checkout this repo (kingdomvr) into work/substrata (reclone)
+        uses: actions/checkout@v4
+        with:
+          path: work/substrata
+
+      - name: Checkout glare-core (JerryBerry12 fork) (reclone)
+        uses: actions/checkout@v4
+        with:
+          repository: JerryBerry12/glare-core
+          ref: master
+          path: work/glare-core
+
+      - name: Checkout winter (reclone)
+        uses: actions/checkout@v4
+        with:
+          repository: glaretechnologies/winter
+          path: work/winter
+
+      - name: Provide Qt (Homebrew qt@5) and symlink into work/Qt/5.15.10
+        env:
+          BASE_DIR: ${{ github.workspace }}/work
+        run: |
+          set -euxo pipefail
+
+          # heartbeat so long-running run is visible
+          (while true; do
+            echo "[heartbeat] qt provision running: $(date -u)"
+            df -h /
+            sleep 120
+          done) &
+          HEARTBEAT_PID=$!
+
+          # Install Homebrew Qt 5
+          brew update
+          brew install qt@5
+
+          QT_PREFIX="$(brew --prefix qt@5)"
+          echo "Homebrew qt@5 prefix: $QT_PREFIX"
+
+          TARGET="$BASE_DIR/Qt/5.15.10"
+
+          # Ensure a clean target and parent dir
+          rm -rf "$TARGET"
+          mkdir -p "$(dirname "$TARGET")"
+          mkdir -p "$TARGET"
+
+          # Symlink common Qt install subdirs into the target layout Substrata expects.
+          for d in bin include lib plugins qml translations mkspecs; do
+            if [ -e "$QT_PREFIX/$d" ]; then
+              ln -s "$QT_PREFIX/$d" "$TARGET/$d"
+            fi
+          done
+
+          # Some Homebrew installs keep frameworks in lib; ensure qmake exists
+          if [ ! -x "$TARGET/bin/qmake" ]; then
+            echo "qmake not found at $TARGET/bin/qmake; listing $QT_PREFIX/bin:"
+            ls -la "$QT_PREFIX/bin" || true
+            kill $HEARTBEAT_PID || true
+            exit 1
+          fi
+
+          # Make sure subsequent steps pick up this Qt
+          export PATH="$TARGET/bin:$PATH"
+          export CMAKE_PREFIX_PATH="$TARGET:$CMAKE_PREFIX_PATH"
+
+          echo "Qt provisioned at $TARGET (symlinked from $QT_PREFIX)"
+
+          kill $HEARTBEAT_PID || true
+
+      - name: Configure CMake (Release, no CEF, ARM64)
+        run: |
+          mkdir -p "$BASE_DIR/substrata_build"
+          cd "$BASE_DIR/substrata_build"
+          cmake "$BASE_DIR/substrata" \
+            -DCEF_SUPPORT="$CEF_SUPPORT" \
+            -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
+            -DTARGET_ARM64=ON
+
+      - name: Build gui_client (make)
+        run: |
+          cd "$BASE_DIR/substrata_build"
+          make gui_client -j 3
+
+      - name: Copy runtime files to output (no CEF)
+        working-directory: work/substrata/scripts
+        run: |
+          ruby copy_files_to_output.rb --no_cef
+
+      - name: Show disk space (after build)
+        run: df -h
+
+      - name: Create distributable zip (gui_client.app)
+        id: package
+        run: |
+          set -euxo pipefail
+
+          BUILD_DIR="$BASE_DIR/substrata_build"
+          APP_PATH="$BUILD_DIR/gui_client.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app bundle not found at: $APP_PATH"
+            echo "Listing build dir:"
+            ls -la "$BUILD_DIR"
+            exit 1
+          fi
+
+          xattr -dr com.apple.quarantine "$APP_PATH" || true
+
+          VERSION="$(ruby "$BASE_DIR/substrata/scripts/config.rb" --version || echo "unknown")"
+          ZIP_NAME="substrata-macos-${VERSION}-gui_client-no-cef.zip"
+
+          cd "$BUILD_DIR"
+          /usr/bin/zip -r "$ZIP_NAME" "gui_client.app"
+
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$BUILD_DIR/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact (short retention)
+        if: ${{ inputs.create_release != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-gui-client
+          path: ${{ steps.package.outputs.zip_path }}
+          retention-days: 1
+
+      - name: Validate release inputs
+        if: ${{ inputs.create_release == 'true' }}
+        run: |
+          if [ -z "${{ inputs.tag_name }}" ]; then
+            echo "tag_name is required when create_release=true"
+            exit 1
+          fi
+
+      - name: Create GitHub Release (draft) and upload asset
+        if: ${{ inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: ${{ inputs.tag_name }}
+          draft: true
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.zip_path }}
