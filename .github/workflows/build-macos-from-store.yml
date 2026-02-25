@@ -1,5 +1,5 @@
-# Download deps archive from private store repo, extract to work/, reclone sources, provision Qt, bundle Qt into the app with macdeployqt,
-# and continue building gui_client (Release, no CEF).
+# Download deps archive from private store repo, extract to work/, reclone sources, provision Qt, run macdeployqt on the built app,
+# then copy files to output and create a self-contained app zip (Release, no CEF).
 name: Build macOS gui_client using stored deps (Release, no CEF)
 
 on:
@@ -170,7 +170,6 @@ jobs:
             fi
           done
 
-          # Some Homebrew installs keep frameworks in lib; ensure qmake exists
           if [ ! -x "$TARGET/bin/qmake" ]; then
             echo "qmake not found at $TARGET/bin/qmake; listing $QT_PREFIX/bin:"
             ls -la "$QT_PREFIX/bin" || true
@@ -200,27 +199,50 @@ jobs:
           cd "$BASE_DIR/substrata_build"
           make gui_client -j 3
 
-      - name: Copy runtime files to output (no CEF)
-        working-directory: work/substrata/scripts
-        run: |
-          ruby copy_files_to_output.rb --no_cef
-
-      - name: Bundle Qt into the app with macdeployqt
+      - name: Find the built gui_client.app and run macdeployqt (bundles Qt into the app)
         run: |
           set -euxo pipefail
 
-          # Where your packaging places the built app:
-          APP_PATH="$BASE_DIR/substrata_output/test_builds/gui_client.app"
+          # Look for common app locations that may contain the real binary
+          CANDIDATES=(
+            "$BASE_DIR/substrata_build/gui_client.app"
+            "$BASE_DIR/substrata_output/gui_client.app"
+            "$BASE_DIR/substrata_output/test_builds/gui_client.app"
+            "$BASE_DIR/substrata_output/substrata_build/gui_client.app"
+          )
 
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Expected app bundle not found at: $APP_PATH"
-            echo "Listing likely output locations:"
+          APP=""
+          for p in "${CANDIDATES[@]}"; do
+            if [ -d "$p" ] && [ -f "$p/Contents/MacOS/gui_client" ]; then
+              APP="$p"
+              break
+            fi
+          done
+
+          # fallback: search for any gui_client.app under BASE_DIR containing a binary
+          if [ -z "$APP" ]; then
+            while IFS= read -r dir; do
+              if [ -f "$dir/Contents/MacOS/gui_client" ]; then
+                APP="$dir"
+                break
+              fi
+            done < <(find "$BASE_DIR" -type d -name "gui_client.app" -print)
+          fi
+
+          if [ -z "$APP" ]; then
+            echo "No gui_client.app with binary found. Listing likely output locations for debug:"
+            echo "Contents of substrata_build:"
+            ls -la "$BASE_DIR/substrata_build" || true
+            echo "Contents of substrata_output:"
             ls -la "$BASE_DIR/substrata_output" || true
-            ls -la "$BASE_DIR/substrata_output/test_builds" || true
+            echo "Attempting to locate any gui_client.app:"
+            find "$BASE_DIR" -type d -name "gui_client.app" -maxdepth 5 -print || true
             exit 1
           fi
 
-          # macdeployqt is provided by the Homebrew Qt installation
+          echo "Found built app at: $APP"
+
+          # macdeployqt from Homebrew Qt
           QT_PREFIX="$(brew --prefix qt@5)"
           MACDEPLOYQT="$QT_PREFIX/bin/macdeployqt"
 
@@ -231,41 +253,59 @@ jobs:
             exit 1
           fi
 
-          echo "Running macdeployqt on $APP_PATH"
-          # macdeployqt will copy Qt frameworks and plugins into the .app and fix install-names
-          "$MACDEPLOYQT" "$APP_PATH" -verbose=2
+          echo "Running macdeployqt on $APP"
+          "$MACDEPLOYQT" "$APP" -verbose=2 || {
+            echo "macdeployqt failed on $APP"
+            exit 1
+          }
 
           echo "macdeployqt finished. Verifying bundling:"
           echo "Linked libraries for the binary:"
-          otool -L "$APP_PATH/Contents/MacOS/gui_client" || true
+          otool -L "$APP/Contents/MacOS/gui_client" || true
           echo "Contents/Frameworks:"
-          ls -la "$APP_PATH/Contents/Frameworks" || true
+          ls -la "$APP/Contents/Frameworks" || true
           echo "Contents/PlugIns (if present):"
-          ls -la "$APP_PATH/Contents/PlugIns" || true
+          ls -la "$APP/Contents/PlugIns" || true
+
+      - name: Copy runtime files to output (no CEF)
+        working-directory: work/substrata/scripts
+        run: |
+          ruby copy_files_to_output.rb --no_cef
 
       - name: Show disk space (after build)
         run: df -h
 
-      - name: Create distributable zip (gui_client.app)
+      - name: Create distributable zip (gui_client.app) from final output app
         id: package
         run: |
           set -euxo pipefail
 
-          # Use the actual app path produced by copy_files_to_output.rb
-          APP_PATH="$BASE_DIR/substrata_output/test_builds/gui_client.app"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Expected app bundle not found at: $APP_PATH"
+          # The final copy may end up in test_builds or directly under substrata_output.
+          # Search for the fully-bundled app (prefer output/test_builds, but fallback to any found)
+          FINAL_APP="$(find "$BASE_DIR/substrata_output" -type d -name "gui_client.app" -print -quit || true)"
+
+          if [ -z "$FINAL_APP" ]; then
+            # fallback to any under workspace
+            FINAL_APP="$(find "$BASE_DIR" -type d -name "gui_client.app" -print -quit || true)"
+          fi
+
+          if [ -z "$FINAL_APP" ] || [ ! -d "$FINAL_APP" ]; then
+            echo "Final app not found. Debug listing substrata_output:"
+            ls -la "$BASE_DIR/substrata_output" || true
+            find "$BASE_DIR" -type d -name "gui_client.app" -print || true
             exit 1
           fi
 
-          xattr -dr com.apple.quarantine "$APP_PATH" || true
+          echo "Packaging app at: $FINAL_APP"
+
+          xattr -dr com.apple.quarantine "$FINAL_APP" || true
 
           VERSION="$(ruby "$BASE_DIR/substrata/scripts/config.rb" --version || echo "unknown")"
           ZIP_NAME="substrata-macos-${VERSION}-gui_client-no-cef.zip"
           ZIP_PATH="${{ github.workspace }}/$ZIP_NAME"
 
-          cd "$(dirname "$APP_PATH")"
-          /usr/bin/zip -r "$ZIP_PATH" "$(basename "$APP_PATH")"
+          cd "$(dirname "$FINAL_APP")"
+          /usr/bin/zip -r "$ZIP_PATH" "$(basename "$FINAL_APP")"
 
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
