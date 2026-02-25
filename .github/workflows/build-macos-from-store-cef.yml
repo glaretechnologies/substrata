@@ -1,5 +1,6 @@
 # Build workflow that downloads prebuilt deps and optional CEF, handles various CEF archive layouts (including dist/),
-# ensures libcef_dll_wrapper and cef_sandbox are available to Substrata CMake, bundles Qt and CEF into the app, and packages the app.
+# prints debug info for CEF dist contents and cef_sandbox undefined symbols, ensures libcef_dll_wrapper and cef_sandbox
+# are available to Substrata CMake, bundles Qt and CEF into the app, and packages the app.
 name: Build macOS gui_client using stored deps (Release, optional CEF)
 
 on:
@@ -170,6 +171,46 @@ jobs:
           fi
           echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
           echo "Extracted CEF contents to: $BASE_DIR/cef_binary"
+
+      - name: CEF debug — list dist/ contents and show cef_sandbox undefined symbols
+        if: ${{ inputs.cef_archive_url != '' }}
+        run: |
+          set -euxo pipefail
+
+          echo "Looking for dist/ directories under $BASE_DIR/cef_binary..."
+          DISTS=$(find "$BASE_DIR/cef_binary" -type d -name 'dist' -print 2>/dev/null || true)
+          if [ -z "$DISTS" ]; then
+            echo "No dist/ directories found (will also list top-level extraction)."
+          fi
+
+          # For each dist dir, list contents and nm on cef_sandbox.a if present
+          while IFS= read -r d; do
+            [ -n "$d" ] || continue
+            echo "==== DIST: $d ===="
+            ls -la "$d" || true
+
+            if [ -f "$d/cef_sandbox.a" ]; then
+              echo "Found cef_sandbox.a at $d/cef_sandbox.a"
+              echo "Undefined symbols (U) in cef_sandbox.a:"
+              if command -v nm >/dev/null 2>&1; then
+                nm -g "$d/cef_sandbox.a" | grep " U " | sort -u || true
+              elif command -v llvm-nm >/dev/null 2>&1; then
+                llvm-nm -g "$d/cef_sandbox.a" | grep " U " | sort -u || true
+              else
+                echo "nm/llvm-nm not available"
+              fi
+            else
+              echo "cef_sandbox.a not found in $d"
+            fi
+
+            if [ -f "$d/libcef_dll_wrapper.a" ]; then
+              echo "Found libcef_dll_wrapper.a at $d/libcef_dll_wrapper.a"
+              ls -la "$d/libcef_dll_wrapper.a" || true
+            fi
+          done < <(printf "%s\n" "$DISTS")
+
+          echo "---- top-level files under $BASE_DIR/cef_binary (maxdepth 4) ----"
+          find "$BASE_DIR/cef_binary" -maxdepth 4 -type f -print || true
 
       - name: Build libcef_dll_wrapper and ensure cef_sandbox exists (if CEF was provided)
         if: ${{ inputs.cef_archive_url != '' }}
