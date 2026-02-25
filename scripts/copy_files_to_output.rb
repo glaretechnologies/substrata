@@ -79,13 +79,66 @@ glare_core_repos_dir = getAndCheckEnvVar('GLARE_CORE_TRUNK_DIR')
 if OS.windows?
 	copy_files(2022, substrata_repos_dir, glare_core_repos_dir)
 elsif OS.mac?
+	#
+	# For mac we need to populate the actual .app bundle that contains the built binary.
+	# Previously the script always used the Debug build dir which resulted in populating
+	# the skeleton app (e.g. test_builds) instead of the real Release app when BUILD_CONFIG=Release.
+	#
+	# Strategy:
+	# 1) Prefer the config requested by the environment variable BUILD_CONFIG (if set)
+	# 2) Search substrata_output and substrata_build for gui_client.app that actually contains the binary
+	# 3) Copy resources/CEF into the first candidate found
+	# 4) As a last resort fall back to the old Debug location to preserve backward compatibility
+	#
 	begin
-        build_dir = getCmakeBuildDir(0, "Debug")
-		appdir = build_dir + "/gui_client.app"
-		output_dir = build_dir + "/gui_client.app/Contents/MacOS/../Resources"
+		# gather candidate build configurations to try in order
+		preferred = ENV['BUILD_CONFIG'] ? ENV['BUILD_CONFIG'] : nil
+		configs = []
+		configs << preferred if preferred
+		# common configs
+		configs += ['Release', 'RelWithDebInfo', 'Debug']
+		# uniq preserve order
+		configs = configs.compact.uniq
 
-		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
-		copyCEFRedistMac(build_dir, appdir) if $copy_cef
+		found_app = nil
+		configs.each do |cfg|
+			build_dir = getCmakeBuildDir(0, cfg)
+			# There are a few places the .app may be placed; check common ones
+			candidates = [
+				File.join(build_dir, "gui_client.app"),
+				File.join(build_dir, "gui_client.app/Contents/MacOS/../"), # keep legacy pattern
+				File.join(File.dirname(build_dir), "substrata_output", "gui_client.app"),
+				File.join(File.dirname(build_dir), "substrata_output", "test_builds", "gui_client.app"),
+				File.join(File.dirname(build_dir), "substrata_output")
+			]
+			candidates.each do |cand|
+				# normalize and check for real binary presence
+				next if cand.nil? || cand.empty?
+				cand_dir = cand.gsub(/\/+/, '/')
+				bin_path = File.join(cand_dir, "Contents", "MacOS", "gui_client")
+				if File.exist?(bin_path)
+					found_app = cand_dir
+					break
+				end
+			end
+			break if found_app
+		end
+
+		if found_app
+			appdir = found_app
+			output_dir = File.join(appdir, "Contents", "Resources")
+			puts "copy_files_to_output.rb: populating app at #{appdir} (detected binary present)"
+			copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+			copyCEFRedistMac(File.dirname(appdir), appdir) if $copy_cef
+		else
+			# Last-resort fallback to previous Debug behavior to avoid surprising regressions.
+			puts "copy_files_to_output.rb: no built gui_client.app with binary found for configs #{configs.inspect}; falling back to Debug build dir."
+			build_dir = getCmakeBuildDir(0, "Debug")
+			appdir = File.join(build_dir, "gui_client.app")
+			output_dir = File.join(appdir, "Contents", "MacOS", "..", "Resources")
+			copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+			copyCEFRedistMac(build_dir, appdir) if $copy_cef
+		end
 	end
 
 	begin
