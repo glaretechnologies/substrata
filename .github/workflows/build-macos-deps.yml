@@ -31,10 +31,11 @@ jobs:
 
       STORE_OWNER: "JerryBerry12"
       STORE_REPO: "kingdomvr-store-deps"
+      STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
 
     steps:
       - name: Fail if STORE_REPO_PAT not set
-        if: ${{ secrets.STORE_REPO_PAT == '' }}
+        if: ${{ env.STORE_REPO_PAT == '' }}
         run: |
           echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
           exit 1
