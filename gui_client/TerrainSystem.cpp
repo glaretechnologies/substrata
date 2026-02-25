@@ -823,7 +823,7 @@ float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 	//terrain_h = -300 + seaside_factor * 300 + non_flatten_factor * myMax(MIN_TERRAIN_Z, heightmap_terrain_z);// + detail_h;
 
 	//terrain_h = myMax(MIN_TERRAIN_Z, -300 + seaside_factor * 300 + non_flatten_factor * heightmap_terrain_z);// + detail_h;
-	float terrain_h = /*-300 + seaside_factor * 300 +*/ myMax(-100000.f, /*non_flatten_factor **/ heightmap_terrain_z);// + detail_h;
+	float terrain_h = /*-300 + seaside_factor * 300 +*/ myMax(-100000.f, /*non_flatten_factor **/ heightmap_terrain_z * spec.terrain_height_scale);// + detail_h;
 
 	if(terrain_h > MIN_TERRAIN_Z) // Don't apply fine noise on the seafloor.
 	{

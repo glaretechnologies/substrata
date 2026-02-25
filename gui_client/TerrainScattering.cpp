@@ -120,6 +120,7 @@ struct ShaderChunkInfo
 	float base_scale;
 	float imposter_width_over_height;
 	float terrain_scale_factor;
+	float terrain_height_scale;
 	float water_level_z;
 	uint32 vert_data_offset_B;
 };
@@ -1821,6 +1822,7 @@ void TerrainScattering::updateGridScatterChunkWithComputeShader(int chunk_x_inde
 		chunk_info.base_scale = grid_scatter.base_scale;
 		chunk_info.imposter_width_over_height = grid_scatter.imposter_width_over_height;
 		chunk_info.terrain_scale_factor = terrain_scale_factor;
+		chunk_info.terrain_height_scale = terrain_system->spec.terrain_height_scale;
 		chunk_info.water_level_z = BitUtils::isBitSet(terrain_system->spec.flags, TerrainSpec::WATER_ENABLED_FLAG) ? terrain_system->spec.water_z : -100000.f;
 		chunk_info.vert_data_offset_B = (uint32)chunk.imposters_gl_ob->mesh_data->vbo_handle.offset;
 

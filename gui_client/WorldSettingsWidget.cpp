@@ -81,6 +81,7 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 	detailHeightMapURLs0FileSelectWidget->setFilename(QtUtils::toQString(world_settings.terrain_spec.detail_height_map_URLs[0]));
 
 	terrainSectionWidthDoubleSpinBox->setValue(world_settings.terrain_spec.terrain_section_width_m);
+	terrainHeightScaleDoubleSpinBox->setValue(world_settings.terrain_spec.terrain_height_scale);
 	defaultTerrainZDoubleSpinBox->setValue(world_settings.terrain_spec.default_terrain_z);
 	waterZDoubleSpinBox->setValue(world_settings.terrain_spec.water_z);
 	waterCheckBox->setChecked(BitUtils::isBitSet(world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
@@ -140,6 +141,7 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 	world_settings_out.terrain_spec.detail_height_map_URLs[0] = getURLForFileSelectWidget(detailHeightMapURLs0FileSelectWidget);
 
 	world_settings_out.terrain_spec.terrain_section_width_m = (float)terrainSectionWidthDoubleSpinBox->value();
+	world_settings_out.terrain_spec.terrain_height_scale = (float)terrainHeightScaleDoubleSpinBox->value();
 	world_settings_out.terrain_spec.default_terrain_z = (float)defaultTerrainZDoubleSpinBox->value();
 	world_settings_out.terrain_spec.water_z = (float)waterZDoubleSpinBox->value();
 	world_settings_out.terrain_spec.flags = (waterCheckBox->isChecked() ? TerrainSpec::WATER_ENABLED_FLAG : 0);
@@ -171,6 +173,7 @@ void WorldSettingsWidget::updateControlsEditable()
 	detailHeightMapURLs0FileSelectWidget->setReadOnly(!editable);
 
 	terrainSectionWidthDoubleSpinBox->setReadOnly(!editable);
+	terrainHeightScaleDoubleSpinBox->setReadOnly(!editable);
 	defaultTerrainZDoubleSpinBox->setReadOnly(!editable);
 	waterZDoubleSpinBox->setReadOnly(!editable);
 	waterCheckBox->setEnabled(editable);
