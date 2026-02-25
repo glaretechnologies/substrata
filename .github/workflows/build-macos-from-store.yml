@@ -1,5 +1,5 @@
-# Download deps archive from private store repo, extract to work/, reclone sources, provision Qt, and continue building gui_client
-# Based on original workflow at: https://github.com/KingdomVR/kingdomvr/blob/3afd38bdd3c638e4e38765fea60fcc3099db5d6d/.github/workflows/build-macos-release.yml
+# Download deps archive from private store repo, extract to work/, reclone sources, provision Qt, bundle Qt into the app with macdeployqt,
+# and continue building gui_client (Release, no CEF).
 name: Build macOS gui_client using stored deps (Release, no CEF)
 
 on:
@@ -40,9 +40,10 @@ jobs:
       STORE_REPO: "kingdomvr-store-deps"
 
     steps:
-      - name: Fail if STORE_REPO_PAT not set
+      - name: Check STORE_REPO_PAT secret at runtime
         run: |
-          # Check for the secret at runtime (can't reference secrets in 'if' expressions during validation)
+          # Can't reference secrets in step-level 'if' during workflow validation,
+          # so check at runtime instead.
           if [ -z "${{ secrets.STORE_REPO_PAT }}" ]; then
             echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
             exit 1
@@ -204,6 +205,44 @@ jobs:
         run: |
           ruby copy_files_to_output.rb --no_cef
 
+      - name: Bundle Qt into the app with macdeployqt
+        run: |
+          set -euxo pipefail
+
+          # Where your packaging places the built app:
+          APP_PATH="$BASE_DIR/substrata_output/test_builds/gui_client.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app bundle not found at: $APP_PATH"
+            echo "Listing likely output locations:"
+            ls -la "$BASE_DIR/substrata_output" || true
+            ls -la "$BASE_DIR/substrata_output/test_builds" || true
+            exit 1
+          fi
+
+          # macdeployqt is provided by the Homebrew Qt installation
+          QT_PREFIX="$(brew --prefix qt@5)"
+          MACDEPLOYQT="$QT_PREFIX/bin/macdeployqt"
+
+          if [ ! -x "$MACDEPLOYQT" ]; then
+            echo "macdeployqt not found at $MACDEPLOYQT"
+            echo "Qt prefix contents:"
+            ls -la "$QT_PREFIX/bin" || true
+            exit 1
+          fi
+
+          echo "Running macdeployqt on $APP_PATH"
+          # macdeployqt will copy Qt frameworks and plugins into the .app and fix install-names
+          "$MACDEPLOYQT" "$APP_PATH" -verbose=2
+
+          echo "macdeployqt finished. Verifying bundling:"
+          echo "Linked libraries for the binary:"
+          otool -L "$APP_PATH/Contents/MacOS/gui_client" || true
+          echo "Contents/Frameworks:"
+          ls -la "$APP_PATH/Contents/Frameworks" || true
+          echo "Contents/PlugIns (if present):"
+          ls -la "$APP_PATH/Contents/PlugIns" || true
+
       - name: Show disk space (after build)
         run: df -h
 
@@ -212,13 +251,10 @@ jobs:
         run: |
           set -euxo pipefail
 
-          BUILD_DIR="$BASE_DIR/substrata_build"
-          APP_PATH="$BUILD_DIR/gui_client.app"
-
+          # Use the actual app path produced by copy_files_to_output.rb
+          APP_PATH="$BASE_DIR/substrata_output/test_builds/gui_client.app"
           if [ ! -d "$APP_PATH" ]; then
             echo "Expected app bundle not found at: $APP_PATH"
-            echo "Listing build dir:"
-            ls -la "$BUILD_DIR"
             exit 1
           fi
 
@@ -226,12 +262,13 @@ jobs:
 
           VERSION="$(ruby "$BASE_DIR/substrata/scripts/config.rb" --version || echo "unknown")"
           ZIP_NAME="substrata-macos-${VERSION}-gui_client-no-cef.zip"
+          ZIP_PATH="${{ github.workspace }}/$ZIP_NAME"
 
-          cd "$BUILD_DIR"
-          /usr/bin/zip -r "$ZIP_NAME" "gui_client.app"
+          cd "$(dirname "$APP_PATH")"
+          /usr/bin/zip -r "$ZIP_PATH" "$(basename "$APP_PATH")"
 
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
-          echo "zip_path=$BUILD_DIR/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact (short retention)
         if: ${{ inputs.create_release != 'true' }}
