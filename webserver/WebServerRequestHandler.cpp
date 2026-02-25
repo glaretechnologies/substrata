@@ -253,6 +253,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetUserAllowDynTexUpdatePost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_user_email_post")
+		{
+			AdminHandlers::handleSetUserEmailPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_new_news_post")
 		{
 			AdminHandlers::handleNewNewsPostPost(*this->world_state, request, reply_info);
