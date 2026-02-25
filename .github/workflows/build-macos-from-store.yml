@@ -38,10 +38,11 @@ jobs:
 
       STORE_OWNER: "JerryBerry12"
       STORE_REPO: "kingdomvr-store-deps"
+      STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
 
     steps:
       - name: Fail if STORE_REPO_PAT not set
-        if: ${{ secrets.STORE_REPO_PAT == '' }}
+        if: ${{ env.STORE_REPO_PAT == '' }}
         run: |
           echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
           exit 1
@@ -58,12 +59,10 @@ jobs:
       - name: Install minimal tools (Homebrew)
         run: |
           brew update
-          brew install jq
+          brew install jq cmake ruby python3 ninja
 
       - name: Download deps archive from store repository
         id: download_asset
-        env:
-          STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
         run: |
           set -euxo pipefail
 
