@@ -1,3 +1,5 @@
+# Build workflow that downloads prebuilt deps and optional CEF, handles various CEF archive layouts (including dist/),
+# ensures libcef_dll_wrapper and cef_sandbox are available to Substrata CMake, bundles Qt and CEF into the app, and packages the app.
 name: Build macOS gui_client using stored deps (Release, optional CEF)
 
 on:
@@ -15,7 +17,7 @@ on:
         required: false
         default: ""
       cef_archive_url:
-        description: "Optional direct URL to a prebuilt CEF binary distribution (tar.bz2, tar.gz, or zip). If provided, CEF_SUPPORT will be enabled and the archive will be extracted and the libcef_dll_wrapper and cef_sandbox targets will be built if available."
+        description: "Optional direct URL to a prebuilt CEF binary distribution (tar.bz2, tar.gz, or zip). If provided, CEF_SUPPORT will be enabled and the archive will be extracted and prebuilt artifacts used or libcef_dll_wrapper/cef_sandbox built if sources present."
         required: false
         default: ""
 
@@ -174,7 +176,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          # Detect the extracted CEF top-level directory
+          # Detect the extracted CEF top-level directory (may be /.../cef_binary or /.../cef_binary/cef_binary_*/)
           CAND="$(find "$BASE_DIR/cef_binary" -maxdepth 2 -type d -name 'cef_binary_*' -print -quit || true)"
           if [ -n "$CAND" ]; then
             CEF_EXTRACT="$CAND"
@@ -187,68 +189,98 @@ jobs:
 
           echo "CEF_EXTRACT detected as: $CEF_EXTRACT"
 
-          # Create libcef_dll_build and configure; force Unix Makefiles to ensure make targets exist
-          BUILD_DIR="$CEF_EXTRACT/libcef_dll_build"
-          mkdir -p "$BUILD_DIR"
-          cd "$BUILD_DIR"
-
-          # Prefer Unix Makefiles generator so we get makefile targets like libcef_dll_wrapper and cef_sandbox
-          if ! cmake -G "Unix Makefiles" ..; then
-            echo "cmake with 'Unix Makefiles' failed; trying default generator"
-            cmake ..
+          # If archive used a 'dist' folder (common), use that subdir if present.
+          if [ -d "$CEF_EXTRACT/dist" ]; then
+            echo "Found dist/ folder under CEF_EXTRACT; switching to $CEF_EXTRACT/dist"
+            CEF_EXTRACT="$CEF_EXTRACT/dist"
           fi
 
-          # Try to build only the wrapper target first
-          if cmake --build . --target libcef_dll_wrapper -- -j 3 2>/tmp/cef_wrapper_build.log; then
-            echo "libcef_dll_wrapper built successfully"
-          else
-            echo "Building wrapper target failed; falling back to full build (see /tmp/cef_wrapper_build.log)"
-            tail -n 200 /tmp/cef_wrapper_build.log || true
-            cmake --build . -- -j 3
-          fi
+          # Try to locate prebuilt artifacts first (common in many binary releases)
+          LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.a' -print -quit || true)"
+          SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)"
 
-          # Attempt to build cef_sandbox target if present (some CEF distributions require this library for mac helper processes)
-          if cmake --build . --target cef_sandbox -- -j 3 2>/tmp/cef_sandbox_build.log; then
-            echo "cef_sandbox target built successfully"
-          else
-            echo "cef_sandbox target build either not present or failed; next we will try to locate any produced cef_sandbox.a"
-            tail -n 200 /tmp/cef_sandbox_build.log || true
-          fi
+          if [ -n "$LIBWRAP" ] || [ -n "$SANDBOX" ]; then
+            echo "Prebuilt CEF artifacts detected."
+            echo "libcef_dll_wrapper.a: $LIBWRAP"
+            echo "cef_sandbox.a: $SANDBOX"
 
-          # Locate any cef_sandbox.a produced somewhere in the extracted tree
-          SANDBOX_PATH="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)"
-          if [ -n "$SANDBOX_PATH" ]; then
-            echo "Found cef_sandbox.a at: $SANDBOX_PATH"
-            # Ensure expected Release/ and Debug/ directories exist and copy the archive there (CMake expects <cef_dist>/Release/cef_sandbox.a etc.)
-            mkdir -p "$CEF_EXTRACT/Release"
-            mkdir -p "$CEF_EXTRACT/Debug"
-            cp -f "$SANDBOX_PATH" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
-            cp -f "$SANDBOX_PATH" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
-            echo "Copied cef_sandbox.a into $CEF_EXTRACT/Release/cef_sandbox.a and Debug/cef_sandbox.a"
+            # Ensure wrapper is at the expected path used by Substrata CMake:
+            if [ -n "$LIBWRAP" ]; then
+              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
+              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+              echo "Copied libcef_dll_wrapper.a -> $CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+            fi
+
+            # Ensure sandbox is available under Release/ and Debug/ as expected by CMake
+            if [ -n "$SANDBOX" ]; then
+              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
+              cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
+              cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
+              echo "Copied cef_sandbox.a -> $CEF_EXTRACT/Release/cef_sandbox.a and Debug/cef_sandbox.a"
+            fi
+
           else
-            echo "WARNING: cef_sandbox.a not found under $CEF_EXTRACT after build attempts."
-            echo "Listing $BUILD_DIR and $CEF_EXTRACT for debugging:"
-            ls -la "$BUILD_DIR" || true
-            ls -la "$BUILD_DIR/libcef_dll_wrapper" || true
-            find "$CEF_EXTRACT" -maxdepth 3 -type f -name '*sandbox*.a' -print || true
-            # Fail here because Substrata expects cef_sandbox.a present for mac builds (prevents obscure make errors later)
-            echo "ERROR: cef_sandbox.a required by Substrata build not found. You may need to build the full CEF binary distribution or use a different prebuilt archive that includes the sandbox static library."
-            exit 1
+            echo "No prebuilt wrapper/sandbox found; attempting to build libcef_dll_wrapper from extracted CEF sources."
+
+            BUILD_DIR="$CEF_EXTRACT/libcef_dll_build"
+            mkdir -p "$BUILD_DIR"
+            cd "$BUILD_DIR"
+
+            # Try Unix Makefiles generator first to get make targets
+            if ! cmake -G "Unix Makefiles" ..; then
+              echo "cmake with 'Unix Makefiles' failed; trying default generator"
+              cmake ..
+            fi
+
+            # Try to build only the wrapper target first
+            if cmake --build . --target libcef_dll_wrapper -- -j 3 2>/tmp/cef_wrapper_build.log; then
+              echo "libcef_dll_wrapper built successfully"
+            else
+              echo "Building wrapper target failed; falling back to full build (see /tmp/cef_wrapper_build.log)"
+              tail -n 200 /tmp/cef_wrapper_build.log || true
+              cmake --build . -- -j 3
+            fi
+
+            # Try to build sandbox if available
+            if cmake --build . --target cef_sandbox -- -j 3 2>/tmp/cef_sandbox_build.log; then
+              echo "cef_sandbox built successfully"
+            else
+              echo "cef_sandbox target build either not present or failed; continuing to search for produced artifacts"
+              tail -n 200 /tmp/cef_sandbox_build.log || true
+            fi
+
+            # After build attempts, try to discover built artifacts
+            LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.a' -print -quit || true)"
+            SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)"
+
+            if [ -n "$LIBWRAP" ]; then
+              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
+              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+            fi
+
+            if [ -n "$SANDBOX" ]; then
+              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
+              cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
+              cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
+            fi
+
+            # If still missing sandbox, fail early with diagnostics
+            if [ -z "$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)" ]; then
+              echo "ERROR: cef_sandbox.a required by Substrata build not found after attempts."
+              echo "Listing $CEF_EXTRACT for debugging:"
+              find "$CEF_EXTRACT" -maxdepth 3 -type f -print || true
+              exit 1
+            fi
           fi
 
           # sanity check for wrapper artifact
-          if [ ! -f "$BUILD_DIR/libcef_dll_wrapper/libcef_dll_wrapper.a" ]; then
-            echo "ERROR: libcef_dll_wrapper.a not found after build. Listing build dir:"
-            ls -la "$BUILD_DIR" || true
-            ls -la "$BUILD_DIR/libcef_dll_wrapper" || true
-            exit 1
+          if [ ! -f "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a" ]; then
+            echo "WARNING: libcef_dll_wrapper.a not found at expected path; listing fallback locations:"
+            find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.a' -print || true
           fi
-
-          echo "libcef_dll_wrapper.a present: $BUILD_DIR/libcef_dll_wrapper/libcef_dll_wrapper.a"
 
           # Export variables for substrata CMake to consume:
           echo "CEF_ROOT=$CEF_EXTRACT" >> "$GITHUB_ENV"
-          # Ensure CMake sees the environment var it reads from:
           echo "CEF_BINARY_DISTRIB_DIR=$CEF_EXTRACT" >> "$GITHUB_ENV"
           echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
 
