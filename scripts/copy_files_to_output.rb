@@ -85,13 +85,34 @@ elsif OS.mac?
 	# the skeleton app (e.g. test_builds) instead of the real Release app when BUILD_CONFIG=Release.
 	#
 	# Strategy:
-	# 1) Prefer the config requested by the environment variable BUILD_CONFIG (if set)
-	# 2) Search substrata_output and substrata_build for gui_client.app that actually contains the binary
-	# 3) Copy resources/CEF into the first candidate found
-	# 4) As a last resort fall back to the old Debug location to preserve backward compatibility
+	# 1) Prefer CYBERSPACE_OUTPUT/gui_client.app if it exists and contains the binary
+	# 2) Prefer the config requested by the environment variable BUILD_CONFIG (if set)
+	# 3) Search substrata_output and substrata_build for gui_client.app that actually contains the binary
+	# 4) Copy resources/CEF into the first app bundle found
+	# 5) As a last resort fall back to the old Debug location to preserve backward compatibility
 	#
 	begin
-		# gather candidate build configurations to try in order
+		# 1) Quick check: CYBERSPACE_OUTPUT (CI sets this)
+		cs_out = ENV['CYBERSPACE_OUTPUT']
+		if cs_out && !cs_out.empty?
+			app_candidate = File.join(cs_out, "gui_client.app")
+			bin_path = File.join(app_candidate, "Contents", "MacOS", "gui_client")
+			if File.exist?(bin_path)
+				puts "copy_files_to_output.rb: detected built app in CYBERSPACE_OUTPUT: #{app_candidate}"
+				appdir = app_candidate
+				output_dir = File.join(appdir, "Contents", "Resources")
+				copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+				copyCEFRedistMac(File.dirname(appdir), appdir) if $copy_cef
+				# done
+				exit 0
+			else
+				puts "copy_files_to_output.rb: CYBERSPACE_OUTPUT set to #{cs_out} but no binary found at #{bin_path}"
+			end
+		else
+			puts "copy_files_to_output.rb: CYBERSPACE_OUTPUT not set or empty; will search common build locations"
+		end
+
+		# 2) & 3) Search per-config and common locations
 		preferred = ENV['BUILD_CONFIG'] ? ENV['BUILD_CONFIG'] : nil
 		configs = []
 		configs << preferred if preferred
@@ -106,7 +127,7 @@ elsif OS.mac?
 			# There are a few places the .app may be placed; check common ones
 			candidates = [
 				File.join(build_dir, "gui_client.app"),
-				File.join(build_dir, "gui_client.app/Contents/MacOS/../"), # keep legacy pattern
+				File.join(build_dir, "gui_client.app/Contents/MacOS/../"), # legacy pattern
 				File.join(File.dirname(build_dir), "substrata_output", "gui_client.app"),
 				File.join(File.dirname(build_dir), "substrata_output", "test_builds", "gui_client.app"),
 				File.join(File.dirname(build_dir), "substrata_output")
