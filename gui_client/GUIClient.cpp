@@ -15033,6 +15033,7 @@ void GUIClient::updateGroundPlane()
 		const float terrain_section_width_m = myClamp(spec.terrain_section_width_m, 8.f, 1000000.f);
 
 		path_spec.terrain_section_width_m = terrain_section_width_m;
+		path_spec.terrain_height_scale = spec.terrain_height_scale;
 		path_spec.default_terrain_z = spec.default_terrain_z;
 		path_spec.water_z = spec.water_z;
 		path_spec.flags = spec.flags;

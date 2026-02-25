@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2023 -
 WorldSettings::WorldSettings()
 {
 	terrain_spec.terrain_section_width_m = 8192;
+	terrain_spec.terrain_height_scale = 1.f;
 	terrain_spec.water_z = -4;
 	terrain_spec.default_terrain_z = 0;
 	terrain_spec.flags = 0;
@@ -63,7 +64,7 @@ void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 }
 
 
-static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 4;
+static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 5;
 
 
 void WorldSettings::writeToStream(OutStream& stream) const
@@ -105,6 +106,8 @@ void WorldSettings::writeToStream(OutStream& stream) const
 
 	buffer.writeFloat(sun_theta);
 	buffer.writeFloat(sun_phi);
+
+	buffer.writeFloat(terrain_spec.terrain_height_scale); // New in v5
 
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)buffer.buf.size();
@@ -182,6 +185,9 @@ void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 		settings.sun_theta = buffer_stream.readFloat();
 		settings.sun_phi   = buffer_stream.readFloat();
 	}
+
+	if(version >= 5)
+		settings.terrain_spec.terrain_height_scale = buffer_stream.readFloat();
 
 	// We effectively skip any remaining data we have not processed by discarding buffer_stream.
 }
