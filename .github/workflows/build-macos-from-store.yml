@@ -1,5 +1,8 @@
-# Download deps archive from private store repo, extract to work/, reclone sources, provision Qt, run macdeployqt on the built app,
-# then copy files to output and create a self-contained app zip (Release, no CEF).
+# Build workflow (copy & paste). This version:
+# - Prefer the real built app in substrata_output/gui_client.app (not the skeleton in test_builds)
+# - Runs macdeployqt on the app that actually contains the binary
+# - Runs copy_files_to_output.rb (unchanged) and then ensures the final output app is bundled (runs macdeployqt again if needed)
+# - Uses safe expansion for CMAKE_PREFIX_PATH and checks secrets at runtime
 name: Build macOS gui_client using stored deps (Release, no CEF)
 
 on:
@@ -199,56 +202,50 @@ jobs:
           cd "$BASE_DIR/substrata_build"
           make gui_client -j 3
 
-      - name: Find the built gui_client.app and run macdeployqt (bundles Qt into the app)
+      - name: Locate the real built app (prefer substrata_output GUI that contains the binary) and run macdeployqt
         run: |
           set -euxo pipefail
 
-          # Look for common app locations that may contain the real binary
-          CANDIDATES=(
-            "$BASE_DIR/substrata_build/gui_client.app"
-            "$BASE_DIR/substrata_output/gui_client.app"
-            "$BASE_DIR/substrata_output/test_builds/gui_client.app"
-            "$BASE_DIR/substrata_output/substrata_build/gui_client.app"
-          )
-
+          # Prefer any gui_client.app under substrata_output that actually contains a binary
           APP=""
-          for p in "${CANDIDATES[@]}"; do
-            if [ -d "$p" ] && [ -f "$p/Contents/MacOS/gui_client" ]; then
-              APP="$p"
-              break
-            fi
-          done
+          if [ -d "$BASE_DIR/substrata_output" ]; then
+            APP="$(find "$BASE_DIR/substrata_output" -type d -name "gui_client.app" -print0 2>/dev/null | xargs -0 -n1 -I{} sh -c '[ -f "{}/Contents/MacOS/gui_client" ] && printf "%s\n" "{}" && exit 0 || true' || true | head -n1 || true)"
+          fi
 
-          # fallback: search for any gui_client.app under BASE_DIR containing a binary
+          # Fallback to possible build dir app
+          if [ -z "$APP" ] && [ -d "$BASE_DIR/substrata_build" ]; then
+            if [ -f "$BASE_DIR/substrata_build/gui_client.app/Contents/MacOS/gui_client" ]; then
+              APP="$BASE_DIR/substrata_build/gui_client.app"
+            fi
+          fi
+
+          # Final fallback: search whole BASE_DIR
           if [ -z "$APP" ]; then
             while IFS= read -r dir; do
               if [ -f "$dir/Contents/MacOS/gui_client" ]; then
                 APP="$dir"
                 break
               fi
-            done < <(find "$BASE_DIR" -type d -name "gui_client.app" -print)
+            done < <(find "$BASE_DIR" -type d -name "gui_client.app" -print 2>/dev/null)
           fi
 
           if [ -z "$APP" ]; then
-            echo "No gui_client.app with binary found. Listing likely output locations for debug:"
-            echo "Contents of substrata_build:"
+            echo "No gui_client.app with binary found. Debug listings:"
+            echo "substrata_build:"
             ls -la "$BASE_DIR/substrata_build" || true
-            echo "Contents of substrata_output:"
+            echo "substrata_output:"
             ls -la "$BASE_DIR/substrata_output" || true
-            echo "Attempting to locate any gui_client.app:"
-            find "$BASE_DIR" -type d -name "gui_client.app" -maxdepth 5 -print || true
+            find "$BASE_DIR" -type d -name "gui_client.app" -print || true
             exit 1
           fi
 
-          echo "Found built app at: $APP"
+          echo "Found built app (with binary) at: $APP"
 
-          # macdeployqt from Homebrew Qt
           QT_PREFIX="$(brew --prefix qt@5)"
           MACDEPLOYQT="$QT_PREFIX/bin/macdeployqt"
 
           if [ ! -x "$MACDEPLOYQT" ]; then
             echo "macdeployqt not found at $MACDEPLOYQT"
-            echo "Qt prefix contents:"
             ls -la "$QT_PREFIX/bin" || true
             exit 1
           fi
@@ -259,18 +256,58 @@ jobs:
             exit 1
           }
 
-          echo "macdeployqt finished. Verifying bundling:"
-          echo "Linked libraries for the binary:"
+          echo "macdeployqt finished. Quick verification:"
           otool -L "$APP/Contents/MacOS/gui_client" || true
-          echo "Contents/Frameworks:"
           ls -la "$APP/Contents/Frameworks" || true
-          echo "Contents/PlugIns (if present):"
           ls -la "$APP/Contents/PlugIns" || true
 
       - name: Copy runtime files to output (no CEF)
         working-directory: work/substrata/scripts
         run: |
           ruby copy_files_to_output.rb --no_cef
+
+      - name: Ensure final output app is bundled (run macdeployqt again if copy moved/created the final app)
+        run: |
+          set -euxo pipefail
+
+          # Find final app (prefer substrata_output root, then test_builds)
+          FINAL_APP="$(find "$BASE_DIR/substrata_output" -type d -name "gui_client.app" -print -quit || true)"
+
+          if [ -z "$FINAL_APP" ]; then
+            FINAL_APP="$BASE_DIR/substrata_output/test_builds/gui_client.app"
+          fi
+
+          if [ -z "$FINAL_APP" ] || [ ! -d "$FINAL_APP" ]; then
+            echo "Final app not found after copy. Listing substrata_output for debug:"
+            ls -la "$BASE_DIR/substrata_output" || true
+            find "$BASE_DIR" -type d -name "gui_client.app" -print || true
+            exit 1
+          fi
+
+          echo "Final app located at: $FINAL_APP"
+
+          # If the final app does not contain the binary, fail (we need the binary present)
+          if [ ! -f "$FINAL_APP/Contents/MacOS/gui_client" ]; then
+            echo "Final app is missing the gui_client binary at: $FINAL_APP/Contents/MacOS/gui_client"
+            echo "Dumping final app contents for debug:"
+            ls -la "$FINAL_APP/Contents" || true
+            exit 1
+          fi
+
+          QT_PREFIX="$(brew --prefix qt@5)"
+          MACDEPLOYQT="$QT_PREFIX/bin/macdeployqt"
+
+          # Run macdeployqt again to ensure bundling on the final app (harmless if already done)
+          echo "Running macdeployqt on final app: $FINAL_APP"
+          "$MACDEPLOYQT" "$FINAL_APP" -verbose=2 || {
+            echo "macdeployqt (final) failed on $FINAL_APP"
+            exit 1
+          }
+
+          echo "Final macdeployqt run finished. Verification:"
+          otool -L "$FINAL_APP/Contents/MacOS/gui_client" || true
+          ls -la "$FINAL_APP/Contents/Frameworks" || true
+          ls -la "$FINAL_APP/Contents/PlugIns" || true
 
       - name: Show disk space (after build)
         run: df -h
@@ -280,17 +317,14 @@ jobs:
         run: |
           set -euxo pipefail
 
-          # The final copy may end up in test_builds or directly under substrata_output.
-          # Search for the fully-bundled app (prefer output/test_builds, but fallback to any found)
+          # Locate the final app again
           FINAL_APP="$(find "$BASE_DIR/substrata_output" -type d -name "gui_client.app" -print -quit || true)"
-
           if [ -z "$FINAL_APP" ]; then
-            # fallback to any under workspace
             FINAL_APP="$(find "$BASE_DIR" -type d -name "gui_client.app" -print -quit || true)"
           fi
 
           if [ -z "$FINAL_APP" ] || [ ! -d "$FINAL_APP" ]; then
-            echo "Final app not found. Debug listing substrata_output:"
+            echo "Final app not found for packaging. Debug:"
             ls -la "$BASE_DIR/substrata_output" || true
             find "$BASE_DIR" -type d -name "gui_client.app" -print || true
             exit 1
