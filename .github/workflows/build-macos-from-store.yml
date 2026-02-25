@@ -41,10 +41,12 @@ jobs:
 
     steps:
       - name: Fail if STORE_REPO_PAT not set
-        if: ${{ secrets.STORE_REPO_PAT == '' }}
         run: |
-          echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
-          exit 1
+          # Check for the secret at runtime (can't reference secrets in 'if' expressions during validation)
+          if [ -z "${{ secrets.STORE_REPO_PAT }}" ]; then
+            echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
+            exit 1
+          fi
 
       - name: Show runner + disk info (before)
         run: |
@@ -131,15 +133,6 @@ jobs:
         with:
           repository: glaretechnologies/winter
           path: work/winter
-
-      - name: Run ls stuff
-        env:
-          BASE_DIR: ${{ github.workspace }}/work
-        run: |
-          ls $BASE_DIR
-          ls $BASE_DIR/llvm
-          ls $BASE_DIR/libressl
-          ls $BASE_DIR/luau
 
       - name: Provide Qt (Homebrew qt@5) and symlink into work/Qt/5.15.10
         env:
