@@ -219,8 +219,12 @@ jobs:
           fi
 
           echo "libcef_dll_wrapper.a present: $BUILD_DIR/libcef_dll_wrapper/libcef_dll_wrapper.a"
-          # export CEF_ROOT for subsequent cmake steps (redundant if earlier step wrote it)
+
+          # Export variables for substrata CMake to consume:
           echo "CEF_ROOT=$CEF_EXTRACT" >> "$GITHUB_ENV"
+          # Ensure CMake sees the variable it reads from the environment:
+          echo "CEF_BINARY_DISTRIB_DIR=$CEF_EXTRACT" >> "$GITHUB_ENV"
+          echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
 
       - name: Checkout this repo (kingdomvr) into work/substrata (reclone)
         uses: actions/checkout@v4
