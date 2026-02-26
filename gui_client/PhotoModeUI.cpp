@@ -31,7 +31,7 @@ PhotoModeUI::~PhotoModeUI()
 {}
 
 
-static const float COL_1_ALIGNMENT_PX = 180;
+static const float COL_1_ALIGNMENT_PX = 170;
 
 
 void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed, int& cell_y)
@@ -110,8 +110,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		GLUIGridContainer::CreateArgs args;
 		args.cell_x_padding_px = 5;
 		args.cell_y_padding_px = 5;
-		args.background_alpha = 0.6f;
-		args.background_colour = Colour3f(0.1f);
+		args.background_alpha = 0;
 		grid_container = new GLUIGridContainer(*gl_ui_, opengl_engine_, args);
 		grid_container->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
 		gl_ui->addWidget(grid_container);
@@ -269,6 +268,20 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	}
 
 
+	// Create window
+	{
+		GLUIWindow::CreateArgs args;
+		args.title = "Photo Mode Settings";
+		args.background_alpha = 0.6f;
+		args.background_colour = Colour3f(0.1f);
+		window = new GLUIWindow(*gl_ui_, opengl_engine_, args);
+		window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
+		window->setBodyWidget(grid_container);
+		window->handler = this;
+		gl_ui->addWidget(window);
+	}
+
+
 	updateFocusDistValueString();
 	updateFocalLengthValueString();
 
@@ -314,11 +327,14 @@ void PhotoModeUI::destroy()
 	checkRemove(gl_ui, focal_length_slider);
 	checkRemove(gl_ui, roll_slider);
 
-	if(grid_container)
+	grid_container = nullptr;
+
+	if(window)
 	{
-		grid_container->removeAllContainedWidgetsFromGLUIAndClear();
-		checkRemoveAndDeleteWidget(gl_ui, grid_container);
+		window->removeAllContainedWidgetsFromGLUIAndClear();
+		checkRemoveAndDeleteWidget(gl_ui, window);
 	}
+
 	
 	gl_ui = NULL;
 	gui_client = NULL;
@@ -328,8 +344,8 @@ void PhotoModeUI::destroy()
 
 void PhotoModeUI::setVisible(bool visible)
 {
-	if(grid_container)
-		grid_container->setVisible(visible);
+	if(window)
+		window->setVisible(visible);
 }
 
 
@@ -397,8 +413,8 @@ void PhotoModeUI::updateWidgetPositions()
 		const float bot_margin = gl_ui->getUIWidthForDevIndepPixelWidth(60);
 
 		const float width = gl_ui->getUIWidthForDevIndepPixelWidth(400); // 0.5;
-		grid_container->setPosAndDims(/*botleft=*/Vec2f(1 - margin - width, -gl_ui->getViewportMinMaxY() + bot_margin), /*dims=*/Vec2f(width, myMax(0.01f, 2 * gl_ui->getViewportMinMaxY() - (top_margin + bot_margin))));
-		grid_container->recomputeLayout();
+		window->setPosAndDims(/*botleft=*/Vec2f(1 - margin - width, -gl_ui->getViewportMinMaxY() + bot_margin), /*dims=*/Vec2f(width, myMax(0.01f, 2 * gl_ui->getViewportMinMaxY() - (top_margin + bot_margin))));
+		window->recomputeLayout();
 
 		if(upload_image_widget)
 		{
@@ -655,6 +671,14 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 		angles.z = ::degreeToRad(event.value);
 		gui_client->cam_controller.setAngles(angles);
 	}
+}
+
+
+void PhotoModeUI::closeWindowEventOccurred(GLUICallbackEvent& event)
+{
+	assert(event.widget == window.ptr());
+
+	gui_client->setPhotoModeEnabled(false);
 }
 
 

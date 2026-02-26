@@ -53,6 +53,10 @@ public:
 
 	void setCurrentMicLevel(float linear_level, float display_level);
 
+	void setPhotoModeEnabledUIState(bool enabled);
+
+	void closeGestureManagerSoon(); // Close asap.  Doesn't close/delete immediately to avoid destroying gesture manager while close button is being clicked.
+
 private:
 	void rebuildGestureWidgets();
 	void updateWidgetPositions();
@@ -63,7 +67,6 @@ private:
 
 	GLUIButtonRef edit_gestures_button;
 	Reference<GestureManagerUI> gesture_manager;
-	GLUIButtonRef close_gesture_manager_button;
 
 	GestureSettings gesture_settings;
 
@@ -95,4 +98,6 @@ private:
 
 	Timer timer;
 	double untoggle_button_time;
+
+	bool close_gesture_manager_soon;
 };

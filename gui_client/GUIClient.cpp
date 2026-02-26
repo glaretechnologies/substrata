@@ -15349,6 +15349,8 @@ void GUIClient::setPhotoModeEnabled(bool enabled)
 		this->photo_mode_ui.enablePhotoModeUI();
 	else
 		this->photo_mode_ui.disablePhotoModeUI();
+
+	this->gesture_ui.setPhotoModeEnabledUIState(enabled);
 }
 
 

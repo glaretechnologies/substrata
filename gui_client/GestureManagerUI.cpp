@@ -24,13 +24,25 @@ GestureManagerUI::GestureManagerUI(Reference<OpenGLEngine>& opengl_engine_, GUIC
 	// Create grid
 	{
 		GLUIGridContainer::CreateArgs container_args;
-		container_args.background_colour = Colour3f(0.1f);
-		container_args.background_alpha = 0.8f;
+		container_args.background_alpha = 0.0f;
 		container_args.cell_x_padding_px = 4;
 		container_args.cell_y_padding_px = 4;
 		grid_container = new GLUIGridContainer(*gl_ui, opengl_engine, container_args);
 		grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
 		gl_ui->addWidget(grid_container);
+	}
+
+	// Create window
+	{
+		GLUIWindow::CreateArgs args;
+		args.title = "Gesture Manager";
+		args.background_alpha = 0.6f;
+		args.background_colour = Colour3f(0.1f);
+		window = new GLUIWindow(*gl_ui_, opengl_engine_, args);
+		window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
+		window->setBodyWidget(grid_container);
+		window->handler = this;
+		gl_ui->addWidget(window);
 	}
 
 	rebuildGridForGestureSettings();
@@ -51,6 +63,8 @@ GestureManagerUI::~GestureManagerUI()
 	}
 
 	checkRemoveAndDeleteWidget(gl_ui, add_gesture_button);
+
+	checkRemoveAndDeleteWidget(gl_ui, window);
 }
 
 
@@ -183,9 +197,9 @@ void GestureManagerUI::updateWidgetPositions()
 	{
 		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(100);
 
-		grid_container->setPosAndDims(Vec2f(-1.f + margin, -gl_ui->getViewportMinMaxY() + margin), Vec2f(myMax(0.01f, 2.f - 2*margin), myMax(0.01f, 2*gl_ui->getViewportMinMaxY() - 2*margin)));
+		window->setPosAndDims(Vec2f(-1.f + margin, -gl_ui->getViewportMinMaxY() + margin), Vec2f(myMax(0.01f, 2.f - 2*margin), myMax(0.01f, 2*gl_ui->getViewportMinMaxY() - 2*margin)));
 
-		grid_container->updateGLTransform();
+		window->recomputeLayout();
 	}
 }
 
@@ -338,4 +352,12 @@ void GestureManagerUI::eventOccurred(GLUICallbackEvent& event)
 			}
 		}
 	}
+}
+
+
+void GestureManagerUI::closeWindowEventOccurred(GLUICallbackEvent& event)
+{
+	assert(event.widget == window.ptr());
+
+	gui_client->gesture_ui.closeGestureManagerSoon();
 }
