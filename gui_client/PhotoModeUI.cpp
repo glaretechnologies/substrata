@@ -31,8 +31,20 @@ PhotoModeUI::~PhotoModeUI()
 {}
 
 
-void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed)
+static const float COL_1_ALIGNMENT_PX = 180;
+
+
+void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed, int& cell_y)
 {
+	GLUIGridContainer::CreateArgs grid_args;
+	grid_args.background_alpha = 0.2f;
+	grid_args.background_colour = Colour3f(0.2f);
+	grid_args.cell_y_padding_px = 2;
+	GLUIGridContainerRef slider_grid = new GLUIGridContainer(*gl_ui, opengl_engine, grid_args);
+	slider_grid->debug_name = "photo slider grid for " + label;
+	slider_grid->setColumnMinXPx(/*col=*/1, COL_1_ALIGNMENT_PX);
+
+	//-------------------------------- Create label ------------------------------
 	GLUITextView::CreateArgs text_view_args;
 	text_view_args.background_alpha = 0;
 	text_view_args.text_colour = Colour3f(0.9f);
@@ -40,19 +52,27 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 
 	slider.label = new GLUITextView(*gl_ui, opengl_engine, label, Vec2f(0), text_view_args);
 	gl_ui->addWidget(slider.label);
+	slider_grid->setCellWidget(0, 0, slider.label);
 
+	//-------------------------------- Create slider ------------------------------
 	GLUISlider::CreateArgs args;
 	args.tooltip = tooltip;
 	args.min_value = min_val;
 	args.max_value = max_val;
 	args.initial_value = initial_value;
 	args.scroll_speed = scroll_speed;
-	slider.slider = new GLUISlider(*gl_ui, opengl_engine, Vec2f(0), Vec2f(0.1f), args);
+	args.fixed_size.x = 120; // px
+	slider.slider = new GLUISlider(*gl_ui, opengl_engine, args);
 	slider.slider->handler = this;
 	gl_ui->addWidget(slider.slider);
+	slider_grid->setCellWidget(1, 0, slider.slider);
 
+	//-------------------------------- Create value text view ------------------------------
 	slider.value_view = new GLUITextView(*gl_ui, opengl_engine, doubleToStringMaxNDecimalPlaces(args.initial_value, 2), Vec2f(0), text_view_args);
 	gl_ui->addWidget(slider.value_view);
+	slider_grid->setCellWidget(2, 0, slider.value_view);
+
+	this->grid_container->setCellWidget(0, cell_y--, slider_grid);
 }
 
 
@@ -87,11 +107,24 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	settings = settings_;
 
 	{
+		GLUIGridContainer::CreateArgs args;
+		args.cell_x_padding_px = 5;
+		args.cell_y_padding_px = 5;
+		args.background_alpha = 0.6f;
+		args.background_colour = Colour3f(0.1f);
+		grid_container = new GLUIGridContainer(*gl_ui_, opengl_engine_, args);
+		grid_container->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
+		gl_ui->addWidget(grid_container);
+	}
+
+	int cell_y = 20;
+	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "The standard camera mode when not in photo mode.";
 		standard_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "standard camera", Vec2f(0), args);
 		standard_cam_button->handler = this;
 		gl_ui->addWidget(standard_cam_button);
+		grid_container->setCellWidget(0, cell_y--, standard_cam_button);
 
 		standard_cam_button->setToggled(false);
 	}
@@ -101,6 +134,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		selfie_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "selfie camera", Vec2f(0), args);
 		selfie_cam_button->handler = this;
 		gl_ui->addWidget(selfie_cam_button);
+		grid_container->setCellWidget(0, cell_y--, selfie_cam_button);
 
 		selfie_cam_button->setToggled(true);
 	}
@@ -110,6 +144,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		fixed_angle_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "fixed angle camera", Vec2f(0), args);
 		fixed_angle_cam_button->handler = this;
 		gl_ui->addWidget(fixed_angle_cam_button);
+		grid_container->setCellWidget(0, cell_y--, fixed_angle_cam_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
@@ -117,6 +152,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		free_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "free camera", Vec2f(0), args);
 		free_cam_button->handler = this;
 		gl_ui->addWidget(free_cam_button);
+		grid_container->setCellWidget(0, cell_y--, free_cam_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
@@ -124,47 +160,88 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		tracking_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "tracking camera", Vec2f(0), args);
 		tracking_cam_button->handler = this;
 		gl_ui->addWidget(tracking_cam_button);
+		grid_container->setCellWidget(0, cell_y--, tracking_cam_button);
 	}
+
+
+	{
+		GLUIGridContainer::CreateArgs grid_args;
+		grid_args.background_alpha = 0.2f;
+		grid_args.background_colour = Colour3f(0.2f);
+		grid_args.cell_y_padding_px = 2;
+		GLUIGridContainerRef autofocus_grid = new GLUIGridContainer(*gl_ui_, opengl_engine_, grid_args);
+		autofocus_grid->debug_name = "autofocus grid";
+		autofocus_grid->setColumnMinXPx(/*col=*/1, COL_1_ALIGNMENT_PX);
+
+		{
+			GLUITextView::CreateArgs text_view_args;
+			text_view_args.background_alpha = 0;
+			text_view_args.text_colour = Colour3f(0.9f);
+			text_view_args.tooltip = "Autofocus";
+
+			autofocus_label = new GLUITextView(*gl_ui, opengl_engine, "Autofocus", Vec2f(0), text_view_args);
+			gl_ui->addWidget(autofocus_label);
+			autofocus_grid->setCellWidget(0, 0, autofocus_label);
+		}
+
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Disable autofocus.  Focus Distance slider is used instead.";
+			autofocus_off_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Off", Vec2f(0), args);
+			autofocus_off_button->handler = this;
+			gl_ui->addWidget(autofocus_off_button);
+			autofocus_grid->setCellWidget(1, 0, autofocus_off_button);
+		}
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Automatically focus on the nearest avatar eye.";
+			autofocus_eye_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Eye", Vec2f(0), args);
+			autofocus_eye_button->handler = this;
+			gl_ui->addWidget(autofocus_eye_button);
+			autofocus_grid->setCellWidget(2, 0, autofocus_eye_button);
+		}
+
+		grid_container->setCellWidget(0, cell_y--, autofocus_grid);
+	}
+
+
+	makePhotoModeSlider(dof_blur_slider, /*label=*/"Depth of field blur", /*tooltip=*/"Depth of field blur strength", 
+		/*min val=*/0.0, /*max val=*/1.0, /*initial val=*/opengl_engine->getCurrentScene()->dof_blur_strength, /*scroll speed=*/1.0, cell_y);
+
+	makePhotoModeSlider(dof_focus_distance_slider, /*label=*/"Focus Distance", /*tooltip=*/"Focus Distance", 
+		/*min val=*/0.001, /*max val=*/1.0, /*initial val=*/sliderValForFocusDist(opengl_engine->getCurrentScene()->dof_blur_focus_distance), /*scroll speed=*/1.0, cell_y);
+
+	makePhotoModeSlider(ev_adjust_slider, /*label=*/"EV adjust", /*tooltip=*/"EV adjust", 
+		/*min val=*/-8, /*max val=*/8, /*initial val=*/0, /*scroll speed=*/1.0, cell_y);
+
+	makePhotoModeSlider(saturation_slider, /*label=*/"Saturation", /*tooltip=*/"Colour saturation", 
+		/*min val=*/0, /*max val=*/2, /*initial val=*/1, /*scroll speed=*/1.0, cell_y);
+
+	makePhotoModeSlider(focal_length_slider, /*label=*/"Focal length", /*tooltip=*/"Camera focal length", 
+		/*min val=*/0.010, /*max val=*/1.0, /*initial val=*/0.025, /*scroll speed=*/0.05, cell_y);
+
+	makePhotoModeSlider(roll_slider, /*label=*/"Roll", /*tooltip=*/"Camera roll angle", 
+		/*min val=*/-90, /*max val=*/90, /*initial val=*/0, /*scroll speed=*/1.0, cell_y);
+
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Reset photo mode camera settings";
 		reset_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Reset", Vec2f(0), args);
 		reset_button->handler = this;
 		gl_ui->addWidget(reset_button);
-	}
-
-	{
-		GLUITextView::CreateArgs text_view_args;
-		text_view_args.background_alpha = 0;
-		text_view_args.text_colour = Colour3f(0.9f);
-		text_view_args.tooltip = "Autofocus";
-
-		autofocus_label = new GLUITextView(*gl_ui, opengl_engine, "Autofocus", Vec2f(0), text_view_args);
-		gl_ui->addWidget(autofocus_label);
-
-	}
-
-	{
-		GLUITextButton::CreateArgs args;
-		args.tooltip = "Disable autofocus.  Focus Distance slider is used instead.";
-		autofocus_off_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Off", Vec2f(0), args);
-		autofocus_off_button->handler = this;
-		gl_ui->addWidget(autofocus_off_button);
-	}
-	{
-		GLUITextButton::CreateArgs args;
-		args.tooltip = "Automatically focus on the nearest avatar eye.";
-		autofocus_eye_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Eye", Vec2f(0), args);
-		autofocus_eye_button->handler = this;
-		gl_ui->addWidget(autofocus_eye_button);
+		grid_container->setCellWidget(0, cell_y--, reset_button);
 	}
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Take photo";
-		take_screenshot_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
+		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+		args.fixed_size = Vec2f(50.f);
+		take_screenshot_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", args);
 		//take_screenshot_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/minimap_icon.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
 		take_screenshot_button->handler = this;
 		gl_ui->addWidget(take_screenshot_button);
+		grid_container->setCellWidget(0, cell_y--, take_screenshot_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
@@ -172,6 +249,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		show_screenshots_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Show photos", Vec2f(0), args);
 		show_screenshots_button->handler = this;
 		gl_ui->addWidget(show_screenshots_button);
+		grid_container->setCellWidget(0, cell_y--, show_screenshots_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
@@ -179,6 +257,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		upload_photo_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Upload photo", Vec2f(0), args);
 		upload_photo_button->handler = this;
 		gl_ui->addWidget(upload_photo_button);
+		grid_container->setCellWidget(0, cell_y--, upload_photo_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
@@ -186,34 +265,9 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		hide_ui_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Hide UI", Vec2f(0), args);
 		hide_ui_button->handler = this;
 		gl_ui->addWidget(hide_ui_button);
+		grid_container->setCellWidget(0, cell_y--, hide_ui_button);
 	}
 
-	{
-		GLUIInertWidget::CreateArgs args;
-		args.background_colour = Colour3f(0.0f);
-		args.background_alpha = 0.2f;
-		args.z = 0.1f;
-		background_ob = new GLUIInertWidget(*gl_ui, opengl_engine, args);
-		gl_ui->addWidget(background_ob);
-	}
-
-	makePhotoModeSlider(dof_blur_slider, /*label=*/"Depth of field blur", /*tooltip=*/"Depth of field blur strength", 
-		/*min val=*/0.0, /*max val=*/1.0, /*initial val=*/opengl_engine->getCurrentScene()->dof_blur_strength, /*scroll speed=*/1.0);
-
-	makePhotoModeSlider(dof_focus_distance_slider, /*label=*/"Focus Distance", /*tooltip=*/"Focus Distance", 
-		/*min val=*/0.001, /*max val=*/1.0, /*initial val=*/sliderValForFocusDist(opengl_engine->getCurrentScene()->dof_blur_focus_distance), /*scroll speed=*/1.0);
-
-	makePhotoModeSlider(ev_adjust_slider, /*label=*/"EV adjust", /*tooltip=*/"EV adjust", 
-		/*min val=*/-8, /*max val=*/8, /*initial val=*/0, /*scroll speed=*/1.0);
-
-	makePhotoModeSlider(saturation_slider, /*label=*/"Saturation", /*tooltip=*/"Colour saturation", 
-		/*min val=*/0, /*max val=*/2, /*initial val=*/1, /*scroll speed=*/1.0);
-
-	makePhotoModeSlider(focal_length_slider, /*label=*/"Focal length", /*tooltip=*/"Camera focal length", 
-		/*min val=*/0.010, /*max val=*/1.0, /*initial val=*/0.025, /*scroll speed=*/0.05);
-
-	makePhotoModeSlider(roll_slider, /*label=*/"Roll", /*tooltip=*/"Camera roll angle", 
-		/*min val=*/-90, /*max val=*/90, /*initial val=*/0, /*scroll speed=*/1.0);
 
 	updateFocusDistValueString();
 	updateFocalLengthValueString();
@@ -221,29 +275,30 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	updateWidgetPositions();
 }
 
+
 static void checkRemove(GLUIRef gl_ui, PhotoModeSlider& slider)
 {
-	checkRemoveAndDeleteWidget(gl_ui, slider.label);
-	checkRemoveAndDeleteWidget(gl_ui, slider.slider);
-	checkRemoveAndDeleteWidget(gl_ui, slider.value_view);
+	slider.label = nullptr;
+	slider.slider = nullptr;
+	slider.value_view = nullptr;
 }
 
 void PhotoModeUI::destroy()
 {
-	checkRemoveAndDeleteWidget(gl_ui, standard_cam_button);
-	checkRemoveAndDeleteWidget(gl_ui, selfie_cam_button);
-	checkRemoveAndDeleteWidget(gl_ui, fixed_angle_cam_button);
-	checkRemoveAndDeleteWidget(gl_ui, free_cam_button);
-	checkRemoveAndDeleteWidget(gl_ui, tracking_cam_button);
-	checkRemoveAndDeleteWidget(gl_ui, reset_button);
-	checkRemoveAndDeleteWidget(gl_ui, autofocus_label);
-	checkRemoveAndDeleteWidget(gl_ui, autofocus_off_button);
-	checkRemoveAndDeleteWidget(gl_ui, autofocus_eye_button);
-	checkRemoveAndDeleteWidget(gl_ui, take_screenshot_button);
-	checkRemoveAndDeleteWidget(gl_ui, show_screenshots_button);
-	checkRemoveAndDeleteWidget(gl_ui, upload_photo_button);
-	checkRemoveAndDeleteWidget(gl_ui, hide_ui_button);
-	checkRemoveAndDeleteWidget(gl_ui, background_ob);
+	// grid_container will remove this widgets form gl_ui.
+	standard_cam_button = nullptr;
+	selfie_cam_button = nullptr;
+	fixed_angle_cam_button = nullptr;
+	free_cam_button = nullptr;
+	tracking_cam_button = nullptr;
+	reset_button = nullptr;
+	autofocus_label = nullptr;
+	autofocus_off_button = nullptr;
+	autofocus_eye_button = nullptr;
+	take_screenshot_button = nullptr;
+	show_screenshots_button = nullptr;
+	upload_photo_button = nullptr;
+	hide_ui_button = nullptr;
 
 	checkRemoveAndDeleteWidget(gl_ui, upload_background_ob);
 	checkRemoveAndDeleteWidget(gl_ui, upload_image_widget);
@@ -258,6 +313,12 @@ void PhotoModeUI::destroy()
 	checkRemove(gl_ui, saturation_slider);
 	checkRemove(gl_ui, focal_length_slider);
 	checkRemove(gl_ui, roll_slider);
+
+	if(grid_container)
+	{
+		grid_container->removeAllContainedWidgetsFromGLUIAndClear();
+		checkRemoveAndDeleteWidget(gl_ui, grid_container);
+	}
 	
 	gl_ui = NULL;
 	gui_client = NULL;
@@ -267,33 +328,8 @@ void PhotoModeUI::destroy()
 
 void PhotoModeUI::setVisible(bool visible)
 {
-	if(standard_cam_button)
-	{
-		standard_cam_button->setVisible(visible);
-		selfie_cam_button->setVisible(visible);
-		fixed_angle_cam_button->setVisible(visible);
-		free_cam_button->setVisible(visible);
-		tracking_cam_button->setVisible(visible);
-		reset_button->setVisible(visible);
-
-		autofocus_label->setVisible(visible);
-		autofocus_off_button->setVisible(visible);
-		autofocus_eye_button->setVisible(visible);
-
-		take_screenshot_button->setVisible(visible);
-		show_screenshots_button->setVisible(visible);
-		upload_photo_button->setVisible(visible);
-		hide_ui_button->setVisible(visible);
-
-		background_ob->setVisible(visible);
-
-		dof_blur_slider.setVisible(visible);
-		dof_focus_distance_slider.setVisible(visible);
-		ev_adjust_slider.setVisible(visible);
-		saturation_slider.setVisible(visible);
-		focal_length_slider.setVisible(visible);
-		roll_slider.setVisible(visible);
-	}
+	if(grid_container)
+		grid_container->setVisible(visible);
 }
 
 
@@ -357,67 +393,12 @@ void PhotoModeUI::updateWidgetPositions()
 	{
 		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(12);
 
-		float cur_y = gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(100);
+		const float top_margin = gl_ui->getUIWidthForDevIndepPixelWidth(60);
+		const float bot_margin = gl_ui->getUIWidthForDevIndepPixelWidth(60);
 
-		cur_y -= standard_cam_button->rect.getWidths().y + margin;
-		standard_cam_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-		
-		cur_y -= selfie_cam_button->rect.getWidths().y + margin;
-		selfie_cam_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-		
-		cur_y -= fixed_angle_cam_button->rect.getWidths().y + margin;
-		fixed_angle_cam_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-		
-		cur_y -= tracking_cam_button->rect.getWidths().y + margin;
-		tracking_cam_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-		
-		cur_y -= free_cam_button->rect.getWidths().y + margin;
-		free_cam_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-	
-		// Autofocus label and buttons
-		cur_y -= autofocus_off_button->rect.getWidths().y + margin;
-
-		const float label_w  = autofocus_label->rect.getWidths().x;
-		autofocus_label->setPos(Vec2f(1 - 0.3f - label_w - margin, cur_y + gl_ui->getUIWidthForDevIndepPixelWidth(8)));
-
-		autofocus_off_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-
-		autofocus_eye_button->setPos(/*botleft=*/Vec2f(autofocus_off_button->rect.getMax().x + margin, cur_y));
-	
-		updateSliderPosition(dof_blur_slider, margin, cur_y);
-		updateSliderPosition(dof_focus_distance_slider, margin, cur_y);
-		updateSliderPosition(ev_adjust_slider, margin, cur_y);
-		updateSliderPosition(saturation_slider, margin, cur_y);
-		updateSliderPosition(focal_length_slider, margin, cur_y);
-		updateSliderPosition(roll_slider, margin, cur_y);		
-		
-		cur_y -= reset_button->rect.getWidths().y + margin;
-		reset_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-		
-		static const float BUTTON_W_PIXELS = 50;
-		const float BUTTON_W = gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS);
-		const float button_padding = gl_ui->getUIWidthForDevIndepPixelWidth(10);
-		cur_y -= BUTTON_W + margin - button_padding;
-		const float selfie_button_x = 1 - 0.3f;
-		take_screenshot_button->setPosAndDims(Vec2f(selfie_button_x, cur_y), Vec2f(BUTTON_W, BUTTON_W));
-		cur_y += button_padding;
-
-		cur_y -= show_screenshots_button->rect.getWidths().y + margin;
-		show_screenshots_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-		
-		cur_y -= upload_photo_button->rect.getWidths().y + margin;
-		upload_photo_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-
-		cur_y -= hide_ui_button->rect.getWidths().y + margin;
-		hide_ui_button->setPos(/*botleft=*/Vec2f(1 - 0.3f, cur_y));
-
-		// Set the transform of the transparent background quad behind sliders.
-		{
-			const float back_margin = gl_ui->getUIWidthForDevIndepPixelWidth(10);
-			const float background_w = 1.f - roll_slider.label->rect.getMin().x + back_margin;
-			const float background_h = dof_blur_slider.label->rect.getMax().y - roll_slider.label->rect.getMin().y + back_margin*2;
-			background_ob->setPosAndDims(Vec2f(roll_slider.label->rect.getMin().x -back_margin, roll_slider.label->rect.getMin().y - back_margin), Vec2f(background_w, background_h));
-		}
+		const float width = gl_ui->getUIWidthForDevIndepPixelWidth(400); // 0.5;
+		grid_container->setPosAndDims(/*botleft=*/Vec2f(1 - margin - width, -gl_ui->getViewportMinMaxY() + bot_margin), /*dims=*/Vec2f(width, myMax(0.01f, 2 * gl_ui->getViewportMinMaxY() - (top_margin + bot_margin))));
+		grid_container->recomputeLayout();
 
 		if(upload_image_widget)
 		{
@@ -465,28 +446,6 @@ void PhotoModeUI::updateWidgetPositions()
 			upload_background_ob->setPosAndDims(Vec2f(upload_dialog_x - margin, upload_dialog_y - margin), Vec2f(background_w, background_h));
 		}
 	}
-}
-
-
-void PhotoModeUI::updateSliderPosition(PhotoModeSlider& slider, float margin, float& cur_y)
-{
-	cur_y -= slider.slider->rect.getWidths().y + margin;
-
-	const float label_w  = gl_ui->getUIWidthForDevIndepPixelWidth(160);
-	const float slider_w = gl_ui->getUIWidthForDevIndepPixelWidth(180);
-	const float value_w  = gl_ui->getUIWidthForDevIndepPixelWidth(60);
-	float x_margin = margin;
-
-	float cur_x = 1.f - value_w - slider_w - label_w - x_margin * 3;
-
-	float text_y_offset = gl_ui->getUIWidthForDevIndepPixelWidth(4); // To align with the slider
-	slider.label->setPos(Vec2f(cur_x, cur_y + text_y_offset));
-	cur_x += label_w + x_margin;
-
-	slider.slider->setPosAndDims(/*botleft=*/Vec2f(cur_x, cur_y), /*dims=*/Vec2f(slider_w, gl_ui->getUIWidthForDevIndepPixelWidth(21)));
-	cur_x += slider_w + x_margin;
-
-	slider.value_view->setPos(Vec2f(cur_x, cur_y + text_y_offset));
 }
 
 
@@ -796,7 +755,7 @@ void PhotoModeUI::showUploadPhotoWidget()
 
 			JPEGDecoder::save(im.downcast<ImageMapUInt8>(), jpeg_path, JPEGDecoder::SaveOptions());
 
-			upload_image_widget = new GLUIImage(*gl_ui, opengl_engine, jpeg_path, Vec2f(0.f), Vec2f(0.1f), "photo to upload");
+			upload_image_widget = new GLUIImage(*gl_ui, opengl_engine, jpeg_path, "photo to upload");
 			gl_ui->addWidget(upload_image_widget);
 
 			im_to_upload_aspect_ratio = (double)im->getMapWidth() / im->getMapHeight();
