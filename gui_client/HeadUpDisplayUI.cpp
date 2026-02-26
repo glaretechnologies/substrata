@@ -34,7 +34,8 @@ void HeadUpDisplayUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient*
 	// Create 'crosshair' marker dot
 	const float im_width = gl_ui->getUIWidthForDevIndepPixelWidth(8);
 	const Vec2f dot_corner_pos = -Vec2f(im_width/2);
-	crosshair_dot = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/"");
+	crosshair_dot = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", /*tooltip=*/"");
+	crosshair_dot->setPosAndDims(dot_corner_pos, Vec2f(im_width));
 	crosshair_dot->setColour(toLinearSRGB(Colour3f(0.9f)));
 	crosshair_dot->setAlpha(0.8f);
 	crosshair_dot->setVisible(false);
@@ -170,7 +171,8 @@ void HeadUpDisplayUI::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_
 		if(avatar->hud_marker.isNull()) // If marker does not exist yet:
 		{
 			// Create marker dot
-			GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->getUseName(), AVATAR_MARKER_DOT_Z);
+			GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", /*tooltip=*/avatar->getUseName(), AVATAR_MARKER_DOT_Z);
+			im->setPosAndDims(dot_corner_pos, Vec2f(im_width));
 			//if(avatar->isChatBotAvatar())
 			//	im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
 			//else

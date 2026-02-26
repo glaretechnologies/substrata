@@ -22,7 +22,7 @@ class GestureManagerUI;
 GestureUI
 ---------
 Buttons for playing gestures.
-Also some misc. other buttons like microphone and photo mode buttons.
+Also some misc. other buttons like summon vehicle, microphone and photo mode buttons.
 =====================================================================*/
 class GestureUI : public GLUICallbackHandler
 {

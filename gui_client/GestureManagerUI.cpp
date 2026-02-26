@@ -26,7 +26,8 @@ GestureManagerUI::GestureManagerUI(Reference<OpenGLEngine>& opengl_engine_, GUIC
 		GLUIGridContainer::CreateArgs container_args;
 		container_args.background_colour = Colour3f(0.1f);
 		container_args.background_alpha = 0.8f;
-		container_args.cell_padding_px = 4;
+		container_args.cell_x_padding_px = 4;
+		container_args.cell_y_padding_px = 4;
 		grid_container = new GLUIGridContainer(*gl_ui, opengl_engine, container_args);
 		grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
 		gl_ui->addWidget(grid_container);
@@ -51,6 +52,9 @@ GestureManagerUI::~GestureManagerUI()
 
 	checkRemoveAndDeleteWidget(gl_ui, add_gesture_button);
 }
+
+
+static const float BUTTON_W_PIXELS = 30;
 
 
 void GestureManagerUI::rebuildGridForGestureSettings()
@@ -82,8 +86,8 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 		// If this isn't one of the default gestures, fall back to to using "Waving 1" button texture for now.
 		const std::string tex_name = GestureSettings::isDefaultGestureName(setting.friendly_name) ? setting.friendly_name : "Waving 1";
 
-		GLUIImageRef gesture_image = new GLUIImage(*gl_ui, opengl_engine, /*tex path=*/gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", Vec2f(0.f), Vec2f(0.05f), "");
-		gesture_image->immutable_dims = true;
+		GLUIImageRef gesture_image = new GLUIImage(*gl_ui, opengl_engine, /*tex path=*/gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", "");
+		gesture_image->setFixedDimsPx(Vec2f(BUTTON_W_PIXELS), *gl_ui);
 
 		grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, gesture_image);
 
@@ -107,8 +111,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			args.box_colour = checkbox_box_col;
 			args.mouseover_box_colour = checkbox_mouseover_col;
 			args.checked = BitUtils::isBitSet(setting.flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
-			animate_head_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", Vec2f(0), Vec2f(0.1f), args);
-			animate_head_checkbox->immutable_dims = true;
+			animate_head_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
 			animate_head_checkbox->handler = this;
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, animate_head_checkbox);
 		}
@@ -120,8 +123,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			args.box_colour = checkbox_box_col;
 			args.mouseover_box_colour = checkbox_mouseover_col;
 			args.checked = BitUtils::isBitSet(setting.flags, SingleGestureSettings::FLAG_LOOP);
-			loop_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", Vec2f(0), Vec2f(0.1f), args);
-			loop_checkbox->immutable_dims = true;
+			loop_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
 			loop_checkbox->handler = this;
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, loop_checkbox);
 		}
@@ -130,8 +132,10 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Remove gesture";
-			remove_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/white_x.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
-			remove_gesture_button->immutable_dims = true;
+			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+			args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+			args.fixed_size = Vec2f(22.f);
+			remove_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/white_x.png", args);
 			remove_gesture_button->handler = this;
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, remove_gesture_button);
 		}
@@ -148,8 +152,10 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Add a new gesture";
-		add_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/plus.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
-		add_gesture_button->immutable_dims = true;
+		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+		args.fixed_size = Vec2f(BUTTON_W_PIXELS);
+		add_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/plus.png", args);
 		add_gesture_button->handler = this;
 		gl_ui->addWidget(add_gesture_button);
 
@@ -171,27 +177,13 @@ void GestureManagerUI::think()
 }
 
 
-static const float BUTTON_W_PIXELS = 30;
-
 void GestureManagerUI::updateWidgetPositions()
 {
 	if(gl_ui)
 	{
 		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(100);
 
-		for(size_t i=0; i<gestures.size(); ++i)
-		{
-			gestures[i].gesture_image        ->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS)));
-			gestures[i].remove_gesture_button->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(22)));
-			gestures[i].animate_head_checkbox->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(22)));
-			gestures[i].loop_checkbox        ->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(22)));
-		}
-
-		add_gesture_button->setDims(Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(BUTTON_W_PIXELS)));
-
-
 		grid_container->setPosAndDims(Vec2f(-1.f + margin, -gl_ui->getViewportMinMaxY() + margin), Vec2f(myMax(0.01f, 2.f - 2*margin), myMax(0.01f, 2*gl_ui->getViewportMinMaxY() - 2*margin)));
-
 
 		grid_container->updateGLTransform();
 	}
