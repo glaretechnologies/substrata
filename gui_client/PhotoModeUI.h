@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2025 -
 
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
+#include <opengl/ui/GLUIWindow.h>
 #include <opengl/ui/GLUITextButton.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 #include <opengl/ui/GLUITextView.h>
@@ -66,6 +67,7 @@ public:
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 	virtual void sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& event) override; // From GLUICallbackHandler
+	virtual void closeWindowEventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 
 private:
 	void untoggleAllCamModeButtons();
@@ -80,6 +82,8 @@ private:
 	void uploadPhoto();
 
 	GUIClient* gui_client;
+
+	GLUIWindowRef window;
 
 	GLUIGridContainerRef grid_container;
 
