@@ -112,7 +112,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.cell_y_padding_px = 5;
 		args.background_alpha = 0;
 		grid_container = new GLUIGridContainer(*gl_ui_, opengl_engine_, args);
-		grid_container->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
+		grid_container->debug_name = "photo mode grid container";
 		gl_ui->addWidget(grid_container);
 	}
 
@@ -275,6 +275,7 @@ void PhotoModeUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.background_alpha = 0.6f;
 		args.background_colour = Colour3f(0.1f);
 		window = new GLUIWindow(*gl_ui_, opengl_engine_, args);
+		window->debug_name = "photo mode window";
 		window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
 		window->setBodyWidget(grid_container);
 		window->handler = this;
