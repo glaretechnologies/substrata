@@ -112,6 +112,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <BugSplat.h>
 #endif
 #include <clocale>
+#include <cmath>
 #include <exception>
 #if defined(EMSCRIPTEN)
 #include <emscripten/emscripten.h>
@@ -2712,9 +2713,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				glare::ArenaFrame frame(arena_allocator);
 
-				// camera_screen_opengl_mesh currently reuses image-cube geometry, which references material indices 0 and 1.
-				// Keep two GL materials allocated to avoid invalid material index access while rendering.
-				opengl_ob->materials.resize(2);
+				opengl_ob->materials.resize(1);
 				if(ob->materials.size() >= 1)
 					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 				else
@@ -2722,15 +2721,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
 					opengl_ob->materials[0].emission_linear_rgb = Colour3f(1.f);
 					opengl_ob->materials[0].emission_scale = 0.0f;
-				}
-
-				if(ob->materials.size() >= 2)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[1]);
-				else
-				{
-					opengl_ob->materials[1].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
-					opengl_ob->materials[1].emission_linear_rgb = Colour3f(0.f);
-					opengl_ob->materials[1].emission_scale = 0.0f;
+					opengl_ob->materials[0].alpha = 1.0f;
 				}
 
 				for(size_t i = 0; i < opengl_ob->materials.size(); ++i)
@@ -7178,6 +7169,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 						}
 
+						// Try to auto-link a just-created/initially-sent CameraScreen to the matching Camera.
+						// Some server paths can deliver newly created objects as InitialSend instead of JustCreated.
+						if(ob_just_created_or_initially_sent && (ob->creator_id == this->logged_in_user_id))
+						{
+							tryResolvePendingCameraPairCreateForObject(ob, lock);
+							tryAutoLinkUnboundCameraScreen(ob, lock); // Fallback if pending pair match didn't trigger.
+						}
+
 
 						if(ob->state == WorldObject::State_JustCreated)
 						{
@@ -7189,10 +7188,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								recreated_ob_uid[last_restored_ob_uid_in_edit] = ob->uid;
 								last_restored_ob_uid_in_edit = UID::invalidUID();
 							}
-
-							// Try to auto-link a just-created CameraScreen to the matching just-created Camera.
-							if(ob->creator_id == this->logged_in_user_id)
-								tryResolvePendingCameraPairCreateForObject(ob, lock);
 
 							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects by checking numSecondsAgo().
 							// Don't select summoned vehicles though, as the intent is probably to ride them, not edit them.
@@ -10532,6 +10527,516 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 }
 
 
+void GUIClient::renderWorldCameraStreams()
+{
+	if(!opengl_engine || world_state.isNull())
+		return;
+
+	// Keep screenshot slave mode lightweight and deterministic.
+	if(parsed_args.isArgPresent("--screenshotslave"))
+		return;
+
+	// MainWindow timer may run at 1 ms. Avoid scanning all world objects every tick.
+	// Use a lighter gate so camera streams don't appear frozen/choppy.
+	const double now = Clock::getTimeSinceInit();
+	static double last_world_cam_process_time = -1.0;
+	const double min_world_cam_process_period_s = 1.0 / 30.0;
+	if((last_world_cam_process_time > 0.0) && ((now - last_world_cam_process_time) < min_world_cam_process_period_s))
+		return;
+	last_world_cam_process_time = now;
+
+	OpenGLScene* scene = opengl_engine->getCurrentScene();
+	if(scene == NULL)
+		return;
+
+	struct ActiveCameraEntry
+	{
+		WorldObjectRef camera_ob;
+		bool enabled;
+		std::vector<WorldObjectRef> screen_obs;
+	};
+
+	std::vector<ActiveCameraEntry> active_cameras;
+	std::unordered_map<uint64, size_t> camera_uid_to_index;
+	size_t active_screen_count = 0;
+	size_t unresolved_screen_count = 0;
+	size_t auto_relinked_screen_count = 0;
+
+	{
+		Lock lock(world_state->mutex);
+
+		// Gather camera objects first.
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			const WorldObjectRef& ob_ref = it.getValue();
+			if(ob_ref->object_type == WorldObject::ObjectType_Camera)
+			{
+				ActiveCameraEntry entry;
+				entry.camera_ob = ob_ref;
+				entry.enabled = (ob_ref->type_data.camera_data.enabled != 0);
+				camera_uid_to_index[ob_ref->uid.value()] = active_cameras.size();
+				active_cameras.push_back(entry);
+			}
+		}
+
+		size_t num_enabled_cameras = 0;
+		for(size_t i = 0; i < active_cameras.size(); ++i)
+			if(active_cameras[i].enabled)
+				num_enabled_cameras++;
+
+		// Link active camera screens to their camera source UID.
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			const WorldObjectRef& ob_ref = it.getValue();
+			if((ob_ref->object_type == WorldObject::ObjectType_CameraScreen) &&
+				(ob_ref->type_data.camera_screen_data.enabled != 0))
+			{
+				active_screen_count++;
+				uint64 source_uid = ob_ref->type_data.camera_screen_data.source_camera_uid;
+				auto cam_it = camera_uid_to_index.find(source_uid);
+				const bool source_uid_unset = (source_uid == 0);
+
+				const bool mapped_to_disabled_camera = (cam_it != camera_uid_to_index.end()) &&
+					(num_enabled_cameras > 0) &&
+					(!active_cameras[cam_it->second].enabled);
+
+				// Only auto-link when source UID is explicitly unset.
+				// If source UID is set but camera is currently unavailable, keep the explicit binding and wait.
+				if(source_uid_unset)
+				{
+					const double max_auto_link_dist2 = 9.0 * 9.0; // Keep pairing local and predictable.
+					uint64 best_camera_uid = 0;
+					double best_dist2 = std::numeric_limits<double>::infinity();
+
+					for(size_t c = 0; c < active_cameras.size(); ++c)
+					{
+						const WorldObjectRef& cam_ref = active_cameras[c].camera_ob;
+						if(cam_ref.isNull())
+							continue;
+
+						const WorldObject* cam_ob = cam_ref.ptr();
+						if((num_enabled_cameras > 0) && !active_cameras[c].enabled)
+							continue;
+						if((ob_ref->creator_id.valid()) && (cam_ob->creator_id != ob_ref->creator_id))
+							continue;
+
+						const double dist2 = cam_ob->pos.getDist2(ob_ref->pos);
+						if(dist2 > max_auto_link_dist2)
+							continue;
+						if(dist2 < best_dist2)
+						{
+							best_dist2 = dist2;
+							best_camera_uid = cam_ob->uid.value();
+						}
+					}
+
+					if(best_camera_uid != 0)
+					{
+						ob_ref->type_data.camera_screen_data.source_camera_uid = best_camera_uid;
+						ob_ref->from_local_other_dirty = true;
+						world_state->dirty_from_local_objects.insert(ob_ref);
+						auto_relinked_screen_count++;
+						logMessage("[WorldCam] Auto-linked CameraScreen " + toString(ob_ref->uid.value()) + " -> Camera " + toString(best_camera_uid));
+
+						source_uid = best_camera_uid;
+						cam_it = camera_uid_to_index.find(source_uid);
+					}
+				}
+
+				if(cam_it != camera_uid_to_index.end())
+				{
+					if(!mapped_to_disabled_camera)
+						active_cameras[cam_it->second].screen_obs.push_back(ob_ref);
+				}
+				else
+					unresolved_screen_count++;
+			}
+		}
+	}
+
+	std::unordered_set<uint64> active_camera_uids_with_screens;
+	std::vector<size_t> camera_indices_with_screens;
+	camera_indices_with_screens.reserve(active_cameras.size());
+	for(size_t i = 0; i < active_cameras.size(); ++i)
+	{
+		if(!active_cameras[i].screen_obs.empty())
+		{
+			active_camera_uids_with_screens.insert(active_cameras[i].camera_ob->uid.value());
+			camera_indices_with_screens.push_back(i);
+		}
+	}
+
+	// Drop stale stream states for cameras that are gone or no longer referenced by any active screen.
+	for(auto it = camera_stream_states.begin(); it != camera_stream_states.end();)
+	{
+		if(active_camera_uids_with_screens.count(it->first) == 0)
+			it = camera_stream_states.erase(it);
+		else
+			++it;
+	}
+
+	if(active_camera_uids_with_screens.empty())
+		return;
+
+	const bool old_draw_overlay_objects = scene->draw_overlay_objects;
+	scene->draw_overlay_objects = false;
+
+	const int max_cameras_rendered_per_frame = 1; // Strong safety cap to keep main thread responsive.
+	int num_rendered = 0;
+	static uint64 total_attempted = 0;
+	static uint64 total_rendered = 0;
+	static uint64 total_throttled = 0;
+	static uint64 total_capture_invalid = 0;
+	if(camera_stream_round_robin_cursor >= camera_indices_with_screens.size())
+		camera_stream_round_robin_cursor = 0;
+	const size_t rr_start = camera_stream_round_robin_cursor;
+
+	for(size_t step = 0; (step < camera_indices_with_screens.size()) && (num_rendered < max_cameras_rendered_per_frame); ++step)
+	{
+		const size_t rr_i = (rr_start + step) % camera_indices_with_screens.size();
+		const ActiveCameraEntry& entry = active_cameras[camera_indices_with_screens[rr_i]];
+		if(entry.camera_ob.isNull())
+			continue;
+
+		WorldObject* camera_ob = entry.camera_ob.ptr();
+
+		const int configured_max_fps = myClamp((int)camera_ob->type_data.camera_data.max_fps, 1, 30);
+		const int max_fps = myMin(configured_max_fps, 8); // Keep smooth enough while still capped for responsiveness.
+		const double min_period = 1.0 / (double)max_fps;
+
+		CameraStreamRenderState& stream_state = camera_stream_states[camera_ob->uid.value()];
+		total_attempted++;
+		if((stream_state.last_render_time > 0.0) && ((now - stream_state.last_render_time) < min_period))
+		{
+			total_throttled++;
+			continue;
+		}
+
+		const int requested_render_w = myClamp((int)camera_ob->type_data.camera_data.render_width, 16, 1280);
+		const int requested_render_h = myClamp((int)camera_ob->type_data.camera_data.render_height, 16, 720);
+		const int render_w = myMax(16, requested_render_w / 2); // Global quality reduction for faster camera streaming.
+		const int render_h = myMax(16, requested_render_h / 2);
+
+		// Build camera view matrix from object basis.
+		// Ignore object scale for camera viewing (scale should affect only camera mesh appearance).
+		// Use a fixed local basis here so stream view is deterministic and tied to the Camera object transform.
+		WorldObject camera_ob_no_scale = *camera_ob;
+		camera_ob_no_scale.scale = Vec3f(1.f);
+		const Matrix4f cam_ob_to_world = obToWorldMatrix(camera_ob_no_scale);
+		// Camera view direction must follow the camera model lens axis.
+		// For the current camera mesh/orientation this is local +Z, while local +Y is up.
+		Vec4f cam_right_ws = normalise(cam_ob_to_world.getColumn(0));
+		Vec4f cam_forward_ws = normalise(cam_ob_to_world.getColumn(2) * -1.f);
+		Vec4f cam_up_ws = normalise(cam_ob_to_world.getColumn(1));
+
+		// Re-orthonormalise to avoid drift from non-uniform scaling or numeric noise.
+		cam_right_ws = crossProduct(cam_forward_ws, cam_up_ws);
+		if(cam_right_ws.length2() < 1.0e-12f)
+			cam_right_ws = Vec4f(1, 0, 0, 0);
+		else
+			cam_right_ws = normalise(cam_right_ws);
+		cam_up_ws = normalise(crossProduct(cam_right_ws, cam_forward_ws));
+
+		Matrix4f world_to_camera_rot = Matrix4f::fromRows(cam_right_ws, cam_forward_ws, cam_up_ws, Vec4f(0,0,0,1));
+		Matrix4f world_to_camera;
+		const Vec4f cam_capture_pos_ws = cam_ob_to_world.getColumn(3) + cam_up_ws * 1.0f; // Lift capture origin by 1 meter.
+		world_to_camera_rot.rightMultiplyWithTranslationMatrix(-cam_capture_pos_ws, /*result=*/world_to_camera);
+
+		const float fov_y_rad = myClamp(camera_ob->type_data.camera_data.fov_y_rad, ::degreeToRad(5.f), ::degreeToRad(175.f));
+		const float near_dist = myMax(0.01f, camera_ob->type_data.camera_data.near_dist);
+		const float far_dist = myMax(near_dist + 0.01f, camera_ob->type_data.camera_data.far_dist);
+		const float render_aspect_ratio = (float)render_w / (float)render_h;
+
+		const float sensor_width = 0.035f;
+		const float sensor_height = sensor_width / render_aspect_ratio;
+		const float lens_sensor_dist = sensor_height * 0.5f / std::tan(fov_y_rad * 0.5f);
+
+		opengl_engine->setViewportDims(render_w, render_h);
+		opengl_engine->setNearDrawDistance(near_dist);
+		opengl_engine->setMaxDrawDistance(far_dist);
+		opengl_engine->setPerspectiveCameraTransform(world_to_camera, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
+
+		// Hide camera mesh while capturing from this camera to avoid rendering "from inside" its own body.
+		// This is a common cause of fully black output when model origin is inside opaque geometry.
+		GLObjectRef camera_gl_ob = camera_ob->opengl_engine_ob;
+		const bool hide_camera_mesh_for_capture = camera_gl_ob.nonNull();
+		if(hide_camera_mesh_for_capture)
+			opengl_engine->removeObject(camera_gl_ob);
+
+		// Also hide linked camera screens during capture to avoid self-feedback lock-in
+		// (screen starts black, camera sees only that black screen, and it never recovers).
+		js::Vector<GLObjectRef, 16> removed_screen_obs;
+		for(size_t s = 0; s < entry.screen_obs.size(); ++s)
+		{
+			WorldObject* screen_ob = entry.screen_obs[s].ptr();
+			if(screen_ob && screen_ob->opengl_engine_ob.nonNull())
+			{
+				opengl_engine->removeObject(screen_ob->opengl_engine_ob);
+				removed_screen_obs.push_back(screen_ob->opengl_engine_ob);
+			}
+		}
+
+		// Use a lightweight render path for camera captures so we don't stall the GUI thread.
+		const bool old_shadow_mapping = scene->shadow_mapping;
+		const bool old_cloud_shadows = scene->cloud_shadows;
+		const bool old_render_to_main_render_framebuffer = scene->render_to_main_render_framebuffer;
+		const bool old_collect_stats = scene->collect_stats;
+		scene->shadow_mapping = false;
+		scene->cloud_shadows = false;
+		scene->render_to_main_render_framebuffer = false;
+		scene->collect_stats = false;
+
+		ImageMapUInt8Ref capture = opengl_engine->drawToBufferAndReturnImageMap();
+
+		scene->shadow_mapping = old_shadow_mapping;
+		scene->cloud_shadows = old_cloud_shadows;
+		scene->render_to_main_render_framebuffer = old_render_to_main_render_framebuffer;
+		scene->collect_stats = old_collect_stats;
+
+		for(size_t s = 0; s < removed_screen_obs.size(); ++s)
+			opengl_engine->addObject(removed_screen_obs[s]);
+
+		if(hide_camera_mesh_for_capture)
+			opengl_engine->addObject(camera_gl_ob);
+		if(capture.nonNull() && (capture->getN() >= 3))
+		{
+			const int captured_w = (int)capture->getWidth();
+			const int captured_h = (int)capture->getHeight();
+			const size_t src_channels = capture->getN();
+
+			// Use RGBA stream textures with forced opaque alpha.
+			// Keeping 4-channel upload avoids row-stride quirks on some drivers and
+			// prevents accidental transparent/black sampling from undefined alpha.
+			js::Vector<uint8, 16> rgba_capture_data;
+			const uint8* tex_data = capture->getData();
+			size_t tex_data_size = capture->getDataSize();
+			size_t tex_channels = src_channels;
+
+			const uint32 vhs_time_tick = (uint32)(now * 90.0);
+			const auto apply_vhs_style = [vhs_time_tick](int x, int y, uint8 r, uint8 g, uint8 b, uint8& out_r, uint8& out_g, uint8& out_b)
+			{
+				int rr = (int)r;
+				int gg = (int)g;
+				int bb = (int)b;
+
+				// Scanline darkening.
+				if((y & 1) != 0)
+				{
+					rr = (rr * 236) / 255;
+					gg = (gg * 236) / 255;
+					bb = (bb * 236) / 255;
+				}
+
+				// Lower colour precision for tape-like chroma.
+				rr &= 0xFC;
+				gg &= 0xFC;
+				bb &= 0xF8;
+
+				// Deterministic grain/noise.
+				const uint32 h = ((uint32)x * 73856093u) ^ ((uint32)y * 19349663u) ^ (vhs_time_tick * 83492791u);
+				const int n = (int)(h & 0x07) - 4; // [-4, +3]
+				rr = myClamp(rr + n, 0, 255);
+				gg = myClamp(gg + (n / 3), 0, 255);
+				bb = myClamp(bb + (n / 4), 0, 255);
+
+				// Mild chroma imbalance drift.
+				const int chroma = (int)(1.2 * std::sin((double)(y + (int)(vhs_time_tick & 1023)) * 0.12));
+				rr = myClamp(rr + chroma, 0, 255);
+				bb = myClamp(bb - chroma, 0, 255);
+
+				out_r = (uint8)rr;
+				out_g = (uint8)gg;
+				out_b = (uint8)bb;
+			};
+
+			if(src_channels == 4)
+			{
+				rgba_capture_data.resize((size_t)captured_w * (size_t)captured_h * 4);
+				const uint8* src = capture->getData();
+				for(size_t p = 0, d = 0; p < (size_t)captured_w * (size_t)captured_h; ++p, d += 4)
+				{
+					const int x = (int)(p % (size_t)captured_w);
+					const int y = (int)(p / (size_t)captured_w);
+					uint8 rr, gg, bb;
+					apply_vhs_style(x, y, src[p * 4 + 0], src[p * 4 + 1], src[p * 4 + 2], rr, gg, bb);
+					rgba_capture_data[d + 0] = rr;
+					rgba_capture_data[d + 1] = gg;
+					rgba_capture_data[d + 2] = bb;
+					rgba_capture_data[d + 3] = 255;
+				}
+				tex_data = rgba_capture_data.data();
+				tex_data_size = rgba_capture_data.size();
+				tex_channels = 4;
+			}
+			else if(src_channels == 3)
+			{
+				rgba_capture_data.resize((size_t)captured_w * (size_t)captured_h * 4);
+				const uint8* src = capture->getData();
+				for(size_t p = 0, d = 0; p < (size_t)captured_w * (size_t)captured_h; ++p, d += 4)
+				{
+					const int x = (int)(p % (size_t)captured_w);
+					const int y = (int)(p / (size_t)captured_w);
+					uint8 rr, gg, bb;
+					apply_vhs_style(x, y, src[p * 3 + 0], src[p * 3 + 1], src[p * 3 + 2], rr, gg, bb);
+					rgba_capture_data[d + 0] = rr;
+					rgba_capture_data[d + 1] = gg;
+					rgba_capture_data[d + 2] = bb;
+					rgba_capture_data[d + 3] = 255;
+				}
+				tex_data = rgba_capture_data.data();
+				tex_data_size = rgba_capture_data.size();
+				tex_channels = 4;
+			}
+
+			const OpenGLTextureFormat stream_tex_format = OpenGLTextureFormat::Format_RGBA_Linear_Uint8;
+
+			if(stream_state.stream_texture.isNull() || (stream_state.tex_w != captured_w) || (stream_state.tex_h != captured_h))
+			{
+				stream_state.stream_texture = new OpenGLTexture(
+					(size_t)captured_w,
+					(size_t)captured_h,
+					opengl_engine.ptr(),
+					ArrayRef<uint8>(tex_data, tex_data_size),
+					stream_tex_format,
+					OpenGLTexture::Filtering_Bilinear,
+					OpenGLTexture::Wrapping_Clamp,
+					/*has_mipmaps=*/false
+				);
+				stream_state.stream_texture->setDebugName("world_camera_stream_" + toString(camera_ob->uid.value()));
+				stream_state.tex_w = captured_w;
+				stream_state.tex_h = captured_h;
+			}
+			else
+			{
+				stream_state.stream_texture->loadIntoExistingTexture(
+					/*mipmap_level=*/0,
+					(size_t)captured_w,
+					(size_t)captured_h,
+					(size_t)captured_w * tex_channels,
+					ArrayRef<uint8>(tex_data, tex_data_size),
+					/*bind_needed=*/true
+				);
+			}
+
+			// Match the emissive brightness level used by WebView/Video screens so camera output
+			// remains visible in daylight lighting conditions.
+			const float stream_luminance_nits = 24000.0f;
+			const float min_stream_emission_scale = stream_luminance_nits / (683.002f * 106.856e-9f) * 1.0e-9f;
+
+			for(size_t s = 0; s < entry.screen_obs.size(); ++s)
+			{
+				WorldObject* screen_ob = entry.screen_obs[s].ptr();
+				if(screen_ob->opengl_engine_ob.isNull() || screen_ob->opengl_engine_ob->materials.empty())
+					continue;
+
+				const int max_mat_index = (int)screen_ob->opengl_engine_ob->materials.size() - 1;
+				(void)myClamp((int)screen_ob->type_data.camera_screen_data.material_index, 0, max_mat_index); // Reserved for advanced per-material routing.
+
+				// Apply to all materials so screens remain visible even if mesh/material index conventions differ.
+				for(int mat_index = 0; mat_index <= max_mat_index; ++mat_index)
+				{
+					OpenGLMaterial& mat = screen_ob->opengl_engine_ob->materials[mat_index];
+
+					const bool tex_binding_changed = mat.emission_texture != stream_state.stream_texture;
+					const bool albedo_binding_changed = mat.albedo_texture != stream_state.stream_texture;
+					const bool alpha_test_changed = mat.allow_alpha_test;
+					const bool emission_scale_changed = mat.emission_scale < min_stream_emission_scale;
+					const bool emission_colour_changed =
+						(mat.emission_linear_rgb.r != 1.0f) ||
+						(mat.emission_linear_rgb.g != 1.0f) ||
+						(mat.emission_linear_rgb.b != 1.0f);
+					const Matrix2f identity_tex_matrix = Matrix2f::identity();
+					const bool tex_matrix_changed =
+						(mat.tex_matrix.e[0] != identity_tex_matrix.e[0]) ||
+						(mat.tex_matrix.e[1] != identity_tex_matrix.e[1]) ||
+						(mat.tex_matrix.e[2] != identity_tex_matrix.e[2]) ||
+						(mat.tex_matrix.e[3] != identity_tex_matrix.e[3]);
+					const bool tex_translation_changed =
+						(mat.tex_translation.x != 0.0f) ||
+						(mat.tex_translation.y != 0.0f);
+					const bool double_sided_changed = !mat.simple_double_sided;
+					// Bind stream in both albedo and emission paths for robustness across shader/material variants.
+					// (alpha test is disabled below, so captured alpha cannot blank the surface)
+					mat.albedo_texture = stream_state.stream_texture;
+					mat.albedo_linear_rgb = Colour3f(1.0f);
+					mat.emission_texture = stream_state.stream_texture;
+					mat.emission_linear_rgb = Colour3f(1.0f);
+					mat.tex_matrix = Matrix2f::identity();
+					const float vhs_x_jitter = 0.0010f * (float)std::sin(now * 31.0);
+					const float vhs_y_jitter = 0.0006f * (float)std::sin(now * 17.0);
+					mat.tex_translation = Vec2f(vhs_x_jitter, vhs_y_jitter);
+					mat.simple_double_sided = true;
+					mat.allow_alpha_test = false;
+					mat.emission_scale = myMax(mat.emission_scale, min_stream_emission_scale);
+
+					if(tex_binding_changed || albedo_binding_changed || alpha_test_changed || emission_scale_changed || emission_colour_changed || tex_matrix_changed || tex_translation_changed || double_sided_changed)
+						opengl_engine->materialTextureChanged(*screen_ob->opengl_engine_ob, mat);
+				}
+			}
+
+			stream_state.last_render_time = now;
+			num_rendered++;
+			total_rendered++;
+		}
+		else
+		{
+			total_capture_invalid++;
+			// Even on failed capture, advance render timestamp so we still respect max_fps.
+			// Without this, a persistent capture failure can spin every frame and stall the UI thread.
+			stream_state.last_render_time = now;
+		}
+	}
+
+	if(!camera_indices_with_screens.empty())
+	{
+		const size_t advance = myMax((size_t)1, (size_t)num_rendered);
+		camera_stream_round_robin_cursor = (rr_start + advance) % camera_indices_with_screens.size();
+	}
+
+	{
+		static double last_world_cam_log_time = -1.0;
+		static uint64 prev_attempted = 0;
+		static uint64 prev_rendered = 0;
+		static uint64 prev_throttled = 0;
+		static uint64 prev_capture_invalid = 0;
+		if((last_world_cam_log_time < 0.0) || (now - last_world_cam_log_time > 2.0))
+		{
+			size_t enabled_cam_count = 0;
+			for(size_t i = 0; i < active_cameras.size(); ++i)
+				if(active_cameras[i].enabled)
+					enabled_cam_count++;
+
+			const uint64 attempted_delta = total_attempted - prev_attempted;
+			const uint64 rendered_delta = total_rendered - prev_rendered;
+			const uint64 throttled_delta = total_throttled - prev_throttled;
+			const uint64 capture_invalid_delta = total_capture_invalid - prev_capture_invalid;
+			prev_attempted = total_attempted;
+			prev_rendered = total_rendered;
+			prev_throttled = total_throttled;
+			prev_capture_invalid = total_capture_invalid;
+
+			conPrint(
+				"[WorldCam] cams=" + toString(active_cameras.size()) +
+				", enabled=" + toString(enabled_cam_count) +
+				", screens_enabled=" + toString(active_screen_count) +
+				", unresolved=" + toString(unresolved_screen_count) +
+				", auto_relinked=" + toString(auto_relinked_screen_count) +
+				", cams_with_screens=" + toString(camera_indices_with_screens.size()) +
+				", rendered_this_frame=" + toString(num_rendered) +
+				", attempted_d2s=" + toString(attempted_delta) +
+				", rendered_d2s=" + toString(rendered_delta) +
+				", throttled_d2s=" + toString(throttled_delta) +
+				", capture_invalid_d2s=" + toString(capture_invalid_delta) +
+				", rr_cursor=" + toString(camera_stream_round_robin_cursor)
+			);
+			last_world_cam_log_time = now;
+		}
+	}
+
+	scene->draw_overlay_objects = old_draw_overlay_objects;
+}
+
+
 void GUIClient::queuePendingCameraPairCreate(const Vec3d& camera_pos, const Vec3d& screen_pos)
 {
 	PendingCameraPairCreate pending;
@@ -10598,6 +11103,64 @@ void GUIClient::tryResolvePendingCameraPairCreateForObject(WorldObject* created_
 			pending_camera_pair_creates.erase(pending_camera_pair_creates.begin() + i);
 			break;
 		}
+	}
+}
+
+
+void GUIClient::tryAutoLinkUnboundCameraScreen(WorldObject* maybe_screen_ob, WorldStateLock& world_state_lock)
+{
+	(void)world_state_lock;
+
+	if(maybe_screen_ob == NULL)
+		return;
+	if(maybe_screen_ob->object_type != WorldObject::ObjectType_CameraScreen)
+		return;
+	if(maybe_screen_ob->type_data.camera_screen_data.source_camera_uid != 0)
+		return;
+
+	size_t num_enabled_cameras = 0;
+	for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+	{
+		const WorldObjectRef& candidate_ref = it.getValue();
+		const WorldObject* candidate_ob = candidate_ref.ptr();
+		if(candidate_ob->object_type == WorldObject::ObjectType_Camera && candidate_ob->type_data.camera_data.enabled != 0)
+			num_enabled_cameras++;
+	}
+
+	uint64 best_camera_uid = 0;
+	double best_dist2 = std::numeric_limits<double>::infinity();
+	const double max_auto_link_dist2 = 9.0 * 9.0;
+
+	for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+	{
+		const WorldObjectRef& candidate_ref = it.getValue();
+		const WorldObject* candidate_ob = candidate_ref.ptr();
+		if(candidate_ob->object_type != WorldObject::ObjectType_Camera)
+			continue;
+		if((num_enabled_cameras > 0) && (candidate_ob->type_data.camera_data.enabled == 0))
+			continue;
+		if((maybe_screen_ob->creator_id.valid()) && (candidate_ob->creator_id != maybe_screen_ob->creator_id))
+			continue;
+
+		const double dist2 = candidate_ob->pos.getDist2(maybe_screen_ob->pos);
+		if(dist2 > max_auto_link_dist2)
+			continue;
+		if(dist2 < best_dist2)
+		{
+			best_dist2 = dist2;
+			best_camera_uid = candidate_ob->uid.value();
+		}
+	}
+
+	if(best_camera_uid != 0)
+	{
+		maybe_screen_ob->type_data.camera_screen_data.source_camera_uid = best_camera_uid;
+		maybe_screen_ob->from_local_other_dirty = true;
+		logMessage("[WorldCam] Auto-linked CameraScreen " + toString(maybe_screen_ob->uid.value()) + " -> Camera " + toString(best_camera_uid));
+
+		auto screen_res = world_state->objects.find(maybe_screen_ob->uid);
+		if(screen_res != world_state->objects.end())
+			world_state->dirty_from_local_objects.insert(screen_res.getValue());
 	}
 }
 
@@ -12672,8 +13235,7 @@ void GUIClient::objectEdited()
 						{
 							glare::ArenaFrame frame(arena_allocator);
 
-							// camera_screen_opengl_mesh uses mat indices 0 and 1 (frame + screen faces).
-							opengl_ob->materials.resize(2);
+							opengl_ob->materials.resize(1);
 
 							if(!this->selected_ob->materials.empty())
 							{
@@ -12691,24 +13253,6 @@ void GUIClient::objectEdited()
 							{
 								opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
 								opengl_ob->materials[0].alpha = 1.0f;
-							}
-
-							if(this->selected_ob->materials.size() >= 2)
-							{
-								ModelLoading::setGLMaterialFromWorldMaterial(
-									*this->selected_ob->materials[1],
-									ob_lod_level,
-									/*lightmap URL=*/"",
-									/*use_basis=*/this->server_has_basis_textures,
-									*this->resource_manager,
-									&arena_allocator,
-									opengl_ob->materials[1]
-								);
-							}
-							else
-							{
-								opengl_ob->materials[1].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
-								opengl_ob->materials[1].alpha = 1.0f;
 							}
 
 							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());

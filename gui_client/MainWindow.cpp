@@ -1309,6 +1309,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	ui->glWidget->makeCurrent();
 
+	// Render world-camera streams (Camera -> CameraScreen) before the main scene draw.
+	// Requires the main GL context to be current.
+	gui_client.renderWorldCameraStreams();
+
 	//Timer timer;
 	{
 		Timer timer2;
@@ -1989,7 +1993,22 @@ void MainWindow::on_actionAdd_Camera_triggered()
 		return;
 	}
 
-	const float facing_angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>());
+	// Screen mesh "forward" convention is local +Y (same as many existing object types),
+	// while camera capture currently uses camera local +X as lens-forward.
+	// Keep separate snapped angles so the camera points where the player looks,
+	// and the screen stays oriented consistently with existing object conventions.
+	const float camera_facing_angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x, Maths::pi_4<float>());
+	const float screen_facing_angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>());
+
+	// Keep camera model upright by default (x = +90 deg in ObjectEditor),
+	// while still orienting it towards the player's current facing direction around z.
+	const Quatf yaw_rot = Quatf::zAxisRot(camera_facing_angle);
+	const Quatf upright_rot = Quatf::xAxisRot(Maths::pi_2<float>());
+	const Quatf camera_rot = normalise(yaw_rot * upright_rot);
+	Vec4f camera_axis_4;
+	float camera_angle = 0.f;
+	camera_rot.toAxisAndAngle(camera_axis_4, camera_angle);
+	const Vec3f camera_axis = Vec3f(camera_axis_4);
 
 	if(gui_client.camera_opengl_mesh.isNull() || gui_client.camera_screen_opengl_mesh.isNull())
 	{
@@ -2001,8 +2020,8 @@ void MainWindow::on_actionAdd_Camera_triggered()
 	camera_ob->uid = UID(0); // Will be set by server
 	camera_ob->object_type = WorldObject::ObjectType_Camera;
 	camera_ob->pos = cam_ob_pos;
-	camera_ob->axis = Vec3f(0, 0, 1);
-	camera_ob->angle = facing_angle;
+	camera_ob->axis = camera_axis;
+	camera_ob->angle = camera_angle;
 	camera_ob->scale = Vec3f(0.65f, 0.65f, 0.65f);
 	camera_ob->type_data.camera_data.fov_y_rad = Maths::pi<float>() * 60.f / 180.f;
 	camera_ob->type_data.camera_data.near_dist = 0.1f;
@@ -2020,7 +2039,7 @@ void MainWindow::on_actionAdd_Camera_triggered()
 	screen_ob->object_type = WorldObject::ObjectType_CameraScreen;
 	screen_ob->pos = screen_ob_pos;
 	screen_ob->axis = Vec3f(0, 0, 1);
-	screen_ob->angle = facing_angle;
+	screen_ob->angle = screen_facing_angle;
 	screen_ob->scale = Vec3f(1.4f, 0.06f, 0.8f);
 	screen_ob->type_data.camera_screen_data.source_camera_uid = 0; // Will be linked in a later phase after server-assigned UID is known.
 	screen_ob->type_data.camera_screen_data.material_index = 0;
@@ -2029,6 +2048,10 @@ void MainWindow::on_actionAdd_Camera_triggered()
 	screen_ob->materials.push_back(new WorldMaterial());
 	screen_ob->materials.back()->colour_rgb = Colour3f(0.05f, 0.05f, 0.05f);
 	screen_ob->setAABBOS(gui_client.camera_screen_opengl_mesh->aabb_os);
+
+	// Register expected camera/screen pair before network create messages to avoid a race
+	// where server-assigned UIDs arrive before the pending pair is queued.
+	gui_client.queuePendingCameraPairCreate(cam_ob_pos, screen_ob_pos);
 
 	// Send CreateObject message for camera
 	{
@@ -2043,8 +2066,6 @@ void MainWindow::on_actionAdd_Camera_triggered()
 		screen_ob->writeToNetworkStream(scratch_packet);
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
-
-	gui_client.queuePendingCameraPairCreate(cam_ob_pos, screen_ob_pos);
 
 	showInfoNotification("Added camera and camera screen.");
 }

@@ -294,6 +294,7 @@ public:
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
 	void queuePendingCameraPairCreate(const Vec3d& camera_pos, const Vec3d& screen_pos);
+	void renderWorldCameraStreams();
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
@@ -437,6 +438,7 @@ public:
 	bool shouldDisableLODForCurrentServer() const;
 	int getEffectiveLODLevel(const WorldObject* ob, const Vec3d& campos) const;
 	void tryResolvePendingCameraPairCreateForObject(WorldObject* created_ob, WorldStateLock& world_state_lock);
+	void tryAutoLinkUnboundCameraScreen(WorldObject* maybe_screen_ob, WorldStateLock& world_state_lock);
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -723,6 +725,20 @@ public:
 		double creation_time;
 	};
 	std::vector<PendingCameraPairCreate> pending_camera_pair_creates;
+
+	struct CameraStreamRenderState
+	{
+		CameraStreamRenderState() : tex_w(0), tex_h(0), last_render_time(-1.0), basis_mode(0), dark_frame_streak(0) {}
+
+		OpenGLTextureRef stream_texture;
+		int tex_w;
+		int tex_h;
+		double last_render_time;
+		int basis_mode;
+		uint32 dark_frame_streak;
+	};
+	std::unordered_map<uint64, CameraStreamRenderState> camera_stream_states;
+	size_t camera_stream_round_robin_cursor = 0;
 
 	GLUIRef gl_ui;
 	GestureUI gesture_ui; // Draws gesture buttons, also selfie and enable mic button
