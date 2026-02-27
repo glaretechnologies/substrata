@@ -2659,14 +2659,24 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				glare::ArenaFrame frame(arena_allocator);
 
-				opengl_ob->materials.resize(1);
-				if(ob->materials.size() >= 1)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
-				else
-					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
+				// Camera asset can reference multiple material indices in mesh batches.
+				size_t required_num_mats = 1;
+				for(size_t i = 0; i < opengl_ob->mesh_data->batches.size(); ++i)
+					required_num_mats = myMax(required_num_mats, (size_t)opengl_ob->mesh_data->batches[i].material_index + 1);
 
-				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
-				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+				opengl_ob->materials.resize(required_num_mats);
+				for(size_t i = 0; i < required_num_mats; ++i)
+				{
+					if(i < ob->materials.size())
+						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[i]);
+					else if(!ob->materials.empty())
+						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[i]);
+					else
+						opengl_ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
+
+					opengl_ob->materials[i].materialise_effect = use_materialise_effect;
+					opengl_ob->materials[i].materialise_start_time = ob->materialise_effect_start_time;
+				}
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 				ob->opengl_engine_ob = opengl_ob;
@@ -12578,7 +12588,7 @@ void GUIClient::objectEdited()
 
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
-					else if(this->selected_ob->object_type == WorldObject::ObjectType_Seat || this->selected_ob->object_type == WorldObject::ObjectType_Camera)
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Seat)
 					{
 						if(opengl_ob.nonNull())
 						{
@@ -12599,21 +12609,56 @@ void GUIClient::objectEdited()
 							}
 							else
 							{
-								// Keep object visible with sane defaults even if no material is present.
-								if(this->selected_ob->object_type == WorldObject::ObjectType_Seat)
+								// Keep seat visible with sane defaults even if no material is present.
+								opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.4f, 0.5f, 0.6f));
+								opengl_ob->materials[0].alpha = 0.5f;
+							}
+
+							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());
+							opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						}
+					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Camera)
+					{
+						if(opengl_ob.nonNull())
+						{
+							glare::ArenaFrame frame(arena_allocator);
+
+							size_t required_num_mats = 1;
+							for(size_t i = 0; i < opengl_ob->mesh_data->batches.size(); ++i)
+								required_num_mats = myMax(required_num_mats, (size_t)opengl_ob->mesh_data->batches[i].material_index + 1);
+
+							opengl_ob->materials.resize(required_num_mats);
+							for(size_t i = 0; i < required_num_mats; ++i)
+							{
+								if(i < this->selected_ob->materials.size())
 								{
-									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.4f, 0.5f, 0.6f));
-									opengl_ob->materials[0].alpha = 0.5f;
+									ModelLoading::setGLMaterialFromWorldMaterial(
+										*this->selected_ob->materials[i],
+										ob_lod_level,
+										/*lightmap URL=*/"",
+										/*use_basis=*/this->server_has_basis_textures,
+										*this->resource_manager,
+										&arena_allocator,
+										opengl_ob->materials[i]
+									);
 								}
-								else if(this->selected_ob->object_type == WorldObject::ObjectType_Camera)
+								else if(!this->selected_ob->materials.empty())
 								{
-									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
-									opengl_ob->materials[0].alpha = 1.0f;
+									ModelLoading::setGLMaterialFromWorldMaterial(
+										*this->selected_ob->materials[0],
+										ob_lod_level,
+										/*lightmap URL=*/"",
+										/*use_basis=*/this->server_has_basis_textures,
+										*this->resource_manager,
+										&arena_allocator,
+										opengl_ob->materials[i]
+									);
 								}
 								else
 								{
-									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
-									opengl_ob->materials[0].alpha = 1.0f;
+									opengl_ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
+									opengl_ob->materials[i].alpha = 1.0f;
 								}
 							}
 
