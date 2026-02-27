@@ -276,9 +276,11 @@ public:
 		ObjectType_Video = 5, // A YouTube or Twitch video, or mp4 video, with video-specific UI.
 		ObjectType_Text = 6, // Text displayed on a quad
 		ObjectType_Portal = 7, // A portal to another Substrata world or another location in the current world.
-		ObjectType_Seat = 8 // A seat that users can sit on
+		ObjectType_Seat = 8, // A seat that users can sit on
+		ObjectType_Camera = 9, // A world camera object.
+		ObjectType_CameraScreen = 10 // A world screen that can display a camera stream.
 	};
-	static const uint64 NUM_OBJECT_TYPES = 9;
+	static const uint64 NUM_OBJECT_TYPES = 11;
 
 	static std::string objectTypeString(ObjectType t);
 	static ObjectType objectTypeForString(const std::string& ob_type_string);
@@ -371,12 +373,33 @@ public:
 		float lower_arm_angle; // Lower arm angle in radians
 	};
 
+	struct CameraTypeData
+	{
+		float fov_y_rad;
+		float near_dist;
+		float far_dist;
+		uint16 render_width;
+		uint16 render_height;
+		uint8 max_fps;
+		uint8 enabled;
+	};
+
+	struct CameraScreenTypeData
+	{
+		uint64 source_camera_uid;
+		uint16 material_index;
+		uint8 enabled;
+		uint8 _padding;
+	};
+
 	union TypeData
 	{
 		SpotLightTypeData spotlight_data;
 		SeatTypeData seat_data;
+		CameraTypeData camera_data;
+		CameraScreenTypeData camera_screen_data;
 
-		TypeData() noexcept : spotlight_data() {}  // Explicitly initialize the trivial member to allow union default construction
+		TypeData() noexcept : spotlight_data() {} // Keep union default-constructible on stricter toolchains.
 	} type_data;
 
 

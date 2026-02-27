@@ -43,13 +43,14 @@ CyberspaceProtocolVersion
 47: Added UserGestureSettingsChanged message.
 48: Added ping+pong messages.
 49: Added AvatarSatOnSeat, AvatarGotUpFromSeat messages.
+50: Added ObjectType_Camera and ObjectType_CameraScreen.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 49;
+const uint32 CyberspaceProtocolVersion = 50;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -82,7 +83,6 @@ const uint32 AvatarStopGesture		= 1011;
 
 const uint32 AvatarEnteredVehicle	= 1100;
 const uint32 AvatarExitedVehicle	= 1101;
-
 const uint32 AvatarSatOnSeat		= 1110; // Avatar sat down on a seat object
 const uint32 AvatarGotUpFromSeat	= 1111; // Avatar got up from a seat object
 
@@ -195,9 +195,6 @@ const uint32 EthTransactionSubmitted			= 12002;
 const uint32 EthTransactionSubmissionFailed		= 12003;
 
 const uint32 KeepAlive				= 13000; // A message that doesn't do anything apart from provide a means for the client or server to check a connection is still working by making a socket call.
-
-const uint32 PingMessage			= 13100; // Sent by the client, used for calculating round-trip time.
-const uint32 PongMessage			= 13101; // Sent by the server, used for calculating round-trip time.
 
 const uint32 PhotoUploadSucceeded	= 14000;
 const uint32 PhotoUploadFailed		= 14001;

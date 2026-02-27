@@ -1091,7 +1091,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="seatGroupBox">
+   <widget class="QGroupBox" name="seatGroupBox">
      <property name="title">
       <string>Seat</string>
      </property>
@@ -1143,14 +1143,14 @@
        </widget>
       </item>
       <item row="2" column="0">
-    <widget class="QLabel" name="upperArmAngleLabel">
-     <property name="text">
-      <string>Upper arm angle:</string>
-     </property>
-    </widget>
+       <widget class="QLabel" name="upperArmAngleLabel">
+        <property name="text">
+         <string>Upper arm angle:</string>
+        </property>
+       </widget>
       </item>
       <item row="2" column="1">
-      <widget class="RealControl" name="upperArmAngleDoubleSpinBox">
+       <widget class="RealControl" name="upperArmAngleDoubleSpinBox">
         <property name="suffix">
          <string> rad</string>
         </property>
@@ -1166,14 +1166,14 @@
        </widget>
       </item>
       <item row="3" column="0">
-    <widget class="QLabel" name="lowerArmAngleLabel">
-     <property name="text">
-      <string>Lower arm angle:</string>
-     </property>
-    </widget>
+       <widget class="QLabel" name="lowerArmAngleLabel">
+        <property name="text">
+         <string>Lower arm angle:</string>
+        </property>
+       </widget>
       </item>
       <item row="3" column="1">
-      <widget class="RealControl" name="lowerArmAngleDoubleSpinBox">
+       <widget class="RealControl" name="lowerArmAngleDoubleSpinBox">
         <property name="suffix">
          <string> rad</string>
         </property>
@@ -1185,6 +1185,218 @@
         </property>
         <property name="singleStep">
          <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="cameraGroupBox">
+     <property name="title">
+      <string>Camera</string>
+     </property>
+     <layout class="QFormLayout" name="cameraFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="cameraEnabledLabel">
+        <property name="text">
+         <string>Enabled</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QCheckBox" name="cameraEnabledCheckBox">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="cameraFOVYLabel">
+        <property name="text">
+         <string>FOV Y</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="RealControl" name="cameraFOVYDoubleSpinBox">
+        <property name="suffix">
+         <string> deg</string>
+        </property>
+        <property name="minimum">
+         <double>5.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>175.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>60.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="cameraNearDistLabel">
+        <property name="text">
+         <string>Near distance</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="IndigoDoubleSpinBox" name="cameraNearDistDoubleSpinBox">
+        <property name="minimum">
+         <double>0.010000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>1000.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.010000000000000</double>
+        </property>
+        <property name="value">
+         <double>0.100000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="cameraFarDistLabel">
+        <property name="text">
+         <string>Far distance</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="IndigoDoubleSpinBox" name="cameraFarDistDoubleSpinBox">
+        <property name="minimum">
+         <double>0.100000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>100000.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>1.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>1000.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="cameraRenderWidthLabel">
+        <property name="text">
+         <string>Render width</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QSpinBox" name="cameraRenderWidthSpinBox">
+        <property name="minimum">
+         <number>16</number>
+        </property>
+        <property name="maximum">
+         <number>4096</number>
+        </property>
+        <property name="singleStep">
+         <number>16</number>
+        </property>
+        <property name="value">
+         <number>512</number>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="cameraRenderHeightLabel">
+        <property name="text">
+         <string>Render height</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QSpinBox" name="cameraRenderHeightSpinBox">
+        <property name="minimum">
+         <number>16</number>
+        </property>
+        <property name="maximum">
+         <number>4096</number>
+        </property>
+        <property name="singleStep">
+         <number>16</number>
+        </property>
+        <property name="value">
+         <number>288</number>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="cameraMaxFPSLabel">
+        <property name="text">
+         <string>Max FPS</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QSpinBox" name="cameraMaxFPSSpinBox">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>120</number>
+        </property>
+        <property name="value">
+         <number>10</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="cameraScreenGroupBox">
+     <property name="title">
+      <string>Camera Screen</string>
+     </property>
+     <layout class="QFormLayout" name="cameraScreenFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="cameraScreenEnabledLabel">
+        <property name="text">
+         <string>Enabled</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QCheckBox" name="cameraScreenEnabledCheckBox">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="cameraScreenSourceUIDLabel">
+        <property name="text">
+         <string>Source camera UID</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="cameraScreenSourceUIDLineEdit">
+        <property name="placeholderText">
+         <string>0</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="cameraScreenMaterialIndexLabel">
+        <property name="text">
+         <string>Material index</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="cameraScreenMaterialIndexSpinBox">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>65535</number>
         </property>
        </widget>
       </item>

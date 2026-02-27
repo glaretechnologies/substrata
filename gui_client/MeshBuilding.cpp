@@ -356,6 +356,40 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 }
 
 
+MeshBuilding::MeshBuildingResults MeshBuilding::makeCameraMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator)
+{
+	ZoneScoped; // Tracy profiler
+
+	const std::string model_path = base_dir_path + "/data/resources/camera.bmesh";
+
+	try
+	{
+		BatchedMeshRef batched_mesh = BatchedMesh::readFromFile(model_path, /*mem allocator=*/nullptr);
+
+		batched_mesh->checkValidAndSanitiseMesh();
+
+		Reference<OpenGLMeshRenderData> camera_opengl_mesh = GLMeshBuilding::buildBatchedMesh(&allocator, batched_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+
+		MeshBuildingResults results;
+		results.opengl_mesh_data = camera_opengl_mesh;
+		results.physics_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/false);
+		return results;
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Warning: failed to load camera mesh '" + model_path + "': " + e.what() + ". Falling back to procedural seat mesh.");
+		return makeSeatMesh(allocator);
+	}
+}
+
+
+MeshBuilding::MeshBuildingResults MeshBuilding::makeCameraScreenMesh(VertexBufferAllocator& allocator)
+{
+	// Reuse image-cube geometry for now. CameraScreen object uses one material and can be flattened via object scale.
+	return makeImageCube(allocator);
+}
+
+
 MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator)
 {
 	ZoneScoped; // Tracy profiler
