@@ -1991,6 +1991,12 @@ void MainWindow::on_actionAdd_Camera_triggered()
 
 	const float facing_angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>());
 
+	if(gui_client.camera_opengl_mesh.isNull() || gui_client.camera_screen_opengl_mesh.isNull())
+	{
+		showErrorNotification("Camera meshes are not initialised yet. Please wait a moment and try again.");
+		return;
+	}
+
 	WorldObjectRef camera_ob = new WorldObject();
 	camera_ob->uid = UID(0); // Will be set by server
 	camera_ob->object_type = WorldObject::ObjectType_Camera;
