@@ -2702,7 +2702,9 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				glare::ArenaFrame frame(arena_allocator);
 
-				opengl_ob->materials.resize(1);
+				// camera_screen_opengl_mesh currently reuses image-cube geometry, which references material indices 0 and 1.
+				// Keep two GL materials allocated to avoid invalid material index access while rendering.
+				opengl_ob->materials.resize(2);
 				if(ob->materials.size() >= 1)
 					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 				else
@@ -2712,8 +2714,20 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					opengl_ob->materials[0].emission_scale = 0.0f;
 				}
 
-				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
-				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+				if(ob->materials.size() >= 2)
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[1]);
+				else
+				{
+					opengl_ob->materials[1].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
+					opengl_ob->materials[1].emission_linear_rgb = Colour3f(0.f);
+					opengl_ob->materials[1].emission_scale = 0.0f;
+				}
+
+				for(size_t i = 0; i < opengl_ob->materials.size(); ++i)
+				{
+					opengl_ob->materials[i].materialise_effect = use_materialise_effect;
+					opengl_ob->materials[i].materialise_start_time = ob->materialise_effect_start_time;
+				}
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 				ob->opengl_engine_ob = opengl_ob;
@@ -12564,7 +12578,7 @@ void GUIClient::objectEdited()
 
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
-					else if(this->selected_ob->object_type == WorldObject::ObjectType_Seat || this->selected_ob->object_type == WorldObject::ObjectType_Camera || this->selected_ob->object_type == WorldObject::ObjectType_CameraScreen)
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Seat || this->selected_ob->object_type == WorldObject::ObjectType_Camera)
 					{
 						if(opengl_ob.nonNull())
 						{
@@ -12601,6 +12615,55 @@ void GUIClient::objectEdited()
 									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
 									opengl_ob->materials[0].alpha = 1.0f;
 								}
+							}
+
+							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());
+							opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						}
+					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_CameraScreen)
+					{
+						if(opengl_ob.nonNull())
+						{
+							glare::ArenaFrame frame(arena_allocator);
+
+							// camera_screen_opengl_mesh uses mat indices 0 and 1 (frame + screen faces).
+							opengl_ob->materials.resize(2);
+
+							if(!this->selected_ob->materials.empty())
+							{
+								ModelLoading::setGLMaterialFromWorldMaterial(
+									*this->selected_ob->materials[0],
+									ob_lod_level,
+									/*lightmap URL=*/"",
+									/*use_basis=*/this->server_has_basis_textures,
+									*this->resource_manager,
+									&arena_allocator,
+									opengl_ob->materials[0]
+								);
+							}
+							else
+							{
+								opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
+								opengl_ob->materials[0].alpha = 1.0f;
+							}
+
+							if(this->selected_ob->materials.size() >= 2)
+							{
+								ModelLoading::setGLMaterialFromWorldMaterial(
+									*this->selected_ob->materials[1],
+									ob_lod_level,
+									/*lightmap URL=*/"",
+									/*use_basis=*/this->server_has_basis_textures,
+									*this->resource_manager,
+									&arena_allocator,
+									opengl_ob->materials[1]
+								);
+							}
+							else
+							{
+								opengl_ob->materials[1].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
+								opengl_ob->materials[1].alpha = 1.0f;
 							}
 
 							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());
