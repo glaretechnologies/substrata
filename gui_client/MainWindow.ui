@@ -47,6 +47,14 @@
     </property>
     <addaction name="actionReset_Layout"/>
     <addaction name="actionEnter_Fullscreen"/>
+    <widget class="QMenu" name="menuLanguage">
+     <property name="title">
+      <string>Language</string>
+     </property>
+     <addaction name="actionLanguage_English"/>
+     <addaction name="actionLanguage_Russian"/>
+    </widget>
+    <addaction name="menuLanguage"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -66,12 +74,15 @@
     <addaction name="actionAddHypercard"/>
     <addaction name="actionAdd_Text"/>
     <addaction name="actionAdd_Spotlight"/>
+    <addaction name="actionAdd_Camera"/>
     <addaction name="actionAdd_Seat"/>
     <addaction name="actionAdd_Audio_Source"/>
     <addaction name="actionAdd_Web_View"/>
     <addaction name="actionAdd_Video"/>
     <addaction name="actionAdd_Decal"/>
     <addaction name="actionAdd_Portal"/>
+    <addaction name="separator"/>
+    <addaction name="actionAdd_to_Favorites"/>
     <addaction name="separator"/>
     <addaction name="actionCopy_Object"/>
     <addaction name="actionPaste_Object"/>
@@ -105,6 +116,17 @@
     <addaction name="actionGoToPersonalWorld"/>
     <addaction name="actionGo_to_CryptoVoxels_World"/>
     <addaction name="separator"/>
+    <addaction name="actionGo_to_Substrata_Server"/>
+    <addaction name="actionGo_to_Metasiberia_Server"/>
+    <addaction name="actionGo_to_Shki_nvkz_Server"/>
+    <addaction name="separator"/>
+    <widget class="QMenu" name="menuGo_to_Favorites">
+     <property name="title">
+      <string>Go to Favorites</string>
+     </property>
+    </widget>
+    <addaction name="menuGo_to_Favorites"/>
+    <addaction name="separator"/>
     <addaction name="actionSet_Start_Location"/>
    </widget>
    <widget class="QMenu" name="menuTools">
@@ -123,6 +145,7 @@
      <string>Help</string>
     </property>
     <addaction name="actionAbout_Substrata"/>
+    <addaction name="actionUpdate"/>
    </widget>
    <widget class="QMenu" name="menuAvatar">
     <property name="title">
@@ -248,6 +271,56 @@
          </widget>
         </item>
        </layout>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="webcamDockWidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="windowTitle">
+    <string>Webcam</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="webcamDockWidgetContents">
+    <layout class="QVBoxLayout" name="verticalLayout_webcam">
+     <item>
+      <widget class="QLabel" name="webcamLabel">
+       <property name="minimumSize">
+        <size>
+         <width>320</width>
+         <height>240</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>640</width>
+         <height>480</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>Webcam feed will appear here</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+       <property name="scaledContents">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="webcamEnableCheckBox">
+       <property name="text">
+        <string>Enable Webcam</string>
+       </property>
       </widget>
      </item>
     </layout>
@@ -544,6 +617,21 @@
     <string>Go to Cryptovoxels World</string>
    </property>
   </action>
+  <action name="actionGo_to_Substrata_Server">
+   <property name="text">
+    <string>Go to Substrata</string>
+   </property>
+  </action>
+  <action name="actionGo_to_Metasiberia_Server">
+   <property name="text">
+    <string>Go to Metasiberia</string>
+   </property>
+  </action>
+  <action name="actionGo_to_Shki_nvkz_Server">
+   <property name="text">
+    <string>Go to Shki-Nvkz</string>
+   </property>
+  </action>
   <action name="actionExport_view_to_Indigo">
    <property name="text">
     <string>Export view to Indigo</string>
@@ -551,7 +639,12 @@
   </action>
   <action name="actionAbout_Substrata">
    <property name="text">
-    <string>About Substrata</string>
+    <string>About Metasiberia</string>
+   </property>
+  </action>
+  <action name="actionUpdate">
+   <property name="text">
+    <string>Update</string>
    </property>
   </action>
   <action name="actionOptions">
@@ -567,6 +660,11 @@
   <action name="actionAdd_Seat">
    <property name="text">
     <string>Add Seat</string>
+   </property>
+  </action>
+  <action name="actionAdd_Camera">
+   <property name="text">
+    <string>Add Camera</string>
    </property>
   </action>
   <action name="actionGo_to_Parcel">
@@ -746,6 +844,22 @@
     <string>Enter Fullscreen Mode</string>
    </property>
   </action>
+  <action name="actionLanguage_English">
+   <property name="text">
+    <string>English</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionLanguage_Russian">
+   <property name="text">
+    <string>Русский</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+  </action>
   <action name="actionSummon_Car">
    <property name="text">
     <string>Summon Car</string>
@@ -757,6 +871,11 @@
   <action name="actionAdd_Portal">
    <property name="text">
     <string>Add Portal</string>
+   </property>
+  </action>
+  <action name="actionAdd_to_Favorites">
+   <property name="text">
+    <string>Add to Favorites</string>
    </property>
   </action>
   <action name="actionGo_Back">

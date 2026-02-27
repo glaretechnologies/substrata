@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ComObHandle.h>
 #include <utils/SocketBufferOutStream.h>
 #include <QtWidgets/QMainWindow>
+#include <QtWidgets/QDockWidget>
 #include <string>
 namespace Ui { class MainWindow; }
 namespace glare { class TaskManager; }
@@ -29,6 +30,9 @@ struct IMFDXGIDeviceManager;
 struct _SDL_GameController;
 class RenderStatsWidget;
 class MiniDmpSender;
+class UpdateManager;
+class WebcamWindow;
+class AvatarSettingsWidget;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -58,8 +62,10 @@ private slots:;
 	void on_actionAdd_Text_triggered();
 	void on_actionAdd_Voxels_triggered();
 	void on_actionAdd_Spotlight_triggered();
+	void on_actionAdd_Camera_triggered();
 	void on_actionAdd_Seat_triggered();
 	void on_actionAdd_Portal_triggered();
+	void on_actionAdd_to_Favorites_triggered();
 	void on_actionAdd_Web_View_triggered();
 	void on_actionAdd_Video_triggered();
 	void on_actionAdd_Audio_Source_triggered();
@@ -78,6 +84,9 @@ private slots:;
 	void on_actionGoToMainWorld_triggered();
 	void on_actionGoToPersonalWorld_triggered();
 	void on_actionGo_to_CryptoVoxels_World_triggered();
+	void on_actionGo_to_Substrata_Server_triggered();
+	void on_actionGo_to_Metasiberia_Server_triggered();
+	void on_actionGo_to_Shki_nvkz_Server_triggered();
 	void on_actionGo_to_Parcel_triggered();
 	void on_actionGo_to_Position_triggered();
 	void on_actionSet_Start_Location_triggered();
@@ -88,6 +97,7 @@ private slots:;
 	void on_actionTake_Screenshot_triggered();
 	void on_actionShow_Screenshot_Folder_triggered();
 	void on_actionAbout_Substrata_triggered();
+	void on_actionUpdate_triggered();
 	void on_actionOptions_triggered();
 	void on_actionUndo_triggered();
 	void on_actionRedo_triggered();
@@ -127,6 +137,8 @@ private slots:;
 	void glWidgetCutShortcutTriggered();
 	void glWidgetCopyShortcutTriggered();
 	void glWidgetPasteShortcutTriggered();
+	void onUpdateCheckFinished();
+	void onUpdateAvailabilityChanged(bool available);
 
 	void enterFullScreenMode();
 	void exitFromFullScreenMode();
@@ -146,6 +158,8 @@ private slots:;
 	void updateObjectEditorObTransformSlot();
 	void handleURL(const QUrl& url);
 	void openServerScriptLogSlot();
+	void on_webcamEnableCheckBox_toggled(bool checked);
+	void updateFavoritesMenu();
 public:
 	bool connectedToUsersWorldOrGodUser();
 	void webViewMouseDoubleClicked(QMouseEvent* e);
@@ -158,6 +172,7 @@ private:
 	virtual void closeEvent(QCloseEvent* event) override;
 	virtual void timerEvent(QTimerEvent* event) override;
 	virtual void changeEvent(QEvent *event) override;
+	virtual bool eventFilter(QObject* obj, QEvent* event) override;
 	void startMainTimer();
 	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	void doObjectSelectionTraceForMouseEvent(QMouseEvent* e);
@@ -222,6 +237,7 @@ public:
 	virtual void showParcelEditor() override;
 	virtual void setParcelEditorForParcel(const Parcel& parcel) override;
 	virtual void setParcelEditorEnabled(bool enabled) override;
+	virtual void setParcelEditorPermissions(bool can_edit_basic_fields, bool can_edit_owner_and_geometry, bool can_edit_member_lists) override;
 
 	// Object editor
 	virtual void showObjectEditor() override;
@@ -297,6 +313,9 @@ public:
 
 	// File selection
 	virtual std::string showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key) override; // Returns path to file selected or empty string if cancelled.
+
+	// Webcam (Qt only)
+	virtual void setWebcamWindowVisible(bool visible) override;
 	//------------------------------------------------- End UIInterface -----------------------------------------------------------
 
 public:
@@ -323,6 +342,8 @@ public:
 	float screenshot_ortho_sensor_width_m;
 	Vec3d screenshot_campos;
 	Vec3d screenshot_camangles;
+	bool screenshot_target_worldname_set;
+	std::string screenshot_target_worldname;
 	
 	Timer time_since_last_screenshot;
 	Timer time_since_last_waiting_msg;
@@ -333,6 +354,7 @@ public:
 
 	UserDetailsWidget* user_details;
 	URLWidget* url_widget;
+	UpdateManager* update_manager;
 
 	double last_timerEvent_CPU_work_elapsed;
 	double last_updateGL_time;
@@ -375,4 +397,8 @@ public:
 	Reference<RenderStatsWidget> GPU_render_stats_widget;
 
 	MiniDmpSender* minidump_sender;
+	WebcamWindow* webcam_window;
+
+	QDockWidget* avatar_dock_widget;
+	AvatarSettingsWidget* avatar_settings_widget;
 };

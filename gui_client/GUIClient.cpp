@@ -44,7 +44,6 @@ Copyright Glare Technologies Limited 2024 -
 #include "JoltUtils.h"
 #include "MiniMap.h"
 #include "CEF.h"
-#include <limits>
 #if !defined(EMSCRIPTEN)
 #include "../networking/TLSSocket.h"
 #endif
@@ -69,6 +68,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/Exception.h"
 #include "../utils/TaskManager.h"
 #include "../utils/SocketBufferOutStream.h"
+#include "../utils/BufferOutStream.h"
 #include "../utils/StringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
@@ -76,6 +76,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/OpenSSL.h"
 #include "../utils/CryptoRNG.h"
 #include "../utils/FileInStream.h"
+#include "../utils/BufferViewInStream.h"
 #include "../utils/IncludeXXHash.h"
 #include "../utils/IndigoXMLDoc.h"
 #include "../utils/FastPoolAllocator.h"
@@ -111,6 +112,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <BugSplat.h>
 #endif
 #include <clocale>
+#include <exception>
 #if defined(EMSCRIPTEN)
 #include <emscripten/emscripten.h>
 #include <unistd.h>
@@ -151,10 +153,12 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	shown_object_modification_error_msg(false),
 	num_frames_since_fps_timer_reset(0),
 	last_fps(0),
-	last_physics_sim_time(0),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
+	have_selected_ob_transform_rollback(false),
+	selected_ob_transform_rollback_uid(UID::invalidUID()),
+	selected_ob_transform_rollback_angle(0.f),
 	process_model_loaded_next(true),
 	load_distance(0),
 	load_distance2(0),
@@ -196,8 +200,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	cur_loading_model_lod_level(-1),
 	obs_with_scripts(/*empty val=*/WorldObjectRef()),
 	ui_hidden(false),
-	only_load_most_important_obs(false),
-	last_ping_send_time(-1000)
+	only_load_most_important_obs(false)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -300,7 +303,7 @@ void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Refere
 {
 	ZoneScoped; // Tracy profiler
 
-	conPrint("Substrata version " + cyberspace_version);
+	conPrint("Metasiberia Beta version " + cyberspace_version);
 
 	cache_dir = cache_dir_;
 	settings = settings_store_;
@@ -329,6 +332,71 @@ void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Refere
 	tls_config_insecure_noverifyname(client_tls_config);
 #endif
 }
+
+
+namespace
+{
+static std::string gestureSettingsLocalDirPath(const std::string& appdata_path)
+{
+	return appdata_path + "/gesture_settings";
+}
+
+
+static std::string gestureSettingsLocalPathForUser(const std::string& appdata_path, const std::string& server_hostname, const UserID& user_id)
+{
+	if(!user_id.valid())
+		return std::string();
+
+	const std::string use_host = server_hostname.empty() ? "unknown_host" : FileUtils::makeOSFriendlyFilename(server_hostname);
+
+	return gestureSettingsLocalDirPath(appdata_path) + "/" + use_host + "_user_" + toString(user_id.value()) + ".bin";
+}
+
+
+static bool tryLoadGestureSettingsFromDisk(const std::string& path, GestureSettings& settings_out)
+{
+	try
+	{
+		if(path.empty() || !FileUtils::fileExists(path))
+			return false;
+
+		std::vector<unsigned char> file_data;
+		FileUtils::readEntireFile(path, file_data);
+
+		BufferViewInStream in_stream(ArrayRef<uint8>((const uint8*)file_data.data(), file_data.size()));
+		readGestureSettingsFromStream(in_stream, settings_out);
+		return true;
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WARNING: failed to load gesture settings from '" + path + "': " + e.what());
+		return false;
+	}
+}
+
+
+static void trySaveGestureSettingsToDisk(const std::string& path, const GestureSettings& settings)
+{
+	try
+	{
+		if(path.empty())
+			return;
+
+		const std::string dir = FileUtils::getDirectory(path);
+		if(!dir.empty())
+			FileUtils::createDirIfDoesNotExist(dir);
+
+		BufferOutStream out_stream;
+		settings.writeToStream(out_stream);
+
+		FileUtils::writeEntireFileAtomically(path, (const char*)out_stream.buf.data(), out_stream.buf.size());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WARNING: failed to save gesture settings to '" + path + "': " + e.what());
+	}
+}
+} // end anonymous namespace
 
 
 // These animations will be included in both the web and native distributions.
@@ -393,6 +461,22 @@ void GUIClient::postConnectInitialise()
 	for(size_t i=0; i<staticArrayNumElems(movement_anim_names); ++i)
 		resource_manager->addExternalResource(/*URL=*/URLString(movement_anim_names[i]) + ".subanim", /*local (abs) path=*/resources_dir_path + "/animations/" + std::string(movement_anim_names[i]) + ".subanim");
 
+	// Add built-in gesture animations as external resources.
+	// These are shipped with the client (see resources/animations).  This avoids needing the server to host the default gesture anim files.
+	{
+		const GestureSettings default_gesture_settings = GestureSettings::defaultGestureSettings();
+		for(size_t i=0; i<default_gesture_settings.gesture_settings.size(); ++i)
+		{
+			const URLString& anim_URL = default_gesture_settings.gesture_settings[i].anim_URL;
+			if(anim_URL.empty())
+				continue;
+
+			const std::string local_anim_path = resources_dir_path + "/animations/" + toStdString(anim_URL);
+			if(FileUtils::fileExists(local_anim_path))
+				resource_manager->addExternalResource(/*URL=*/anim_URL, /*local (abs) path=*/local_anim_path);
+		}
+	}
+
 
 	// Add capsule mesh resource (used for audio objects)
 	const URLString capsule_model_URL = "Capsule_obj_7611321750126528672.bmesh";
@@ -402,9 +486,13 @@ void GUIClient::postConnectInitialise()
 		resource_manager->addExternalResource(/*URL=*/capsule_model_URL, /*local (abs) path=*/capsule_local_model_path);
 	}
 
-	// Init audio engine immediately if we are not on the web.  Web browsers need to wait for an input gesture is completed before trying to play sounds.
+	// Init audio engine immediately if we are not on the web.
+	// Web browsers need to wait for an input gesture is completed before trying to play sounds.
+	// For screenshot slave mode (used by screenshot_bot on headless Linux), avoid audio init
+	// to prevent ALSA/Pulse backend failures from aborting the process.
 #ifndef EMSCRIPTEN
-	initAudioEngine();
+	if(!parsed_args.isArgPresent("--screenshotslave"))
+		initAudioEngine();
 #endif
 
 	checkCreateResourceDownloadThreads();
@@ -452,6 +540,14 @@ void GUIClient::initAudioEngine()
 	{
 		logMessage("Audio engine could not be initialised: " + e.what());
 	}
+	catch(std::exception& e)
+	{
+		logMessage(std::string("Audio engine initialisation failed with std::exception: ") + e.what());
+	}
+	catch(...)
+	{
+		logMessage("Audio engine initialisation failed with unknown exception.");
+	}
 }
 
 
@@ -497,6 +593,9 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	hud_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
 	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+
+	// Webcam capture uses Media Foundation on Windows; update runs from GUIClient::timerEvent() when enabled.
+	webcam_capture.create(/*gui_client_=*/this, gl_ui, opengl_engine);
 
 	// Chat UI should be drawn above the movement button if present.
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
@@ -636,6 +735,20 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSeatMesh(*opengl_engine->vert_buf_allocator);
 		seat_opengl_mesh = results.opengl_mesh_data;
 		seat_shape = results.physics_shape;
+	}
+
+	// Make camera mesh
+	{
+		MeshBuilding::MeshBuildingResults results = MeshBuilding::makeCameraMeshes(base_dir_path, *opengl_engine->vert_buf_allocator);
+		camera_opengl_mesh = results.opengl_mesh_data;
+		camera_shape = results.physics_shape;
+	}
+
+	// Make camera screen mesh
+	{
+		MeshBuilding::MeshBuildingResults results = MeshBuilding::makeCameraScreenMesh(*opengl_engine->vert_buf_allocator);
+		camera_screen_opengl_mesh = results.opengl_mesh_data;
+		camera_screen_shape = results.physics_shape;
 	}
 
 	// Make portal meshes
@@ -783,7 +896,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 				test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(extracted_anim_data);
 			}
 
-			test_avatar->graphics.build();
+			test_avatar->graphics.build(test_avatar->our_avatar);
 
 			for(size_t z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
 				test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
@@ -1041,6 +1154,8 @@ void GUIClient::shutdown()
 
 	photo_mode_ui.destroy();
 
+	webcam_capture.destroy();
+
 	minimap = nullptr;
 
 	if(gl_ui.nonNull())
@@ -1055,7 +1170,11 @@ void GUIClient::shutdown()
 	image_cube_opengl_mesh = NULL;
 	spotlight_opengl_mesh = NULL;
 	seat_opengl_mesh = NULL;
+	camera_opengl_mesh = NULL;
+	camera_screen_opengl_mesh = NULL;
 	portal_opengl_mesh = NULL;
+	camera_shape = PhysicsShape();
+	camera_screen_shape = PhysicsShape();
 	portal_shape = PhysicsShape();
 	cur_loading_mesh_data = NULL;
 	single_voxel_meshdata = NULL;
@@ -1671,34 +1790,23 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const URLString& URL) const
 
 
 // Handle finished downloading a ".subanim" file.
-// For emscripten, load from 'loaded_buffer' memory buffer instead of from resource on disk.
-void GUIClient::handleDownloadedAnimationResource(const std::string& local_path, const ResourceRef& resource, Reference<LoadedBuffer> loaded_buffer) 
+void GUIClient::handleDownloadedAnimationResource(const std::string local_path, const ResourceRef& resource)
 {
 	conPrint("GUIClient::handleDownloadedAnimationResource(): local_path: " + local_path);
 
-	try
+	// Iterate over avatars, peform gesture for any avatars that were waiting for the gesture anim to download.
 	{
-		if(loaded_buffer)
-			animation_manager.loadAnimFromBuffer(resource->URL, loaded_buffer); // Explicitly load into the animation manager from the in-mem buffer (loaded_buffer) instead of from disk/resource manager.
+		Lock lock(this->world_state->mutex);
 
-		// Iterate over avatars, perform gesture for any avatars that were waiting for the gesture anim to download.
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 		{
-			Lock lock(this->world_state->mutex);
-
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+			Avatar* av = it->second.getPointer();
+			if(!av->graphics.pending_gesture_URL.empty() && (av->graphics.pending_gesture_URL == resource->URL))
 			{
-				Avatar* av = it->second.getPointer();
-				if(av->pending_gesture_URL == resource->URL)
-				{
-					const double cur_time = Clock::getTimeSinceInit();
-					av->performPendingGesture(cur_time, animation_manager, *resource_manager);
-				}
+				const double cur_time = Clock::getTimeSinceInit();
+				av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
 			}
 		}
-	}
-	catch(glare::Exception& e)
-	{
-		logAndConPrintMessage("Error while loading animation: " + e.what());
 	}
 }
 
@@ -2174,7 +2282,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 	if(!ob->in_proximity)
 		return;
 
-	const int ob_lod_level = ob->getLODLevel(campos);
+	const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 	
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	//if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->/*loaded_lod_level*/loading_lod_level == ob_lod_level))
@@ -2481,7 +2589,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 			{
 				assert(ob->physics_object.isNull());
 
-				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 				physics_ob->shape = this->seat_shape;
 				physics_ob->is_sensor = ob->isSensor();
 				physics_ob->userdata = ob;
@@ -2490,10 +2598,15 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				physics_ob->pos = ob->pos.toVec4fPoint();
 				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 				physics_ob->scale = useScaleForWorldOb(ob->scale);
+				physics_ob->kinematic = !ob->script.empty();
+				physics_ob->dynamic = ob->isDynamic();
+				physics_ob->mass = ob->mass;
+				physics_ob->friction = ob->friction;
+				physics_ob->restitution = ob->restitution;
 
 				GLObjectRef opengl_ob = opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->seat_opengl_mesh;
-				
+
 				glare::ArenaFrame frame(arena_allocator);
 
 				// Use material[0] from the WorldObject as the seat GL material.
@@ -2517,6 +2630,96 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				opengl_engine->addObject(ob->opengl_engine_ob);
 
+				physics_world->addObject(ob->physics_object);
+			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_Camera)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+				physics_ob->shape = this->camera_shape;
+				physics_ob->is_sensor = ob->isSensor();
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = useScaleForWorldOb(ob->scale);
+				physics_ob->kinematic = !ob->script.empty();
+				physics_ob->dynamic = ob->isDynamic();
+				physics_ob->mass = ob->mass;
+				physics_ob->friction = ob->friction;
+				physics_ob->restitution = ob->restitution;
+
+				GLObjectRef opengl_ob = opengl_engine->allocateObject();
+				opengl_ob->mesh_data = this->camera_opengl_mesh;
+
+				glare::ArenaFrame frame(arena_allocator);
+
+				opengl_ob->materials.resize(1);
+				if(ob->materials.size() >= 1)
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+				else
+					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
+
+				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
+				physics_world->addObject(ob->physics_object);
+			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_CameraScreen)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+				physics_ob->shape = this->camera_screen_shape;
+				physics_ob->is_sensor = ob->isSensor();
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = useScaleForWorldOb(ob->scale);
+				physics_ob->kinematic = !ob->script.empty();
+				physics_ob->dynamic = ob->isDynamic();
+				physics_ob->mass = ob->mass;
+				physics_ob->friction = ob->friction;
+				physics_ob->restitution = ob->restitution;
+
+				GLObjectRef opengl_ob = opengl_engine->allocateObject();
+				opengl_ob->mesh_data = this->camera_screen_opengl_mesh;
+
+				glare::ArenaFrame frame(arena_allocator);
+
+				opengl_ob->materials.resize(1);
+				if(ob->materials.size() >= 1)
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+				else
+				{
+					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
+					opengl_ob->materials[0].emission_linear_rgb = Colour3f(1.f);
+					opengl_ob->materials[0].emission_scale = 0.0f;
+				}
+
+				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
 				physics_world->addObject(ob->physics_object);
 			}
 		}
@@ -2866,7 +3069,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 	removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
 
 	// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
-	if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->isDynamic() || ob->physics_object->isKinematic())))
+	if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
 	{
 		destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
 		physics_world->removeObject(ob->physics_object);
@@ -2929,7 +3132,8 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 		ob->physics_object->scale = useScaleForWorldOb(ob->scale);
 
 		// TEMP HACK
-		ob->physics_object->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
+		ob->physics_object->kinematic = !ob->script.empty();
+		ob->physics_object->dynamic = ob->isDynamic();
 		ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
 		ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
 
@@ -3038,21 +3242,19 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
 
-
-	// See if there is a gesture animation we should be playing, and if so, play it.
-	if(!avatar->current_gesture_name.empty())
+	// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
+	const bool our_avatar = avatar->uid == this->client_avatar_uid;
+	if(our_avatar)
 	{
-		const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-		// Sync playback.
-		// Consider at some time t, 10 seconds from now:
-		// t = cur_time + 10
-		// and start_global_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
-		// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - start_global_time))
-		// = 10 + (105 - 100) = 10 + 5 = 15
-		const double time_offset = world_state->getCurrentGlobalTime() - avatar->current_gesture_start_global_time;
-
-		avatar->performGesture(cur_time, avatar->current_gesture_name, avatar->current_gesture_URL, avatar->current_gesture_flags, avatar->current_gesture_start_global_time, time_offset, animation_manager, *resource_manager);
+		std::string gesture_name;
+		URLString gesture_URL;
+		bool animate_head, loop_anim;
+		if(gesture_ui.getCurrentGesturePlaying(gesture_name, gesture_URL, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+		{
+			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+			const URLString anim_resource_URL = gesture_URL.empty() ? (URLString(gesture_name) + ".subanim") : gesture_URL;
+			avatar->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime(), /*time_offset=*/0, animation_manager, *resource_manager);
+		}
 	}
 
 	// conPrint("GUIClient::loadPresentAvatarModel done");
@@ -3809,6 +4011,35 @@ void GUIClient::updateSelectedObjectPlacementBeamAndGizmos()
 			}
 		}
 	}
+	else if(selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id) && axis_and_rot_obs_enabled)
+	{
+		const Vec4f parcel_centre(
+			(float)((selected_parcel->aabb_min.x + selected_parcel->aabb_max.x) * 0.5),
+			(float)((selected_parcel->aabb_min.y + selected_parcel->aabb_max.y) * 0.5),
+			(float)((selected_parcel->aabb_min.z + selected_parcel->aabb_max.z) * 0.5),
+			1.f
+		);
+
+		const Vec4f cam_to_parcel = parcel_centre - cam_controller.getPosition().toVec4fPoint();
+		const float control_scale = myMax(cam_to_parcel.length() * 0.2f, 0.1f);
+
+		const Vec4f arrow_origin = parcel_centre;
+		const float arrow_len = control_scale;
+
+		axis_arrow_segments[0] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(cam_to_parcel[0] > 0 ? -arrow_len : arrow_len, 0, 0, 0));
+		axis_arrow_segments[1] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, cam_to_parcel[1] > 0 ? -arrow_len : arrow_len, 0, 0));
+		axis_arrow_segments[2] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, 0, cam_to_parcel[2] > 0 ? -arrow_len : arrow_len, 0));
+
+		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+		{
+			axis_arrow_objects[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(axis_arrow_segments[i].a, axis_arrow_segments[i].b, arrow_len);
+			if(opengl_engine->isObjectAdded(axis_arrow_objects[i]))
+				opengl_engine->updateObjectTransformData(*axis_arrow_objects[i]);
+		}
+
+		for(int i=0; i<3; ++i)
+			rot_handle_lines[i].clear();
+	}
 
 	if(selected_ob && selected_ob->edit_aabb)
 	{
@@ -4044,6 +4275,16 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 {
 	GLObjectRef opengl_ob = ob->opengl_engine_ob;
 
+	if(this->selected_ob.nonNull() && (ob->uid == this->selected_ob->uid) && !have_selected_ob_transform_rollback)
+	{
+		have_selected_ob_transform_rollback = true;
+		selected_ob_transform_rollback_uid = ob->uid;
+		selected_ob_transform_rollback_pos = ob->pos;
+		selected_ob_transform_rollback_axis = ob->axis;
+		selected_ob_transform_rollback_angle = ob->angle;
+		selected_ob_transform_rollback_scale = ob->scale;
+	}
+
 	// Set world object pos
 	ob->setTransformAndHistory(new_ob_pos, new_axis, new_angle);
 
@@ -4126,6 +4367,54 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 }
 
 
+bool GUIClient::rollbackSelectedObjectTransformAfterServerRejection()
+{
+	if(!have_selected_ob_transform_rollback)
+		return false;
+
+	if(this->selected_ob.isNull() || (this->selected_ob->uid != selected_ob_transform_rollback_uid))
+		return false;
+
+	WorldObjectRef ob = this->selected_ob;
+	ob->setTransformAndHistory(selected_ob_transform_rollback_pos, selected_ob_transform_rollback_axis, selected_ob_transform_rollback_angle);
+	ob->scale = selected_ob_transform_rollback_scale;
+	ob->transformChanged();
+
+	if(ob->opengl_engine_ob.nonNull())
+	{
+		ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
+		opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+	}
+
+	if(ob->physics_object)
+	{
+		physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle),
+			useScaleForWorldOb(ob->scale).toVec4fVector());
+		physics_world->setLinearAndAngularVelToZero(*ob->physics_object);
+	}
+
+	if(this->grabbed_axis != -1)
+	{
+		this->grabbed_axis = -1;
+		undo_buffer.finishWorldObjectEdit(*ob);
+		ui_interface->setCamRotationOnMouseDragEnabled(true);
+	}
+
+	if(this->selected_ob_picked_up)
+	{
+		this->selected_ob_picked_up = false;
+		ui_interface->objectEditorObjectDropped();
+		opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
+	}
+
+	have_selected_ob_transform_rollback = false;
+	selected_ob_transform_rollback_uid = UID::invalidUID();
+
+	ui_interface->startObEditorTimerIfNotActive();
+	return true;
+}
+
+
 static inline float xyDist2(const Vec4f& a, const Vec4f& b)
 {
 	Vec4f a_to_b = b - a;
@@ -4136,7 +4425,7 @@ static inline bool shouldDisplayLODChunk(const Vec3i& chunk_coords, const Vec4f&
 {
 	const Vec4f chunk_centre = Vec4f((chunk_coords.x + 0.5f) * chunk_w, (chunk_coords.y + 0.5f) * chunk_w, 0, 1);
 	
-	const float CHUNK_DIST_THRESHOLD = 150.f;
+	const float CHUNK_DIST_THRESHOLD = 200.f;
 	
 	const float dist_to_chunk2 = xyDist2(campos, chunk_centre);
 
@@ -4159,6 +4448,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 		if(!this->world_state->lod_chunks.empty() && LOD_CHUNK_SUPPORT)
 			this->server_using_lod_chunks = true;
 		const bool use_server_using_lod_chunks = this->server_using_lod_chunks;
+		const bool lod_disabled                = shouldDisableLODForCurrentServer();
 
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
@@ -4197,7 +4487,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 
 			// If this object is in a chunk region, and we are displaying the chunk, then don't show the object.
 			const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
-			if(use_server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, cam_pos) && !ob->exclude_from_lod_chunk_mesh)
+			if(use_server_using_lod_chunks && !lod_disabled && shouldDisplayLODChunk(chunk_coords, cam_pos) && !ob->exclude_from_lod_chunk_mesh)
 				in_proximity = false;
 
 			assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
@@ -4214,7 +4504,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 			}
 			else // Else if object is within load distance:
 			{
-				const int lod_level = ob->getLODLevel(cam_to_ob_d2);
+				const int lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 
 				if((lod_level != ob->current_lod_level)/* || ob->opengl_engine_ob.isNull()*/)
 				{
@@ -4371,7 +4661,7 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 
 				if(ob->in_proximity)
 				{
-					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+					const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 					const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 								
 					// Check the object wants this particular LOD level model right now:
@@ -4668,6 +4958,28 @@ void GUIClient::setObjectLoadDistance(float new_dist)
 void GUIClient::setOnlyLoadMostImportantObs(bool only_load_most_important_obs_)
 {
 	only_load_most_important_obs = only_load_most_important_obs_;
+}
+
+
+bool GUIClient::shouldDisableLODForCurrentServer() const
+{
+	// Keep large worlds fully visible for these specific Metasiberia hosts.
+	const std::string host = toLowerCase(server_hostname);
+	return
+		(host == "176.197.223.42") ||
+		(host == "89.104.70.23") ||
+		(host == "vr.metasiberia.com") ||
+		(host == "metasiberia.com") ||
+		(host == "www.metasiberia.com");
+}
+
+
+int GUIClient::getEffectiveLODLevel(const WorldObject* ob, const Vec3d& campos) const
+{
+	if(shouldDisableLODForCurrentServer())
+		return -1; // Highest quality LOD at any distance.
+
+	return ob->getLODLevel(campos);
 }
 
 
@@ -5561,6 +5873,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	if(gl_ui.nonNull())
 		gl_ui->think();
 
+	webcam_capture.update();
+
 	// If we are connected to a server, send a UDP packet to it occasionally, so the server can work out which UDP port
 	// we are listening on.
 #if !defined(EMSCRIPTEN)
@@ -5828,33 +6142,46 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		animated_texture_manager->think(this, opengl_engine.ptr(), anim_time, dt);
 
 
-		// Process web-view objects
-		for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)
+		const bool screenshot_slave_mode = parsed_args.isArgPresent("--screenshotslave");
+		if(!screenshot_slave_mode)
 		{
-			WorldObject* ob = it->ptr();
+			// Process web-view objects
+			for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)
+			{
+				WorldObject* ob = it->ptr();
 
-			try
-			{
-				ob->web_view_data->process(this, opengl_engine.ptr(), ob, anim_time, dt);
+				try
+				{
+					ob->web_view_data->process(this, opengl_engine.ptr(), ob, anim_time, dt);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Excep while processing webview: " + e.what());
+				}
 			}
-			catch(glare::Exception& e)
+
+			// Process browser vid player objects
+			for(auto it = browser_vid_player_obs.begin(); it != browser_vid_player_obs.end(); ++it)
 			{
-				logMessage("Excep while processing webview: " + e.what());
+				WorldObject* ob = it->ptr();
+
+				try
+				{
+					ob->browser_vid_player->process(this, opengl_engine.ptr(), ob, anim_time, dt);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Excep while processing browser vid player: " + e.what());
+				}
 			}
 		}
-
-		// Process browser vid player objects
-		for(auto it = browser_vid_player_obs.begin(); it != browser_vid_player_obs.end(); ++it)
+		else
 		{
-			WorldObject* ob = it->ptr();
-
-			try
+			static bool printed_skip_msg = false;
+			if(!printed_skip_msg)
 			{
-				ob->browser_vid_player->process(this, opengl_engine.ptr(), ob, anim_time, dt);
-			}
-			catch(glare::Exception& e)
-			{
-				logMessage("Excep while processing browser vid player: " + e.what());
+				conPrint("GUIClient: skipping webview/video processing in screenshot slave mode.");
+				printed_skip_msg = true;
 			}
 		}
 
@@ -5865,23 +6192,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-
-	if((connection_state == ServerConnectionState_Connected) && (server_protocol_version >= 48) && (cur_time - last_ping_send_time) > 2.0) // Ping/pong messages were added in protocol version 48.
-	{
-		// Set last_ping_send_time in world_state
-		{
-			Lock lock(world_state->last_ping_send_time_mutex);
-			world_state->last_ping_send_time = cur_time;
-		}
-
-		// Send ping message
-		MessageUtils::initPacket(scratch_packet, Protocol::PingMessage);
-		enqueueMessageToSend(*client_thread, scratch_packet);
-
-		last_ping_send_time = cur_time;
-	}
-
 
 	//ui->indigoView->timerThink();
 
@@ -5947,7 +6257,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	{
 		PERFORMANCEAPI_INSTRUMENT("physics sim");
 		ZoneScopedN("physics sim"); // Tracy profiler
-		Timer physics_sim_timer;
 
 		for(int i=0; i<num_substeps; ++i)
 		{
@@ -6062,8 +6371,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				}
 			}
 		}
-
-		this->last_physics_sim_time = physics_sim_timer.elapsed();
 	}
 
 	if(hasPrefix(touched_portal_target_URL, "sub://"))
@@ -6163,7 +6470,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
 					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
 					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine.
-					if(physics_ob->isDynamic() || (physics_ob->isKinematic() && ob->is_path_controlled))
+					if(physics_ob->dynamic || (physics_ob->kinematic && ob->is_path_controlled))
 					{
 						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
 
@@ -6173,7 +6480,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						{
 							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
 							// We will also reduce smooth_translation and smooth_rotation over time here.
-							if(physics_ob->isDynamic())
+							if(physics_ob->dynamic)
 							{
 								Vec4f unit_axis;
 								float angle;
@@ -6219,7 +6526,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 
 							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
-							if(physics_ob->isDynamic() && isObjectPhysicsOwnedBySelf(*ob, global_time))
+							if(physics_ob->dynamic && isObjectPhysicsOwnedBySelf(*ob, global_time))
 							{
 								JPH::Vec3 linear_vel, angular_vel;
 								body_interface.GetLinearAndAngularVelocity(physics_ob->jolt_body_id, linear_vel, angular_vel);
@@ -6278,7 +6585,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 
 		// Get camera position, if we are in a vehicle.
-		if(vehicle_controller_inside) // If we are inside a vehicle:
+		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 		{
 			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
 			const bool use_smoothed_network_transform = cur_seat_index != 0;
@@ -6301,7 +6608,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
 		// Show vehicle speed on UI
-		if(vehicle_controller_inside) // If we are inside a vehicle:
+		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 		{
 			const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
 			misc_info_ui.showVehicleSpeed(speed_km_h);
@@ -6669,7 +6976,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		Vec3d pos(r * cos(phase), r * sin(phase), 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
 		const int anim_state = 0;
 		float xyplane_speed_rel_ground = 0;
-		test_avatar->graphics.setOverallTransform(*opengl_engine, pos, 
+		test_avatar->graphics.setOverallTransform(*opengl_engine, *physics_world, pos, 
 			Vec3f(0, /*pitch=*/Maths::pi_2<float>(), (float)phase + Maths::pi_2<float>()), 
 			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, pose_constraint, anim_events);
 		if(anim_events.footstrike)
@@ -6701,6 +7008,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			// Make sure server_using_lod_chunks is set before we start calling shouldDisplayLODChunk() below
 			if(!this->world_state->lod_chunks.empty() && LOD_CHUNK_SUPPORT)
 				this->server_using_lod_chunks = true;
+			const bool lod_disabled = shouldDisableLODForCurrentServer();
 
 			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
 			{
@@ -6763,11 +7071,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							enableMaterialisationEffectOnOb(*ob); // Enable materialisation effect before we call loadModelForObject() below.
 
 						// Make sure lod level is set before calling loadModelForObject(), which will start downloads based on the lod level.
-						ob->current_lod_level = ob->getLODLevel(cam_controller.getPosition());
+						ob->current_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 
 						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
 						const Vec3i chunk_coords(Maths::floorToInt(ob->getCentroidWS()[0] / chunk_w), Maths::floorToInt(ob->getCentroidWS()[1] / chunk_w), 0);
-						if(this->server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, first_or_third_person_campos) && !ob->exclude_from_lod_chunk_mesh)
+						if(this->server_using_lod_chunks && !lod_disabled && shouldDisplayLODChunk(chunk_coords, first_or_third_person_campos) && !ob->exclude_from_lod_chunk_mesh)
 							ob->in_proximity = false;
 						assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
@@ -6795,7 +7103,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 								// Update materials in opengl engine.
 								glare::ArenaFrame frame(arena_allocator);
-								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+								const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 								for(size_t i=0; i<ob->materials.size(); ++i)
 									if(i < opengl_ob->materials.size())
 										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
@@ -6858,6 +7166,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								last_restored_ob_uid_in_edit = UID::invalidUID();
 							}
 
+							// Try to auto-link a just-created CameraScreen to the matching just-created Camera.
+							if(ob->creator_id == this->logged_in_user_id)
+								tryResolvePendingCameraPairCreateForObject(ob, lock);
+
 							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects by checking numSecondsAgo().
 							// Don't select summoned vehicles though, as the intent is probably to ride them, not edit them.
 							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30) && !BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG))
@@ -6877,7 +7189,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				else if(ob->from_remote_lightmap_url_dirty)
 				{
 					// Try and download any resources we don't have for this object
-					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+					const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 					startDownloadingResourcesForObject(ob, ob_lod_level);
 
 					// Update materials in opengl engine, so it picks up the new lightmap URL
@@ -7292,43 +7604,29 @@ void GUIClient::updateParcelGraphics()
 				}
 				else
 				{
-					const Vec4f aabb_min((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.0f);
-					const Vec4f aabb_max((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.0f);
-
 					if(ui_interface->isShowParcelsEnabled())
 					{
-						if(parcel->opengl_engine_ob.isNull())
+						// Recreate parcel GL/physics objects for reliable sync when geometry/ownership changes.
+						checkRemoveObAndSetRefToNull(opengl_engine, parcel->opengl_engine_ob);
+						checkRemoveObAndSetRefToNull(physics_world, parcel->physics_object);
+
+						const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
+						bool use_write_perms = write_perms;
+						if(ui_interface->inScreenshotTakingMode()) // If we are in screenshot-taking mode, don't highlight writable parcels.
+							use_write_perms = false;
+
+						parcel->opengl_engine_ob = parcel->makeOpenGLObject(opengl_engine, use_write_perms);
+						parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+						parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
+						opengl_engine->addObject(parcel->opengl_engine_ob);
+
+						parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
+						physics_world->addObject(parcel->physics_object);
+
+						if(this->selected_parcel.ptr() == parcel)
 						{
-							// Make OpenGL model for parcel:
-							const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
-
-							bool use_write_perms = write_perms;
-							if(ui_interface->inScreenshotTakingMode()) // If we are in screenshot-taking mode, don't highlight writable parcels.
-								use_write_perms = false;
-
-							parcel->opengl_engine_ob = parcel->makeOpenGLObject(opengl_engine, use_write_perms);
-							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
-							parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
-							opengl_engine->addObject(parcel->opengl_engine_ob);
-
-							// Make physics object for parcel:
-							assert(parcel->physics_object.isNull());
-							parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
-							physics_world->addObject(parcel->physics_object);
-						}
-						else // else if opengl ob is not null:
-						{
-							// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
-							//const Vec4f span = aabb_max - aabb_min;
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
-							//opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
-							//
-							//// Update in physics engine
-							//parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-							//physics_world->updateObjectTransformData(*parcel->physics_object);
+							opengl_engine->selectObject(parcel->opengl_engine_ob);
+							opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
 						}
 					}
 
@@ -7340,6 +7638,16 @@ void GUIClient::updateParcelGraphics()
 						this->url_parcel_uid = -1;
 
 						showInfoNotification("Jumped to parcel " + parcel->id.toString());
+					}
+
+					if(this->selected_parcel.ptr() == parcel)
+					{
+						const bool can_edit_basic_fields = this->logged_in_user_id.valid() &&
+							((this->logged_in_user_id == parcel->owner_id) || isGodUser(this->logged_in_user_id));
+						const bool can_edit_owner_and_geometry = this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id);
+						const bool can_edit_member_lists = can_edit_basic_fields;
+						ui_interface->setParcelEditorForParcel(*parcel);
+						ui_interface->setParcelEditorPermissions(can_edit_basic_fields, can_edit_owner_and_geometry, can_edit_member_lists);
 					}
 
 
@@ -8057,8 +8365,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 
 					
 					// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
-					// Use the last head position (animated) for the nametag position.  Matches better for animations with root motion and shorter avatars etc.
-					Vec4f use_nametag_pos = avatar->graphics.getLastHeadPosition(); // Also used for red dot in HeadUpDisplay
+					Vec4f use_nametag_pos = pos.toVec4fPoint(); // Also used for red dot in HeadUpDisplay
 					if(avatar->entered_vehicle)
 					{
 						const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
@@ -8463,6 +8770,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			ModelLoadedThreadMessage* loaded_msg = checkedDowncastPtr<ModelLoadedThreadMessage>(msg);
 
+			// Route to async upload queue only if geometry fits in the largest upload VBO.
+			// This matches the historical logic used when tuning for large models (e.g. College_glb).
 			if(vbo_pool && (loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize()))
 				async_model_loaded_messages_to_process.push_back(loaded_msg);
 			else
@@ -8835,7 +9144,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		break;
 		case Msg_ClientProtocolTooOldMessage:
 		{
-			ui_interface->showHTMLMessageBox("Client too old", "<p>Sorry, your Substrata client is too old.</p><p>Please download and install an updated client from <a href=\"https://substrata.info/\">substrata.info</a></p>");
+			ui_interface->showHTMLMessageBox("Client too old",
+				"<p>Sorry, your Metasiberia client is too old.</p>"
+				"<p>Please use <b>Help -> Update</b> or download and install the latest version from "
+				"<a href=\"https://github.com/shipilovden/sub-metasiberia/releases\">GitHub Releases</a>.</p>");
 		}
 		break;
 		case Msg_ClientDisconnectedFromServerMessage:
@@ -8920,7 +9232,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			{
 				// For backwards compatibility, if gesture_URL was not sent, just use the gesture name with ".subanim" appended.
 				const URLString anim_resource_URL = m->gesture_URL.empty() ? (URLString(m->gesture_name) + ".subanim") : m->gesture_URL;
-				if(resource_manager->isFileForURLPresent(anim_resource_URL)) // If the gesture animation file is present on the local disk:
+				const bool animate_head = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+				const bool loop_anim = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_LOOP);
+				if(resource_manager->isFileForURLPresent(anim_resource_URL))
 				{
 					if(world_state)
 					{
@@ -8929,36 +9243,32 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						auto res = this->world_state->avatars.find(m->avatar_uid);
 						if(res != this->world_state->avatars.end())
 						{
-							// Sync playback.
-							// Consider at some time t, 10 seconds from now:
-							// t = cur_time + 10
-							// and start_global_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
-							// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - start_global_time))
-							// = 10 + (105 - 100) = 10 + 5 = 15
+							// Sync playback to the sender's global start time.
 							const double time_offset = world_state->getCurrentGlobalTime() - m->start_global_time;
 
 							Avatar* avatar = res->second.getPointer();
-							avatar->performGesture(cur_time, m->gesture_name, anim_resource_URL, m->flags, m->start_global_time, time_offset, animation_manager, *resource_manager);
+							avatar->graphics.performGesture(cur_time, m->gesture_name, anim_resource_URL, animate_head, loop_anim, m->start_global_time, time_offset, animation_manager, *resource_manager);
 						}
 					}
 				}
 				else
 				{
-					// Start downloading the animation resource.
+					// Start downloading the animation resource (if it isn't already present).
 					DownloadingResourceInfo info;
 					info.pos = cam_controller.getPosition();
 					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
 					info.used_by_other = true;
 					startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
 
-					// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+					// Play once the animation is downloaded.
+					if(world_state.nonNull())
 					{
 						Lock lock(this->world_state->mutex);
 						auto res = this->world_state->avatars.find(m->avatar_uid);
 						if(res != this->world_state->avatars.end())
 						{
 							Avatar* avatar = res->second.getPointer();
-							avatar->setPendingGesture(m->gesture_name, anim_resource_URL, m->flags, m->start_global_time);
+							avatar->graphics.setPendingGesture(m->gesture_name, anim_resource_URL, animate_head, loop_anim, m->start_global_time);
 						}
 					}
 				}
@@ -8979,8 +9289,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					if(res != this->world_state->avatars.end())
 					{
 						Avatar* avatar = res->second.getPointer();
-						avatar->stopGesture(cur_time);
-						avatar->clearPendingGesture(); // Since we have received a stop-gesture message for this avatar, we don't want to start playing the anim when we download the animation file.
+						avatar->graphics.stopGesture(cur_time);
+						avatar->graphics.clearPendingGesture();
 					}
 				}
 			}
@@ -9041,6 +9351,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		case Msg_ErrorMessage:
 		{
 			const ErrorMessage* m = checkedDowncastPtr<const ErrorMessage>(msg);
+			if(m->msg == "You can only place objects inside parcels you can edit in this world." ||
+				m->msg == "Object is not dynamic, physics transform updates are not allowed.")
+			{
+				rollbackSelectedObjectTransformAfterServerRejection();
+			}
 			showErrorNotification(m->msg);
 		}
 		break;
@@ -9067,9 +9382,24 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			misc_info_ui.showLoggedInButton(m->username);
 
-			// If this server has sent the user's custom gesture settings, update the gesture UI with them.
-			if(!m->gesture_settings.gesture_settings.empty())
-				gesture_ui.setCurrentGestureSettings(m->gesture_settings);
+			// Prefer locally saved gesture settings (so they persist across reboots on this client).
+			// If none exist, fall back to server-provided settings.  Finally fall back to defaults.
+			{
+				const std::string local_gesture_settings_path = gestureSettingsLocalPathForUser(appdata_path, server_hostname, logged_in_user_id);
+
+				GestureSettings local_settings;
+				if(tryLoadGestureSettingsFromDisk(local_gesture_settings_path, local_settings) && !local_settings.gesture_settings.empty())
+				{
+					gesture_ui.setCurrentGestureSettings(local_settings);
+				}
+				else if(!m->gesture_settings.gesture_settings.empty())
+				{
+					gesture_ui.setCurrentGestureSettings(m->gesture_settings);
+					trySaveGestureSettingsToDisk(local_gesture_settings_path, m->gesture_settings);
+				}
+				else
+					gesture_ui.setCurrentGestureSettings(GestureSettings::defaultGestureSettings());
+			}
 
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
@@ -9100,6 +9430,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			misc_info_ui.showLogInAndSignUpButtons();
 
+			// Logged-out users can't add/enable gestures, so reset to defaults.
+			gesture_ui.setCurrentGestureSettings(GestureSettings::defaultGestureSettings());
+
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
 			Avatar avatar;
@@ -9126,6 +9459,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_flags = 0;
 
 			misc_info_ui.showLoggedInButton(m->username);
+
+			// New users start with default gesture settings locally.
+			{
+				const GestureSettings defaults = GestureSettings::defaultGestureSettings();
+				gesture_ui.setCurrentGestureSettings(defaults);
+				trySaveGestureSettingsToDisk(gestureSettingsLocalPathForUser(appdata_path, server_hostname, logged_in_user_id), defaults);
+			}
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
@@ -9173,21 +9513,6 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				physics_world->setWaterBuoyancyEnabled(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
 				const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
 				physics_world->setWaterZ(use_water_z);
-			}
-
-			if(opengl_engine)
-			{
-				const float sun_phi   = this->connected_world_settings.sun_phi;
-				const float sun_theta = this->connected_world_settings.sun_theta;
-				opengl_engine->setEnvMapTransform(Matrix3f::rotationAroundZAxis(sun_phi));
-
-				{
-					OpenGLMaterial env_mat;
-					env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
-					opengl_engine->setEnvMat(env_mat);
-				}
-
-				opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0)));
 			}
 		}
 		break;
@@ -9279,7 +9604,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(world_state.nonNull())
 			{
-				logMessage("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
+				conPrint("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
 
 				// A download of this resource may have failed earlier, but should succeed now.
 				resource_manager->removeFromDownloadFailedURLs(m->URL);
@@ -9301,7 +9626,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						{
 							WorldObject* ob = it.getValue().ptr();
 
-							const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+							const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 
 							//if(ob->using_placeholder_model)
 							{
@@ -9366,9 +9691,6 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								}
 							}
 						}
-
-						if(::hasExtension(m->URL, "subanim")) // Just consider all animations (used for gestures) needed for now.
-							need_resource = true;
 
 						const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
 						conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
@@ -9482,7 +9804,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							}
 							else if(hasExtension(local_path, "subanim"))
 							{
-								handleDownloadedAnimationResource(local_path, resource, m->loaded_buffer);
+								handleDownloadedAnimationResource(local_path, resource);
 							}
 							else
 							{
@@ -9688,7 +10010,6 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	if(physics_world.nonNull() && do_physics_diagnostics)
 	{
 		msg += "------------Physics------------\n";
-		msg += "physics CPU time: " + doubleToStringNSigFigs(last_physics_sim_time * 1000, 3) + " ms\n";
 		msg += physics_world->getDiagnostics();
 		msg += "------------------------------\n";
 	}
@@ -9713,7 +10034,6 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 	msg += "main loop CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 	msg += "main loop updateGL time: " + doubleToStringNSigFigs(last_updateGL_time * 1000, 3) + " ms\n";
-	msg += "physics CPU time: " + doubleToStringNSigFigs(last_physics_sim_time * 1000, 3) + " ms\n";
 	msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
 	msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
 	msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
@@ -9988,7 +10308,7 @@ void GUIClient::destroyVehiclePhysicsControllingObject(WorldObject* ob)
 
 	if(vehicle_controller_inside.nonNull() && vehicle_controller_inside->getControlledObject() == ob)
 		vehicle_controller_inside = NULL;
-	
+
 	// Also clear if we're sitting on this object
 	if(seat_sitting_on == ob)
 		seat_sitting_on = NULL;
@@ -10184,6 +10504,76 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 	{
 		opengl_engine->removeObject(this->voxel_edit_face_marker);
 		voxel_edit_face_marker_in_engine = false;
+	}
+}
+
+
+void GUIClient::queuePendingCameraPairCreate(const Vec3d& camera_pos, const Vec3d& screen_pos)
+{
+	PendingCameraPairCreate pending;
+	pending.camera_pos = camera_pos;
+	pending.screen_pos = screen_pos;
+	pending.camera_uid = UID::invalidUID();
+	pending.screen_uid = UID::invalidUID();
+	pending.creation_time = Clock::getTimeSinceInit();
+	pending_camera_pair_creates.push_back(pending);
+}
+
+
+void GUIClient::tryResolvePendingCameraPairCreateForObject(WorldObject* created_ob, WorldStateLock& world_state_lock)
+{
+	(void)world_state_lock;
+
+	if((created_ob->object_type != WorldObject::ObjectType_Camera) && (created_ob->object_type != WorldObject::ObjectType_CameraScreen))
+		return;
+
+	const double now = Clock::getTimeSinceInit();
+	const double max_pending_age_s = 30.0;
+	const double max_match_dist = 2.5;
+
+	for(size_t i = 0; i < pending_camera_pair_creates.size();)
+	{
+		if((now - pending_camera_pair_creates[i].creation_time) > max_pending_age_s)
+			pending_camera_pair_creates.erase(pending_camera_pair_creates.begin() + i);
+		else
+			++i;
+	}
+
+	for(size_t i = 0; i < pending_camera_pair_creates.size(); ++i)
+	{
+		PendingCameraPairCreate& pending = pending_camera_pair_creates[i];
+
+		if(!pending.camera_uid.valid() &&
+			(created_ob->object_type == WorldObject::ObjectType_Camera) &&
+			(created_ob->pos.getDist(pending.camera_pos) <= max_match_dist))
+		{
+			pending.camera_uid = created_ob->uid;
+		}
+		else if(!pending.screen_uid.valid() &&
+			(created_ob->object_type == WorldObject::ObjectType_CameraScreen) &&
+			(created_ob->pos.getDist(pending.screen_pos) <= max_match_dist))
+		{
+			pending.screen_uid = created_ob->uid;
+		}
+
+		if(pending.camera_uid.valid() && pending.screen_uid.valid())
+		{
+			auto screen_res = world_state->objects.find(pending.screen_uid);
+			if(screen_res != world_state->objects.end())
+			{
+				WorldObject* screen_ob = screen_res.getValue().ptr();
+				if((screen_ob->object_type == WorldObject::ObjectType_CameraScreen) &&
+					(screen_ob->type_data.camera_screen_data.source_camera_uid != pending.camera_uid.value()))
+				{
+					screen_ob->type_data.camera_screen_data.source_camera_uid = pending.camera_uid.value();
+					screen_ob->from_local_other_dirty = true;
+					world_state->dirty_from_local_objects.insert(screen_res.getValue());
+				}
+			}
+
+			pending_camera_pair_creates.erase(pending_camera_pair_creates.begin() + i);
+			break;
+		}
 	}
 }
 
@@ -10392,6 +10782,29 @@ bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob
 
 		const Vec4f newpos = tentative_to_world_matrix.getColumn(3) + dpos;
 		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
+
+		// Keep client-side placement checks in sync with server checks.
+		// If object origin is outside all writable parcels, reject move immediately.
+		if(!isGodUser(this->logged_in_user_id) && (this->connected_world_details.owner_id != this->logged_in_user_id))
+		{
+			bool in_writable_parcel = false;
+			{
+				Lock lock(world_state->mutex);
+				for(auto& it : world_state->parcels)
+				{
+					const Parcel* parcel = it.second.ptr();
+					if(parcel->pointInParcel(new_ob_pos_out) && parcel->userHasWritePerms(this->logged_in_user_id))
+					{
+						in_writable_parcel = true;
+						break;
+					}
+				}
+			}
+
+			if(!in_writable_parcel)
+				return false;
+		}
+
 		return true;
 	}
 	else
@@ -10934,7 +11347,7 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 						opengl_ob->ob_to_world_matrix = obToWorldMatrix(*in_world_ob);
 						opengl_engine->updateObjectTransformData(*opengl_ob);
 
-						const int ob_lod_level = in_world_ob->getLODLevel(cam_controller.getPosition());
+						const int ob_lod_level = getEffectiveLODLevel(in_world_ob.ptr(), cam_controller.getPosition());
 
 						// Update materials in opengl engine.
 						glare::ArenaFrame frame(arena_allocator);
@@ -11751,6 +12164,11 @@ void GUIClient::objectTransformEdited()
 {
 	if(this->selected_ob.nonNull())
 	{
+		const Vec3d old_pos = this->selected_ob->pos;
+		const Vec3f old_axis = this->selected_ob->axis;
+		const float old_angle = this->selected_ob->angle;
+		const Vec3f old_scale = this->selected_ob->scale;
+
 		// Multiple edits using the object editor, in a short timespan, will be merged together,
 		// unless force_new_undo_edit is true (is set when undo or redo is issued).
 		const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
@@ -11832,6 +12250,22 @@ void GUIClient::objectTransformEdited()
 			}
 			else // Else if new transform is not valid
 			{
+				// Restore previous transform if editor values attempted to move object outside permitted placement.
+				selected_ob->setTransformAndHistory(old_pos, old_axis, old_angle);
+				selected_ob->scale = old_scale;
+				selected_ob->transformChanged();
+
+				if(opengl_ob.nonNull())
+				{
+					opengl_ob->ob_to_world_matrix = obToWorldMatrix(*selected_ob);
+					opengl_engine->updateObjectTransformData(*opengl_ob);
+				}
+
+				if(selected_ob->physics_object)
+					physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+						useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+
+				ui_interface->startObEditorTimerIfNotActive();
 				showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 			}
 		}
@@ -11855,6 +12289,11 @@ void GUIClient::objectEdited()
 	// Update object material(s) with values from editor.
 	if(this->selected_ob.nonNull())
 	{
+		const Vec3d old_pos = this->selected_ob->pos;
+		const Vec3f old_axis = this->selected_ob->axis;
+		const float old_angle = this->selected_ob->angle;
+		const Vec3f old_scale = this->selected_ob->scale;
+
 		// Multiple edits using the object editor, in a short timespan, will be merged together,
 		// unless force_new_undo_edit is true (is set when undo or redo is issued).
 		const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
@@ -11921,7 +12360,8 @@ void GUIClient::objectEdited()
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
 
-				selected_ob->physics_object->motion_type = selected_ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!selected_ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
+				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
 
 				selected_ob->physics_object->mass = selected_ob->mass;
 				selected_ob->physics_object->friction = selected_ob->friction;
@@ -11936,8 +12376,8 @@ void GUIClient::objectEdited()
 
 		// Scripted objects (e.g. objects being path controlled), need to be kinematic.  If we enabled a script, but the existing physics object is not kinematic, reload the physics object.
 		const bool physics_rebuild_needed_for_script_enabling = BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED) &&
-			selected_ob->physics_object && !selected_ob->physics_object->isKinematic() && !selected_ob->script.empty() &&
-			(selected_ob->object_type == WorldObject::ObjectType_Generic || selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
+			selected_ob->physics_object && !selected_ob->physics_object->kinematic && !selected_ob->script.empty() &&
+			(selected_ob->object_type == WorldObject::ObjectType_Generic ||selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
 		
 		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
 			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)) ||
@@ -12022,8 +12462,8 @@ void GUIClient::objectEdited()
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
 			
-				selected_ob->physics_object->motion_type = selected_ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!selected_ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
-
+				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
 				selected_ob->physics_object->is_sphere = FileUtils::getFilenameStringView(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
 				selected_ob->physics_object->is_cube = FileUtils::getFilenameStringView(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
 
@@ -12073,7 +12513,7 @@ void GUIClient::objectEdited()
 		// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
 		//TEMP LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, *task_manager);
 
-		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
+		const int ob_lod_level = getEffectiveLODLevel(this->selected_ob.ptr(), cam_controller.getPosition());
 		const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
 
 		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level/*TEMP*/);
@@ -12123,6 +12563,49 @@ void GUIClient::objectEdited()
 						}
 
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
+					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Seat || this->selected_ob->object_type == WorldObject::ObjectType_Camera || this->selected_ob->object_type == WorldObject::ObjectType_CameraScreen)
+					{
+						if(opengl_ob.nonNull())
+						{
+							glare::ArenaFrame frame(arena_allocator);
+
+							opengl_ob->materials.resize(1); // These meshes use a single material.
+							if(!this->selected_ob->materials.empty())
+							{
+								ModelLoading::setGLMaterialFromWorldMaterial(
+									*this->selected_ob->materials[0],
+									ob_lod_level,
+									/*lightmap URL=*/"",
+									/*use_basis=*/this->server_has_basis_textures,
+									*this->resource_manager,
+									&arena_allocator,
+									opengl_ob->materials[0]
+								);
+							}
+							else
+							{
+								// Keep object visible with sane defaults even if no material is present.
+								if(this->selected_ob->object_type == WorldObject::ObjectType_Seat)
+								{
+									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.4f, 0.5f, 0.6f));
+									opengl_ob->materials[0].alpha = 0.5f;
+								}
+								else if(this->selected_ob->object_type == WorldObject::ObjectType_Camera)
+								{
+									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
+									opengl_ob->materials[0].alpha = 1.0f;
+								}
+								else
+								{
+									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
+									opengl_ob->materials[0].alpha = 1.0f;
+								}
+							}
+
+							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());
+							opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						}
 					}
 					else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 					{
@@ -12193,6 +12676,12 @@ void GUIClient::objectEdited()
 					if(selected_ob->physics_object)
 					{
 						selected_ob->physics_object->collidable = selected_ob->isCollidable();
+						selected_ob->physics_object->is_sensor = selected_ob->isSensor();
+						selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+						selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+						selected_ob->physics_object->mass = selected_ob->mass;
+						selected_ob->physics_object->friction = selected_ob->friction;
+						selected_ob->physics_object->restitution = selected_ob->restitution;
 						physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
 							useScaleForWorldOb(selected_ob->scale).toVec4fVector());
 					}
@@ -12226,6 +12715,18 @@ void GUIClient::objectEdited()
 				}
 				else // Else if new transform is not valid
 				{
+					selected_ob->setTransformAndHistory(old_pos, old_axis, old_angle);
+					selected_ob->scale = old_scale;
+					selected_ob->transformChanged();
+
+					opengl_ob->ob_to_world_matrix = obToWorldMatrix(*selected_ob);
+					opengl_engine->updateObjectTransformData(*opengl_ob);
+
+					if(selected_ob->physics_object)
+						physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+							useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+
+					ui_interface->startObEditorTimerIfNotActive();
 					showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 				}
 			}
@@ -12375,7 +12876,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		hover_car_physics_settings.hovercar_mass = ob->mass;
 		hover_car_physics_settings.script_settings = hover_car_script->settings.downcast<Scripting::HoverCarScriptSettings>();
 
-		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
+		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
 		controller = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, *physics_world, particle_manager.ptr());
 	}
@@ -12387,7 +12888,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		physics_settings.boat_mass = ob->mass;
 		physics_settings.script_settings = boat_script->settings.downcast<Scripting::BoatScriptSettings>();
 
-		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
+		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
 		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, *physics_world, particle_manager.ptr(), terrain_decal_manager.ptr());
 	}
@@ -12438,6 +12939,19 @@ void GUIClient::posAndRot3DControlsToggled(bool enabled)
 
 				axis_and_rot_obs_enabled = true;
 			}
+		}
+		else if(selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id))
+		{
+			for(int i = 0; i < NUM_AXIS_ARROWS; ++i)
+				opengl_engine->addObject(axis_arrow_objects[i]);
+
+			for(int i = 0; i < 3; ++i)
+			{
+				opengl_engine->removeObject(rot_handle_arc_objects[i]);
+				rot_handle_lines[i].clear();
+			}
+
+			axis_and_rot_obs_enabled = true;
 		}
 	}
 	else
@@ -12709,6 +13223,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	this->client_avatar_uid = UID::invalidUID();
 	this->server_protocol_version = 0;
+	this->pending_camera_pair_creates.clear();
 
 
 	this->logged_in_user_id = UserID::invalidUserID();
@@ -12766,11 +13281,12 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 void GUIClient::clearAllObjects()
 {
 	deselectObject();
+	pending_camera_pair_creates.clear();
 
-	vehicle_controller_inside = nullptr;
+	vehicle_controller_inside = NULL;
 	vehicle_controllers.clear();
-
 	seat_sitting_on = nullptr;
+
 
 	if(world_state)
 	{
@@ -12813,7 +13329,6 @@ void GUIClient::clearAllObjects()
 			Avatar* avatar = it->second.ptr();
 
 			avatar->entered_vehicle = NULL;
-
 			avatar->sitting_on_seat = NULL;
 
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
@@ -12911,6 +13426,14 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	//-------------------------------- Do disconnect process --------------------------------
 	disconnectFromServerAndClearAllObjects();
 	//-------------------------------- End disconnect process --------------------------------
+
+	if(shouldDisableLODForCurrentServer())
+	{
+		const float increased_load_distance = 5000.f;
+		proximity_loader.setLoadDistance(increased_load_distance);
+		this->load_distance = increased_load_distance;
+		this->load_distance2 = increased_load_distance * increased_load_distance;
+	}
 
 
 	//-------------------------------- Do connect process --------------------------------
@@ -13596,6 +14119,12 @@ void GUIClient::mousePressed(MouseEvent& e)
 			if(grabbed_axis >= 0) // If we grabbed an arrow or rotation arc:
 			{
 				this->ob_origin_at_grab = this->selected_ob->pos.toVec4fPoint();
+				have_selected_ob_transform_rollback = true;
+				selected_ob_transform_rollback_uid = this->selected_ob->uid;
+				selected_ob_transform_rollback_pos = this->selected_ob->pos;
+				selected_ob_transform_rollback_axis = this->selected_ob->axis;
+				selected_ob_transform_rollback_angle = this->selected_ob->angle;
+				selected_ob_transform_rollback_scale = this->selected_ob->scale;
 
 				// Usually when the mouse button is held down, moving the mouse rotates the camera.
 				// But when we have grabbed an arrow or rotation arc, it moves the object instead.  So don't rotate the camera.
@@ -13631,6 +14160,26 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 				//opengl_engine->addObject(opengl_engine->makeAABBObject(plane_p, plane_p + Vec4f(0.05f, 0.05f, 0.05f, 0), Colour4f(1, 0, 1, 1)));
 			}
+		}
+	}
+	else if(this->selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id))
+	{
+		grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e.cursor_pos.x, (float)e.cursor_pos.y), /*closest_seg_point_ws_out=*/this->grabbed_point_ws);
+
+		if(grabbed_axis >= NUM_AXIS_ARROWS)
+			grabbed_axis = -1; // Parcel gizmo supports translation only.
+
+		if(grabbed_axis >= 0)
+		{
+			this->ob_origin_at_grab = Vec4f(
+				(float)((selected_parcel->aabb_min.x + selected_parcel->aabb_max.x) * 0.5),
+				(float)((selected_parcel->aabb_min.y + selected_parcel->aabb_max.y) * 0.5),
+				(float)((selected_parcel->aabb_min.z + selected_parcel->aabb_max.z) * 0.5),
+				1.f
+			);
+
+			// When dragging parcel gizmo, don't rotate camera on mouse drag.
+			ui_interface->setCamRotationOnMouseDragEnabled(false);
 		}
 	}
 
@@ -13752,6 +14301,13 @@ void GUIClient::mouseReleased(MouseEvent& e)
 	{
 		undo_buffer.finishWorldObjectEdit(*selected_ob);
 		grabbed_axis = -1;
+		have_selected_ob_transform_rollback = false;
+		selected_ob_transform_rollback_uid = UID::invalidUID();
+	}
+	else if(grabbed_axis != -1 && selected_parcel.nonNull())
+	{
+		grabbed_axis = -1;
+		ui_interface->setParcelEditorForParcel(*selected_parcel);
 	}
 
 	// Trace through scene to see if we are clicking on a web-view.  Send mouseReleased events to the web view if so.
@@ -13834,7 +14390,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 	{
 		const Matrix4f ob_to_world = obToWorldMatrix(*ob);
 
-		const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+		const int ob_lod_level = getEffectiveLODLevel(ob.ptr(), cam_controller.getPosition());
 
 		js::Vector<bool, 16> mat_transparent(ob->materials.size());
 		for(size_t i=0; i<ob->materials.size(); ++i)
@@ -13889,7 +14445,9 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		physics_ob->userdata = (void*)(ob.ptr());
 		physics_ob->userdata_type = 0;
 		physics_ob->ob_uid = ob->uid;
-		physics_ob->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
+
+		physics_ob->kinematic = !ob->script.empty();
+		physics_ob->dynamic = ob->isDynamic();
 
 		physics_world->addObject(physics_ob);
 
@@ -13932,6 +14490,12 @@ void GUIClient::pickUpSelectedObject()
 			ui_interface->objectEditorObjectPickedUp();
 
 			selected_ob_picked_up = true;
+			have_selected_ob_transform_rollback = true;
+			selected_ob_transform_rollback_uid = selected_ob->uid;
+			selected_ob_transform_rollback_pos = selected_ob->pos;
+			selected_ob_transform_rollback_axis = selected_ob->axis;
+			selected_ob_transform_rollback_angle = selected_ob->angle;
+			selected_ob_transform_rollback_scale = selected_ob->scale;
 
 			undo_buffer.startWorldObjectEdit(*selected_ob);
 
@@ -13961,6 +14525,8 @@ void GUIClient::dropSelectedObject()
 		ui_interface->objectEditorObjectDropped();
 
 		selected_ob_picked_up = false;
+		have_selected_ob_transform_rollback = false;
+		selected_ob_transform_rollback_uid = UID::invalidUID();
 
 		undo_buffer.finishWorldObjectEdit(*selected_ob);
 
@@ -14006,11 +14572,44 @@ void GUIClient::doObjectSelectionTraceForMouseEvent(MouseEvent& e)
 			opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
 			opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
 
+			const bool can_edit_basic_fields = this->logged_in_user_id.valid() &&
+				((this->logged_in_user_id == selected_parcel->owner_id) || isGodUser(this->logged_in_user_id));
+			const bool can_edit_owner_and_geometry = this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id);
+			const bool can_edit_member_lists = can_edit_basic_fields;
+
 			// Show parcel editor, hide object editor.
 			ui_interface->setParcelEditorForParcel(*selected_parcel);
+			ui_interface->setParcelEditorPermissions(can_edit_basic_fields, can_edit_owner_and_geometry, can_edit_member_lists);
 			ui_interface->setParcelEditorEnabled(true);
 			ui_interface->showParcelEditor();
 			ui_interface->showEditorDockWidget(); // Show the object editor dock widget if it is hidden.
+
+			if(can_edit_owner_and_geometry && ui_interface->posAndRot3DControlsEnabled())
+			{
+				for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+					opengl_engine->addObject(axis_arrow_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					opengl_engine->removeObject(rot_handle_arc_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					rot_handle_lines[i].clear();
+
+				axis_and_rot_obs_enabled = true;
+			}
+			else
+			{
+				for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+					opengl_engine->removeObject(axis_arrow_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					opengl_engine->removeObject(rot_handle_arc_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					rot_handle_lines[i].clear();
+
+				axis_and_rot_obs_enabled = false;
+			}
 		}
 		else if(results.hit_object->userdata && results.hit_object->userdata_type == 2) // If we hit an instance:
 		{
@@ -14129,7 +14728,8 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						}
 					}
 
-					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() && !isAvatarSittingOnSeat(*ob))
+					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() &&
+						(server_protocol_version >= 49) && !isAvatarSittingOnSeat(*ob))
 					{
 						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to sit" : "Press [A] on gamepad to sit", cursor_gl_coords);
 						show_mouseover_info_ui = true;
@@ -14178,7 +14778,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 			else if(results.hit_object->userdata && results.hit_object->userdata_type == 3) // If we hit an avatar:
 			{
 				const Avatar* avatar = (const Avatar*)results.hit_object->userdata;
-				if(avatar && !avatar->current_gesture_name.empty())
+				if(avatar && !avatar->graphics.current_gesture_name.empty())
 				{
 					ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to join gesture" : "Press [A] to join gesture", cursor_gl_coords);
 					show_mouseover_info_ui = true;
@@ -14296,6 +14896,76 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 				const Vec4f selection_vec_ws = selection_point_ws - origin;
 				this->selection_vec_cs = cam_controller.vectorToCamSpace(selection_vec_ws);
 			}
+		}
+	}
+	else if(selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id) && grabbed_axis >= 0 && grabbed_axis < NUM_AXIS_ARROWS)
+	{
+		const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
+
+		Vec2f start_pixelpos, end_pixelpos;
+
+		const float MAX_MOVE_DIST = 100;
+		const Vec4f line_dir = normalise(axis_arrow_segments[grabbed_axis].b - axis_arrow_segments[grabbed_axis].a);
+		Vec4f use_line_start = axis_arrow_segments[grabbed_axis].a - line_dir * MAX_MOVE_DIST;
+		Vec4f use_line_end   = axis_arrow_segments[grabbed_axis].a + line_dir * MAX_MOVE_DIST;
+
+		const Vec4f camforw_ws = cam_controller.getForwardsVec().toVec4fVector();
+		Planef plane(origin + camforw_ws * 0.1f, -camforw_ws);
+		const bool visible = clipLineToPlaneBackHalfSpace(plane, use_line_start, use_line_end);
+		assertOrDeclareUsed(visible);
+
+		bool start_visible = getPixelForPoint(use_line_start, start_pixelpos);
+		bool end_visible   = getPixelForPoint(use_line_end,   end_pixelpos);
+
+		assert(start_visible && end_visible);
+		if(start_visible && end_visible)
+		{
+			const Vec2f mousepos((float)mouse_event.cursor_pos.x, (float)mouse_event.cursor_pos.y);
+			const Vec2f closest_pixel = closestPointOnLineSegment(mousepos, start_pixelpos, end_pixelpos);
+
+			Vec4f new_p = pointOnLineWorldSpace(axis_arrow_segments[grabbed_axis].a, axis_arrow_segments[grabbed_axis].b, closest_pixel);
+			Vec4f delta_p = new_p - grabbed_point_ws;
+
+			assert(new_p.isFinite());
+
+			Vec4f tentative_new_centre = ob_origin_at_grab + delta_p;
+			if(tentative_new_centre.getDist(ob_origin_at_grab) > MAX_MOVE_DIST)
+				tentative_new_centre = ob_origin_at_grab + (tentative_new_centre - ob_origin_at_grab) * MAX_MOVE_DIST / (tentative_new_centre - ob_origin_at_grab).length();
+
+			assert(tentative_new_centre.isFinite());
+
+			if(ui_interface->snapToGridCheckBoxChecked())
+			{
+				const double grid_spacing = ui_interface->gridSpacing();
+				if(grid_spacing > 1.0e-5)
+					tentative_new_centre[grabbed_axis] = (float)Maths::roundToMultipleFloating((double)tentative_new_centre[grabbed_axis], grid_spacing);
+			}
+
+			const Vec4f old_centre(
+				(float)((selected_parcel->aabb_min.x + selected_parcel->aabb_max.x) * 0.5),
+				(float)((selected_parcel->aabb_min.y + selected_parcel->aabb_max.y) * 0.5),
+				(float)((selected_parcel->aabb_min.z + selected_parcel->aabb_max.z) * 0.5),
+				1.f
+			);
+			const Vec4f move_delta = tentative_new_centre - old_centre;
+
+			for(int i=0; i<4; ++i)
+			{
+				selected_parcel->verts[i].x += move_delta.x[0];
+				selected_parcel->verts[i].y += move_delta.x[1];
+			}
+			selected_parcel->zbounds.x += move_delta.x[2];
+			selected_parcel->zbounds.y += move_delta.x[2];
+			selected_parcel->build();
+
+			{
+				Lock lock(world_state->mutex);
+				selected_parcel->from_remote_dirty = true; // Rebuild/update parcel visualisation locally on next parcel-graphics pass.
+				world_state->dirty_from_remote_parcels.insert(selected_parcel);
+				world_state->dirty_from_local_parcels.insert(selected_parcel);
+			}
+
+			ui_interface->setParcelEditorForParcel(*selected_parcel);
 		}
 	}
 	else if(selected_ob.nonNull() && grabbed_axis >= NUM_AXIS_ARROWS && grabbed_axis < (NUM_AXIS_ARROWS + 3)) // If we have grabbed a rotation arc and are moving it:
@@ -14782,6 +15452,8 @@ void GUIClient::deselectObject()
 		ui_interface->setObjectEditorEnabled(false);
 
 		this->selected_ob = NULL;
+		have_selected_ob_transform_rollback = false;
+		selected_ob_transform_rollback_uid = UID::invalidUID();
 
 		grabbed_axis = -1;
 
@@ -14800,6 +15472,16 @@ void GUIClient::deselectParcel()
 	{
 		// Deselect any currently selected object
 		opengl_engine->deselectObject(this->selected_parcel->opengl_engine_ob);
+
+		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+			opengl_engine->removeObject(this->axis_arrow_objects[i]);
+		for(int i=0; i<3; ++i)
+		{
+			opengl_engine->removeObject(this->rot_handle_arc_objects[i]);
+			rot_handle_lines[i].clear();
+		}
+		axis_and_rot_obs_enabled = false;
+		grabbed_axis = -1;
 
 		ui_interface->setParcelEditorEnabled(false);
 
@@ -15033,7 +15715,6 @@ void GUIClient::updateGroundPlane()
 		const float terrain_section_width_m = myClamp(spec.terrain_section_width_m, 8.f, 1000000.f);
 
 		path_spec.terrain_section_width_m = terrain_section_width_m;
-		path_spec.terrain_height_scale = spec.terrain_height_scale;
 		path_spec.default_terrain_z = spec.default_terrain_z;
 		path_spec.water_z = spec.water_z;
 		path_spec.flags = spec.flags;
@@ -15218,10 +15899,93 @@ void GUIClient::reloadShaders()
 }
 
 
-void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, uint32 gesture_flags)
+void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim)
 {
-	performGestureOnOurAvatar(gesture_name, anim_resource_URL, gesture_flags, world_state->getCurrentGlobalTime());
+	if(!this->logged_in_user_id.valid())
+	{
+		showErrorNotification("You must be logged in to perform gestures.");
+		return;
+	}
+
+	const URLString use_anim_resource_URL = anim_resource_URL.empty() ? (URLString(gesture_name) + ".subanim") : anim_resource_URL;
+	performGestureOnOurAvatar(gesture_name, use_anim_resource_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime());
 }
+
+
+void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim, double global_start_time)
+{
+	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+	const double cur_global_time = world_state->getCurrentGlobalTime();
+
+	// Change camera view to third person if it's not already, so we can see the gesture
+	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
+
+	if(resource_manager->isFileForURLPresent(anim_resource_URL))
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* av = it->second.getPointer();
+			if(av->isOurAvatar())
+			{
+				const double time_offset = cur_global_time - global_start_time;
+				av->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, global_start_time, time_offset, animation_manager, *resource_manager);
+			}
+		}
+	}
+	else
+	{
+		// Start downloading the animation resource.
+		{
+			DownloadingResourceInfo info;
+			info.pos = cam_controller.getPosition();
+			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
+			info.used_by_other = true;
+			startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
+		}
+
+		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+		{
+			Lock lock(this->world_state->mutex);
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+			{
+				Avatar* av = it->second.getPointer();
+				if(av->isOurAvatar())
+					av->graphics.setPendingGesture(gesture_name, anim_resource_URL, animate_head, loop_anim, global_start_time);
+			}
+		}
+	}
+
+	// Send AvatarPerformGesture message
+	{
+		const uint32 flags = (animate_head ? SingleGestureSettings::FLAG_ANIMATE_HEAD : 0) | (loop_anim ? SingleGestureSettings::FLAG_LOOP : 0);
+
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+		writeToStream(this->client_avatar_uid, scratch_packet);
+		scratch_packet.writeStringLengthFirst(gesture_name);
+		scratch_packet.writeStringLengthFirst(anim_resource_URL);
+		scratch_packet.writeUInt32(flags);
+		scratch_packet.writeDouble(global_start_time);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+	sent_perform_gesture_without_stop_gesture = true;
+}
+
+
+void GUIClient::setWebcamEnabled(bool enabled)
+{
+	webcam_capture.setEnabled(enabled);
+}
+
+
+#if defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(USE_SDL)
+void* GUIClient::getWebcamFrameAsQImage() const
+{
+	return webcam_capture.getCurrentFrameAsQImage();
+}
+#endif
 
 
 void GUIClient::stopGesture()
@@ -15244,6 +16008,8 @@ void GUIClient::stopGesture()
 	}
 
 	// Send AvatarStopGesture message
+	// If we are not logged in, we can't perform a gesture, so don't send a AvatarStopGesture message or we will just get error messages back from the server.
+	//if(this->logged_in_user_id.valid())
 	if(sent_perform_gesture_without_stop_gesture) // Make sure we don't spam AvatarStopGesture messages.
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
@@ -15259,74 +16025,6 @@ void GUIClient::stopGesture()
 void GUIClient::stopGestureClicked(const std::string& gesture_name)
 {
 	stopGesture();
-}
-
-
-void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const URLString& anim_resource_URL, uint32 gesture_flags, double global_start_time)
-{
-	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-	const double cur_global_time = world_state->getCurrentGlobalTime();
-
-	// Change camera view to third person if it's not already, so we can see the gesture
-	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
-
-	if(resource_manager->isFileForURLPresent(anim_resource_URL))
-	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-		{
-			Avatar* av = it->second.getPointer();
-			if(av->isOurAvatar())
-			{
-				// Sync playback.
-				// Consider at some time t, 10 seconds from now:
-				// t = cur_time + 10
-				// and global_start_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
-				// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - global_start_time))
-				// = 10 + (105 - 100) = 10 + 5 = 15
-				const double time_offset = cur_global_time - global_start_time;
-
-				av->performGesture(cur_time, gesture_name, anim_resource_URL, gesture_flags, global_start_time, time_offset, animation_manager, *resource_manager);
-			}
-		}
-	}
-	else
-	{
-		// Start downloading the animation resource.
-		{
-			DownloadingResourceInfo info;
-			info.pos = cam_controller.getPosition();
-			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
-			info.used_by_other = true;
-			startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
-		}
-
-		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
-		{
-			Lock lock(this->world_state->mutex);
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-			{
-				Avatar* av = it->second.getPointer();
-				if(av->isOurAvatar())
-					av->setPendingGesture(gesture_name, anim_resource_URL, gesture_flags, cur_global_time);
-			}
-		}
-	}
-
-	// Send AvatarPerformGesture message
-	{
-		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
-		writeToStream(this->client_avatar_uid, scratch_packet);
-		scratch_packet.writeStringLengthFirst(gesture_name);
-		scratch_packet.writeStringLengthFirst(anim_resource_URL);
-		scratch_packet.writeUInt32(gesture_flags);
-		scratch_packet.writeDouble(global_start_time);
-
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
-	}
-	sent_perform_gesture_without_stop_gesture = true;
 }
 
 
@@ -15349,8 +16047,6 @@ void GUIClient::setPhotoModeEnabled(bool enabled)
 		this->photo_mode_ui.enablePhotoModeUI();
 	else
 		this->photo_mode_ui.disablePhotoModeUI();
-
-	this->gesture_ui.setPhotoModeEnabledUIState(enabled);
 }
 
 
@@ -15544,10 +16240,13 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 
 		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/Vec4f(0,0,0,0));
 
-		// Send AvatarGotUpFromSeat message to server
-		MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
-		writeToStream(this->client_avatar_uid, scratch_packet);
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
+		// Only send seat messages if server supports them.
+		if((this->connection_state == ServerConnectionState_Connected) && (this->server_protocol_version >= 49))
+		{
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
+			writeToStream(this->client_avatar_uid, scratch_packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
 
 		return;
 	}
@@ -15612,6 +16311,20 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 				// Handle seat interaction
 				if(ob->object_type == WorldObject::ObjectType_Seat)
 				{
+					if(this->connection_state != ServerConnectionState_Connected)
+					{
+						showErrorNotification("Not connected to server.");
+						return;
+					}
+
+					const uint32 seat_feature_protocol_version = 49; // AvatarSatOnSeat / AvatarGotUpFromSeat support.
+					if(this->server_protocol_version < seat_feature_protocol_version)
+					{
+						showErrorNotification("This server does not support seats yet. Server protocol version is " + toString(this->server_protocol_version) +
+							", required >= " + toString(seat_feature_protocol_version) + ".");
+						return;
+					}
+
 					// Try to sit on the seat
 					if(this->seat_sitting_on.isNull() && !isAvatarSittingOnSeat(*ob)) // If not currently sitting on any seat and no other avatar sitting on the hit seat:
 					{
@@ -15765,17 +16478,21 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 					writeToStream(ob->uid, scratch_packet);
 					enqueueMessageToSend(*client_thread, scratch_packet);
 				}
-			} // end if(hit object)
+			}
 			else if(results.hit_object->userdata && results.hit_object->userdata_type == 3) // else if we hit an avatar:
 			{
 				const Avatar* hit_avatar = (const Avatar*)results.hit_object->userdata;
 
-				if(hit_avatar && !hit_avatar->current_gesture_name.empty()) // If the avatar is performing a gesture:
+				if(hit_avatar && !hit_avatar->graphics.current_gesture_name.empty()) // If the avatar is performing a gesture:
 				{
-					// Perform the same gesture on our avatar
-					performGestureOnOurAvatar(hit_avatar->current_gesture_name, hit_avatar->current_gesture_URL, 
-						hit_avatar->current_gesture_flags,
-						hit_avatar->current_gesture_start_global_time);
+					// Perform the same gesture on our avatar.
+					performGestureOnOurAvatar(
+						hit_avatar->graphics.current_gesture_name,
+						hit_avatar->graphics.current_gesture_URL,
+						hit_avatar->graphics.current_gesture_animate_head,
+						hit_avatar->graphics.current_gesture_loop_anim,
+						hit_avatar->graphics.current_gesture_start_global_time
+					);
 				}
 			}
 		}
@@ -15849,11 +16566,14 @@ void GUIClient::goBack()
 
 void GUIClient::gestureSettingsChanged(const GestureSettings& new_gesture_settings)
 {
-	// Send UserGestureSettingsChanged message to server
-	MessageUtils::initPacket(scratch_packet, Protocol::UserGestureSettingsChanged);
-	new_gesture_settings.writeToStream(scratch_packet);
-	enqueueMessageToSend(*client_thread, scratch_packet);
+	if(!this->logged_in_user_id.valid())
+	{
+		showErrorNotification("You must be logged in to add/enable gestures.");
+		return;
+	}
 
+	// Persist gesture settings locally so they survive client reboots.
+	trySaveGestureSettingsToDisk(gestureSettingsLocalPathForUser(appdata_path, server_hostname, logged_in_user_id), new_gesture_settings);
 
 	// Update gesture UI.
 	gesture_ui.setCurrentGestureSettings(new_gesture_settings);
@@ -16498,5 +17218,3 @@ void GUIClient::showScriptMessage(const std::string& message)
 		script_messages.pop_front(); // remove from list
 	}
 }
-
-

@@ -24,6 +24,7 @@
 #include <QtGui/QDesktopServices>
 #include <QtWidgets/QErrorMessage>
 #include <QtCore/QTimer>
+#include <QtCore/QCoreApplication>
 #include <QtWidgets/QColorDialog>
 #include <set>
 #include <stack>
@@ -113,10 +114,17 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->spotlightStartAngleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 	connect(this->spotlightEndAngleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
 
-	connect(this->upperLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->lowerLegAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->upperArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
-	connect(this->lowerArmAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->cameraEnabledCheckBox,			SIGNAL(toggled(bool)),			this, SIGNAL(objectChanged()));
+	connect(this->cameraFOVYDoubleSpinBox,			SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->cameraNearDistDoubleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->cameraFarDistDoubleSpinBox,		SIGNAL(valueChanged(double)),	this, SIGNAL(objectChanged()));
+	connect(this->cameraRenderWidthSpinBox,		SIGNAL(valueChanged(int)),		this, SIGNAL(objectChanged()));
+	connect(this->cameraRenderHeightSpinBox,		SIGNAL(valueChanged(int)),		this, SIGNAL(objectChanged()));
+	connect(this->cameraMaxFPSSpinBox,				SIGNAL(valueChanged(int)),		this, SIGNAL(objectChanged()));
+
+	connect(this->cameraScreenEnabledCheckBox,		SIGNAL(toggled(bool)),			this, SIGNAL(objectChanged()));
+	connect(this->cameraScreenSourceUIDLineEdit,	SIGNAL(editingFinished()),		this, SIGNAL(objectChanged()));
+	connect(this->cameraScreenMaterialIndexSpinBox,SIGNAL(valueChanged(int)),		this, SIGNAL(objectChanged()));
 
 
 	this->volumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VOLUME);
@@ -155,29 +163,33 @@ ObjectEditor::~ObjectEditor()
 void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 {
 	const std::string creator_name = !ob.creator_name.empty() ? ob.creator_name :
-		(ob.creator_id.valid() ? ("user id: " + ob.creator_id.toString()) : "[Unknown]");
+		(ob.creator_id.valid() ? (QtUtils::toStdString(QCoreApplication::translate("ObjectEditor", "user id: ")) + ob.creator_id.toString()) : QtUtils::toStdString(QCoreApplication::translate("ObjectEditor", "[Unknown]")));
 
-	std::string ob_type;
+	QString ob_type;
 	switch(ob.object_type)
 	{
-	case WorldObject::ObjectType_Generic: ob_type = "Generic object"; break;
-	case WorldObject::ObjectType_Hypercard: ob_type = "Hypercard"; break;
-	case WorldObject::ObjectType_VoxelGroup: ob_type = "Voxel Group"; break;
-	case WorldObject::ObjectType_Spotlight: ob_type = "Spotlight"; break;
-	case WorldObject::ObjectType_WebView: ob_type = "Web View"; break;
-	case WorldObject::ObjectType_Video: ob_type = "Video"; break;
-	case WorldObject::ObjectType_Text: ob_type = "Text"; break;
-	case WorldObject::ObjectType_Portal: ob_type = "Portal"; break;
-	case WorldObject::ObjectType_Seat: ob_type = "Seat"; break;
+	case WorldObject::ObjectType_Generic: ob_type = QCoreApplication::translate("ObjectEditor", "Generic object"); break;
+	case WorldObject::ObjectType_Hypercard: ob_type = QCoreApplication::translate("ObjectEditor", "Hypercard"); break;
+	case WorldObject::ObjectType_VoxelGroup: ob_type = QCoreApplication::translate("ObjectEditor", "Voxel Group"); break;
+	case WorldObject::ObjectType_Spotlight: ob_type = QCoreApplication::translate("ObjectEditor", "Spotlight"); break;
+	case WorldObject::ObjectType_WebView: ob_type = QCoreApplication::translate("ObjectEditor", "Web View"); break;
+	case WorldObject::ObjectType_Video: ob_type = QCoreApplication::translate("ObjectEditor", "Video"); break;
+	case WorldObject::ObjectType_Text: ob_type = QCoreApplication::translate("ObjectEditor", "Text"); break;
+	case WorldObject::ObjectType_Portal: ob_type = QCoreApplication::translate("ObjectEditor", "Portal"); break;
+	case WorldObject::ObjectType_Seat: ob_type = QCoreApplication::translate("ObjectEditor", "Seat"); break;
+	case WorldObject::ObjectType_Camera: ob_type = QCoreApplication::translate("ObjectEditor", "Camera"); break;
+	case WorldObject::ObjectType_CameraScreen: ob_type = QCoreApplication::translate("ObjectEditor", "Camera Screen"); break;
 	}
 
-	std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
+	QString info_text = ob_type + " (UID: " + QtUtils::toQString(ob.uid.toString()) + "), \n" +
+		QCoreApplication::translate("ObjectEditor", "created by") + " '" + QtUtils::toQString(creator_name) + "' " +
+		QtUtils::toQString(ob.created_time.timeAgoDescription());
 	
 	// Show last-modified time only if it differs from created_time.
 	if(ob.created_time.time != ob.last_modified_time.time)
-		info_text += ", last modified " + ob.last_modified_time.timeAgoDescription();
+		info_text += ", " + QCoreApplication::translate("ObjectEditor", "last modified") + " " + QtUtils::toQString(ob.last_modified_time.timeAgoDescription());
 
-	this->infoLabel->setText(QtUtils::toQString(info_text));
+	this->infoLabel->setText(info_text);
 }
 
 
@@ -272,6 +284,9 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		selected_mat = ob.materials[selected_mat_index];
 	else
 		selected_mat = new WorldMaterial();
+
+	this->cameraGroupBox->hide();
+	this->cameraScreenGroupBox->hide();
 	
 	if(ob.object_type == WorldObject::ObjectType_Hypercard)
 	{
@@ -317,6 +332,34 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
 		this->seatGroupBox->show();
+		this->audioGroupBox->hide();
+		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_Camera)
+	{
+		this->materialsGroupBox->show();
+		this->lightmapGroupBox->hide();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
+		this->cameraGroupBox->show();
+		this->cameraScreenGroupBox->hide();
+		this->audioGroupBox->hide();
+		this->physicsSettingsGroupBox->show();
+		this->videoGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_CameraScreen)
+	{
+		this->materialsGroupBox->show();
+		this->lightmapGroupBox->hide();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
+		this->cameraGroupBox->hide();
+		this->cameraScreenGroupBox->show();
 		this->audioGroupBox->hide();
 		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
@@ -412,13 +455,31 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	// For seat:
 	if(ob.object_type == WorldObject::ObjectType_Seat)
 	{
-		// Sitting position and rotation are now determined by the seat object's transform
-		// and a fixed vertical offset, so they are no longer editable
-		
 		SignalBlocker::setValue(this->upperLegAngleDoubleSpinBox, ob.type_data.seat_data.upper_leg_angle);
 		SignalBlocker::setValue(this->lowerLegAngleDoubleSpinBox, ob.type_data.seat_data.lower_leg_angle);
 		SignalBlocker::setValue(this->upperArmAngleDoubleSpinBox, ob.type_data.seat_data.upper_arm_angle);
 		SignalBlocker::setValue(this->lowerArmAngleDoubleSpinBox, ob.type_data.seat_data.lower_arm_angle);
+	}
+
+	if(ob.object_type == WorldObject::ObjectType_Camera)
+	{
+		SignalBlocker::setChecked(this->cameraEnabledCheckBox, ob.type_data.camera_data.enabled != 0);
+		SignalBlocker::setValue(this->cameraFOVYDoubleSpinBox, ::radToDegree(ob.type_data.camera_data.fov_y_rad));
+		SignalBlocker::setValue(this->cameraNearDistDoubleSpinBox, ob.type_data.camera_data.near_dist);
+		SignalBlocker::setValue(this->cameraFarDistDoubleSpinBox, ob.type_data.camera_data.far_dist);
+		SignalBlocker::setValue(this->cameraRenderWidthSpinBox, (int)ob.type_data.camera_data.render_width);
+		SignalBlocker::setValue(this->cameraRenderHeightSpinBox, (int)ob.type_data.camera_data.render_height);
+		SignalBlocker::setValue(this->cameraMaxFPSSpinBox, (int)ob.type_data.camera_data.max_fps);
+	}
+
+	if(ob.object_type == WorldObject::ObjectType_CameraScreen)
+	{
+		SignalBlocker::setChecked(this->cameraScreenEnabledCheckBox, ob.type_data.camera_screen_data.enabled != 0);
+		{
+			SignalBlocker b(this->cameraScreenSourceUIDLineEdit);
+			this->cameraScreenSourceUIDLineEdit->setText(QtUtils::toQString(toString(ob.type_data.camera_screen_data.source_camera_uid)));
+		}
+		SignalBlocker::setValue(this->cameraScreenMaterialIndexSpinBox, (int)ob.type_data.camera_screen_data.material_index);
 	}
 
 
@@ -428,7 +489,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 
 	if(ob.lightmap_baking)
 	{
-		lightmapBakeStatusLabel->setText("Lightmap is baking...");
+		lightmapBakeStatusLabel->setText(QCoreApplication::translate("ObjectEditor", "Lightmap is baking..."));
 	}
 	else
 	{
@@ -583,13 +644,47 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	// For seat:
 	if(ob_out.object_type == WorldObject::ObjectType_Seat)
 	{
-		// Sitting position and rotation are now determined by the seat object's transform
-		// and a fixed vertical offset, so they are no longer editable
-		
 		ob_out.type_data.seat_data.upper_leg_angle = (float)this->upperLegAngleDoubleSpinBox->value();
 		ob_out.type_data.seat_data.lower_leg_angle = (float)this->lowerLegAngleDoubleSpinBox->value();
 		ob_out.type_data.seat_data.upper_arm_angle = (float)this->upperArmAngleDoubleSpinBox->value();
 		ob_out.type_data.seat_data.lower_arm_angle = (float)this->lowerArmAngleDoubleSpinBox->value();
+	}
+
+	if(ob_out.object_type == WorldObject::ObjectType_Camera)
+	{
+		const float fov_deg = myClamp((float)this->cameraFOVYDoubleSpinBox->value(), 5.f, 175.f);
+		const float near_dist = myMax(0.01f, (float)this->cameraNearDistDoubleSpinBox->value());
+		const float far_dist = myMax(near_dist + 0.01f, (float)this->cameraFarDistDoubleSpinBox->value());
+
+		ob_out.type_data.camera_data.fov_y_rad = ::degreeToRad(fov_deg);
+		ob_out.type_data.camera_data.near_dist = near_dist;
+		ob_out.type_data.camera_data.far_dist = far_dist;
+		ob_out.type_data.camera_data.render_width = (uint16)myClamp(this->cameraRenderWidthSpinBox->value(), 16, 4096);
+		ob_out.type_data.camera_data.render_height = (uint16)myClamp(this->cameraRenderHeightSpinBox->value(), 16, 4096);
+		ob_out.type_data.camera_data.max_fps = (uint8)myClamp(this->cameraMaxFPSSpinBox->value(), 1, 120);
+		ob_out.type_data.camera_data.enabled = this->cameraEnabledCheckBox->isChecked() ? 1 : 0;
+	}
+
+	if(ob_out.object_type == WorldObject::ObjectType_CameraScreen)
+	{
+		uint64 source_camera_uid = 0;
+		const std::string source_uid_text = stripHeadWhitespace(stripTailWhitespace(QtUtils::toIndString(this->cameraScreenSourceUIDLineEdit->text())));
+		if(!source_uid_text.empty())
+		{
+			try
+			{
+				source_camera_uid = stringToUInt64(source_uid_text);
+			}
+			catch(StringUtilsExcep&)
+			{
+				source_camera_uid = 0;
+			}
+		}
+
+		ob_out.type_data.camera_screen_data.source_camera_uid = source_camera_uid;
+		ob_out.type_data.camera_screen_data.material_index = (uint16)myClamp(this->cameraScreenMaterialIndexSpinBox->value(), 0, 65535);
+		ob_out.type_data.camera_screen_data.enabled = this->cameraScreenEnabledCheckBox->isChecked() ? 1 : 0;
+		ob_out.type_data.camera_screen_data._padding = 0;
 	}
 
 	const URLString new_audio_source_url = toURLString(QtUtils::toStdString(this->audioFileWidget->filename()));
@@ -649,11 +744,11 @@ void ObjectEditor::objectLightmapURLUpdated(const WorldObject& ob)
 
 	if(ob.lightmap_baking)
 	{
-		lightmapBakeStatusLabel->setText("Lightmap is baking...");
+		lightmapBakeStatusLabel->setText(QCoreApplication::translate("ObjectEditor", "Lightmap is baking..."));
 	}
 	else
 	{
-		lightmapBakeStatusLabel->setText("Lightmap baked.");
+		lightmapBakeStatusLabel->setText(QCoreApplication::translate("ObjectEditor", "Lightmap baked."));
 	}
 
 	updateInfoLabel(ob); // Update info label, which includes last-modified time.
@@ -714,6 +809,18 @@ void ObjectEditor::setControlsEditable(bool editable)
 
 	this->audioFileWidget->setReadOnly(!editable);
 	this->volumeDoubleSpinBox->setReadOnly(!editable);
+
+	this->cameraEnabledCheckBox->setEnabled(editable);
+	this->cameraFOVYDoubleSpinBox->setReadOnly(!editable);
+	this->cameraNearDistDoubleSpinBox->setReadOnly(!editable);
+	this->cameraFarDistDoubleSpinBox->setReadOnly(!editable);
+	this->cameraRenderWidthSpinBox->setReadOnly(!editable);
+	this->cameraRenderHeightSpinBox->setReadOnly(!editable);
+	this->cameraMaxFPSSpinBox->setReadOnly(!editable);
+
+	this->cameraScreenEnabledCheckBox->setEnabled(editable);
+	this->cameraScreenSourceUIDLineEdit->setReadOnly(!editable);
+	this->cameraScreenMaterialIndexSpinBox->setReadOnly(!editable);
 }
 
 
@@ -793,7 +900,7 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 
 void ObjectEditor::on_bakeLightmapPushButton_clicked(bool checked)
 {
-	lightmapBakeStatusLabel->setText("Lightmap is baking...");
+	lightmapBakeStatusLabel->setText(QCoreApplication::translate("ObjectEditor", "Lightmap is baking..."));
 
 	emit bakeObjectLightmap();
 }
@@ -801,7 +908,7 @@ void ObjectEditor::on_bakeLightmapPushButton_clicked(bool checked)
 
 void ObjectEditor::on_bakeLightmapHighQualPushButton_clicked(bool checked)
 {
-	lightmapBakeStatusLabel->setText("Lightmap is baking...");
+	lightmapBakeStatusLabel->setText(QCoreApplication::translate("ObjectEditor", "Lightmap is baking..."));
 
 	emit bakeObjectLightmapHighQual();
 }
