@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "HeadUpDisplayUI.h"
 #include "PhotoModeUI.h"
 #include "ChatUI.h"
+#include "webcam/WebcamCapture.h"
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
@@ -177,6 +178,7 @@ public:
 
 
 	Reference<SettingsStore> getSettingsStore() { return settings; }
+	bool isLoggedIn() const { return logged_in_user_id.valid(); }
 
 	void setGLWidgetContextAsCurrent();
 	Vec2i getGlWidgetPosInGlobalSpace();
@@ -195,13 +197,19 @@ public:
 	virtual void reloadShaders() override;
 	//----------------------- End ReloadShadersCallback interface -----------------------
 
-	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags);
+	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim);
 	void stopGestureClicked(const std::string& gesture_name);
-	void performGestureOnOurAvatar(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags, double global_start_time);
+	void performGestureOnOurAvatar(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double global_start_time);
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
 	void setPhotoModeEnabled(bool enabled);
 	void setMicForVoiceChatEnabled(bool enabled);
+	void setWebcamEnabled(bool enabled);
+#if defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(USE_SDL)
+	// Get current webcam frame as QImage (for Qt UI)
+	// Implementation in .cpp file to avoid Qt header dependency
+	void* getWebcamFrameAsQImage() const; // Returns QImage* (cast to QImage* in implementation)
+#endif
 
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
@@ -285,6 +293,8 @@ public:
 	void handleMessages(double global_time, double cur_time);
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
+	void queuePendingCameraPairCreate(const Vec3d& camera_pos, const Vec3d& screen_pos);
+	void renderWorldCameraStreams();
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
@@ -299,7 +309,7 @@ public:
 	bool isResourceCurrentlyNeededForObject(const URLString& url, const WorldObject* ob) const;
 	bool isResourceCurrentlyNeededForObjectGivenIsDependency(const URLString& url, const WorldObject* ob) const;
 	bool isDownloadingResourceCurrentlyNeeded(const URLString& url) const;
-	void handleDownloadedAnimationResource(const std::string& local_path, const Reference<Resource>& resource, Reference<LoadedBuffer> loaded_buffer);
+	void handleDownloadedAnimationResource(const std::string local_path, const Reference<Resource>& resource);
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersWorldOrGodUser();
@@ -354,6 +364,7 @@ public:
 	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
 	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const js::AABBox& aabb_os) REQUIRES(world_state->mutex);
 	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object) REQUIRES(world_state->mutex);
+	bool rollbackSelectedObjectTransformAfterServerRejection();
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
@@ -424,6 +435,11 @@ public:
 
 	void setOnlyLoadMostImportantObs(bool only_load_most_important_obs);
 
+	bool shouldDisableLODForCurrentServer() const;
+	int getEffectiveLODLevel(const WorldObject* ob, const Vec3d& campos) const;
+	void tryResolvePendingCameraPairCreateForObject(WorldObject* created_ob, WorldStateLock& world_state_lock);
+	void tryAutoLinkUnboundCameraScreen(WorldObject* maybe_screen_ob, WorldStateLock& world_state_lock);
+
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
 	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
@@ -464,7 +480,6 @@ public:
 	std::map<WorldObject*, Reference<VehiclePhysics>> vehicle_controllers; // Map from controlled object to vehicle controller for that object.
 	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
 	uint32 cur_seat_index; // Current vehicle seat index.
-
 	Reference<WorldObject> seat_sitting_on; // Seat object that the avatar is currently sitting on, or NULL if not sitting.
 
 	double last_vehicle_renewal_msg_time;
@@ -502,6 +517,12 @@ public:
 	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
 	Vec4f selection_point_os; // Point on selected object where selection ray hit, in object space.
 	bool selected_ob_picked_up; // Is selected object 'picked up' e.g. being moved?
+	bool have_selected_ob_transform_rollback;
+	UID selected_ob_transform_rollback_uid;
+	Vec3d selected_ob_transform_rollback_pos;
+	Vec3f selected_ob_transform_rollback_axis;
+	float selected_ob_transform_rollback_angle;
+	Vec3f selected_ob_transform_rollback_scale;
 
 	ParcelRef selected_parcel;
 
@@ -544,6 +565,12 @@ public:
 
 	Reference<OpenGLMeshRenderData> seat_opengl_mesh;
 	PhysicsShape seat_shape;
+
+	Reference<OpenGLMeshRenderData> camera_opengl_mesh;
+	PhysicsShape camera_shape;
+
+	Reference<OpenGLMeshRenderData> camera_screen_opengl_mesh;
+	PhysicsShape camera_screen_shape;
 
 	Reference<OpenGLMeshRenderData> portal_opengl_mesh;
 	PhysicsShape portal_shape;
@@ -603,8 +630,6 @@ public:
 	Timer fps_display_timer;
 	int num_frames_since_fps_timer_reset;
 	double last_fps;
-
-	double last_physics_sim_time;
 
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
@@ -691,6 +716,30 @@ public:
 
 	UID last_restored_ob_uid_in_edit;
 
+	struct PendingCameraPairCreate
+	{
+		Vec3d camera_pos;
+		Vec3d screen_pos;
+		UID camera_uid;
+		UID screen_uid;
+		double creation_time;
+	};
+	std::vector<PendingCameraPairCreate> pending_camera_pair_creates;
+
+	struct CameraStreamRenderState
+	{
+		CameraStreamRenderState() : tex_w(0), tex_h(0), last_render_time(-1.0), basis_mode(0), dark_frame_streak(0) {}
+
+		OpenGLTextureRef stream_texture;
+		int tex_w;
+		int tex_h;
+		double last_render_time;
+		int basis_mode;
+		uint32 dark_frame_streak;
+	};
+	std::unordered_map<uint64, CameraStreamRenderState> camera_stream_states;
+	size_t camera_stream_round_robin_cursor = 0;
+
 	GLUIRef gl_ui;
 	GestureUI gesture_ui; // Draws gesture buttons, also selfie and enable mic button
 	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
@@ -698,6 +747,7 @@ public:
 	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
 	PhotoModeUI photo_mode_ui;
+	WebcamCapture webcam_capture; // Webcam capture and display
 	Reference<MiniMap> minimap;
 
 	bool running_destructor;
@@ -824,7 +874,13 @@ public:
 
 	js::Vector<Reference<ThreadMessage>, 16> temp_msgs;
 
+	bool extracted_anim_data_loaded;
+
 	URLParseResults last_url_parse_results;
+	
+	// Pending transit connection (for SDL UI)
+	URLParseResults pending_transit_connection;
+	bool has_pending_transit_connection;
 
 	struct Notification
 	{
@@ -908,6 +964,4 @@ public:
 	bool ui_hidden;
 
 	bool only_load_most_important_obs;
-
-	double last_ping_send_time;
 };

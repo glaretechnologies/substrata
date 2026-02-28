@@ -525,6 +525,8 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Text: return "text";
 	case ObjectType_Portal: return "portal";
 	case ObjectType_Seat: return "seat";
+	case ObjectType_Camera: return "camera";
+	case ObjectType_CameraScreen: return "camera screen";
 	default: return "Unknown";
 	}
 }
@@ -540,6 +542,8 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 	if(ob_type_string == "text") return ObjectType_Text;
 	if(ob_type_string == "portal") return ObjectType_Portal;
 	if(ob_type_string == "seat") return ObjectType_Seat;
+	if(ob_type_string == "camera") return ObjectType_Camera;
+	if(ob_type_string == "camera screen") return ObjectType_CameraScreen;
 	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
 }
 
@@ -587,6 +591,22 @@ static void writeWorldObjectPerTypeData(RandomAccessOutStream& stream, const Wor
 			stream.writeData(&ob.type_data.seat_data, sizeof(WorldObject::SeatTypeData));
 			break;
 		}
+		case WorldObject::ObjectType_Camera:
+		{
+			// Write length of per-type data
+			stream.writeUInt32(sizeof(WorldObject::CameraTypeData));
+
+			stream.writeData(&ob.type_data.camera_data, sizeof(WorldObject::CameraTypeData));
+			break;
+		}
+		case WorldObject::ObjectType_CameraScreen:
+		{
+			// Write length of per-type data
+			stream.writeUInt32(sizeof(WorldObject::CameraScreenTypeData));
+
+			stream.writeData(&ob.type_data.camera_screen_data, sizeof(WorldObject::CameraScreenTypeData));
+			break;
+		}
 		default:
 		{
 			// Write length of per-type data
@@ -599,18 +619,42 @@ static void writeWorldObjectPerTypeData(RandomAccessOutStream& stream, const Wor
 static void readWorldObjectPerTypeData(RandomAccessInStream& stream, WorldObject& ob)
 {
 	// Read TypeData
-	const uint32 len = stream.readUInt32(); // Length of per-type data that follows this uint32.
+	const uint32 len_u32 = stream.readUInt32(); // Length of per-type data that follows this uint32.
+	const size_t len = (size_t)len_u32;
 	const size_t start_offset = stream.getReadIndex(); // Offset at start of per-type data
+	const size_t end_offset = start_offset + len;
+
+	if((end_offset < start_offset) || (end_offset > stream.size()))
+		throw glare::Exception("Invalid per-type world object data length: " + toString(len_u32));
+
 	switch(ob.object_type)
 	{
 		case WorldObject::ObjectType_Spotlight:
 		{
-			stream.readData(&ob.type_data.spotlight_data, sizeof(WorldObject::SpotLightTypeData));
+			// Be robust to legacy/truncated payloads: keep defaults unless full struct data is present.
+			if(len >= sizeof(WorldObject::SpotLightTypeData))
+				stream.readData(&ob.type_data.spotlight_data, sizeof(WorldObject::SpotLightTypeData));
 			break;
 		}
 		case WorldObject::ObjectType_Seat:
 		{
-			stream.readData(&ob.type_data.seat_data, sizeof(WorldObject::SeatTypeData));
+			// Be robust to legacy/truncated payloads: keep defaults unless full struct data is present.
+			if(len >= sizeof(WorldObject::SeatTypeData))
+				stream.readData(&ob.type_data.seat_data, sizeof(WorldObject::SeatTypeData));
+			break;
+		}
+		case WorldObject::ObjectType_Camera:
+		{
+			// Be robust to legacy/truncated payloads: keep defaults unless full struct data is present.
+			if(len >= sizeof(WorldObject::CameraTypeData))
+				stream.readData(&ob.type_data.camera_data, sizeof(WorldObject::CameraTypeData));
+			break;
+		}
+		case WorldObject::ObjectType_CameraScreen:
+		{
+			// Be robust to legacy/truncated payloads: keep defaults unless full struct data is present.
+			if(len >= sizeof(WorldObject::CameraScreenTypeData))
+				stream.readData(&ob.type_data.camera_screen_data, sizeof(WorldObject::CameraScreenTypeData));
 			break;
 		}
 		default:
@@ -618,8 +662,8 @@ static void readWorldObjectPerTypeData(RandomAccessInStream& stream, WorldObject
 	}
 
 	// Read any remaining type data
-	if(start_offset + len > stream.getReadIndex())
-		stream.advanceReadIndex(start_offset + len - stream.getReadIndex());
+	if(end_offset > stream.getReadIndex())
+		stream.advanceReadIndex(end_offset - stream.getReadIndex());
 }
 
 
@@ -638,6 +682,21 @@ static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
 		ob.type_data.seat_data.lower_leg_angle = 1.57f; // ~90 degrees, bent at knees (negated in code)
 		ob.type_data.seat_data.upper_arm_angle = 2.65f; // ~152 degrees from overhead, arms down and slightly out
 		ob.type_data.seat_data.lower_arm_angle = 0.1f; // ~6 degrees, very slight elbow bend
+		break;
+	case WorldObject::ObjectType_Camera:
+		ob.type_data.camera_data.fov_y_rad = Maths::pi<float>() * 60.f / 180.f;
+		ob.type_data.camera_data.near_dist = 0.1f;
+		ob.type_data.camera_data.far_dist = 1000.f;
+		ob.type_data.camera_data.render_width = 512;
+		ob.type_data.camera_data.render_height = 288;
+		ob.type_data.camera_data.max_fps = 10;
+		ob.type_data.camera_data.enabled = 1;
+		break;
+	case WorldObject::ObjectType_CameraScreen:
+		ob.type_data.camera_screen_data.source_camera_uid = 0;
+		ob.type_data.camera_screen_data.material_index = 0;
+		ob.type_data.camera_screen_data.enabled = 1;
+		ob.type_data.camera_screen_data._padding = 0;
 		break;
 	default:
 		break;
@@ -901,7 +960,10 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 	}
 
 	if(v >= 22)
+	{
+		setWorldObjectPerTypeDataDefaults(ob);
 		readWorldObjectPerTypeData(stream, ob); // New in v22
+	}
 	else
 		setWorldObjectPerTypeDataDefaults(ob);
 
@@ -1101,6 +1163,23 @@ std::string WorldObject::serialiseToXML(int tab_depth) const
 	XMLWriteUtils::writeUInt32ToXML(s, "chunk_batch1_start", chunk_batch1_start, tab_depth + 1);
 	XMLWriteUtils::writeUInt32ToXML(s, "chunk_batch1_end", chunk_batch1_end, tab_depth + 1);
 
+	if(object_type == WorldObject::ObjectType_Camera)
+	{
+		XMLWriteUtils::writeFloatToXML(s, "camera_fov_y_rad", type_data.camera_data.fov_y_rad, tab_depth + 1);
+		XMLWriteUtils::writeFloatToXML(s, "camera_near_dist", type_data.camera_data.near_dist, tab_depth + 1);
+		XMLWriteUtils::writeFloatToXML(s, "camera_far_dist", type_data.camera_data.far_dist, tab_depth + 1);
+		XMLWriteUtils::writeUInt32ToXML(s, "camera_render_width", type_data.camera_data.render_width, tab_depth + 1);
+		XMLWriteUtils::writeUInt32ToXML(s, "camera_render_height", type_data.camera_data.render_height, tab_depth + 1);
+		XMLWriteUtils::writeUInt32ToXML(s, "camera_max_fps", type_data.camera_data.max_fps, tab_depth + 1);
+		XMLWriteUtils::writeUInt32ToXML(s, "camera_enabled", type_data.camera_data.enabled, tab_depth + 1);
+	}
+	else if(object_type == WorldObject::ObjectType_CameraScreen)
+	{
+		XMLWriteUtils::writeUInt64ToXML(s, "camera_screen_source_camera_uid", type_data.camera_screen_data.source_camera_uid, tab_depth + 1);
+		XMLWriteUtils::writeUInt32ToXML(s, "camera_screen_material_index", type_data.camera_screen_data.material_index, tab_depth + 1);
+		XMLWriteUtils::writeUInt32ToXML(s, "camera_screen_enabled", type_data.camera_screen_data.enabled, tab_depth + 1);
+	}
+
 	s += std::string(tab_depth, '\t') + "</object>\n";
 	return s;
 }
@@ -1113,6 +1192,7 @@ Reference<WorldObject> WorldObject::loadFromXMLElem(const std::string& object_fi
 	
 	const std::string ob_type_str = XMLParseUtils::parseStringWithDefault(elem, "object_type", "generic");
 	ob->object_type = objectTypeForString(ob_type_str);
+	setWorldObjectPerTypeDataDefaults(*ob);
 	
 	ob->model_url = XMLParseUtils::parseStringWithDefault(elem, "model_url", "");
 
@@ -1177,6 +1257,23 @@ Reference<WorldObject> WorldObject::loadFromXMLElem(const std::string& object_fi
 	ob->chunk_batch0_end   = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "chunk_batch0_end", 0);
 	ob->chunk_batch1_start = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "chunk_batch1_start", 0);
 	ob->chunk_batch1_end   = (uint32)XMLParseUtils::parseUInt64WithDefault(elem, "chunk_batch1_end", 0);
+
+	if(ob->object_type == WorldObject::ObjectType_Camera)
+	{
+		ob->type_data.camera_data.fov_y_rad = XMLParseUtils::parseFloatWithDefault(elem, "camera_fov_y_rad", ob->type_data.camera_data.fov_y_rad);
+		ob->type_data.camera_data.near_dist = XMLParseUtils::parseFloatWithDefault(elem, "camera_near_dist", ob->type_data.camera_data.near_dist);
+		ob->type_data.camera_data.far_dist = XMLParseUtils::parseFloatWithDefault(elem, "camera_far_dist", ob->type_data.camera_data.far_dist);
+		ob->type_data.camera_data.render_width = (uint16)XMLParseUtils::parseUInt64WithDefault(elem, "camera_render_width", ob->type_data.camera_data.render_width);
+		ob->type_data.camera_data.render_height = (uint16)XMLParseUtils::parseUInt64WithDefault(elem, "camera_render_height", ob->type_data.camera_data.render_height);
+		ob->type_data.camera_data.max_fps = (uint8)XMLParseUtils::parseUInt64WithDefault(elem, "camera_max_fps", ob->type_data.camera_data.max_fps);
+		ob->type_data.camera_data.enabled = (uint8)XMLParseUtils::parseUInt64WithDefault(elem, "camera_enabled", ob->type_data.camera_data.enabled);
+	}
+	else if(ob->object_type == WorldObject::ObjectType_CameraScreen)
+	{
+		ob->type_data.camera_screen_data.source_camera_uid = XMLParseUtils::parseUInt64WithDefault(elem, "camera_screen_source_camera_uid", ob->type_data.camera_screen_data.source_camera_uid);
+		ob->type_data.camera_screen_data.material_index = (uint16)XMLParseUtils::parseUInt64WithDefault(elem, "camera_screen_material_index", ob->type_data.camera_screen_data.material_index);
+		ob->type_data.camera_screen_data.enabled = (uint8)XMLParseUtils::parseUInt64WithDefault(elem, "camera_screen_enabled", ob->type_data.camera_screen_data.enabled);
+	}
 
 	return ob;
 }
@@ -1313,7 +1410,10 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 	}
 
 	if(!stream.endOfStream())
+	{
+		setWorldObjectPerTypeDataDefaults(ob);
 		readWorldObjectPerTypeData(stream, ob);
+	}
 	else
 		setWorldObjectPerTypeDataDefaults(ob);
 
@@ -1753,6 +1853,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 {
+	testAssert(ob1.object_type == ob2.object_type);
+
 	testAssert(ob1.getCompressedVoxels().nonNull() == ob2.getCompressedVoxels().nonNull());
 	if(ob1.getCompressedVoxels().nonNull())
 		testAssert(*ob1.getCompressedVoxels() == *ob2.getCompressedVoxels());
@@ -1763,6 +1865,35 @@ static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 		WorldMaterial& mat1 = *ob1.materials[i];
 		WorldMaterial& mat2 = *ob2.materials[i];
 		testAssert(mat1.normal_map_url == mat2.normal_map_url);
+	}
+
+	if(ob1.object_type == WorldObject::ObjectType_Spotlight)
+	{
+		testAssert(std::fabs(ob1.type_data.spotlight_data.cone_start_angle - ob2.type_data.spotlight_data.cone_start_angle) < 1.0e-6f);
+		testAssert(std::fabs(ob1.type_data.spotlight_data.cone_end_angle - ob2.type_data.spotlight_data.cone_end_angle) < 1.0e-6f);
+	}
+	else if(ob1.object_type == WorldObject::ObjectType_Seat)
+	{
+		testAssert(std::fabs(ob1.type_data.seat_data.upper_leg_angle - ob2.type_data.seat_data.upper_leg_angle) < 1.0e-6f);
+		testAssert(std::fabs(ob1.type_data.seat_data.lower_leg_angle - ob2.type_data.seat_data.lower_leg_angle) < 1.0e-6f);
+		testAssert(std::fabs(ob1.type_data.seat_data.upper_arm_angle - ob2.type_data.seat_data.upper_arm_angle) < 1.0e-6f);
+		testAssert(std::fabs(ob1.type_data.seat_data.lower_arm_angle - ob2.type_data.seat_data.lower_arm_angle) < 1.0e-6f);
+	}
+	else if(ob1.object_type == WorldObject::ObjectType_Camera)
+	{
+		testAssert(std::fabs(ob1.type_data.camera_data.fov_y_rad - ob2.type_data.camera_data.fov_y_rad) < 1.0e-6f);
+		testAssert(std::fabs(ob1.type_data.camera_data.near_dist - ob2.type_data.camera_data.near_dist) < 1.0e-6f);
+		testAssert(std::fabs(ob1.type_data.camera_data.far_dist - ob2.type_data.camera_data.far_dist) < 1.0e-6f);
+		testAssert(ob1.type_data.camera_data.render_width == ob2.type_data.camera_data.render_width);
+		testAssert(ob1.type_data.camera_data.render_height == ob2.type_data.camera_data.render_height);
+		testAssert(ob1.type_data.camera_data.max_fps == ob2.type_data.camera_data.max_fps);
+		testAssert(ob1.type_data.camera_data.enabled == ob2.type_data.camera_data.enabled);
+	}
+	else if(ob1.object_type == WorldObject::ObjectType_CameraScreen)
+	{
+		testAssert(ob1.type_data.camera_screen_data.source_camera_uid == ob2.type_data.camera_screen_data.source_camera_uid);
+		testAssert(ob1.type_data.camera_screen_data.material_index == ob2.type_data.camera_screen_data.material_index);
+		testAssert(ob1.type_data.camera_screen_data.enabled == ob2.type_data.camera_screen_data.enabled);
 	}
 }
 
@@ -1828,6 +1959,58 @@ void WorldObject::test()
 			// Test defaults are set
 			testAssert(ob.type_data.spotlight_data.cone_start_angle == 0.317560429291521f); // = std::acos(0.95f); (old fixed value)
 			testAssert(ob.type_data.spotlight_data.cone_end_angle   == 0.451026811796262f); // = std::acos(0.9f);  (old fixed value)
+		}
+
+		//--------------------------- Test camera object per-type data roundtrip ----------------------------
+		{
+			WorldObject ob;
+			ob.object_type = WorldObject::ObjectType_Camera;
+			setWorldObjectPerTypeDataDefaults(ob);
+			ob.type_data.camera_data.fov_y_rad = 1.25f;
+			ob.type_data.camera_data.near_dist = 0.2f;
+			ob.type_data.camera_data.far_dist = 777.0f;
+			ob.type_data.camera_data.render_width = 1024;
+			ob.type_data.camera_data.render_height = 576;
+			ob.type_data.camera_data.max_fps = 25;
+			ob.type_data.camera_data.enabled = 0;
+			ob.materials.push_back(new WorldMaterial());
+
+			BufferOutStream buf;
+			ob.writeToStream(buf);
+
+			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
+			WorldObject ob2;
+			readWorldObjectFromStream(instream, ob2);
+			testObjectsEqual(ob, ob2);
+
+			const std::string xml = ob.serialiseToXML(/*tab depth=*/0);
+			IndigoXMLDoc doc(xml.c_str(), xml.size());
+			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
+			testObjectsEqual(ob, *ob3);
+		}
+
+		//--------------------------- Test camera screen object per-type data roundtrip ----------------------------
+		{
+			WorldObject ob;
+			ob.object_type = WorldObject::ObjectType_CameraScreen;
+			setWorldObjectPerTypeDataDefaults(ob);
+			ob.type_data.camera_screen_data.source_camera_uid = 123456789ULL;
+			ob.type_data.camera_screen_data.material_index = 1;
+			ob.type_data.camera_screen_data.enabled = 1;
+			ob.materials.push_back(new WorldMaterial());
+
+			BufferOutStream buf;
+			ob.writeToStream(buf);
+
+			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
+			WorldObject ob2;
+			readWorldObjectFromStream(instream, ob2);
+			testObjectsEqual(ob, ob2);
+
+			const std::string xml = ob.serialiseToXML(/*tab depth=*/0);
+			IndigoXMLDoc doc(xml.c_str(), xml.size());
+			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
+			testObjectsEqual(ob, *ob3);
 		}
 
 

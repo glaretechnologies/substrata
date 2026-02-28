@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "ModelLoading.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/GLMeshBuilding.h>
+#include <opengl/MeshPrimitiveBuilding.h>
 #include <opengl/OpenGLMeshRenderData.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
@@ -350,6 +351,73 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = seat_opengl_mesh;
+	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	results.indigo_mesh = mesh;
+	return results;
+}
+
+
+MeshBuilding::MeshBuildingResults MeshBuilding::makeCameraMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator)
+{
+	ZoneScoped; // Tracy profiler
+
+	const std::string model_path = base_dir_path + "/data/resources/camera.bmesh";
+
+	try
+	{
+		BatchedMeshRef batched_mesh = BatchedMesh::readFromFile(model_path, /*mem allocator=*/nullptr);
+
+		batched_mesh->checkValidAndSanitiseMesh();
+
+		Reference<OpenGLMeshRenderData> camera_opengl_mesh = GLMeshBuilding::buildBatchedMesh(&allocator, batched_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+
+		MeshBuildingResults results;
+		results.opengl_mesh_data = camera_opengl_mesh;
+		results.physics_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/false);
+		return results;
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Warning: failed to load camera mesh '" + model_path + "': " + e.what() + ". Falling back to procedural seat mesh.");
+		return makeSeatMesh(allocator);
+	}
+}
+
+
+MeshBuilding::MeshBuildingResults MeshBuilding::makeCameraScreenMesh(VertexBufferAllocator& allocator)
+{
+	// Use the shared quad primitive for CameraScreen rendering.
+	// Single-sided surface in XZ plane (y = 0), material index 0.
+	// This avoids rendering the stream on cube side faces.
+	Reference<OpenGLMeshRenderData> quad_mesh = MeshPrimitiveBuilding::makeQuadMesh(
+		allocator,
+		Vec4f(1, 0, 0, 0),
+		Vec4f(0, 0, 1, 0),
+		/*vert_res=*/2
+	);
+
+	// Build matching physics shape from equivalent Indigo mesh.
+	Indigo::MeshRef mesh = new Indigo::Mesh();
+	mesh->num_uv_mappings = 1;
+
+	mesh->addVertex(Indigo::Vec3f(0, 0, 0));
+	mesh->addVertex(Indigo::Vec3f(1, 0, 0));
+	mesh->addVertex(Indigo::Vec3f(1, 0, 1));
+	mesh->addVertex(Indigo::Vec3f(0, 0, 1));
+
+	mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+	mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+	mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+	mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+
+	const unsigned int tri0[] = {0, 1, 2};
+	const unsigned int tri1[] = {0, 2, 3};
+	mesh->addTriangle(tri0, tri0, /*mat index=*/0);
+	mesh->addTriangle(tri1, tri1, /*mat index=*/0);
+	mesh->endOfModel();
+
+	MeshBuildingResults results;
+	results.opengl_mesh_data = quad_mesh;
 	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
 	results.indigo_mesh = mesh;
 	return results;
