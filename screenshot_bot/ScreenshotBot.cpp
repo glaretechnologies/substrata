@@ -6,9 +6,9 @@ Copyright Glare Technologies Limited 2025 -
 
 
 #include "../shared/Protocol.h"
-#include <networking/networking.h>
+#include <networking/Networking.h>
 #include <networking/TLSSocket.h>
-#include <networking/url.h>
+#include <networking/URL.h>
 #include <utils/SocketBufferOutStream.h>
 #include <PlatformUtils.h>
 #include <Clock.h>
@@ -357,3 +357,4 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 }
+
