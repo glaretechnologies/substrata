@@ -451,7 +451,7 @@ void ResourceManager::loadFromDisk(const std::string& path, bool force_check_if_
 
 void ResourceManager::saveToDisk(const std::string& path)
 {
-	conPrint("Saving resources to disk...");
+	//conPrint("Saving resources to disk...");
 	Timer timer;
 
 	Lock lock(mutex);
@@ -487,7 +487,7 @@ void ResourceManager::saveToDisk(const std::string& path)
 
 		FileUtils::moveFile(temp_path, path);
 
-		conPrint("\tDone saving resources to disk.  (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
+		//conPrint("\tDone saving resources to disk.  (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
