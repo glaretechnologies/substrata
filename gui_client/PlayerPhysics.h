@@ -107,6 +107,7 @@ public:
 	std::vector<ContactedEvent> contacted_events;
 
 private:
+	PhysicsWorld* m_physics_world;
 	Vec3f last_xy_plane_vel_rel_ground;
 
 	Vec3f move_desired_vel;
