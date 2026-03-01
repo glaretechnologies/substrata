@@ -9288,7 +9288,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				{
 					if(!resource_manager->isFileForURLPresent(m->URL)) // If we don't have this file yet:
 					{
-						conPrint("Do not have resource.");
+						// conPrint("Do not have resource.");
 
 						DownloadingResourceInfo downloading_info;
 						Vec4f centroid_ws(0,0,0,1);
@@ -9371,11 +9371,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							need_resource = true;
 
 						const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
-						conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
+						//conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
 
 						if(need_resource && valid_extension)// && !shouldStreamResourceViaHTTP(m->URL))
 						{
-							conPrint("Need resource, downloading: " + toStdString(m->URL));
+							//conPrint("Need resource, downloading: " + toStdString(m->URL));
 
 							startDownloadingResource(m->URL, centroid_ws, aabb_ws_longest_len, downloading_info);
 						}
