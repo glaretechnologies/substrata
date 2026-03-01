@@ -34,7 +34,8 @@ static const float EYE_HEIGHT = 1.67f;
 
 
 PlayerPhysics::PlayerPhysics()
-:	move_desired_vel(0,0,0),
+:	m_physics_world(nullptr),
+	move_desired_vel(0,0,0),
 	last_jump_time(-1),
 	on_ground(false),
 	fly_mode(false),
@@ -59,6 +60,7 @@ static const float cCharacterRadiusStanding = SPHERE_RAD;
 
 void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos)
 {
+	m_physics_world = &physics_world;
 	physics_system = physics_world.physics_system;
 
 	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
@@ -126,7 +128,7 @@ Vec3d PlayerPhysics::getCapsuleBottomPosition()
 void PlayerPhysics::setEyePosition(const Vec3d& new_player_pos, const Vec4f& linear_vel) // Move discontinuously.  For teleporting etc.
 {
 	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
-	setCapsuleBottomPosition(new_player_pos - Vec3d(0, 0, EYE_HEIGHT));
+	setCapsuleBottomPosition(new_player_pos - Vec3d(0, 0, EYE_HEIGHT), linear_vel);
 }
 
 void PlayerPhysics::setCapsuleBottomPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel)
@@ -175,10 +177,32 @@ void PlayerPhysics::processStrafeRight(float factor, bool runpressed, CameraCont
 }
 
 
+static float computeSubmergedFraction(const Vec4f foot_pos, PhysicsWorld& physics_world)
+{
+	if(physics_world.getWaterBuoyancyEnabled())
+	{
+		float dist_foot_under_water = physics_world.getWaterZ() - foot_pos[2];
+		const float fraction_submerged = myClamp(dist_foot_under_water / EYE_HEIGHT, 0.f, 1.f);
+		return fraction_submerged;
+	}
+	else
+		return 0.f;
+}
+
+
+static bool isUnderWater(const Vec4f foot_pos, PhysicsWorld& physics_world)
+{
+	return computeSubmergedFraction(foot_pos, physics_world) > 0.3f;
+}
+
+
 void PlayerPhysics::processMoveUp(float factor, bool runpressed, CameraController& cam)
 {
 	last_runpressed = runpressed;
-	if(fly_mode || (cam.current_cam_mode == CameraController::CameraMode_FreeCamera))
+
+	const bool underwater = isUnderWater(/*foot pos=*/toVec4fPos(jolt_character->GetPosition()), *m_physics_world);
+
+	if(fly_mode || (cam.current_cam_mode == CameraController::CameraMode_FreeCamera) || underwater)
 		move_desired_vel += Vec3f(0,0,1) * factor * move_speed * doRunFactor(runpressed);
 
 	this->gravity_enabled = true;
@@ -237,7 +261,10 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	if(!fly_mode) // if not flying
 	{
 		Vec3f parallel_vel = move_desired_vel;
-		parallel_vel.z = 0;
+
+		const float fraction_submerged = computeSubmergedFraction(/*foot pos=*/toVec4fPos(jolt_character->GetPosition()), physics_world);
+		if(fraction_submerged < 0.3f) // If not underwater (to any significant amount):
+			parallel_vel.z = 0;
 
 		jolt_character->UpdateGroundVelocity(); // Get updated ground velocity.  Helps reduce jitter on platforms etc.
 
@@ -259,6 +286,13 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 		{
 			const Vec3f gravity_accel(0, 0, -9.81f); 
 			vel += gravity_accel * dtime;
+
+			// Apply buoyancy force
+			const Vec3f buoyancy_accel(0, 0, 9.81f * 1.1f * fraction_submerged); 
+			vel += buoyancy_accel * dtime;
+
+			// Apply underwater drag force
+			vel *= (1.f - myMin(0.2f, 2.0f * fraction_submerged * dtime));
 		}
 
 		if(vel.z < -100) // cap falling speed at 100 m/s
