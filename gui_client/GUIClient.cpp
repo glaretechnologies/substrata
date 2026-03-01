@@ -15555,11 +15555,17 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 	// If we are controlling a vehicle, exit it
 	if(vehicle_controller_inside.nonNull())
 	{
-		const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
-		const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
+		const Vec4f vehicle_eyepos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/false);
+		const Vec4f vehicle_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
 
-		const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransformNoScale(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0);
-		// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
+		const Vec4f vehicle_right_ws = vehicle_controller_inside->getSeatToWorldTransformNoScale(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/false) * Vec4f(1,0,0,0);
+		const Vec4f vehicle_centre_ws = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
+
+		// Work out if we are in a left or right seat
+		const float right_dist = dot(vehicle_eyepos - vehicle_centre_ws, vehicle_right_ws);
+		const float right_side_sign = Maths::sign(right_dist);
+
+		const Vec4f exit_dir_ws = vehicle_right_ws * right_side_sign;
 
 		vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
 			
@@ -15573,10 +15579,9 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 
 		vehicle_controller_inside = NULL; // Null out vehicle_controller_inside reference.  Note that the controller will still exist and be referenced from vehicle_controllers.
 
-		Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2 + Vec4f(0,0,1.7f,0);
-		new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
+		const Vec4f new_player_pos = vehicle_eyepos + exit_dir_ws + Vec4f(0,0,0.5f,0); // Position upwards a little to make sure above ground for low-lying vehicle seats.
 
-		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
+		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/vehicle_linear_vel + Vec4f(0,0,1.5f,0)); // Add a slight upwards velocity (jumping out)
 
 		player_physics.setStandingShape(*physics_world);
 
