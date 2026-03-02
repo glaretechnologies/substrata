@@ -29,6 +29,10 @@ jobs:
       CEF_SUPPORT: "OFF"
       BUILD_CONFIG: "Release"
 
+      # Tell MSBuild (any version) where VS2022 VC targets live, so the old .NET
+      # Framework MSBuild (used by glare-core Ruby scripts) can resolve Microsoft.Cpp.Default.props.
+      VCTargetsPath: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\'
+
       STORE_OWNER: "JerryBerry12"
       STORE_REPO: "kingdomvr-store-deps"
       STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
@@ -81,6 +85,23 @@ jobs:
           mkdir -p "$GLARE_CORE_LIBS"
           mkdir -p "$CYBERSPACE_OUTPUT"
           mkdir -p "${{ github.workspace }}/logs"
+
+      - name: Shadow legacy MSBuild with VS2022 MSBuild
+        shell: pwsh
+        run: |
+          # glare-core Ruby scripts call the old .NET Framework MSBuild by absolute path.
+          # Replace it with the VS2022 MSBuild so the VC++ props are found correctly.
+          $vs2022 = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\amd64\MSBuild.exe"
+          $legacy32 = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe"
+          $legacy64 = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe"
+          if (Test-Path $vs2022) {
+            Copy-Item -Force $vs2022 $legacy32
+            Copy-Item -Force $vs2022 $legacy64
+            Write-Host "Replaced legacy MSBuild with VS2022 MSBuild."
+          } else {
+            Write-Host "VS2022 MSBuild not found at expected path: $vs2022"
+            exit 1
+          }
 
       - name: Build LibreSSL + libjpeg-turbo (Release only)
         shell: bash
