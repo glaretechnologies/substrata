@@ -95,7 +95,7 @@ jobs:
             exit 1
           fi
 
-          VSDEV="${VS_INSTALL_PATH}/Common7/Tools/VsDevCmd.bat"
+          VSDEV="${VS_INSTALL_PATH}\\Common7\\Tools\\VsDevCmd.bat"
           if [ ! -f "$VSDEV" ]; then
             echo "VsDevCmd not found at $VSDEV"
             exit 1
@@ -122,7 +122,7 @@ jobs:
             exit 1
           fi
 
-          VSDEV="${VS_INSTALL_PATH}/Common7/Tools/VsDevCmd.bat"
+          VSDEV="${VS_INSTALL_PATH}\\Common7\\Tools\\VsDevCmd.bat"
           if [ ! -f "$VSDEV" ]; then
             echo "VsDevCmd not found at $VSDEV"
             exit 1
@@ -152,7 +152,7 @@ jobs:
             echo "Could not find Visual Studio installation via vswhere."
             exit 1
           fi
-          VSDEV="${VS_INSTALL_PATH}/Common7/Tools/VsDevCmd.bat"
+          VSDEV="${VS_INSTALL_PATH}\\Common7\\Tools\\VsDevCmd.bat"
           if [ ! -f "$VSDEV" ]; then
             echo "VsDevCmd not found at $VSDEV"
             exit 1
