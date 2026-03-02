@@ -86,17 +86,23 @@ jobs:
         shell: bash
         working-directory: work/glare-core/scripts
         run: |
-          (while true; do
-            echo "[heartbeat] deps build running: $(date -u)"
-            df -h / || df -h . || true
-            sleep 120
-          done) &
-          HEARTBEAT_PID=$!
+          set -euxo pipefail
 
-          ruby build_libressl.rb --config "$BUILD_CONFIG"
-          ruby build_jpegturbo.rb --config "$BUILD_CONFIG"
+          # Find Visual Studio dev cmd via vswhere to ensure MSVC environment is available
+          VS_INSTALL_PATH=$(cmd.exe /C ""C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath" | tr -d '\r')
+          if [ -z "$VS_INSTALL_PATH" ]; then
+            echo "Could not find Visual Studio installation via vswhere."
+            exit 1
+          fi
 
-          kill $HEARTBEAT_PID || true
+          VSDEV="${VS_INSTALL_PATH}/Common7/Tools/VsDevCmd.bat"
+          if [ ! -f "$VSDEV" ]; then
+            echo "VsDevCmd not found at $VSDEV"
+            exit 1
+          fi
+
+          # Run the Ruby build scripts inside a cmd.exe call after invoking VsDevCmd
+          cmd.exe /C "call \"$VSDEV\" -arch=amd64 && ruby build_libressl.rb --config %BUILD_CONFIG% && ruby build_jpegturbo.rb --config %BUILD_CONFIG%"
 
       - name: Build LLVM (Release only, reduced log spam + observable progress)
         shell: bash
@@ -109,29 +115,71 @@ jobs:
           LLVM_LOG="$LOG_DIR/llvm_build.log"
           : > "$LLVM_LOG"
 
-          ruby build_llvm.rb --config "$BUILD_CONFIG" >"$LLVM_LOG" 2>&1 &
-          LLVM_PID=$!
+          # Locate VsDevCmd and run the LLVM build under the MSVC dev environment so MSBuild finds its props
+          VS_INSTALL_PATH=$(cmd.exe /C ""C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath" | tr -d '\r')
+          if [ -z "$VS_INSTALL_PATH" ]; then
+            echo "Could not find Visual Studio installation via vswhere."
+            exit 1
+          fi
 
-          T=0
-          while kill -0 "$LLVM_PID" 2>/dev/null; do
-            echo "[heartbeat] llvm still running: $(date -u) (elapsed ${T}s)"
-            echo "[llvm log bytes] $(wc -c < "$LLVM_LOG" 2>/dev/null || echo 0)"
-            tail -n 1 "$LLVM_LOG" || true
-            if [ $((T % 120)) -eq 0 ]; then
-              df -h / || df -h . || true
-            fi
-            sleep 30
-            T=$((T + 30))
-          done
+          VSDEV="${VS_INSTALL_PATH}/Common7/Tools/VsDevCmd.bat"
+          if [ ! -f "$VSDEV" ]; then
+            echo "VsDevCmd not found at $VSDEV"
+            exit 1
+          fi
 
-          wait "$LLVM_PID" || {
+          # Run the ruby LLVM build inside cmd.exe so the batch environment setup persists for MSBuild
+          cmd.exe /C "call \"$VSDEV\" -arch=amd64 && ruby build_llvm.rb --config %BUILD_CONFIG% > \"$LLVM_LOG\" 2>&1"
+
+          if [ $? -ne 0 ]; then
             echo "LLVM build failed. Last 200 lines of log:"
             tail -n 200 "$LLVM_LOG" || true
             exit 1
-          }
+          fi
 
           echo "LLVM build finished. Last 50 lines of log:"
           tail -n 50 "$LLVM_LOG" || true
+
+      - name: Verify LLVM build is Release (no debug CRT linkage)
+        shell: bash
+        working-directory: work
+        run: |
+          set -euxo pipefail
+
+          # Find Visual Studio dev cmd
+          VS_INSTALL_PATH=$(cmd.exe /C ""C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath" | tr -d '\r')
+          if [ -z "$VS_INSTALL_PATH" ]; then
+            echo "Could not find Visual Studio installation via vswhere."
+            exit 1
+          fi
+          VSDEV="${VS_INSTALL_PATH}/Common7/Tools/VsDevCmd.bat"
+          if [ ! -f "$VSDEV" ]; then
+            echo "VsDevCmd not found at $VSDEV"
+            exit 1
+          fi
+
+          # Reassemble a command that runs under cmd with the MSVC environment active
+          # The command will search the workspace for .exe/.dll that look like LLVM outputs and run dumpbin /dependents
+          BAD_FLAG_FILE="${{ github.workspace }}/llvm_debug_link_found.txt"
+          rm -f "$BAD_FLAG_FILE" || true
+
+          CMD_SCRIPT=
+          CMD_SCRIPT+="call \"$VSDEV\" -arch=amd64 && "
+          CMD_SCRIPT+="for /R \"%CD%\" %F in (*.dll *.exe) do ("
+          CMD_SCRIPT+="  echo Checking %F && "
+          CMD_SCRIPT+="  dumpbin /dependents \"%F\" 2>nul | findstr /I /R \"MSVCRTD.dll MSVCP.*D.dll VCRUNTIME140D.dll\" >nul && (echo %F >> \"$BAD_FLAG_FILE\" && exit /b 1)"
+          CMD_SCRIPT+=")"
+
+          # Execute the cmd script from bash (cmd.exe expects Windows quoting)
+          cmd.exe /C "$CMD_SCRIPT" || true
+
+          if [ -f "$BAD_FLAG_FILE" ]; then
+            echo "One or more LLVM-built binaries link against debug CRTs. Offending files:" 
+            cat "$BAD_FLAG_FILE" || true
+            exit 1
+          fi
+
+          echo "No debug CRT linkage detected in LLVM-built binaries."
 
       - name: Get additional libs used by Substrata
         shell: bash
