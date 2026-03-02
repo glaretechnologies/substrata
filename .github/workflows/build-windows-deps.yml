@@ -1,0 +1,237 @@
+# Build Windows dependencies (LibreSSL, libjpeg-turbo, LLVM) and upload deps archive to private store repo
+# Adapted from build-macos-deps.yml for Windows (Visual Studio 2022 / MSVC).
+name: Build Windows deps and upload to store
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name to use for the store release (optional). If empty a generated tag will be used."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-deps:
+    runs-on: windows-2022
+
+    env:
+      BASE_DIR: ${{ github.workspace }}/work
+
+      # Glare build scripts expect these environment variables.
+      GLARE_CORE_LIBS: ${{ github.workspace }}/work
+      WINTER_DIR: ${{ github.workspace }}/work/winter
+      GLARE_CORE_TRUNK_DIR: ${{ github.workspace }}/work/glare-core
+      CYBERSPACE_OUTPUT: ${{ github.workspace }}/work/substrata_output
+
+      CEF_SUPPORT: "OFF"
+      BUILD_CONFIG: "Release"
+
+      STORE_OWNER: "JerryBerry12"
+      STORE_REPO: "kingdomvr-store-deps"
+      STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
+
+    steps:
+      - name: Fail if STORE_REPO_PAT not set
+        shell: bash
+        run: |
+          if [ -z "$STORE_REPO_PAT" ]; then
+            echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
+            exit 1
+          fi
+
+      - name: Checkout this repo (kingdomvr) into work/substrata
+        uses: actions/checkout@v4
+        with:
+          path: work/substrata
+
+      - name: Checkout glare-core (JerryBerry12 fork)
+        uses: actions/checkout@v4
+        with:
+          repository: JerryBerry12/glare-core
+          ref: master
+          path: work/glare-core
+
+      - name: Checkout winter
+        uses: actions/checkout@v4
+        with:
+          repository: glaretechnologies/winter
+          path: work/winter
+
+      - name: Show runner + disk info (before)
+        shell: bash
+        run: |
+          echo "OS: $RUNNER_OS"
+          ruby --version || true
+          cmake --version || true
+          python --version || true
+          7z i 2>/dev/null | head -3 || true
+          df -h || true
+
+      - name: Set up MSVC Developer Command Prompt (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Prepare directories
+        shell: bash
+        run: |
+          mkdir -p "$GLARE_CORE_LIBS"
+          mkdir -p "$CYBERSPACE_OUTPUT"
+          mkdir -p "${{ github.workspace }}/logs"
+
+      - name: Build LibreSSL + libjpeg-turbo (Release only)
+        shell: bash
+        working-directory: work/glare-core/scripts
+        run: |
+          (while true; do
+            echo "[heartbeat] deps build running: $(date -u)"
+            df -h / || df -h . || true
+            sleep 120
+          done) &
+          HEARTBEAT_PID=$!
+
+          ruby build_libressl.rb --config "$BUILD_CONFIG"
+          ruby build_jpegturbo.rb --config "$BUILD_CONFIG"
+
+          kill $HEARTBEAT_PID || true
+
+      - name: Build LLVM (Release only, reduced log spam + observable progress)
+        shell: bash
+        working-directory: work/glare-core/scripts
+        run: |
+          set -euxo pipefail
+
+          LOG_DIR="${{ github.workspace }}/logs"
+          mkdir -p "$LOG_DIR"
+          LLVM_LOG="$LOG_DIR/llvm_build.log"
+          : > "$LLVM_LOG"
+
+          ruby build_llvm.rb --config "$BUILD_CONFIG" >"$LLVM_LOG" 2>&1 &
+          LLVM_PID=$!
+
+          T=0
+          while kill -0 "$LLVM_PID" 2>/dev/null; do
+            echo "[heartbeat] llvm still running: $(date -u) (elapsed ${T}s)"
+            echo "[llvm log bytes] $(wc -c < "$LLVM_LOG" 2>/dev/null || echo 0)"
+            tail -n 1 "$LLVM_LOG" || true
+            if [ $((T % 120)) -eq 0 ]; then
+              df -h / || df -h . || true
+            fi
+            sleep 30
+            T=$((T + 30))
+          done
+
+          wait "$LLVM_PID" || {
+            echo "LLVM build failed. Last 200 lines of log:"
+            tail -n 200 "$LLVM_LOG" || true
+            exit 1
+          }
+
+          echo "LLVM build finished. Last 50 lines of log:"
+          tail -n 50 "$LLVM_LOG" || true
+
+      - name: Get additional libs used by Substrata
+        shell: bash
+        working-directory: work/substrata/scripts
+        run: |
+          ruby get_libs.rb
+
+      - name: Show disk space (after deps build)
+        shell: bash
+        run: df -h || true
+
+      - name: Package freshly-created deps (split at 1.9 GB if needed)
+        id: package
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          ARCHIVE_BASE="kingdomvr-windows-deps-${{ github.run_id }}"
+          ARCHIVE_TAR="${{ github.workspace }}/${ARCHIVE_BASE}.tar.gz"
+
+          # Normalise BASE_DIR for tar (replace backslashes, handle Windows drive letter)
+          BASE_DIR_TAR="$(echo "$BASE_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+
+          # Tar up contents of BASE_DIR but exclude source/build dirs and Qt.
+          tar -C "$BASE_DIR_TAR" \
+            --exclude='./substrata' \
+            --exclude='./glare-core' \
+            --exclude='./substrata_build' \
+            --exclude='./substrata_output' \
+            --exclude='./Qt' \
+            -czf "$ARCHIVE_TAR" .
+
+          SIZE=$(wc -c < "$ARCHIVE_TAR")
+          echo "Archive size: $SIZE bytes"
+
+          PART_PREFIX="${{ github.workspace }}/${ARCHIVE_BASE}.tar.gz.part"
+
+          # Split into 1.9 GB parts to stay under the 2 GB GitHub release asset limit
+          if [ "$SIZE" -gt 1900000000 ]; then
+            echo "Archive exceeds 1.9 GB, splitting..."
+            split -b 1900m -d "$ARCHIVE_TAR" "${PART_PREFIX}"
+            rm "$ARCHIVE_TAR"
+            echo "split=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "split=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "archive_base=$ARCHIVE_BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Create release in private store repo and upload asset(s)
+        env:
+          STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          ARCHIVE_BASE="${{ steps.package.outputs.archive_base }}"
+          TAG_INPUT="${{ github.event.inputs.tag_name }}"
+
+          if [ -n "$TAG_INPUT" ]; then
+            TAG="$TAG_INPUT"
+          else
+            TAG="deps-windows-${GITHUB_RUN_ID}"
+          fi
+
+          API="https://api.github.com/repos/${STORE_OWNER}/${STORE_REPO}/releases"
+
+          echo "Creating draft release ${TAG} in ${STORE_OWNER}/${STORE_REPO}"
+          CREATE_RESP=$(curl -s -X POST -H "Authorization: token ${STORE_REPO_PAT}" -H "Content-Type: application/json" \
+            -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"draft\":true}" \
+            "$API")
+
+          UPLOAD_URL=$(echo "$CREATE_RESP" | jq -r .upload_url)
+          if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
+            echo "Failed to create release. Response:"
+            echo "$CREATE_RESP"
+            exit 1
+          fi
+
+          UPLOAD_URL="${UPLOAD_URL%\{*}"
+
+          SPLIT="${{ steps.package.outputs.split }}"
+
+          if [ "$SPLIT" = "true" ]; then
+            for PART in "${{ github.workspace }}/${ARCHIVE_BASE}.tar.gz.part"*; do
+              PART_NAME="$(basename "$PART")"
+              echo "Uploading $PART_NAME"
+              curl -s --data-binary @"${PART}" \
+                -H "Authorization: token ${STORE_REPO_PAT}" \
+                -H "Content-Type: application/octet-stream" \
+                "${UPLOAD_URL}?name=${PART_NAME}" | jq -r .
+            done
+          else
+            ARCHIVE_NAME="${ARCHIVE_BASE}.tar.gz"
+            ARCHIVE_PATH="${{ github.workspace }}/${ARCHIVE_NAME}"
+            echo "Uploading $ARCHIVE_NAME"
+            curl -s --data-binary @"${ARCHIVE_PATH}" \
+              -H "Authorization: token ${STORE_REPO_PAT}" \
+              -H "Content-Type: application/gzip" \
+              "${UPLOAD_URL}?name=${ARCHIVE_NAME}" | jq -r .
+          fi
+
+          echo "Uploaded deps to ${STORE_OWNER}/${STORE_REPO} (draft release ${TAG})."
