@@ -86,21 +86,25 @@ jobs:
           mkdir -p "$CYBERSPACE_OUTPUT"
           mkdir -p "${{ github.workspace }}/logs"
 
-      - name: Shadow legacy MSBuild with VS2022 MSBuild
+      - name: Patch glare-core scripts to use VS2022 MSBuild
         shell: pwsh
         run: |
-          # glare-core Ruby scripts call the old .NET Framework MSBuild by absolute path.
-          # Replace it with the VS2022 MSBuild so the VC++ props are found correctly.
-          $vs2022 = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\amd64\MSBuild.exe"
-          $legacy32 = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe"
-          $legacy64 = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe"
-          if (Test-Path $vs2022) {
-            Copy-Item -Force $vs2022 $legacy32
-            Copy-Item -Force $vs2022 $legacy64
-            Write-Host "Replaced legacy MSBuild with VS2022 MSBuild."
-          } else {
-            Write-Host "VS2022 MSBuild not found at expected path: $vs2022"
+          # glare-core Ruby scripts hardcode the old .NET Framework MSBuild path.
+          # Rewrite every occurrence in the checked-out scripts to use the VS2022 MSBuild instead.
+          $vs2022msbuild = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\amd64\MSBuild.exe'
+          if (-not (Test-Path $vs2022msbuild)) {
+            Write-Host "VS2022 MSBuild not found at $vs2022msbuild"
             exit 1
+          }
+          $scriptsDir = "work/glare-core/scripts"
+          Get-ChildItem -Path $scriptsDir -Filter "*.rb" -Recurse | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw
+            # Match any path ending in Framework[64]/v*/MSBuild.exe (case-insensitive)
+            $patched = $content -ireplace 'C:\\\\Windows\\\\Microsoft\.NET\\\\Framework\w*\\\\v[\d.]+\\\\[Mm][Ss][Bb]uild\.exe', $vs2022msbuild.Replace('\', '\\')
+            if ($patched -ne $content) {
+              Set-Content -Path $_.FullName -Value $patched -NoNewline
+              Write-Host "Patched: $($_.FullName)"
+            }
           }
 
       - name: Build LibreSSL + libjpeg-turbo (Release only)
