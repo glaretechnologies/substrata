@@ -89,7 +89,7 @@ jobs:
           set -euxo pipefail
 
           # Find Visual Studio dev cmd via vswhere to ensure MSVC environment is available
-          VS_INSTALL_PATH=$(cmd.exe /C '"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath' | tr -d '\r')
+          VS_INSTALL_PATH=$(powershell -NoProfile -Command "& { & 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe' -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath }" | tr -d '\r')
           if [ -z "$VS_INSTALL_PATH" ]; then
             echo "Could not find Visual Studio installation via vswhere."
             exit 1
@@ -116,7 +116,7 @@ jobs:
           : > "$LLVM_LOG"
 
           # Locate VsDevCmd and run the LLVM build under the MSVC dev environment so MSBuild finds its props
-          VS_INSTALL_PATH=$(cmd.exe /C '"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath' | tr -d '\r')
+          VS_INSTALL_PATH=$(powershell -NoProfile -Command "& { & 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe' -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath }" | tr -d '\r')
           if [ -z "$VS_INSTALL_PATH" ]; then
             echo "Could not find Visual Studio installation via vswhere."
             exit 1
@@ -147,7 +147,7 @@ jobs:
           set -euxo pipefail
 
           # Find Visual Studio dev cmd
-          VS_INSTALL_PATH=$(cmd.exe /C '"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath' | tr -d '\r')
+          VS_INSTALL_PATH=$(powershell -NoProfile -Command "& { & 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe' -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath }" | tr -d '\r')
           if [ -z "$VS_INSTALL_PATH" ]; then
             echo "Could not find Visual Studio installation via vswhere."
             exit 1
