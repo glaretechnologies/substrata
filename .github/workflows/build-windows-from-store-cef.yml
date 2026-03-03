@@ -218,7 +218,7 @@ jobs:
           echo "---- top-level files under $BASE_DIR_POSIX/cef_binary (maxdepth 4) ----"
           find "$BASE_DIR_POSIX/cef_binary" -maxdepth 4 -type f -print || true
 
-      - name: Build libcef_dll_wrapper and ensure cef_sandbox exists (if CEF was provided)
+      - name: Build libcef_dll_wrapper from source and ensure aux libs exist (if CEF was provided)
         if: ${{ inputs.cef_archive_url != '' }}
         shell: bash
         run: |
@@ -245,94 +245,66 @@ jobs:
             CEF_EXTRACT="$CEF_EXTRACT/dist"
           fi
 
-          # On Windows, prebuilt .lib artifacts are typically under Release/
-          # Look for prebuilt wrapper and sandbox libs
-          LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print -quit || true)"
+          # --- Place cef_sandbox.lib and libcef.lib at expected paths ---
+          # We always build libcef_dll_wrapper from source (see below), but
+          # cef_sandbox and libcef.lib just need to be at the linker-expected paths.
+          # (cef_sandbox.lib is only linked when CEF_USE_SANDBOX=ON, which we leave OFF;
+          #  CMake still resolves the path so we provide it to avoid configure errors.)
+
           SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.lib' -print -quit || true)"
+          if [ -n "$SANDBOX" ]; then
+            mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
+            [ -f "$CEF_EXTRACT/Release/cef_sandbox.lib" ] || cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.lib"
+            [ -f "$CEF_EXTRACT/Debug/cef_sandbox.lib" ]   || cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.lib"
+            echo "Ensured cef_sandbox.lib under Release/ and Debug/"
+          fi
 
-          if [ -n "$LIBWRAP" ] || [ -n "$SANDBOX" ]; then
-            echo "Prebuilt CEF .lib artifacts detected."
-            echo "libcef_dll_wrapper.lib: $LIBWRAP"
-            echo "cef_sandbox.lib: $SANDBOX"
+          # Ensure libcef.lib is available under Release/ (linker looks there).
+          # In some distributions it sits directly in the dist root rather than Release/.
+          LIBCEF_ROOT="$(find "$CEF_EXTRACT" -maxdepth 1 -type f -name 'libcef.lib' -print -quit || true)"
+          if [ -n "$LIBCEF_ROOT" ]; then
+            mkdir -p "$CEF_EXTRACT/Release"
+            [ -f "$CEF_EXTRACT/Release/libcef.lib" ] || cp -f "$LIBCEF_ROOT" "$CEF_EXTRACT/Release/libcef.lib"
+            echo "Ensured libcef.lib under Release/ (copied from dist root)"
+          fi
 
-            # Ensure wrapper is at the path Substrata CMake expects
-            if [ -n "$LIBWRAP" ]; then
-              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release"
-              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib"
-              echo "Copied libcef_dll_wrapper.lib -> $CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/"
-            fi
+          # --- Always build libcef_dll_wrapper from source ---
+          # Standard CEF binary distributions ship libcef_dll_wrapper.lib compiled with /MT
+          # (static CRT). The Substrata project uses /MD (dynamic CRT), causing LNK2038.
+          # Building from the CEF distribution's own CMakeLists.txt uses CMake's default
+          # CRT (/MD for Release), which matches the project.
+          BUILD_DIR_POSIX="$CEF_EXTRACT/libcef_dll_build"
+          mkdir -p "$BUILD_DIR_POSIX"
 
-            # Ensure sandbox lib is available under Release/ and Debug/
-            if [ -n "$SANDBOX" ]; then
-              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
-              # Only copy if not already there
-              [ -f "$CEF_EXTRACT/Release/cef_sandbox.lib" ] || cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.lib"
-              [ -f "$CEF_EXTRACT/Debug/cef_sandbox.lib" ]   || cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.lib"
-              echo "Ensured cef_sandbox.lib under Release/ and Debug/"
-            fi
+          CEF_EXTRACT_WIN="$(echo "$CEF_EXTRACT" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
+          BUILD_DIR_WIN="$(echo "$BUILD_DIR_POSIX" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
 
-            # Ensure libcef.lib is available under Release/ (linker looks there).
-            # In some distributions it sits directly in the dist root rather than Release/.
-            LIBCEF_ROOT="$(find "$CEF_EXTRACT" -maxdepth 1 -type f -name 'libcef.lib' -print -quit || true)"
-            if [ -n "$LIBCEF_ROOT" ]; then
-              mkdir -p "$CEF_EXTRACT/Release"
-              [ -f "$CEF_EXTRACT/Release/libcef.lib" ] || cp -f "$LIBCEF_ROOT" "$CEF_EXTRACT/Release/libcef.lib"
-              echo "Ensured libcef.lib under Release/ (copied from dist root)"
-            fi
+          echo "Configuring libcef_dll_wrapper CMake build (using /MD default)..."
+          cmake "$CEF_EXTRACT_WIN" \
+            -B "$BUILD_DIR_WIN" \
+            -G "Visual Studio 17 2022" \
+            -A x64
 
+          echo "Building libcef_dll_wrapper (Release)..."
+          if cmake --build "$BUILD_DIR_WIN" --config Release --target libcef_dll_wrapper; then
+            echo "libcef_dll_wrapper built successfully"
           else
-            echo "No prebuilt .lib artifacts found; attempting to build libcef_dll_wrapper from CEF sources."
-
-            BUILD_DIR_POSIX="$CEF_EXTRACT/libcef_dll_build"
-            mkdir -p "$BUILD_DIR_POSIX"
-
-            CEF_EXTRACT_WIN="$(echo "$CEF_EXTRACT" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
-            BUILD_DIR_WIN="$(echo "$BUILD_DIR_POSIX" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
-
-            cmake "$CEF_EXTRACT_WIN" \
-              -B "$BUILD_DIR_WIN" \
-              -G "Visual Studio 17 2022" \
-              -A x64
-
-            if cmake --build "$BUILD_DIR_WIN" --config Release --target libcef_dll_wrapper; then
-              echo "libcef_dll_wrapper built successfully"
-            else
-              echo "Building wrapper target failed; attempting full build"
-              cmake --build "$BUILD_DIR_WIN" --config Release
-            fi
-
-            # Try sandbox target (may not exist in all distributions)
-            cmake --build "$BUILD_DIR_WIN" --config Release --target cef_sandbox 2>/dev/null || \
-              echo "cef_sandbox target not present or build failed; continuing"
-
-            # Discover produced artifacts
-            LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print -quit || true)"
-            SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.lib' -print -quit || true)"
-
-            if [ -n "$LIBWRAP" ]; then
-              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release"
-              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib"
-            fi
-
-            if [ -n "$SANDBOX" ]; then
-              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
-              [ -f "$CEF_EXTRACT/Release/cef_sandbox.lib" ] || cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.lib"
-              [ -f "$CEF_EXTRACT/Debug/cef_sandbox.lib" ]   || cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.lib"
-            fi
-
-            if [ -z "$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print -quit || true)" ]; then
-              echo "ERROR: libcef_dll_wrapper.lib not found after build attempts."
-              echo "Listing $CEF_EXTRACT for debugging:"
-              find "$CEF_EXTRACT" -maxdepth 4 -type f -print || true
-              exit 1
-            fi
+            echo "Building wrapper target failed; attempting full build"
+            cmake --build "$BUILD_DIR_WIN" --config Release
           fi
 
-          # Sanity check
-          if [ ! -f "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib" ]; then
-            echo "WARNING: libcef_dll_wrapper.lib not at expected path; listing fallback locations:"
-            find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print || true
+          # Locate the freshly-built lib and copy to the path Substrata CMake expects
+          LIBWRAP_BUILT="$(find "$BUILD_DIR_POSIX" -type f -name 'libcef_dll_wrapper.lib' -print -quit || true)"
+          if [ -z "$LIBWRAP_BUILT" ]; then
+            echo "ERROR: libcef_dll_wrapper.lib not found after build. Directory listing:"
+            find "$BUILD_DIR_POSIX" -maxdepth 5 -type f -print || true
+            exit 1
           fi
+          echo "Built libcef_dll_wrapper.lib at: $LIBWRAP_BUILT"
+
+          mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release"
+          cp -f "$LIBWRAP_BUILT" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib"
+          echo "Installed freshly-built libcef_dll_wrapper.lib to expected path"
 
           # Export variables for Substrata CMake
           echo "CEF_ROOT=$CEF_EXTRACT" >> "$GITHUB_ENV"
@@ -472,23 +444,18 @@ jobs:
 
           # Build CEF flags if CEF_ROOT was set by the earlier step
           CEF_FLAGS="-DCEF_SUPPORT=${CEF_SUPPORT}"
-          RUNTIME_FLAGS=""
           if [ "${CEF_SUPPORT}" = "ON" ] && [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
             CEF_ROOT_CMAKE="$(echo "$CEF_ROOT" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
             CEF_FLAGS="-DCEF_SUPPORT=ON -DCEF_ROOT=${CEF_ROOT_CMAKE}"
-            # Standard CEF binary distributions are compiled with /MT (static CRT).
-            # Force the whole project to MultiThreaded (/MT) to match, otherwise LNK2038 mismatch.
-            RUNTIME_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
           fi
 
-          echo "CMake CEF flags: ${CEF_FLAGS} ${RUNTIME_FLAGS}"
+          echo "CMake CEF flags: ${CEF_FLAGS}"
 
           cmake "$SUBSTRATA_SRC_CMAKE" \
             -B "$BUILD_DIR_CMAKE" \
             -G "Visual Studio 17 2022" \
             -A x64 \
             ${CEF_FLAGS} \
-            ${RUNTIME_FLAGS} \
             -DCEF_USE_SANDBOX=OFF \
             -DCMAKE_PREFIX_PATH="$QT_DIR_CMAKE" \
             -DBUGSPLAT_SUPPORT=OFF
