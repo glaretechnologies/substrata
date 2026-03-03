@@ -9,7 +9,7 @@ require './config-lib.rb'
 
 
 $copy_cef = true
-$copy_bugsplat = true
+$copy_bugsplat = false
 
 
 def printUsage()
@@ -176,3 +176,4 @@ else # else Linux:
 		false # strip_symbols
 	) if $copy_cef
 end
+
