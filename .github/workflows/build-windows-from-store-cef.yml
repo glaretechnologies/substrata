@@ -239,9 +239,13 @@ jobs:
 
           echo "CEF_EXTRACT detected as: $CEF_EXTRACT"
 
-          # If archive used a 'dist' folder (common), use that subdir if present.
+          # The CMakeLists.txt for building libcef_dll_wrapper lives at the CEF root,
+          # NOT inside the dist/ subfolder. Track cmake source dir separately.
+          CEF_CMAKE_SRC="$CEF_EXTRACT"
+
+          # If archive used a 'dist' folder (common), use that subdir for libs.
           if [ -d "$CEF_EXTRACT/dist" ]; then
-            echo "Found dist/ folder under CEF_EXTRACT; switching to $CEF_EXTRACT/dist"
+            echo "Found dist/ folder under CEF_EXTRACT; libs will be taken from $CEF_EXTRACT/dist"
             CEF_EXTRACT="$CEF_EXTRACT/dist"
           fi
 
@@ -276,11 +280,11 @@ jobs:
           BUILD_DIR_POSIX="$CEF_EXTRACT/libcef_dll_build"
           mkdir -p "$BUILD_DIR_POSIX"
 
-          CEF_EXTRACT_WIN="$(echo "$CEF_EXTRACT" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
+          CEF_CMAKE_SRC_WIN="$(echo "$CEF_CMAKE_SRC" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
           BUILD_DIR_WIN="$(echo "$BUILD_DIR_POSIX" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
 
           echo "Configuring libcef_dll_wrapper CMake build (using /MD default)..."
-          cmake "$CEF_EXTRACT_WIN" \
+          cmake "$CEF_CMAKE_SRC_WIN" \
             -B "$BUILD_DIR_WIN" \
             -G "Visual Studio 17 2022" \
             -A x64
