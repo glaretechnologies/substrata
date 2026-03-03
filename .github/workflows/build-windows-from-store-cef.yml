@@ -328,9 +328,14 @@ jobs:
           fi
           echo "Built libcef_dll_wrapper.lib at: $LIBWRAP_BUILT"
 
+          DEST_LIB="$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib"
           mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release"
-          cp -f "$LIBWRAP_BUILT" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib"
-          echo "Installed freshly-built libcef_dll_wrapper.lib to expected path"
+          if [ "$LIBWRAP_BUILT" != "$DEST_LIB" ]; then
+            cp -f "$LIBWRAP_BUILT" "$DEST_LIB"
+            echo "Installed freshly-built libcef_dll_wrapper.lib to expected path"
+          else
+            echo "libcef_dll_wrapper.lib already at expected path"
+          fi
 
           # Export variables for Substrata CMake
           echo "CEF_ROOT=$CEF_EXTRACT" >> "$GITHUB_ENV"
