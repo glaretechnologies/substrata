@@ -265,7 +265,8 @@ jobs:
             -G "Visual Studio 17 2022" \
             -A x64 \
             -DCEF_SUPPORT="$CEF_SUPPORT" \
-            -DCMAKE_PREFIX_PATH="$QT_DIR_CMAKE"
+            -DCMAKE_PREFIX_PATH="$QT_DIR_CMAKE" \
+            -DBUGSPLAT_SUPPORT=OFF
 
       - name: Build gui_client (Release)
         shell: bash
@@ -284,7 +285,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          BUILD_DIR="$BASE_DIR/substrata_build"
+          BUILD_DIR="$BASE_DIR/substrata_output"
           QT_BIN="$GLARE_CORE_LIBS/Qt/5.15.16-vs2022-64/bin"
           WINDEPLOYQT="$QT_BIN/windeployqt.exe"
 
