@@ -272,13 +272,34 @@ jobs:
             echo "Ensured libcef.lib under Release/ (copied from dist root)"
           fi
 
-          # --- Always build libcef_dll_wrapper from source ---
+          # --- Build libcef_dll_wrapper from source ---
           # Standard CEF binary distributions ship libcef_dll_wrapper.lib compiled with /MT
           # (static CRT). The Substrata project uses /MD (dynamic CRT), causing LNK2038.
-          # Building from the CEF distribution's own CMakeLists.txt uses CMake's default
-          # CRT (/MD for Release), which matches the project.
+          # Building from the CEF distribution's own CMakeLists.txt produces a /MD lib.
+          # NOTE: This requires a CEF distribution that includes CMakeLists.txt and the
+          # libcef_dll/ wrapper source (e.g. official builds from cef-builds.spotifyopen.com).
+          # Binary-only distributions (no CMakeLists.txt) are NOT supported.
+
           BUILD_DIR_POSIX="$CEF_EXTRACT/libcef_dll_build"
           mkdir -p "$BUILD_DIR_POSIX"
+
+          # Locate CMakeLists.txt anywhere in the extracted tree (usually in the root,
+          # one level above dist/)
+          CEF_CMAKE_SRC="$(find "$BASE_DIR_POSIX/cef_binary" -maxdepth 3 -name 'CMakeLists.txt' -print -quit | xargs -I{} dirname {} 2>/dev/null || true)"
+          if [ -z "$CEF_CMAKE_SRC" ]; then
+            echo "ERROR: No CMakeLists.txt found in the CEF distribution."
+            echo "This distribution appears to be binary-only (no wrapper source files)."
+            echo "Please use an official CEF binary distribution that includes CMakeLists.txt"
+            echo "and the libcef_dll/ source directory, such as those from:"
+            echo "  https://cef-builds.spotifyopen.com/index.html"
+            echo "  https://github.com/chromiumembedded/cef (build from source)"
+            echo ""
+            echo "Files found in extracted archive:"
+            find "$BASE_DIR_POSIX/cef_binary" -maxdepth 3 -type f -name '*.txt' -o -name '*.cmake' | head -20 || true
+            exit 1
+          fi
+
+          echo "Found CMakeLists.txt in: $CEF_CMAKE_SRC"
 
           CEF_CMAKE_SRC_WIN="$(echo "$CEF_CMAKE_SRC" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
           BUILD_DIR_WIN="$(echo "$BUILD_DIR_POSIX" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
