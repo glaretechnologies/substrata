@@ -139,7 +139,8 @@ jobs:
           echo "Downloading CEF archive from: $CEF_URL"
 
           mkdir -p "${{ github.workspace }}/cef_download"
-          CEF_ARCHIVE="${{ github.workspace }}/cef_download/cef_archive"
+          # Convert to POSIX path immediately so tar/bzip2 can handle it on Git Bash
+          CEF_ARCHIVE="$(echo "${{ github.workspace }}/cef_download/cef_archive" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
 
           BASE_DIR_POSIX="$(echo "$BASE_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
 
