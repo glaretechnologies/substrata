@@ -472,18 +472,23 @@ jobs:
 
           # Build CEF flags if CEF_ROOT was set by the earlier step
           CEF_FLAGS="-DCEF_SUPPORT=${CEF_SUPPORT}"
+          RUNTIME_FLAGS=""
           if [ "${CEF_SUPPORT}" = "ON" ] && [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
             CEF_ROOT_CMAKE="$(echo "$CEF_ROOT" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
             CEF_FLAGS="-DCEF_SUPPORT=ON -DCEF_ROOT=${CEF_ROOT_CMAKE}"
+            # Standard CEF binary distributions are compiled with /MT (static CRT).
+            # Force the whole project to MultiThreaded (/MT) to match, otherwise LNK2038 mismatch.
+            RUNTIME_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
           fi
 
-          echo "CMake CEF flags: ${CEF_FLAGS}"
+          echo "CMake CEF flags: ${CEF_FLAGS} ${RUNTIME_FLAGS}"
 
           cmake "$SUBSTRATA_SRC_CMAKE" \
             -B "$BUILD_DIR_CMAKE" \
             -G "Visual Studio 17 2022" \
             -A x64 \
             ${CEF_FLAGS} \
+            ${RUNTIME_FLAGS} \
             -DCEF_USE_SANDBOX=OFF \
             -DCMAKE_PREFIX_PATH="$QT_DIR_CMAKE" \
             -DBUGSPLAT_SUPPORT=OFF
