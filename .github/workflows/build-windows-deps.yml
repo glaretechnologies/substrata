@@ -202,6 +202,7 @@ jobs:
           }
 
           Write-Host "No debug CRT linkage detected in built binaries."
+          exit 0
 
       - name: Get additional libs used by Substrata
         shell: bash
