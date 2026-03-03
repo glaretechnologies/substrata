@@ -17,7 +17,8 @@ GestureUI::GestureUI()
 :	gui_client(NULL),
 	gestures_visible(false),
 	vehicle_buttons_visible(false),
-	untoggle_button_time(-1)
+	untoggle_button_time(-1),
+	close_gesture_manager_soon(false)
 {}
 
 
@@ -44,25 +45,16 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Manage gestures";
-		edit_gestures_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/plus.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		edit_gestures_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/plus.png", args);
 		edit_gestures_button->handler = this;
 		gl_ui->addWidget(edit_gestures_button);
-	}
-
-	{
-		GLUIButton::CreateArgs args;
-		args.tooltip = "Close gesture manager";
-		close_gesture_manager_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/white_x.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
-		close_gesture_manager_button->handler = this;
-		gl_ui->addWidget(close_gesture_manager_button);
-		close_gesture_manager_button->setVisible(false);
 	}
 
 	// Create left and right tab buttons
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "View gestures";
-		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Waving 1.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Waving 1.png", args);
 		expand_button->handler = this;
 		gl_ui->addWidget(expand_button);
 	}
@@ -70,7 +62,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Hide gestures";
-		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", args);
 		collapse_button->handler = this;
 		gl_ui->addWidget(collapse_button);
 	}
@@ -79,7 +71,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Summon vehicle";
-			vehicle_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/bike.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
+			vehicle_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/bike.png", args);
 			vehicle_button->handler = this;
 			gl_ui->addWidget(vehicle_button);
 		}
@@ -128,7 +120,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Hide vehicles";
-			collapse_vehicle_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/down_tab.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+			collapse_vehicle_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/down_tab.png", args);
 			collapse_vehicle_button->handler = this;
 			collapse_vehicle_button->setVisible(vehicle_buttons_visible);
 			gl_ui->addWidget(collapse_vehicle_button);
@@ -139,7 +131,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Photo mode";
-		photo_mode_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
+		photo_mode_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", args);
 		photo_mode_button->toggleable = true;
 		photo_mode_button->handler = this;
 		gl_ui->addWidget(photo_mode_button);
@@ -148,14 +140,14 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_c
 	{	
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Enable microphone for voice chat";
-		microphone_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/microphone.png", Vec2f(0), Vec2f(0.1f, 0.1f), args);
+		microphone_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/microphone.png", args);
 		microphone_button->toggleable = true;
 		microphone_button->handler = this;
 		gl_ui->addWidget(microphone_button);
 	}
 
 	{	
-		mic_level_image = new GLUIImage(*gl_ui, opengl_engine, ""/*gui_client->base_dir_path + "/resources/buttons/mic_level.png"*/, Vec2f(0), Vec2f(0.1f, 0.1f), "Microphone input indicator");
+		mic_level_image = new GLUIImage(*gl_ui, opengl_engine, ""/*gui_client->base_dir_path + "/resources/buttons/mic_level.png"*/, "Microphone input indicator");
 		gl_ui->addWidget(mic_level_image);
 	}
 
@@ -199,8 +191,6 @@ void GestureUI::rebuildGestureWidgets()
 
 
 	// Add gesture buttons
-	const float min_max_y = gl_ui->getViewportMinMaxY();
-
 	for(size_t i=0; i<gesture_settings.gesture_settings.size(); ++i)
 	{
 		const SingleGestureSettings& setting = gesture_settings.gesture_settings[i];
@@ -211,7 +201,7 @@ void GestureUI::rebuildGestureWidgets()
 
 		GLUIButton::CreateArgs args;
 		args.tooltip = gesture_name;
-		GLUIButtonRef button = new GLUIButton(*gl_ui, opengl_engine,  gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), args);
+		GLUIButtonRef button = new GLUIButton(*gl_ui, opengl_engine,  gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", args);
 		button->toggleable = true;
 		button->client_data = gesture_name;
 		button->handler = this;
@@ -238,6 +228,12 @@ void GestureUI::think()
 
 	if(gesture_manager)
 		gesture_manager->think();
+
+	if(close_gesture_manager_soon)
+	{
+		gesture_manager = nullptr;
+		close_gesture_manager_soon = false;
+	}
 }
 
 
@@ -276,13 +272,7 @@ void GestureUI::updateWidgetPositions()
 	if(gl_ui.nonNull())
 	{
 		if(gesture_manager)
-		{
 			gesture_manager->updateWidgetPositions();
-
-			const Vec2f close_dims = Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(25));
-			const Vec2f close_margin = Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(8)); // Extra margin around close button
-			close_gesture_manager_button->setPosAndDims(gesture_manager->grid_container->getRect().getMax() - close_dims - close_margin, close_dims);
-		}
 
 		const float min_max_y = gl_ui->getViewportMinMaxY();
 
@@ -435,13 +425,6 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 				updateWidgetPositions();
 				gui_client->getSettingsStore()->setBoolValue("GestureUI/gestures_visible", gestures_visible);
 			}
-			else if(button == close_gesture_manager_button.ptr())
-			{
-				event.accepted = true;
-				gestures_visible = false;
-				this->gesture_manager = nullptr;
-				close_gesture_manager_button->setVisible(false);
-			}
 			else if(button == vehicle_button.ptr())
 			{
 				event.accepted = true;
@@ -497,8 +480,6 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 			if(!gesture_manager)
 			{
 				gesture_manager = new GestureManagerUI(opengl_engine, gui_client, gl_ui, this->gesture_settings);
-
-				close_gesture_manager_button->setVisible(true);
 
 				updateWidgetPositions();
 			}
@@ -625,4 +606,16 @@ void GestureUI::setCurrentMicLevel(float linear_level, float display_level)
 
 		mic_level_image->setColour(Maths::lerp(green, red, Maths::smoothStep(0.9f, 0.95f, linear_level)));
 	}
+}
+
+
+void GestureUI::setPhotoModeEnabledUIState(bool enabled)
+{
+	this->photo_mode_button->setToggled(enabled);
+}
+
+
+void GestureUI::closeGestureManagerSoon()
+{
+	close_gesture_manager_soon = true;
 }

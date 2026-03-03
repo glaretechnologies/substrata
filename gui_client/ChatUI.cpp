@@ -52,7 +52,8 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 			GLUIGridContainer::CreateArgs container_args;
 			container_args.background_colour = chat_background_col;
 			container_args.background_alpha = 0.0f;
-			container_args.cell_padding_px = 12;
+			container_args.cell_x_padding_px = 12;
+			container_args.cell_y_padding_px = 12;
 			grid_container = new GLUIGridContainer(*gl_ui, opengl_engine, container_args);
 			grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
 			gl_ui->addWidget(grid_container);
@@ -88,7 +89,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 			//args.button_colour = Colour3f(0.2f);
 			//args.mouseover_button_colour = Colour3f(0.4f);
 			//collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
-			collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/down_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+			collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/down_tab.png", args);
 			collapse_button->handler = this;
 			gl_ui->addWidget(collapse_button);
 		}
@@ -96,7 +97,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Show chat";
-			expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/expand_chat_icon.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+			expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/expand_chat_icon.png", args);
 			expand_button->handler = this;
 			expand_button->setVisible(false);
 			gl_ui->addWidget(expand_button);
@@ -177,7 +178,7 @@ float ChatUI::computeWidgetWidth()
 
 float ChatUI::computeWidgetHeight()
 {
-	return myMin(gl_ui->getUIWidthForDevIndepPixelWidth(700.f), /*upper bound=*/2 * gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(200.f));
+	return myMin(gl_ui->getUIWidthForDevIndepPixelWidth(700.f), /*upper bound=*/myMax(0.01f, 2 * gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(200.f)));
 }
 
 

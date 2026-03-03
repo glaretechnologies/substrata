@@ -58,7 +58,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 	// Create minimap (background) image.  Will be mostly covered by tiles, but keep for the sizing logic and mouse handler.
 	const float y_margin = computeMiniMapTopMargin();
 	const float minimap_width = computeMiniMapWidth();
-	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", Vec2f(1 - x_margin - minimap_width, gl_ui->getViewportMinMaxY() - y_margin - minimap_width), Vec2f(minimap_width), /*tooltip=*/"", BACKGROUND_IMAGE_Z);
+	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", /*tooltip=*/"", BACKGROUND_IMAGE_Z);
 	minimap_image->setColour(Colour3f(0.1f));
 	minimap_image->setAlpha(0.8f);
 	minimap_image->setMouseOverColour(Colour3f(0.1f));
@@ -66,8 +66,8 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 	gl_ui->addWidget(minimap_image);
 
 	// Create facing arrow image
-	arrow_image = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", Vec2f(1 - x_margin - minimap_width/2, gl_ui->getViewportMinMaxY() - y_margin - minimap_width/2), Vec2f(0.005f), 
-		/*tooltip=*/"You", ARROW_IMAGE_Z);
+	arrow_image = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", /*tooltip=*/"You", ARROW_IMAGE_Z);
+	arrow_image->setPosAndDims(Vec2f(1 - x_margin - minimap_width/2, gl_ui->getViewportMinMaxY() - y_margin - minimap_width/2), Vec2f(0.005f));
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
 	gl_ui->addWidget(arrow_image);
@@ -78,7 +78,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 		args.tooltip = "Hide minimap";
 		//args.button_colour = Colour3f(0.2f);
 		//args.mouseover_button_colour = Colour3f(0.4f);
-		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", /*botleft=*/Vec2f(10.f), /*dims=*/Vec2f(0.1f), args);
+		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", args);
 		collapse_button->handler = this;
 		gl_ui->addWidget(collapse_button);
 	}
@@ -86,7 +86,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Show minimap";
-		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/minimap_icon.png", /*botleft=*/Vec2f(10.f), /*dims=*/Vec2f(0.1f), args);
+		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/minimap_icon.png", args);
 		expand_button->handler = this;
 		expand_button->setVisible(false);
 		gl_ui->addWidget(expand_button);
@@ -746,7 +746,7 @@ void MiniMap::updateWidgetPositions()
 
 			//last_minimap_bot_left_pos = minimap_image->rect.getMin();
 
-			Vec2f minimap_botleft = minimap_image->getPos();
+			Vec2f minimap_botleft = minimap_image->getRect().getMin();
 			//---------------------------- Update collapse_button ----------------------------
 			const float button_w = gl_ui->getUIWidthForDevIndepPixelWidth(button_w_px);
 			const float button_h = gl_ui->getUIWidthForDevIndepPixelWidth(button_h_px);
@@ -879,7 +879,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker.isNull()) // If marker does not exist yet:
 	{
 		// Create marker dot
-		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", dot_corner_pos, Vec2f(im_width), /*tooltip=*/avatar->getUseName());
+		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", /*tooltip=*/avatar->getUseName());
 		if(avatar->isChatBotAvatar())
 			im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
 		else
@@ -889,11 +889,9 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 		gl_ui->addWidget(im);
 		avatar->minimap_marker = im;
 	}
-	else
-	{
-		avatar->minimap_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width));
-		avatar->minimap_marker->setZ(AVATAR_MARKER_IMAGE_Z);
-	}
+
+	avatar->minimap_marker->setPosAndDims(dot_corner_pos, Vec2f(im_width));
+	avatar->minimap_marker->setZ(AVATAR_MARKER_IMAGE_Z);
 
 	// Create (if needed) and/or position marker arrow.
 	const float arrow_im_width = gl_ui->getUIWidthForDevIndepPixelWidth(14);
@@ -901,7 +899,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker_arrow.isNull()) // If marker arrow does not exist yet:
 	{
 		// Create marker arrow
-		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", arrow_corner_pos, Vec2f(arrow_im_width), /*tooltip=*/avatar->getUseName());
+		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", /*tooltip=*/avatar->getUseName());
 		if(avatar->isChatBotAvatar())
 			im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
 		else
@@ -911,8 +909,8 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 		gl_ui->addWidget(im);
 		avatar->minimap_marker_arrow = im;
 	}
-	else
-		avatar->minimap_marker_arrow->setTransform(arrow_corner_pos, Vec2f(arrow_im_width), arrow_rotation, /*z=*/AVATAR_MARKER_ARROW_IMAGE_Z);
+
+	avatar->minimap_marker_arrow->setTransform(arrow_corner_pos, Vec2f(arrow_im_width), arrow_rotation, /*z=*/AVATAR_MARKER_ARROW_IMAGE_Z);
 
 	//avatar->minimap_marker->setVisible(on_map);
 }

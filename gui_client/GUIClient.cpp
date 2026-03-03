@@ -44,6 +44,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "JoltUtils.h"
 #include "MiniMap.h"
 #include "CEF.h"
+#include <limits>
 #if !defined(EMSCRIPTEN)
 #include "../networking/TLSSocket.h"
 #endif
@@ -630,6 +631,13 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		spotlight_shape = results.physics_shape;
 	}
 
+	// Make seat meshes (squashed cube)
+	{
+		MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSeatMesh(*opengl_engine->vert_buf_allocator);
+		seat_opengl_mesh = results.opengl_mesh_data;
+		seat_shape = results.physics_shape;
+	}
+
 	// Make portal meshes
 	{
 		MeshBuilding::MeshBuildingResults results = MeshBuilding::makePortalMeshes(base_dir_path, *opengl_engine->vert_buf_allocator);
@@ -1046,6 +1054,7 @@ void GUIClient::shutdown()
 	hypercard_quad_opengl_mesh = NULL;
 	image_cube_opengl_mesh = NULL;
 	spotlight_opengl_mesh = NULL;
+	seat_opengl_mesh = NULL;
 	portal_opengl_mesh = NULL;
 	portal_shape = PhysicsShape();
 	cur_loading_mesh_data = NULL;
@@ -1465,6 +1474,9 @@ void GUIClient::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 	checkRemoveObAndSetRefToNull(physics_world, ob.physics_object);
 
 	ob.mesh_manager_shape_data = NULL;
+
+	if(this->seat_sitting_on == &ob)
+		this->seat_sitting_on = nullptr;
 
 	// TOOD: removeObScriptingInfo(&ob);
 }
@@ -2461,6 +2473,51 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				physics_world->addObject(ob->physics_object);
 
 				loadScriptForObject(ob, world_state_lock); // Load any script for the object.
+			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_Seat)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob->shape = this->seat_shape;
+				physics_ob->is_sensor = ob->isSensor();
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = useScaleForWorldOb(ob->scale);
+
+				GLObjectRef opengl_ob = opengl_engine->allocateObject();
+				opengl_ob->mesh_data = this->seat_opengl_mesh;
+				
+				glare::ArenaFrame frame(arena_allocator);
+
+				// Use material[0] from the WorldObject as the seat GL material.
+				opengl_ob->materials.resize(1);
+				if(ob->materials.size() >= 1)
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+				else
+				{
+					// Default semi-transparent blue-grey seat color
+					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.4f, 0.5f, 0.6f));
+					opengl_ob->materials[0].alpha = 0.5f; // Make it semi-transparent
+				}
+
+				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
+
+				physics_world->addObject(ob->physics_object);
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_WebView)
@@ -6221,7 +6278,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 
 		// Get camera position, if we are in a vehicle.
-		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+		if(vehicle_controller_inside) // If we are inside a vehicle:
 		{
 			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
 			const bool use_smoothed_network_transform = cur_seat_index != 0;
@@ -6231,11 +6288,20 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 			player_physics.setCapsuleBottomPosition(Vec3d(campos) + Vec3d(0,0,-0.75f), linear_vel); // Hack an approximate sitting position
 		}
+		else if(seat_sitting_on)
+		{
+			const Matrix4f ob_to_world = obToWorldMatrix(*seat_sitting_on);
+			const Vec4f seat_pos_os = Vec4f(0.0f, 0.0f, 0.6f, 1.0f);
+			const Vec4f seat_pos_ws = ob_to_world * seat_pos_os;
+			campos = seat_pos_ws;
+
+			player_physics.setCapsuleBottomPosition(Vec3d(campos) + Vec3d(0,0,-0.75f), Vec4f(0,0,0,0));
+		}
 
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
 		// Show vehicle speed on UI
-		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+		if(vehicle_controller_inside) // If we are inside a vehicle:
 		{
 			const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
 			misc_info_ui.showVehicleSpeed(speed_km_h);
@@ -7772,7 +7838,33 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						pose_constraint.sitting = false;
 						if(our_avatar)
 						{
-							if(vehicle_controller_inside.nonNull())
+							// Handle seat sitting
+							if(seat_sitting_on.nonNull())
+							{
+								// Compute seat transform without scale (like vehicles do) to prevent avatar squashing
+								Matrix4f ob_to_world = Matrix4f::rotationMatrix(normalise(seat_sitting_on->axis.toVec4fVector()), seat_sitting_on->angle);
+								ob_to_world.setColumn(3, Vec4f((float)seat_sitting_on->pos.x, (float)seat_sitting_on->pos.y, (float)seat_sitting_on->pos.z, 1.f) + seat_sitting_on->translation);
+								pose_constraint.sitting = true;
+								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, -0.1f, 0.1f);
+								pose_constraint.upper_leg_rot_angle = seat_sitting_on->type_data.seat_data.upper_leg_angle;
+								pose_constraint.lower_leg_rot_angle = -std::fabs(seat_sitting_on->type_data.seat_data.lower_leg_angle);
+								pose_constraint.arm_down_angle = seat_sitting_on->type_data.seat_data.upper_arm_angle;
+								pose_constraint.arm_out_angle = 0.55f;
+								// Use default values for other pose parameters
+								pose_constraint.model_to_y_forwards_rot_1 = Quatf::identity();
+								pose_constraint.model_to_y_forwards_rot_2 = Quatf::identity();
+								pose_constraint.upper_body_rot_angle = 0.15f;
+								pose_constraint.upper_leg_rot_around_thigh_bone_angle = 0.0f;
+								pose_constraint.upper_leg_apart_angle = 0.15f;
+								pose_constraint.lower_leg_apart_angle = 0.0f;
+								pose_constraint.rotate_foot_out_angle = 0.0f;
+								pose_constraint.upper_arm_shoulder_lift_angle = 0.0f;
+								pose_constraint.lower_arm_up_angle = seat_sitting_on->type_data.seat_data.lower_arm_angle;
+								const float k_disable_ik = std::numeric_limits<float>::quiet_NaN();
+								pose_constraint.left_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+								pose_constraint.right_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+							}
+							else if(vehicle_controller_inside.nonNull())
 							{
 								if(cur_seat_index < vehicle_controller_inside->getSettings().seat_settings.size())
 								{
@@ -7805,6 +7897,53 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						}
 						else
 						{
+							// Handle seat sitting transitions
+							if(avatar->pending_seat_transition == Avatar::SitOnSeat)
+							{
+								// Try and find seat object (object may not exist yet as client may not have finished querying it from the server yet)
+								auto res = this->world_state->objects.find(avatar->pending_seat_uid);
+								if(res != this->world_state->objects.end())
+								{
+									avatar->sitting_on_seat = res.getValue();
+									avatar->pending_seat_transition = Avatar::SeatNoChange;
+								}
+							}
+
+							// Handle seat sitting pose
+							if(avatar->sitting_on_seat.nonNull())
+							{
+								// Compute seat transform without scale (like vehicles do) to prevent avatar squashing
+								Matrix4f ob_to_world = Matrix4f::rotationMatrix(normalise(avatar->sitting_on_seat->axis.toVec4fVector()), avatar->sitting_on_seat->angle);
+								ob_to_world.setColumn(3, Vec4f((float)avatar->sitting_on_seat->pos.x, (float)avatar->sitting_on_seat->pos.y, (float)avatar->sitting_on_seat->pos.z, 1.f) + avatar->sitting_on_seat->translation);
+								pose_constraint.sitting = true;
+								// Use no-scale matrix to prevent avatar squashing, position lower and back
+								pose_constraint.seat_to_world = ob_to_world * Matrix4f::translationMatrix(0.0f, -0.1f, 0.1f);
+								pose_constraint.upper_leg_rot_angle = avatar->sitting_on_seat->type_data.seat_data.upper_leg_angle;
+								pose_constraint.lower_leg_rot_angle = -std::fabs(avatar->sitting_on_seat->type_data.seat_data.lower_leg_angle);
+								pose_constraint.arm_down_angle = avatar->sitting_on_seat->type_data.seat_data.upper_arm_angle;
+								pose_constraint.arm_out_angle = 0.55f;
+								pose_constraint.model_to_y_forwards_rot_1 = Quatf::identity();
+								pose_constraint.model_to_y_forwards_rot_2 = Quatf::identity();
+								pose_constraint.upper_body_rot_angle = 0.15f;
+								pose_constraint.upper_leg_rot_around_thigh_bone_angle = 0.0f;
+								pose_constraint.upper_leg_apart_angle = 0.15f;
+								pose_constraint.lower_leg_apart_angle = 0.0f;
+								pose_constraint.rotate_foot_out_angle = 0.0f;
+								pose_constraint.upper_arm_shoulder_lift_angle = 0.0f;
+								pose_constraint.lower_arm_up_angle = avatar->sitting_on_seat->type_data.seat_data.lower_arm_angle;
+								const float k_disable_ik = std::numeric_limits<float>::quiet_NaN();
+								pose_constraint.left_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+								pose_constraint.right_hand_hold_point_ws = Vec4f(k_disable_ik, 0, 0, 1);
+							}
+
+							if(avatar->pending_seat_transition == Avatar::GetUpFromSeat)
+							{
+								// TODO: trigger getUpFromSeat script event
+
+								avatar->sitting_on_seat = nullptr;
+								avatar->pending_seat_transition = Avatar::SeatNoChange;
+							}
+
 							if(avatar->pending_vehicle_transition == Avatar::EnterVehicle)
 							{
 								assert(avatar->entered_vehicle.nonNull());
@@ -9149,7 +9288,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				{
 					if(!resource_manager->isFileForURLPresent(m->URL)) // If we don't have this file yet:
 					{
-						conPrint("Do not have resource.");
+						// conPrint("Do not have resource.");
 
 						DownloadingResourceInfo downloading_info;
 						Vec4f centroid_ws(0,0,0,1);
@@ -9232,11 +9371,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							need_resource = true;
 
 						const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
-						conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
+						//conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
 
 						if(need_resource && valid_extension)// && !shouldStreamResourceViaHTTP(m->URL))
 						{
-							conPrint("Need resource, downloading: " + toStdString(m->URL));
+							//conPrint("Need resource, downloading: " + toStdString(m->URL));
 
 							startDownloadingResource(m->URL, centroid_ws, aabb_ws_longest_len, downloading_info);
 						}
@@ -9827,6 +9966,21 @@ bool GUIClient::doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) 
 }
 
 
+bool GUIClient::isAvatarSittingOnSeat(WorldObject& seat_ob) const
+{
+	Lock lock(this->world_state->mutex);
+
+	// Iterate over all avatars (slow linear time of course!), see if any are sitting on this seat.
+	for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+	{
+		const Avatar* avatar = it->second.getPointer();
+		if(avatar->sitting_on_seat.ptr() == &seat_ob)
+			return true;
+	}
+	return false;
+}
+
+
 // Destroy vehicle controllers that are controlling the world object 'ob', as Jolt hits asserts if physics object is swapped out under it.
 void GUIClient::destroyVehiclePhysicsControllingObject(WorldObject* ob)
 {
@@ -9834,6 +9988,10 @@ void GUIClient::destroyVehiclePhysicsControllingObject(WorldObject* ob)
 
 	if(vehicle_controller_inside.nonNull() && vehicle_controller_inside->getControlledObject() == ob)
 		vehicle_controller_inside = NULL;
+	
+	// Also clear if we're sitting on this object
+	if(seat_sitting_on == ob)
+		seat_sitting_on = NULL;
 }
 
 
@@ -12609,9 +12767,10 @@ void GUIClient::clearAllObjects()
 {
 	deselectObject();
 
-	vehicle_controller_inside = NULL;
+	vehicle_controller_inside = nullptr;
 	vehicle_controllers.clear();
 
+	seat_sitting_on = nullptr;
 
 	if(world_state)
 	{
@@ -12654,6 +12813,8 @@ void GUIClient::clearAllObjects()
 			Avatar* avatar = it->second.ptr();
 
 			avatar->entered_vehicle = NULL;
+
+			avatar->sitting_on_seat = NULL;
 
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
@@ -13968,6 +14129,12 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						}
 					}
 
+					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() && !isAvatarSittingOnSeat(*ob))
+					{
+						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to sit" : "Press [A] on gamepad to sit", cursor_gl_coords);
+						show_mouseover_info_ui = true;
+					}
+
 					if(ob->vehicle_script.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
 					{
 						// If the vehicle is rightable (e.g. bike), display righting message if the vehicle is upside down.  Otherwise just display enter message.
@@ -14866,6 +15033,7 @@ void GUIClient::updateGroundPlane()
 		const float terrain_section_width_m = myClamp(spec.terrain_section_width_m, 8.f, 1000000.f);
 
 		path_spec.terrain_section_width_m = terrain_section_width_m;
+		path_spec.terrain_height_scale = spec.terrain_height_scale;
 		path_spec.default_terrain_z = spec.default_terrain_z;
 		path_spec.water_z = spec.water_z;
 		path_spec.flags = spec.flags;
@@ -15181,6 +15349,8 @@ void GUIClient::setPhotoModeEnabled(bool enabled)
 		this->photo_mode_ui.enablePhotoModeUI();
 	else
 		this->photo_mode_ui.disablePhotoModeUI();
+
+	this->gesture_ui.setPhotoModeEnabledUIState(enabled);
 }
 
 
@@ -15352,14 +15522,50 @@ static bool keyIsDeleteKey(int keycode)
 // if use_mouse_cursor is false, use crosshair as cursor instead.
 void GUIClient::useActionTriggered(bool use_mouse_cursor)
 {
+	// If we are sitting on a seat, get up from it
+	if(seat_sitting_on)
+	{
+		WorldStateLock lock(world_state->mutex);
+
+		WorldObjectRef seat_ob = seat_sitting_on;
+
+		seat_sitting_on = nullptr; // Clear the currently_sitting_on_seat reference
+
+		// Set standing physics shape
+		player_physics.setStandingShape(*physics_world);
+
+		// Get up position - move player slightly to the side of the seat
+		const Matrix4f ob_to_world = obToWorldMatrix(*seat_ob);
+		const Vec4f seat_right_ws = ob_to_world * Vec4f(1,0,0,0); // Right direction in world space
+		const Vec4f seat_pos_ws = ob_to_world * Vec4f(0,0,0,1); // Seat position in world space
+
+		Vec4f new_player_pos = seat_pos_ws + normalise(seat_right_ws) * 1.0f + Vec4f(0,0,1.7f,0); // Move to the right and up
+		new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
+
+		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/Vec4f(0,0,0,0));
+
+		// Send AvatarGotUpFromSeat message to server
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
+		writeToStream(this->client_avatar_uid, scratch_packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+		return;
+	}
+
 	// If we are controlling a vehicle, exit it
 	if(vehicle_controller_inside.nonNull())
 	{
-		const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
-		const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
+		const Vec4f vehicle_eyepos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/false);
+		const Vec4f vehicle_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
 
-		const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransformNoScale(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0);
-		// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
+		const Vec4f vehicle_right_ws = vehicle_controller_inside->getSeatToWorldTransformNoScale(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/false) * Vec4f(1,0,0,0);
+		const Vec4f vehicle_centre_ws = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
+
+		// Work out if we are in a left or right seat
+		const float right_dist = dot(vehicle_eyepos - vehicle_centre_ws, vehicle_right_ws);
+		const float right_side_sign = Maths::sign(right_dist);
+
+		const Vec4f exit_dir_ws = vehicle_right_ws * right_side_sign;
 
 		vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
 			
@@ -15373,10 +15579,9 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 
 		vehicle_controller_inside = NULL; // Null out vehicle_controller_inside reference.  Note that the controller will still exist and be referenced from vehicle_controllers.
 
-		Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2 + Vec4f(0,0,1.7f,0);
-		new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
+		const Vec4f new_player_pos = vehicle_eyepos + exit_dir_ws + Vec4f(0,0,0.5f,0); // Position upwards a little to make sure above ground for low-lying vehicle seats.
 
-		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
+		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/vehicle_linear_vel + Vec4f(0,0,1.5f,0)); // Add a slight upwards velocity (jumping out)
 
 		player_physics.setStandingShape(*physics_world);
 
@@ -15408,6 +15613,28 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 			if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
 			{
 				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+				// Handle seat interaction
+				if(ob->object_type == WorldObject::ObjectType_Seat)
+				{
+					// Try to sit on the seat
+					if(this->seat_sitting_on.isNull() && !isAvatarSittingOnSeat(*ob)) // If not currently sitting on any seat and no other avatar sitting on the hit seat:
+					{
+						// Sit on the seat
+						this->seat_sitting_on = ob;
+
+						// Set sitting physics shape
+						player_physics.setSittingShape(*physics_world);
+
+						// Send AvatarSatOnSeat message to server
+						MessageUtils::initPacket(scratch_packet, Protocol::AvatarSatOnSeat);
+						writeToStream(this->client_avatar_uid, scratch_packet);
+						writeToStream(ob->uid, scratch_packet); // Write seat object UID
+						enqueueMessageToSend(*this->client_thread, scratch_packet);
+					}
+
+					return;
+				}
 
 				if(ob->vehicle_script.nonNull() && ob->physics_object.nonNull())
 				{

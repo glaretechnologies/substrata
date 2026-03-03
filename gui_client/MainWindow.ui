@@ -66,6 +66,7 @@
     <addaction name="actionAddHypercard"/>
     <addaction name="actionAdd_Text"/>
     <addaction name="actionAdd_Spotlight"/>
+    <addaction name="actionAdd_Seat"/>
     <addaction name="actionAdd_Audio_Source"/>
     <addaction name="actionAdd_Web_View"/>
     <addaction name="actionAdd_Video"/>
@@ -561,6 +562,11 @@
   <action name="actionAdd_Spotlight">
    <property name="text">
     <string>Add Spotlight</string>
+   </property>
+  </action>
+  <action name="actionAdd_Seat">
+   <property name="text">
+    <string>Add Seat</string>
    </property>
   </action>
   <action name="actionGo_to_Parcel">
