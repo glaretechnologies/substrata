@@ -484,6 +484,7 @@ jobs:
             -G "Visual Studio 17 2022" \
             -A x64 \
             ${CEF_FLAGS} \
+            -DCEF_USE_SANDBOX=OFF \
             -DCMAKE_PREFIX_PATH="$QT_DIR_CMAKE" \
             -DBUGSPLAT_SUPPORT=OFF
 
