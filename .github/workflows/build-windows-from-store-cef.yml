@@ -1,0 +1,667 @@
+# Build Windows gui_client using stored deps (Release, optional CEF)
+# Adapted from build-windows-from-store.yml and build-macos-from-store-cef.yml.
+# Provide a cef_archive_url at dispatch time to enable CEF support.
+name: Build Windows gui_client using stored deps (Release, optional CEF)
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "If true, create a GitHub Release and upload the zip there"
+        required: true
+        default: "false"
+      tag_name:
+        description: "Release tag (required if create_release=true), e.g. v0.1.0"
+        required: false
+      deps_release_tag:
+        description: "Tag in the deps store repo to download (optional). If empty, use latest."
+        required: false
+        default: ""
+      cef_archive_url:
+        description: "Optional direct URL to a prebuilt CEF binary distribution (tar.bz2, tar.gz, or zip). If provided, CEF_SUPPORT will be enabled and libcef_dll_wrapper/cef_sandbox built or used from prebuilt artifacts."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+
+    env:
+      BASE_DIR: ${{ github.workspace }}/work
+
+      # Glare build scripts expect these environment variables.
+      GLARE_CORE_LIBS: ${{ github.workspace }}/work
+      WINTER_DIR: ${{ github.workspace }}/work/winter
+      GLARE_CORE_TRUNK_DIR: ${{ github.workspace }}/work/glare-core
+      CYBERSPACE_OUTPUT: ${{ github.workspace }}/work/substrata_output
+
+      # Default is OFF; if user provides cef_archive_url the workflow will enable it at runtime.
+      CEF_SUPPORT: "OFF"
+      BUILD_CONFIG: "Release"
+
+      STORE_OWNER: "JerryBerry12"
+      STORE_REPO: "kingdomvr-store-deps"
+
+    steps:
+      - name: Check STORE_REPO_PAT secret at runtime
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.STORE_REPO_PAT }}" ]; then
+            echo "Secret STORE_REPO_PAT is required in this repository (a PAT with repo access to ${STORE_OWNER}/${STORE_REPO})."
+            exit 1
+          fi
+
+      - name: Download all deps assets from store repository
+        id: download_assets
+        env:
+          STORE_REPO_PAT: ${{ secrets.STORE_REPO_PAT }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          TAG_INPUT="${{ github.event.inputs.deps_release_tag }}"
+          API="https://api.github.com/repos/${STORE_OWNER}/${STORE_REPO}"
+
+          if [ -n "$TAG_INPUT" ]; then
+            echo "Using provided deps tag: $TAG_INPUT"
+            REL_RESP=$(curl -s -H "Authorization: token ${STORE_REPO_PAT}" "${API}/releases/tags/${TAG_INPUT}")
+          else
+            echo "Getting latest deps release"
+            REL_RESP=$(curl -s -H "Authorization: token ${STORE_REPO_PAT}" "${API}/releases/latest")
+          fi
+
+          ASSET_COUNT=$(echo "$REL_RESP" | jq '.assets | length')
+          if [ -z "$ASSET_COUNT" ] || [ "$ASSET_COUNT" = "null" ] || [ "$ASSET_COUNT" -eq 0 ]; then
+            echo "No assets found in the selected deps release. Response:"
+            echo "$REL_RESP"
+            exit 1
+          fi
+
+          echo "Found $ASSET_COUNT asset(s) in release."
+
+          DOWNLOAD_DIR="${{ github.workspace }}/deps_download"
+          mkdir -p "$DOWNLOAD_DIR"
+
+          # Download every asset in the release (handles both single archives and split parts)
+          for i in $(seq 0 $((ASSET_COUNT - 1))); do
+            ASSET_URL=$(echo "$REL_RESP" | jq -r ".assets[$i].url")
+            ASSET_NAME=$(echo "$REL_RESP" | jq -r ".assets[$i].name")
+            echo "Downloading asset: $ASSET_NAME"
+            curl -L -H "Authorization: token ${STORE_REPO_PAT}" -H "Accept: application/octet-stream" \
+              -o "$DOWNLOAD_DIR/$ASSET_NAME" "$ASSET_URL"
+          done
+
+          echo "download_dir=$DOWNLOAD_DIR" >> "$GITHUB_OUTPUT"
+          echo "asset_count=$ASSET_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Extract archive(s) into BASE_DIR
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          DOWNLOAD_DIR="${{ steps.download_assets.outputs.download_dir }}"
+          ASSET_COUNT="${{ steps.download_assets.outputs.asset_count }}"
+
+          mkdir -p "$BASE_DIR"
+
+          # Normalise all paths to POSIX for tar (Git Bash on Windows requires /D/a/... form)
+          BASE_DIR_TAR="$(echo "$BASE_DIR"     | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+          DOWNLOAD_DIR="$(echo "$DOWNLOAD_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+
+          # Check whether we have split parts (.tar.gz.part*) or a single archive
+          PARTS=( "$DOWNLOAD_DIR"/*.tar.gz.part* )
+          if [ -e "${PARTS[0]}" ]; then
+            echo "Reassembling and extracting split archive parts..."
+            cat $(ls -1 "$DOWNLOAD_DIR"/*.tar.gz.part* | sort) | tar -xz -C "$BASE_DIR_TAR"
+            echo "Extracted split archive -> $BASE_DIR_TAR"
+          else
+            ARCHIVE=$(ls -1 "$DOWNLOAD_DIR"/*.tar.gz 2>/dev/null | head -n1 || true)
+            if [ -z "$ARCHIVE" ] || [ ! -f "$ARCHIVE" ]; then
+              echo "No archive found in $DOWNLOAD_DIR"
+              ls -la "$DOWNLOAD_DIR"
+              exit 1
+            fi
+            ARCHIVE="$(echo "$ARCHIVE" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+            tar -xzf "$ARCHIVE" -C "$BASE_DIR_TAR"
+            echo "Extracted $ARCHIVE -> $BASE_DIR_TAR"
+          fi
+
+      - name: Optionally download & extract prebuilt CEF (enable CEF_SUPPORT)
+        if: ${{ inputs.cef_archive_url != '' }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          CEF_URL="${{ github.event.inputs.cef_archive_url }}"
+          echo "Downloading CEF archive from: $CEF_URL"
+
+          mkdir -p "${{ github.workspace }}/cef_download"
+          CEF_ARCHIVE="${{ github.workspace }}/cef_download/cef_archive"
+
+          BASE_DIR_POSIX="$(echo "$BASE_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+
+          EXT="${CEF_URL##*.}"
+          case "$EXT" in
+            bz2|tbz2)
+              CEF_ARCHIVE="${CEF_ARCHIVE}.tar.bz2"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR_POSIX/cef_binary"
+              tar -xjf "$CEF_ARCHIVE" -C "$BASE_DIR_POSIX/cef_binary"
+              ;;
+            gz|tgz)
+              CEF_ARCHIVE="${CEF_ARCHIVE}.tar.gz"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR_POSIX/cef_binary"
+              tar -xzf "$CEF_ARCHIVE" -C "$BASE_DIR_POSIX/cef_binary"
+              ;;
+            zip)
+              CEF_ARCHIVE="${CEF_ARCHIVE}.zip"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR_POSIX/cef_binary"
+              # 7z is available on Windows runners; fall back to unzip if present
+              if command -v 7z >/dev/null 2>&1; then
+                7z x "$CEF_ARCHIVE" -o"$BASE_DIR_POSIX/cef_binary" -y
+              else
+                unzip -q "$CEF_ARCHIVE" -d "$BASE_DIR_POSIX/cef_binary"
+              fi
+              ;;
+            *)
+              # Try tar.gz as default; if it fails try bz2
+              CEF_ARCHIVE="${CEF_ARCHIVE}.tar.gz"
+              curl -L -o "$CEF_ARCHIVE" "$CEF_URL"
+              mkdir -p "$BASE_DIR_POSIX/cef_binary"
+              tar -xzf "$CEF_ARCHIVE" -C "$BASE_DIR_POSIX/cef_binary" || \
+                { echo "Extraction failed; try providing a .tar.bz2/.tar.gz/.zip URL"; exit 1; }
+              ;;
+          esac
+
+          # Expose CEF_ROOT and enable CEF_SUPPORT for subsequent steps.
+          # If the archive contains a single top-level cef_binary_* dir, use that; else use cef_binary root.
+          CEF_CAND="$(find "$BASE_DIR_POSIX/cef_binary" -maxdepth 1 -type d -name 'cef_binary_*' -print -quit || true)"
+          if [ -n "$CEF_CAND" ]; then
+            echo "CEF_ROOT=$CEF_CAND" >> "$GITHUB_ENV"
+          else
+            echo "CEF_ROOT=$BASE_DIR_POSIX/cef_binary" >> "$GITHUB_ENV"
+          fi
+          echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
+          echo "Extracted CEF contents to: $BASE_DIR_POSIX/cef_binary"
+
+      - name: CEF debug — list dist/ contents and show library artifacts
+        if: ${{ inputs.cef_archive_url != '' }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          BASE_DIR_POSIX="$(echo "$BASE_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+
+          echo "Looking for dist/ directories under $BASE_DIR_POSIX/cef_binary..."
+          DISTS=$(find "$BASE_DIR_POSIX/cef_binary" -type d -name 'dist' -print 2>/dev/null || true)
+          if [ -z "$DISTS" ]; then
+            echo "No dist/ directories found (listing top-level extraction)."
+          fi
+
+          while IFS= read -r d; do
+            [ -n "$d" ] || continue
+            echo "==== DIST: $d ===="
+            ls -la "$d" || true
+
+            for lib in libcef_dll_wrapper.lib cef_sandbox.lib libcef.lib; do
+              if [ -f "$d/$lib" ]; then
+                echo "Found $lib at $d/$lib"
+              fi
+            done
+          done < <(printf "%s\n" "$DISTS")
+
+          echo "---- top-level files under $BASE_DIR_POSIX/cef_binary (maxdepth 4) ----"
+          find "$BASE_DIR_POSIX/cef_binary" -maxdepth 4 -type f -print || true
+
+      - name: Build libcef_dll_wrapper and ensure cef_sandbox exists (if CEF was provided)
+        if: ${{ inputs.cef_archive_url != '' }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          BASE_DIR_POSIX="$(echo "$BASE_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+
+          # Detect the extracted CEF top-level directory
+          CAND="$(find "$BASE_DIR_POSIX/cef_binary" -maxdepth 2 -type d -name 'cef_binary_*' -print -quit || true)"
+          if [ -n "$CAND" ]; then
+            CEF_EXTRACT="$CAND"
+          elif [ -d "$BASE_DIR_POSIX/cef_binary" ]; then
+            CEF_EXTRACT="$BASE_DIR_POSIX/cef_binary"
+          else
+            echo "CEF extraction directory not found under $BASE_DIR_POSIX/cef_binary"
+            exit 1
+          fi
+
+          echo "CEF_EXTRACT detected as: $CEF_EXTRACT"
+
+          # If archive used a 'dist' folder (common), use that subdir if present.
+          if [ -d "$CEF_EXTRACT/dist" ]; then
+            echo "Found dist/ folder under CEF_EXTRACT; switching to $CEF_EXTRACT/dist"
+            CEF_EXTRACT="$CEF_EXTRACT/dist"
+          fi
+
+          # On Windows, prebuilt .lib artifacts are typically under Release/
+          # Look for prebuilt wrapper and sandbox libs
+          LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print -quit || true)"
+          SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.lib' -print -quit || true)"
+
+          if [ -n "$LIBWRAP" ] || [ -n "$SANDBOX" ]; then
+            echo "Prebuilt CEF .lib artifacts detected."
+            echo "libcef_dll_wrapper.lib: $LIBWRAP"
+            echo "cef_sandbox.lib: $SANDBOX"
+
+            # Ensure wrapper is at the path Substrata CMake expects
+            if [ -n "$LIBWRAP" ]; then
+              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release"
+              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/libcef_dll_wrapper.lib"
+              echo "Copied libcef_dll_wrapper.lib -> $CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/"
+            fi
+
+            # Ensure sandbox lib is available under Release/ and Debug/
+            if [ -n "$SANDBOX" ]; then
+              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
+              # Only copy if not already there
+              [ -f "$CEF_EXTRACT/Release/cef_sandbox.lib" ] || cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.lib"
+              [ -f "$CEF_EXTRACT/Debug/cef_sandbox.lib" ]   || cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.lib"
+              echo "Ensured cef_sandbox.lib under Release/ and Debug/"
+            fi
+
+          else
+            echo "No prebuilt .lib artifacts found; attempting to build libcef_dll_wrapper from CEF sources."
+
+            BUILD_DIR_POSIX="$CEF_EXTRACT/libcef_dll_build"
+            mkdir -p "$BUILD_DIR_POSIX"
+
+            CEF_EXTRACT_WIN="$(echo "$CEF_EXTRACT" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
+            BUILD_DIR_WIN="$(echo "$BUILD_DIR_POSIX" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
+
+            cmake "$CEF_EXTRACT_WIN" \
+              -B "$BUILD_DIR_WIN" \
+              -G "Visual Studio 17 2022" \
+              -A x64
+
+            if cmake --build "$BUILD_DIR_WIN" --config Release --target libcef_dll_wrapper; then
+              echo "libcef_dll_wrapper built successfully"
+            else
+              echo "Building wrapper target failed; attempting full build"
+              cmake --build "$BUILD_DIR_WIN" --config Release
+            fi
+
+            # Try sandbox target (may not exist in all distributions)
+            cmake --build "$BUILD_DIR_WIN" --config Release --target cef_sandbox 2>/dev/null || \
+              echo "cef_sandbox target not present or build failed; continuing"
+
+            # Discover produced artifacts
+            LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print -quit || true)"
+            SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.lib' -print -quit || true)"
+
+            if [ -n "$LIBWRAP" ]; then
+              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release"
+              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/libcef_dll_wrapper.lib"
+            fi
+
+            if [ -n "$SANDBOX" ]; then
+              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
+              [ -f "$CEF_EXTRACT/Release/cef_sandbox.lib" ] || cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.lib"
+              [ -f "$CEF_EXTRACT/Debug/cef_sandbox.lib" ]   || cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.lib"
+            fi
+
+            if [ -z "$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print -quit || true)" ]; then
+              echo "ERROR: libcef_dll_wrapper.lib not found after build attempts."
+              echo "Listing $CEF_EXTRACT for debugging:"
+              find "$CEF_EXTRACT" -maxdepth 4 -type f -print || true
+              exit 1
+            fi
+          fi
+
+          # Sanity check
+          if [ ! -f "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/libcef_dll_wrapper.lib" ]; then
+            echo "WARNING: libcef_dll_wrapper.lib not at expected path; listing fallback locations:"
+            find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print || true
+          fi
+
+          # Export variables for Substrata CMake
+          echo "CEF_ROOT=$CEF_EXTRACT" >> "$GITHUB_ENV"
+          echo "CEF_BINARY_DISTRIB_DIR=$CEF_EXTRACT" >> "$GITHUB_ENV"
+          echo "CEF_SUPPORT=ON" >> "$GITHUB_ENV"
+
+      - name: Checkout this repo (kingdomvr) into work/substrata
+        uses: actions/checkout@v4
+        with:
+          path: work/substrata
+
+      - name: Checkout glare-core (JerryBerry12 fork)
+        uses: actions/checkout@v4
+        with:
+          repository: JerryBerry12/glare-core
+          ref: master
+          path: work/glare-core
+
+      - name: Patch glare-core scripts for Windows CI runner
+        shell: pwsh
+        run: |
+          # 1) cmake.rb hardcodes the Community edition MSBuild path for VS2022.
+          #    The runner has Enterprise only, so getMSBuildPath() falls through to the
+          #    VS2012 entry (.NET Framework MSBuild) which is too old for VS2022 projects.
+          $cmakeRb = "work/glare-core/scripts/cmake.rb"
+          $content = Get-Content $cmakeRb -Raw
+          $oldPath = 'C:\Program Files\Microsoft Visual Studio\2022\Community\Msbuild\Current\Bin\MSBuild.exe'
+          $newPath = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\amd64\MSBuild.exe'
+          if (-not (Test-Path $newPath)) {
+            Write-Host "Enterprise MSBuild not found at $newPath"; exit 1
+          }
+          if ($content.Contains($oldPath)) {
+            $patched = $content.Replace($oldPath, $newPath)
+            Set-Content -Path $cmakeRb -Value $patched -NoNewline
+            Write-Host "Patched cmake.rb: Community -> Enterprise MSBuild path"
+          } else {
+            Write-Host "WARNING: Community MSBuild path not found in cmake.rb - dumping VS2022 lines:"
+            $content -split "`n" | Where-Object { $_ -match '2022' } | Write-Host
+          }
+
+          # 1b) Same patch for substrata/scripts/cmake.rb
+          $subCmakeRb = "work/substrata/scripts/cmake.rb"
+          if (Test-Path $subCmakeRb) {
+            $sc = Get-Content $subCmakeRb -Raw
+            if ($sc.Contains($oldPath)) {
+              $sc = $sc.Replace($oldPath, $newPath)
+              Set-Content -Path $subCmakeRb -Value $sc -NoNewline
+              Write-Host "Patched substrata cmake.rb: Community -> Enterprise MSBuild path"
+            } else {
+              Write-Host "WARNING: Community MSBuild path not found in substrata cmake.rb - dumping VS2022 lines:"
+              $sc -split "`n" | Where-Object { $_ -match '2022' } | Write-Host
+            }
+          } else {
+            Write-Host "substrata/scripts/cmake.rb not found, skipping"
+          }
+
+          # 2) script_utils.rb extractArchive: on Windows it calls 'tar -x -f' for ALL
+          #    archives where tar is present, including .zip files. GNU tar on Windows
+          #    cannot read ZIP format, so .zip extraction must fall through to the 7z path.
+          $utilsRb = "work/glare-core/scripts/script_utils.rb"
+          $u = Get-Content $utilsRb -Raw
+          $oldCond = 'if haveTar() && !archive.include?(".tar.xz")'
+          $newCond = 'if haveTar() && !archive.include?(".tar.xz") && !archive.include?(".zip")'
+          if ($u.Contains($oldCond)) {
+            $u = $u.Replace($oldCond, $newCond)
+            Set-Content -Path $utilsRb -Value $u -NoNewline
+            Write-Host "Patched script_utils.rb: .zip files will now use 7z instead of tar"
+          } else {
+            Write-Host "WARNING: expected tar condition not found in script_utils.rb - may already be patched or changed upstream"
+          }
+
+      - name: Checkout winter
+        uses: actions/checkout@v4
+        with:
+          repository: glaretechnologies/winter
+          path: work/winter
+
+      - name: Set up MSVC Developer Command Prompt (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Provide Qt (aqtinstall) and place at expected path
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          (while true; do
+            echo "[heartbeat] qt provision running: $(date -u)"
+            df -h / || df -h . || true
+            sleep 120
+          done) &
+          HEARTBEAT_PID=$!
+
+          pip install aqtinstall --quiet
+
+          QT_TARGET_DIR="$GLARE_CORE_LIBS/Qt/5.15.16-vs2022-64"
+
+          QT_TEMP="${{ github.workspace }}/qt_temp"
+          mkdir -p "$QT_TEMP"
+          aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 --outputdir "$QT_TEMP"
+
+          if [ ! -d "$QT_TEMP/5.15.2/msvc2019_64" ]; then
+            echo "aqtinstall did not produce expected directory. Contents of $QT_TEMP:"
+            ls -la "$QT_TEMP" || true
+            kill $HEARTBEAT_PID || true
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "$QT_TARGET_DIR")"
+          mv "$QT_TEMP/5.15.2/msvc2019_64" "$QT_TARGET_DIR"
+
+          echo "Qt provisioned at $QT_TARGET_DIR"
+          ls -la "$QT_TARGET_DIR/bin" | head -20 || true
+
+          kill $HEARTBEAT_PID || true
+
+      - name: Prepare output directory
+        shell: bash
+        run: |
+          mkdir -p "$CYBERSPACE_OUTPUT"
+          mkdir -p "$BASE_DIR/substrata_build"
+
+      - name: Configure CMake (Release, optional CEF, Visual Studio 2022 x64)
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          QT_DIR="$GLARE_CORE_LIBS/Qt/5.15.16-vs2022-64"
+          SUBSTRATA_SRC="$BASE_DIR/substrata"
+          BUILD_DIR="$BASE_DIR/substrata_build"
+
+          # Normalise paths for cmake on Windows
+          QT_DIR_CMAKE="$(echo "$QT_DIR"       | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+          SUBSTRATA_SRC_CMAKE="$(echo "$SUBSTRATA_SRC" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+          BUILD_DIR_CMAKE="$(echo "$BUILD_DIR"  | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+
+          # Build CEF flags if CEF_ROOT was set by the earlier step
+          CEF_FLAGS="-DCEF_SUPPORT=${CEF_SUPPORT}"
+          if [ "${CEF_SUPPORT}" = "ON" ] && [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
+            CEF_ROOT_CMAKE="$(echo "$CEF_ROOT" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+            CEF_FLAGS="-DCEF_SUPPORT=ON -DCEF_ROOT=${CEF_ROOT_CMAKE}"
+          fi
+
+          echo "CMake CEF flags: ${CEF_FLAGS}"
+
+          cmake "$SUBSTRATA_SRC_CMAKE" \
+            -B "$BUILD_DIR_CMAKE" \
+            -G "Visual Studio 17 2022" \
+            -A x64 \
+            ${CEF_FLAGS} \
+            -DCMAKE_PREFIX_PATH="$QT_DIR_CMAKE" \
+            -DBUGSPLAT_SUPPORT=OFF
+
+      - name: Build gui_client (Release)
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          BUILD_DIR_CMAKE="$(echo "$BASE_DIR/substrata_build" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+
+          cmake --build "$BUILD_DIR_CMAKE" \
+            --config Release \
+            --target gui_client \
+            -- //m
+
+      - name: Locate built gui_client.exe and run windeployqt
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          BUILD_DIR="$BASE_DIR/substrata_output"
+          QT_BIN="$GLARE_CORE_LIBS/Qt/5.15.16-vs2022-64/bin"
+          WINDEPLOYQT="$QT_BIN/windeployqt.exe"
+
+          EXE=""
+          if [ -f "$BUILD_DIR/Release/gui_client.exe" ]; then
+            EXE="$BUILD_DIR/Release/gui_client.exe"
+          elif [ -f "$BUILD_DIR/gui_client.exe" ]; then
+            EXE="$BUILD_DIR/gui_client.exe"
+          else
+            echo "gui_client.exe not found. Searching..."
+            EXE="$(find "$BUILD_DIR" -name "gui_client.exe" | head -n1 || true)"
+          fi
+
+          if [ -z "$EXE" ] || [ ! -f "$EXE" ]; then
+            echo "gui_client.exe not found in build dir. Listing:"
+            find "$BUILD_DIR" -name "*.exe" || true
+            exit 1
+          fi
+
+          echo "Found gui_client.exe at: $EXE"
+
+          if [ ! -x "$WINDEPLOYQT" ]; then
+            echo "windeployqt not found at $WINDEPLOYQT"
+            ls -la "$QT_BIN" || true
+            exit 1
+          fi
+
+          echo "Running windeployqt on $EXE"
+          "$WINDEPLOYQT" --release --no-translations "$EXE"
+          echo "windeployqt finished."
+
+      - name: Copy CEF runtime DLLs into output directory (if CEF was provided)
+        if: ${{ inputs.cef_archive_url != '' }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          BUILD_DIR="$BASE_DIR/substrata_output"
+
+          # Locate the output folder containing gui_client.exe
+          EXE_DIR=""
+          if [ -f "$BUILD_DIR/Release/gui_client.exe" ]; then
+            EXE_DIR="$BUILD_DIR/Release"
+          elif [ -f "$BUILD_DIR/gui_client.exe" ]; then
+            EXE_DIR="$BUILD_DIR"
+          else
+            EXE="$(find "$BUILD_DIR" -name "gui_client.exe" -print -quit || true)"
+            [ -n "$EXE" ] && EXE_DIR="$(dirname "$EXE")" || true
+          fi
+
+          if [ -z "$EXE_DIR" ]; then
+            echo "Could not determine exe directory for CEF DLL copy; skipping."
+            exit 0
+          fi
+
+          echo "Copying CEF runtime DLLs into: $EXE_DIR"
+
+          CEF_EXTRACT="${CEF_ROOT:-}"
+          if [ -z "$CEF_EXTRACT" ] || [ ! -d "$CEF_EXTRACT" ]; then
+            echo "CEF_ROOT not set or not a directory; skipping CEF DLL copy."
+            exit 0
+          fi
+
+          # CEF Windows binary distributions typically ship DLLs under Release/
+          CEF_RELEASE_DIR="$CEF_EXTRACT/Release"
+          if [ ! -d "$CEF_RELEASE_DIR" ]; then
+            # Fall back to root if no Release/ subdirectory
+            CEF_RELEASE_DIR="$CEF_EXTRACT"
+          fi
+
+          echo "Copying from: $CEF_RELEASE_DIR"
+
+          # Copy all DLLs, .bin and .pak files from the CEF Release dir
+          for ext in dll bin pak; do
+            find "$CEF_RELEASE_DIR" -maxdepth 1 -name "*.${ext}" | while IFS= read -r f; do
+              echo "  Copying $(basename "$f")"
+              cp -f "$f" "$EXE_DIR/" || true
+            done
+          done
+
+          # Copy Resources folder if present
+          CEF_RESOURCES="$CEF_EXTRACT/Resources"
+          if [ -d "$CEF_RESOURCES" ]; then
+            echo "Copying CEF Resources/ -> $EXE_DIR/Resources/"
+            cp -R "$CEF_RESOURCES" "$EXE_DIR/Resources" || true
+          fi
+
+          echo "CEF DLL copy finished. Listing $EXE_DIR:"
+          ls -la "$EXE_DIR" | head -40 || true
+
+      - name: Copy runtime files to output
+        shell: bash
+        working-directory: work/substrata/scripts
+        run: |
+          ruby copy_files_to_output.rb --no_cef --config=Release
+
+      - name: Create distributable zip from output directory
+        id: package
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          BUILD_DIR="$BASE_DIR/substrata_output"
+          BUILD_DIR="$(echo "$BUILD_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+          EXE=""
+          EXE_DIR=""
+          if [ -f "$BUILD_DIR/Release/gui_client.exe" ]; then
+            EXE="$BUILD_DIR/Release/gui_client.exe"
+            EXE_DIR="$BUILD_DIR/Release"
+          elif [ -f "$BUILD_DIR/gui_client.exe" ]; then
+            EXE="$BUILD_DIR/gui_client.exe"
+            EXE_DIR="$BUILD_DIR"
+          else
+            EXE="$(find "$BUILD_DIR" -name "gui_client.exe" -print -quit || true)"
+            if [ -n "$EXE" ]; then
+              EXE="$(echo "$EXE" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+              EXE_DIR="$(dirname "$EXE")"
+            fi
+          fi
+
+          if [ -z "$EXE" ] || [ ! -f "$EXE" ]; then
+            echo "gui_client.exe not found for packaging. Debug:"
+            find "$BASE_DIR" -name "gui_client.exe" || true
+            exit 1
+          fi
+
+          echo "Packaging from: $EXE_DIR"
+
+          VERSION="$(ruby "$BASE_DIR/substrata/scripts/config.rb" --version 2>/dev/null || echo "unknown")"
+
+          if [ "${CEF_SUPPORT}" = "ON" ]; then
+            ZIP_NAME="substrata-windows-${VERSION}-gui_client-cef.zip"
+          else
+            ZIP_NAME="substrata-windows-${VERSION}-gui_client-no-cef.zip"
+          fi
+          ZIP_PATH="${{ github.workspace }}/$ZIP_NAME"
+
+          cd "$EXE_DIR"
+          7z a -tzip "$ZIP_PATH" .
+
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact (short retention)
+        if: ${{ inputs.create_release != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-gui-client-cef
+          path: ${{ steps.package.outputs.zip_path }}
+          retention-days: 1
+
+      - name: Validate release inputs
+        if: ${{ inputs.create_release == 'true' }}
+        shell: bash
+        run: |
+          if [ -z "${{ inputs.tag_name }}" ]; then
+            echo "tag_name is required when create_release=true"
+            exit 1
+          fi
+
+      - name: Create GitHub Release (draft) and upload asset
+        if: ${{ inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: ${{ inputs.tag_name }}
+          draft: true
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.zip_path }}
