@@ -271,6 +271,15 @@ jobs:
               echo "Ensured cef_sandbox.lib under Release/ and Debug/"
             fi
 
+            # Ensure libcef.lib is available under Release/ (linker looks there).
+            # In some distributions it sits directly in the dist root rather than Release/.
+            LIBCEF_ROOT="$(find "$CEF_EXTRACT" -maxdepth 1 -type f -name 'libcef.lib' -print -quit || true)"
+            if [ -n "$LIBCEF_ROOT" ]; then
+              mkdir -p "$CEF_EXTRACT/Release"
+              [ -f "$CEF_EXTRACT/Release/libcef.lib" ] || cp -f "$LIBCEF_ROOT" "$CEF_EXTRACT/Release/libcef.lib"
+              echo "Ensured libcef.lib under Release/ (copied from dist root)"
+            fi
+
           else
             echo "No prebuilt .lib artifacts found; attempting to build libcef_dll_wrapper from CEF sources."
 
