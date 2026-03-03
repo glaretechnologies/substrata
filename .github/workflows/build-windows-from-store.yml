@@ -134,27 +134,41 @@ jobs:
           ref: master
           path: work/glare-core
 
-      - name: Patch glare-core cmake.rb to use Enterprise MSBuild
+      - name: Patch glare-core scripts for Windows CI runner
         shell: pwsh
         run: |
-          # cmake.rb @@vs_versions hardcodes the Community edition path for VS2022.
-          # On the GitHub Actions windows-2022 runner only Enterprise is installed, so
-          # getMSBuildPath() falls through to the VS2012 entry (old .NET Framework MSBuild).
+          # 1) cmake.rb hardcodes the Community edition MSBuild path for VS2022.
+          #    The runner has Enterprise only, so getMSBuildPath() falls through to the
+          #    VS2012 entry (.NET Framework MSBuild) which is too old for VS2022 projects.
           $cmakeRb = "work/glare-core/scripts/cmake.rb"
           $content = Get-Content $cmakeRb -Raw
           $oldPath = 'C:\Program Files\Microsoft Visual Studio\2022\Community\Msbuild\Current\Bin\MSBuild.exe'
           $newPath = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\amd64\MSBuild.exe'
           if (-not (Test-Path $newPath)) {
-            Write-Host "Enterprise MSBuild not found at $newPath"
-            exit 1
+            Write-Host "Enterprise MSBuild not found at $newPath"; exit 1
           }
           if ($content.Contains($oldPath)) {
             $patched = $content.Replace($oldPath, $newPath)
             Set-Content -Path $cmakeRb -Value $patched -NoNewline
-            Write-Host "Patched $cmakeRb : Community -> Enterprise MSBuild path"
+            Write-Host "Patched cmake.rb: Community -> Enterprise MSBuild path"
           } else {
-            Write-Host "WARNING: Expected Community MSBuild path not found in $cmakeRb - dumping VS2022 entry lines for diagnosis:"
+            Write-Host "WARNING: Community MSBuild path not found in cmake.rb - dumping VS2022 lines:"
             $content -split "`n" | Where-Object { $_ -match '2022' } | Write-Host
+          }
+
+          # 2) script_utils.rb extractArchive: on Windows it calls 'tar -x -f' for ALL
+          #    archives where tar is present, including .zip files. GNU tar on Windows
+          #    cannot read ZIP format, so .zip extraction must fall through to the 7z path.
+          $utilsRb = "work/glare-core/scripts/script_utils.rb"
+          $u = Get-Content $utilsRb -Raw
+          $oldCond = 'if haveTar() && !archive.include?(".tar.xz")'
+          $newCond = 'if haveTar() && !archive.include?(".tar.xz") && !archive.include?(".zip")'
+          if ($u.Contains($oldCond)) {
+            $u = $u.Replace($oldCond, $newCond)
+            Set-Content -Path $utilsRb -Value $u -NoNewline
+            Write-Host "Patched script_utils.rb: .zip files will now use 7z instead of tar"
+          } else {
+            Write-Host "WARNING: expected tar condition not found in script_utils.rb - may already be patched or changed upstream"
           }
 
       - name: Checkout winter
