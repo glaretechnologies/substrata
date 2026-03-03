@@ -391,6 +391,7 @@ public:
 	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
 	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob) REQUIRES(world_state->mutex);
 	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) const REQUIRES(world_state->mutex);
+	bool isAvatarSittingOnSeat(WorldObject& seat_ob) const;
 	void destroyVehiclePhysicsControllingObject(WorldObject* ob);
 	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
@@ -463,6 +464,8 @@ public:
 	std::map<WorldObject*, Reference<VehiclePhysics>> vehicle_controllers; // Map from controlled object to vehicle controller for that object.
 	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
 	uint32 cur_seat_index; // Current vehicle seat index.
+
+	Reference<WorldObject> seat_sitting_on; // Seat object that the avatar is currently sitting on, or NULL if not sitting.
 
 	double last_vehicle_renewal_msg_time;
 
@@ -538,6 +541,9 @@ public:
 
 	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
 	PhysicsShape spotlight_shape;
+
+	Reference<OpenGLMeshRenderData> seat_opengl_mesh;
+	PhysicsShape seat_shape;
 
 	Reference<OpenGLMeshRenderData> portal_opengl_mesh;
 	PhysicsShape portal_shape;

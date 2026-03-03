@@ -42,13 +42,14 @@ CyberspaceProtocolVersion
 46: Added UserMovedNearToAvatar, UserMovedAwayFromAvatar messages.
 47: Added UserGestureSettingsChanged message.
 48: Added ping+pong messages.
+49: Added AvatarSatOnSeat, AvatarGotUpFromSeat messages.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 48;
+const uint32 CyberspaceProtocolVersion = 49;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -81,6 +82,9 @@ const uint32 AvatarStopGesture		= 1011;
 
 const uint32 AvatarEnteredVehicle	= 1100;
 const uint32 AvatarExitedVehicle	= 1101;
+
+const uint32 AvatarSatOnSeat		= 1110; // Avatar sat down on a seat object
+const uint32 AvatarGotUpFromSeat	= 1111; // Avatar got up from a seat object
 
 
 const uint32 UserMovedNearToAvatar		= 1200;

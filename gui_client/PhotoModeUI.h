@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2025 -
 
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
+#include <opengl/ui/GLUIWindow.h>
 #include <opengl/ui/GLUITextButton.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 #include <opengl/ui/GLUITextView.h>
@@ -15,6 +16,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <opengl/ui/GLUIImage.h>
 #include <opengl/ui/GLUISlider.h>
 #include <opengl/ui/GLUIInertWidget.h>
+#include <opengl/ui/GLUIGridContainer.h>
 #include <utils/ThreadManager.h>
 
 
@@ -65,12 +67,12 @@ public:
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 	virtual void sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& event) override; // From GLUICallbackHandler
+	virtual void closeWindowEventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 
 private:
 	void untoggleAllCamModeButtons();
 	void updateWidgetPositions();
-	void updateSliderPosition(PhotoModeSlider& slider, float margin, float& cur_y);
-	void makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed);
+	void makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed, int& cell_y);
 	void updateFocusDistValueString();
 	void updateFocalLengthValueString();
 	void resetControlsToPhotoModeDefaults();
@@ -80,6 +82,10 @@ private:
 	void uploadPhoto();
 
 	GUIClient* gui_client;
+
+	GLUIWindowRef window;
+
+	GLUIGridContainerRef grid_container;
 
 	GLUITextButtonRef standard_cam_button;
 	GLUITextButtonRef selfie_cam_button;
@@ -96,8 +102,6 @@ private:
 	GLUITextButtonRef show_screenshots_button;
 	GLUITextButtonRef upload_photo_button;
 	GLUITextButtonRef hide_ui_button;
-
-	GLUIInertWidgetRef background_ob;
 
 	// Upload image dialog
 	GLUIInertWidgetRef upload_background_ob;
