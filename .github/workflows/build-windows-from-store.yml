@@ -101,8 +101,9 @@ jobs:
 
           mkdir -p "$BASE_DIR"
 
-          # Normalise BASE_DIR for tar
-          BASE_DIR_TAR="$(echo "$BASE_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+          # Normalise all paths to POSIX for tar (Git Bash on Windows requires /D/a/... form)
+          BASE_DIR_TAR="$(echo "$BASE_DIR"     | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+          DOWNLOAD_DIR="$(echo "$DOWNLOAD_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
 
           # Check whether we have split parts (.tar.gz.part*) or a single archive
           PARTS=( "$DOWNLOAD_DIR"/*.tar.gz.part* )
@@ -118,6 +119,7 @@ jobs:
               ls -la "$DOWNLOAD_DIR"
               exit 1
             fi
+            ARCHIVE="$(echo "$ARCHIVE" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
             tar -xzf "$ARCHIVE" -C "$BASE_DIR_TAR"
             echo "Extracted $ARCHIVE -> $BASE_DIR_TAR"
           fi
