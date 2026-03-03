@@ -305,11 +305,15 @@ jobs:
           CEF_CMAKE_SRC_WIN="$(echo "$CEF_CMAKE_SRC" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
           BUILD_DIR_WIN="$(echo "$BUILD_DIR_POSIX" | sed 's|^/\([A-Za-z]\)|\1:|; s|/|\\|g')"
 
-          echo "Configuring libcef_dll_wrapper CMake build (using /MD default)..."
+          echo "Configuring libcef_dll_wrapper CMake build (forcing /MD to match project)..."
+          # CEF's cmake/cef_variables.cmake defaults CEF_RUNTIME_LIBRARY_FLAG to /MT.
+          # Override to /MD so the wrapper matches the Substrata project's CRT setting.
           cmake "$CEF_CMAKE_SRC_WIN" \
             -B "$BUILD_DIR_WIN" \
             -G "Visual Studio 17 2022" \
-            -A x64
+            -A x64 \
+            -DCEF_RUNTIME_LIBRARY_FLAG="/MD" \
+            -DCEF_RUNTIME_LIBRARY_FLAG_DEBUG="/MDd"
 
           echo "Building libcef_dll_wrapper (Release)..."
           if cmake --build "$BUILD_DIR_WIN" --config Release --target libcef_dll_wrapper; then
