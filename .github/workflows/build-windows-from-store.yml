@@ -277,7 +277,7 @@ jobs:
           cmake --build "$BUILD_DIR_CMAKE" \
             --config Release \
             --target gui_client \
-            -- /m
+            -- //m
 
       - name: Locate built gui_client.exe and run windeployqt
         shell: bash
