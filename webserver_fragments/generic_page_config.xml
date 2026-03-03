@@ -33,4 +33,9 @@
 		<fragment_path>about_chatbots.htmlfrag</fragment_path>
 		<page_title>Chatbots</page_title>
 	</page>
+	<page>
+		<url_path>/create_avatar</url_path>
+		<fragment_path>avatar_creation_guide.htmlfrag</fragment_path>
+		<page_title>How to make an avatar in KingdomVR</page_title>
+	</page>
 </pages>

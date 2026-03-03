@@ -1,0 +1,88 @@
+
+<p>
+This guide walks you through creating and setting a custom avatar in KingdomVR using <a href="https://readyplayer.me" target="_blank">Ready Player Me</a> and the Substrata client.
+</p>
+
+<h2>Step 1: Install the Substrata Client</h2>
+<p>
+Before setting up your avatar, make sure you have the latest version of the Substrata client installed.
+Download it for your platform below:
+</p>
+<ul>
+  <li><b>Windows:</b> <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.31_Setup.exe">Substrata_v1.6.31_Setup.exe</a></li>
+  <li><b>macOS:</b> <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.31_x64.pkg">Substrata_v1.6.31_x64.pkg</a></li>
+  <li><b>Linux:</b> <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.6.31.tar.gz">Substrata_v1.6.31.tar.gz</a></li>
+</ul>
+<p>
+Once installed, open the client and make sure it is up to date before proceeding. NOTE: If your avatar has crossed arms at the end of this guide, it is because you dont have version 1.6.31 or later installed.
+</p>
+
+<h2>Step 2: Create Your Avatar on Ready Player Me</h2>
+<p>
+Go to <a href="https://readyplayer.me/avatar" target="_blank">https://readyplayer.me/avatar</a> in your browser.
+</p>
+<p>
+Customise your avatar however you like — you can change the face, skin tone, hair, clothing, and more using the category icons on the right-hand panel.
+</p>
+
+<img src="/files/avatar_1.png" alt="Ready Player Me avatar customization screen showing body and clothing options." width="700px"/>
+<div class="caption">Customise your avatar using the options on the right panel, then click <b>Next</b>.</div>
+
+<h2>Step 3: Export the Avatar as a GLB File</h2>
+<p>
+When you are happy with your avatar, click the <b>Next</b> button (top-right of the screen).
+</p>
+<p>
+A dialog will appear with a shareable link to your avatar's <b>.glb</b> file. Click <b>Copy</b> to copy the URL.
+</p>
+
+<img src="/files/avatar_2.png" alt="Ready Player Me export dialog showing the GLB file URL and a Copy button." width="600px"/>
+<div class="caption">Copy the link to your avatar's <b>.glb</b> file from the export dialog.</div>
+
+<p>
+Open a <b>new browser tab</b>, paste the copied URL into the address bar, and press Enter.
+Your browser will download the <b>.glb</b> file to your Downloads folder.
+</p>
+
+<img src="/files/avatar_3.png" alt="Browser address bar with the Ready Player Me GLB URL pasted in." width="700px"/>
+<div class="caption">Paste the .glb URL into a new tab to trigger the download.</div>
+
+<img src="/files/avatar_4.png" alt="Downloaded GLB file shown in the browser download bar." width="400px"/>
+<div class="caption">The <b>.glb</b> file will download to your Downloads folder.</div>
+
+<h2>Step 4: Load the Avatar in the Substrata Client</h2>
+<p>
+Open the Substrata client. In the menu bar, click <b>Avatar</b> &rarr; <b>Avatar Settings</b>.
+</p>
+<p>
+In the Avatar Settings dialog, click the <b>Browse</b> button next to the <i>Model</i> field.
+</p>
+
+<img src="/files/avatar_6.png" alt="Avatar Settings dialog in the Substrata client with an empty model field and the Browse button highlighted." width="600px"/>
+<div class="caption">Click <b>Browse</b> to select your downloaded avatar file.</div>
+
+<p>
+Navigate to your <b>Downloads</b> folder, select the <b>.glb</b> file you just downloaded, and click <b>Open</b>.
+</p>
+
+<img src="/files/avatar_7.png" alt="File picker dialog showing a GLB avatar file selected in the Downloads folder, with the Open button highlighted." width="600px"/>
+<div class="caption">Select the <b>.glb</b> file and click <b>Open</b>.</div>
+
+<p>
+Your avatar will appear in the preview window. Once you are happy with it, click <b>OK</b>.
+</p>
+
+<img src="/files/avatar_8.png" alt="Avatar Settings dialog showing the newly loaded custom avatar standing in the 3D preview." width="600px"/>
+<div class="caption">Preview your avatar, then click <b>OK</b> to apply it.</div>
+
+<h2>Step 5: See Your Avatar In-World</h2>
+<p>
+Your custom avatar will now appear in KingdomVR for everyone to see!
+</p>
+
+<img src="/files/avatar_9.png" alt="Custom avatar standing in the KingdomVR world." width="450px"/>
+<div class="caption">Your avatar is now live in KingdomVR.</div>
+
+<p>
+You can repeat this process at any time to update your avatar — just visit <a href="https://readyplayer.me/avatar" target="_blank">Ready Player Me</a> again, make your changes, and load the new <b>.glb</b> file.
+</p>
