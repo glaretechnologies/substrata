@@ -308,7 +308,8 @@ jobs:
           echo "Configuring libcef_dll_wrapper CMake build (forcing /MD to match project)..."
           # CEF's cmake/cef_variables.cmake defaults CEF_RUNTIME_LIBRARY_FLAG to /MT.
           # Override to /MD so the wrapper matches the Substrata project's CRT setting.
-          cmake "$CEF_CMAKE_SRC_WIN" \
+          # MSYS_NO_PATHCONV=1 prevents Git Bash from converting /MD -> C:/Program Files/Git/MD.
+          MSYS_NO_PATHCONV=1 cmake "$CEF_CMAKE_SRC_WIN" \
             -B "$BUILD_DIR_WIN" \
             -G "Visual Studio 17 2022" \
             -A x64 \
