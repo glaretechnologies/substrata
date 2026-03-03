@@ -48,15 +48,6 @@ jobs:
             exit 1
           fi
 
-      - name: Show runner + disk info (before)
-        shell: bash
-        run: |
-          echo "OS: $RUNNER_OS"
-          ruby --version || true
-          cmake --version || true
-          python --version || true
-          df -h || true
-
       - name: Download all deps assets from store repository
         id: download_assets
         env:
@@ -142,6 +133,29 @@ jobs:
           repository: JerryBerry12/glare-core
           ref: master
           path: work/glare-core
+
+      - name: Patch glare-core cmake.rb to use Enterprise MSBuild
+        shell: pwsh
+        run: |
+          # cmake.rb @@vs_versions hardcodes the Community edition path for VS2022.
+          # On the GitHub Actions windows-2022 runner only Enterprise is installed, so
+          # getMSBuildPath() falls through to the VS2012 entry (old .NET Framework MSBuild).
+          $cmakeRb = "work/glare-core/scripts/cmake.rb"
+          $content = Get-Content $cmakeRb -Raw
+          $oldPath = 'C:\Program Files\Microsoft Visual Studio\2022\Community\Msbuild\Current\Bin\MSBuild.exe'
+          $newPath = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\amd64\MSBuild.exe'
+          if (-not (Test-Path $newPath)) {
+            Write-Host "Enterprise MSBuild not found at $newPath"
+            exit 1
+          }
+          if ($content.Contains($oldPath)) {
+            $patched = $content.Replace($oldPath, $newPath)
+            Set-Content -Path $cmakeRb -Value $patched -NoNewline
+            Write-Host "Patched $cmakeRb : Community -> Enterprise MSBuild path"
+          } else {
+            Write-Host "WARNING: Expected Community MSBuild path not found in $cmakeRb - dumping VS2022 entry lines for diagnosis:"
+            $content -split "`n" | Where-Object { $_ -match '2022' } | Write-Host
+          }
 
       - name: Checkout winter
         uses: actions/checkout@v4
@@ -276,10 +290,6 @@ jobs:
         working-directory: work/substrata/scripts
         run: |
           ruby copy_files_to_output.rb --no_cef
-
-      - name: Show disk space (after build)
-        shell: bash
-        run: df -h || true
 
       - name: Create distributable zip from output directory
         id: package
