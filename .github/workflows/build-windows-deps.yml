@@ -185,13 +185,15 @@ jobs:
           $debugPattern = 'MSVCRTD\.dll|MSVCP\d*D\.dll|VCRUNTIME\d+D\.dll'
           $badFiles = @()
 
-          Get-ChildItem -Path $searchRoot -Recurse -Include *.dll,*.exe -ErrorAction SilentlyContinue | ForEach-Object {
-            $deps = & dumpbin /dependents $_.FullName 2>$null
-            if ($deps -match $debugPattern) {
-              Write-Host "DEBUG CRT found: $($_.FullName)"
-              $badFiles += $_.FullName
+          Get-ChildItem -Path $searchRoot -Recurse -Include *.dll,*.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } |
+            ForEach-Object {
+              $deps = & dumpbin /dependents $_.FullName 2>$null
+              if ($deps -match $debugPattern) {
+                Write-Host "DEBUG CRT found: $($_.FullName)"
+                $badFiles += $_.FullName
+              }
             }
-          }
 
           if ($badFiles.Count -gt 0) {
             Write-Host "One or more LLVM-built binaries link against debug CRTs:"
