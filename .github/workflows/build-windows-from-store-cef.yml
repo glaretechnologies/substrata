@@ -257,9 +257,9 @@ jobs:
 
             # Ensure wrapper is at the path Substrata CMake expects
             if [ -n "$LIBWRAP" ]; then
-              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release"
-              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/libcef_dll_wrapper.lib"
-              echo "Copied libcef_dll_wrapper.lib -> $CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/"
+              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release"
+              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib"
+              echo "Copied libcef_dll_wrapper.lib -> $CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/"
             fi
 
             # Ensure sandbox lib is available under Release/ and Debug/
@@ -310,8 +310,8 @@ jobs:
             SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.lib' -print -quit || true)"
 
             if [ -n "$LIBWRAP" ]; then
-              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release"
-              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/libcef_dll_wrapper.lib"
+              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release"
+              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib"
             fi
 
             if [ -n "$SANDBOX" ]; then
@@ -329,7 +329,7 @@ jobs:
           fi
 
           # Sanity check
-          if [ ! -f "$CEF_EXTRACT/libcef_dll_build/libcef_dll/Release/libcef_dll_wrapper.lib" ]; then
+          if [ ! -f "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib" ]; then
             echo "WARNING: libcef_dll_wrapper.lib not at expected path; listing fallback locations:"
             find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.lib' -print || true
           fi
