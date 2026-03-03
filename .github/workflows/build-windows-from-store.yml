@@ -156,6 +156,22 @@ jobs:
             $content -split "`n" | Where-Object { $_ -match '2022' } | Write-Host
           }
 
+          # 1b) Same patch for substrata/scripts/cmake.rb
+          $subCmakeRb = "work/substrata/scripts/cmake.rb"
+          if (Test-Path $subCmakeRb) {
+            $sc = Get-Content $subCmakeRb -Raw
+            if ($sc.Contains($oldPath)) {
+              $sc = $sc.Replace($oldPath, $newPath)
+              Set-Content -Path $subCmakeRb -Value $sc -NoNewline
+              Write-Host "Patched substrata cmake.rb: Community -> Enterprise MSBuild path"
+            } else {
+              Write-Host "WARNING: Community MSBuild path not found in substrata cmake.rb - dumping VS2022 lines:"
+              $sc -split "`n" | Where-Object { $_ -match '2022' } | Write-Host
+            }
+          } else {
+            Write-Host "substrata/scripts/cmake.rb not found, skipping"
+          }
+
           # 2) script_utils.rb extractArchive: on Windows it calls 'tar -x -f' for ALL
           #    archives where tar is present, including .zip files. GNU tar on Windows
           #    cannot read ZIP format, so .zip extraction must fall through to the 7z path.
