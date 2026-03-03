@@ -2,7 +2,7 @@
 	<page>
 		<url_path>/about_luau_scripting</url_path>
 		<fragment_path>about_luau_scripting.htmlfrag</fragment_path>
-		<page_title>Luau Scripting in Substrata</page_title>
+		<page_title>Luau Scripting in KingdomVR</page_title>
 	</page>
 	<page>
 		<url_path>/example_luau_scripts</url_path>
@@ -13,7 +13,7 @@
 	<page>
 		<url_path>/features</url_path>
 		<fragment_path>features.htmlfrag</fragment_path>
-		<page_title>Substrata Features</page_title>
+		<page_title>KingdomVR Features</page_title>
 	</page>
 	
 	<page>
@@ -33,9 +33,11 @@
 		<fragment_path>about_chatbots.htmlfrag</fragment_path>
 		<page_title>Chatbots</page_title>
 	</page>
+	
 	<page>
 		<url_path>/create_avatar</url_path>
 		<fragment_path>avatar_creation_guide.htmlfrag</fragment_path>
 		<page_title>How to make an avatar in KingdomVR</page_title>
 	</page>
 </pages>
+
