@@ -321,7 +321,7 @@ jobs:
         shell: bash
         working-directory: work/substrata/scripts
         run: |
-          ruby copy_files_to_output.rb --no_cef
+          ruby copy_files_to_output.rb --no_cef --config=Release
 
       - name: Create distributable zip from output directory
         id: package
@@ -330,7 +330,9 @@ jobs:
           set -euxo pipefail
 
           # Find the built executable to determine the output folder
-          BUILD_DIR="$BASE_DIR/substrata_build"
+          BUILD_DIR="$BASE_DIR/substrata_output"
+          # Normalize to POSIX/Git-Bash form so find/cd/tar behave consistently on Windows runners
+          BUILD_DIR="$(echo "$BUILD_DIR" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
           EXE=""
           if [ -f "$BUILD_DIR/Release/gui_client.exe" ]; then
             EXE="$BUILD_DIR/Release/gui_client.exe"
@@ -339,8 +341,12 @@ jobs:
             EXE="$BUILD_DIR/gui_client.exe"
             EXE_DIR="$BUILD_DIR"
           else
-            EXE="$(find "$BUILD_DIR" -name "gui_client.exe" | head -n1 || true)"
-            EXE_DIR="$(dirname "$EXE")"
+            # Use find to locate the exe anywhere under the substrata_output tree
+            EXE="$(find "$BUILD_DIR" -name "gui_client.exe" -print -quit || true)"
+            if [ -n "$EXE" ]; then
+              EXE="$(echo "$EXE" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\1|')"
+              EXE_DIR="$(dirname "$EXE")"
+            fi
           fi
 
           if [ -z "$EXE" ] || [ ! -f "$EXE" ]; then

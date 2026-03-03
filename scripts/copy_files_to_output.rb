@@ -9,13 +9,17 @@ require './config-lib.rb'
 
 
 $copy_cef = true
-$copy_bugsplat = true
+$copy_bugsplat = false
+$only_config = nil
 
 
 def printUsage()
 	puts "Usage: copy_files_to_output.rb [arguments]"
 	puts ""
 	puts "\t--no_cef, \t\tSkip copying CEF files."
+	puts "\t--config=<Debug|RelWithDebInfo|Release>\tOnly process the specified build configuration (Windows only)."
+	puts ""
+	puts "\t"
 	puts ""
 	puts "\t--help, -h\t\tShows this help."
 	puts ""
@@ -28,6 +32,21 @@ arg_parser.options.each do |opt|
 		$copy_cef = false
 	elsif opt[0] == "--no_bugsplat"
 		$copy_bugsplat = false
+	elsif opt[0].start_with?("--config")
+		# Accept --config=VALUE or --config VALUE (ArgumentParser may provide value in opt[1])
+		val = nil
+		if opt[0].include?("=")
+			val = opt[0].split("=",2)[1]
+		elsif opt.length > 1 && opt[1]
+			val = opt[1]
+		end
+		valid = ["Debug", "RelWithDebInfo", "Release"]
+		if val && valid.include?(val)
+			$only_config = val
+		else
+			puts "Invalid or missing value for --config. Expected one of: #{valid.join(', ')}"
+			exit 1
+		end
 	elsif opt[0] == "--help" || opt[0] == "-h"
 		printUsage()
 		exit 0
@@ -40,34 +59,24 @@ end
 
 def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 
-	begin
-		output_dir = getCmakeBuildDir(vs_version, "Debug")
+	# Process configured build configurations. If $only_config is set (via --config),
+	# only that configuration will be processed. This is intended for Windows use.
+	configs = ["Debug", "RelWithDebInfo", "Release"]
+	configs.each do |cfg|
+		next if $only_config && cfg != $only_config
+
+		output_dir = getCmakeBuildDir(vs_version, cfg)
 
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
-		copyCEFRedistWindows(output_dir, true) if $copy_cef
+		# Preserve previous behavior where Debug passed an extra 'true' flag.
+		if cfg == "Debug"
+			copyCEFRedistWindows(output_dir, true) if $copy_cef
+		else
+			copyCEFRedistWindows(output_dir) if $copy_cef
+		end
 		copyBugSplatRedist(output_dir) if $copy_bugsplat
-		copyQtRedistWindows(vs_version, output_dir, true)
-		copySDLRedistWindows(vs_version, output_dir, true)
-	end
-
-	begin
-		output_dir = getCmakeBuildDir(vs_version, "RelWithDebInfo")
-
-		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
-		copyCEFRedistWindows(output_dir) if $copy_cef
-		copyBugSplatRedist(output_dir) if $copy_bugsplat
-		copyQtRedistWindows(vs_version, output_dir, false)
-		copySDLRedistWindows(vs_version, output_dir, false)
-	end
-
-	begin
-		output_dir = getCmakeBuildDir(vs_version, "Release")
-
-		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
-		copyCEFRedistWindows(output_dir) if $copy_cef
-		copyBugSplatRedist(output_dir) if $copy_bugsplat
-		copyQtRedistWindows(vs_version, output_dir, false)
-		copySDLRedistWindows(vs_version, output_dir, false)
+		copyQtRedistWindows(vs_version, output_dir, cfg == "Debug")
+		copySDLRedistWindows(vs_version, output_dir, cfg == "Debug")
 	end
 end
 
