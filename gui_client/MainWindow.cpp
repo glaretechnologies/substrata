@@ -4149,7 +4149,7 @@ void MainWindow::openServerScriptLogSlot()
 {
 	const std::string hostname = gui_client.server_hostname.empty() ? "play.kingdmvr.com" : gui_client.server_hostname;
 
-	QDesktopServices::openUrl(QtUtils::toQString("https://kingdmvr.com/script_log"));
+	QDesktopServices::openUrl(QtUtils::toQString(std::string("https://kingdmvr.com/script_log")));
 }
 
 
