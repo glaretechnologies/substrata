@@ -156,7 +156,7 @@
       <item row="14" column="1">
        <widget class="QLabel" name="showOnWebLabel">
         <property name="text">
-         <string>&lt;a href=&quot;#boo&quot;&gt;Show parcel on substrata.info&lt;/a&gt;</string>
+         <string>&lt;a href=&quot;#boo&quot;&gt;Show parcel on kingdmvr.com&lt;/a&gt;</string>
         </property>
        </widget>
       </item>

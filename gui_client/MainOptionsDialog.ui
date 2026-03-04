@@ -71,7 +71,7 @@
    <item>
     <widget class="QGroupBox" name="groupBox">
      <property name="title">
-      <string>Graphics (restart Substrata to apply changes)</string>
+      <string>Graphics (restart KingdomVR to apply changes)</string>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
@@ -143,7 +143,7 @@
    <item>
     <widget class="QGroupBox" name="groupBox_3">
      <property name="title">
-      <string>Disk options (restart Substrata to apply changes)</string>
+      <string>Disk options (restart KingdomVR to apply changes)</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
       <item row="0" column="0">

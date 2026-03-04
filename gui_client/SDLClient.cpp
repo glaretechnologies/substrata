@@ -378,7 +378,7 @@ int main(int argc, char** argv)
 #if EMSCRIPTEN
 		const char* window_name = "Substrata Web Client"; // Seems to get used for the web page title
 #else
-		const char* window_name = "Substrata SDL Client";
+		const char* window_name = "KingdomVR SDL Client";
 #endif
 		// SDL_WINDOW_ALLOW_HIGHDPI results in 1:1 drawable (viewport) pixels to device/hardware pixels.
 		// This is too high res for mobile - rendering is too slow.  So just leave it off for now.
@@ -605,7 +605,7 @@ int main(int argc, char** argv)
 			URLParser::processQueryKeyValues(queries, url_parse_results);
 		}
 #else
-		std::string server_URL = "sub://substrata.info"; // Default URL
+		std::string server_URL = "sub://play.kingdmvr.com"; // Default URL
 
 		if(parsed_args.isArgPresent("-h"))
 		{

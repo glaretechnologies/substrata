@@ -551,7 +551,7 @@
   </action>
   <action name="actionAbout_Substrata">
    <property name="text">
-    <string>About Substrata</string>
+    <string>About KingdomVR</string>
    </property>
   </action>
   <action name="actionOptions">

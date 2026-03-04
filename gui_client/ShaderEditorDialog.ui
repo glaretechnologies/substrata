@@ -191,14 +191,14 @@
     <item>
      <widget class="QLabel" name="openServerScriptLogLabel">
       <property name="text">
-       <string>&lt;a href=&quot;https://substrata.info/script_log&quot;&gt;Show server script log&lt;/a&gt;</string>
+       <string>&lt;a href=&quot;https://kingdmvr.com/script_log&quot;&gt;Show server script log&lt;/a&gt;</string>
       </property>
      </widget>
     </item>
     <item>
      <widget class="QLabel" name="label_2">
       <property name="text">
-       <string>&lt;a href=&quot;https://substrata.info/about_scripting&quot;&gt;Scripting documentation&lt;/a&gt;  &amp;nbsp; &amp;nbsp; &amp;nbsp;    &lt;a href=&quot;https://substrata.info/example_luau_scripts&quot;&gt;Example Luau scripts&lt;/a&gt;</string>
+       <string>&lt;a href=&quot;https://kingdmvr.com/about_scripting&quot;&gt;Scripting documentation&lt;/a&gt;  &amp;nbsp; &amp;nbsp; &amp;nbsp;    &lt;a href=&quot;https://kingdmvr.com/example_luau_scripts&quot;&gt;Example Luau scripts&lt;/a&gt;</string>
       </property>
       <property name="textFormat">
        <enum>Qt::RichText</enum>

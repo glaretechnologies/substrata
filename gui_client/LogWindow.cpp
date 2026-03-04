@@ -23,7 +23,7 @@ LogWindow::LogWindow(
 	this->restoreGeometry(settings->value("LogWindow/geometry").toByteArray());
 	this->restoreState(settings->value("LogWindow/windowState").toByteArray());
 
-	openServerScriptLogLabel->setText(QtUtils::toQString("<a href=\"https://substrata.info/script_log\"><span>Show server script log</span></a>"));
+	openServerScriptLogLabel->setText(QtUtils::toQString("<a href=\"https://kingdmvr.com/script_log\"><span>Show server script log</span></a>"));
 }
 
 
