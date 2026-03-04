@@ -435,6 +435,30 @@ jobs:
             echo "No unguarded fp.h include found in $PNGPRIV"
           fi
 
+      - name: Patch zlib zutil.h to avoid breaking fdopen on macOS
+        env:
+          BASE_DIR: ${{ github.workspace }}/work
+        run: |
+          set -euxo pipefail
+
+          # Find zutil.h in glare-core
+          ZUTIL="$(find "$BASE_DIR/glare-core" -type f -name zutil.h -path '*/zlib/*' -print -quit || true)"
+          if [ -z "$ZUTIL" ]; then
+            echo "zutil.h not found under $BASE_DIR/glare-core/zlib; skipping patch"
+            exit 0
+          fi
+
+          echo "Patching $ZUTIL to avoid fdopen macro on macOS"
+
+          # Comment out the fdopen macro definition that breaks on macOS
+          if grep -q "#\s*define\s*fdopen" "$ZUTIL"; then
+            sed -i.bak '/^[[:space:]]*#[[:space:]]*define[[:space:]]*fdopen/s/^/\/\/ /' "$ZUTIL"
+            echo "Patched fdopen macro in $ZUTIL"
+            grep -n "fdopen" "$ZUTIL" || true
+          else
+            echo "No fdopen macro found in $ZUTIL"
+          fi
+
       - name: Configure CMake (Release, CEF flags if provided, x86_64) with sandbox linker fix
         env:
           # pick up CEF_SUPPORT and CEF_ROOT if earlier steps set them via GITHUB_ENV
