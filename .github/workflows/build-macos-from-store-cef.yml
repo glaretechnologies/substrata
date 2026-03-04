@@ -410,24 +410,25 @@ jobs:
 
           # Wrap a plain '# include <fp.h>' with a guard so macOS won't attempt to include it.
           # Only perform the edit if an unguarded include exists.
-            if grep -q "#\s*include\s*<fp.h>" "$PNGPRIV"; then
-            python3 "$PNGPRIV" <<'PY'
-            import sys, re
-            p = sys.argv[1]
-            with open(p, 'r', encoding='utf-8') as f:
+          if grep -q "#\s*include\s*<fp.h>" "$PNGPRIV"; then
+            cat > /tmp/patch_fp.py << 'PYSCRIPT'
+          import sys, re
+          p = sys.argv[1]
+          with open(p, 'r', encoding='utf-8') as f:
               s = f.read()
-            pattern = re.compile(r'(^[ \t]*#\s*include\s*<fp\.h>\s*$)', re.M)
-            if pattern.search(s):
+          pattern = re.compile(r'(^[ \t]*#\s*include\s*<fp\.h>\s*$)', re.M)
+          if pattern.search(s):
               def repl(m):
-                inc = m.group(1)
-                return '#if defined(HAVE_FP_H) && !defined(__APPLE__)\n' + inc + '\n#endif'
+                  inc = m.group(1)
+                  return '#if defined(HAVE_FP_H) && !defined(__APPLE__)\n' + inc + '\n#endif'
               s2 = pattern.sub(repl, s, count=1)
               with open(p, 'w', encoding='utf-8') as f:
-                f.write(s2)
+                  f.write(s2)
               print('patched')
-            else:
+          else:
               print('no-match')
-            PY
+          PYSCRIPT
+            python3 /tmp/patch_fp.py "$PNGPRIV"
             echo "Patch result for $PNGPRIV:"
             grep -n -E "include <fp.h>|HAVE_FP_H" "$PNGPRIV" || true
           else
