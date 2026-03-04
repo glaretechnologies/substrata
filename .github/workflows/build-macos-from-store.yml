@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   build-macos:
-    runs-on: macos-14
+    runs-on: macos-13
 
     env:
       BASE_DIR: ${{ github.workspace }}/work
@@ -188,14 +188,13 @@ jobs:
 
           kill $HEARTBEAT_PID || true
 
-      - name: Configure CMake (Release, no CEF, ARM64)
+      - name: Configure CMake (Release, no CEF, x86_64)
         run: |
           mkdir -p "$BASE_DIR/substrata_build"
           cd "$BASE_DIR/substrata_build"
           cmake "$BASE_DIR/substrata" \
             -DCEF_SUPPORT="$CEF_SUPPORT" \
-            -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" \
-            -DTARGET_ARM64=ON
+            -DCMAKE_BUILD_TYPE="$BUILD_CONFIG"
 
       - name: Build gui_client (make)
         run: |

@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build-deps:
-    runs-on: macos-14
+    runs-on: macos-13
 
     env:
       BASE_DIR: ${{ github.workspace }}/work
