@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-15-intel
 
     env:
       BASE_DIR: ${{ github.workspace }}/work
