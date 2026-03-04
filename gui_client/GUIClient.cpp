@@ -14135,19 +14135,22 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						show_mouseover_info_ui = true;
 					}
 
-			if(ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
-						const Vec4f vehicle_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
-						const Vec4f vehicle_up_ws = normalise(obToWorldMatrix(*ob) * vehicle_up_os);
-						const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
+				if(ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
+				{
+					// If the vehicle is rightable (e.g. bike), display righting message if the vehicle is upside down.  Otherwise just display enter message.
+					const Vec4f up_z_up(0,0,1,0);
+					const Vec4f vehicle_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
+					const Vec4f vehicle_up_ws = normalise(obToWorldMatrix(*ob) * vehicle_up_os);
+					const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
 
-						if(upright || !ob->vehicle_script->isRightable())
-							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to enter vehicle" : "Press [A] on gamepad to enter vehicle", cursor_gl_coords);
-						else
-							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to right vehicle" : "Press [A] on gamepad to right vehicle", cursor_gl_coords);
-						show_mouseover_info_ui = true;
-					}
+					if(upright || !ob->vehicle_script->isRightable())
+						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to enter vehicle" : "Press [A] on gamepad to enter vehicle", cursor_gl_coords);
+					else
+						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to right vehicle" : "Press [A] on gamepad to right vehicle", cursor_gl_coords);
+					show_mouseover_info_ui = true;
+				}
 
-					if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
+				if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
 					{
 						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to use" : "Press [A] on gamepad to use", cursor_gl_coords);
 						show_mouseover_info_ui = true;
@@ -15633,7 +15636,9 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 					return;
 				}
 
-			if(ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && ob->physics_object.nonNull())
+				if(ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && ob->physics_object.nonNull())
+				{
+					if(ob->isDynamic()) // Make sure object is dynamic, which is needed for vehicles
 					{
 						if(vehicle_controller_inside.isNull()) // If we are not in a vehicle already:
 						{
