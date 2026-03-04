@@ -188,7 +188,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
 #elif defined(_WIN32)
 	settings.no_sandbox = true;
-	const std::string browser_process_path = base_dir_path + "/browser_process.exe";
+	const std::string browser_process_path = base_dir_path + "\\browser_process.exe";
 	// conPrint("Using browser_process_path '" + browser_process_path + "'...");
 	CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
 
@@ -200,7 +200,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 
 	// Set a root dir for the browser cache, as recommended by CEF (see cef_types.h)
 	// Otherwise a default cache dir is used that might clash with other applications using CEF.
-	const std::string root_cache_path = appdata_path + "/CEF_cache";
+	const std::string root_cache_path = appdata_path + "\\CEF_cache";
 	CefString(&settings.root_cache_path).FromString(root_cache_path);
 
 
@@ -272,3 +272,4 @@ void CEF::doMessageLoopWork()
 		CefDoMessageLoopWork();
 #endif // CEF_SUPPORT
 }
+
