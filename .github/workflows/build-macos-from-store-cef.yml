@@ -409,7 +409,7 @@ jobs:
           echo "Patching $PNGPRIV to guard fp.h include on macOS"
 
           # Wrap a plain '# include <fp.h>' with a guard so macOS won't attempt to include it.
-          # Only perform the edit if an unguarded include exists.
+          # On macOS, include <math.h> instead since fp.h doesn't exist but math functions are needed.
           if grep -q "#\s*include\s*<fp.h>" "$PNGPRIV"; then
             cat > /tmp/patch_fp.py << 'PYSCRIPT'
           import sys, re
@@ -420,7 +420,7 @@ jobs:
           if pattern.search(s):
               def repl(m):
                   inc = m.group(1)
-                  return '#if defined(HAVE_FP_H) && !defined(__APPLE__)\n' + inc + '\n#endif'
+                  return '#if defined(HAVE_FP_H) && !defined(__APPLE__)\n' + inc + '\n#elif defined(__APPLE__)\n#  include <math.h>\n#endif'
               s2 = pattern.sub(repl, s, count=1)
               with open(p, 'w', encoding='utf-8') as f:
                   f.write(s2)
