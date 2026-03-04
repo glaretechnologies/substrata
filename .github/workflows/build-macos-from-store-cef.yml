@@ -393,6 +393,31 @@ jobs:
 
           kill $HEARTBEAT_PID || true
 
+      - name: Patch libpng to avoid including <fp.h> on macOS
+        env:
+          BASE_DIR: ${{ github.workspace }}/work
+        run: |
+          set -euxo pipefail
+
+          # Look for pngpriv.h inside the checked-out glare-core copy
+          PNGPRIV="$(find "$BASE_DIR/glare-core" -type f -name pngpriv.h -print -quit || true)"
+          if [ -z "$PNGPRIV" ]; then
+            echo "pngpriv.h not found under $BASE_DIR/glare-core; skipping patch"
+            exit 0
+          fi
+
+          echo "Patching $PNGPRIV to guard fp.h include on macOS"
+
+          # Wrap a plain '# include <fp.h>' with a guard so macOS won't attempt to include it.
+          # Only perform the edit if an unguarded include exists.
+          if grep -q "#\s*include\s*<fp.h>" "$PNGPRIV"; then
+            perl -0777 -pe '\n s/\n(\s*#\s*include\s*<fp.h>\s*\n)/\n#if defined(HAVE_FP_H) && !defined(__APPLE__)\n$1#endif\n/sx' -i "$PNGPRIV"
+            echo "Patched:"
+            sed -n '1,220p' "$PNGPRIV" | sed -n '500,540p' || true
+          else
+            echo "No unguarded fp.h include found in $PNGPRIV"
+          fi
+
       - name: Configure CMake (Release, CEF flags if provided, x86_64) with sandbox linker fix
         env:
           # pick up CEF_SUPPORT and CEF_ROOT if earlier steps set them via GITHUB_ENV
