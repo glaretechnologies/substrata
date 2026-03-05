@@ -14138,13 +14138,11 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 				if(ob && ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
 				{
 					// If the vehicle is rightable (e.g. bike), display righting message if the vehicle is upside down.  Otherwise just display enter message.
+				// Additional safety check: verify ob fields are valid before computing matrix
+				if(ob->pos.isFinite() && ob->axis.isFinite() && ::isFinite(ob->angle) && ob->scale.isFinite())
+				{
 					const Vec4f up_z_up(0,0,1,0);
 					const Vec4f vehicle_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
-					
-					// Additional safety check: verify ob fields are valid before computing matrix
-					if(!ob->pos.isFinite() || !ob->axis.isFinite() || !::isFinite(ob->angle) || !ob->scale.isFinite())
-						continue; // Skip this object if transform data is invalid
-					
 					const Vec4f vehicle_up_ws = normalise(obToWorldMatrix(*ob) * vehicle_up_os);
 					const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
 
@@ -14154,12 +14152,13 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to right vehicle" : "Press [A] on gamepad to right vehicle", cursor_gl_coords);
 					show_mouseover_info_ui = true;
 				}
+				}
 
 				if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
-					{
-						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to use" : "Press [A] on gamepad to use", cursor_gl_coords);
-						show_mouseover_info_ui = true;
-					}
+				{
+					ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to use" : "Press [A] on gamepad to use", cursor_gl_coords);
+					show_mouseover_info_ui = true;
+				}
 
 					if(show_mouseover_info_ui)
 					{
@@ -15647,16 +15646,14 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 					{
 						if(vehicle_controller_inside.isNull()) // If we are not in a vehicle already:
 						{
-							// Try to enter the vehicle.
-							const Vec4f up_z_up(0,0,1,0);
-							const Vec4f bike_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
-							
 							// Additional safety check: verify ob fields are valid before computing matrix
-							if(!ob->pos.isFinite() || !ob->axis.isFinite() || !::isFinite(ob->angle) || !ob->scale.isFinite())
-								return; // Skip vehicle entry if transform data is invalid
-							
-							const Vec4f bike_up_ws = normalise(obToWorldMatrix(*ob) * bike_up_os);
-							const bool upright = dot(bike_up_ws, up_z_up) > 0.5f;
+							if(ob->pos.isFinite() && ob->axis.isFinite() && ::isFinite(ob->angle) && ob->scale.isFinite())
+							{
+								// Try to enter the vehicle.
+								const Vec4f up_z_up(0,0,1,0);
+								const Vec4f bike_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
+								const Vec4f bike_up_ws = normalise(obToWorldMatrix(*ob) * bike_up_os);
+								const bool upright = dot(bike_up_ws, up_z_up) > 0.5f;
 
 							// See if there are any spare seats
 							int free_seat_index = -1;
@@ -15725,6 +15722,7 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 							}
 
 							return;
+							}  // Close the if(ob->pos.isFinite()...) check
 						}
 					}
 					else // else if !ob->isDyanmic():
