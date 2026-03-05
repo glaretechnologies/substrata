@@ -51,6 +51,7 @@ const std::string standardHTMLHeader(WebDataStore& data_store, const web::Reques
 		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>\n"
 		"		<link href=\"/files/main.css?hash=" + data_store.main_css_hash + "\" rel=\"stylesheet\" />\n"
 		"		<link rel=\"icon\" type=\"image/png\" href=\"/files/favicon.png\">\n"
+		"		<script src=\"/files/dark-mode.js?hash=" + data_store.main_css_hash + "\"></script>\n"
 		+ extra_header_tags + 
 		"	</head>\n";
 }
@@ -83,6 +84,10 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 	{
 		page_out += "<a href=\"/login\">log in</a> <br/>\n";
 	}
+	
+	// Add dark mode toggle button
+	page_out += "<a href=\"javascript:void(0);\" class=\"dark-mode-toggle\" onclick=\"toggleDarkMode()\" title=\"Toggle dark mode\">Theme</a>\n";
+	
 	page_out += 
 	"	</div>																									\n" // End login div
 	"	<a href=\"/\"><img src=\"/files/logo_small.png\" alt=\"substrata logo\" class=\"substrata-logo-top-small\"/></a>											\n"

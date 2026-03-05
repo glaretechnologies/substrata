@@ -1,3 +1,47 @@
+:root {
+	--bg-color: #ffffff;
+	--text-color: #222;
+	--link-color: #25617e;
+	--header-bg: #f4f4f4;
+	--border-color: #ddd;
+	--code-bg: #f4f4f4;
+	--code-border: #ddd;
+	--grouped-bg: #f4f4f4;
+	--map-info-bg: rgba(255, 255, 255, 0.8);
+	--caption-color: grey;
+	--footer-color: grey;
+	--news-title-color: black;
+	--news-link-color: black;
+	--event-time-color: #777;
+	--input-bg: #ffffff;
+	--input-border: #ccc;
+	--input-text: #222;
+	--toggle-bg: #ddd;
+	--toggle-active: #4CAF50;
+}
+
+body.dark-mode {
+	--bg-color: #1a1a1a;
+	--text-color: #e0e0e0;
+	--link-color: #5ba7d4;
+	--header-bg: #2a2a2a;
+	--border-color: #444;
+	--code-bg: #2a2a2a;
+	--code-border: #444;
+	--grouped-bg: #252525;
+	--map-info-bg: rgba(30, 30, 30, 0.9);
+	--caption-color: #aaa;
+	--footer-color: #aaa;
+	--news-title-color: #e0e0e0;
+	--news-link-color: #e0e0e0;
+	--event-time-color: #aaa;
+	--input-bg: #2a2a2a;
+	--input-border: #444;
+	--input-text: #e0e0e0;
+	--toggle-bg: #444;
+	--toggle-active: #5ba7d4;
+}
+
 body {
 	margin-top: 0;
 	margin-bottom: 40px;
@@ -6,10 +50,12 @@ body {
 	max-width: 1000px;
 	line-height: 1.6;
 	font-size: 18px;
-	color: #222;
+	color: var(--text-color);
+	background-color: var(--bg-color);
 	/*padding: 0 10px;*/
 	padding: 0;
 	font-family: Helvetica;
+	transition: background-color 0.3s ease, color 0.3s ease;
 }
 .root-body {
 	/*margin-top: 46px;*/
@@ -53,7 +99,7 @@ td
 }
 a
 {
-	color: #25617e;
+	color: var(--link-color);
 }
 .main
 {
@@ -62,7 +108,7 @@ a
 .caption
 {
 	font-size: 0.8em;
-	color: grey;
+	color: var(--caption-color);
 	margin-bottom: 20px;
 }
 #login
@@ -73,9 +119,8 @@ a
 }
 .map-info {
 	padding: 6px 8px;
-	background: white;
-	background: rgba(255,255,255,0.8);
-	box-shadow: 0 0 15px rgba(0,0,0,0.15);
+	background: var(--map-info-bg);
+	box-shadow: 0 0 15px rgba(0,0,0,0.4);
 	border-radius: 5px;
 }
 
@@ -94,7 +139,7 @@ a
 
 .footer {
 	font-size: 0.8em;
-	color: grey;
+	color: var(--footer-color);
 	text-align: center;
 }
 
@@ -176,15 +221,15 @@ a
 .commands {
 	font-size: 0.8em;
 	font-family: "Lucida Console", Courier, monospace;
-	background-color: rgb(230, 230, 230);
+	background-color: var(--code-bg);
 	overflow: auto;
 }
 .code-block {
 	/* Style from https://stackoverflow.com/a/48694906 */
-	background: #f4f4f4;
-	border: 1px solid #ddd;
+	background: var(--code-bg);
+	border: 1px solid var(--border-color);
 	border-left: 3px solid #f36d33;
-	color: #666;
+	color: var(--text-color);
 	page-break-inside: avoid;
 	font-family: monospace;
 	font-size: 15px;
@@ -245,14 +290,14 @@ a
 }
 
 .root-news-title a { /*override link colour*/
-	color: black;
+	color: var(--news-title-color);
 }
 
 .root-news-content {
 }
 
 .root-news-content a { /*override link colour*/
-	color: black;
+	color: var(--news-link-color);
 	text-decoration: none;
 }
 
@@ -299,20 +344,20 @@ a
 }
 
 .root-event-title a { /*override link colour*/
-	color: black;
+	color: var(--news-title-color);
 }
 
 .root-event-content {
 }
 
 .root-event-content a { /*override link colour*/
-	color: black;
+	color: var(--news-link-color);
 	text-decoration: none;
 }
 
 .root-event-time {
 	font-size: 0.8em;
-	color: #777;
+	color: var(--event-time-color);
 }
 
 .event-image {
@@ -483,7 +528,7 @@ a
 	margin-bottom: 0.5em;
 	font-size: 1.2em;
 	font-weight: 400;
-	background-color: #ecf9f2;
+	background-color: var(--header-bg);
 }
 
 .code-arg {
@@ -492,10 +537,10 @@ a
 }
 
 .code-arg-code {
-	background: #f4f4f4;
-	border: 1px solid #ddd;
+	background: var(--code-bg);
+	border: 1px solid var(--border-color);
 	border-left: 3px solid #caefef;
-	color: #444;
+	color: var(--text-color);
 	font-family: monospace;
 	font-size: 16px;
 	margin-right: 0.5em;
@@ -512,10 +557,10 @@ a
 	margin-bottom: 0.3em;
 }
 .code-attr-code {
-	background: #f4f4f4;
-	border: 1px solid #ddd;
+	background: var(--code-bg);
+	border: 1px solid var(--border-color);
 	border-left: 3px solid #caefef;
-	color: #444;
+	color: var(--text-color);
 	font-family: monospace;
 	font-size: 16px;
 	margin-right: 1em;
@@ -539,7 +584,7 @@ a
 }
 
 .grouped-region {
-	background: #f4f4f4;
+	background: var(--grouped-bg);
 	padding: 1em;
 	margin-bottom: 1em;
 }
@@ -554,4 +599,55 @@ a
 	width: 96%;
 	text-align: right;
 	padding: 0.5em;
+}
+
+/* Input and form styling for dark mode */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+textarea,
+select {
+	background-color: var(--input-bg);
+	color: var(--input-text);
+	border: 1px solid var(--input-border);
+	padding: 0.5em;
+	transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+textarea:focus,
+select:focus {
+	border-color: var(--link-color);
+	outline: none;
+}
+
+/* Dark mode toggle button */
+.dark-mode-toggle {
+	display: inline-block;
+	margin-left: 10px;
+	cursor: pointer;
+	background: var(--toggle-bg);
+	border: 2px solid var(--border-color);
+	border-radius: 20px;
+	padding: 4px 12px;
+	font-size: 14px;
+	transition: all 0.3s ease;
+	color: var(--text-color);
+	text-decoration: none;
+}
+
+.dark-mode-toggle:hover {
+	background: var(--toggle-active);
+	color: white;
+}
+
+.dark-mode-toggle::before {
+	content: "🌙";
+	margin-right: 4px;
+}
+
+body.dark-mode .dark-mode-toggle::before {
+	content: "☀️";
 }
