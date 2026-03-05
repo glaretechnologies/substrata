@@ -53,6 +53,8 @@ struct VehicleScriptedSettings : public RefCounted
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
+	VehicleScriptedSettings() : model_to_y_forwards_rot_1(Quatf::identity()), model_to_y_forwards_rot_2(Quatf::identity()) {}
+
 	virtual ~VehicleScriptedSettings() {}
 
 	Quatf model_to_y_forwards_rot_1;
