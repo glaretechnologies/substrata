@@ -14135,11 +14135,16 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						show_mouseover_info_ui = true;
 					}
 
-				if(ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
+				if(ob && ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
 				{
 					// If the vehicle is rightable (e.g. bike), display righting message if the vehicle is upside down.  Otherwise just display enter message.
 					const Vec4f up_z_up(0,0,1,0);
 					const Vec4f vehicle_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
+					
+					// Additional safety check: verify ob fields are valid before computing matrix
+					if(!ob->pos.isFinite() || !ob->axis.isFinite() || !::isFinite(ob->angle) || !ob->scale.isFinite())
+						continue; // Skip this object if transform data is invalid
+					
 					const Vec4f vehicle_up_ws = normalise(obToWorldMatrix(*ob) * vehicle_up_os);
 					const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
 
@@ -15636,7 +15641,7 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 					return;
 				}
 
-				if(ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && ob->physics_object.nonNull())
+				if(ob && ob->vehicle_script.nonNull() && ob->vehicle_script->settings.nonNull() && ob->physics_object.nonNull())
 				{
 					if(ob->isDynamic()) // Make sure object is dynamic, which is needed for vehicles
 					{
@@ -15645,6 +15650,11 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 							// Try to enter the vehicle.
 							const Vec4f up_z_up(0,0,1,0);
 							const Vec4f bike_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
+							
+							// Additional safety check: verify ob fields are valid before computing matrix
+							if(!ob->pos.isFinite() || !ob->axis.isFinite() || !::isFinite(ob->angle) || !ob->scale.isFinite())
+								return; // Skip vehicle entry if transform data is invalid
+							
 							const Vec4f bike_up_ws = normalise(obToWorldMatrix(*ob) * bike_up_os);
 							const bool upright = dot(bike_up_ws, up_z_up) > 0.5f;
 
