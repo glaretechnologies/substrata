@@ -14075,7 +14075,7 @@ inline static bool clipLineToPlaneBackHalfSpace(const Planef& plane, Vec4f& a, V
 void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2f& cursor_gl_coords, MouseEvent* mouse_event, bool cursor_is_mouse_cursor)
 {
 	// New for object mouseover hyperlink showing, and webview mouse-move events:
-	if(this->physics_world.nonNull())
+	if(this->physics_world.nonNull() && this->opengl_engine.nonNull())
 	{
 		// Trace ray through scene
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
