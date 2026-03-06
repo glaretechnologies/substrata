@@ -61,12 +61,12 @@ public:
 		// See https://github.com/chromiumembedded/cef/issues/4051
 		command_line->AppendSwitch("do-not-de-elevate");
 
-		// command_line->AppendSwitch("disable-gpu");
-		// command_line->AppendSwitch("disable-gpu-compositing");
-
-		//TEMP:
-		//command_line->AppendSwitch("enable-logging");
-		//command_line->AppendSwitchWithValue("v", "2");
+#ifdef OSX
+	// Disable GPU on macOS to avoid CEF GPU process crash
+	// CEF 114 has compatibility issues with macOS GPU initialization
+	command_line->AppendSwitch("disable-gpu");
+	command_line->AppendSwitch("disable-gpu-compositing");
+#endif
 
 		/*if(process_type.empty())
 		{
