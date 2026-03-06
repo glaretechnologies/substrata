@@ -66,6 +66,9 @@ public:
 	// CEF 114 has compatibility issues with macOS GPU initialization
 	command_line->AppendSwitch("disable-gpu");
 	command_line->AppendSwitch("disable-gpu-compositing");
+	command_line->AppendSwitch("disable-gpu-sandbox");
+	command_line->AppendSwitchWithValue("use-gl", "swiftshader-webgl");
+	conPrint("CEF: GPU disabled on macOS (process_type: '" + process_type.ToString() + "')");
 #endif
 
 		/*if(process_type.empty())
@@ -167,6 +170,11 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 
 	CefSettings settings;
 	CefString(&settings.log_file).FromString(appdata_path + "/CEF_log.txt");
+
+#ifdef OSX
+	// On macOS, disable GPU rendering in settings to prevent CEF GPU process crash
+	settings.windowless_rendering_enabled = true;  // Force software rendering
+#endif
 
 	settings.log_severity = LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
 	// Allow setting the logging level via environment variable.
