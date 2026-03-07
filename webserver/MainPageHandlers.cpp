@@ -64,8 +64,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		page_out += "<a href=\"/login\">log in</a> <br/>\n";
 	}
 	
-	// Add dark mode toggle button
-	page_out += "<a href=\"javascript:void(0);\" class=\"dark-mode-toggle\" onclick=\"toggleDarkMode()\" title=\"Toggle dark mode\">Theme</a>\n";
+	// Dark mode toggle is included in the footer (CSP-compliant)
 	
 	page_out += 
 		"	</div>																									\n"; // End login div

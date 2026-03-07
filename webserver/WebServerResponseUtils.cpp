@@ -85,8 +85,7 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 		page_out += "<a href=\"/login\">log in</a> <br/>\n";
 	}
 	
-	// Add dark mode toggle button
-	page_out += "<a href=\"javascript:void(0);\" class=\"dark-mode-toggle\" onclick=\"toggleDarkMode()\" title=\"Toggle dark mode\">Theme</a>\n";
+	// Dark mode toggle will be placed in the footer (CSP-safe link)
 	
 	page_out += 
 	"	</div>																									\n" // End login div
@@ -107,6 +106,7 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 		"	<hr/>																						\n"
 		"	<div class=\"footer\">KingdomVR is based on Substrata, an open source metaverse. Learn more at <a href=\"https://substrata.info/\">substrata.info</a>.		\n"
 		"	Contact us at contact@kingdmvr.com<br/>											\n"
+		"		<a href=\"#\" class=\"dark-mode-toggle\" title=\"Toggle dark mode\">Theme</a>\n"
 		"	</div>																						\n"
 		"	<div class=\"footer\"><a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a> | <a href=\"/map\">Map</a></div>				\n"
 		"	</body>																						\n"
