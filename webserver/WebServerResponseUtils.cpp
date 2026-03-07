@@ -61,7 +61,18 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 {
 	std::string page_out = standardHTMLHeader(*world_state.web_data_store, request_info, page_title, extra_header_tags);
 	page_out +=
-		"	<body class=\"standard-body\">\n"
+		// Determine body class; include dark-mode if the request has a theme=dark cookie
+		std::string body_class = "standard-body";
+		for(size_t i = 0; i < request_info.cookies.size(); ++i)
+		{
+			if(request_info.cookies[i].key == "theme" && request_info.cookies[i].value == "dark")
+			{
+				body_class += " dark-mode";
+				break;
+			}
+		}
+		page_out +=
+		"	<body class=\"" + body_class + "\">\n"
 		"	<div id=\"login\">\n"; // Start login div
 	
 	web::UnsafeString logged_in_username;
@@ -106,9 +117,12 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 		"	<hr/>																						\n"
 		"	<div class=\"footer\">KingdomVR is based on Substrata, an open source metaverse. Learn more at <a href=\"https://substrata.info/\">substrata.info</a>.		\n"
 		"	Contact us at contact@kingdmvr.com<br/>											\n"
-		"		<a href=\"#\" class=\"dark-mode-toggle\" title=\"Toggle dark mode\">Theme</a>\n"
 		"	</div>																						\n"
-		"	<div class=\"footer\"><a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a> | <a href=\"/map\">Map</a></div>				\n"
+		"	<div class=\"footer\">\n"
+		"		<a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a> | <a href=\"/map\">Map</a>\n"
+		"		<br/>\n"
+		"		<a href=\"#\" class=\"dark-mode-toggle\" title=\"Toggle dark mode\">Theme</a>\n"
+		"	</div>\n"
 		"	</body>																						\n"
 		"</html>																						\n";
 
@@ -128,7 +142,7 @@ const std::string getMapHeaderTags()
 const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID highlighted_parcel_id)
 {
 	std::string page;
-	/*page += 
+	/*page += \
 		"<script src=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.js\"\
 		integrity=\"sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==\"\
 		crossorigin=\"\"></script>";*/
