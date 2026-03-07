@@ -60,20 +60,19 @@ const std::string standardHTMLHeader(WebDataStore& data_store, const web::Reques
 const std::string standardHeader(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, const std::string& page_title, const std::string& extra_header_tags)
 {
 	std::string page_out = standardHTMLHeader(*world_state.web_data_store, request_info, page_title, extra_header_tags);
-	page_out +=
-		// Determine body class; include dark-mode if the request has a theme=dark cookie
-		std::string body_class = "standard-body";
-		for(size_t i = 0; i < request_info.cookies.size(); ++i)
+	// Determine body class; include dark-mode if the request has a theme=dark cookie
+	std::string body_class = "standard-body";
+	for(size_t i = 0; i < request_info.cookies.size(); ++i)
+	{
+		if(request_info.cookies[i].key == "theme" && request_info.cookies[i].value == "dark")
 		{
-			if(request_info.cookies[i].key == "theme" && request_info.cookies[i].value == "dark")
-			{
-				body_class += " dark-mode";
-				break;
-			}
+			body_class += " dark-mode";
+			break;
 		}
-		page_out +=
-		"	<body class=\"" + body_class + "\">\n"
-		"	<div id=\"login\">\n"; // Start login div
+	}
+
+	page_out += "\t<body class=\"" + body_class + "\">\n";
+	page_out += "\t<div id=\"login\">\n"; // Start login div
 	
 	web::UnsafeString logged_in_username;
 	bool is_user_admin;
