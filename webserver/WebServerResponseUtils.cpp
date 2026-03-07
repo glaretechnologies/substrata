@@ -51,7 +51,7 @@ const std::string standardHTMLHeader(WebDataStore& data_store, const web::Reques
 		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>\n"
 		"		<link href=\"/files/main.css?hash=" + data_store.main_css_hash + "\" rel=\"stylesheet\" />\n"
 		"		<link rel=\"icon\" type=\"image/png\" href=\"/files/favicon.png\">\n"
-		"		<script src=\"/files/dark-mode.js?hash=" + data_store.main_css_hash + "\"></script>\n"
+		"		<script src=\"/files/dark-mode.js?hash=" + data_store.dark_mode_js_hash + "\"></script>\n"
 		+ extra_header_tags + 
 		"	</head>\n";
 }

@@ -226,6 +226,20 @@ void WebDataStore::loadAndCompressFiles()
 			this->main_css_hash = ::toHexString(hash).substr(0, /*count=*/8);
 		}
 	}
+
+	// Compute dark_mode_js_hash (cache-busting hash for dark-mode.js)
+	{
+		Lock lock(mutex);
+		auto res = public_files.find("dark-mode.js");
+		if(res != public_files.end())
+		{
+			WebDataStoreFile* file = res->second.ptr();
+			const uint64 hash = XXH64(file->uncompressed_data.data(), file->uncompressed_data.size(), /*seed=*/1);
+
+			Lock lock2(this->hash_mutex);
+			this->dark_mode_js_hash = ::toHexString(hash).substr(0, /*count=*/8);
+		}
+	}
 }
 
 
