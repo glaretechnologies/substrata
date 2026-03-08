@@ -371,7 +371,7 @@ void MainWindow::initialiseUI()
 	connect(ui->objectEditor, SIGNAL(posAndRot3DControlsToggled()), this, SLOT(posAndRot3DControlsToggledSlot()));
 	connect(ui->objectEditor, SIGNAL(openServerScriptLogSignal()), this, SLOT(openServerScriptLogSlot()));
 	connect(ui->parcelEditor, SIGNAL(parcelChanged()), this, SLOT(parcelEditedSlot()));
-	connect(ui->worldSettingsWidget, SIGNAL(settingsAppliedSignal()), this, SLOT(worldSettingsAppliedSlot()));
+	connect(ui->worldSettingsWidget, SIGNAL(settingsChangedSignal()), this, SLOT(worldSettingsChangedSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
@@ -3443,9 +3443,13 @@ void MainWindow::parcelEditedSlot()
 }
 
 
-void MainWindow::worldSettingsAppliedSlot()
+// World settings have been changed in local UI.
+void MainWindow::worldSettingsChangedSlot()
 {
-	// NOTE: for now just wait for WorldSettingsUpdate to come from server, which will reload the terrain.
+	WorldSettings new_world_settings;
+	this->ui->worldSettingsWidget->toWorldSettings(new_world_settings);
+
+	gui_client.worldSettingsChangedFromUI(new_world_settings);
 }
 
 

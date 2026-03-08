@@ -209,6 +209,7 @@ public:
 	WorldSettingsReceivedMessage(bool is_initial_send_) : ThreadMessage(Msg_WorldSettingsReceivedMessage), is_initial_send(is_initial_send_) {}
 	WorldSettings world_settings;
 	bool is_initial_send;
+	UID sender_avatar_UID;
 };
 
 

@@ -26,7 +26,6 @@ WorldSettingsWidget::WorldSettingsWidget(QWidget* parent)
 
 	connect(this->newTerrainSectionPushButton, SIGNAL(clicked()), this, SLOT(newTerrainSectionPushButtonClicked()));
 
-	//connect(this->applyPushButton, SIGNAL(clicked()), this, SIGNAL(settingsAppliedSignal()));
 	connect(this->applyPushButton, SIGNAL(clicked()), this, SLOT(applySettingsSlot()));
 
 	this->waterZDoubleSpinBox->setMinimum(-std::numeric_limits<double>::infinity());
@@ -34,6 +33,14 @@ WorldSettingsWidget::WorldSettingsWidget(QWidget* parent)
 
 	this->defaultTerrainZDoubleSpinBox->setMinimum(-std::numeric_limits<double>::infinity());
 	this->defaultTerrainZDoubleSpinBox->setMaximum( std::numeric_limits<double>::infinity());
+
+
+	connect(this->sunThetaSettingRealControl,	SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->sunPhiSettingRealControl,		SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->layer0ASpinBox,				SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->layer0HeightScaleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->layer1ASpinBox,				SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->layer1HeightScaleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
 }
 
 
@@ -88,6 +95,11 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 
 	SignalBlocker::setValue(this->sunThetaSettingRealControl, ::radToDegree(world_settings.sun_theta));
 	SignalBlocker::setValue(this->sunPhiSettingRealControl,   ::radToDegree(world_settings.sun_phi));
+
+	SignalBlocker::setValue(layer0ASpinBox,           world_settings.fog_settings.layer_0_A);
+	SignalBlocker::setValue(layer0HeightScaleSpinBox, world_settings.fog_settings.layer_0_scale_height);
+	SignalBlocker::setValue(layer1ASpinBox,           world_settings.fog_settings.layer_1_A);
+	SignalBlocker::setValue(layer1HeightScaleSpinBox, world_settings.fog_settings.layer_1_scale_height);
 }
 
 
@@ -148,6 +160,11 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 
 	world_settings_out.sun_theta = ::degreeToRad(this->sunThetaSettingRealControl->value());
 	world_settings_out.sun_phi   = ::degreeToRad(this->sunPhiSettingRealControl  ->value());
+
+	world_settings_out.fog_settings.layer_0_A            = layer0ASpinBox->value();
+	world_settings_out.fog_settings.layer_0_scale_height = layer0HeightScaleSpinBox->value();
+	world_settings_out.fog_settings.layer_1_A            = layer1ASpinBox->value();
+	world_settings_out.fog_settings.layer_1_scale_height = layer1HeightScaleSpinBox->value();
 }
 
 
@@ -181,6 +198,11 @@ void WorldSettingsWidget::updateControlsEditable()
 	sunThetaSettingRealControl->setEnabled(editable);
 	sunPhiSettingRealControl  ->setEnabled(editable);
 
+	layer0ASpinBox->setReadOnly(!editable);
+	layer0HeightScaleSpinBox->setReadOnly(!editable);
+	layer1ASpinBox->setReadOnly(!editable);
+	layer1HeightScaleSpinBox->setReadOnly(!editable);
+
 	applyPushButton->setEnabled(editable);
 }
 
@@ -205,28 +227,17 @@ void WorldSettingsWidget::removeTerrainSectionButtonClickedSlot()
 }
 
 
-static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStream& packet)
+void WorldSettingsWidget::applySettingsSlot()
 {
-	MessageUtils::updatePacketLengthField(packet);
-
-	client_thread.enqueueDataToSend(packet.buf);
+	settingsChangedSlot();
 }
 
 
-void WorldSettingsWidget::applySettingsSlot()
+void WorldSettingsWidget::settingsChangedSlot()
 {
 	try
 	{
-		SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsUpdate);
-	
-		this->toWorldSettings(main_window->gui_client.connected_world_settings);
-
-		main_window->gui_client.connected_world_settings.writeToStream(scratch_packet);
-
-		enqueueMessageToSend(*main_window->gui_client.client_thread, scratch_packet);
-
-		emit settingsAppliedSignal();
+		emit settingsChangedSignal();
 	}
 	catch(glare::Exception& e)
 	{

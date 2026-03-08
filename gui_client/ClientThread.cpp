@@ -1232,6 +1232,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			Reference<WorldSettingsReceivedMessage> msg = new WorldSettingsReceivedMessage(/*is_initial_send=*/false);
 			readWorldSettingsFromStream(msg_buffer, msg->world_settings); // Read from msg_buffer, write to msg->world_settings
+			if(!msg_buffer.endOfStream())
+				msg->sender_avatar_UID = readUIDFromStream(msg_buffer);
 			out_msg_queue->enqueue(msg);
 			break;
 		}

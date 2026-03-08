@@ -3237,6 +3237,7 @@ void WorkerThread::doRun()
 								{
 									MessageUtils::initPacket(scratch_packet, Protocol::WorldSettingsUpdate);
 									world_settings.writeToStream(scratch_packet);
+									writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well, so client can discard updates from itself.
 									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									enqueuePacketToBroadcast(scratch_packet);
