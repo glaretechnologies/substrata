@@ -16,10 +16,14 @@ Copyright Glare Technologies Limited 2023 -
 #include <string>
 #include <vector>
 #include <set>
+class RandomAccessInStream;
+class RandomAccessOutStream;
 
 
 struct TerrainSpecSection
 {
+	bool operator == (const TerrainSpecSection& other) const;
+
 	int x, y; // section coordinates.  (0,0) is section centered on world origin.
 
 	URLString heightmap_URL;
@@ -29,6 +33,8 @@ struct TerrainSpecSection
 
 struct TerrainSpec
 {
+	bool operator == (const TerrainSpec& other) const;
+
 	std::vector<TerrainSpecSection> section_specs;
 
 	URLString detail_col_map_URLs[4];
@@ -42,6 +48,21 @@ struct TerrainSpec
 	static const uint32 WATER_ENABLED_FLAG = 1;
 	uint32 flags;
 };
+
+
+struct FogWorldSettings
+{
+	FogWorldSettings();
+
+	// Fog sigma_t is A exp(-B z)
+	float layer_0_A;
+	float layer_0_scale_height; // = 1 / B
+	float layer_1_A;
+	float layer_1_scale_height; // = 1 / B
+
+	void writeToStream(RandomAccessOutStream& stream) const;
+};
+void readFogWorldSettingsFromStream(RandomAccessInStream& stream, FogWorldSettings& fog_settings_out);
 
 
 /*=====================================================================
@@ -70,6 +91,8 @@ public:
 
 	float sun_theta;
 	float sun_phi;
+
+	FogWorldSettings fog_settings;
 
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.

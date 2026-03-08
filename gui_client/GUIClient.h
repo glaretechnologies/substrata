@@ -251,6 +251,8 @@ public:
 	std::string getCurrentURL() const;
 	void goBack();
 	void gestureSettingsChanged(const GestureSettings& new_gesture_settings);
+	void worldSettingsChangedFromUI(const WorldSettings& new_world_settings);
+	void applyWorldSettingsToOpenGLEngine();
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
@@ -524,6 +526,8 @@ public:
 
 	WorldDetails connected_world_details;
 	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
+	bool world_settings_locally_dirty;
+	Timer world_settings_local_change_timer;
 	
 
 	Reference<Indigo::Mesh> ground_quad_mesh;

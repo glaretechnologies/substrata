@@ -135,7 +135,7 @@ private slots:;
 	void objectEditedSlot();
 	void scriptChangedFromEditorSlot();
 	void parcelEditedSlot();
-	void worldSettingsAppliedSlot();
+	void worldSettingsChangedSlot();
 	void environmentSettingChangedSlot();
 	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap
 	void bakeObjectLightmapHighQualSlot(); // Bake the currently selected object lightmap

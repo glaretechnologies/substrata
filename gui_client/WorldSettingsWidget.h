@@ -33,7 +33,7 @@ public:
 	void updateControlsEditable();
 
 signals:
-	void settingsAppliedSignal();
+	void settingsChangedSignal();
 
 protected slots:
 	void newTerrainSectionPushButtonClicked();
@@ -41,6 +41,7 @@ protected slots:
 	void removeTerrainSectionButtonClickedSlot();
 
 	void applySettingsSlot();
+	void settingsChangedSlot();
 
 private:
 	URLString getURLForFileSelectWidget(FileSelectWidget* widget);
