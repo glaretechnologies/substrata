@@ -29,7 +29,31 @@
 		// Save preference to localStorage
 		const isDarkMode = document.body.classList.contains('dark-mode');
 		localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+
+		// Also set a cookie so the server can render the correct theme to avoid flash
+		try {
+			if (isDarkMode)
+				document.cookie = "theme=dark; Path=/; Max-Age=31536000"; // 1 year
+			else
+				document.cookie = "theme=light; Path=/; Max-Age=31536000";
+		} catch (e) {}
 	};
+
+	// Attach click handler to elements with class 'dark-mode-toggle' (CSP-safe)
+	function handleDarkModeToggleClick(e) {
+		const btn = e.target.closest && e.target.closest('.dark-mode-toggle');
+		if(!btn) return;
+		e.preventDefault();
+		window.toggleDarkMode();
+	}
+
+	if (document.body) {
+		document.addEventListener('click', handleDarkModeToggleClick);
+	} else {
+		document.addEventListener('DOMContentLoaded', function() {
+			document.addEventListener('click', handleDarkModeToggleClick);
+		});
+	}
 	
 	// Listen for system theme changes
 	if (window.matchMedia) {
