@@ -62,22 +62,10 @@ public:
 		command_line->AppendSwitch("do-not-de-elevate");
 
 #ifdef OSX
-	// Disable GPU on macOS to avoid CEF GPU process crash
-	// CEF 114 has compatibility issues with macOS GPU initialization
-	command_line->AppendSwitch("disable-gpu");
-	command_line->AppendSwitch("disable-gpu-compositing");
-	command_line->AppendSwitch("disable-gpu-sandbox");
-	command_line->AppendSwitch("disable-gpu-process");  // Prevent GPU process from launching at all
-	
-	// Additional switches to force software rendering and prevent GPU initialization
-	command_line->AppendSwitch("in-process-gpu");  // Run GPU in browser process to avoid separate GPU process issues
-	command_line->AppendSwitch("disable-software-rasterizer");
-	command_line->AppendSwitch("disable-gpu-driver-bug-workarounds");
-	command_line->AppendSwitchWithValue("use-gl", "swiftshader");  // Use SwiftShader software renderer
-	command_line->AppendSwitch("disable-gpu-vsync");
-	command_line->AppendSwitch("disable-features=VizDisplayCompositor,UseChromeOSDirectVideoDecoder");
-	
-	conPrint("CEF: GPU disabled on macOS (process_type: '" + process_type.ToString() + "')");
+	// Run GPU in browser process instead of separate GPU process to avoid crash on macOS
+	// This is less aggressive than fully disabling GPU and allows CEF to function properly
+	command_line->AppendSwitch("in-process-gpu");
+	conPrint("CEF: Using in-process GPU on macOS (process_type: '" + process_type.ToString() + "')");
 #endif
 
 		/*if(process_type.empty())

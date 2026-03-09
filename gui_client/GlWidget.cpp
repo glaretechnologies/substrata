@@ -246,26 +246,21 @@ void GlWidget::initializeGL()
 
 	const std::string opengl_vendor	= std::string((const char*)glGetString(GL_VENDOR));
 	const std::string opengl_renderer = std::string((const char*)glGetString(GL_RENDERER));
+	const std::string opengl_version = std::string((const char*)glGetString(GL_VERSION));
 	const bool is_AMD    = StringUtils::containsString(toLowerCase(opengl_vendor), "ati") || StringUtils::containsString(toLowerCase(opengl_vendor), "amd");
 	const bool is_Nvidia = StringUtils::containsString(toLowerCase(opengl_vendor), "nvidia");
 	const bool is_Intel  = StringUtils::containsString(toLowerCase(opengl_vendor), "intel");
+
+	conPrint("OpenGL Vendor: " + opengl_vendor);
+	conPrint("OpenGL Renderer: " + opengl_renderer);
+	conPrint("OpenGL Version: " + opengl_version);
 
 	// Only enable SSAO/SSGI by default on AMD and Nvidia GPUs, which are likely to be more powerful than stuff like (integrated) Intel GPUs, which
 	// struggle with SSAO/SSGI.
 	const bool default_use_SSAO = is_AMD || is_Nvidia;
 
-#ifdef OSX
-	// On macOS with Intel GPUs, disable shadows and bloom by default as they can cause rendering issues
-	// particularly with Intel UHD Graphics 630 and similar integrated GPUs
-	const bool default_shadows = !is_Intel;
-	const bool default_bloom = !is_Intel; // Also disable bloom on Intel as it uses additional render targets
-	conPrint("OpenGL Vendor: " + opengl_vendor + ", Renderer: " + opengl_renderer);
-	if(is_Intel)
-		conPrint("Intel GPU detected on macOS - disabling shadows and bloom by default to avoid rendering issues");
-#else
 	const bool default_shadows = true;
 	const bool default_bloom = true;
-#endif
 
 	bool shadows = default_shadows;
 	bool use_MSAA = true;
@@ -278,28 +273,6 @@ void GlWidget::initializeGL()
 		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/default_bloom).toBool();
 		use_SSAO = settings->value(MainOptionsDialog::SSAOKey(),    /*default val=*/default_use_SSAO).toBool();
 	}
-
-#ifdef OSX
-	// Force shadows and bloom off on Intel GPUs on macOS, even if user has them enabled in settings
-	// This prevents dark rendering issues until the user can adjust settings
-	if(is_Intel)
-	{
-		if(shadows)
-		{
-			conPrint("WARNING: Forcing shadows OFF on Intel GPU (macOS) to prevent rendering issues. You can re-enable in Options if needed.");
-			shadows = false;
-			if(settings)
-				settings->remove(MainOptionsDialog::shadowsKey()); // Remove saved setting so default is used next time
-		}
-		if(bloom)
-		{
-			conPrint("WARNING: Forcing bloom OFF on Intel GPU (macOS) to prevent rendering issues. You can re-enable in Options if needed.");
-			bloom = false;
-			if(settings)
-				settings->remove(MainOptionsDialog::BloomKey()); // Remove saved setting so default is used next time
-		}
-	}
-#endif
 
 	// Enable debug output (glDebugMessageCallback) in Debug and RelWithDebugInfo mode, e.g. when BUILD_TESTS is 1.
 	// Don't enable in Release mode, in case it has a performance cost.
