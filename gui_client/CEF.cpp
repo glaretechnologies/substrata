@@ -68,7 +68,15 @@ public:
 	command_line->AppendSwitch("disable-gpu-compositing");
 	command_line->AppendSwitch("disable-gpu-sandbox");
 	command_line->AppendSwitch("disable-gpu-process");  // Prevent GPU process from launching at all
-	command_line->AppendSwitchWithValue("use-gl", "swiftshader-webgl");
+	
+	// Additional switches to force software rendering and prevent GPU initialization
+	command_line->AppendSwitch("in-process-gpu");  // Run GPU in browser process to avoid separate GPU process issues
+	command_line->AppendSwitch("disable-software-rasterizer");
+	command_line->AppendSwitch("disable-gpu-driver-bug-workarounds");
+	command_line->AppendSwitchWithValue("use-gl", "swiftshader");  // Use SwiftShader software renderer
+	command_line->AppendSwitch("disable-gpu-vsync");
+	command_line->AppendSwitch("disable-features=VizDisplayCompositor,UseChromeOSDirectVideoDecoder");
+	
 	conPrint("CEF: GPU disabled on macOS (process_type: '" + process_type.ToString() + "')");
 #endif
 
