@@ -195,7 +195,10 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	{}
 
 #if defined(OSX)
-	//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
+	// On macOS, CEF helper processes are in Frameworks/ alongside the CEF framework
+	const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app/Contents/MacOS/gui_client Helper";
+	conPrint("Using browser_process_path '" + browser_process_path + "'...");
+	CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
 #elif defined(_WIN32)
 	settings.no_sandbox = true;
 	const std::string browser_process_path = base_dir_path + "\\browser_process.exe";

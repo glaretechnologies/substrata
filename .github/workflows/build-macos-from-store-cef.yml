@@ -552,12 +552,13 @@ jobs:
               ls -la "$CEF_ROOT" || true
             fi
 
-            # Copy helper apps found in the CEF distribution into Contents/Frameworks (or adjust if you want other target)
+            # Copy helper apps that were built by the build system into Contents/Frameworks
+            # These are built to CYBERSPACE_OUTPUT (substrata_output/) for Release builds
             while IFS= read -r helper; do
               [ -n "$helper" ] || continue
-              echo "Copying helper app: $helper -> $APP/Contents/Frameworks/"
+              echo "Copying built helper app: $helper -> $APP/Contents/Frameworks/"
               cp -R "$helper" "$APP/Contents/Frameworks/" || true
-            done < <(find "$CEF_ROOT" -type d -name "*Helper*.app" -maxdepth 3 -print || true)
+            done < <(find "$BASE_DIR/substrata_output" -type d -name "*gui_client*Helper*.app" -maxdepth 2 -print || true)
           fi
 
           QT_PREFIX="$(brew --prefix qt@5)"
@@ -616,17 +617,18 @@ jobs:
             exit 1
           fi
 
-          # If CEF_ROOT exists and we haven't copied frameworks to final app, copy now
+          # Copy built helper apps from substrata_output to final app if not already there
           if [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
             CEF_FRAMEWORK="$(find "$CEF_ROOT" -type d -name 'Chromium Embedded Framework.framework' -print -quit || true)"
             if [ -n "$CEF_FRAMEWORK" ]; then
               mkdir -p "$FINAL_APP/Contents/Frameworks"
               cp -R "$CEF_FRAMEWORK" "$FINAL_APP/Contents/Frameworks/" || true
             fi
+            # Copy helper apps that were built to CYBERSPACE_OUTPUT (substrata_output/)
             while IFS= read -r helper; do
               [ -n "$helper" ] || continue
               cp -R "$helper" "$FINAL_APP/Contents/Frameworks/" || true
-            done < <(find "$CEF_ROOT" -type d -name "*Helper*.app" -maxdepth 3 -print || true)
+            done < <(find "$BASE_DIR/substrata_output" -type d -name "*gui_client*Helper*.app" -maxdepth 2 -print || true)
           fi
 
           # Ensure macdeployqt has been run on final app (harmless if already done)
