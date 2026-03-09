@@ -267,39 +267,59 @@ jobs:
             mkdir -p "$BUILD_DIR"
             cd "$BUILD_DIR"
 
-            # Try Unix Makefiles generator first to get make targets
-            if ! cmake -G "Unix Makefiles" ..; then
-              echo "cmake with 'Unix Makefiles' failed; trying default generator"
-              cmake ..
+            echo "Building CEF wrapper from: $CEF_EXTRACT"
+            echo "Build directory: $BUILD_DIR"
+            echo "Checking for CMakeLists.txt in CEF root:"
+            ls -la "$CEF_EXTRACT/CMakeLists.txt" || echo "No top-level CMakeLists.txt found"
+            ls -la "$CEF_EXTRACT/libcef_dll/CMakeLists.txt" || echo "No libcef_dll/CMakeLists.txt found"
+
+            # Configure with Unix Makefiles generator
+            echo "Running cmake to configure CEF build..."
+            if ! cmake -G "Unix Makefiles" "$CEF_EXTRACT" 2>&1 | tee /tmp/cef_cmake_config.log; then
+              echo "cmake configuration failed"
+              echo "Last 100 lines of cmake output:"
+              tail -n 100 /tmp/cef_cmake_config.log || true
+              exit 1
             fi
 
             # Try to build only the wrapper target first
-            if cmake --build . --target libcef_dll_wrapper -- -j 3 2>/tmp/cef_wrapper_build.log; then
+            echo "Building libcef_dll_wrapper target..."
+            if cmake --build . --target libcef_dll_wrapper -- -j 3 2>&1 | tee /tmp/cef_wrapper_build.log; then
               echo "libcef_dll_wrapper built successfully"
             else
-              echo "Building wrapper target failed; falling back to full build (see /tmp/cef_wrapper_build.log)"
+              echo "Building wrapper target failed"
               tail -n 200 /tmp/cef_wrapper_build.log || true
-              cmake --build . -- -j 3
+              echo "Trying full build instead..."
+              cmake --build . -- -j 3 2>&1 | tee /tmp/cef_full_build.log || true
             fi
 
             # Try to build sandbox if available
+            echo "Attempting to build cef_sandbox target..."
             if cmake --build . --target cef_sandbox -- -j 3 2>/tmp/cef_sandbox_build.log; then
               echo "cef_sandbox built successfully"
             else
-              echo "cef_sandbox target build either not present or failed; continuing to search for produced artifacts"
-              tail -n 200 /tmp/cef_sandbox_build.log || true
+              echo "cef_sandbox target build either not present or failed; continuing"
+              tail -n 100 /tmp/cef_sandbox_build.log || true
             fi
 
             # After build attempts, try to discover built artifacts
+            echo "Searching for built artifacts..."
             LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.a' -print -quit || true)"
             SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)"
 
             if [ -n "$LIBWRAP" ]; then
+              echo "Found libcef_dll_wrapper.a at: $LIBWRAP"
               mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
               cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+            else
+              echo "ERROR: libcef_dll_wrapper.a was not built"
+              echo "Build directory contents:"
+              find "$BUILD_DIR" -type f -name '*.a' -print || true
+              exit 1
             fi
 
             if [ -n "$SANDBOX" ]; then
+              echo "Found cef_sandbox.a at: $SANDBOX"
               mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
               cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
               cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
@@ -314,11 +334,19 @@ jobs:
             fi
           fi
 
-          # sanity check for wrapper artifact
-          if [ ! -f "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a" ]; then
-            echo "WARNING: libcef_dll_wrapper.a not found at expected path; listing fallback locations:"
+          # Verify wrapper artifact exists at expected path - FAIL if not found
+          EXPECTED_WRAPPER="$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+          if [ ! -f "$EXPECTED_WRAPPER" ]; then
+            echo "ERROR: libcef_dll_wrapper.a not found at expected path: $EXPECTED_WRAPPER"
+            echo "Searching for libcef_dll_wrapper.a in $CEF_EXTRACT:"
             find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.a' -print || true
+            echo "Contents of libcef_dll_build (if it exists):"
+            ls -laR "$CEF_EXTRACT/libcef_dll_build" 2>/dev/null || echo "libcef_dll_build directory not found"
+            exit 1
           fi
+          
+          echo "Verified libcef_dll_wrapper.a exists at: $EXPECTED_WRAPPER"
+          ls -lh "$EXPECTED_WRAPPER"
 
           # Export variables for substrata CMake to consume:
           echo "CEF_ROOT=$CEF_EXTRACT" >> "$GITHUB_ENV"
