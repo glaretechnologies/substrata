@@ -236,32 +236,25 @@ jobs:
             CEF_EXTRACT="$CEF_EXTRACT/dist"
           fi
 
-          # Try to locate prebuilt artifacts first (common in many binary releases)
+          # Check for prebuilt artifacts
           LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.a' -print -quit || true)"
           SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)"
 
-          if [ -n "$LIBWRAP" ] || [ -n "$SANDBOX" ]; then
-            echo "Prebuilt CEF artifacts detected."
-            echo "libcef_dll_wrapper.a: $LIBWRAP"
-            echo "cef_sandbox.a: $SANDBOX"
+          echo "Checking for prebuilt CEF artifacts..."
+          echo "libcef_dll_wrapper.a: ${LIBWRAP:-not found}"
+          echo "cef_sandbox.a: ${SANDBOX:-not found}"
 
-            # Ensure wrapper is at the expected path used by Substrata CMake:
-            if [ -n "$LIBWRAP" ]; then
-              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
-              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
-              echo "Copied libcef_dll_wrapper.a -> $CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
-            fi
+          # Handle sandbox (often prebuilt in official distributions)
+          if [ -n "$SANDBOX" ]; then
+            mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
+            cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
+            cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
+            echo "Copied cef_sandbox.a to Release/ and Debug/"
+          fi
 
-            # Ensure sandbox is available under Release/ and Debug/ as expected by CMake
-            if [ -n "$SANDBOX" ]; then
-              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
-              cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
-              cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
-              echo "Copied cef_sandbox.a -> $CEF_EXTRACT/Release/cef_sandbox.a and Debug/cef_sandbox.a"
-            fi
-
-          else
-            echo "No prebuilt wrapper/sandbox found; attempting to build libcef_dll_wrapper from extracted CEF sources."
+          # Build wrapper if not found (official CEF distributions don't include prebuilt wrapper)
+          if [ -z "$LIBWRAP" ]; then
+            echo "No prebuilt wrapper found; building libcef_dll_wrapper from CEF sources."
 
             BUILD_DIR="$CEF_EXTRACT/libcef_dll_build"
             mkdir -p "$BUILD_DIR"
@@ -318,20 +311,18 @@ jobs:
               exit 1
             fi
 
-            if [ -n "$SANDBOX" ]; then
-              echo "Found cef_sandbox.a at: $SANDBOX"
-              mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
-              cp -f "$SANDBOX" "$CEF_EXTRACT/Release/cef_sandbox.a" || true
-              cp -f "$SANDBOX" "$CEF_EXTRACT/Debug/cef_sandbox.a" || true
-            fi
-
-            # If still missing sandbox, fail early with diagnostics
+            # Verify sandbox still exists (should have been found/copied earlier)
             if [ -z "$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)" ]; then
-              echo "ERROR: cef_sandbox.a required by Substrata build not found after attempts."
+              echo "ERROR: cef_sandbox.a required by Substrata build not found"
               echo "Listing $CEF_EXTRACT for debugging:"
               find "$CEF_EXTRACT" -maxdepth 3 -type f -print || true
               exit 1
             fi
+          else
+            echo "Found prebuilt libcef_dll_wrapper.a at: $LIBWRAP"
+            mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
+            cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+            echo "Copied to expected path: $CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
           fi
 
           # Verify wrapper artifact exists at expected path - FAIL if not found
