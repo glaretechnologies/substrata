@@ -62,10 +62,14 @@ public:
 		command_line->AppendSwitch("do-not-de-elevate");
 
 #ifdef OSX
-	// Run GPU in browser process instead of separate GPU process to avoid crash on macOS
-	// This is less aggressive than fully disabling GPU and allows CEF to function properly
-	command_line->AppendSwitch("in-process-gpu");
-	conPrint("CEF: Using in-process GPU on macOS (process_type: '" + process_type.ToString() + "')");
+		// Only apply GPU settings to the main browser process (empty process_type)
+		// Don't apply to utility sub-processes (network service, storage service, etc.)
+		if(process_type.empty())
+		{
+			// Run GPU in browser process instead of separate GPU process to avoid crash on macOS
+			command_line->AppendSwitch("in-process-gpu");
+			conPrint("CEF: Using in-process GPU on macOS (main browser process)");
+		}
 #endif
 
 		/*if(process_type.empty())
