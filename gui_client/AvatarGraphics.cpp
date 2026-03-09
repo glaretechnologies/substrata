@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "AnimationManager.h"
 #include "PhysicsWorld.h"
+#include "ParticleManager.h"
 #include "../shared/GestureSettings.h"
 #include "opengl/OpenGLEngine.h"
 #include "opengl/MeshPrimitiveBuilding.h"
@@ -115,7 +116,7 @@ static const float cCharacterHeightStanding = CYLINDER_HEIGHT;
 static const float cCharacterRadiusStanding = SPHERE_RAD;
 
 
-void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& physics_world, const Vec3d& pos, const Vec3f& cam_rotation, 
+void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& physics_world, ParticleManager& particle_manager, const Vec3d& pos, const Vec3f& cam_rotation, 
 	bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override, 
 	const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, const PoseConstraint& pose_constraint, AnimEvents& anim_events_out)
 {
@@ -1213,7 +1214,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 			Vec4f spine2_pos = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[spine2_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1));
 			anim_events_out.blob_sphere_positions[anim_events_out.num_blobs++] = spine2_pos;
 		}
-	}
+			}
 	else // else if skinned_gl_ob is NULL:
 	{
 		// While skinned_gl_ob is NULL, e.g. we are not showing the avatar, keep avatar_rotation etc. updated.  This is so when/if the avatar is made visible, it won't do a turning animation to bring

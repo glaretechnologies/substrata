@@ -22,6 +22,7 @@ class PhysicsWorld;
 class PhysicsObject;
 class AnimationManager;
 class ResourceManager;
+class ParticleManager;
 class Avatar;
 
 
@@ -112,7 +113,7 @@ public:
 	static const uint32 ANIM_STATE_MOVE_IMPULSE_ZERO = 4; // Is the player not pressing down any move keys.
 
 	// xyplane_speed_rel_ground_override is the speed from the local physics sim.
-	void setOverallTransform(OpenGLEngine& engine, PhysicsWorld& physics_world, const Vec3d& pos, const Vec3f& rotation, bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override,
+	void setOverallTransform(OpenGLEngine& engine, PhysicsWorld& physics_world, ParticleManager& particle_manager, const Vec3d& pos, const Vec3f& rotation, bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override,
 		const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, const PoseConstraint& pose_constraint, AnimEvents& anim_events_out);
 
 	void build(bool our_avatar);
