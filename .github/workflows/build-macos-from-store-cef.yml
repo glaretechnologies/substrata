@@ -300,10 +300,18 @@ jobs:
             LIBWRAP="$(find "$CEF_EXTRACT" -type f -name 'libcef_dll_wrapper.a' -print -quit || true)"
             SANDBOX="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)"
 
+            # Ensure wrapper is at expected path
+            EXPECTED_WRAPPER_PATH="$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
             if [ -n "$LIBWRAP" ]; then
               echo "Found libcef_dll_wrapper.a at: $LIBWRAP"
-              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
-              cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+              # Only copy if not already at expected path
+              if [ "$LIBWRAP" != "$EXPECTED_WRAPPER_PATH" ]; then
+                mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
+                cp -f "$LIBWRAP" "$EXPECTED_WRAPPER_PATH"
+                echo "Copied to expected path: $EXPECTED_WRAPPER_PATH"
+              else
+                echo "Already at expected path: $EXPECTED_WRAPPER_PATH"
+              fi
             else
               echo "ERROR: libcef_dll_wrapper.a was not built"
               echo "Build directory contents:"
@@ -312,9 +320,15 @@ jobs:
             fi
           else
             echo "Found prebuilt libcef_dll_wrapper.a at: $LIBWRAP"
-            mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
-            cp -f "$LIBWRAP" "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
-            echo "Copied to expected path: $CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+            EXPECTED_WRAPPER_PATH="$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
+            # Only copy if not already at expected path
+            if [ "$LIBWRAP" != "$EXPECTED_WRAPPER_PATH" ]; then
+              mkdir -p "$CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper"
+              cp -f "$LIBWRAP" "$EXPECTED_WRAPPER_PATH"
+              echo "Copied to expected path: $EXPECTED_WRAPPER_PATH"
+            else
+              echo "Already at expected path: $EXPECTED_WRAPPER_PATH"
+            fi
           fi
 
           # Create empty sandbox libraries if not found (newer CEF versions don't include sandbox)
@@ -334,8 +348,6 @@ jobs:
             ls -la "$CEF_EXTRACT/Release/cef_sandbox.a" "$CEF_EXTRACT/Debug/cef_sandbox.a"
           else
             echo "Sandbox already exists at: $SANDBOX_CHECK"
-          fi
-            echo "Copied to expected path: $CEF_EXTRACT/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a"
           fi
 
           # Verify wrapper artifact exists at expected path - FAIL if not found
