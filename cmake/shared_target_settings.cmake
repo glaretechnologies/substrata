@@ -39,7 +39,7 @@ elseif(WIN32)
 elseif(APPLE)
 	
 	# NOTE: -stdlib=libc++ is needed for C++11 etc.
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++20 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices")
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++17 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices")
 	
 	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		libs
@@ -57,7 +57,7 @@ else()
 	# Note that for some stupid reason, -no-pie is needed to get the executable to show up as clickable in the Ubuntu files app.
 	# See https://askubuntu.com/questions/1056882/i-cannot-run-any-executable-from-nautilus and https://gitlab.gnome.org/GNOME/nautilus/-/issues/1601
 	# Note that the server target doesn't include this cmake file, so the -no-pie won't apply to it.
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "-std=c++20 ${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "-std=c++17 ${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
 	
 	# Use a linker script to make symbols private (or something like that)
 	# Solves problem with LLVM command line options being loaded twice, see
