@@ -668,11 +668,33 @@ jobs:
 
           # Copy built helper apps from substrata_output to final app if not already there
           if [ -n "${CEF_ROOT:-}" ] && [ -d "${CEF_ROOT}" ]; then
+            # Copy main CEF framework
             CEF_FRAMEWORK="$(find "$CEF_ROOT" -type d -name 'Chromium Embedded Framework.framework' -print -quit || true)"
             if [ -n "$CEF_FRAMEWORK" ]; then
               mkdir -p "$FINAL_APP/Contents/Frameworks"
+              echo "Copying CEF framework from: $CEF_FRAMEWORK"
               cp -R "$CEF_FRAMEWORK" "$FINAL_APP/Contents/Frameworks/" || true
+              
+              # Verify framework contents (especially for codec support)
+              echo "CEF Framework contents:"
+              ls -la "$CEF_FRAMEWORK/" || true
+              echo "CEF Framework Libraries:"
+              ls -la "$CEF_FRAMEWORK/Libraries/" 2>/dev/null || echo "No Libraries directory"
+              echo "CEF Framework Resources:"
+              ls -la "$CEF_FRAMEWORK/Resources/" 2>/dev/null || echo "No Resources directory"
             fi
+            
+            # Copy any additional CEF files from Release/ or Debug/ (dylibs, frameworks, etc.)
+            if [ -d "$CEF_ROOT/Release" ]; then
+              echo "Checking CEF Release directory for additional libraries:"
+              ls -la "$CEF_ROOT/Release/" || true
+              # Copy any .dylib or .framework files from Release/ to app bundle
+              find "$CEF_ROOT/Release" -maxdepth 1 \( -name "*.dylib" -o -name "*.framework" \) -print0 2>/dev/null | while IFS= read -r -d '' file; do
+                echo "Copying additional library: $file"
+                cp -R "$file" "$FINAL_APP/Contents/Frameworks/" || true
+              done
+            fi
+            
             # Copy helper apps that were built to CYBERSPACE_OUTPUT (substrata_output/)
             while IFS= read -r helper; do
               [ -n "$helper" ] || continue
