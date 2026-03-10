@@ -62,13 +62,12 @@ public:
 		command_line->AppendSwitch("do-not-de-elevate");
 
 #ifdef OSX
-		// Only apply GPU settings to the main browser process (empty process_type)
-		// Don't apply to utility sub-processes (network service, storage service, etc.)
+		// With properly code-signed helper apps, we can now use the separate GPU process
+		// which is required for hardware-accelerated video decoding on macOS.
+		// The --in-process-gpu flag was causing video playback to fail.
 		if(process_type.empty())
 		{
-			// Run GPU in browser process instead of separate GPU process to avoid crash on macOS
-			command_line->AppendSwitch("in-process-gpu");
-			conPrint("CEF: Using in-process GPU on macOS (main browser process)");
+			conPrint("CEF: Using separate GPU process on macOS (helper apps are code-signed)");
 		}
 #endif
 
@@ -174,7 +173,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 
 #ifdef OSX
 	// Enable windowless rendering for in-world browser textures on macOS
-	// Combined with --disable-gpu-process switch to prevent GPU process crash
+	// With code-signed helper apps, separate GPU process is used for hardware video acceleration
 	settings.windowless_rendering_enabled = true;
 #endif
 
@@ -196,6 +195,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 
 #if defined(OSX)
 	// On macOS, CEF helper processes are in Frameworks/ alongside the CEF framework
+	settings.no_sandbox = true; // Disable sandbox to simplify deployment (no need for cef_sandbox.a)
 	const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app/Contents/MacOS/gui_client Helper";
 	conPrint("Using browser_process_path '" + browser_process_path + "'...");
 	CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
