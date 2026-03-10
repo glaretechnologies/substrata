@@ -312,13 +312,22 @@ jobs:
             fi
 
             # Create empty sandbox libraries if not found (newer CEF versions don't include sandbox)
-            if [ -z "$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit || true)" ]; then
-              echo "WARNING: cef_sandbox.a not found, creating empty archives (Substrata uses no_sandbox=true)"
+            SANDBOX_CHECK="$(find "$CEF_EXTRACT" -type f -name 'cef_sandbox.a' -print -quit 2>/dev/null || echo '')"
+            echo "Sandbox check result: '${SANDBOX_CHECK}'"
+            if [ -z "$SANDBOX_CHECK" ]; then
+              echo "WARNING: cef_sandbox.a not found, creating stub archives (Substrata uses no_sandbox=true)"
               mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
-              # Create empty .a files to satisfy linker
-              ar crs "$CEF_EXTRACT/Release/cef_sandbox.a" < /dev/null
-              ar crs "$CEF_EXTRACT/Debug/cef_sandbox.a" < /dev/null
-              echo "Created empty sandbox archives at Release/cef_sandbox.a and Debug/cef_sandbox.a"
+              # Create valid empty archive files
+              touch "$CEF_EXTRACT/Release/empty.o"
+              ar crs "$CEF_EXTRACT/Release/cef_sandbox.a" "$CEF_EXTRACT/Release/empty.o"
+              rm -f "$CEF_EXTRACT/Release/empty.o"
+              touch "$CEF_EXTRACT/Debug/empty.o"
+              ar crs "$CEF_EXTRACT/Debug/cef_sandbox.a" "$CEF_EXTRACT/Debug/empty.o"
+              rm -f "$CEF_EXTRACT/Debug/empty.o"
+              echo "Created stub sandbox archives"
+              ls -la "$CEF_EXTRACT/Release/cef_sandbox.a" "$CEF_EXTRACT/Debug/cef_sandbox.a"
+            else
+              echo "Sandbox already exists at: $SANDBOX_CHECK"
             fi
           else
             echo "Found prebuilt libcef_dll_wrapper.a at: $LIBWRAP"
