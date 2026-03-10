@@ -673,7 +673,24 @@ jobs:
             if [ -n "$CEF_FRAMEWORK" ]; then
               mkdir -p "$FINAL_APP/Contents/Frameworks"
               echo "Copying CEF framework from: $CEF_FRAMEWORK"
-              cp -R "$CEF_FRAMEWORK" "$FINAL_APP/Contents/Frameworks/" || true
+              
+              # Remove existing framework to avoid permission issues with read-only files
+              DEST_FRAMEWORK="$FINAL_APP/Contents/Frameworks/Chromium Embedded Framework.framework"
+              if [ -d "$DEST_FRAMEWORK" ]; then
+                echo "Removing existing CEF framework to avoid permission conflicts"
+                chmod -R u+w "$DEST_FRAMEWORK" 2>/dev/null || true
+                rm -rf "$DEST_FRAMEWORK"
+              fi
+              
+              cp -R "$CEF_FRAMEWORK" "$FINAL_APP/Contents/Frameworks/"
+              
+              # Fix permissions on read-only files (especially gpu_shader_cache.bin)
+              echo "Fixing permissions on CEF framework files"
+              chmod -R u+w "$DEST_FRAMEWORK" 2>/dev/null || true
+              
+              # Ad-hoc code sign the CEF framework (required for proper loading on macOS)
+              echo "Code signing CEF framework"
+              codesign --force --deep --sign - "$DEST_FRAMEWORK" 2>&1 || echo "Code signing failed (non-fatal)"
               
               # Verify framework contents (especially for codec support)
               echo "CEF Framework contents:"
@@ -691,14 +708,30 @@ jobs:
               # Copy any .dylib or .framework files from Release/ to app bundle
               find "$CEF_ROOT/Release" -maxdepth 1 \( -name "*.dylib" -o -name "*.framework" \) -print0 2>/dev/null | while IFS= read -r -d '' file; do
                 echo "Copying additional library: $file"
-                cp -R "$file" "$FINAL_APP/Contents/Frameworks/" || true
+                basename_file="$(basename "$file")"
+                dest_file="$FINAL_APP/Contents/Frameworks/$basename_file"
+                if [ -e "$dest_file" ]; then
+                  chmod -R u+w "$dest_file" 2>/dev/null || true
+                  rm -rf "$dest_file"
+                fi
+                cp -R "$file" "$FINAL_APP/Contents/Frameworks/"
               done
             fi
             
             # Copy helper apps that were built to CYBERSPACE_OUTPUT (substrata_output/)
             while IFS= read -r helper; do
               [ -n "$helper" ] || continue
-              cp -R "$helper" "$FINAL_APP/Contents/Frameworks/" || true
+              helper_name="$(basename "$helper")"
+              dest_helper="$FINAL_APP/Contents/Frameworks/$helper_name"
+              if [ -d "$dest_helper" ]; then
+                chmod -R u+w "$dest_helper" 2>/dev/null || true
+                rm -rf "$dest_helper"
+              fi
+              cp -R "$helper" "$FINAL_APP/Contents/Frameworks/"
+              
+              # Ad-hoc code sign helper apps
+              echo "Code signing helper app: $helper_name"
+              codesign --force --deep --sign - "$FINAL_APP/Contents/Frameworks/$helper_name" 2>&1 || echo "Code signing $helper_name failed (non-fatal)"
             done < <(find "$BASE_DIR/substrata_output" -type d -name "*gui_client*Helper*.app" -maxdepth 2 -print || true)
           fi
 
