@@ -62,12 +62,13 @@ public:
 		command_line->AppendSwitch("do-not-de-elevate");
 
 #ifdef OSX
-		// With properly code-signed helper apps, we can now use the separate GPU process
-		// which is required for hardware-accelerated video decoding on macOS.
-		// The --in-process-gpu flag was causing video playback to fail.
+		// Disable GPU compositing for macOS to force software rendering via OnPaint callback.
+		// OnAcceleratedPaint is only implemented for Windows, so without this, video frames
+		// would be rendered but never copied to OpenGL textures on macOS.
 		if(process_type.empty())
 		{
-			conPrint("CEF: Using separate GPU process on macOS (helper apps are code-signed)");
+			command_line->AppendSwitch("disable-gpu-compositing");
+			conPrint("CEF: Using software rendering for video (OnPaint callback) on macOS");
 		}
 #endif
 
@@ -172,8 +173,9 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	CefString(&settings.log_file).FromString(appdata_path + "/CEF_log.txt");
 
 #ifdef OSX
-	// Enable windowless rendering for in-world browser textures on macOS
-	// With code-signed helper apps, separate GPU process is used for hardware video acceleration
+	// Enable windowless (off-screen) rendering for in-world browser textures on macOS.
+	// GPU compositing is disabled via --disable-gpu-compositing to use software rendering (OnPaint),
+	// since OnAcceleratedPaint is only implemented for Windows.
 	settings.windowless_rendering_enabled = true;
 #endif
 
