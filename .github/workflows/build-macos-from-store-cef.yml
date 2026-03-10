@@ -337,15 +337,20 @@ jobs:
           if [ -z "$SANDBOX_CHECK" ]; then
             echo "WARNING: cef_sandbox.a not found, creating stub archives (Substrata uses no_sandbox=true)"
             mkdir -p "$CEF_EXTRACT/Release" "$CEF_EXTRACT/Debug"
-            # Create valid empty archive files
-            touch "$CEF_EXTRACT/Release/empty.o"
+            # Create valid empty Mach-O object files by compiling empty C source
+            echo "" > "$CEF_EXTRACT/Release/empty.c"
+            clang -c "$CEF_EXTRACT/Release/empty.c" -o "$CEF_EXTRACT/Release/empty.o"
             ar crs "$CEF_EXTRACT/Release/cef_sandbox.a" "$CEF_EXTRACT/Release/empty.o"
-            rm -f "$CEF_EXTRACT/Release/empty.o"
-            touch "$CEF_EXTRACT/Debug/empty.o"
+            rm -f "$CEF_EXTRACT/Release/empty.c" "$CEF_EXTRACT/Release/empty.o"
+            
+            echo "" > "$CEF_EXTRACT/Debug/empty.c"
+            clang -c "$CEF_EXTRACT/Debug/empty.c" -o "$CEF_EXTRACT/Debug/empty.o"
             ar crs "$CEF_EXTRACT/Debug/cef_sandbox.a" "$CEF_EXTRACT/Debug/empty.o"
-            rm -f "$CEF_EXTRACT/Debug/empty.o"
-            echo "Created stub sandbox archives"
+            rm -f "$CEF_EXTRACT/Debug/empty.c" "$CEF_EXTRACT/Debug/empty.o"
+            
+            echo "Created stub sandbox archives with valid Mach-O object files"
             ls -la "$CEF_EXTRACT/Release/cef_sandbox.a" "$CEF_EXTRACT/Debug/cef_sandbox.a"
+            file "$CEF_EXTRACT/Release/cef_sandbox.a"
           else
             echo "Sandbox already exists at: $SANDBOX_CHECK"
           fi
