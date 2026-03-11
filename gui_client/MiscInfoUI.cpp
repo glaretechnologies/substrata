@@ -185,6 +185,8 @@ static const int speed_margin_px = 70; // pixels between bottom of viewport and 
 static const int speed_font_size_px = 40;
 static const int speed_font_x_advance = 50; // between digits
 
+static const int NUM_DIGIT_PLACES = 4;
+
 void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 {
 	const float text_y = -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
@@ -192,37 +194,42 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 	// The approach we will take here is to pre-create the digits 0-9 in the ones, tens and hundreds places, and then only make the digits corresponding to the current speed visible.
 	// This will avoid any runtime allocs.
 	// prebuilt_digits will be laid out like:
-	// 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, ..
-	// |   \   \
-	// |   tens  ones
-	// hundreds
-
+	// 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, ..
+	// |  |  |  \---- ones
+	// |  |  tens
+	// | hundreds
+	// thousands
 	if(prebuilt_digits.empty())
 	{
-		prebuilt_digits.resize(30);
-		for(int i=0; i<30; ++i)
+		prebuilt_digits.resize(10*NUM_DIGIT_PLACES);
+		for(int i=0; i<10*NUM_DIGIT_PLACES; ++i)
 		{
-			const int digit_val = i / 3;
-			const int digit_place = i % 3;
+			const int digit_val =   i / NUM_DIGIT_PLACES; // 0...9
+			const int digit_place = i % NUM_DIGIT_PLACES; // 0 = thousands, 3 = ones
 			GLUITextView::CreateArgs create_args;
 			create_args.font_size_px = speed_font_size_px;
 			create_args.background_alpha = 0;
 			create_args.text_selectable = false;
-			prebuilt_digits[i] = new GLUITextView(*gl_ui, opengl_engine, toString(digit_val), Vec2f(0.f + (-3 + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y), create_args);
+			prebuilt_digits[i] = new GLUITextView(*gl_ui, opengl_engine, toString(digit_val), Vec2f(0.f + (-NUM_DIGIT_PLACES + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y), create_args);
 		}
 	}
 
 	const int speed_int = (int)speed_km_per_h;
 
-	for(int i=0; i<3; ++i) // For each digit place:
+	for(int i=0; i<NUM_DIGIT_PLACES; ++i) // For each digit place (0 = thousands, 3 = ones):
 	{
-		const int place_1_val = (i == 0) ? 100 : ((i == 1) ? 10 : 1);
-		const int digit_val = (speed_int / place_1_val) % 10;
+		int place_1_val; // The value of a number with 1 at that place and zero elsewhere.
+		if(i == 0)      place_1_val = 1000;
+		else if(i == 1) place_1_val = 100;
+		else if(i == 2) place_1_val = 10;
+		else            place_1_val = 1;
+
+		const int digit_val = (speed_int / place_1_val) % 10; // What digit do we want to show at this place:
 
 		for(int z=0; z<10; ++z) // For digit val z at digit place i:
 		{
-			const bool should_draw = (digit_val == z) && ((speed_int >= place_1_val) || (i == 2 && speed_int == 0)); // Don't show leading zeroes.  But if speed = 0, we do need to show one zero.
-			prebuilt_digits[z*3 + i]->setVisible(should_draw && visible);
+			const bool should_draw = (digit_val == z) && ((speed_int >= place_1_val) || (i == (NUM_DIGIT_PLACES-1) && speed_int == 0)); // Don't show leading zeroes.  But if speed = 0, we do need to show one zero.
+			prebuilt_digits[z*NUM_DIGIT_PLACES + i]->setVisible(should_draw && visible);
 		}
 	}
 
@@ -331,11 +338,11 @@ void MiscInfoUI::updateWidgetPositions()
 
 		const float text_y = -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(speed_margin_px);
 
-		// 0, 0, 0, 1, 1, 1, 2, 2, 2
+		// 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2
 		for(int i=0; i<(int)prebuilt_digits.size(); ++i)
 		{
-			const int digit_place = i % 3;
-			prebuilt_digits[i]->setPos(Vec2f(0.f + (-3 + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y));
+			const int digit_place = i % NUM_DIGIT_PLACES;
+			prebuilt_digits[i]->setPos(Vec2f(0.f + (-NUM_DIGIT_PLACES + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y));
 		}
 		if(unit_string_view.nonNull())
 			unit_string_view->setPos(/*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y));
