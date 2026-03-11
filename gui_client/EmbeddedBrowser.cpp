@@ -137,6 +137,15 @@ public:
 					{
 						gui_client->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while uploading to texture buffer.
 
+#ifdef OSX
+						// Debug output for macOS video rendering
+						if(num_messages_logged < 5)
+						{
+							conPrint("OnPaint called - updating " + toString(dirty_rects.size()) + " dirty rect(s), texture size: " + toString(width) + "x" + toString(height));
+							num_messages_logged++;
+						}
+#endif
+
 						for(size_t i=0; i<dirty_rects.size(); ++i)
 						{
 							const CefRect& rect = dirty_rects[i];
@@ -384,13 +393,21 @@ public:
 		if(hasPrefix(URL, "https://resource/"))
 		{
 			const std::string resource_URL = eatPrefix(URL, "https://resource/");
-			//conPrint("resource_URL: " + resource_URL);
+			
+#ifdef OSX
+			// Debug: Log resource loading attempts for video files on macOS
+			if(hasPrefix(resource_URL, "http") || hasSuffix(resource_URL, ".mp4"))
+				conPrint("CEF ResourceHandler: Loading resource URL: " + resource_URL);
+#endif
 
 			ResourceRef resource = resource_manager->getExistingResourceForURL(URLString(resource_URL));
 			if(resource)
 			{
 				const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
-				//conPrint("path: " + path);
+#ifdef OSX
+				if(hasPrefix(resource_URL, "http") || hasSuffix(resource_URL, ".mp4"))
+					conPrint("CEF ResourceHandler: File path: " + path + ", MIME type: " + web::ResponseUtils::getContentTypeForPath(resource_URL));
+#endif
 				try
 				{
 					in_stream = new FileInStream(path);
@@ -400,13 +417,20 @@ public:
 					handle_request = true;
 					return true;
 				}
-				catch(glare::Exception&)
+				catch(glare::Exception& e)
 				{
+#ifdef OSX
+					conPrint("CEF ResourceHandler: Failed to open file: " + e.what());
+#endif
 					return false;
 				}
 			}
 			else
 			{
+#ifdef OSX
+				if(hasPrefix(resource_URL, "http") || hasSuffix(resource_URL, ".mp4"))
+					conPrint("CEF ResourceHandler: Resource not found in resource manager");
+#endif
 				// No such resource present.
 				return false;
 			}
@@ -576,7 +600,10 @@ public:
 	// From CefDisplayHandler
 	virtual bool OnConsoleMessage( CefRefPtr< CefBrowser > browser, cef_log_severity_t level, const CefString& message, const CefString& source, int line ) override
 	{
-		// conPrint("OnConsoleMessage: " + message.ToString());
+#ifdef OSX
+		// Log console messages on macOS to help debug video loading issues
+		conPrint("CEF Console [" + toString((int)level) + "]: " + message.ToString() + " (source: " + source.ToString() + ":" + toString(line) + ")");
+#endif
 		return true;
 	}
 

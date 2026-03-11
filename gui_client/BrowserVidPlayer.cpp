@@ -217,6 +217,13 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 			"	</body>"
 			"</html>";
 
+#ifdef OSX
+		conPrint("BrowserVidPlayer: Generated HTML for video URL: " + video_url);
+		conPrint("BrowserVidPlayer: Video source URL: " + use_URL);
+		conPrint("BrowserVidPlayer: Resource present: " + boolToString(resource.nonNull() && resource->getState() == Resource::State_Present));
+		conPrint("BrowserVidPlayer: Attributes: " + attributes);
+#endif
+
 		return html;
 	}
 }

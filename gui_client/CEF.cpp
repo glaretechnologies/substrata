@@ -179,7 +179,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	settings.windowless_rendering_enabled = true;
 #endif
 
-	settings.log_severity = LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
+	settings.log_severity = LOGSEVERITY_INFO; // Enable logging by default on macOS to diagnose video issues
 	// Allow setting the logging level via environment variable.
 	try
 	{
@@ -194,6 +194,10 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	}
 	catch(glare::Exception& )
 	{}
+	
+#ifdef OSX
+	conPrint("CEF log will be written to: " + appdata_path + "/CEF_log.txt");
+#endif
 
 #if defined(OSX)
 	// On macOS, CEF helper processes are in Frameworks/ alongside the CEF framework
