@@ -435,6 +435,12 @@ a
 	max-width: 100%;
 }
 
+.photo-nav {
+	display: flex;
+	justify-content: space-between;
+	padding-bottom: 8px;
+}
+
 
 /* Used on parcel page for both screenshots and photos */
 .generic-image-container {

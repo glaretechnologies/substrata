@@ -137,7 +137,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 			Reference<ServerWorldState> root_world = world_state.getRootWorldState();
 
-			auto res = world_state.photos.find(photo_id);
+			const auto res = world_state.photos.find(photo_id);
 			if(res == world_state.photos.end())
 				throw glare::Exception("Couldn't find photo");
 
@@ -152,6 +152,37 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 			{
 				const std::string fullsize_image_URL = photo->fullSizeImageURLPath();
 				const std::string midsize_image_URL  = photo->midSizeImageURLPath();
+
+				// Find previous (older) and next (newer) published photos
+				uint64 prev_photo_id = std::numeric_limits<uint64>::max(); // lower ID = older
+				uint64 next_photo_id = std::numeric_limits<uint64>::max(); // higher ID = newer
+				{
+					// Search backward for previous (older) published photo
+					{
+						auto it = std::reverse_iterator(res); // == res - 1
+						for(; it != world_state.photos.rend(); ++it)
+						{
+							if(it->second->state == Photo::State_published)
+							{
+								prev_photo_id = it->first;
+								break;
+							}
+						}
+					}
+					// Search forward for next (newer) published photo
+					{
+						auto it = res;
+						it++;
+						for(; it != world_state.photos.end(); ++it)
+						{
+							if(it->second->state == Photo::State_published)
+							{
+								next_photo_id = it->first;
+								break;
+							}
+						}
+					}
+				}
 
 				// Look up creator username
 				std::string creator_username;
@@ -179,8 +210,20 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 				page += "<div class=\"main\">   \n";
 
 
+				// Prev/next navigation
+				page += "<div class=\"photo-nav\">\n"
+					"<div>\n"; // Needed for alignment even if left <a> tag is not present.
+				if(next_photo_id != std::numeric_limits<uint64>::max())
+					page += "<a href=\"/photo/" + toString(next_photo_id) + "\">&lt; Newer</a>\n";
+				page += "</div>\n"
+					"<div>\n";
+				if(prev_photo_id != std::numeric_limits<uint64>::max())
+					page += "<a href=\"/photo/" + toString(prev_photo_id) + "\">Older &gt;</a>\n";
+				page += "</div>\n"
+					"</div>\n";
+
+
 				// Insert image tag
-				
 				page += "<a href=\"" + fullsize_image_URL + "\"><img src=\"" + midsize_image_URL + "\"  class=\"photo-midsize-img\"/></a>"; // width=\"800px\"
 
 				page += "<figcaption><i>" + web::Escaping::HTMLEscape(photo->caption) + "</i></figcaption>\n";
