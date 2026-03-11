@@ -65,10 +65,12 @@ public:
 		// Disable GPU compositing for macOS to force software rendering via OnPaint callback.
 		// OnAcceleratedPaint is only implemented for Windows, so without this, video frames
 		// would be rendered but never copied to OpenGL textures on macOS.
+		// Also disable hardware video decoding to fix "Unsupported pixel format: -1" error.
 		if(process_type.empty())
 		{
 			command_line->AppendSwitch("disable-gpu-compositing");
-			conPrint("CEF: Using software rendering for video (OnPaint callback) on macOS");
+			command_line->AppendSwitch("disable-accelerated-video-decode");
+			conPrint("CEF: Using software decoding and rendering for video on macOS");
 		}
 #endif
 
