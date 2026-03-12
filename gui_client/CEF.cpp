@@ -65,12 +65,14 @@ public:
 		// Disable GPU compositing for macOS to force software rendering via OnPaint callback.
 		// OnAcceleratedPaint is only implemented for Windows, so without this, video frames
 		// would be rendered but never copied to OpenGL textures on macOS.
-		// Disable VideoToolbox (macOS native hardware decoder) which causes "Unsupported pixel format: -1" error.
+		// Completely disable all hardware video decoding to fix "Unsupported pixel format: -1" error.
 		if(process_type.empty())
 		{
 			command_line->AppendSwitch("disable-gpu-compositing");
-			command_line->AppendSwitchWithValue("disable-features", "VideoToolboxVideoDecoder");
-			conPrint("CEF: Disabled VideoToolbox decoder, using FFmpeg software decoding on macOS");
+			command_line->AppendSwitch("disable-accelerated-video-decode");
+			command_line->AppendSwitch("disable-gpu-video-decoder");
+			command_line->AppendSwitchWithValue("disable-features", "VideoToolboxVideoDecoder,D3D11VideoDecoder");
+			conPrint("CEF: Using pure software video decoding on macOS");
 		}
 #endif
 
