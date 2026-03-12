@@ -142,6 +142,18 @@ public:
 						if(num_messages_logged < 5)
 						{
 							conPrint("OnPaint called - updating " + toString(dirty_rects.size()) + " dirty rect(s), texture size: " + toString(width) + "x" + toString(height));
+							
+							// Check if buffer contains actual data (not all zeros/white)
+							const uint8* buf = (const uint8*)buffer;
+							uint32_t non_white_pixels = 0;
+							for(int i = 0; i < std::min(1000, width * height); ++i) {
+								// Check if pixel is not white (BGRA format, white = 255,255,255,x)
+								if(buf[i*4] != 255 || buf[i*4+1] != 255 || buf[i*4+2] != 255)
+									non_white_pixels++;
+							}
+							conPrint("  First 1000 pixels: " + toString(non_white_pixels) + " non-white pixels found");
+							conPrint("  First pixel BGRA: " + toString((int)buf[0]) + "," + toString((int)buf[1]) + "," + toString((int)buf[2]) + "," + toString((int)buf[3]));
+							
 							num_messages_logged++;
 						}
 #endif

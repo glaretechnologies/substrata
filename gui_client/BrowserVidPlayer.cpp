@@ -206,12 +206,23 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 		const std::string attributes = "controls " + std::string(autoplay ? "autoplay " : "") + std::string(loop ? "loop " : "") + std::string(muted ? "muted " : "");
 
 		// NOTE: We will use a custom HTML page with the loop attribute set to true.  Can also add 'controls' attribute to debug stuff.
+		// Add error handling and status logging via JavaScript
 		const std::string html =
 			"<html>"
 			"	<head>"
+			"		<script>"
+			"			function logStatus(msg) { console.log('[VIDEO] ' + msg); }"
+			"		</script>"
 			"	</head>"
-			"	<body style=\"margin:0\">"
-			"		<video " + attributes + " name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\">"
+			"	<body style=\"margin:0; background-color:black;\">"
+			"		<video " + attributes + " name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\""
+			"			onloadstart=\"logStatus('loadstart')\""
+			"			onloadedmetadata=\"logStatus('metadata loaded: ' + this.videoWidth + 'x' + this.videoHeight)\""
+			"			onloadeddata=\"logStatus('data loaded')\""
+			"			oncanplay=\"logStatus('can play')\""
+			"			onplay=\"logStatus('playing')\""
+			"			onerror=\"logStatus('ERROR: ' + this.error.code + ' - ' + this.error.message)\""
+			"			onstalled=\"logStatus('stalled')\">"
 			"			<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"video/mp4\" />"
 			"		</video>"
 			"	</body>"
