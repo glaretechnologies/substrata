@@ -394,6 +394,10 @@ public:
 
 		if(hasPrefix(URL, "https://localdomain/"))
 		{
+#ifdef OSX
+			conPrint("CEF ResourceHandler: Serving localdomain page, HTML length: " + toString(root_page.size()) + " bytes");
+			conPrint("CEF ResourceHandler: First 100 chars: " + root_page.substr(0, std::min((size_t)100, root_page.size())));
+#endif
 			handle_request = true;
 
 			in_stream = new BufferInStream(root_page);
