@@ -282,6 +282,7 @@ int main(int argc, char *argv[])
 
 		const int listen_port = 7600; // Listen port for sub protocol
 
+		const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
 #if defined(_WIN32)
 		const std::string substrata_appdata_dir = PlatformUtils::getOrCreateAppDataDirectory("Substrata");
 		const std::string server_state_dir = substrata_appdata_dir + "/server_data";
@@ -329,7 +330,7 @@ int main(int argc, char *argv[])
 
 		// Add all files from /dist_resources into the resource manager.
 		{
-			const std::vector<std::string> paths = FileUtils::getFilesInDirFullPaths(server_state_dir + "/dist_resources/");
+			const std::vector<std::string> paths = FileUtils::getFilesInDirFullPaths(base_dir_path + "/resources");
 			for(size_t i=0; i<paths.size(); ++i)
 				server.world_state->resource_manager->addExternalResource(/*URL=*/URLString(FileUtils::getFilename(paths[i])), /*local_abs_path=*/paths[i]);
 
@@ -398,7 +399,7 @@ int main(int argc, char *argv[])
 		}
 
 
-		WorldCreation::createParcelsAndRoads(server.world_state);
+		// WorldCreation::createParcelsAndRoads(server.world_state);
 
 		// WorldCreation::removeHypercardMaterials(*server.world_state);
 
