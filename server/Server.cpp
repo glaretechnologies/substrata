@@ -54,6 +54,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/ArgumentParser.h>
 #include <utils/SocketBufferOutStream.h>
 #include <utils/OpenSSL.h>
+#include <utils/KeyPairGen.h>
 #include <tls.h>
 #if !defined(_WIN32)
 #include <signal.h>
@@ -428,6 +429,17 @@ int main(int argc, char *argv[])
 
 		conPrint("tls_certificate_path: " + tls_certificate_path);
 		conPrint("tls_private_key_path: " + tls_private_key_path);
+
+		if(server_config.tls_certificate_path.empty() && server_config.tls_private_key_path.empty()) // If using the default key and cert paths:
+		{
+			if(!FileUtils::fileExists(tls_certificate_path) && !FileUtils::fileExists(tls_private_key_path)) // If not present on disk:
+			{
+				// Generate a keypair and self-signed cert
+				conPrint("cert and private key not found, generating new ones...");
+				KeyPairGen::generateRSAKeyPairAndX509Cert(tls_private_key_path, server_state_dir + "/MyKey.pub", tls_certificate_path);
+			}
+		}
+
 		
 		if(!FileUtils::fileExists(tls_certificate_path))
 			throw glare::Exception("ERROR: No file found at TLS certificate path '" + tls_certificate_path + "'");

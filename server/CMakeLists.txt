@@ -68,6 +68,13 @@ SET(shared_files
 )
 
 
+set(utils
+${utils}
+${GLARE_CORE_TRUNK_DIR_ENV}/utils/KeyPairGen.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/utils/KeyPairGen.h
+)
+
+
 #============== Tracy profiler ==============
 
 include_directories("${GLARE_CORE_TRUNK_DIR_ENV}/tracy/public")
