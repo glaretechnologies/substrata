@@ -43,6 +43,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
 #include "MiniMap.h"
+#include "PhotoModeUI.h"
 #include "CEF.h"
 #include <limits>
 #if !defined(EMSCRIPTEN)
@@ -502,9 +503,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	// Chat UI should be drawn above the movement button if present.
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
 	chat_ui.setDrawAreaBottomLeftY(bottom_left_y);
-
-	photo_mode_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui, this->settings);
-	photo_mode_ui.setVisible(false);
 
 
 	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
@@ -1040,7 +1038,7 @@ void GUIClient::shutdown()
 
 	chat_ui.destroy();
 
-	photo_mode_ui.destroy();
+	photo_mode_ui = nullptr;
 
 	minimap = nullptr;
 
@@ -8437,7 +8435,8 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 
 			opengl_engine->getCurrentScene()->dof_blur_focus_distance = myMax(0.01f, cam_eye_dist - 0.015f);
 
-			photo_mode_ui.autofocusDistSet(cam_eye_dist);
+			if(photo_mode_ui)
+				photo_mode_ui->autofocusDistSet(cam_eye_dist);
 		}
 	}
 }
@@ -14886,7 +14885,7 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 		else if(cam_controller.thirdPersonEnabled())
 		{
 			const bool scrolled_all_way_in = cam_controller.handleScrollWheelEvent((float)e.angle_delta.y);
-			const bool change_to_first_person = scrolled_all_way_in && !photo_mode_ui.isPhotoModeEnabled();
+			const bool change_to_first_person = scrolled_all_way_in && !photo_mode_ui;
 			if(change_to_first_person)
 			{
 				ui_interface->enableFirstPersonCamera();
@@ -14927,7 +14926,8 @@ void GUIClient::viewportResized(int w, int h)
 	}
 
 	chat_ui.viewportResized(w, h);
-	photo_mode_ui.viewportResized(w, h);
+	if(photo_mode_ui)
+		photo_mode_ui->viewportResized(w, h);
 	if(minimap)
 		minimap->viewportResized(w, h);
 }
@@ -15363,9 +15363,15 @@ void GUIClient::setSelfieModeEnabled(bool enabled)
 void GUIClient::setPhotoModeEnabled(bool enabled)
 {
 	if(enabled)
-		this->photo_mode_ui.enablePhotoModeUI();
+	{
+		this->photo_mode_ui = new PhotoModeUI(opengl_engine, this, gl_ui, this->settings);
+	}
 	else
-		this->photo_mode_ui.disablePhotoModeUI();
+	{
+		if(this->photo_mode_ui)
+			this->photo_mode_ui->resetControlsToNonPhotoModeDefaults();
+		this->photo_mode_ui = nullptr;
+	}
 
 	this->gesture_ui.setPhotoModeEnabledUIState(enabled);
 }
@@ -16480,7 +16486,8 @@ void GUIClient::hideUI()
 	gesture_ui.setVisible(false);
 	misc_info_ui.setVisible(false);
 	chat_ui.setVisible(false);
-	photo_mode_ui.setVisible(false);
+	if(photo_mode_ui)
+		photo_mode_ui->setVisible(false);
 	if(minimap)
 		minimap->setVisible(false);
 
@@ -16497,7 +16504,8 @@ void GUIClient::unhideUIIfHidden()
 		gesture_ui.setVisible(true);
 		misc_info_ui.setVisible(true);
 		chat_ui.setVisible(true);
-		photo_mode_ui.setVisible(true);
+		if(photo_mode_ui)
+			photo_mode_ui->setVisible(true);
 		if(minimap)
 			minimap->setVisible(true);
 

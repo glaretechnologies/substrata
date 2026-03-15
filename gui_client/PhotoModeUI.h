@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <opengl/ui/GLUISlider.h>
 #include <opengl/ui/GLUIInertWidget.h>
 #include <opengl/ui/GLUIGridContainer.h>
+#include <opengl/ui/GLUICollapsableGroupBox.h>
 #include <utils/ThreadManager.h>
 
 
@@ -41,21 +42,16 @@ PhotoModeUI
 -----------
 
 =====================================================================*/
-class PhotoModeUI : public GLUICallbackHandler
+class PhotoModeUI : public GLUICallbackHandler, public ThreadSafeRefCounted
 {
 public:
-	PhotoModeUI();
+	PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_, const Reference<SettingsStore>& settings);
 	~PhotoModeUI();
-
-	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_, const Reference<SettingsStore>& settings);
-	void destroy();
 
 	void setVisible(bool visible);
 	bool isVisible() const;
 
-	void enablePhotoModeUI();
-	void disablePhotoModeUI();
-	bool isPhotoModeEnabled();
+	void resetControlsToNonPhotoModeDefaults();
 
 	void autofocusDistSet(double dist);
 
@@ -72,11 +68,10 @@ public:
 private:
 	void untoggleAllCamModeButtons();
 	void updateWidgetPositions();
-	void makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed, int& cell_y);
+	void makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed, GLUIGridContainerRef parent_grid_container);
 	void updateFocusDistValueString();
 	void updateFocalLengthValueString();
 	void resetControlsToPhotoModeDefaults();
-	void resetControlsToNonPhotoModeDefaults();
 	void showUploadPhotoWidget();
 	void hideUploadPhotoWidget();
 	void uploadPhoto();
@@ -86,6 +81,12 @@ private:
 	GLUIWindowRef window;
 
 	GLUIGridContainerRef grid_container;
+
+	GLUICollapsableGroupBoxRef camera_group;
+	GLUIGridContainerRef camera_grid_container;
+
+	GLUICollapsableGroupBoxRef env_group;
+	GLUIGridContainerRef env_grid_container;
 
 	GLUITextButtonRef standard_cam_button;
 	GLUITextButtonRef selfie_cam_button;
@@ -118,6 +119,9 @@ private:
 	PhotoModeSlider saturation_slider;
 	PhotoModeSlider focal_length_slider;
 	PhotoModeSlider roll_slider;
+
+	PhotoModeSlider sun_theta_slider;
+	PhotoModeSlider sun_phi_slider;
 
 	GLUIRef gl_ui;
 
