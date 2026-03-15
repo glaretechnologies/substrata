@@ -224,24 +224,12 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage, int row_index
 }
 
 
-/*
-msg index   row index
-0           4
-1           3
-2           2
-3           1
-4           0
-
-messages.size() == 5
-*/
-
-
 void ChatUI::recreateMessageTextViews()
 {
 	int i = 0;
 	for(auto it = messages.begin(); it != messages.end(); ++it)
 	{
-		recreateTextViewsForMessage(*it, /*row index=*/(int)messages.size() - 1 - i);
+		recreateTextViewsForMessage(*it, /*row index=*/i);
 		i++;
 	}
 }
@@ -268,13 +256,18 @@ void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avata
 		}
 
 		// Add a new row if we are not at MAX_NUM_MESSAGES rows yet.
-		grid_container->cell_widgets.resize(1, myMin(MAX_NUM_MESSAGES, grid_container->cell_widgets.getHeight() + 1));
+		if(grid_container->cell_widgets.getHeight() < MAX_NUM_MESSAGES)
+		{
+			grid_container->cell_widgets.resize(1, grid_container->cell_widgets.getHeight() + 1); // Add row at bottom
+		}
+		else
+		{
+			// Move all messages up a row in the grid container
+			for(int y = 0; y + 1 < (int)grid_container->cell_widgets.getHeight(); ++y)
+				grid_container->cell_widgets.elem(0, y) = grid_container->cell_widgets.elem(0, y+1);
+		}
 
-		// Move all messages up a row in the grid container
-		for(int y = (int)grid_container->cell_widgets.getHeight() - 1; y >= 1; y--)
-			grid_container->cell_widgets.elem(0, y) = grid_container->cell_widgets.elem(0, y-1);
-
-		recreateTextViewsForMessage(messages.back(), /*row index=*/0);
+		recreateTextViewsForMessage(messages.back(), /*row index=*/(int)grid_container->cell_widgets.getHeight() - 1);
 	}
 
 
