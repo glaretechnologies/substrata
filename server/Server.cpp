@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
 
 
-		// Add all files from /dist_resources into the resource manager.
+		// Add all files from base_dir_path + "/resources" into the resource manager (files from server_dist_resources in Substrata repo).
 		{
 			const std::vector<std::string> paths = FileUtils::getFilesInDirFullPaths(base_dir_path + "/resources");
 			for(size_t i=0; i<paths.size(); ++i)
