@@ -132,9 +132,16 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 					}
 
 
-				const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path); // Guess content type
+                const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path); // Guess content type
 
-				MemMappedFile file(local_path);
+			// Debug logging: report resource serving details
+			try
+			{
+				conPrint("ResourceHandlers::handleResourceRequest - serving: " + resource_URL + ", local_path: " + local_path + ", content_type: " + content_type + ", size: " + toString(FileUtils::size(local_path)));
+			}
+			catch(...) {}
+
+                MemMappedFile file(local_path);
 
 				// NOTE: only handle a single range for now, because the response content types (and encoding?) get different for multiple ranges.
 				if(request.ranges.size() == 1)
@@ -159,7 +166,12 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 						if(use_range_end > (int64)file.fileSize())
 							throw glare::Exception("invalid range");
 
-						//conPrint("\thandleResourceRequest: serving data range (start: " + toString(range.start) + ", range_size: " + toString(range_size) + ")");
+						// Debug logging: report range being served
+						try
+						{
+							conPrint("ResourceHandlers::handleResourceRequest - serving range for: " + resource_URL + ", start: " + toString(range.start) + ", size: " + toString(range_size));
+						}
+						catch(...) {}
 				
 						const std::string response = 
 							"HTTP/1.1 206 Partial Content\r\n"
@@ -182,9 +194,15 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				}
 				else
 				{
-					// conPrint("handleResourceRequest: serving data for '" + resource_URL + "' (len: " + toString(file.fileSize()) + " B)");
 
-					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheControl(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*cache control=*/"max-age=1000000000, immutable");
+				// Debug logging: serving full resource
+				try
+				{
+					conPrint("ResourceHandlers::handleResourceRequest - serving full resource: " + resource_URL + ", size: " + toString(file.fileSize()) + ", content_type: " + content_type);
+				}
+				catch(...) {}
+
+				web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheControl(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*cache control=*/"max-age=1000000000, immutable");
 
 					// conPrint("\thandleResourceRequest: sent data. (len: " + toString(file.fileSize()) + ")");
 				}

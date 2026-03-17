@@ -378,6 +378,13 @@ public:
 			in_stream = new BufferInStream(root_page);
 
 			response_mime_type = "text/html";
+
+			// Debug logging: report resource served to embedded browser
+			try
+			{
+				conPrint("EmbeddedBrowserResourceHandler::Open - localdomain URL served, mime: " + response_mime_type + ", size: " + toString(in_stream->size()));
+			}
+			catch(...) {}
 			return true;
 		}
 
@@ -396,6 +403,13 @@ public:
 					in_stream = new FileInStream(path);
 
 					response_mime_type = web::ResponseUtils::getContentTypeForPath(resource_URL);
+
+					// Debug logging: report resource details when opened by embedded browser
+					try
+					{
+						conPrint("EmbeddedBrowserResourceHandler::Open - resource requested: " + resource_URL + ", local_path: " + path + ", mime: " + response_mime_type + ", size: " + toString(in_stream->size()));
+					}
+					catch(...) {}
 
 					handle_request = true;
 					return true;
