@@ -7,7 +7,6 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "IncludeOpenGL.h"
-#include "SubstrataVideoSurface.h"
 #include "../shared/FileTypes.h"
 #include "../qt/QtUtils.h"
 #include "../utils/PlatformUtils.h"
@@ -17,6 +16,8 @@ Copyright Glare Technologies Limited 2023 -
 #include <QtCore/QSettings>
 #if defined(_WIN32)
 #include "../video/WMFVideoReader.h"
+#else
+#include "SubstrataVideoSurface.h"
 #endif
 
 
@@ -104,10 +105,8 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 	{
 		if(FileTypes::hasSupportedVideoFileExtension(local_path))
 		{
-			const bool use_wmf_reader = hasExtension(local_path, "mp4");
-
 #if defined(_WIN32)
-			if(use_wmf_reader)
+			if(hasExtension(local_path, "mp4"))
 			{
 				Reference<WMFVideoReader> reader = new WMFVideoReader(false, /*just_read_audio=*/false, local_path, /*async_mode=*/false, dev_manager, /*decode_to_d3d_tex=*/false);
 
@@ -123,7 +122,13 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 				this->videoInfoLabel->setText(QtUtils::toQString("Video width: " + toString(this->video_width) + " px, height: " + toString(this->video_height) + " px"));
 			}
 			else
-#endif
+			{
+				// WMF is used on Windows and we don't link Qt Multimedia there, so keep defaults for WebM dimensions.
+				this->video_width = 1920;
+				this->video_height = 1080;
+				this->videoInfoLabel->setText(QtUtils::toQString("Using default video size: 1920 x 1080 (WebM metadata probing unavailable on this build)."));
+			}
+#else
 			{
 			SubstrataVideoSurface* video_surface = new SubstrataVideoSurface(NULL);
 			video_surface->load_into_opengl_tex = false; // Just copy into mem buffer.  OpenGL texture stuff gets tricky with multiple GL contexts.
@@ -160,6 +165,7 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 			delete media_player;
 			delete video_surface;
 			}
+#endif
 		}
 		else
 			throw glare::Exception("file did not have a supported video extension: '" + getExtension(local_path) + "'");
