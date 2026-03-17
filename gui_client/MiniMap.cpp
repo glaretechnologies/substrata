@@ -58,7 +58,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 	// Create minimap (background) image.  Will be mostly covered by tiles, but keep for the sizing logic and mouse handler.
 	const float y_margin = computeMiniMapTopMargin();
 	const float minimap_width = computeMiniMapWidth();
-	minimap_image = new GLUIImage(*gl_ui, opengl_engine, "", /*tooltip=*/"", BACKGROUND_IMAGE_Z);
+	minimap_image = new GLUIImage(*gl_ui, "", /*tooltip=*/"", BACKGROUND_IMAGE_Z);
 	minimap_image->setColour(Colour3f(0.1f));
 	minimap_image->setAlpha(0.8f);
 	minimap_image->setMouseOverColour(Colour3f(0.1f));
@@ -66,7 +66,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 	gl_ui->addWidget(minimap_image);
 
 	// Create facing arrow image
-	arrow_image = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/facing_arrow.png", /*tooltip=*/"You", ARROW_IMAGE_Z);
+	arrow_image = new GLUIImage(*gl_ui, gui_client->resources_dir_path + "/facing_arrow.png", /*tooltip=*/"You", ARROW_IMAGE_Z);
 	arrow_image->setPosAndDims(Vec2f(1 - x_margin - minimap_width/2, gl_ui->getViewportMinMaxY() - y_margin - minimap_width/2), Vec2f(0.005f));
 	arrow_image->overlay_ob->material.tex_matrix = Matrix2f::identity(); // Since we are using a texture rendered in OpenGL we don't need to flip it.
 	arrow_image->handler = this;
@@ -78,7 +78,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 		args.tooltip = "Hide minimap";
 		//args.button_colour = Colour3f(0.2f);
 		//args.mouseover_button_colour = Colour3f(0.4f);
-		collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/right_tab.png", args);
+		collapse_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/right_tab.png", args);
 		collapse_button->handler = this;
 		gl_ui->addWidget(collapse_button);
 	}
@@ -86,7 +86,7 @@ MiniMap::MiniMap(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Show minimap";
-		expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/minimap_icon.png", args);
+		expand_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/minimap_icon.png", args);
 		expand_button->handler = this;
 		expand_button->setVisible(false);
 		gl_ui->addWidget(expand_button);
@@ -145,10 +145,7 @@ MiniMap::~MiniMap()
 
 		for(int y=0; y<TILE_GRID_RES; ++y)
 		for(int x=0; x<TILE_GRID_RES; ++x)
-		{
-			opengl_engine->removeOverlayObject(tiles.elem(x, y).ob);
-			tiles.elem(x, y).ob = NULL;
-		}
+			checkRemoveOverlayObAndSetRefToNull(opengl_engine.ptr(), tiles.elem(x, y).ob);
 		tiles.resize(0, 0);
 
 		if(minimap_image.nonNull())
@@ -879,7 +876,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker.isNull()) // If marker does not exist yet:
 	{
 		// Create marker dot
-		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/dot.png", /*tooltip=*/avatar->getUseName());
+		GLUIImageRef im = new GLUIImage(*gl_ui, gui_client->resources_dir_path + "/dot.png", /*tooltip=*/avatar->getUseName());
 		if(avatar->isChatBotAvatar())
 			im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
 		else
@@ -899,7 +896,7 @@ void MiniMap::updateMarkerForAvatar(Avatar* avatar, const Vec3d& avatar_pos)
 	if(avatar->minimap_marker_arrow.isNull()) // If marker arrow does not exist yet:
 	{
 		// Create marker arrow
-		GLUIImageRef im = new GLUIImage(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/arrow.png", /*tooltip=*/avatar->getUseName());
+		GLUIImageRef im = new GLUIImage(*gl_ui, gui_client->resources_dir_path + "/arrow.png", /*tooltip=*/avatar->getUseName());
 		if(avatar->isChatBotAvatar())
 			im->setColour(toLinearSRGB(Colour3f(5,5,5))); // Glowing white colour
 		else

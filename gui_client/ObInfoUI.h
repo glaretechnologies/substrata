@@ -26,7 +26,7 @@ public:
 	ObInfoUI();
 	~ObInfoUI();
 
-	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
+	void create(GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
 	void think();
@@ -47,6 +47,4 @@ private:
 	GLUITextViewRef info_text_view;
 
 	GLUIRef gl_ui;
-
-	Reference<OpenGLEngine> opengl_engine;
 };

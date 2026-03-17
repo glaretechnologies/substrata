@@ -20,11 +20,10 @@ MiscInfoUI::~MiscInfoUI()
 {}
 
 
-void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
+void MiscInfoUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	ZoneScoped; // Tracy profiler
 
-	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 
@@ -32,19 +31,19 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	GLUITextButton::CreateArgs login_args;
 	login_args.tooltip = "Log in to an existing user account";
 	login_args.font_size_px = 12;
-	login_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Log in", Vec2f(0.f), login_args);
+	login_button = new GLUITextButton(*gl_ui_, "Log in", Vec2f(0.f), login_args);
 	login_button->handler = this;
 	gl_ui->addWidget(login_button);
 
 	GLUITextButton::CreateArgs signup_args;
 	signup_args.tooltip = "Create a new user account";
 	signup_args.font_size_px = 12;
-	signup_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Sign up", Vec2f(0.f), signup_args);
+	signup_button = new GLUITextButton(*gl_ui_, "Sign up", Vec2f(0.f), signup_args);
 	signup_button->handler = this;
 	gl_ui->addWidget(signup_button);
 
 
-	movement_button = new GLUIButton(*gl_ui_, opengl_engine_, /*tex path=*/gui_client->resources_dir_path + "/buttons/dir_pad.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
+	movement_button = new GLUIButton(*gl_ui_, /*tex path=*/gui_client->resources_dir_path + "/buttons/dir_pad.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
 	movement_button->handler = this;
 	gl_ui->addWidget(movement_button);
 
@@ -52,7 +51,7 @@ void MiscInfoUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Avatar settings";
-		avatar_button = new GLUIButton(*gl_ui_, opengl_engine_, gui_client->resources_dir_path + "/buttons/avatar.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), args);
+		avatar_button = new GLUIButton(*gl_ui_, gui_client->resources_dir_path + "/buttons/avatar.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), args);
 		avatar_button->handler = this;
 		gl_ui->addWidget(avatar_button);
 	}
@@ -77,7 +76,6 @@ void MiscInfoUI::destroy()
 	prebuilt_digits.clear();
 
 	gl_ui = NULL;
-	opengl_engine = NULL;
 }
 
 
@@ -145,7 +143,7 @@ void MiscInfoUI::showLoggedInButton(const std::string& username)
 	GLUITextButton::CreateArgs logged_in_button_args;
 	logged_in_button_args.tooltip = "View user account";
 	logged_in_button_args.font_size_px = 12;
-	logged_in_button = new GLUITextButton(*gl_ui, opengl_engine, "Logged in as " + username, Vec2f(0.f), logged_in_button_args);
+	logged_in_button = new GLUITextButton(*gl_ui, "Logged in as " + username, Vec2f(0.f), logged_in_button_args);
 	logged_in_button->handler = this;
 	gl_ui->addWidget(logged_in_button);
 #endif
@@ -170,7 +168,7 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 		if(admin_msg_text_view.isNull())
 		{
 			GLUITextView::CreateArgs create_args;
-			admin_msg_text_view = new GLUITextView(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(0.1f, 0.9f), create_args); // Create off-screen
+			admin_msg_text_view = new GLUITextView(*gl_ui, msg, /*botleft=*/Vec2f(0.1f, 0.9f), create_args); // Create off-screen
 			admin_msg_text_view->setTextColour(Colour3f(1.0f, 0.6f, 0.3f));
 			gl_ui->addWidget(admin_msg_text_view);
 		}
@@ -210,7 +208,7 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 			create_args.font_size_px = speed_font_size_px;
 			create_args.background_alpha = 0;
 			create_args.text_selectable = false;
-			prebuilt_digits[i] = new GLUITextView(*gl_ui, opengl_engine, toString(digit_val), Vec2f(0.f + (-NUM_DIGIT_PLACES + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y), create_args);
+			prebuilt_digits[i] = new GLUITextView(*gl_ui, toString(digit_val), Vec2f(0.f + (-NUM_DIGIT_PLACES + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y), create_args);
 		}
 	}
 
@@ -240,7 +238,7 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 		create_args.font_size_px = speed_font_size_px;
 		create_args.background_alpha = 0;
 		create_args.text_selectable = false;
-		unit_string_view = new GLUITextView(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y), create_args); // Create off-screen
+		unit_string_view = new GLUITextView(*gl_ui, msg, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y), create_args); // Create off-screen
 		unit_string_view->setTextColour(Colour3f(1.0f, 1.0f, 1.0f));
 		gl_ui->addWidget(unit_string_view);
 	}
@@ -330,7 +328,7 @@ void MiscInfoUI::updateWidgetPositions()
 		{
 			const Vec2f text_dims = admin_msg_text_view->getRect().getWidths();
 
-			const float vert_margin = 50.f / opengl_engine->getViewPortWidth(); // 50 pixels
+			const float vert_margin = gl_ui->getUIWidthForDevIndepPixelWidth(50.f);
 
 			admin_msg_text_view->setPos(/*botleft=*/Vec2f(-0.4f, min_max_y - text_dims.y - vert_margin));
 		}

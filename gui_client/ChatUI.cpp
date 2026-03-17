@@ -29,9 +29,8 @@ static const int font_size_px = 12;
 static const int msgs_padding_w_px = 8;
 
 
-void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_)
+void ChatUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 {
-	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 #if EMSCRIPTEN
@@ -54,7 +53,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 			container_args.background_alpha = 0.0f;
 			container_args.cell_x_padding_px = 12;
 			container_args.cell_y_padding_px = 12;
-			grid_container = new GLUIGridContainer(*gl_ui, opengl_engine, container_args);
+			grid_container = new GLUIGridContainer(*gl_ui, container_args);
 			grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
 			gl_ui->addWidget(grid_container);
 		}
@@ -66,7 +65,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 			create_args.background_colour = chat_background_col;
 			create_args.background_alpha = 0.8f;
 			create_args.font_size_px = font_size_px;
-			chat_line_edit = new GLUILineEdit(*gl_ui, opengl_engine, /*dummy botleft=*/Vec2f(0.f), create_args);
+			chat_line_edit = new GLUILineEdit(*gl_ui, /*dummy botleft=*/Vec2f(0.f), create_args);
 
 			GLUILineEdit* chat_line_edit_ptr = chat_line_edit.ptr();
 			chat_line_edit->on_enter_pressed = [chat_line_edit_ptr, gui_client_]()
@@ -88,8 +87,8 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 			args.tooltip = "Hide chat";
 			//args.button_colour = Colour3f(0.2f);
 			//args.mouseover_button_colour = Colour3f(0.4f);
-			//collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
-			collapse_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/down_tab.png", args);
+			//collapse_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/left_tab.png", /*botleft=*/Vec2f(0), /*dims=*/Vec2f(0.1f), args);
+			collapse_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/down_tab.png", args);
 			collapse_button->handler = this;
 			gl_ui->addWidget(collapse_button);
 		}
@@ -97,7 +96,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Show chat";
-			expand_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/expand_chat_icon.png", args);
+			expand_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/expand_chat_icon.png", args);
 			expand_button->handler = this;
 			expand_button->setVisible(false);
 			gl_ui->addWidget(expand_button);
@@ -105,7 +104,7 @@ void ChatUI::create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_clie
 
 		// TEMP: add some messages
 		//for(int i=0; i<20; ++i)
-		//	appendMessage("Nick: ", Colour3f(1.f, 0.8f, 0.2f), "Testing 123, new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path");
+		//	appendMessage("Nick: ", Colour3f(1.f, 0.8f, 0.2f), "Testing 123, new GLUIButton(*gl_ui, gui_client->resources_dir_path");
 
 		setWidgetVisibilityForExpanded();
 		updateWidgetTransforms();
@@ -134,7 +133,6 @@ void ChatUI::destroy()
 	checkRemoveAndDeleteWidget(gl_ui, expand_button);
 
 	gl_ui = NULL;
-	opengl_engine = NULL;
 }
 
 
@@ -201,7 +199,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage, int row_index
 	//	name_args.font_size_px = font_size_px;
 	//	name_args.background_alpha = 0;
 	//	name_args.max_width = text_area_w;
-	//	chatmessage.name_text = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name), Vec2f(0.f), name_args);
+	//	chatmessage.name_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name), Vec2f(0.f), name_args);
 	//	chatmessage.name_text->setVisible(this->expanded && visible);
 	//	gl_ui->addWidget(chatmessage.name_text);
 	//
@@ -215,7 +213,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage, int row_index
 		msg_args.background_corner_radius_px = corner_radius_px;
 		//msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x;// + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
 		msg_args.max_width = text_area_w;
-		chatmessage.msg_text = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name + chatmessage.msg), Vec2f(0.f), msg_args);
+		chatmessage.msg_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name + chatmessage.msg), Vec2f(0.f), msg_args);
 		chatmessage.msg_text->setVisible(this->expanded && visible);
 		gl_ui->addWidget(chatmessage.msg_text);
 

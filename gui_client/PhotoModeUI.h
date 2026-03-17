@@ -45,7 +45,7 @@ PhotoModeUI
 class PhotoModeUI : public GLUICallbackHandler, public ThreadSafeRefCounted
 {
 public:
-	PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_, const Reference<SettingsStore>& settings);
+	PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference<SettingsStore>& settings);
 	~PhotoModeUI();
 
 	void setVisible(bool visible);

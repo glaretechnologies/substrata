@@ -13,9 +13,8 @@ Copyright Glare Technologies Limited 2026 -
 #include <utils/PlatformUtils.h>
 
 
-GestureManagerUI::GestureManagerUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_, const GestureSettings& gesture_settings_)
+GestureManagerUI::GestureManagerUI(GUIClient* gui_client_, GLUIRef gl_ui_, const GestureSettings& gesture_settings_)
 {
-	opengl_engine = opengl_engine_;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 	gesture_settings = gesture_settings_;
@@ -27,7 +26,7 @@ GestureManagerUI::GestureManagerUI(Reference<OpenGLEngine>& opengl_engine_, GUIC
 		container_args.background_alpha = 0.0f;
 		container_args.cell_x_padding_px = 4;
 		container_args.cell_y_padding_px = 4;
-		grid_container = new GLUIGridContainer(*gl_ui, opengl_engine, container_args);
+		grid_container = new GLUIGridContainer(*gl_ui, container_args);
 		grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
 		gl_ui->addWidget(grid_container);
 	}
@@ -38,7 +37,7 @@ GestureManagerUI::GestureManagerUI(Reference<OpenGLEngine>& opengl_engine_, GUIC
 		args.title = "Gesture Manager";
 		args.background_alpha = 0.6f;
 		args.background_colour = Colour3f(0.1f);
-		window = new GLUIWindow(*gl_ui_, opengl_engine_, args);
+		window = new GLUIWindow(*gl_ui_, args);
 		window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
 		window->setBodyWidget(grid_container);
 		window->handler = this;
@@ -100,7 +99,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 		// If this isn't one of the default gestures, fall back to to using "Waving 1" button texture for now.
 		const std::string tex_name = GestureSettings::isDefaultGestureName(setting.friendly_name) ? setting.friendly_name : "Waving 1";
 
-		GLUIImageRef gesture_image = new GLUIImage(*gl_ui, opengl_engine, /*tex path=*/gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", "");
+		GLUIImageRef gesture_image = new GLUIImage(*gl_ui, /*tex path=*/gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", "");
 		gesture_image->setFixedDimsPx(Vec2f(BUTTON_W_PIXELS), *gl_ui);
 
 		grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, gesture_image);
@@ -111,7 +110,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			GLUITextView::CreateArgs text_args;
 			text_args.background_alpha = 0;
 			text_args.tooltip = toStdString(setting.anim_URL);
-			gesture_name_text = new GLUITextView(*gl_ui, opengl_engine, setting.friendly_name, Vec2f(0.f), text_args);
+			gesture_name_text = new GLUITextView(*gl_ui, setting.friendly_name, Vec2f(0.f), text_args);
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, gesture_name_text);
 		}
 
@@ -125,7 +124,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			args.box_colour = checkbox_box_col;
 			args.mouseover_box_colour = checkbox_mouseover_col;
 			args.checked = BitUtils::isBitSet(setting.flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
-			animate_head_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
+			animate_head_checkbox = new GLUICheckBox(*gl_ui, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
 			animate_head_checkbox->handler = this;
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, animate_head_checkbox);
 		}
@@ -137,7 +136,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			args.box_colour = checkbox_box_col;
 			args.mouseover_box_colour = checkbox_mouseover_col;
 			args.checked = BitUtils::isBitSet(setting.flags, SingleGestureSettings::FLAG_LOOP);
-			loop_checkbox = new GLUICheckBox(*gl_ui, opengl_engine, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
+			loop_checkbox = new GLUICheckBox(*gl_ui, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
 			loop_checkbox->handler = this;
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, loop_checkbox);
 		}
@@ -149,7 +148,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 			args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 			args.fixed_size = Vec2f(22.f);
-			remove_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/white_x.png", args);
+			remove_gesture_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/white_x.png", args);
 			remove_gesture_button->handler = this;
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, remove_gesture_button);
 		}
@@ -169,7 +168,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(BUTTON_W_PIXELS);
-		add_gesture_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/plus.png", args);
+		add_gesture_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/plus.png", args);
 		add_gesture_button->handler = this;
 		gl_ui->addWidget(add_gesture_button);
 
