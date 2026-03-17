@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "GUIClient.h"
 #include "EmbeddedBrowser.h"
+#include "../shared/FileTypes.h"
 #include "LoadTextureTask.h"
 #include "CEF.h"
 #include "../shared/ResourceManager.h"
@@ -54,6 +55,24 @@ AnimatedTexData::~AnimatedTexData()
 }
 
 
+static bool isMP4VideoURL(const std::string& path)
+{
+	return hasExtension(path, "mp4");
+}
+
+
+static const char* videoMimeTypeForURL(const std::string& path)
+{
+	if(hasExtension(path, "webm"))
+		return "video/webm";
+
+	if(FileTypes::hasSupportedVideoFileExtension(path))
+		return "video/mp4";
+
+	return "video/webm";
+}
+
+
 #if WMF_MP4_PLAYBACK_SUPPORT
 struct CreateWMFVideoReaderTask : public glare::Task
 {
@@ -91,8 +110,12 @@ struct CreateWMFVideoReaderTask : public glare::Task
 void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
 	double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum)
 {
+	bool use_wmf_for_this_video = false;
+
 #if WMF_MP4_PLAYBACK_SUPPORT
-	if(use_WMF_for_vid_playback)
+	use_wmf_for_this_video = use_WMF_for_vid_playback && isMP4VideoURL(tex_path);
+
+	if(use_wmf_for_this_video)
 	{
 		if(!video_reader && !tex_path.empty())
 		{
@@ -312,7 +335,7 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 #endif // WMF_MP4_PLAYBACK_SUPPORT
 
 #if CEF_SUPPORT
-	if(!use_WMF_for_vid_playback)
+	if(!use_wmf_for_this_video)
 	if(CEF::isInitialised())
 	{
 		if(browser.isNull() && !tex_path.empty())
@@ -344,6 +367,8 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 				}
 			}
 
+			const char* const video_mime_type = videoMimeTypeForURL(tex_path);
+
 			// NOTE: We will use a custom HTML page with the loop attribute set to true.  Can also add 'controls' attribute to debug stuff.
 			const std::string html =
 				"<html>"
@@ -351,7 +376,7 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 				"</head>"
 				"<body style=\"margin:0\">"
 				"<video autoplay loop name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\">"
-				"<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"video/mp4\" />"
+				"<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"" + std::string(video_mime_type) + "\" />"
 				"</video>"
 				"</body>"
 				"</html>";
@@ -512,14 +537,14 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(OpenGLEngine* opengl_eng
 		const OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
 
 		// Reflection/albedo tex
-		if(hasExtension(mat.tex_path, "mp4"))
+		if(FileTypes::hasSupportedVideoFileExtension(mat.tex_path))
 		{
 			if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
 				animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/true, animated_tex_manager.use_WMF_for_vid_playback);
 		}
 
 		// Emission tex
-		if(hasExtension(mat.emission_tex_path, "mp4"))
+		if(FileTypes::hasSupportedVideoFileExtension(mat.emission_tex_path))
 		{
 			if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
 				animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData(/*mat index=*/m, /*is refl tex=*/false, animated_tex_manager.use_WMF_for_vid_playback);

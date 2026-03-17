@@ -205,57 +205,17 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 
 		const std::string attributes = "controls " + std::string(autoplay ? "autoplay " : "") + std::string(loop ? "loop " : "") + std::string(muted ? "muted " : "");
 
-		// Add extensive debugging and force video to play
+		// NOTE: We will use a custom HTML page with the loop attribute set to true.  Can also add 'controls' attribute to debug stuff.
 		const std::string html =
 			"<html>"
 			"	<head>"
-			"		<script>"
-			"			window.onload = function() {"
-			"				console.log('[VIDEO] Page loaded');"
-			"				var vid = document.getElementById('thevid');"
-			"				if(vid) {"
-			"					console.log('[VIDEO] Video element found');"
-			"					console.log('[VIDEO] Video src: ' + vid.currentSrc);"
-			"					console.log('[VIDEO] readyState: ' + vid.readyState);"
-			"					"
-			"					vid.onloadstart = function() { console.log('[VIDEO] loadstart'); };"
-			"					vid.onloadedmetadata = function() { console.log('[VIDEO] metadata: ' + this.videoWidth + 'x' + this.videoHeight); };"
-			"					vid.onloadeddata = function() { console.log('[VIDEO] data loaded'); };"
-			"					vid.oncanplay = function() { console.log('[VIDEO] can play'); };"
-			"					vid.onplay = function() { console.log('[VIDEO] playing'); };"
-			"					vid.onerror = function() { console.log('[VIDEO] ERROR: ' + this.error.code); };"
-			"					vid.onstalled = function() { console.log('[VIDEO] stalled'); };"
-			"					vid.onsuspend = function() { console.log('[VIDEO] suspended'); };"
-			"					vid.onwaiting = function() { console.log('[VIDEO] waiting'); };"
-			"					"
-			"					// Force play"
-			"					setTimeout(function() {"
-			"						console.log('[VIDEO] Attempting to play...');"
-			"						vid.play().then(function() {"
-			"							console.log('[VIDEO] Play succeeded');"
-			"						}).catch(function(e) {"
-			"							console.log('[VIDEO] Play failed: ' + e);"
-			"						});"
-			"					}, 100);"
-			"				} else {"
-			"					console.log('[VIDEO] Video element NOT found!');"
-			"				}"
-			"			};"
-			"		</script>"
 			"	</head>"
-			"	<body style=\"margin:0; background-color:red;\">"
-			"		<video " + attributes + " name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\" style=\"background-color:blue;\">"
-			"			<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"video/mp4\" />"
+			"	<body style=\"margin:0\">"
+			"		<video " + attributes + " name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\">"
+			"			<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"" + std::string(hasExtension(video_url, "webm") ? "video/webm" : "video/mp4") + "\" />"
 			"		</video>"
 			"	</body>"
 			"</html>";
-
-#ifdef OSX
-		conPrint("BrowserVidPlayer: Generated HTML for video URL: " + video_url);
-		conPrint("BrowserVidPlayer: Video source URL: " + use_URL);
-		conPrint("BrowserVidPlayer: Resource present: " + boolToString(resource.nonNull() && resource->getState() == Resource::State_Present));
-		conPrint("BrowserVidPlayer: Attributes: " + attributes);
-#endif
 
 		return html;
 	}

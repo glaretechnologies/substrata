@@ -1930,6 +1930,12 @@ void MainWindow::on_actionAdd_Video_triggered()
 				if(dialog.getVideoLocalPath() == "")
 					return;
 
+				if(!hasExtension(dialog.getVideoLocalPath(), "webm"))
+				{
+					showErrorNotification("Only WebM files are allowed for local video uploads.");
+					return;
+				}
+
 				// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
 				use_URL = gui_client.resource_manager->copyLocalFileToResourceDirAndReturnURL(dialog.getVideoLocalPath());
 			}

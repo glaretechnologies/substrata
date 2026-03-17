@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "NetDownloadResourcesThread.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
+#include "../shared/FileTypes.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
 #include "../simpleraytracer/raymesh.h"
@@ -266,7 +267,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 	for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
 	{
 		const std::string albedo_tex_path = std::string(preview_gl_ob->materials[i].tex_path);
-		if(!albedo_tex_path.empty() && !hasExtension(albedo_tex_path, "mp4"))
+		if(!albedo_tex_path.empty() && !FileTypes::hasSupportedVideoFileExtension(albedo_tex_path))
 		{
 			try
 			{
@@ -287,7 +288,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 		}
 
 		const std::string metallic_roughness_tex_path = std::string(preview_gl_ob->materials[i].metallic_roughness_tex_path);
-		if(!metallic_roughness_tex_path.empty() && !hasExtension(metallic_roughness_tex_path, "mp4"))
+		if(!metallic_roughness_tex_path.empty() && !FileTypes::hasSupportedVideoFileExtension(metallic_roughness_tex_path))
 		{
 			try
 			{
@@ -303,7 +304,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 		}
 
 		const std::string emission_tex_path = std::string(preview_gl_ob->materials[i].emission_tex_path);
-		if(!emission_tex_path.empty() && !hasExtension(emission_tex_path, "mp4"))
+		if(!emission_tex_path.empty() && !FileTypes::hasSupportedVideoFileExtension(emission_tex_path))
 		{
 			try
 			{
@@ -319,7 +320,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 		}
 
 		const std::string normal_map_path = std::string(preview_gl_ob->materials[i].normal_map_path);
-		if(!normal_map_path.empty() && !hasExtension(normal_map_path, "mp4"))
+		if(!normal_map_path.empty() && !FileTypes::hasSupportedVideoFileExtension(normal_map_path))
 		{
 			try
 			{

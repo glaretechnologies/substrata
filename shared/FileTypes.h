@@ -33,12 +33,14 @@ public:
 
 	static inline bool isSupportedVideoFileExtension(string_view extension)
 	{
-		return StringUtils::equalCaseInsensitive(extension, "mp4");
+		return
+			StringUtils::equalCaseInsensitive(extension, "mp4") ||
+			StringUtils::equalCaseInsensitive(extension, "webm");
 	}
 
 	static inline bool hasSupportedVideoFileExtension(const string_view url)
 	{
-		return hasExtension(url, "mp4");
+		return isSupportedVideoFileExtension(getExtensionStringView(url));
 	}
 
 	static bool hasSupportedExtension(const string_view path);

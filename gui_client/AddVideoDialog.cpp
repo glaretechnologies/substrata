@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "IncludeOpenGL.h"
 #include "SubstrataVideoSurface.h"
+#include "../shared/FileTypes.h"
 #include "../qt/QtUtils.h"
 #include "../utils/PlatformUtils.h"
 #include "../utils/ConPrint.h"
@@ -34,7 +35,7 @@ AddVideoDialog::AddVideoDialog(QSettings* settings_, Reference<ResourceManager> 
 	this->tabWidget->setCurrentIndex(settings->value("AddVideoDialog/tabIndex", /*default val=*/0).toInt());
 
 	this->fileSelectWidget->setSettingsKey("AddVideoDialog/lastDir");
-	this->fileSelectWidget->setFilter("Mp4 files (*.mp4)");
+	this->fileSelectWidget->setFilter("WebM files (*.webm)");
 
 	connect(this->fileSelectWidget, SIGNAL(filenameChanged(QString&)), this, SLOT(filenameChanged(QString&)));
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
@@ -101,23 +102,29 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 	// Try and load model
 	try
 	{
-		if(hasExtension(local_path, "mp4"))
+		if(FileTypes::hasSupportedVideoFileExtension(local_path))
 		{
+			const bool use_wmf_reader = hasExtension(local_path, "mp4");
+
 #if defined(_WIN32)
-			Reference<WMFVideoReader> reader = new WMFVideoReader(false, /*just_read_audio=*/false, local_path, /*async_mode=*/false, dev_manager, /*decode_to_d3d_tex=*/false);
+			if(use_wmf_reader)
+			{
+				Reference<WMFVideoReader> reader = new WMFVideoReader(false, /*just_read_audio=*/false, local_path, /*async_mode=*/false, dev_manager, /*decode_to_d3d_tex=*/false);
 
-			// Load first frame
-			const SampleInfoRef frameinfo = reader->getAndLockNextSample(/*just_get_vid_sample=*/true);
+				// Load first frame
+				const SampleInfoRef frameinfo = reader->getAndLockNextSample(/*just_get_vid_sample=*/true);
 
-			if(frameinfo.isNull())
-				throw glare::Exception("frame was null. (EOS?)");
+				if(frameinfo.isNull())
+					throw glare::Exception("frame was null. (EOS?)");
 
-			this->video_width = (int)frameinfo->width;
-			this->video_height = (int)frameinfo->height;
+				this->video_width = (int)frameinfo->width;
+				this->video_height = (int)frameinfo->height;
 
-			this->videoInfoLabel->setText(QtUtils::toQString("Video width: " + toString(this->video_width) + " px, height: " + toString(this->video_height) + " px"));
-
-#else
+				this->videoInfoLabel->setText(QtUtils::toQString("Video width: " + toString(this->video_width) + " px, height: " + toString(this->video_height) + " px"));
+			}
+			else
+#endif
+			{
 			SubstrataVideoSurface* video_surface = new SubstrataVideoSurface(NULL);
 			video_surface->load_into_opengl_tex = false; // Just copy into mem buffer.  OpenGL texture stuff gets tricky with multiple GL contexts.
 
@@ -152,7 +159,7 @@ void AddVideoDialog::getDimensionsForLocalVideoPath(const std::string& local_pat
 
 			delete media_player;
 			delete video_surface;
-#endif
+			}
 		}
 		else
 			throw glare::Exception("file did not have a supported video extension: '" + getExtension(local_path) + "'");

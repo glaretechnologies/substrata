@@ -65,14 +65,10 @@ public:
 		// Disable GPU compositing for macOS to force software rendering via OnPaint callback.
 		// OnAcceleratedPaint is only implemented for Windows, so without this, video frames
 		// would be rendered but never copied to OpenGL textures on macOS.
-		// Completely disable all hardware video decoding to fix "Unsupported pixel format: -1" error.
 		if(process_type.empty())
 		{
 			command_line->AppendSwitch("disable-gpu-compositing");
-			command_line->AppendSwitch("disable-accelerated-video-decode");
-			command_line->AppendSwitch("disable-gpu-video-decoder");
-			command_line->AppendSwitchWithValue("disable-features", "VideoToolboxVideoDecoder,D3D11VideoDecoder");
-			conPrint("CEF: Using pure software video decoding on macOS");
+			conPrint("CEF: Using software rendering for video (OnPaint callback) on macOS");
 		}
 #endif
 
@@ -183,7 +179,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	settings.windowless_rendering_enabled = true;
 #endif
 
-	settings.log_severity = LOGSEVERITY_INFO; // Enable logging by default on macOS to diagnose video issues
+	settings.log_severity = LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
 	// Allow setting the logging level via environment variable.
 	try
 	{
@@ -198,10 +194,6 @@ void CEF::initialiseCEF(const std::string& base_dir_path, const std::string& app
 	}
 	catch(glare::Exception& )
 	{}
-	
-#ifdef OSX
-	conPrint("CEF log will be written to: " + appdata_path + "/CEF_log.txt");
-#endif
 
 #if defined(OSX)
 	// On macOS, CEF helper processes are in Frameworks/ alongside the CEF framework

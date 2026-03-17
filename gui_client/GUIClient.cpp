@@ -1839,17 +1839,23 @@ static Reference<OpenGLTexture> getBestLightmapLOD(const OpenGLTextureKey& base_
 }
 
 
-// If not a mp4 texture - we won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
-static inline bool isNonEmptyAndNotMp4(const string_view path)
+static inline bool isVideoTextureURL(const string_view path)
 {
-	return !path.empty() && !::hasExtension(path, "mp4");
+	return !path.empty() && FileTypes::hasSupportedVideoFileExtension(path);
+}
+
+
+// If this is a video texture then we won't have LOD levels for it, just keep the texture vid playback writes to.
+static inline bool isNonEmptyAndNotVideo(const string_view path)
+{
+	return !path.empty() && !isVideoTextureURL(path);
 }
 
 
 static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const URLString& texture_URL, const OpenGLTextureKey& desired_tex_path, GLObject* ob, size_t mat_index, OpenGLEngine& opengl_engine, 
 	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, bool use_basis, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out)
 {
-	if(isNonEmptyAndNotMp4(desired_tex_path))
+	if(isNonEmptyAndNotVideo(desired_tex_path))
 	{
 		try
 		{
@@ -2234,8 +2240,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 		// Add any objects with gif or mp4 textures to the set of animated objects. (if not already)
 		for(size_t i=0; i<ob->materials.size(); ++i)
 		{
-			if(	::hasExtension(ob->materials[i]->colour_texture_url,   "mp4") ||
-				::hasExtension(ob->materials[i]->emission_texture_url, "mp4"))
+			if(	isVideoTextureURL(ob->materials[i]->colour_texture_url) ||
+				isVideoTextureURL(ob->materials[i]->emission_texture_url))
 			{
 				if(ob->animated_tex_data.isNull())
 				{
@@ -2604,7 +2610,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 #else
 				// If we are playing an Mp4 file, then handle it with the AnimatedTextureManager system, 
 				// which will use a Windows Media Foundation (WMF) player on Windows, and a CEF-based player on other systems.
-				if((ob->materials.size() >= 1) && hasSuffix(ob->materials[0]->emission_texture_url, "mp4"))
+				if((ob->materials.size() >= 1) && isVideoTextureURL(ob->materials[0]->emission_texture_url))
 				{
 					opengl_ob->materials[0].emission_tex_path = ob->materials[0]->emission_texture_url;
 
@@ -2961,8 +2967,8 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 	// Add any objects with mp4 textures to the set of animated objects. (if not already)
 	for(size_t i=0; i<ob->materials.size(); ++i)
 	{
-		if(	::hasExtension(ob->materials[i]->colour_texture_url,   "mp4") ||
-			::hasExtension(ob->materials[i]->emission_texture_url, "mp4"))
+		if(	isVideoTextureURL(ob->materials[i]->colour_texture_url) ||
+			isVideoTextureURL(ob->materials[i]->emission_texture_url))
 		{
 			if(ob->animated_tex_data.isNull())
 			{
