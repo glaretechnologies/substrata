@@ -55,13 +55,13 @@ AnimatedTexData::~AnimatedTexData()
 }
 
 
-static bool isMP4VideoURL(const std::string& path)
+static bool isMP4VideoURL(const OpenGLTextureKey& path)
 {
 	return hasExtension(path, "mp4");
 }
 
 
-static const char* videoMimeTypeForURL(const std::string& path)
+static const char* videoMimeTypeForURL(const OpenGLTextureKey& path)
 {
 	if(hasExtension(path, "webm"))
 		return "video/webm";
