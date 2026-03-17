@@ -490,15 +490,15 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	gl_ui = new GLUI();
 	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts, &this->stack_allocator);
 
-	gesture_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	gesture_ui.create(/*gui_client_=*/this, gl_ui);
 
-	ob_info_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	ob_info_ui.create(/*gui_client_=*/this, gl_ui);
 
-	misc_info_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	misc_info_ui.create(/*gui_client_=*/this, gl_ui);
 	
-	hud_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	hud_ui.create(/*gui_client_=*/this, gl_ui);
 
-	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+	chat_ui.create(/*gui_client_=*/this, gl_ui);
 
 	// Chat UI should be drawn above the movement button if present.
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
@@ -2056,7 +2056,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	const int font_size_px = 42;
 
 	std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
-	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine, gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
+	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
 		/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
 
 	// We will make a physics object that has the same dimensions in object space as the text mesh vertices.  This means we can use the same pos, rot and scale
@@ -5255,7 +5255,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 			if(ob->diagnostic_text_view.isNull())
 			{
 				GLUITextView::CreateArgs create_args;
-				ob->diagnostic_text_view = new GLUITextView(*this->gl_ui, this->opengl_engine, diag_text, Vec2f(0.f, 0.f), create_args);
+				ob->diagnostic_text_view = new GLUITextView(*this->gl_ui, diag_text, Vec2f(0.f, 0.f), create_args);
 			}
 			else
 			{
@@ -14544,7 +14544,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 					std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
 					Rect2f rect_os;
 					OpenGLTextureRef atlas_texture;
-					Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine, gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
+					Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
 						/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
 
 					GLObjectRef opengl_ob = opengl_engine->allocateObject();
@@ -15364,7 +15364,7 @@ void GUIClient::setPhotoModeEnabled(bool enabled)
 {
 	if(enabled)
 	{
-		this->photo_mode_ui = new PhotoModeUI(opengl_engine, this, gl_ui, this->settings);
+		this->photo_mode_ui = new PhotoModeUI(this, gl_ui, this->settings);
 	}
 	else
 	{
@@ -16521,7 +16521,7 @@ void GUIClient::showErrorNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -16547,7 +16547,7 @@ void GUIClient::showInfoNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -16573,7 +16573,7 @@ void GUIClient::showScriptMessage(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 

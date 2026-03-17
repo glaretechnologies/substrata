@@ -31,7 +31,7 @@ public:
 	ChatUI();
 	~ChatUI();
 
-	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
+	void create(GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
 	void setVisible(bool visible);
@@ -75,7 +75,6 @@ private:
 	Vec2i last_viewport_dims;
 	GUIClient* gui_client;
 	GLUIRef gl_ui;
-	Reference<OpenGLEngine> opengl_engine;
 	
 	float draw_area_bottom_left_y;
 

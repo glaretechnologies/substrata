@@ -54,9 +54,9 @@ static const float group_background_alpha = 0.2f;
 
 
 
-PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_, const Reference<SettingsStore>& settings_)
+PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference<SettingsStore>& settings_)
 {
-	opengl_engine = opengl_engine_;
+	opengl_engine = gl_ui_->opengl_engine;
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 	settings = settings_;
@@ -67,7 +67,7 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.title = "Photo Mode Settings";
 		args.background_colour = Colour3f(0.1f);
 		args.background_alpha = 0.6f;
-		window = new GLUIWindow(*gl_ui_, opengl_engine_, args);
+		window = new GLUIWindow(*gl_ui_, args);
 		window->debug_name = "photo mode window";
 		window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
 		
@@ -80,9 +80,8 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.cell_x_padding_px = 5;
 		args.cell_y_padding_px = 5;
 		args.background_alpha = 0;
-		grid_container = new GLUIGridContainer(*gl_ui_, opengl_engine_, args);
+		grid_container = new GLUIGridContainer(*gl_ui_, args);
 		grid_container->debug_name = "photo mode grid container";
-		gl_ui->addWidget(grid_container);
 
 		window->setBodyWidget(grid_container);
 	}
@@ -94,7 +93,7 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.padding_px = 5;
 		args.background_colour = group_background_col;
 		args.background_alpha = group_background_alpha;
-		camera_group = new GLUICollapsableGroupBox(*gl_ui_, opengl_engine_, args);
+		camera_group = new GLUICollapsableGroupBox(*gl_ui_, args);
 		camera_group->debug_name = "camera settings collapsable group box";
 	}
 
@@ -104,9 +103,8 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.cell_y_padding_px = 5;
 		//args.background_colour = Colour3f(0.5f, 0.2f, 0.2f);
 		args.background_alpha = 0.0;
-		camera_grid_container = new GLUIGridContainer(*gl_ui_, opengl_engine_, args);
+		camera_grid_container = new GLUIGridContainer(*gl_ui_, args);
 		camera_grid_container->debug_name = "camera grid container";
-		gl_ui->addWidget(camera_grid_container);
 
 		camera_group->setBodyWidget(camera_grid_container);
 	}
@@ -114,7 +112,7 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "The standard camera mode when not in photo mode.";
-		standard_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "standard camera", Vec2f(0), args);
+		standard_cam_button = new GLUITextButton(*gl_ui_, "standard camera", Vec2f(0), args);
 		standard_cam_button->handler = this;
 		camera_grid_container->addWidgetOnNewRow(standard_cam_button);
 
@@ -123,9 +121,8 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "A camera that looks back at the avatar's face.  The avatar will look towards the camera.";
-		selfie_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "selfie camera", Vec2f(0), args);
+		selfie_cam_button = new GLUITextButton(*gl_ui_, "selfie camera", Vec2f(0), args);
 		selfie_cam_button->handler = this;
-		gl_ui->addWidget(selfie_cam_button);
 		camera_grid_container->addWidgetOnNewRow(selfie_cam_button);
 
 		selfie_cam_button->setToggled(true);
@@ -133,25 +130,22 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "A camera with a fixed angle relative to the player avatar or vehicle.";
-		fixed_angle_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "fixed angle camera", Vec2f(0), args);
+		fixed_angle_cam_button = new GLUITextButton(*gl_ui_, "fixed angle camera", Vec2f(0), args);
 		fixed_angle_cam_button->handler = this;
-		gl_ui->addWidget(fixed_angle_cam_button);
 		camera_grid_container->addWidgetOnNewRow(fixed_angle_cam_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "The free camera can move anywhere and look in any direction";
-		free_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "free camera", Vec2f(0), args);
+		free_cam_button = new GLUITextButton(*gl_ui_, "free camera", Vec2f(0), args);
 		free_cam_button->handler = this;
-		gl_ui->addWidget(free_cam_button);
 		camera_grid_container->addWidgetOnNewRow(free_cam_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "A camera with a fixed position that looks at the avatar";
-		tracking_cam_button = new GLUITextButton(*gl_ui_, opengl_engine_, "tracking camera", Vec2f(0), args);
+		tracking_cam_button = new GLUITextButton(*gl_ui_, "tracking camera", Vec2f(0), args);
 		tracking_cam_button->handler = this;
-		gl_ui->addWidget(tracking_cam_button);
 		camera_grid_container->addWidgetOnNewRow(tracking_cam_button);
 	}
 
@@ -161,7 +155,7 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		grid_args.background_alpha = 0.2f;
 		grid_args.background_colour = Colour3f(0.2f);
 		grid_args.cell_y_padding_px = 2;
-		GLUIGridContainerRef autofocus_grid = new GLUIGridContainer(*gl_ui_, opengl_engine_, grid_args);
+		GLUIGridContainerRef autofocus_grid = new GLUIGridContainer(*gl_ui_, grid_args);
 		autofocus_grid->debug_name = "autofocus grid";
 		autofocus_grid->setColumnMinXPx(/*col=*/1, COL_1_ALIGNMENT_PX);
 
@@ -171,25 +165,22 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 			text_view_args.text_colour = Colour3f(0.9f);
 			text_view_args.tooltip = "Autofocus";
 
-			autofocus_label = new GLUITextView(*gl_ui, opengl_engine, "Autofocus", Vec2f(0), text_view_args);
-			gl_ui->addWidget(autofocus_label);
+			autofocus_label = new GLUITextView(*gl_ui, "Autofocus", Vec2f(0), text_view_args);
 			autofocus_grid->setCellWidget(0, 0, autofocus_label);
 		}
 
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Disable autofocus.  Focus Distance slider is used instead.";
-			autofocus_off_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Off", Vec2f(0), args);
+			autofocus_off_button = new GLUITextButton(*gl_ui_, "Off", Vec2f(0), args);
 			autofocus_off_button->handler = this;
-			gl_ui->addWidget(autofocus_off_button);
 			autofocus_grid->setCellWidget(1, 0, autofocus_off_button);
 		}
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Automatically focus on the nearest avatar eye.";
-			autofocus_eye_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Eye", Vec2f(0), args);
+			autofocus_eye_button = new GLUITextButton(*gl_ui_, "Eye", Vec2f(0), args);
 			autofocus_eye_button->handler = this;
-			gl_ui->addWidget(autofocus_eye_button);
 			autofocus_grid->setCellWidget(2, 0, autofocus_eye_button);
 		}
 
@@ -218,9 +209,8 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Reset photo mode camera settings";
-		reset_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Reset", Vec2f(0), args);
+		reset_button = new GLUITextButton(*gl_ui_, "Reset", Vec2f(0), args);
 		reset_button->handler = this;
-		gl_ui->addWidget(reset_button);
 		camera_grid_container->addWidgetOnNewRow(reset_button);
 	}
 
@@ -234,7 +224,7 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.padding_px = 5;
 		args.background_colour = group_background_col;
 		args.background_alpha = group_background_alpha;
-		env_group = new GLUICollapsableGroupBox(*gl_ui_, opengl_engine_, args);
+		env_group = new GLUICollapsableGroupBox(*gl_ui_, args);
 		env_group->debug_name = "Environment Settings collapsable group box";
 	}
 
@@ -244,9 +234,8 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.cell_y_padding_px = 5;
 		//args.background_colour = Colour3f(0.5f, 0.2f, 0.2f);
 		args.background_alpha = 0.0;
-		env_grid_container = new GLUIGridContainer(*gl_ui_, opengl_engine_, args);
+		env_grid_container = new GLUIGridContainer(*gl_ui_, args);
 		env_grid_container->debug_name = "env grid container";
-		gl_ui->addWidget(env_grid_container);
 
 		env_group->setBodyWidget(env_grid_container);
 	}
@@ -265,34 +254,30 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(50.f);
-		take_screenshot_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/Selfie.png", args);
-		//take_screenshot_button = new GLUIButton(*gl_ui, opengl_engine, gui_client->resources_dir_path + "/buttons/minimap_icon.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
+		take_screenshot_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/Selfie.png", args);
+		//take_screenshot_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/minimap_icon.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
 		take_screenshot_button->handler = this;
-		gl_ui->addWidget(take_screenshot_button);
 		grid_container->addWidgetOnNewRow(take_screenshot_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Show photos folder";
-		show_screenshots_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Show photos", Vec2f(0), args);
+		show_screenshots_button = new GLUITextButton(*gl_ui_, "Show photos", Vec2f(0), args);
 		show_screenshots_button->handler = this;
-		gl_ui->addWidget(show_screenshots_button);
 		grid_container->addWidgetOnNewRow(show_screenshots_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Upload photo to the website";
-		upload_photo_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Upload photo", Vec2f(0), args);
+		upload_photo_button = new GLUITextButton(*gl_ui_, "Upload photo", Vec2f(0), args);
 		upload_photo_button->handler = this;
-		gl_ui->addWidget(upload_photo_button);
 		grid_container->addWidgetOnNewRow(upload_photo_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Hide user interface";
-		hide_ui_button = new GLUITextButton(*gl_ui_, opengl_engine_, "Hide UI", Vec2f(0), args);
+		hide_ui_button = new GLUITextButton(*gl_ui_, "Hide UI", Vec2f(0), args);
 		hide_ui_button->handler = this;
-		gl_ui->addWidget(hide_ui_button);
 		grid_container->addWidgetOnNewRow(hide_ui_button);
 	}
 
@@ -307,7 +292,7 @@ PhotoModeUI::PhotoModeUI(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui
 
 PhotoModeUI::~PhotoModeUI()
 {
-	// window will remove camera widgets from gl_ui.
+	// window will remove all other child widgets from gl_ui.
 	checkRemoveAndDeleteWidget(gl_ui, window);
 
 	checkRemoveAndDeleteWidget(gl_ui, upload_background_ob);
@@ -316,10 +301,6 @@ PhotoModeUI::~PhotoModeUI()
 	checkRemoveAndDeleteWidget(gl_ui, caption_line_edit);
 	checkRemoveAndDeleteWidget(gl_ui, ok_button);
 	checkRemoveAndDeleteWidget(gl_ui, cancel_button);
-
-	gl_ui = NULL;
-	gui_client = NULL;
-	opengl_engine = NULL;
 }
 
 
@@ -329,7 +310,7 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	grid_args.background_alpha = 0.2f;
 	grid_args.background_colour = Colour3f(0.2f);
 	grid_args.cell_y_padding_px = 2;
-	GLUIGridContainerRef slider_grid = new GLUIGridContainer(*gl_ui, opengl_engine, grid_args);
+	GLUIGridContainerRef slider_grid = new GLUIGridContainer(*gl_ui, grid_args);
 	slider_grid->debug_name = "photo slider grid for " + label;
 	slider_grid->setColumnMinXPx(/*col=*/1, COL_1_ALIGNMENT_PX);
 
@@ -339,8 +320,7 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	text_view_args.text_colour = Colour3f(0.9f);
 	text_view_args.tooltip = tooltip;
 
-	slider.label = new GLUITextView(*gl_ui, opengl_engine, label, Vec2f(0), text_view_args);
-	gl_ui->addWidget(slider.label);
+	slider.label = new GLUITextView(*gl_ui, label, Vec2f(0), text_view_args);
 	slider_grid->setCellWidget(0, 0, slider.label);
 
 	//-------------------------------- Create slider ------------------------------
@@ -351,14 +331,12 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	args.initial_value = initial_value;
 	args.scroll_speed = scroll_speed;
 	args.fixed_size.x = 120; // px
-	slider.slider = new GLUISlider(*gl_ui, opengl_engine, args);
+	slider.slider = new GLUISlider(*gl_ui, args);
 	slider.slider->handler = this;
-	gl_ui->addWidget(slider.slider);
 	slider_grid->setCellWidget(1, 0, slider.slider);
 
 	//-------------------------------- Create value text view ------------------------------
-	slider.value_view = new GLUITextView(*gl_ui, opengl_engine, doubleToStringMaxNDecimalPlaces(args.initial_value, 2), Vec2f(0), text_view_args);
-	gl_ui->addWidget(slider.value_view);
+	slider.value_view = new GLUITextView(*gl_ui, doubleToStringMaxNDecimalPlaces(args.initial_value, 2), Vec2f(0), text_view_args);
 	slider_grid->setCellWidget(2, 0, slider.value_view);
 
 	parent_grid_container->addWidgetOnNewRow(slider_grid);
@@ -676,7 +654,7 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 		const float sun_theta = (float)::degreeToRad(sun_theta_slider.slider->getValue());
 		const Vec4f sun_dir = Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0);
 
-		gui_client->opengl_engine->setSunDir(sun_dir);
+		opengl_engine->setSunDir(sun_dir);
 	}
 	else if(event.widget == sun_phi_slider.slider.ptr())
 	{
@@ -686,7 +664,7 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 		const float sun_theta = (float)::degreeToRad(sun_theta_slider.slider->getValue());
 		const Vec4f sun_dir = Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0);
 
-		gui_client->opengl_engine->setSunDir(sun_dir);
+		opengl_engine->setSunDir(sun_dir);
 	}
 }
 
@@ -793,7 +771,7 @@ void PhotoModeUI::showUploadPhotoWidget()
 
 			JPEGDecoder::save(im.downcast<ImageMapUInt8>(), jpeg_path, JPEGDecoder::SaveOptions());
 
-			upload_image_widget = new GLUIImage(*gl_ui, opengl_engine, jpeg_path, "photo to upload");
+			upload_image_widget = new GLUIImage(*gl_ui, jpeg_path, "photo to upload");
 			gl_ui->addWidget(upload_image_widget);
 
 			im_to_upload_aspect_ratio = (double)im->getMapWidth() / im->getMapHeight();
@@ -815,7 +793,7 @@ void PhotoModeUI::showUploadPhotoWidget()
 		args.text_colour = toLinearSRGB(Colour3f(0.1f));
 		args.tooltip = "Caption";
 		args.z = -0.5f;
-		caption_label = new GLUITextView(*gl_ui, opengl_engine, "Caption:", Vec2f(0.f), args);
+		caption_label = new GLUITextView(*gl_ui, "Caption:", Vec2f(0.f), args);
 		gl_ui->addWidget(caption_label);
 	}
 
@@ -826,21 +804,21 @@ void PhotoModeUI::showUploadPhotoWidget()
 		args.text_colour = toLinearSRGB(Colour3f(0.1f));
 		args.background_colour = Colour3f(0.7f);
 		args.mouseover_background_colour = Colour3f(0.8f);
-		caption_line_edit = new GLUILineEdit(*gl_ui, opengl_engine, Vec2f(0.f), args);
+		caption_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
 		gl_ui->addWidget(caption_line_edit);
 	}
 
 	{
 		GLUITextButton::CreateArgs args;
 		args.z = -0.5f;
-		ok_button = new GLUITextButton(*gl_ui, opengl_engine, "Upload", Vec2f(0), args);
+		ok_button = new GLUITextButton(*gl_ui, "Upload", Vec2f(0), args);
 		ok_button->handler = this;
 		gl_ui->addWidget(ok_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.z = -0.5f;
-		cancel_button = new GLUITextButton(*gl_ui, opengl_engine, "Cancel", Vec2f(0), args);
+		cancel_button = new GLUITextButton(*gl_ui, "Cancel", Vec2f(0), args);
 		cancel_button->handler = this;
 		gl_ui->addWidget(cancel_button);
 	}
@@ -850,7 +828,7 @@ void PhotoModeUI::showUploadPhotoWidget()
 		args.background_colour = Colour3f(0.7f);
 		args.background_alpha = 0.8f;
 		args.z = -0.488f;
-		upload_background_ob = new GLUIInertWidget(*gl_ui, opengl_engine, args);
+		upload_background_ob = new GLUIInertWidget(*gl_ui, args);
 		gl_ui->addWidget(upload_background_ob);
 	}
 

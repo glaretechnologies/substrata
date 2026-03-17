@@ -30,7 +30,7 @@ public:
 	GestureUI();
 	~GestureUI();
 
-	void create(Reference<OpenGLEngine>& opengl_engine_, GUIClient* gui_client_, GLUIRef gl_ui_);
+	void create(GUIClient* gui_client_, GLUIRef gl_ui_);
 	void destroy();
 
 	void think();
@@ -93,8 +93,6 @@ private:
 	GLUITextButtonRef summon_hovercar_button;
 
 	GLUIRef gl_ui;
-
-	Reference<OpenGLEngine> opengl_engine;
 
 	Timer timer;
 	double untoggle_button_time;
