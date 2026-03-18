@@ -1012,8 +1012,7 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 		}
 	}*/
 
-			// Always log received files so we can trace uploads for debugging.
-			conPrint("\tReceived file with URL '" + toStdString(URL) + "' from client. (" + toString(file_len) + " B)");
+            
 	// Send compressed parcel data if the client is new enough to handle it.
 	// As of 3/4/2025, uncompressed parcel data on substrata.info is 308331 B.
 	// With zstd compression: 
