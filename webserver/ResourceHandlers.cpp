@@ -137,7 +137,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 			// Debug logging: report resource serving details
 			try
 			{
-				conPrint("ResourceHandlers::handleResourceRequest - serving: " + resource_URL + ", local_path: " + local_path + ", content_type: " + content_type + ", size: " + toString(FileUtils::size(local_path)));
+				conPrint("ResourceHandlers::handleResourceRequest - serving: " + toStdString(resource_URL) + ", local_path: " + local_path + ", content_type: " + content_type + ", size: " + toString(FileUtils::size(local_path)));
 			}
 			catch(...) {}
 
@@ -169,7 +169,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 						// Debug logging: report range being served
 						try
 						{
-							conPrint("ResourceHandlers::handleResourceRequest - serving range for: " + resource_URL + ", start: " + toString(range.start) + ", size: " + toString(range_size));
+							conPrint("ResourceHandlers::handleResourceRequest - serving range for: " + toStdString(resource_URL) + ", start: " + toString(range.start) + ", size: " + toString(range_size));
 						}
 						catch(...) {}
 				
@@ -198,7 +198,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				// Debug logging: serving full resource
 				try
 				{
-					conPrint("ResourceHandlers::handleResourceRequest - serving full resource: " + resource_URL + ", size: " + toString(file.fileSize()) + ", content_type: " + content_type);
+					conPrint("ResourceHandlers::handleResourceRequest - serving full resource: " + toStdString(resource_URL) + ", size: " + toString(file.fileSize()) + ", content_type: " + content_type);
 				}
 				catch(...) {}
 
