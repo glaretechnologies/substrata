@@ -671,7 +671,7 @@ void WorkerThread::handleEthBotConnection()
 						trans = it->second;
 						break;
 					}
-                            
+                            }
 
 				// Work out nonce to use for this transaction.  First, work out largest nonce used for succesfully submitted transactions
 				for(auto it = server->world_state->sub_eth_transactions.begin(); it != server->world_state->sub_eth_transactions.end(); ++it)
