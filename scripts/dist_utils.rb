@@ -245,3 +245,12 @@ def copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, dist_dir,
 	FileUtils.chmod("u=wr,go=rr", Dir.glob("#{dist_dir}/data/shaders/*.*"))
 	FileUtils.chmod("u=wr,go=rr", Dir.glob("#{dist_dir}/data/gl_data/*.*"))
 end
+
+
+def copyCyberspaceServerResources(substrata_repos_dir, glare_core_repos_dir, dist_dir, vs_version = $vs_version, config = $config_name_release, copy_build_output = true)
+
+	FileUtils.cp_r(substrata_repos_dir + "/server_dist_resources", "#{dist_dir}/resources", :verbose => true) # Copy contents of server_dist_resources into resources
+
+	# Copy licence.txt
+	FileUtils.cp_r(substrata_repos_dir + "/docs/licence.txt", "#{dist_dir}/", :verbose => true)
+end
