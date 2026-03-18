@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- See https://substrata.info/running_your_own_server for documentation of the options in here -->
+<config>
+	<!-- Location where webserver HTML fragments are found -->
+	<!--<webserver_fragments_dir></webserver_fragments_dir>-->
+	
+	<!-- Location where webserver public files (main.css etc.) are found -->
+	<!--<webserver_public_files_dir></webserver_public_files_dir>-->
+	
+	<!-- Location where webclient files are found -->
+	<!--<webclient_dir></webclient_dir>-->
+</config>
