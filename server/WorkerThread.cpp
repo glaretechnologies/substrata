@@ -522,8 +522,7 @@ void WorkerThread::handleScreenshotBotConnection()
 					for(auto it = server->world_state->map_tile_info.info.begin(); it != server->world_state->map_tile_info.info.end(); ++it)
 					{
 						TileInfo& tile_info = it->second;
-									// Always log this so admin can see missing resources and GetFile requests.
-									conPrint("resource with URL '" + toStdString(resource_URL) + "' not present, sending GetFile message to client.");
+                                    
 						{
 							screenshot = tile_info.cur_tile_screenshot;
 							break;
@@ -672,8 +671,7 @@ void WorkerThread::handleEthBotConnection()
 						trans = it->second;
 						break;
 					}
-							// Always log uploads streaming to disk so it's visible in logs.
-							conPrint("\tStreaming upload to disk at '" + local_path + "' (" + toString(file_len) + " B)...");
+                            
 
 				// Work out nonce to use for this transaction.  First, work out largest nonce used for succesfully submitted transactions
 				for(auto it = server->world_state->sub_eth_transactions.begin(); it != server->world_state->sub_eth_transactions.end(); ++it)
