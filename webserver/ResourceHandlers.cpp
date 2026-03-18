@@ -134,14 +134,14 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 
                 const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path); // Guess content type
 
+                MemMappedFile file(local_path);
+
 			// Debug logging: report resource serving details
 			try
 			{
-				conPrint("ResourceHandlers::handleResourceRequest - serving: " + toStdString(resource_URL) + ", local_path: " + local_path + ", content_type: " + content_type + ", size: " + toString(FileUtils::size(local_path)));
+				conPrint("ResourceHandlers::handleResourceRequest - serving: " + toStdString(resource_URL) + ", local_path: " + local_path + ", content_type: " + content_type + ", size: " + toString(file.fileSize()));
 			}
 			catch(...) {}
-
-                MemMappedFile file(local_path);
 
 				// NOTE: only handle a single range for now, because the response content types (and encoding?) get different for multiple ranges.
 				if(request.ranges.size() == 1)
