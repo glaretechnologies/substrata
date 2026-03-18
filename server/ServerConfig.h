@@ -21,7 +21,7 @@ public:
 	std::string tls_certificate_path; // empty string = use default.
 	std::string tls_private_key_path; // empty string = use default.
 	
-	bool allow_light_mapper_bot_full_perms; // Allow lightmapper bot (User account with name "lightmapperbot" to have full write permissions.
+	bool allow_light_mapper_bot_full_perms; // Allow lightmapper bot (User account with name "lightmapperbot") to have full write permissions.
 
 	bool update_parcel_sales; // Should we run auctions?
 
