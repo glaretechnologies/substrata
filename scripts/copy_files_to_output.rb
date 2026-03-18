@@ -44,6 +44,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		output_dir = getCmakeBuildDir(vs_version, "Debug")
 
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+		copyCyberspaceServerResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir, true) if $copy_cef
 		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, true)
@@ -54,6 +55,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		output_dir = getCmakeBuildDir(vs_version, "RelWithDebInfo")
 
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+		copyCyberspaceServerResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
 		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, false)
@@ -64,6 +66,7 @@ def copy_files(vs_version, substrata_repos_dir, glare_core_repos_dir)
 		output_dir = getCmakeBuildDir(vs_version, "Release")
 
 		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+		copyCyberspaceServerResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir) if $copy_cef
 		copyBugSplatRedist(output_dir) if $copy_bugsplat
 		copyQtRedistWindows(vs_version, output_dir, false)
