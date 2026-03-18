@@ -43,7 +43,7 @@ void MiscInfoUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 	gl_ui->addWidget(signup_button);
 
 
-	movement_button = new GLUIButton(*gl_ui_, /*tex path=*/gui_client->resources_dir_path + "/buttons/dir_pad.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), GLUIButton::CreateArgs());
+	movement_button = new GLUIButton(*gl_ui_, /*tex path=*/gui_client->resources_dir_path + "/buttons/dir_pad.png", GLUIButton::CreateArgs());
 	movement_button->handler = this;
 	gl_ui->addWidget(movement_button);
 
@@ -51,7 +51,7 @@ void MiscInfoUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 	{
 		GLUIButton::CreateArgs args;
 		args.tooltip = "Avatar settings";
-		avatar_button = new GLUIButton(*gl_ui_, gui_client->resources_dir_path + "/buttons/avatar.png", Vec2f(0.f), /*dims=*/Vec2f(0.4f, 0.1f), args);
+		avatar_button = new GLUIButton(*gl_ui_, gui_client->resources_dir_path + "/buttons/avatar.png", args);
 		avatar_button->handler = this;
 		gl_ui->addWidget(avatar_button);
 	}
