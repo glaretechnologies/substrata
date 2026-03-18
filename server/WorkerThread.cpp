@@ -96,7 +96,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const URLString& resource_URL)
 		}
 		else
 		{
-			conPrintIfNotFuzzing("resource with URL '" + toStdString(resource_URL) + "' not present, sending GetFile message to client.");
+			conPrint("resource with URL '" + toStdString(resource_URL) + "' not present, sending GetFile message to client.");
 
 			// We need the file from the client.
 			// Send the client a 'get file' message
@@ -268,7 +268,7 @@ void WorkerThread::handleResourceUploadConnection()
 		const std::string local_path = server->world_state->resource_manager->pathForURL(URL);
 
 		//conPrintIfNotFuzzing("\tStreaming to disk at '" + local_path + "'...");
-		conPrintIfNotFuzzing("\tStreaming upload to disk at '" + local_path + "' (" + toString(file_len) + " B)...");
+		conPrint("\tStreaming upload to disk at '" + local_path + "' (" + toString(file_len) + " B)...");
 
 		if(fuzzing)
 		{
@@ -308,7 +308,7 @@ void WorkerThread::handleResourceUploadConnection()
 		} // End scope for FileOutStream
 
 
-		conPrintIfNotFuzzing("\tReceived file with URL '" + toStdString(URL) + "' from client. (" + toString(file_len) + " B)");
+		conPrint("\tReceived file with URL '" + toStdString(URL) + "' from client. (" + toString(file_len) + " B)");
 		// conPrintIfNotFuzzing("\t!!! file checksum: " + toString(FileChecksum::fileChecksum(local_path)));
 
 		resource->owner_id = client_user_id;
@@ -522,7 +522,8 @@ void WorkerThread::handleScreenshotBotConnection()
 					for(auto it = server->world_state->map_tile_info.info.begin(); it != server->world_state->map_tile_info.info.end(); ++it)
 					{
 						TileInfo& tile_info = it->second;
-						if(tile_info.cur_tile_screenshot.nonNull() && tile_info.cur_tile_screenshot->state == Screenshot::ScreenshotState_notdone)
+									// Always log this so admin can see missing resources and GetFile requests.
+									conPrint("resource with URL '" + toStdString(resource_URL) + "' not present, sending GetFile message to client.");
 						{
 							screenshot = tile_info.cur_tile_screenshot;
 							break;
@@ -671,7 +672,8 @@ void WorkerThread::handleEthBotConnection()
 						trans = it->second;
 						break;
 					}
-				}
+							// Always log uploads streaming to disk so it's visible in logs.
+							conPrint("\tStreaming upload to disk at '" + local_path + "' (" + toString(file_len) + " B)...");
 
 				// Work out nonce to use for this transaction.  First, work out largest nonce used for succesfully submitted transactions
 				for(auto it = server->world_state->sub_eth_transactions.begin(); it != server->world_state->sub_eth_transactions.end(); ++it)
@@ -1012,7 +1014,8 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 		}
 	}*/
 
-	// Send all current parcel data to client.
+			// Always log received files so we can trace uploads for debugging.
+			conPrint("\tReceived file with URL '" + toStdString(URL) + "' from client. (" + toString(file_len) + " B)");
 	// Send compressed parcel data if the client is new enough to handle it.
 	// As of 3/4/2025, uncompressed parcel data on substrata.info is 308331 B.
 	// With zstd compression: 

@@ -9270,7 +9270,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 					upload_queue.enqueue(new ResourceToUpload(path, m->URL));
 
-					print("Received GetFileMessage, Uploading resource with URL '" + toStdString(m->URL) + "' to server.");
+					conPrint("Received GetFileMessage, Uploading resource with URL '" + toStdString(m->URL) + "' to server.");
 				}
 				else
 					print("Could not upload resource with URL '" + toStdString(m->URL) + "' to server, not present on client.");
