@@ -8,13 +8,13 @@
 
 <p>Download the server distribution for your operating system:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.5.7.7z">SubstrataServer_v1.5.7.7z</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.6.32.7z">SubstrataServer_v1.6.32.7z</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServerMacOS_v1.5.4_x64.tar.gz">SubstrataServerMacOS_v1.5.4_x64.tar.gz</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServerMacOS_v1.6.32_x64.tar.gz">SubstrataServerMacOS_v1.6.32_x64.tar.gz</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.5.7.tar.gz">SubstrataServer_v1.5.7.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/SubstrataServer_v1.6.32.tar.gz">SubstrataServer_v1.6.32.tar.gz</a>
 </p>
 
 <p>Extract the contents into a convenient directory, e.g. c:/substrata_server</p>
@@ -46,66 +46,42 @@ on Windows, check that server.exe has a digital signature from Glare Technologie
 <p>Where USERNAME is the current user name.</p>
 
 
+<h2>Copy some distribution files</h2>
 
-
-
-<h2>Generating a TLS keypair</h2>
-
-<h3>On Windows</h3>
-
+Copy the <b>webserver_public_files</b> directory from your unpacked server distribution files to your server_state_dir.
 <p>
-If you don't have OpenSSL installed, download from our server: <a href="https://downloads.indigorenderer.com/dist/cyberspace/LibreSSL_3.5.2_OpenSSL.zip">LibreSSL_3.5.2_OpenSSL.zip</a>.
-</p>
+Copy the <b>webserver_fragments</b> directory from your unpacked server distribution files to your server_state_dir.
 <p>
-	Extract to a directory, check that openssl.exe has a Digital signature from Glare Technologies Limited.  (right click on exe, Properties, Digital Signatures tab)
-</p>
+Copy the file <b>server_config_files/substrata_server_config.xml</b> from your unpacked server distribution files to your server_state_dir.
 <p>
-	Open a command shell (cmd.exe or powershell), go to the directory you extracted the openssl files (openssl.exe, openssl.cnf and some dlls), and execute this command: 
-</p>
-<pre class="code-block">./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key -config openssl.cnf</pre>
-<p>
-	It will ask some questions, you can press enter to skip them, apart from at least one:  Organization name, enter anything you want.
-</p>
-<p>
-	This should generate two files: MyCertificate.crt (your public key) and MyKey.key (your private key).
-	Copy these files into your server_state_dir.
-</p>
+Copy the file <b>server_config_files/example_substrata_server_credentials.txt</b> from your unpacked server distribution files to your server_state_dir, and rename the file to 
+<b>substrata_server_credentials.txt</b>.
 
 
-<h3>On Linux / Mac</h3>
+<h2>Downloading webclient files</h2>
 
-<p>You probably already have openssl installed, so execute</p>
-
-<pre class="code-block">openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key</pre>
-
-<p>and copy the two generated files (MyCertificate.crt and MyKey.key) into your server_state_dir.</p>
+<p>For the webclient server files, download this zip file: <a href="https://downloads.indigorenderer.com/dist/cyberspace/substrata_webclient_1.6.32.zip">substrata_webclient_1.6.32.zip</a>,
+	and extract the contents into a dir called 'webclient' in your server_state_dir.</p>
 
 
-<h2>Downloading other server distribution files</h2>
+<h2>Server_state_dir layout</h2>
 
-<p>Download this zip file: <a href="https://downloads.indigorenderer.com/dist/cyberspace/server_dist_files.zip">server_dist_files.zip</a>,
-	and extract the contents into your server_state_dir.</p>
-
-
-<p>For the webclient server files, download this zip file: <a href="https://downloads.indigorenderer.com/dist/cyberspace/substrata_webclient_1.5.7.zip">substrata_webclient_1.5.7.zip</a>,
-	and extract the contents into a dir called 'webclient' in your server_state_dir</p>
-
-<p>Your server_state_dir (i.e. C:\Users\YOURNAME\AppData\Roaming\Substrata), should now looks something like:</p>
+<p>Your server_state_dir (i.e. C:\Users\YOURNAME\AppData\Roaming\Substrata\server_data), should now look something like:</p>
 
 <pre>
-Substrata
+C:\Users\YOURNAME\AppData\Roaming\Substrata
    |
-   --------server_data
+   --------<b>server_data</b>    <--This is your server_state_dir
                |
-               -----------substrata_server_config.xml, MyCertificate.crt, MyKey.key
-               |
-                ----------dist_resources
-               |            |
-               |            ---------- xbot_glb_3242545562312850498.bmesh  
+               -----------substrata_server_config.xml, substrata_server_credentials.txt
                |
                -----------webserver_public_files
                |           |
-               |           ---------- logo_main_page.png, logo_small.png, main.css
+               |           ---------- logo_main_page.png, logo_small.png, main.css, map.js
+               |
+               -----------webserver_fragments
+               |           |
+               |           ---------- about_chatbots.htmlfrag, about_luau_scripting.htmlfrag, ...
                |
                -----------webclient
                            |
@@ -121,7 +97,7 @@ Substrata
 Set it to the dir called 'webclient' in your server_state_dir as used above, e.g. </p>
 
 <pre class="code-block">
-&lt;webclient_dir&gt;C:\Users\YOURNAME\AppData\Roaming\Substrata\webclient&lt;/webclient_dir&gt;
+&lt;webclient_dir&gt;C:\Users\YOURNAME\AppData\Roaming\Substrata\server_data\webclient&lt;/webclient_dir&gt;
 </pre>
 
 
@@ -154,7 +130,7 @@ as well as to administer the server via the admin web interface.
 <p>In your web browser, visit https://localhost/.  Note that because we used a self-signed certificate, your browser will probably complain that the certificate is invalid ('site not secure').  Just skip these warnings.
 </p>
 <p>
-You should see a basic substrata website:  
+You should see a basic Substrata website:  
 </p>
 
 <img src="/files/substrata_website_localhost.PNG" alt="Substrata localhost website" class="article-image" />
@@ -165,6 +141,106 @@ You should see a basic substrata website:
 
 <img src="/files/admin_page.PNG" alt="Substrata admin web interface" class="article-image" />
 
+
+<h2>Substrata server configuration options</h2>
+
+These are the options that can be set in the substrata_server_config.xml file described above.
+
+<h4>webserver_fragments_dir</h4>
+
+Directory where .htmlfrag files are found.  Default is <i>server_state_dir + "/webserver_fragments"</i> on Mac+Win and <i>/var/www/cyberspace/webserver_fragments</i> on Linux.
+
+<h4>webserver_public_files_dir</h4>
+
+This directory holds files used by the website, such as CSS files, images, javascript files (map.js) etc.  Default is <i>server_state_dir + "/webserver_public_files"</i> on Mac+Win and <i>/var/www/cyberspace/public_html</i> on Linux.
+
+
+<h4>webclient_dir</h4>
+
+This directory holds files used for the webclient, such as gui_client.js, webclient.html etc.
+Default is <i>server_state_dir + "/webclient"</i> on Mac+Win and <i>/var/www/cyberspace/webclient</i> on Linux.
+
+<h4>tls_certificate_path</h4>
+
+Path to a X.509 certificate for TLS.    Default is <i>server_state_dir + "/MyCertificate.crt"</i>.  If the default path is used, and no certificate is found at <i>server_state_dir + "/MyCertificate.crt"</i>, then a self-signed certificate will be generated there.
+
+<h4>tls_private_key_path</h4>
+
+Path to a private key.    Default is <i>server_state_dir + "/MyKey.key"</i>.  If the default path is used, and no key is found at <i>server_state_dir + "/MyKey.key"</i>, then a new private key will be generated there.
+
+<h4>allow_light_mapper_bot_full_perms</h4>
+
+Allow lightmapper bot (User account with name "lightmapperbot") to have full write permissions.   Default value: false.
+
+<h4>update_parcel_sales</h4>
+
+Should land parcel auctions be run?   Default value: false.
+
+<h4>do_lua_http_request_rate_limiting</h4>
+
+Should we rate-limit HTTP requests made by Lua scripts?  Can be turned off for local testing.   Default value: true.
+
+<h4>enable_LOD_chunking</h4>
+
+Should we generate LOD chunks?   Default value: true.
+
+<h4>enable_registration</h4>
+
+Should we allow new users to register?   Default value: true.
+
+<h4>AI_model_id</h4>
+
+LLM model to use for chatbots.   Default value = "xai/grok-4-1-fast-non-reasoning"
+
+<h4>shared_LLM_prompt_part</h4>
+
+A part of the prompt that all chatbots share.
+
+Default value = "You are a helpful bot in the Substrata Metaverse." etc.
+
+
+<h2>Substrata server credential options</h2>
+
+These are the options that can be set in substrata_server_credentials.txt
+
+<h4>email_sending_smtp_servername</h4>
+Hostname of SMTP server for sending emails (for password resets etc.).  Example: smtp.mailgun.org
+
+<h4>email_sending_smtp_username</h4>
+Username for SMTP server.  Example: postmaster@myserver.com
+
+<h4>email_sending_smtp_password</h4>
+Password for the username account.
+
+<h4>email_sending_from_name</h4>
+Name to appear in the From: field of emails from the server.   Example: Substrata
+
+<h4>email_sending_from_email_addr</h4>
+
+Email address to appear in the From: field of emails from the server.  Example: support@glaretechnologies.com
+
+<h4>email_sending_reset_webserver_hostname</h4>
+
+Hostname of the substrata server for reset email links.  Example: substrata.info
+
+
+<h4>screenshot_bot_password</h4>
+
+Password for the screenshot bot.   Needs to be the same as in the substrata screenshot bot config.
+
+
+<h4>discord_photo_webhook_URL</h4>
+
+A webhook URL so that new screenshots/photos will show up in a #photo channel in your Discord.
+
+Example: https://discord.com/api/webhooks/5567676...
+
+<h4>xai_api_key</h4>
+
+xAI API key for the Grok AI model, which is the default model for Substrata chatbots.
+
+
+
 <h2>Video tutorial</h2>
 
 <p>
@@ -174,13 +250,9 @@ Here is a slightly out of date, but still very helpful tutorial, walking you thr
 <iframe width="650" height="365" src="https://www.youtube.com/embed/d7eYzp8vqV8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen=""></iframe>
 
 
+
+
 <h2>Support</h2>
 
 <p>Need help running your own server?  Come and chat about it on our <a href="https://discord.gg/R6tfYn3">Discord server</a>.</p>
 
-
-<h2>TODO</h2>
-
-<p>To document:</p>
-
-<p>* How to use a TLS certificate from a public certificate authority like Let's Encrypt, instead of a self-signed certificate.</p>
