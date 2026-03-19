@@ -302,6 +302,7 @@ public:
 	bool isResourceCurrentlyNeededForObjectGivenIsDependency(const URLString& url, const WorldObject* ob) const;
 	bool isDownloadingResourceCurrentlyNeeded(const URLString& url) const;
 	void handleDownloadedAnimationResource(const std::string& local_path, const Reference<Resource>& resource, Reference<LoadedBuffer> loaded_buffer);
+	void handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path);
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersWorldOrGodUser();

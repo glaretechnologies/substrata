@@ -272,6 +272,7 @@ void SDLUIInterface::startLightmapFlagTimer()
 void SDLUIInterface::showAvatarSettings() // Show avatar settings dialog.
 {
 #if EMSCRIPTEN
+	// showAvatarSettingsWidget is defined in webclient.html
 	EM_ASM({
 		showAvatarSettingsWidget();
 	});
@@ -569,10 +570,32 @@ void* SDLUIInterface::getID3D11Device() const
 }
 
 
-std::string SDLUIInterface::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key)
-{
 #if EMSCRIPTEN
-	gui_client->showErrorNotification("Open file dialog not implemented for web yet, use native client instead");
+
+// Define callShowFilePickerWidget function
+EM_JS(void, callShowFilePickerWidget, (const char* caption, const char* accept_string, int file_picker_id), {
+	showFilePickerWidget(UTF8ToString(caption), UTF8ToString(accept_string), file_picker_id); // showFilePickerWidget is defined in webclient.html
+});
+
+#endif
+
+
+std::string SDLUIInterface::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key, int file_picker_id)
+{
+	// Make a string like ".jpg, .jpeg, .png"  (but without spaces.   See https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/accept)
+	std::string accept_string;
+	for(size_t i=0; i<file_type_filters.size(); ++i)
+	{
+		const FileTypeFilter& f = file_type_filters[i];
+		for(size_t z=0; z<f.file_types.size(); ++z)
+			accept_string += "." + f.file_types[z] + ",";
+	}
+	// Remove last comma
+	if(!accept_string.empty())
+		accept_string.pop_back();
+
+#if EMSCRIPTEN
+	callShowFilePickerWidget(caption.c_str(), accept_string.c_str(), file_picker_id);
 #else
 	gui_client->showErrorNotification("Open file dialog not implemented for SDL yet.");
 	assert(0);

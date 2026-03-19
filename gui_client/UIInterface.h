@@ -154,5 +154,9 @@ public:
 		std::string description; // e.g. "Images"
 		std::vector<std::string> file_types; // e.g. "png", "jpg"
 	};
-	virtual std::string showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key) = 0; // Returns path to file selected or empty string if cancelled.
+
+	// file_picker_ids:
+	static const int PICK_ANIMATION_FILE = 0;
+
+	virtual std::string showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key, int file_picker_id) = 0; // Returns path to file selected or empty string if cancelled.
 };

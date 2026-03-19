@@ -4304,7 +4304,7 @@ void* MainWindow::getID3D11Device() const
 }
 
 
-std::string MainWindow::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key)
+std::string MainWindow::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key, [[maybe_unused]] int file_picker_id)
 {
 	QString previous_file = "";
 
