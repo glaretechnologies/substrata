@@ -57,6 +57,7 @@ public:
 
 	void closeGestureManagerSoon(); // Close asap.  Doesn't close/delete immediately to avoid destroying gesture manager while close button is being clicked.
 
+	void handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path);
 private:
 	void rebuildGestureWidgets();
 	void updateWidgetPositions();

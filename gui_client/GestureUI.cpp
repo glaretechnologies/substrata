@@ -617,3 +617,10 @@ void GestureUI::closeGestureManagerSoon()
 {
 	close_gesture_manager_soon = true;
 }
+
+
+void GestureUI::handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path)
+{
+	if(gesture_manager)
+		gesture_manager->handleAnimationFilePickedFromEmscripten(local_anim_path);
+}

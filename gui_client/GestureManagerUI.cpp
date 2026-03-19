@@ -226,85 +226,10 @@ void GestureManagerUI::eventOccurred(GLUICallbackEvent& event)
 				filters[0].file_types.push_back("subanim");
 				filters[0].file_types.push_back("glb");
 
-				const std::string selected_path = gui_client->ui_interface->showOpenFileDialog("Select an animation", filters, "GestureManager/add_anim");
+				const std::string selected_path = gui_client->ui_interface->showOpenFileDialog("Select an animation", filters, "GestureManager/add_anim", UIInterface::PICK_ANIMATION_FILE);
 				if(!selected_path.empty())
 				{
-					try
-					{
-						std::string anim_name;
-						URLString anim_URL;
-						float anim_len = 1.f;
-
-						if(hasExtension(selected_path, "subanim"))
-						{
-							// Load the animation file, get the animation name from it.
-							{
-								FileInStream file(selected_path);
-
-								// Read magic number
-								char buf[4];
-								file.readData(buf, 4); 
-								if(buf[0] != 'S' || buf[1] != 'U' || buf[2] != 'B' || buf[3] != 'A')
-									throw glare::Exception("Invalid magic number/string loading '" + toString(selected_path) + "'");
-
-								Reference<AnimationData> anim = new AnimationData();
-								anim->readFromStream(file);
-
-								// Checks num anims = 1 (for prepareForMultipleUse())
-								if(anim->animations.size() != 1)
-									throw glare::Exception(".subanim file must have exactly one animation in it.");
-						
-								anim_name = anim->animations[0]->name;
-								anim_len  = anim->animations[0]->anim_len;
-							}
-
-
-							// Copy into resources, get URL (which will have the file hash in it)
-							anim_URL = gui_client->resource_manager->copyLocalFileToResourceDirAndReturnURL(selected_path);
-						}
-						else if(hasExtension(selected_path, "glb"))
-						{
-							// Take the animation name from the GLB filename.  Don't use the actual name of the animation as read from the GLB contents, because it is "mixamo.com" for mixamo anims.
-							anim_name = ::removeDotAndExtension(FileUtils::getFilename(selected_path));
-
-							const std::string temp_subanim_path = PlatformUtils::getTempDirPath() + "/" + anim_name + ".subanim";
-							anim_len = AvatarGraphics::processAndConvertGLBAnimToSubanim(/*glb_path=*/selected_path, anim_name, /*output_subanim_path=*/temp_subanim_path);
-
-							// Copy into resources, get URL (which will have the file hash in it)
-							anim_URL = gui_client->resource_manager->copyLocalFileToResourceDirAndReturnURL(temp_subanim_path);
-						}
-						else
-							throw glare::Exception("invalid extension");
-
-						assert(!anim_name.empty());
-						assert(!anim_URL.empty());
-
-						if(anim_name.size() > SingleGestureSettings::MAX_NAME_SIZE)
-							throw glare::Exception("name too long.");
-
-						if(anim_URL.size() > SingleGestureSettings::MAX_NAME_SIZE)
-							throw glare::Exception("anim_URL too long.");
-
-						if(gesture_settings.gesture_settings.size() == GestureSettings::MAX_GESTURE_SETTINGS_SIZE)
-							throw glare::Exception("gesture_settings too large.");
-
-						// Append new gesture to gesture_settings.
-						SingleGestureSettings setting;
-						setting.friendly_name = anim_name;
-						setting.anim_URL = anim_URL;
-						setting.anim_duration = anim_len;
-
-						gesture_settings.gesture_settings.push_back(setting);
-
-
-						gui_client->gestureSettingsChanged(gesture_settings);
-
-						need_rebuild_grid = true; // Rebuild grid UI later when not handling clicks for it.
-					}
-					catch(glare::Exception& e)
-					{
-						gui_client->showErrorNotification(e.what());
-					}
+					handleAddGestureFileSelected(selected_path);
 				}
 			}
 
@@ -352,6 +277,95 @@ void GestureManagerUI::eventOccurred(GLUICallbackEvent& event)
 		}
 	}
 }
+
+
+void GestureManagerUI::handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path)
+{
+	handleAddGestureFileSelected(local_anim_path);
+}
+
+
+
+void GestureManagerUI::handleAddGestureFileSelected(const std::string& selected_path)
+{
+	try
+	{
+		std::string anim_name;
+		URLString anim_URL;
+		float anim_len = 1.f;
+
+		if(hasExtension(selected_path, "subanim"))
+		{
+			// Load the animation file, get the animation name from it.
+			{
+				FileInStream file(selected_path);
+
+				// Read magic number
+				char buf[4];
+				file.readData(buf, 4); 
+				if(buf[0] != 'S' || buf[1] != 'U' || buf[2] != 'B' || buf[3] != 'A')
+					throw glare::Exception("Invalid magic number/string loading '" + toString(selected_path) + "'");
+
+				Reference<AnimationData> anim = new AnimationData();
+				anim->readFromStream(file);
+
+				// Checks num anims = 1 (for prepareForMultipleUse())
+				if(anim->animations.size() != 1)
+					throw glare::Exception(".subanim file must have exactly one animation in it.");
+						
+				anim_name = anim->animations[0]->name;
+				anim_len  = anim->animations[0]->anim_len;
+			}
+
+
+			// Copy into resources, get URL (which will have the file hash in it)
+			anim_URL = gui_client->resource_manager->copyLocalFileToResourceDirAndReturnURL(selected_path);
+		}
+		else if(hasExtension(selected_path, "glb"))
+		{
+			// Take the animation name from the GLB filename.  Don't use the actual name of the animation as read from the GLB contents, because it is "mixamo.com" for mixamo anims.
+			anim_name = ::removeDotAndExtension(FileUtils::getFilename(selected_path));
+
+			const std::string temp_subanim_path = PlatformUtils::getTempDirPath() + "/" + anim_name + ".subanim";
+			anim_len = AvatarGraphics::processAndConvertGLBAnimToSubanim(/*glb_path=*/selected_path, anim_name, /*output_subanim_path=*/temp_subanim_path);
+
+			// Copy into resources, get URL (which will have the file hash in it)
+			anim_URL = gui_client->resource_manager->copyLocalFileToResourceDirAndReturnURL(temp_subanim_path);
+		}
+		else
+			throw glare::Exception("invalid extension (selected_path: '" + selected_path + "')");
+
+		assert(!anim_name.empty());
+		assert(!anim_URL.empty());
+
+		if(anim_name.size() > SingleGestureSettings::MAX_NAME_SIZE)
+			throw glare::Exception("name too long.");
+
+		if(anim_URL.size() > SingleGestureSettings::MAX_NAME_SIZE)
+			throw glare::Exception("anim_URL too long.");
+
+		if(gesture_settings.gesture_settings.size() == GestureSettings::MAX_GESTURE_SETTINGS_SIZE)
+			throw glare::Exception("gesture_settings too large.");
+
+		// Append new gesture to gesture_settings.
+		SingleGestureSettings setting;
+		setting.friendly_name = anim_name;
+		setting.anim_URL = anim_URL;
+		setting.anim_duration = anim_len;
+
+		gesture_settings.gesture_settings.push_back(setting);
+
+
+		gui_client->gestureSettingsChanged(gesture_settings);
+
+		need_rebuild_grid = true; // Rebuild grid UI later when not handling clicks for it.
+	}
+	catch(glare::Exception& e)
+	{
+		gui_client->showErrorNotification(e.what());
+	}
+}
+
 
 
 void GestureManagerUI::closeWindowEventOccurred(GLUICallbackEvent& event)

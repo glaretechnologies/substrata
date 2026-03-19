@@ -132,7 +132,7 @@ public:
 
 
 	// File selection
-	virtual std::string showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key) override; // Returns path to file selected or empty string if cancelled.
+	virtual std::string showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key, int file_picker_id) override; // Returns path to file selected or empty string if cancelled.
 
 
 	SDL_Window* window;

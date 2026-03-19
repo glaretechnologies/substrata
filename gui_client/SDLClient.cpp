@@ -1411,3 +1411,46 @@ void processAvatarModelFile(unsigned char* data, int length, const char* filenam
 		gui_client->showErrorNotification(e.what());
 	}
 }
+
+
+// processFilePickerFile is called from JS code in webclient.html.
+extern "C" 
+#if EMSCRIPTEN
+EMSCRIPTEN_KEEPALIVE
+#endif
+void processFilePickerFile(unsigned char* data, int length, const char* filename_, int pick_type_id)
+{
+	const std::string filename(filename_);
+
+	// conPrint("In C++ processFilePickerFile: " + toString(length) + ", filename: '" + filename + "', pick_type_id: " + toString(pick_type_id));
+	
+	// conPrint("--Content--");
+	// conPrint(std::string(data, data + length));
+	// conPrint("--end Content--");
+
+	try
+	{
+		// Save to a temporary file
+		if(!filename.empty())
+		{
+			const std::string local_temp_path = "/tmp/" + sanitiseString(removeDotAndExtension(filename)) + "." + getExtension(filename);
+			FileUtils::writeEntireFile(local_temp_path, (const char*)data, length);
+
+			// Handle picked file
+			if(pick_type_id == UIInterface::PICK_ANIMATION_FILE)
+			{
+				gui_client->handleAnimationFilePickedFromEmscripten(local_temp_path);
+			}
+			else
+				throw glare::Exception("processFilePickerFile(): Invalid/unhandled pick_type_id: " + toString(pick_type_id));
+		}
+		else
+			gui_client->showErrorNotification("Please choose a file");
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Excep: " + e.what());
+
+		gui_client->showErrorNotification(e.what());
+	}
+}

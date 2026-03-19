@@ -1669,6 +1669,12 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const URLString& URL) const
 }
 
 
+void GUIClient::handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path)
+{
+	gesture_ui.handleAnimationFilePickedFromEmscripten(local_anim_path);
+}
+
+
 // Handle finished downloading a ".subanim" file.
 // For emscripten, load from 'loaded_buffer' memory buffer instead of from resource on disk.
 void GUIClient::handleDownloadedAnimationResource(const std::string& local_path, const ResourceRef& resource, Reference<LoadedBuffer> loaded_buffer) 

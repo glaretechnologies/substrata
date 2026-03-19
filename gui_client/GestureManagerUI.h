@@ -38,9 +38,11 @@ public:
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 	virtual void closeWindowEventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 
+	void handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path);
 
 	void updateWidgetPositions();
 private:
+	void handleAddGestureFileSelected(const std::string& local_anim_path);
 	void rebuildGridForGestureSettings();
 
 
