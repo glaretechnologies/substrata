@@ -37,6 +37,7 @@ EM_JS(void, navigateToURL, (const char* URL), {
 });
 
 
+// Define downloadFile function
 EM_JS(void, downloadFile, (const char* dataUrl_cstr, const char* fileName_cstr), {
 
 	let dataUrl  = UTF8ToString(dataUrl_cstr);
@@ -61,7 +62,13 @@ EM_JS(void, downloadFile, (const char* dataUrl_cstr, const char* fileName_cstr),
 	document.body.removeChild(link);
 });
 
-#endif
+
+// Define callShowFilePickerWidget function
+EM_JS(void, callShowFilePickerWidget, (const char* caption, const char* accept_string, int file_picker_id), {
+	showFilePickerWidget(UTF8ToString(caption), UTF8ToString(accept_string), file_picker_id); // showFilePickerWidget is defined in webclient.html
+});
+
+#endif // EMSCRIPTEN
 
 
 void SDLUIInterface::appendChatMessage(const std::string& msg)
@@ -272,10 +279,7 @@ void SDLUIInterface::startLightmapFlagTimer()
 void SDLUIInterface::showAvatarSettings() // Show avatar settings dialog.
 {
 #if EMSCRIPTEN
-	// showAvatarSettingsWidget is defined in webclient.html
-	EM_ASM({
-		showAvatarSettingsWidget();
-	});
+	callShowFilePickerWidget(/*caption=*/"Avatar settings", /*accept string=*/".gltf,.glb,.vrm,.bmesh", PICK_AVATAR_MODEL);
 #endif
 }
 
@@ -568,16 +572,6 @@ void* SDLUIInterface::getID3D11Device() const
 {
 	return d3d11_device;
 }
-
-
-#if EMSCRIPTEN
-
-// Define callShowFilePickerWidget function
-EM_JS(void, callShowFilePickerWidget, (const char* caption, const char* accept_string, int file_picker_id), {
-	showFilePickerWidget(UTF8ToString(caption), UTF8ToString(accept_string), file_picker_id); // showFilePickerWidget is defined in webclient.html
-});
-
-#endif
 
 
 std::string SDLUIInterface::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key, int file_picker_id)

@@ -1186,7 +1186,7 @@ if(EMSCRIPTEN)
 		"-sPTHREAD_POOL_SIZE=30" # See calculation above
 		"-sSTACK_SIZE=262144"
 		"-sEXPORTED_RUNTIME_METHODS=ccall" # Needed to be able to call into C++ from JS.  Used in emscripten_browser_clipboard.
-		"-sEXPORTED_FUNCTIONS=_processAvatarModelFile,_malloc,_free,_main"
+		"-sEXPORTED_FUNCTIONS=_processFilePickerFile,_malloc,_free,_main"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
 		--use-preload-cache # Cache the preloaded data in IndexedDB for subsequent page visits.
 		--preload-file data # Use preloaded data, read it from the 'data' directory in the Emscripten build dir.
