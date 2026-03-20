@@ -48,6 +48,7 @@ public:
 	void setControlsEnabled(bool enabled);
 
 	void setControlsEditable(bool editable);
+	void setTextFontFeatureSupported(bool supported);
 
 	int getSelectedMatIndex() const { return selected_mat_index; }
 
@@ -89,10 +90,12 @@ private slots:
 	void zScaleChanged(double val);
 	void linkScaleCheckBoxToggled(bool val);
 	void on_spotlightColourPushButton_clicked(bool checked);
+	void onFontChanged(int index);
 
 private:
 	void updateInfoLabel(const WorldObject& ob);
 	void updateSpotlightColourButton();
+	void loadAvailableFonts();
 	// Store a cloned copy of the materials.
 	// The reason for having this is so if the user selected another material,
 	// we can display it, without needing to hang on to a reference to the original world object.
@@ -110,6 +113,9 @@ private:
 	double last_x_scale_over_z_scale;
 	double last_x_scale_over_y_scale;
 	double last_y_scale_over_z_scale;
+	QString selected_font_name;
+	bool controls_editable;
+	bool text_font_feature_supported;
 
 	Colour3f spotlight_col;
 };
