@@ -118,6 +118,9 @@ Copyright Glare Technologies Limited 2024 -
 #include <malloc.h>
 #endif
 #include <zstd.h>
+#include <algorithm>
+#include <map>
+#include <set>
 
 
 static const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
@@ -139,6 +142,135 @@ static const float MIN_SPOTLIGHT_CONE_ANGLE = 0.087266f;
 
 static std::vector<AvatarRef> test_avatars;
 static std::vector<double> test_avatar_phases;
+
+
+namespace
+{
+bool isSupportedTextObjectFontPath(const std::string& path)
+{
+	return
+		hasExtension(path, "ttf") ||
+		hasExtension(path, "otf") ||
+		hasExtension(path, "fon") ||
+		hasExtension(path, "woff");
+}
+
+
+std::string getTextObjectFontNameForPath(const std::string& path)
+{
+	const std::string filename = FileUtils::getFilename(path);
+	const std::string extension = getExtension(filename);
+	if(extension.empty())
+		return filename;
+
+	return filename.substr(0, filename.size() - extension.size() - 1);
+}
+
+
+bool text_font_paths_scanned = false;
+std::map<std::string, std::string> text_font_name_to_path_map;
+std::map<std::string, TextRendererFontFaceSizeSetRef> text_font_face_sets;
+std::set<std::string> unavailable_text_font_names;
+
+
+void scanTextObjectFontPathsIfNeeded(const std::string& base_dir_path)
+{
+	if(text_font_paths_scanned)
+		return;
+
+	text_font_paths_scanned = true;
+	text_font_name_to_path_map.clear();
+
+	std::vector<std::string> possible_paths;
+
+	if(!base_dir_path.empty())
+	{
+		possible_paths.push_back(base_dir_path + "/data/resources/fonts");
+		possible_paths.push_back(base_dir_path + "/resources/fonts");
+	}
+
+#if EMSCRIPTEN
+	possible_paths.push_back("/data/resources/fonts");
+	possible_paths.push_back("data/resources/fonts");
+	possible_paths.push_back("./data/resources/fonts");
+#endif
+
+	possible_paths.push_back("./resources/fonts");
+	possible_paths.push_back("resources/fonts");
+	possible_paths.push_back("../resources/fonts");
+	possible_paths.push_back("../../resources/fonts");
+	possible_paths.push_back("C:/programming/substrata/resources/fonts");
+
+	for(size_t i=0; i<possible_paths.size(); ++i)
+	{
+		const std::string& fonts_dir = possible_paths[i];
+		if(!FileUtils::isDirectory(fonts_dir))
+			continue;
+
+		try
+		{
+			std::vector<std::string> files = FileUtils::getFilesInDirFullPaths(fonts_dir);
+			std::sort(files.begin(), files.end());
+
+			for(size_t z=0; z<files.size(); ++z)
+			{
+				if(!isSupportedTextObjectFontPath(files[z]))
+					continue;
+
+				const std::string font_name = getTextObjectFontNameForPath(files[z]);
+				if(!font_name.empty() && (text_font_name_to_path_map.find(font_name) == text_font_name_to_path_map.end()))
+					text_font_name_to_path_map[font_name] = files[z];
+			}
+
+			if(!text_font_name_to_path_map.empty())
+				break; // Match ObjectEditor behaviour: use the first directory that yields fonts.
+		}
+		catch(glare::Exception&)
+		{}
+	}
+}
+
+
+TextRendererFontFaceSizeSet* getTextFontFaceSetForObject(GUIClient& gui_client, const WorldObject& ob)
+{
+	if(gui_client.gl_ui.isNull() || (gui_client.gl_ui->getFonts() == NULL))
+		return NULL;
+
+	if(ob.text_font.empty() || (ob.text_font == "Default"))
+		return gui_client.gl_ui->getFonts();
+
+	{
+		auto res = text_font_face_sets.find(ob.text_font);
+		if(res != text_font_face_sets.end())
+			return res->second.ptr();
+	}
+
+	if(unavailable_text_font_names.find(ob.text_font) != unavailable_text_font_names.end())
+		return gui_client.gl_ui->getFonts();
+
+	scanTextObjectFontPathsIfNeeded(gui_client.base_dir_path);
+
+	auto path_res = text_font_name_to_path_map.find(ob.text_font);
+	if(path_res == text_font_name_to_path_map.end())
+	{
+		unavailable_text_font_names.insert(ob.text_font);
+		return gui_client.gl_ui->getFonts();
+	}
+
+	try
+	{
+		TextRendererFontFaceSizeSetRef font_set = new TextRendererFontFaceSizeSet(gui_client.gl_ui->getFonts()->renderer, path_res->second);
+		text_font_face_sets[ob.text_font] = font_set;
+		return font_set.ptr();
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Failed to load text font '" + ob.text_font + "' from '" + path_res->second + "': " + e.what());
+		unavailable_text_font_names.insert(ob.text_font);
+		return gui_client.gl_ui->getFonts();
+	}
+}
+}
 
 
 GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args)
@@ -470,6 +602,10 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	opengl_engine = opengl_engine_;
 
+	text_font_paths_scanned = false;
+	text_font_name_to_path_map.clear();
+	text_font_face_sets.clear();
+	unavailable_text_font_names.clear();
 
 	this->only_load_most_important_obs = settings->getBoolValue(/*MainOptionsDialog::onlyLoadMostImportantObsKey=*/"only_load_most_important_obs", /*default value=*/onlyLoadMostImportantObjectsDefaultValue());
 
@@ -2054,9 +2190,10 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	const std::string use_text = ob->content.empty() ? " " : UTF8Utils::sanitiseUTF8String(ob->content);
 
 	const int font_size_px = 42;
+	TextRendererFontFaceSizeSet* const text_font_set = getTextFontFaceSetForObject(*this, *ob);
 
 	std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
-	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
+	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), text_font_set, gl_ui->getEmojiFonts(), use_text,
 		/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
 
 	// We will make a physics object that has the same dimensions in object space as the text mesh vertices.  This means we can use the same pos, rot and scale
@@ -2323,6 +2460,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				assert(ob->physics_object.isNull());
 
 				BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
+				BitUtils::zeroBit(ob->changed_flags, WorldObject::TEXT_FONT_CHANGED);
 
 				recreateTextGraphicsAndPhysicsObs(ob);
 
@@ -6817,9 +6955,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 							if(ob->object_type == WorldObject::ObjectType_Text)
 							{
-								if(BitUtils::isBitSet(ob->changed_flags, WorldObject::CONTENT_CHANGED))
+								if(BitUtils::isBitSet(ob->changed_flags, WorldObject::CONTENT_CHANGED) || BitUtils::isBitSet(ob->changed_flags, WorldObject::TEXT_FONT_CHANGED))
 								{
 									BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
+									BitUtils::zeroBit(ob->changed_flags, WorldObject::TEXT_FONT_CHANGED);
 									recreateTextGraphicsAndPhysicsObs(ob);
 								}
 							}
@@ -6909,6 +7048,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					{
 						recreateTextGraphicsAndPhysicsObs(ob);
 						BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
+						BitUtils::zeroBit(ob->changed_flags, WorldObject::TEXT_FONT_CHANGED);
 					}
 					// TODO: handle non-text objects.  Also move this code into some kind of objectChanged() function?
 
@@ -12189,6 +12329,7 @@ void GUIClient::objectEdited()
 						recreateTextGraphicsAndPhysicsObs(selected_ob.ptr());
 
 						BitUtils::zeroBit(selected_ob->changed_flags, WorldObject::CONTENT_CHANGED);
+						BitUtils::zeroBit(selected_ob->changed_flags, WorldObject::TEXT_FONT_CHANGED);
 
 						opengl_ob = selected_ob->opengl_engine_ob;//new_opengl_ob;
 
