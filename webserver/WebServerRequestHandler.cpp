@@ -796,15 +796,16 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			if(store_file.nonNull())
 			{
 				const std::string& content_type = store_file->content_type;
+				const bool allow_content_encoding = (path != "gui_client.data");
 
 				// We are using cache-busting hashes in webclient.html, so can set a very long max age and use 'immutable' when caching.
-				const char* cache_control_val = cache ? "max-age=1000000000, immutable" : "max-age=0"; 
-				
-				if(request.zstd_accept_encoding && !store_file->zstd_compressed_data.empty())
+				const char* cache_control_val = cache ? "max-age=1000000000, immutable" : "max-age=0";
+
+				if(allow_content_encoding && request.zstd_accept_encoding && !store_file->zstd_compressed_data.empty())
 				{
 					web::ResponseUtils::writeHTTPOKHeaderWithCacheControlAndContentEncoding(reply_info, store_file->zstd_compressed_data.data(), store_file->zstd_compressed_data.size(), content_type, cache_control_val, "zstd");
 				}
-				else if(request.deflate_accept_encoding && !store_file->deflate_compressed_data.empty())
+				else if(allow_content_encoding && request.deflate_accept_encoding && !store_file->deflate_compressed_data.empty())
 				{
 					web::ResponseUtils::writeHTTPOKHeaderWithCacheControlAndContentEncoding(reply_info, store_file->deflate_compressed_data.data(), store_file->deflate_compressed_data.size(), content_type, cache_control_val, "deflate");
 				}

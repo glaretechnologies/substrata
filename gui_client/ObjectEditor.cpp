@@ -23,7 +23,10 @@
 #include <QtGui/QMouseEvent>
 #include <QtGui/QDesktopServices>
 #include <QtWidgets/QErrorMessage>
+#include <QtWidgets/QAbstractItemView>
 #include <QtCore/QTimer>
+#include <QtCore/QDir>
+#include <QtCore/QFileInfo>
 #include <QtWidgets/QColorDialog>
 #include <set>
 #include <stack>
@@ -36,12 +39,45 @@ static const float DEFAULT_MAX_VIDEO_VOLUME = 4;
 static const float SLIDER_MAX_VOLUME = 2;
 
 
+namespace
+{
+bool isSupportedTextObjectFontPath(const QString& path)
+{
+	return
+		path.endsWith(".ttf", Qt::CaseInsensitive) ||
+		path.endsWith(".otf", Qt::CaseInsensitive) ||
+		path.endsWith(".fon", Qt::CaseInsensitive) ||
+		path.endsWith(".woff", Qt::CaseInsensitive);
+}
+
+
+QString canonicalFontNameForPath(const QString& path)
+{
+	return QFileInfo(path).completeBaseName();
+}
+
+
+QString fontNameForComboIndex(const QComboBox* combo, int index)
+{
+	if(index < 0 || index >= combo->count())
+		return QString();
+
+	QString font_name = combo->itemData(index).toString();
+	if(font_name.isEmpty())
+		font_name = combo->itemText(index);
+	return font_name;
+}
+}
+
 ObjectEditor::ObjectEditor(QWidget *parent)
 :	QWidget(parent),
 	selected_mat_index(0),
 	edit_timer(new QTimer(this)),
 	shader_editor(NULL),
 	settings(NULL),
+	selected_font_name("Default"),
+	controls_editable(true),
+	text_font_feature_supported(true),
 	spotlight_col(0.85f)
 {
 	setupUi(this);
@@ -61,7 +97,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->modelFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->scriptTextEdit,			SIGNAL(textChanged()),				this, SLOT(scriptTextEditChanged()));
 	connect(this->contentTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
-	
+	connect(this->fontComboBox,				SIGNAL(currentIndexChanged(int)),	this, SLOT(onFontChanged(int)));
+
 	connect(this->targetURLLineEdit,		SIGNAL(editingFinished()),			this, SIGNAL(objectChanged()));
 	connect(this->targetURLLineEdit,		SIGNAL(editingFinished()),			this, SLOT(targetURLChanged()));
 
@@ -124,6 +161,9 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 
 	this->videoVolumeDoubleSpinBox->setMaximum(DEFAULT_MAX_VIDEO_VOLUME);
 	this->videoVolumeDoubleSpinBox->setSliderMaximum(SLIDER_MAX_VOLUME);
+	this->fontComboBox->setMinimumContentsLength(20);
+	if(this->fontComboBox->view())
+		this->fontComboBox->view()->setTextElideMode(Qt::ElideNone);
 
 	this->visitURLLabel->hide();
 
@@ -142,6 +182,8 @@ void ObjectEditor::init() // settings should be set before this.
 
 	SignalBlocker::setValue(gridSpacingDoubleSpinBox, settings->value("objectEditor/gridSpacing", /*default val=*/1.0).toDouble());
 	SignalBlocker::setChecked(snapToGridCheckBox, settings->value("objectEditor/snapToGridCheckBoxChecked", /*default val=*/false).toBool());
+
+	loadAvailableFonts();
 }
 
 
@@ -229,6 +271,15 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	{
 		SignalBlocker b(this->contentTextEdit);
 		this->contentTextEdit->setPlainText(QtUtils::toQString(ob.content));
+	}
+	{
+		SignalBlocker b(this->fontComboBox);
+		const int font_index = this->fontComboBox->findData(QtUtils::toQString(ob.text_font));
+		if(font_index >= 0)
+			this->fontComboBox->setCurrentIndex(font_index);
+		else
+			this->fontComboBox->setCurrentIndex(0);
+		this->selected_font_name = fontNameForComboIndex(this->fontComboBox, this->fontComboBox->currentIndex());
 	}
 	{
 		SignalBlocker b(this->targetURLLineEdit);
@@ -496,6 +547,19 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.content = new_content;
 	checkStringSize(ob_out.content, WorldObject::MAX_CONTENT_SIZE);
 
+	if(text_font_feature_supported)
+	{
+		QString resolved_font_name = this->selected_font_name;
+		if(resolved_font_name.isEmpty())
+			resolved_font_name = fontNameForComboIndex(this->fontComboBox, this->fontComboBox->currentIndex());
+
+		const std::string new_text_font = QtUtils::toIndString(resolved_font_name);
+		if(ob_out.text_font != new_text_font)
+			ob_out.changed_flags |= WorldObject::TEXT_FONT_CHANGED;
+		ob_out.text_font = new_text_font;
+		checkStringSize(ob_out.text_font, WorldObject::MAX_FONT_NAME_SIZE);
+	}
+
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 	checkStringSize(ob_out.target_url, WorldObject::MAX_URL_SIZE);
 
@@ -684,9 +748,11 @@ void ObjectEditor::setControlsEnabled(bool enabled)
 
 void ObjectEditor::setControlsEditable(bool editable)
 {
+	this->controls_editable = editable;
 	this->modelFileSelectWidget->setReadOnly(!editable);
 	this->scriptTextEdit->setReadOnly(!editable);
 	this->contentTextEdit->setReadOnly(!editable);
+	this->fontComboBox->setEnabled(editable && text_font_feature_supported);
 	this->targetURLLineEdit->setReadOnly(!editable);
 
 	this->posXDoubleSpinBox->setReadOnly(!editable);
@@ -714,6 +780,19 @@ void ObjectEditor::setControlsEditable(bool editable)
 
 	this->audioFileWidget->setReadOnly(!editable);
 	this->volumeDoubleSpinBox->setReadOnly(!editable);
+}
+
+
+void ObjectEditor::setTextFontFeatureSupported(bool supported)
+{
+	this->text_font_feature_supported = supported;
+	this->fontComboBox->setEnabled(this->controls_editable && supported);
+
+	const QString tooltip = supported ?
+		QString() :
+		QString("This server does not support text font selection yet. Requires server protocol version 50 or newer.");
+	this->fontComboBox->setToolTip(tooltip);
+	this->fontLabel->setToolTip(tooltip);
 }
 
 
@@ -1017,5 +1096,63 @@ void ObjectEditor::on_spotlightColourPushButton_clicked(bool checked)
 		updateSpotlightColourButton();
 
 		emit objectChanged();
+	}
+}
+
+
+void ObjectEditor::onFontChanged(int index)
+{
+	if(!text_font_feature_supported)
+		return;
+
+	this->selected_font_name = fontNameForComboIndex(this->fontComboBox, index);
+	emit objectChanged();
+}
+
+
+void ObjectEditor::loadAvailableFonts()
+{
+	this->fontComboBox->clear();
+	this->fontComboBox->addItem("Default", "Default");
+	this->selected_font_name = "Default";
+
+	QStringList candidate_dirs;
+	if(!this->base_dir_path.empty())
+	{
+		const QString base_dir = QtUtils::toQString(this->base_dir_path);
+		candidate_dirs << (base_dir + "/data/resources/fonts");
+		candidate_dirs << (base_dir + "/resources/fonts");
+	}
+
+	candidate_dirs << "./resources/fonts";
+	candidate_dirs << "resources/fonts";
+	candidate_dirs << "../resources/fonts";
+	candidate_dirs << "../../resources/fonts";
+	candidate_dirs << "C:/programming/substrata/resources/fonts";
+
+	for(int i=0; i<candidate_dirs.size(); ++i)
+	{
+		const QDir dir(candidate_dirs[i]);
+		if(!dir.exists())
+			continue;
+
+		QFileInfoList entries = dir.entryInfoList(QDir::Files, QDir::Name);
+		bool found_any = false;
+		for(int z=0; z<entries.size(); ++z)
+		{
+			const QString absolute_path = entries[z].absoluteFilePath();
+			if(!isSupportedTextObjectFontPath(absolute_path))
+				continue;
+
+			const QString font_name = canonicalFontNameForPath(absolute_path);
+			if(font_name.isEmpty() || (this->fontComboBox->findData(font_name) >= 0))
+				continue;
+
+			this->fontComboBox->addItem(font_name, font_name);
+			found_any = true;
+		}
+
+		if(found_any)
+			break;
 	}
 }

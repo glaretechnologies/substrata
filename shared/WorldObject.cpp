@@ -117,6 +117,7 @@ WorldObject::WorldObject() noexcept
 	friction = 0.5f;
 	restitution = 0.2f;
 	centre_of_mass_offset_os = Vec3f(0.f);
+	text_font = "Default";
 
 	audio_volume = 1;
 
@@ -544,7 +545,7 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 22;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 23;
 /*
 Version history:
 9: introduced voxels
@@ -561,6 +562,7 @@ Version history:
 20: Added centre_of_mass_offset_os
 21: Added chunk_batch0_start etc.
 22: Added per-type data (length-prefixed)
+23: Added text_font to disk serialisation.
 */
 
 
@@ -664,6 +666,7 @@ void WorldObject::writeToStream(RandomAccessOutStream& stream) const
 
 	stream.writeStringLengthFirst(script);
 	stream.writeStringLengthFirst(content);
+	stream.writeStringLengthFirst(text_font);
 	stream.writeStringLengthFirst(target_url);
 	stream.writeStringLengthFirst(audio_source_url);
 	stream.writeFloat(audio_volume);
@@ -760,6 +763,10 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 
 	if(v >= 6)
 		ob.content = stream.readStringLengthFirst(WorldObject::MAX_CONTENT_SIZE);
+	if(v >= 23)
+		ob.text_font = stream.readStringLengthFirst(WorldObject::MAX_FONT_NAME_SIZE);
+	else
+		ob.text_font = "Default";
 
 	if(v >= 8)
 		ob.target_url = stream.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
@@ -980,6 +987,9 @@ void WorldObject::writeToNetworkStream(RandomAccessOutStream& stream) const // W
 
 	// New in v22:
 	writeWorldObjectPerTypeData(stream, *this);
+
+	if(object_type == WorldObject::ObjectType_Text)
+		stream.writeStringLengthFirst(text_font);
 }
 
 
@@ -994,6 +1004,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 
 	script = other.script;
 	content = other.content;
+	text_font = other.text_font;
 	target_url = other.target_url;
 	audio_source_url = other.audio_source_url;
 	audio_volume = other.audio_volume;
@@ -1060,6 +1071,7 @@ std::string WorldObject::serialiseToXML(int tab_depth) const
 
 	XMLWriteUtils::writeStringElemToXML(s, "script", script, tab_depth + 1);
 	XMLWriteUtils::writeStringElemToXML(s, "content", content, tab_depth + 1);
+	XMLWriteUtils::writeStringElemToXML(s, "text_font", text_font, tab_depth + 1);
 	XMLWriteUtils::writeStringElemToXML(s, "target_url", target_url, tab_depth + 1);
 	XMLWriteUtils::writeStringElemToXML(s, "audio_source_url", audio_source_url, tab_depth + 1);
 
@@ -1128,6 +1140,7 @@ Reference<WorldObject> WorldObject::loadFromXMLElem(const std::string& object_fi
 
 	ob->script           = XMLParseUtils::parseStringWithDefault(elem, "script", "");
 	ob->content          = XMLParseUtils::parseStringWithDefault(elem, "content", "");
+	ob->text_font        = XMLParseUtils::parseStringWithDefault(elem, "text_font", "Default");
 	ob->target_url       = XMLParseUtils::parseStringWithDefault(elem, "target_url", "");
 	ob->audio_source_url = XMLParseUtils::parseStringWithDefault(elem, "audio_source_url", "");
 
@@ -1316,6 +1329,20 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 		readWorldObjectPerTypeData(stream, ob);
 	else
 		setWorldObjectPerTypeDataDefaults(ob);
+
+	if((ob.object_type == WorldObject::ObjectType_Text) && !stream.endOfStream())
+	{
+		const std::string new_text_font = stream.readStringLengthFirst(WorldObject::MAX_FONT_NAME_SIZE);
+		if(ob.text_font != new_text_font)
+			ob.changed_flags |= WorldObject::TEXT_FONT_CHANGED;
+		ob.text_font = new_text_font;
+	}
+	else
+	{
+		if(ob.text_font != "Default")
+			ob.changed_flags |= WorldObject::TEXT_FONT_CHANGED;
+		ob.text_font = "Default";
+	}
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;
@@ -1757,6 +1784,10 @@ static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 	if(ob1.getCompressedVoxels().nonNull())
 		testAssert(*ob1.getCompressedVoxels() == *ob2.getCompressedVoxels());
 
+	testAssert(ob1.object_type == ob2.object_type);
+	testAssert(ob1.content == ob2.content);
+	testAssert(ob1.text_font == ob2.text_font);
+
 	testAssert(ob1.materials.size() == ob2.materials.size());
 	for(size_t i=0; i<ob1.materials.size(); ++i)
 	{
@@ -1856,6 +1887,43 @@ void WorldObject::test()
 			IndigoXMLDoc doc(xml.c_str(), xml.size());
 			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
 			testObjectsEqual(ob, *ob3);
+		}
+
+		// Test text_font roundtrip for disk, XML, and network serialisation.
+		{
+			WorldObject ob;
+			ob.object_type = WorldObject::ObjectType_Text;
+			ob.pos = Vec3d(1.0, 2.0, 3.0);
+			ob.axis = Vec3f(0,0,1);
+			ob.angle = 0;
+			ob.materials.push_back(new WorldMaterial());
+			ob.content = "Font test";
+			ob.text_font = "Orbitron";
+			ob.target_url = "https://substrata.info";
+
+			BufferOutStream buf;
+			ob.writeToStream(buf);
+
+			BufferInStream instream(ArrayRef<uint8>(buf.buf.data(), buf.buf.size()));
+			WorldObject ob2;
+			readWorldObjectFromStream(instream, ob2);
+			testObjectsEqual(ob, ob2);
+
+			const std::string xml = ob.serialiseToXML(/*tab depth=*/0);
+			IndigoXMLDoc doc(xml.c_str(), xml.size());
+			WorldObjectRef ob3 = WorldObject::loadFromXMLElem(/*object_file_path=*/".", /*convert_rel_paths_to_abs_disk_paths=*/false, doc.getRootElement());
+			testObjectsEqual(ob, *ob3);
+
+			BufferOutStream network_buf;
+			ob.writeToNetworkStream(network_buf);
+
+			BufferInStream network_instream(ArrayRef<uint8>(network_buf.buf.data(), network_buf.buf.size()));
+			WorldObject ob4;
+			ob4.uid = readUIDFromStream(network_instream);
+			readWorldObjectFromNetworkStreamGivenUID(network_instream, ob4);
+			testAssert(ob4.content == ob.content);
+			testAssert(ob4.text_font == ob.text_font);
+			testAssert(ob4.target_url == ob.target_url);
 		}
 
 		// Test with some large materials
