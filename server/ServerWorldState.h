@@ -223,11 +223,12 @@ public:
 
 	struct VideoWatchPartyState
 	{
-		VideoWatchPartyState() : active(false), owner_user_id(std::numeric_limits<uint32>::max()), start_global_time(0), start_video_time(0) {}
+		VideoWatchPartyState() : active(false), owner_user_id(std::numeric_limits<uint32>::max()), start_global_time(0), start_video_time(0), is_playing(true) {}
 		bool active;
 		uint32 owner_user_id;
 		double start_global_time;
 		double start_video_time;
+		bool is_playing;
 	};
 
 	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }

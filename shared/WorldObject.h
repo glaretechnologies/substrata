@@ -424,6 +424,7 @@ public:
 	uint32 video_watch_party_owner_user_id;
 	double video_watch_party_start_global_time;
 	double video_watch_party_start_video_time;
+	bool video_watch_party_is_playing;
 
 	static const uint32 AUDIO_SOURCE_URL_CHANGED	= 1; // Set when audio_source_url is changed
 	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed

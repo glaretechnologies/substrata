@@ -2204,6 +2204,7 @@ void WorkerThread::doRun()
 						{
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const double requested_start_video_time = msg_buffer.readDouble();
+							const bool requested_is_playing = (msg_buffer.readUInt32() != 0);
 
 							ServerWorldState::VideoWatchPartyState state_to_send;
 							bool should_send = false;
@@ -2217,12 +2218,21 @@ void WorkerThread::doRun()
 									if(ob->object_type == WorldObject::ObjectType_Video && BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_SYNC_TO_CLOCK))
 									{
 										auto& state = cur_world_state->getVideoWatchParties(lock)[object_uid];
+										const uint32 request_user_id = client_user_id.valid() ? client_user_id.value() : std::numeric_limits<uint32>::max();
+
 										if(!state.active)
 										{
 											state.active = true;
-											state.owner_user_id = client_user_id.valid() ? client_user_id.value() : std::numeric_limits<uint32>::max();
+											state.owner_user_id = request_user_id;
 											state.start_global_time = server->getCurrentGlobalTime();
 											state.start_video_time = myMax(0.0, requested_start_video_time);
+											state.is_playing = requested_is_playing;
+										}
+										else if(state.owner_user_id == request_user_id)
+										{
+											state.start_global_time = server->getCurrentGlobalTime();
+											state.start_video_time = myMax(0.0, requested_start_video_time);
+											state.is_playing = requested_is_playing;
 										}
 
 										state_to_send = state;
@@ -2239,6 +2249,7 @@ void WorkerThread::doRun()
 								scratch_packet.writeUInt32(state_to_send.owner_user_id);
 								scratch_packet.writeDouble(state_to_send.start_global_time);
 								scratch_packet.writeDouble(state_to_send.start_video_time);
+								scratch_packet.writeUInt32(state_to_send.is_playing ? 1u : 0u);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 								enqueuePacketToBroadcast(scratch_packet);
 							}
@@ -2263,6 +2274,7 @@ void WorkerThread::doRun()
 							scratch_packet.writeUInt32(state_to_send.owner_user_id);
 							scratch_packet.writeDouble(state_to_send.start_global_time);
 							scratch_packet.writeDouble(state_to_send.start_video_time);
+							scratch_packet.writeUInt32(state_to_send.is_playing ? 1u : 0u);
 							MessageUtils::updatePacketLengthField(scratch_packet);
 							enqueueDataToSend(scratch_packet);
 

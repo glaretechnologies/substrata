@@ -12543,7 +12543,7 @@ void GUIClient::requestVideoWatchPartyState(const UID& object_uid)
 }
 
 
-void GUIClient::startVideoWatchParty(const UID& object_uid, double start_video_time)
+void GUIClient::startVideoWatchParty(const UID& object_uid, double start_video_time, bool is_playing)
 {
 	if(this->connection_state != ServerConnectionState_Connected || this->client_thread.isNull())
 		return;
@@ -12551,6 +12551,7 @@ void GUIClient::startVideoWatchParty(const UID& object_uid, double start_video_t
 	MessageUtils::initPacket(scratch_packet, Protocol::VideoWatchPartyStart);
 	writeToStream(object_uid, scratch_packet);
 	scratch_packet.writeDouble(start_video_time);
+	scratch_packet.writeUInt32(is_playing ? 1u : 0u);
 	enqueueMessageToSend(*this->client_thread, scratch_packet);
 }
 

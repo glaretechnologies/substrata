@@ -913,6 +913,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			const uint32 owner_user_id = msg_buffer.readUInt32();
 			const double start_global_time = msg_buffer.readDouble();
 			const double start_video_time = msg_buffer.readDouble();
+			const bool is_playing = msg_buffer.readUInt32() != 0;
 
 			{
 				Lock lock(world_state->mutex);
@@ -924,6 +925,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 					ob->video_watch_party_owner_user_id = owner_user_id;
 					ob->video_watch_party_start_global_time = start_global_time;
 					ob->video_watch_party_start_video_time = start_video_time;
+					ob->video_watch_party_is_playing = is_playing;
 					ob->from_remote_video_watch_party_dirty = true;
 					world_state->dirty_from_remote_objects.insert(ob);
 				}

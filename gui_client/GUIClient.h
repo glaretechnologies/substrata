@@ -244,7 +244,7 @@ public:
 	void updateGroundPlane();
 	void sendLightmapNeededFlagsSlot();
 	void requestVideoWatchPartyState(const UID& object_uid);
-	void startVideoWatchParty(const UID& object_uid, double start_video_time);
+	void startVideoWatchParty(const UID& object_uid, double start_video_time, bool is_playing);
 	void useActionTriggered(bool use_mouse_cursor); // if use_mouse_cursor is false, use crosshair as cursor instead.
 	void loginButtonClicked();
 	void signupButtonClicked();

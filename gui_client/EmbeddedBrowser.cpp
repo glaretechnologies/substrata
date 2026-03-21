@@ -657,14 +657,19 @@ public:
 					const auto action_it = params.find("action");
 					if(action_it != params.end())
 					{
-						if(action_it->second == "start")
+						if(action_it->second == "start" || action_it->second == "update")
 						{
 							double start_video_time = 0.0;
 							const auto t_it = params.find("t");
 							if(t_it != params.end())
 								start_video_time = stringToDouble(t_it->second);
 
-							gui_client->startVideoWatchParty(world_ob->uid, start_video_time);
+							bool is_playing = true;
+							const auto p_it = params.find("p");
+							if(p_it != params.end())
+								is_playing = (p_it->second == "1");
+
+							gui_client->startVideoWatchParty(world_ob->uid, start_video_time, is_playing);
 						}
 						else if(action_it->second == "join")
 						{

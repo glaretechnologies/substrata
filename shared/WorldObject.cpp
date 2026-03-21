@@ -131,6 +131,7 @@ WorldObject::WorldObject() noexcept
 	video_watch_party_owner_user_id = std::numeric_limits<uint32>::max();
 	video_watch_party_start_global_time = 0;
 	video_watch_party_start_video_time = 0;
+	video_watch_party_is_playing = true;
 
 	transmission_time_offset = 0;
 
@@ -1043,6 +1044,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	video_watch_party_owner_user_id = other.video_watch_party_owner_user_id;
 	video_watch_party_start_global_time = other.video_watch_party_start_global_time;
 	video_watch_party_start_video_time = other.video_watch_party_start_video_time;
+	video_watch_party_is_playing = other.video_watch_party_is_playing;
 
 
 
