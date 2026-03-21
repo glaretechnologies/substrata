@@ -63,6 +63,10 @@ private:
 	bool using_iframe;
 
 	bool previous_is_visible;
+
+	bool watch_party_state_requested;
+	bool joined_watch_party;
+	double last_watch_party_sync_check_time;
 };
 
 

@@ -77,6 +77,7 @@ private slots:
 	void on_materialComboBox_currentIndexChanged(int index);
 	void on_newMaterialPushButton_clicked(bool checked);
 	void targetURLChanged();
+	void videoURLChanged(QString&);
 	void scriptTextEditChanged();
 	void scriptChangedFromEditor();
 	void on_editScriptPushButton_clicked(bool checked);

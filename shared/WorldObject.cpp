@@ -74,6 +74,7 @@ WorldObject::WorldObject() noexcept
 	from_remote_content_dirty = false;
 	from_remote_flags_dirty = false;
 	from_remote_physics_ownership_dirty = false;
+	from_remote_video_watch_party_dirty = false;
 	from_local_transform_dirty = false;
 	from_local_other_dirty = false;
 	from_local_physics_dirty = false;
@@ -125,6 +126,11 @@ WorldObject::WorldObject() noexcept
 
 	physics_owner_id = std::numeric_limits<uint32>::max();
 	last_physics_ownership_change_global_time = 0;
+
+	video_watch_party_active = false;
+	video_watch_party_owner_user_id = std::numeric_limits<uint32>::max();
+	video_watch_party_start_global_time = 0;
+	video_watch_party_start_video_time = 0;
 
 	transmission_time_offset = 0;
 
@@ -1032,6 +1038,11 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 
 	physics_owner_id = other.physics_owner_id;
 	last_physics_ownership_change_global_time = other.last_physics_ownership_change_global_time;
+
+	video_watch_party_active = other.video_watch_party_active;
+	video_watch_party_owner_user_id = other.video_watch_party_owner_user_id;
+	video_watch_party_start_global_time = other.video_watch_party_start_global_time;
+	video_watch_party_start_video_time = other.video_watch_party_start_video_time;
 
 
 

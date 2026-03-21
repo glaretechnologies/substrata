@@ -46,7 +46,10 @@ BrowserVidPlayer::BrowserVidPlayer()
 	state(State_Unloaded),
 	m_gui_client(NULL),
 	html_view_handle(-1),
-	using_iframe(false)
+	using_iframe(false),
+	watch_party_state_requested(false),
+	joined_watch_party(false),
+	last_watch_party_sync_check_time(0)
 {}
 
 
@@ -60,6 +63,8 @@ BrowserVidPlayer::~BrowserVidPlayer()
 	{
 		destroyHTMLViewJS(html_view_handle);
 		html_view_handle = -1;
+		watch_party_state_requested = false;
+		joined_watch_party = false;
 	}
 #endif
 }
@@ -109,6 +114,22 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 			const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
 			const bool loop     = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
 			const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
+			const bool sync_to_clock = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_SYNC_TO_CLOCK) && loop;
+
+			const std::string sync_js = sync_to_clock ?
+				"\t\t\tsetInterval(function() {\n"
+				"\t\t\t\tif(!player || !player.getDuration) return;\n"
+				"\t\t\t\tvar duration = player.getDuration();\n"
+				"\t\t\t\tif(!(duration > 1.0)) return;\n"
+				"\t\t\t\tvar target = (Date.now() * 0.001) % duration;\n"
+				"\t\t\t\tvar cur = player.getCurrentTime();\n"
+				"\t\t\t\tvar delta = target - cur;\n"
+				"\t\t\t\tif(delta > duration * 0.5) delta -= duration;\n"
+				"\t\t\t\tif(delta < -duration * 0.5) delta += duration;\n"
+				"\t\t\t\tif(Math.abs(delta) > 1.0) player.seekTo(target, true);\n"
+				"\t\t\t\tif(player.getPlayerState && player.getPlayerState() != YT.PlayerState.PLAYING) player.playVideo();\n"
+				"\t\t\t}, 2000);\n"
+				: "";
 
 			// See https://developers.google.com/youtube/player_parameters
 			const std::string player_params =
@@ -122,10 +143,11 @@ static std::string makeEmbedHTMLForVideoURL(const std::string& video_url, int wi
 				"		'loop': "     + toString(loop ? 1 : 0) + ",			\n"
 				"		'playlist': '" + video_id + "'			\n"// Set the playlist to the video ID.  This is needed for looping to work.
 				"	},											\n"
-				"	events: {									\n"
-				"		onReady: function(e) {					\n"
-				"			" + (muted ? "e.target.mute();" : "") + "\n" // If video should be muted, insert a call to mute the video here.
-				"		}										\n"
+                "       events: {                              \n"
+                "               onReady: function(e) {          \n"
+                "                       " + (muted ? "e.target.mute();" : "") + "\n" // If video should be muted, insert a call to mute the video here.
+                "                       " + sync_js +
+                "               }                              \n"
 				"	}											\n"
 				"}";
 
@@ -315,7 +337,7 @@ EM_JS(int, isYouTubeIFrameAPILoaded, (), {
 });
 
 
-EM_JS(int, makeYouTubeHTMLView, (const char* video_id, int autoplay, int loop, int muted), {
+EM_JS(int, makeYouTubeHTMLView, (const char* video_id, int autoplay, int loop, int muted, int sync_to_clock), {
 	console.log("=================makeYouTubeHTMLView()================");
 	// console.log("video_id: " + UTF8ToString(video_id));
 	// console.log("autoplay: " + autoplay);
@@ -375,17 +397,126 @@ EM_JS(int, makeYouTubeHTMLView, (const char* video_id, int autoplay, int loop, i
 				//console.log("****************player onReady()****************");
 				if(muted) { e.target.mute(); }  // If video should be muted, insert a call to mute the video here.
 				e.target.playVideo();
-			}
-		}
-	};
 
+				if(sync_to_clock)
+				{
+					setInterval(function() {
+						if(!player || !player.getDuration)
+							return;
+
+						let duration = player.getDuration();
+						if(!(duration > 1.0))
+							return;
+
+						let target = (Date.now() * 0.001) % duration;
+						let cur = player.getCurrentTime();
+						let delta = target - cur;
+						if(delta > duration * 0.5) delta -= duration;
+						if(delta < -duration * 0.5) delta += duration;
+
+						if(Math.abs(delta) > 1.0)
+							player.seekTo(target, true);
+
+						if(player.getPlayerState && player.getPlayerState() != YT.PlayerState.PLAYING)
+							player.playVideo();
+					}, 2000);
+				}
+				}
+			}
+		};
 	//console.log("player_params: ");
 	//console.log(player_params);
 
 	var player = new YT.Player(youtube_iframe, player_params);
+	new_div.glare_yt_player = player;
 
 	//console.log("makeYouTubeHTMLView() done, returning handle " + handle.toString());
 	return handle;
+});
+
+
+EM_JS(void, setYouTubeWatchPartyButton, (int handle, const char* text, int visible), {
+	let div = html_view_elem_handle_to_div_map[handle];
+	if(!div)
+		return;
+
+	if(!div.glare_watch_party_button)
+	{
+		let btn = document.createElement('button');
+		btn.style.position = 'absolute';
+		btn.style.left = '12px';
+		btn.style.bottom = '12px';
+		btn.style.zIndex = '10';
+		btn.style.padding = '8px 12px';
+		btn.style.background = 'rgba(20,20,20,0.85)';
+		btn.style.color = '#fff';
+		btn.style.border = '1px solid rgba(255,255,255,0.25)';
+		btn.style.borderRadius = '6px';
+		btn.style.cursor = 'pointer';
+		btn.onclick = function() {
+			div.glare_watch_party_action = (btn.innerText.indexOf('Join') >= 0) ? 2 : 1;
+		};
+		div.glare_watch_party_button = btn;
+		div.appendChild(btn);
+	}
+
+	div.glare_watch_party_button.innerText = UTF8ToString(text);
+	div.glare_watch_party_button.style.display = (visible ? 'block' : 'none');
+});
+
+
+EM_JS(int, consumeYouTubeWatchPartyAction, (int handle), {
+	let div = html_view_elem_handle_to_div_map[handle];
+	if(!div)
+		return 0;
+
+	let action = div.glare_watch_party_action ? div.glare_watch_party_action : 0;
+	div.glare_watch_party_action = 0;
+	return action;
+});
+
+
+EM_JS(double, getYouTubeCurrentTime, (int handle), {
+	let div = html_view_elem_handle_to_div_map[handle];
+	if(!div || !div.glare_yt_player || !div.glare_yt_player.getCurrentTime)
+		return 0.0;
+
+	return div.glare_yt_player.getCurrentTime();
+});
+
+
+EM_JS(void, applyYouTubeWatchPartyTargetTime, (int handle, double target_time, int should_play, int loop), {
+	let div = html_view_elem_handle_to_div_map[handle];
+	if(!div || !div.glare_yt_player)
+		return;
+
+	let player = div.glare_yt_player;
+	if(!player.getDuration || !player.getCurrentTime)
+		return;
+
+	let duration = player.getDuration();
+	if(!(duration > 0.1))
+		return;
+
+	let clamped_target = target_time;
+	if(loop)
+	{
+		clamped_target = target_time % duration;
+		if(clamped_target < 0)
+			clamped_target += duration;
+	}
+	else
+	{
+		clamped_target = Math.max(0.0, Math.min(target_time, duration));
+	}
+	let cur = player.getCurrentTime();
+	if(Math.abs(clamped_target - cur) > 0.5)
+		player.seekTo(clamped_target, true);
+
+	if(should_play && (loop || clamped_target < duration - 0.05))
+		player.playVideo();
+	else
+		player.pauseVideo();
 });
 
 
@@ -603,9 +734,17 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						const bool autoplay = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_AUTOPLAY);
 						const bool loop     = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
 						const bool muted    = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED);
+						const bool sync_to_clock = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_SYNC_TO_CLOCK);
 
 						conPrint("BrowserVidPlayer: Making new YouTube HTML View");
-						html_view_handle = makeYouTubeHTMLView(video_id.c_str(), autoplay ? 1 : 0, loop ? 1 : 0, muted ? 1 : 0);
+						html_view_handle = makeYouTubeHTMLView(video_id.c_str(), autoplay ? 1 : 0, loop ? 1 : 0, muted ? 1 : 0, sync_to_clock ? 1 : 0);
+
+						this->watch_party_state_requested = false;
+						this->joined_watch_party = false;
+						this->last_watch_party_sync_check_time = 0;
+
+						if(sync_to_clock && html_view_handle >= 0)
+							setYouTubeWatchPartyButton(html_view_handle, "Start watch party", 1);
 					}
 					else
 					{
@@ -663,6 +802,8 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 			{
 				destroyHTMLViewJS(html_view_handle);
 				html_view_handle = -1;
+				watch_party_state_requested = false;
+				joined_watch_party = false;
 			}
 		}
 	}
@@ -695,6 +836,63 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 			}
 			matrix_string += ")";
 			setHTMLElementCSSTransform(html_view_handle, matrix_string.c_str());
+
+			const URLString& video_url = ob->materials[0]->emission_texture_url;
+			const bool is_http_URL = hasPrefix(video_url, "http://") || hasPrefix(video_url, "https://");
+			if(is_http_URL)
+			{
+				const URL parsed_URL = URL::parseURL(toStdString(video_url));
+				const bool is_youtube = (parsed_URL.host == "www.youtube.com" || parsed_URL.host == "youtu.be");
+				const bool sync_enabled = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_SYNC_TO_CLOCK);
+
+				if(is_youtube && sync_enabled)
+				{
+					if(!watch_party_state_requested)
+					{
+						gui_client->requestVideoWatchPartyState(ob->uid);
+						watch_party_state_requested = true;
+					}
+
+					if(joined_watch_party)
+						setYouTubeWatchPartyButton(html_view_handle, "Join watch party", 0);
+					else if(ob->video_watch_party_active)
+						setYouTubeWatchPartyButton(html_view_handle, "Join watch party", 1);
+					else
+						setYouTubeWatchPartyButton(html_view_handle, "Start watch party", 1);
+
+					const int action = consumeYouTubeWatchPartyAction(html_view_handle);
+					if(action == 1) // Start watch party
+					{
+						const double start_video_time = getYouTubeCurrentTime(html_view_handle);
+						gui_client->startVideoWatchParty(ob->uid, start_video_time);
+						joined_watch_party = true;
+						gui_client->requestVideoWatchPartyState(ob->uid);
+					}
+					else if(action == 2) // Join watch party
+					{
+						joined_watch_party = true;
+						gui_client->requestVideoWatchPartyState(ob->uid);
+					}
+
+					if(joined_watch_party && ob->video_watch_party_active && gui_client->world_state.nonNull())
+					{
+						if(anim_time - last_watch_party_sync_check_time > 0.5)
+						{
+							last_watch_party_sync_check_time = anim_time;
+
+							const double cur_global_time = gui_client->world_state->getCurrentGlobalTime();
+							const double elapsed = myMax(0.0, cur_global_time - ob->video_watch_party_start_global_time);
+							const double target_time = ob->video_watch_party_start_video_time + elapsed;
+							const bool loop = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
+
+							if(loop)
+								applyYouTubeWatchPartyTargetTime(html_view_handle, target_time, 1, 1);
+							else
+								applyYouTubeWatchPartyTargetTime(html_view_handle, target_time, 1, 0);
+						}
+					}
+				}
+			}
 		}
 		else
 		{

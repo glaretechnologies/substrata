@@ -103,8 +103,10 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->videoAutoplayCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->videoLoopCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->videoMutedCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->videoSyncCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
 	connect(this->videoURLFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
+	connect(this->videoURLFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SLOT(videoURLChanged(QString&)));
 	connect(this->videoVolumeDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	connect(this->audioAutoplayCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
@@ -257,11 +259,16 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	SignalBlocker::setChecked(this->videoAutoplayCheckBox, BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_AUTOPLAY));
 	SignalBlocker::setChecked(this->videoLoopCheckBox,     BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_LOOP));
 	SignalBlocker::setChecked(this->videoMutedCheckBox,    BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_MUTED));
+	SignalBlocker::setChecked(this->videoSyncCheckBox,     BitUtils::isBitSet(ob.flags, WorldObject::VIDEO_SYNC_TO_CLOCK));
 
 	SignalBlocker::setChecked(this->audioAutoplayCheckBox, BitUtils::isBitSet(ob.flags, WorldObject::AUDIO_AUTOPLAY));
 	SignalBlocker::setChecked(this->audioLoopCheckBox,     BitUtils::isBitSet(ob.flags, WorldObject::AUDIO_LOOP));
 
 	this->videoURLFileSelectWidget->setFilename(QtUtils::toQString((!ob.materials.empty()) ? ob.materials[0]->emission_texture_url : ""));
+	{
+		QString url = this->videoURLFileSelectWidget->filename();
+		videoURLChanged(url);
+	}
 
 	SignalBlocker::setValue(videoVolumeDoubleSpinBox, ob.audio_volume);
 	
@@ -533,6 +540,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_AUTOPLAY, this->videoAutoplayCheckBox->isChecked());
 	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_LOOP,     this->videoLoopCheckBox    ->isChecked());
 	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_MUTED,    this->videoMutedCheckBox   ->isChecked());
+	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::VIDEO_SYNC_TO_CLOCK, this->videoSyncCheckBox->isChecked());
 
 	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::AUDIO_AUTOPLAY, this->audioAutoplayCheckBox->isChecked());
 	BitUtils::setOrZeroBit(ob_out.flags, WorldObject::AUDIO_LOOP,     this->audioLoopCheckBox    ->isChecked());
@@ -817,6 +825,17 @@ void ObjectEditor::on_removeLightmapPushButton_clicked(bool checked)
 void ObjectEditor::targetURLChanged()
 {
 	this->visitURLLabel->setVisible(!this->targetURLLineEdit->text().isEmpty());
+}
+
+
+void ObjectEditor::videoURLChanged(QString&)
+{
+	const std::string lower_url = ::toLowerCase(QtUtils::toIndString(this->videoURLFileSelectWidget->filename()));
+	const bool is_youtube_url = StringUtils::containsString(lower_url, "youtube.com") || StringUtils::containsString(lower_url, "youtu.be");
+
+	this->videoSyncCheckBox->setEnabled(is_youtube_url);
+	if(!is_youtube_url)
+		SignalBlocker::setChecked(this->videoSyncCheckBox, false);
 }
 
 

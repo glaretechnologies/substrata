@@ -2200,6 +2200,74 @@ void WorkerThread::doRun()
 							}
 							break;
 						}
+					case Protocol::VideoWatchPartyStart:
+						{
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const double requested_start_video_time = msg_buffer.readDouble();
+
+							ServerWorldState::VideoWatchPartyState state_to_send;
+							bool should_send = false;
+
+							{
+								WorldStateLock lock(world_state->mutex);
+								auto ob_res = cur_world_state->getObjects(lock).find(object_uid);
+								if(ob_res != cur_world_state->getObjects(lock).end())
+								{
+									WorldObject* ob = ob_res->second.getPointer();
+									if(ob->object_type == WorldObject::ObjectType_Video && BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_SYNC_TO_CLOCK))
+									{
+										auto& state = cur_world_state->getVideoWatchParties(lock)[object_uid];
+										if(!state.active)
+										{
+											state.active = true;
+											state.owner_user_id = client_user_id.valid() ? client_user_id.value() : std::numeric_limits<uint32>::max();
+											state.start_global_time = server->getCurrentGlobalTime();
+											state.start_video_time = myMax(0.0, requested_start_video_time);
+										}
+
+										state_to_send = state;
+										should_send = true;
+									}
+								}
+							}
+
+							if(should_send)
+							{
+								MessageUtils::initPacket(scratch_packet, Protocol::VideoWatchPartyState);
+								writeToStream(object_uid, scratch_packet);
+								scratch_packet.writeUInt32(state_to_send.active ? 1u : 0u);
+								scratch_packet.writeUInt32(state_to_send.owner_user_id);
+								scratch_packet.writeDouble(state_to_send.start_global_time);
+								scratch_packet.writeDouble(state_to_send.start_video_time);
+								MessageUtils::updatePacketLengthField(scratch_packet);
+								enqueuePacketToBroadcast(scratch_packet);
+							}
+
+							break;
+						}
+					case Protocol::VideoWatchPartyQueryState:
+						{
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							ServerWorldState::VideoWatchPartyState state_to_send;
+							{
+								WorldStateLock lock(world_state->mutex);
+								auto res = cur_world_state->getVideoWatchParties(lock).find(object_uid);
+								if(res != cur_world_state->getVideoWatchParties(lock).end())
+									state_to_send = res->second;
+							}
+
+							MessageUtils::initPacket(scratch_packet, Protocol::VideoWatchPartyState);
+							writeToStream(object_uid, scratch_packet);
+							scratch_packet.writeUInt32(state_to_send.active ? 1u : 0u);
+							scratch_packet.writeUInt32(state_to_send.owner_user_id);
+							scratch_packet.writeDouble(state_to_send.start_global_time);
+							scratch_packet.writeDouble(state_to_send.start_video_time);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+							enqueueDataToSend(scratch_packet);
+
+							break;
+						}
 					case Protocol::ObjectPhysicsOwnershipTaken:
 						{
 							// conPrint("ObjectPhysicsOwnershipTaken");
@@ -2342,6 +2410,7 @@ void WorkerThread::doRun()
 											// Mark object as dead
 											ob->state = WorldObject::State_Dead;
 											ob->from_remote_other_dirty = true;
+											cur_world_state->getVideoWatchParties(lock).erase(object_uid);
 											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
