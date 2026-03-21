@@ -636,6 +636,49 @@ public:
 		bool is_redirect) override
 
 	{
+		const std::string req_url = request->GetURL().ToString();
+		if(hasPrefix(req_url, "https://localdomain/watchparty"))
+		{
+			try
+			{
+				const URL parsed_url = URL::parseURL(req_url);
+				const std::map<std::string, std::string> params = URL::parseQuery(parsed_url.query);
+
+				GUIClient* gui_client = NULL;
+				WorldObject* world_ob = NULL;
+				{
+					Lock lock(mutex);
+					gui_client = m_gui_client;
+					world_ob = m_ob;
+				}
+
+				if(gui_client && world_ob)
+				{
+					const auto action_it = params.find("action");
+					if(action_it != params.end())
+					{
+						if(action_it->second == "start")
+						{
+							double start_video_time = 0.0;
+							const auto t_it = params.find("t");
+							if(t_it != params.end())
+								start_video_time = stringToDouble(t_it->second);
+
+							gui_client->startVideoWatchParty(world_ob->uid, start_video_time);
+						}
+						else if(action_it->second == "join")
+						{
+							gui_client->requestVideoWatchPartyState(world_ob->uid);
+						}
+					}
+				}
+			}
+			catch(glare::Exception&)
+			{}
+
+			return true;
+		}
+
 		/*std::string frame_name = frame->GetName();
 		std::string frame_url = frame->GetURL();
 
@@ -1223,6 +1266,19 @@ void EmbeddedBrowser::navigate(const std::string& new_URL)
 #if CEF_SUPPORT
 	if(embedded_cef_browser)
 		embedded_cef_browser->navigate(new_URL);
+#endif
+}
+
+
+void EmbeddedBrowser::executeJavaScript(const std::string& script)
+{
+#if CEF_SUPPORT
+	if(embedded_cef_browser && embedded_cef_browser->cef_browser)
+	{
+		CefRefPtr<CefFrame> frame = embedded_cef_browser->cef_browser->GetMainFrame();
+		if(frame)
+			frame->ExecuteJavaScript(script, URL, 0);
+	}
 #endif
 }
 
