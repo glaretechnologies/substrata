@@ -986,7 +986,7 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"if(forcePlay&&window.player.getPlayerState&&window.player.getPlayerState()!=YT.PlayerState.PLAYING)window.player.playVideo();};"
 						"}");
 
-					const bool is_owner = (ob->video_watch_party_owner_user_id == gui_client->logged_in_user_id);
+					const bool is_owner = (ob->video_watch_party_owner_user_id == gui_client->logged_in_user_id.value());
 					const bool show_button = !ob->video_watch_party_active || !is_owner;
 					const std::string button_text = ob->video_watch_party_active ? "Join watch party" : "Start watch party";
 					browser->executeJavaScript("if(window.substrataSetWatchPartyButton){window.substrataSetWatchPartyButton('" + button_text + "', " + toString(show_button ? 1 : 0) + ");}");
