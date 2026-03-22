@@ -913,7 +913,13 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			const uint32 owner_user_id = msg_buffer.readUInt32();
 			const double start_global_time = msg_buffer.readDouble();
 			const double start_video_time = msg_buffer.readDouble();
-			const bool is_playing = msg_buffer.readUInt32() != 0;
+			bool is_playing = true;
+			try
+			{
+				is_playing = (msg_buffer.readUInt32() != 0); // Optional, for backward compatibility with older server packets.
+			}
+			catch(glare::Exception&)
+			{}
 
 			{
 				Lock lock(world_state->mutex);

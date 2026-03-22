@@ -2204,7 +2204,13 @@ void WorkerThread::doRun()
 						{
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const double requested_start_video_time = msg_buffer.readDouble();
-							const bool requested_is_playing = (msg_buffer.readUInt32() != 0);
+							bool requested_is_playing = true;
+							try
+							{
+								requested_is_playing = (msg_buffer.readUInt32() != 0); // Optional, for backward compatibility with older client packets.
+							}
+							catch(glare::Exception&)
+							{}
 
 							ServerWorldState::VideoWatchPartyState state_to_send;
 							bool should_send = false;
