@@ -333,6 +333,7 @@ public:
 	static const uint32 EXCLUDE_FROM_LOD_CHUNK_MESH             = 512; // Should this object be excluded from LOD Chunk meshes? (for e.g. moving objects)
 	static const uint32 AUDIO_AUTOPLAY                          = 1024; // For objects that play audio, should the audio auto-play?
 	static const uint32 AUDIO_LOOP                              = 2048; // For objects that play audio, should the audio loop?
+	static const uint32 VIDEO_SYNC_TO_CLOCK                     = 4096; // For YouTube video objects, should playback be periodically synced to shared clock time?
 	uint32 flags;
 
 	TimeStamp created_time;
@@ -407,6 +408,7 @@ public:
 	bool from_remote_content_dirty; // Content has changed remotely.
 	bool from_remote_flags_dirty;     // Flags have been changed remotely
 	bool from_remote_physics_ownership_dirty; // Physics ownership has been changed remotely.
+	bool from_remote_video_watch_party_dirty; // Video watch party state changed remotely.
 
 	bool from_local_transform_dirty;  // Transformation has been changed locally
 	bool from_local_other_dirty;      // Something else has been changed locally
@@ -416,6 +418,13 @@ public:
 
 	uint32 last_transform_update_avatar_uid; // Avatar UID of last client that sent the last ObjectTransformUpdate or ObjectPhysicsTransformUpdate for this message.
 	double last_transform_client_time;
+
+	// Transient (not serialized in object stream). For authoritative video watch-party sync.
+	bool video_watch_party_active;
+	uint32 video_watch_party_owner_user_id;
+	double video_watch_party_start_global_time;
+	double video_watch_party_start_video_time;
+	bool video_watch_party_is_playing;
 
 	static const uint32 AUDIO_SOURCE_URL_CHANGED	= 1; // Set when audio_source_url is changed
 	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed

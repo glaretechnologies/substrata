@@ -221,6 +221,16 @@ class ServerWorldState : public ThreadSafeRefCounted
 public:
 	ServerWorldState() : db_dirty(false) {}
 
+	struct VideoWatchPartyState
+	{
+		VideoWatchPartyState() : active(false), owner_user_id(std::numeric_limits<uint32>::max()), start_global_time(0), start_video_time(0), is_playing(true) {}
+		bool active;
+		uint32 owner_user_id;
+		double start_global_time;
+		double start_video_time;
+		bool is_playing;
+	};
+
 	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }
 	void addWorldObjectAsDBDirty(const WorldObjectRef ob, WorldStateLock& /*world_state_lock*/) { db_dirty_world_objects.insert(ob); }
 	void addLODChunkAsDBDirty   (const LODChunkRef ob,    WorldStateLock& /*world_state_lock*/) { db_dirty_lod_chunks.insert(ob); }
@@ -248,6 +258,7 @@ public:
 	ParcelMapType&     getParcels(WorldStateLock& /*world_state_lock*/) { return parcels; }
 	LODChunkMapType& getLODChunks(WorldStateLock& /*world_state_lock*/) { return lod_chunks; }
 	ChatBotMapType&    getChatBots(WorldStateLock& /*world_state_lock*/) { return chatbots; }
+	std::map<UID, VideoWatchPartyState>& getVideoWatchParties(WorldStateLock& /*world_state_lock*/) { return video_watch_parties; }
 	
 	ParcelMapType parcels; // TODO: make private.  Lots of compile errors to fix when doing so.
 
@@ -258,6 +269,8 @@ public:
 	std::unordered_set<ChatBotRef, ChatBotRefHash>&         getDBDirtyChatBots(WorldStateLock& /*world_state_lock*/) { return db_dirty_chatbots; }
 
 	AvatarRef createAndInsertAvatarForChatBot(ServerAllWorldsState* all_world_state, const ChatBot* chatbot, WorldStateLock& /*world_state_lock*/);
+
+	std::map<UID, VideoWatchPartyState> video_watch_parties;
 private:
 	ObjectMapType objects;
 	DirtyFromRemoteObjectSetType dirty_from_remote_objects; // TODO: could just use vector for this, and avoid duplicates by checking object dirty flag.

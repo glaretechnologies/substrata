@@ -6927,6 +6927,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 					ob->from_remote_physics_ownership_dirty = false;
 				}
+				else if(ob->from_remote_video_watch_party_dirty)
+				{
+					ob->from_remote_video_watch_party_dirty = false;
+				}
 				
 				if(ob->from_remote_transform_dirty)
 				{
@@ -12525,6 +12529,30 @@ void GUIClient::sendLightmapNeededFlagsSlot()
 	}
 
 	objs_with_lightmap_rebuild_needed.clear();
+}
+
+
+void GUIClient::requestVideoWatchPartyState(const UID& object_uid)
+{
+	if(this->connection_state != ServerConnectionState_Connected || this->client_thread.isNull())
+		return;
+
+	MessageUtils::initPacket(scratch_packet, Protocol::VideoWatchPartyQueryState);
+	writeToStream(object_uid, scratch_packet);
+	enqueueMessageToSend(*this->client_thread, scratch_packet);
+}
+
+
+void GUIClient::startVideoWatchParty(const UID& object_uid, double start_video_time, bool is_playing)
+{
+	if(this->connection_state != ServerConnectionState_Connected || this->client_thread.isNull())
+		return;
+
+	MessageUtils::initPacket(scratch_packet, Protocol::VideoWatchPartyStart);
+	writeToStream(object_uid, scratch_packet);
+	scratch_packet.writeDouble(start_video_time);
+	scratch_packet.writeUInt32(is_playing ? 1u : 0u);
+	enqueueMessageToSend(*this->client_thread, scratch_packet);
 }
 
 

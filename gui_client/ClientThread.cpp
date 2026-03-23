@@ -906,6 +906,38 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			}
 			break;
 		}
+	case Protocol::VideoWatchPartyState:
+		{
+			const UID object_uid = readUIDFromStream(msg_buffer);
+			const bool active = msg_buffer.readUInt32() != 0;
+			const uint32 owner_user_id = msg_buffer.readUInt32();
+			const double start_global_time = msg_buffer.readDouble();
+			const double start_video_time = msg_buffer.readDouble();
+			bool is_playing = true;
+			try
+			{
+				is_playing = (msg_buffer.readUInt32() != 0); // Optional, for backward compatibility with older server packets.
+			}
+			catch(glare::Exception&)
+			{}
+
+			{
+				Lock lock(world_state->mutex);
+				auto res = world_state->objects.find(object_uid);
+				if(res != world_state->objects.end())
+				{
+					WorldObject* ob = res.getValue().ptr();
+					ob->video_watch_party_active = active;
+					ob->video_watch_party_owner_user_id = owner_user_id;
+					ob->video_watch_party_start_global_time = start_global_time;
+					ob->video_watch_party_start_video_time = start_video_time;
+					ob->video_watch_party_is_playing = is_playing;
+					ob->from_remote_video_watch_party_dirty = true;
+					world_state->dirty_from_remote_objects.insert(ob);
+				}
+			}
+			break;
+		}
 	case Protocol::ObjectPhysicsOwnershipTaken:
 		{
 			const UID object_uid = readUIDFromStream(msg_buffer);

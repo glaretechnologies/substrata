@@ -58,6 +58,7 @@ enum StringAtomEnum
 	Atom_video_autoplay,
 	Atom_video_loop,
 	Atom_video_muted,
+	Atom_video_sync,
 	Atom_mass,
 	Atom_friction,
 	Atom_restitution,
@@ -126,6 +127,7 @@ static StringAtom string_atoms[] =
 	StringAtom({"video_autoplay",			Atom_video_autoplay,			}),
 	StringAtom({"video_loop",				Atom_video_loop,				}),
 	StringAtom({"video_muted",				Atom_video_muted,				}),
+	StringAtom({"video_sync",				Atom_video_sync,				}),
 	StringAtom({"mass",						Atom_mass,						}),
 	StringAtom({"friction",					Atom_friction,					}),
 	StringAtom({"restitution",				Atom_restitution,				}),
@@ -1281,6 +1283,10 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "video_muted"));
 		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_MUTED));
 		break;
+	case Atom_video_sync:
+		assert(stringEqual(key_str, "video_sync"));
+		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_SYNC_TO_CLOCK));
+		break;
 	case Atom_mass:
 		assert(stringEqual(key_str, "mass"));
 		lua_pushnumber(state, ob->mass);
@@ -1474,6 +1480,11 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	case Atom_video_muted:
 		assert(stringEqual(key_str, "video_muted"));
 		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_MUTED, LuaUtils::getBool(state, /*index=*/3));
+		other_changed = true;
+		break;
+	case Atom_video_sync:
+		assert(stringEqual(key_str, "video_sync"));
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_SYNC_TO_CLOCK, LuaUtils::getBool(state, /*index=*/3));
 		other_changed = true;
 		break;
 	case Atom_mass:

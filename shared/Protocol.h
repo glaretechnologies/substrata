@@ -43,13 +43,14 @@ CyberspaceProtocolVersion
 47: Added UserGestureSettingsChanged message.
 48: Added ping+pong messages.
 49: Added AvatarSatOnSeat, AvatarGotUpFromSeat messages.
+50: Added video watch party start/query/state messages.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 49;
+const uint32 CyberspaceProtocolVersion = 50;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -107,6 +108,9 @@ const uint32 ObjectPhysicsOwnershipTaken	= 3013;
 const uint32 ObjectPhysicsTransformUpdate	= 3016;
 const uint32 ObjectContentChanged	= 3017;
 const uint32 SummonObject			= 3030;
+const uint32 VideoWatchPartyStart	= 3040; // Client requests to start an authoritative watch party for a video object.
+const uint32 VideoWatchPartyQueryState	= 3041; // Client queries current watch party state for a video object.
+const uint32 VideoWatchPartyState	= 3042; // Server sends watch party state for a video object.
 
 const uint32 CreateObject			= 3004; // Client wants to create an object.
 const uint32 DestroyObject			= 3005; // Client wants to destroy an object.

@@ -42,6 +42,7 @@ public:
 
 	void updateRootPage(const std::string& root_page);
 	void navigate(const std::string& URL);
+	void executeJavaScript(const std::string& script);
 
 	void browserBecameVisible();
 

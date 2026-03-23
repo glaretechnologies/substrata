@@ -698,6 +698,16 @@
            </property>
           </widget>
          </item>
+         <item row="0" column="3">
+          <widget class="QCheckBox" name="videoSyncCheckBox">
+           <property name="toolTip">
+            <string>For looped YouTube videos, periodically sync playback time across viewers.</string>
+           </property>
+           <property name="text">
+            <string>Sync (YouTube)</string>
+           </property>
+          </widget>
+         </item>
         </layout>
        </widget>
       </item>
