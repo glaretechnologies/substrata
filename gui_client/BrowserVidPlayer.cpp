@@ -521,7 +521,7 @@ EM_JS(void, applyYouTubeWatchPartyTargetTime, (int handle, double target_time, i
 		clamped_target = Math.max(0.0, Math.min(target_time, duration));
 	}
 	let cur = player.getCurrentTime();
-	if(Math.abs(clamped_target - cur) > 0.5)
+	if(Math.abs(clamped_target - cur) > 0.8)
 		player.seekTo(clamped_target, true);
 
 	if(should_play && (loop || clamped_target < duration - 0.05))
@@ -866,14 +866,14 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 
 					const bool is_owner = (ob->video_watch_party_owner_user_id == gui_client->logged_in_user_id.value());
 
-					if(ob->video_watch_party_active && !is_owner && !joined_watch_party)
-						setYouTubeWatchPartyButton(html_view_handle, "Join watch party", 1);
-					else
-						setYouTubeWatchPartyButton(html_view_handle, "Start watch party", ob->video_watch_party_active ? 0 : 1);
+					if(ob->video_watch_party_active && !is_owner)
+						joined_watch_party = true; // Auto-join non-host viewers when a watch party is active.
+
+					setYouTubeWatchPartyButton(html_view_handle, "Start watch party", ob->video_watch_party_active ? 0 : 1);
 					if(ob->video_watch_party_active)
 					{
-						const bool lock_controls = (!is_owner && joined_watch_party);
-						setYouTubeWatchPartyOverlay(html_view_handle, is_owner ? "Watch party: You are host" : (joined_watch_party ? "Watch party: Synced to host" : "Watch party available"), 1, lock_controls ? 1 : 0);
+						const bool lock_controls = !is_owner;
+						setYouTubeWatchPartyOverlay(html_view_handle, is_owner ? "Watch party: You are host" : "Watch party: Synced", 1, lock_controls ? 1 : 0);
 					}
 					else
 					{
@@ -889,17 +889,11 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						joined_watch_party = true;
 						gui_client->requestVideoWatchPartyState(ob->uid);
 					}
-					else if(action == 2) // Join watch party
-					{
-						joined_watch_party = true;
-						gui_client->requestVideoWatchPartyState(ob->uid);
-					}
-
 					if(ob->video_watch_party_active && gui_client->world_state.nonNull())
 					{
 						if(is_owner)
 						{
-							if(anim_time - last_watch_party_sync_check_time > 0.25)
+							if(anim_time - last_watch_party_sync_check_time > 0.5)
 							{
 								last_watch_party_sync_check_time = anim_time;
 								const double start_video_time = getYouTubeCurrentTime(html_view_handle);
@@ -907,7 +901,7 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 								gui_client->startVideoWatchParty(ob->uid, start_video_time, is_playing);
 							}
 						}
-						else if(joined_watch_party && anim_time - last_watch_party_sync_check_time > 0.2)
+						else if(anim_time - last_watch_party_sync_check_time > 0.35)
 						{
 							last_watch_party_sync_check_time = anim_time;
 
@@ -1018,13 +1012,11 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"btn.style.display='none';btn.style.padding='8px 12px';btn.style.border='0';btn.style.borderRadius='6px';"
 						"btn.style.color='#fff';btn.style.background='rgba(0,0,0,0.7)';btn.style.font='600 13px sans-serif';btn.style.cursor='pointer';"
 						"btn.onclick=function(){if(!window.player||!window.player.getCurrentTime)return;"
-						"var action=(btn.textContent&&btn.textContent.indexOf('Join')>=0)?'join':'start';"
-						"if(action==='join')window.substrataWatchPartyJoined=1;"
+						"var action='start';"
 						"var t=window.player.getCurrentTime();"
 						"var p=(window.player.getPlayerState&&window.player.getPlayerState()==YT.PlayerState.PLAYING)?1:0;"
 						"window.location.href='https://localdomain/watchparty?action='+action+'&t='+encodeURIComponent(t.toString())+'&p='+p;};"
 						"document.body.appendChild(btn);}"
-						"if(window.substrataWatchPartyJoined&&text.indexOf('Join')>=0)visible=false;"
 						"btn.textContent=text;btn.style.display=visible?'block':'none';};"
 						"window.substrataSetWatchPartyOverlay=function(text,visible,lockControls){"
 						"var ov=document.getElementById('watchPartyOverlay');"
@@ -1042,6 +1034,7 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"blocker.style.display=effectiveLock?'block':'none';};"
 						"window.substrataSetWatchPartyOwnerActive=function(isOwner,isActive){"
 						"window.substrataWatchPartyIsOwner=isOwner?1:0;window.substrataWatchPartyActive=isActive?1:0;"
+						"if(isActive&&!isOwner)window.substrataWatchPartyJoined=1;"
 						"if(!isActive)window.substrataWatchPartyJoined=0;};"
 						"window.substrataApplyWatchPartyTargetTime=function(targetTime,forcePlay,loopMode){"
 						"if(!window.substrataWatchPartyIsOwner&&!window.substrataWatchPartyJoined)return;"
@@ -1051,7 +1044,7 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"if(loopMode){target=((target%duration)+duration)%duration;}else{if(target<0.0)target=0.0;if(target>duration)target=duration;}"
 						"var cur=window.player.getCurrentTime();var delta=target-cur;"
 						"if(loopMode){if(delta>duration*0.5)delta-=duration;if(delta<-duration*0.5)delta+=duration;}"
-						"if(Math.abs(delta)>0.25)window.player.seekTo(target,true);"
+						"if(Math.abs(delta)>0.8)window.player.seekTo(target,true);"
 						"if(forcePlay){if(window.player.getPlayerState&&window.player.getPlayerState()!=YT.PlayerState.PLAYING)window.player.playVideo();}"
 						"else{if(window.player.pauseVideo)window.player.pauseVideo();}};"
 						"if(!window.substrataWatchPartyHeartbeatTimer){window.substrataWatchPartyLastSentT=-1;window.substrataWatchPartyLastSentP=-1;window.substrataWatchPartyHeartbeatTimer=setInterval(function(){"
@@ -1060,25 +1053,25 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"var p=(window.player.getPlayerState&&window.player.getPlayerState()==YT.PlayerState.PLAYING)?1:0;"
 						"var shouldSend=(p!=window.substrataWatchPartyLastSentP)||((p==1)&&Math.abs(t-window.substrataWatchPartyLastSentT)>1.0);"
 						"if(shouldSend){window.substrataWatchPartyLastSentT=t;window.substrataWatchPartyLastSentP=p;window.location.href='https://localdomain/watchparty?action=update&t='+encodeURIComponent(t.toString())+'&p='+p;}"
-						"},1000);}"
+						"},1500);}"
 						"}");
 
 					const bool is_owner = (ob->video_watch_party_owner_user_id == gui_client->logged_in_user_id.value());
-					const bool show_button = !ob->video_watch_party_active || !is_owner;
-					const std::string button_text = ob->video_watch_party_active ? "Join watch party" : "Start watch party";
+					const bool show_button = !ob->video_watch_party_active;
+					const std::string button_text = "Start watch party";
 					browser->executeJavaScript("if(window.substrataSetWatchPartyButton){window.substrataSetWatchPartyButton('" + button_text + "', " + toString(show_button ? 1 : 0) + ");}");
 					browser->executeJavaScript("if(window.substrataSetWatchPartyOwnerActive){window.substrataSetWatchPartyOwnerActive(" + toString(is_owner ? 1 : 0) + ", " + toString(ob->video_watch_party_active ? 1 : 0) + ");}");
 					if(ob->video_watch_party_active)
 					{
 						const bool lock_controls = !is_owner;
-						browser->executeJavaScript("if(window.substrataSetWatchPartyOverlay){window.substrataSetWatchPartyOverlay('" + std::string(is_owner ? "Watch party: You are host" : "Watch party available") + "', 1, " + toString(lock_controls ? 1 : 0) + ");}");
+						browser->executeJavaScript("if(window.substrataSetWatchPartyOverlay){window.substrataSetWatchPartyOverlay('" + std::string(is_owner ? "Watch party: You are host" : "Watch party: Synced") + "', 1, " + toString(lock_controls ? 1 : 0) + ");}");
 					}
 					else
 						browser->executeJavaScript("if(window.substrataSetWatchPartyOverlay){window.substrataSetWatchPartyOverlay('', 0, 0);}");
 
 					if(ob->video_watch_party_active && gui_client->world_state.nonNull() && !is_owner)
 					{
-						if(anim_time - last_watch_party_sync_check_time > 0.2)
+						if(anim_time - last_watch_party_sync_check_time > 0.35)
 						{
 							last_watch_party_sync_check_time = anim_time;
 
