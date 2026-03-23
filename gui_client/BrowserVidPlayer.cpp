@@ -381,30 +381,6 @@ EM_JS(int, makeYouTubeHTMLView, (const char* video_id, int autoplay, int loop, i
 				//console.log("****************player onReady()****************");
 				if(muted) { e.target.mute(); }  // If video should be muted, insert a call to mute the video here.
 				e.target.playVideo();
-
-				if(sync_to_clock)
-				{
-					setInterval(function() {
-						if(!player || !player.getDuration)
-							return;
-
-						let duration = player.getDuration();
-						if(!(duration > 1.0))
-							return;
-
-						let target = (Date.now() * 0.001) % duration;
-						let cur = player.getCurrentTime();
-						let delta = target - cur;
-						if(delta > duration * 0.5) delta -= duration;
-						if(delta < -duration * 0.5) delta += duration;
-
-						if(Math.abs(delta) > 1.0)
-							player.seekTo(target, true);
-
-						if(player.getPlayerState && player.getPlayerState() != YT.PlayerState.PLAYING)
-							player.playVideo();
-					}, 2000);
-				}
 				}
 			}
 		};
@@ -890,11 +866,14 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 
 					const bool is_owner = (ob->video_watch_party_owner_user_id == gui_client->logged_in_user_id.value());
 
-					setYouTubeWatchPartyButton(html_view_handle, "Start watch party", ob->video_watch_party_active ? 0 : 1);
+					if(ob->video_watch_party_active && !is_owner && !joined_watch_party)
+						setYouTubeWatchPartyButton(html_view_handle, "Join watch party", 1);
+					else
+						setYouTubeWatchPartyButton(html_view_handle, "Start watch party", ob->video_watch_party_active ? 0 : 1);
 					if(ob->video_watch_party_active)
 					{
-						const bool lock_controls = !is_owner;
-						setYouTubeWatchPartyOverlay(html_view_handle, is_owner ? "Watch party: You are host" : "Watch party: Synced to host", 1, lock_controls ? 1 : 0);
+						const bool lock_controls = (!is_owner && joined_watch_party);
+						setYouTubeWatchPartyOverlay(html_view_handle, is_owner ? "Watch party: You are host" : (joined_watch_party ? "Watch party: Synced to host" : "Watch party available"), 1, lock_controls ? 1 : 0);
 					}
 					else
 					{
@@ -907,6 +886,12 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						const double start_video_time = getYouTubeCurrentTime(html_view_handle);
 						const bool is_playing = (getYouTubeIsPlaying(html_view_handle) != 0);
 						gui_client->startVideoWatchParty(ob->uid, start_video_time, is_playing);
+						joined_watch_party = true;
+						gui_client->requestVideoWatchPartyState(ob->uid);
+					}
+					else if(action == 2) // Join watch party
+					{
+						joined_watch_party = true;
 						gui_client->requestVideoWatchPartyState(ob->uid);
 					}
 
@@ -922,13 +907,13 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 								gui_client->startVideoWatchParty(ob->uid, start_video_time, is_playing);
 							}
 						}
-						else if(anim_time - last_watch_party_sync_check_time > 0.2)
+						else if(joined_watch_party && anim_time - last_watch_party_sync_check_time > 0.2)
 						{
 							last_watch_party_sync_check_time = anim_time;
 
 							const double cur_global_time = gui_client->world_state->getCurrentGlobalTime();
 							const double elapsed = myMax(0.0, cur_global_time - ob->video_watch_party_start_global_time);
-							const double target_time = ob->video_watch_party_start_video_time + elapsed;
+							const double target_time = ob->video_watch_party_is_playing ? (ob->video_watch_party_start_video_time + elapsed) : ob->video_watch_party_start_video_time;
 							const bool loop = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
 							const int should_play = ob->video_watch_party_is_playing ? 1 : 0;
 
@@ -1033,11 +1018,13 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"btn.style.display='none';btn.style.padding='8px 12px';btn.style.border='0';btn.style.borderRadius='6px';"
 						"btn.style.color='#fff';btn.style.background='rgba(0,0,0,0.7)';btn.style.font='600 13px sans-serif';btn.style.cursor='pointer';"
 						"btn.onclick=function(){if(!window.player||!window.player.getCurrentTime)return;"
-						"var action='start';"
+						"var action=(btn.textContent&&btn.textContent.indexOf('Join')>=0)?'join':'start';"
+						"if(action==='join')window.substrataWatchPartyJoined=1;"
 						"var t=window.player.getCurrentTime();"
 						"var p=(window.player.getPlayerState&&window.player.getPlayerState()==YT.PlayerState.PLAYING)?1:0;"
 						"window.location.href='https://localdomain/watchparty?action='+action+'&t='+encodeURIComponent(t.toString())+'&p='+p;};"
 						"document.body.appendChild(btn);}"
+						"if(window.substrataWatchPartyJoined&&text.indexOf('Join')>=0)visible=false;"
 						"btn.textContent=text;btn.style.display=visible?'block':'none';};"
 						"window.substrataSetWatchPartyOverlay=function(text,visible,lockControls){"
 						"var ov=document.getElementById('watchPartyOverlay');"
@@ -1051,9 +1038,13 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"blocker.style.position='fixed';blocker.style.left='0';blocker.style.top='0';blocker.style.right='0';blocker.style.bottom='0';blocker.style.zIndex='19';"
 						"blocker.style.background='rgba(0,0,0,0)';document.body.appendChild(blocker);}"
 						"ov.textContent=text;ov.style.display=visible?'block':'none';"
-						"blocker.style.display=lockControls?'block':'none';};"
-						"window.substrataSetWatchPartyOwnerActive=function(isOwner,isActive){window.substrataWatchPartyIsOwner=isOwner?1:0;window.substrataWatchPartyActive=isActive?1:0;};"
+						"var effectiveLock=lockControls&&(window.substrataWatchPartyIsOwner?0:window.substrataWatchPartyJoined?1:0);"
+						"blocker.style.display=effectiveLock?'block':'none';};"
+						"window.substrataSetWatchPartyOwnerActive=function(isOwner,isActive){"
+						"window.substrataWatchPartyIsOwner=isOwner?1:0;window.substrataWatchPartyActive=isActive?1:0;"
+						"if(!isActive)window.substrataWatchPartyJoined=0;};"
 						"window.substrataApplyWatchPartyTargetTime=function(targetTime,forcePlay,loopMode){"
+						"if(!window.substrataWatchPartyIsOwner&&!window.substrataWatchPartyJoined)return;"
 						"if(!window.player||!window.player.getCurrentTime||!window.player.getDuration||!window.player.seekTo)return;"
 						"var duration=window.player.getDuration();if(!(duration>0.0))return;"
 						"var target=targetTime;"
@@ -1063,23 +1054,24 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 						"if(Math.abs(delta)>0.25)window.player.seekTo(target,true);"
 						"if(forcePlay){if(window.player.getPlayerState&&window.player.getPlayerState()!=YT.PlayerState.PLAYING)window.player.playVideo();}"
 						"else{if(window.player.pauseVideo)window.player.pauseVideo();}};"
-						"if(!window.substrataWatchPartyHeartbeatTimer){window.substrataWatchPartyHeartbeatTimer=setInterval(function(){"
+						"if(!window.substrataWatchPartyHeartbeatTimer){window.substrataWatchPartyLastSentT=-1;window.substrataWatchPartyLastSentP=-1;window.substrataWatchPartyHeartbeatTimer=setInterval(function(){"
 						"if(!window.substrataWatchPartyActive||!window.substrataWatchPartyIsOwner||!window.player||!window.player.getCurrentTime)return;"
 						"var t=window.player.getCurrentTime();"
 						"var p=(window.player.getPlayerState&&window.player.getPlayerState()==YT.PlayerState.PLAYING)?1:0;"
-						"window.location.href='https://localdomain/watchparty?action=update&t='+encodeURIComponent(t.toString())+'&p='+p;"
-						"},250);}"
+						"var shouldSend=(p!=window.substrataWatchPartyLastSentP)||((p==1)&&Math.abs(t-window.substrataWatchPartyLastSentT)>1.0);"
+						"if(shouldSend){window.substrataWatchPartyLastSentT=t;window.substrataWatchPartyLastSentP=p;window.location.href='https://localdomain/watchparty?action=update&t='+encodeURIComponent(t.toString())+'&p='+p;}"
+						"},1000);}"
 						"}");
 
 					const bool is_owner = (ob->video_watch_party_owner_user_id == gui_client->logged_in_user_id.value());
-					const bool show_button = !ob->video_watch_party_active;
-					const std::string button_text = "Start watch party";
+					const bool show_button = !ob->video_watch_party_active || !is_owner;
+					const std::string button_text = ob->video_watch_party_active ? "Join watch party" : "Start watch party";
 					browser->executeJavaScript("if(window.substrataSetWatchPartyButton){window.substrataSetWatchPartyButton('" + button_text + "', " + toString(show_button ? 1 : 0) + ");}");
 					browser->executeJavaScript("if(window.substrataSetWatchPartyOwnerActive){window.substrataSetWatchPartyOwnerActive(" + toString(is_owner ? 1 : 0) + ", " + toString(ob->video_watch_party_active ? 1 : 0) + ");}");
 					if(ob->video_watch_party_active)
 					{
 						const bool lock_controls = !is_owner;
-						browser->executeJavaScript("if(window.substrataSetWatchPartyOverlay){window.substrataSetWatchPartyOverlay('" + std::string(is_owner ? "Watch party: You are host" : "Watch party: Synced to host") + "', 1, " + toString(lock_controls ? 1 : 0) + ");}");
+						browser->executeJavaScript("if(window.substrataSetWatchPartyOverlay){window.substrataSetWatchPartyOverlay('" + std::string(is_owner ? "Watch party: You are host" : "Watch party available") + "', 1, " + toString(lock_controls ? 1 : 0) + ");}");
 					}
 					else
 						browser->executeJavaScript("if(window.substrataSetWatchPartyOverlay){window.substrataSetWatchPartyOverlay('', 0, 0);}");
@@ -1092,7 +1084,7 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 
 							const double cur_global_time = gui_client->world_state->getCurrentGlobalTime();
 							const double elapsed = myMax(0.0, cur_global_time - ob->video_watch_party_start_global_time);
-							const double target_time = ob->video_watch_party_start_video_time + elapsed;
+							const double target_time = ob->video_watch_party_is_playing ? (ob->video_watch_party_start_video_time + elapsed) : ob->video_watch_party_start_video_time;
 							const bool loop = BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP);
 							const int should_play = ob->video_watch_party_is_playing ? 1 : 0;
 
