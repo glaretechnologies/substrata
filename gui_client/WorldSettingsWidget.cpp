@@ -41,6 +41,10 @@ WorldSettingsWidget::WorldSettingsWidget(QWidget* parent)
 	connect(this->layer0HeightScaleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
 	connect(this->layer1ASpinBox,				SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
 	connect(this->layer1HeightScaleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->spawnPointCheckBox,			SIGNAL(toggled(bool)),				this, SLOT(settingsChangedSlot()));
+	connect(this->spawnXDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->spawnYDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+	connect(this->spawnZDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
 }
 
 
@@ -100,6 +104,15 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 	SignalBlocker::setValue(layer0HeightScaleSpinBox, world_settings.fog_settings.layer_0_scale_height);
 	SignalBlocker::setValue(layer1ASpinBox,           world_settings.fog_settings.layer_1_A);
 	SignalBlocker::setValue(layer1HeightScaleSpinBox, world_settings.fog_settings.layer_1_scale_height);
+
+	SignalBlocker::setChecked(spawnPointCheckBox, BitUtils::isBitSet(world_settings.flags, WorldSettings::USE_SPAWN_POINT_FLAG));
+	SignalBlocker::setValue(spawnXDoubleSpinBox, world_settings.spawn_point.x);
+	SignalBlocker::setValue(spawnYDoubleSpinBox, world_settings.spawn_point.y);
+	SignalBlocker::setValue(spawnZDoubleSpinBox, world_settings.spawn_point.z);
+
+	spawnXDoubleSpinBox->setEnabled(BitUtils::isBitSet(world_settings.flags, WorldSettings::USE_SPAWN_POINT_FLAG));
+	spawnYDoubleSpinBox->setEnabled(BitUtils::isBitSet(world_settings.flags, WorldSettings::USE_SPAWN_POINT_FLAG));
+	spawnZDoubleSpinBox->setEnabled(BitUtils::isBitSet(world_settings.flags, WorldSettings::USE_SPAWN_POINT_FLAG));
 }
 
 
@@ -165,6 +178,13 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 	world_settings_out.fog_settings.layer_0_scale_height = layer0HeightScaleSpinBox->value();
 	world_settings_out.fog_settings.layer_1_A            = layer1ASpinBox->value();
 	world_settings_out.fog_settings.layer_1_scale_height = layer1HeightScaleSpinBox->value();
+
+	world_settings_out.flags = 0;
+	if(spawnPointCheckBox->isChecked())
+		BitUtils::setBit(world_settings_out.flags, WorldSettings::USE_SPAWN_POINT_FLAG);
+	world_settings_out.spawn_point.x = spawnXDoubleSpinBox->value();
+	world_settings_out.spawn_point.y = spawnYDoubleSpinBox->value();
+	world_settings_out.spawn_point.z = spawnZDoubleSpinBox->value();
 }
 
 
@@ -203,6 +223,11 @@ void WorldSettingsWidget::updateControlsEditable()
 	layer1ASpinBox->setReadOnly(!editable);
 	layer1HeightScaleSpinBox->setReadOnly(!editable);
 
+	spawnPointCheckBox->setEnabled(editable);
+	spawnXDoubleSpinBox->setReadOnly(!editable);
+	spawnYDoubleSpinBox->setReadOnly(!editable);
+	spawnZDoubleSpinBox->setReadOnly(!editable);
+
 	applyPushButton->setEnabled(editable);
 }
 
@@ -237,6 +262,10 @@ void WorldSettingsWidget::settingsChangedSlot()
 {
 	try
 	{
+		spawnXDoubleSpinBox->setEnabled(spawnPointCheckBox->isChecked());
+		spawnYDoubleSpinBox->setEnabled(spawnPointCheckBox->isChecked());
+		spawnZDoubleSpinBox->setEnabled(spawnPointCheckBox->isChecked());
+
 		emit settingsChangedSignal();
 	}
 	catch(glare::Exception& e)

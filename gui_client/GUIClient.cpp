@@ -174,6 +174,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 #endif
 	//task_manager(NULL), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
 	url_parcel_uid(-1),
+	go_to_world_spawn_pos(false),
 	running_destructor(false),
 	biome_manager(NULL),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
@@ -9178,6 +9179,19 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->connected_world_settings.copyNetworkStateFrom(m->world_settings); // Store world settings to be used later
 			this->received_world_settings_since_connect_or_world_change = true;
 
+			if(m->is_initial_send && go_to_world_spawn_pos)
+			{
+				// Jump to the world_settings start location / spawn pos if set
+				if(BitUtils::isBitSet(m->world_settings.flags, WorldSettings::USE_SPAWN_POINT_FLAG))
+				{
+					this->cam_controller.setFirstAndThirdPersonPositions(m->world_settings.spawn_point);
+					this->player_physics.setEyePosition(m->world_settings.spawn_point);
+				}
+
+				go_to_world_spawn_pos = false;
+			}
+
+
 			bool ignore_update = false; // If we generated this world settings update by changing something in the local world settings UI,
 			// we want to ignore this update coming back from the server.
 
@@ -12595,6 +12609,9 @@ void GUIClient::visitSubURL(const std::string& URL, bool push_prev_URL_on_nav_st
 	else
 		this->url_parcel_uid = -1;
 
+	// If we have explicit coordinates in the URL, use those, otherwise use the world settings spawn pos.
+	this->go_to_world_spawn_pos = !parse_res.parsed_x && !parse_res.parsed_y && !parse_res.parsed_z;
+
 	const bool change_to_different_world_msg_supported = server_protocol_version >= 44; // ChangeToDifferentWorld message was added in protocol version 44.
 
 	if((hostname != this->server_hostname) || ((worldname != this->server_worldname) && !change_to_different_world_msg_supported))
@@ -12927,6 +12944,9 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 		spawn_pos.y = parse_res.y;
 	if(parse_res.parsed_z)
 		spawn_pos.z = parse_res.z;
+
+	// If we have explicit coordinates in the URL, use those, otherwise use the world settings spawn pos.
+	this->go_to_world_spawn_pos = !parse_res.parsed_x && !parse_res.parsed_y && !parse_res.parsed_z;
 
 	//-------------------------------- Do disconnect process --------------------------------
 	disconnectFromServerAndClearAllObjects();

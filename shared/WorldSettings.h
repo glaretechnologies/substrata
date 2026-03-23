@@ -94,6 +94,12 @@ public:
 
 	FogWorldSettings fog_settings;
 
+	uint32 flags;
+
+	static const uint32 USE_SPAWN_POINT_FLAG = 1;
+
+	Vec3d spawn_point; // Default starting position for visitors.  Used if USE_SPAWN_POINT_FLAG is set in flags.
+
 	DatabaseKey database_key;
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.
 

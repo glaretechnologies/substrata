@@ -32,7 +32,7 @@ Parcel::Parcel()
 	nft_status(NFTStatus_NotNFT),
 	minting_transaction_id(std::numeric_limits<uint64>::max()),
 	flags(0),
-	spawn_point(1000000000.000000)
+	spawn_point(1'000'000'000.0)
 {
 }
 

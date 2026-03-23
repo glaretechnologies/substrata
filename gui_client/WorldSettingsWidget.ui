@@ -25,7 +25,7 @@
         <x>0</x>
         <y>0</y>
         <width>1033</width>
-        <height>69</height>
+        <height>28</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2"/>
@@ -334,14 +334,14 @@
      </property>
     </widget>
    </item>
-   <item row="27" column="0">
+   <item row="28" column="0">
     <widget class="QLabel" name="label_18">
      <property name="text">
       <string>Layer 1 height scale</string>
      </property>
     </widget>
    </item>
-   <item row="27" column="1">
+   <item row="28" column="1">
     <widget class="RealControl" name="layer1HeightScaleSpinBox">
      <property name="minimum">
       <double>0.100000000000000</double>
@@ -354,7 +354,7 @@
      </property>
     </widget>
    </item>
-   <item row="28" column="1">
+   <item row="32" column="1">
     <spacer name="verticalSpacer_5">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -366,6 +366,91 @@
       </size>
      </property>
     </spacer>
+   </item>
+   <item row="31" column="1">
+    <widget class="QWidget" name="spawnPointWidget" native="true">
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QDoubleSpinBox" name="spawnXDoubleSpinBox">
+        <property name="minimum">
+         <double>-10000000000.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>10000000000.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="spawnYDoubleSpinBox">
+        <property name="minimum">
+         <double>-10000000000.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>10000000000.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="spawnZDoubleSpinBox">
+        <property name="minimum">
+         <double>-10000000000.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>10000000000.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="31" column="0">
+    <widget class="QLabel" name="label_17">
+     <property name="text">
+      <string>Custom spawn point x/y/z</string>
+     </property>
+    </widget>
+   </item>
+   <item row="29" column="1">
+    <spacer name="verticalSpacer_4">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Fixed</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="30" column="1">
+    <widget class="QCheckBox" name="spawnPointCheckBox">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item row="30" column="0">
+    <widget class="QLabel" name="label_19">
+     <property name="text">
+      <string>Use custom spawn point</string>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
