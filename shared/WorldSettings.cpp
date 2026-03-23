@@ -79,6 +79,9 @@ WorldSettings::WorldSettings()
 	sun_phi = 1.f;
 	sun_theta = Maths::pi<float>() / 4;
 
+	spawn_point = Vec3d(0.0);
+	flags = 0;
+
 	db_dirty = false;
 }
 
@@ -120,7 +123,7 @@ void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 }
 
 
-static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 6;
+static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 7;
 
 
 void WorldSettings::writeToStream(OutStream& stream) const
@@ -167,6 +170,9 @@ void WorldSettings::writeToStream(OutStream& stream) const
 
 	fog_settings.writeToStream(buffer);
 
+	buffer.writeUInt32(flags); // New in v7
+	::writeToStream(spawn_point, buffer); // New in v7
+
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)buffer.buf.size();
 	std::memcpy(buffer.buf.data() + sizeof(uint32), &buffer_size, sizeof(uint32));
@@ -184,6 +190,9 @@ void WorldSettings::copyNetworkStateFrom(const WorldSettings& other)
 	sun_phi   = other.sun_phi;
 
 	fog_settings = other.fog_settings;
+
+	flags = other.flags;
+	spawn_point = other.spawn_point;
 }
 
 
@@ -251,6 +260,12 @@ void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 
 	if(version >= 6)
 		readFogWorldSettingsFromStream(buffer_stream, settings.fog_settings);
+
+	if(version >= 7)
+	{
+		settings.flags = buffer_stream.readUInt32();
+		settings.spawn_point = readVec3FromStream<double>(buffer_stream);
+	}
 
 	// We effectively skip any remaining data we have not processed by discarding buffer_stream.
 }

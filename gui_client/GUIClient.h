@@ -604,6 +604,7 @@ public:
 
 	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is. 
 	// -1 if no parcel UID in URL.
+	bool go_to_world_spawn_pos; // Do we want to move to the world settings spawn position (if set) once the world settings are received from the server?
 
 	Timer fps_display_timer;
 	int num_frames_since_fps_timer_reset;

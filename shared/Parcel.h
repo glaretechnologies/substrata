@@ -112,7 +112,7 @@ public:
 	NFTStatus nft_status;
 	uint64 minting_transaction_id; // Id of SubEthTransaction that did/is doing the minting.
 
-	Vec3d spawn_point;
+	Vec3d spawn_point; // Default starting position for visitors. Vec3d(1'000'000'000.0) if no spawn point set.
 
 	// This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
 	std::string owner_name;
