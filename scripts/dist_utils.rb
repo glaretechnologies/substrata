@@ -99,36 +99,10 @@ def copySDLRedistWindows(vs_version, target_dir, copy_debug)
 	
 	# Get SDL path.
 	glare_core_libs_dir = getAndCheckEnvVar('GLARE_CORE_LIBS')
-	sdl_build_dir = "#{glare_core_libs_dir}/SDL/sdl_2.30.9_build"
-	sdl_install_dir = "#{glare_core_libs_dir}/SDL/sdl_2.30.9_install"
+	sdl_dir = "#{glare_core_libs_dir}/SDL/sdl_2.30.9_build"
 
-	# Prefer the build dir (used in CI when building from source), but fall back
-	# to an install dir (used when deps are supplied prebuilt from the store).
-	if copy_debug
-		src = File.join(sdl_build_dir, "Debug", "SDL2d.dll")
-		if !File.exist?(src)
-			# fallback
-			alt = File.join(sdl_install_dir, "Debug", "SDL2d.dll")
-			src = alt if File.exist?(alt)
-		end
-		if File.exist?(src)
-			FileUtils.cp(src, target_dir, :verbose => true)
-		else
-			STDERR.puts "Warning: SDL debug DLL not found at #{src} (skipping)"
-		end
-	else
-		src = File.join(sdl_build_dir, "Release", "SDL2.dll")
-		if !File.exist?(src)
-			# fallback
-			alt = File.join(sdl_install_dir, "Release", "SDL2.dll")
-			src = alt if File.exist?(alt)
-		end
-		if File.exist?(src)
-			FileUtils.cp(src, target_dir, :verbose => true)
-		else
-			STDERR.puts "Warning: SDL release DLL not found at #{src} (skipping)"
-		end
-	end
+	FileUtils.cp("#{sdl_dir}/Debug/SDL2d.dll",  target_dir, :verbose => true) if  copy_debug
+	FileUtils.cp("#{sdl_dir}/Release/SDL2.dll", target_dir, :verbose => true) if !copy_debug
 end
 
 
