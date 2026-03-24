@@ -885,12 +885,14 @@ void MainWindow::showEditorDockWidget()
 
 void MainWindow::setObjectEditorControlsEditable(bool editable)
 {
+	ui->objectEditor->setTextFontFeatureSupported(gui_client.server_protocol_version >= 50);
 	ui->objectEditor->setControlsEditable(editable);
 }
 
 
 void MainWindow::setObjectEditorFromOb(const WorldObject& ob, int selected_mat_index, bool ob_in_editing_users_world)
 {
+	ui->objectEditor->setTextFontFeatureSupported(gui_client.server_protocol_version >= 50);
 	ui->objectEditor->setFromObject(ob, selected_mat_index, ob_in_editing_users_world);
 }
 
@@ -1677,6 +1679,7 @@ void MainWindow::on_actionAdd_Text_triggered()
 	new_world_object->angle = total_rot_angle;
 	new_world_object->scale = Vec3f(0.4f);
 	new_world_object->content = "Some Text";
+	new_world_object->text_font = "Default";
 	new_world_object->setAABBOS(js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1)));
 
 	new_world_object->materials.resize(1);
