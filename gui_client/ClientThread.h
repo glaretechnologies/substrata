@@ -176,7 +176,7 @@ public:
 	AvatarSettings avatar_settings;
 	uint32 user_flags;
 	GestureSettings gesture_settings;
-	EquippedGearSettings equipped_gear_settings;
+	GearItems equipped_gear;
 };
 
 

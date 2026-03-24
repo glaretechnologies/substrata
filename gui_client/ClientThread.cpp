@@ -1188,7 +1188,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 			// Read equipped gear settings if present in message
 			if(!msg_buffer.endOfStream())
-				readEquippedGearSettingsFromStream(msg_buffer, msg->equipped_gear_settings);
+				readGearItemsFromStream(msg_buffer, msg->equipped_gear);
 
 
 			out_msg_queue->enqueue(msg);

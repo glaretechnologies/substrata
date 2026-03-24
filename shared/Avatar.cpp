@@ -29,74 +29,6 @@ Generated at 2016-01-12 12:24:54 +1300
 #include <physics/jscol_aabbox.h>
 
 
-static const uint32 EQUIPPED_GEAR_SETTINGS_SERIALISATION_VERSION = 1;
-
-
-bool EquippedGearSettings::operator==(const EquippedGearSettings& other) const
-{
-	if(equipped_gear.size() != other.equipped_gear.size())
-		return false;
-
-	for(size_t i=0; i<equipped_gear.size(); ++i)
-		if(!(*equipped_gear[i] == *other.equipped_gear[i]))
-			return false;
-	
-	return true;
-}
-
-
-void EquippedGearSettings::writeToStream(RandomAccessOutStream& stream) const
-{
-	// Write to stream with a length prefix.  Do this by writing to the stream, them going back and writing the length of the data we wrote.
-	// Writing a length prefix allows for adding more fields later, while retaining backwards compatibility with older code that can just skip over the new fields.
-
-	const size_t initial_write_index = stream.getWriteIndex();
-
-	stream.writeUInt32(EQUIPPED_GEAR_SETTINGS_SERIALISATION_VERSION);
-	stream.writeUInt32(0); // Size of buffer will be written here later
-
-
-	// Write equipped gear items
-	stream.writeUInt32((uint32)equipped_gear.size());
-	for(size_t i=0; i<equipped_gear.size(); ++i)
-		equipped_gear[i]->writeToStream(stream);
-
-
-	// Go back and write size of buffer to buffer size field
-	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
-
-	std::memcpy(stream.getWritePtrAtIndex(initial_write_index + sizeof(uint32)), &buffer_size, sizeof(uint32));
-}
-
-
-void readEquippedGearSettingsFromStream(RandomAccessInStream& stream, EquippedGearSettings& settings)
-{
-	const size_t initial_read_index = stream.getReadIndex();
-
-	/*const uint32 version =*/ stream.readUInt32();
-	const size_t buffer_size = stream.readUInt32();
-
-	checkProperty(buffer_size >= 8ul, "readEquippedGearSettingsFromStream: buffer_size was too small");
-	checkProperty(buffer_size <= 1000000ul, "readEquippedGearSettingsFromStream: buffer_size was too large");
-
-
-	const uint32 num_items = stream.readUInt32();
-	if(num_items > 1000)
-		throw glare::Exception("gear num_items too large: " + toString(num_items));
-	settings.equipped_gear.resize(num_items);
-	for(uint32 i=0; i<num_items; ++i)
-	{
-		settings.equipped_gear[i] = new GearItem();
-		readGearItemFromStream(stream, *settings.equipped_gear[i]);
-	}
-
-	// Discard any remaining unread data
-	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
-	if(read_B < buffer_size)
-		stream.advanceReadIndex(buffer_size - read_B);
-}
-
-
 const Matrix4f obToWorldMatrix(const Avatar& ob)
 {
 	// From rotateThenTranslateMatrix in AvatarGraphics
@@ -180,9 +112,9 @@ void Avatar::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& 
 
 
 	// Append gear dependency URLs
-	for(size_t i=0; i<equipped_gear_settings.equipped_gear.size(); ++i)
+	for(size_t i=0; i<equipped_gear.items.size(); ++i)
 	{
-		const GearItem* item = equipped_gear_settings.equipped_gear[i].ptr();
+		const GearItem* item = equipped_gear.items[i].ptr();
 
 		// Process gear model
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(item->model_url, ob_lod_level, model_options)));
@@ -209,9 +141,9 @@ void Avatar::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& opt
 
 
 	// Append gear dependency URLs
-	for(size_t i=0; i<equipped_gear_settings.equipped_gear.size(); ++i)
+	for(size_t i=0; i<equipped_gear.items.size(); ++i)
 	{
-		const GearItem* item = equipped_gear_settings.equipped_gear[i].ptr();
+		const GearItem* item = equipped_gear.items[i].ptr();
 
 		// Process gear model
 		for(int level=0; level<3; ++level)
@@ -238,9 +170,9 @@ void Avatar::appendDependencyURLsBaseLevel(const GetDependencyOptions& options, 
 
 
 	// Append gear dependency URLs
-	for(size_t i=0; i<equipped_gear_settings.equipped_gear.size(); ++i)
+	for(size_t i=0; i<equipped_gear.items.size(); ++i)
 	{
-		const GearItem* item = equipped_gear_settings.equipped_gear[i].ptr();
+		const GearItem* item = equipped_gear.items[i].ptr();
 
 		// Process gear model
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(item->model_url, 0, model_options)));
@@ -289,9 +221,9 @@ void Avatar::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 
 	// Process Gear Items
-	for(size_t i=0; i<equipped_gear_settings.equipped_gear.size(); ++i)
+	for(size_t i=0; i<equipped_gear.items.size(); ++i)
 	{
-		GearItem* item = equipped_gear_settings.equipped_gear[i].ptr();
+		GearItem* item = equipped_gear.items[i].ptr();
 
 		// Process gear model
 		if(FileUtils::fileExists(item->model_url)) // If the URL is a local path:
@@ -515,7 +447,7 @@ void Avatar::copyNetworkStateFrom(const Avatar& other)
 
 	flags = other.flags;
 
-	equipped_gear_settings = other.equipped_gear_settings;
+	equipped_gear = other.equipped_gear;
 }
 
 
@@ -601,7 +533,7 @@ void writeAvatarToNetworkStream(const Avatar& avatar, RandomAccessOutStream& str
 
 	stream.writeUInt32(avatar.flags);
 
-	avatar.equipped_gear_settings.writeToStream(stream);
+	avatar.equipped_gear.writeToStream(stream);
 }
 
 
@@ -617,5 +549,5 @@ void readAvatarFromNetworkStream(RandomAccessInStream& stream, Avatar& avatar) /
 		avatar.flags = stream.readUInt32();
 
 	if(!stream.endOfStream())
-		readEquippedGearSettingsFromStream(stream, avatar.equipped_gear_settings);
+		readGearItemsFromStream(stream, avatar.equipped_gear);
 }

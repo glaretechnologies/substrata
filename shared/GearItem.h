@@ -38,7 +38,7 @@ public:
 
 
 
-	uint64 id;
+	UID id;
 
 	// NOTE: if changing these fields, update operator ==
 
@@ -74,3 +74,16 @@ typedef Reference<GearItem> GearItemRef;
 
 
 void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item);
+
+
+
+// A list of gear items.
+struct GearItems
+{
+	bool operator == (const GearItems& other) const;
+	void writeToStream(RandomAccessOutStream& stream) const;
+
+	std::vector<GearItemRef> items;
+};
+
+void readGearItemsFromStream(RandomAccessInStream& stream, GearItems& settings);

@@ -69,7 +69,7 @@ void GearItem::writeToStream(RandomAccessOutStream& stream) const
 	stream.writeUInt32(GEAR_ITEM_SERIALISATION_VERSION);
 	stream.writeUInt32(0); // Size of buffer will be written here later
 
-	stream.writeUInt64(id);
+	::writeToStream(id, stream);
 	::writeToStream(creator_id, stream);
 	::writeToStream(owner_id, stream);
 	created_time.writeToStream(stream);
@@ -113,7 +113,7 @@ void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item)
 	checkProperty(buffer_size >= 8ul, "readGearItemFromNetworkStream: buffer_size was too small");
 	checkProperty(buffer_size <= 1000000ul, "readGearItemFromNetworkStream: buffer_size was too large");
 
-	item.id = stream.readUInt64();
+	item.id = readUIDFromStream(stream);
 	item.creator_id = readUserIDFromStream(stream);
 	item.owner_id = readUserIDFromStream(stream);
 	item.created_time.readFromStream(stream);
@@ -146,6 +146,77 @@ void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item)
 	item.description = stream.readStringLengthFirst(GearItem::MAX_DESCRIPTION_SIZE);
 
 	item.preview_image_URL = stream.readStringLengthFirst(GearItem::MAX_PREVIEW_URL_SIZE);
+
+	// Discard any remaining unread data
+	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
+	if(read_B < buffer_size)
+		stream.advanceReadIndex(buffer_size - read_B);
+}
+
+
+
+
+
+static const uint32 GEAR_ITEMS_SERIALISATION_VERSION = 1;
+
+
+bool GearItems::operator==(const GearItems& other) const
+{
+	if(items.size() != other.items.size())
+		return false;
+
+	for(size_t i=0; i<items.size(); ++i)
+		if(!(*items[i] == *other.items[i]))
+			return false;
+	
+	return true;
+}
+
+
+void GearItems::writeToStream(RandomAccessOutStream& stream) const
+{
+	// Write to stream with a length prefix.  Do this by writing to the stream, them going back and writing the length of the data we wrote.
+	// Writing a length prefix allows for adding more fields later, while retaining backwards compatibility with older code that can just skip over the new fields.
+
+	const size_t initial_write_index = stream.getWriteIndex();
+
+	stream.writeUInt32(GEAR_ITEMS_SERIALISATION_VERSION);
+	stream.writeUInt32(0); // Size of buffer will be written here later
+
+
+	// Write gear items
+	stream.writeUInt32((uint32)items.size());
+	for(size_t i=0; i<items.size(); ++i)
+		items[i]->writeToStream(stream);
+
+
+	// Go back and write size of buffer to buffer size field
+	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
+
+	std::memcpy(stream.getWritePtrAtIndex(initial_write_index + sizeof(uint32)), &buffer_size, sizeof(uint32));
+}
+
+
+void readGearItemsFromStream(RandomAccessInStream& stream, GearItems& settings)
+{
+	const size_t initial_read_index = stream.getReadIndex();
+
+	/*const uint32 version =*/ stream.readUInt32();
+	const size_t buffer_size = stream.readUInt32();
+
+	checkProperty(buffer_size >= 8ul, "readGearItemsFromStream: buffer_size was too small");
+	checkProperty(buffer_size <= 1000000ul, "readGearItemsFromStream: buffer_size was too large");
+
+
+	const uint32 num_items = stream.readUInt32();
+	if(num_items > 1000)
+		throw glare::Exception("gear num_items too large: " + toString(num_items));
+	settings.items.resize(num_items);
+	for(uint32 i=0; i<num_items; ++i)
+	{
+		settings.items[i] = new GearItem();
+		readGearItemFromStream(stream, *settings.items[i]);
+	}
 
 	// Discard any remaining unread data
 	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far

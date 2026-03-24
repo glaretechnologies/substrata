@@ -1407,9 +1407,9 @@ void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level
 	}
 
 	// Process gear item materials
-	for(size_t z=0; z<av.equipped_gear_settings.equipped_gear.size(); ++z)
+	for(size_t z=0; z<av.equipped_gear.items.size(); ++z)
 	{
-		GearItem* item = av.equipped_gear_settings.equipped_gear[z].ptr();
+		GearItem* item = av.equipped_gear.items[z].ptr();
 		for(size_t i=0; i<item->materials.size(); ++i)
 			startLoadingMaterialTexturesForObOrAvatar(item->materials[i].ptr(), /*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, ob_lod_level);
 	}
@@ -2012,12 +2012,12 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 	}
 
 	// Assign to equipped gear mats
-	for(size_t i=0; i<myMin(av->graphics.equipped_gear_graphics.size(), av->equipped_gear_settings.equipped_gear.size()); ++i)
+	for(size_t i=0; i<myMin(av->graphics.equipped_gear_graphics.size(), av->equipped_gear.items.size()); ++i)
 	{
 		GLObject* gl_ob = av->graphics.equipped_gear_graphics[i].gear_gl_ob.ptr();
 		if(gl_ob)
 		{
-			GearItem* item = av->equipped_gear_settings.equipped_gear[i].ptr();
+			GearItem* item = av->equipped_gear.items[i].ptr();
 
 			for(size_t z=0; z<gl_ob->materials.size(); ++z)
 			{
@@ -3297,20 +3297,20 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		//-------------------------------- Load or start loading the equipped gear models --------------------------
 
 		// Build equipped gear graphics vector
-		if(avatar->equipped_gear_settings.equipped_gear.size() != avatar->graphics.equipped_gear_graphics.size())
+		if(avatar->equipped_gear.items.size() != avatar->graphics.equipped_gear_graphics.size())
 		{
-			avatar->graphics.equipped_gear_graphics.resize(avatar->equipped_gear_settings.equipped_gear.size());
+			avatar->graphics.equipped_gear_graphics.resize(avatar->equipped_gear.items.size());
 			for(size_t i=0; i<avatar->graphics.equipped_gear_graphics.size(); ++i)
 			{
-				avatar->graphics.equipped_gear_graphics[i].bone_name = avatar->equipped_gear_settings.equipped_gear[i]->bone_name;
-				avatar->graphics.equipped_gear_graphics[i].transform = gearObToWorldMatrix(*avatar->equipped_gear_settings.equipped_gear[i]);
+				avatar->graphics.equipped_gear_graphics[i].bone_name = avatar->equipped_gear.items[i]->bone_name;
+				avatar->graphics.equipped_gear_graphics[i].transform = gearObToWorldMatrix(*avatar->equipped_gear.items[i]);
 			}
 		}
 
 
 		for(size_t i=0; i<avatar->graphics.equipped_gear_graphics.size(); ++i)
 		{
-			GearItem* gear_item = avatar->equipped_gear_settings.equipped_gear[i].ptr();
+			GearItem* gear_item = avatar->equipped_gear.items[i].ptr();
 			EquippedGearGraphics* equipped_gear_graphics = &avatar->graphics.equipped_gear_graphics[i];
 
 			bool added_opengl_ob = false;
@@ -4619,9 +4619,9 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 					}
 
 					// Assign to any loading gear items
-					for(size_t i=0; i<myMin(av->equipped_gear_settings.equipped_gear.size(), av->graphics.equipped_gear_graphics.size()); ++i)
+					for(size_t i=0; i<myMin(av->equipped_gear.items.size(), av->graphics.equipped_gear_graphics.size()); ++i)
 					{
-						const GearItem* item = av->equipped_gear_settings.equipped_gear[i].ptr();
+						const GearItem* item = av->equipped_gear.items[i].ptr();
 						const URLString current_desired_model_LOD_URL = av->getLODModelURLForLevel(item->model_url, av_lod_level, options);
 						if(current_desired_model_LOD_URL == lod_model_url)
 						{
@@ -4821,7 +4821,7 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 	avatar.avatar_settings.model_url = mesh_URL;
 	avatar.avatar_settings.pre_ob_to_world_matrix = pre_ob_to_world_matrix;
 	avatar.avatar_settings.materials = materials;
-	avatar.equipped_gear_settings = this->logged_in_equipped_gear_settings;
+	avatar.equipped_gear = this->logged_in_equipped_gear;
 
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
@@ -9075,7 +9075,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_name = "";
 			this->logged_in_user_flags = 0;
 			this->logged_in_avatar_settings = AvatarSettings();
-			this->logged_in_equipped_gear_settings = EquippedGearSettings();
+			this->logged_in_equipped_gear = GearItems();
 
 			ui_interface->setTextAsNotLoggedIn();
 
@@ -9283,7 +9283,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_name = m->username;
 			this->logged_in_user_flags = m->user_flags;
 			this->logged_in_avatar_settings = m->avatar_settings;
-			this->logged_in_equipped_gear_settings = m->equipped_gear_settings;
+			this->logged_in_equipped_gear = m->equipped_gear;
 
 			logMessage("Logged in as '" + m->username + "', id " + toString(this->logged_in_user_id.value()));
 
@@ -9305,7 +9305,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.avatar_settings = m->avatar_settings;
 			avatar.name = m->username;
-			avatar.equipped_gear_settings = m->equipped_gear_settings;
+			avatar.equipped_gear = m->equipped_gear;
 
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 			writeAvatarToNetworkStream(avatar, scratch_packet);
@@ -9320,7 +9320,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_name = "";
 			this->logged_in_user_flags = 0;
 			this->logged_in_avatar_settings = AvatarSettings();
-			this->logged_in_equipped_gear_settings = EquippedGearSettings();
+			this->logged_in_equipped_gear = GearItems();
 
 			recolourParcelsForLoggedInState();
 			ui_interface->updateWorldSettingsControlsEditable();
@@ -12956,7 +12956,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	this->logged_in_user_name = "";
 	this->logged_in_user_flags = 0;
 	this->logged_in_avatar_settings = AvatarSettings();
-	this->logged_in_equipped_gear_settings = EquippedGearSettings();
+	this->logged_in_equipped_gear = GearItems();
 
 	this->server_using_lod_chunks = false;
 
@@ -13325,7 +13325,7 @@ void GUIClient::changeToDifferentWorld(const URLParseResults& parse_res)
 		avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 		avatar.avatar_settings = this->logged_in_avatar_settings;
 		avatar.name = this->logged_in_user_name;
-		avatar.equipped_gear_settings = this->logged_in_equipped_gear_settings;
+		avatar.equipped_gear = this->logged_in_equipped_gear;
 
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
 		writeAvatarToNetworkStream(avatar, scratch_packet);

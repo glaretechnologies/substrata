@@ -52,18 +52,6 @@ struct AvatarSettings
 };
 
 
-struct EquippedGearSettings
-{
-	bool operator == (const EquippedGearSettings& other) const;
-	void writeToStream(RandomAccessOutStream& stream) const;
-
-	std::vector<GearItemRef> equipped_gear;
-};
-
-void readEquippedGearSettingsFromStream(RandomAccessInStream& stream, EquippedGearSettings& settings);
-
-
-
 /*=====================================================================
 Avatar
 -------------------
@@ -148,7 +136,7 @@ public:
 	static const uint32 CHATBOT_FLAG                             = 1; // Is this avatar the avatar of a ChatBot?
 	uint32 flags;
 
-	EquippedGearSettings equipped_gear_settings;
+	GearItems equipped_gear;
 
 	uint32 anim_state; // See AvatarGraphics::ANIM_STATE_IN_AIR flag etc..
 	uint32 last_physics_input_bitflags;

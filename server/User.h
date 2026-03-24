@@ -61,6 +61,9 @@ public:
 
 	void setNewPasswordAndSalt(const std::string& new_password);
 
+	void getEquippedGear(GearItems& gear_items_out) const;
+	void updateEquippedGearIDs(const GearItems& equipped_gear_items);
+
 	UserID id;
 
 	TimeStamp created_time;
@@ -80,7 +83,8 @@ public:
 
 	GestureSettings gesture_settings;
 
-	EquippedGearSettings equipped_gear_settings;
+	std::map<UID, GearItemRef> gear; // Map from UID to GearItemRef
+	std::vector<UID> equipped_gear_ids;
 
 	static const uint32 WORLD_GARDENER_FLAG           = 1; // Can this user add objects outside of parcels
 	static const uint32 ALLOW_DYN_TEX_UPDATE_CHECKING = 2; // Will the user's dynamic_texture_update scripts be run by the server?
