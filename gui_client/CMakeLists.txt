@@ -522,6 +522,8 @@ SET(shared_files
 ../shared/URLUtils.h
 ../shared/GestureSettings.cpp
 ../shared/GestureSettings.h
+../shared/GearItem.cpp
+../shared/GearItem.h
 )
 
 SET(client_indigo_files

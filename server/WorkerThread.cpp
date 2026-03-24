@@ -1112,6 +1112,7 @@ void WorkerThread::doRun()
 	UserID client_user_id = UserID::invalidUserID(); // Will be an invalid reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
 	std::string client_user_name;
 	AvatarSettings client_user_avatar_settings;
+	EquippedGearSettings client_equipped_gear_settings;
 	GestureSettings client_gesture_settings;
 	uint32 client_user_flags = 0;
 
@@ -1213,6 +1214,7 @@ void WorkerThread::doRun()
 					client_user_id = cookie_logged_in_user->id;
 					client_user_name = cookie_logged_in_user->name;
 					client_user_avatar_settings = cookie_logged_in_user->avatar_settings; // TODO: clone materials?
+					client_equipped_gear_settings = cookie_logged_in_user->equipped_gear_settings;
 					client_user_flags = cookie_logged_in_user->flags;
 					client_gesture_settings = cookie_logged_in_user->gesture_settings;
 				}
@@ -1227,6 +1229,7 @@ void WorkerThread::doRun()
 				writeAvatarSettingsToStream(client_user_avatar_settings, scratch_packet);
 				scratch_packet.writeUInt32(client_user_flags);
 				client_gesture_settings.writeToStream(scratch_packet);
+				client_equipped_gear_settings.writeToStream(scratch_packet);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1538,16 +1541,15 @@ void WorkerThread::doRun()
 					case Protocol::AvatarFullUpdate:
 						{
 							conPrintIfNotFuzzing("Protocol::AvatarFullUpdate");
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 							Avatar temp_avatar;
-							readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+							readAvatarFromNetworkStream(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 							// Look up existing avatar in world state
 							{
 								WorldStateLock lock(world_state->mutex);
 								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
-								auto res = avatars.find(avatar_uid);
+								auto res = avatars.find(temp_avatar.uid);
 								if(res != avatars.end())
 								{
 									Avatar* avatar = res->second.getPointer();
@@ -1555,23 +1557,26 @@ void WorkerThread::doRun()
 									avatar->other_dirty = true;
 
 
-									// Store avatar settings in the user data
+									// Store avatar settings and equipped gear settings in the user data
 									if(client_user_id.valid())
 									{
-										const bool avatar_settings_changed = !(client_user_avatar_settings == avatar->avatar_settings);
+										const bool avatar_settings_changed = !(client_user_avatar_settings   == avatar->avatar_settings);
+										const bool equipped_gear_changed   = !(client_equipped_gear_settings == avatar->equipped_gear_settings);
 
-										if(avatar_settings_changed && !world_state->isInReadOnlyMode())
+										if((avatar_settings_changed || equipped_gear_changed) && !world_state->isInReadOnlyMode())
 										{
-											client_user_avatar_settings = avatar->avatar_settings;
+											client_user_avatar_settings   = avatar->avatar_settings;
+											client_equipped_gear_settings = avatar->equipped_gear_settings;
 
 											auto res2 = world_state->user_id_to_users.find(client_user_id);
 											if(res2 != world_state->user_id_to_users.end())
 											{
 												Reference<User> client_user = res2->second;
-												client_user->avatar_settings = avatar->avatar_settings;
+												client_user->avatar_settings        = avatar->avatar_settings;
+												client_user->equipped_gear_settings = avatar->equipped_gear_settings;
 												world_state->addUserAsDBDirty(client_user);
 
-												conPrintIfNotFuzzing("Updated user avatar settings.  model_url: " + toStdString(client_user->avatar_settings.model_url));
+												conPrintIfNotFuzzing("Updated user avatar settings and equipped gear settings.  model_url: " + toStdString(client_user->avatar_settings.model_url));
 											}
 										}
 									}
@@ -1602,8 +1607,7 @@ void WorkerThread::doRun()
 							// will use the client_avatar_uid that we assigned to the client
 						
 							Avatar temp_avatar;
-							temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
-							readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+							readAvatarFromNetworkStream(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 							temp_avatar.name = client_user_id.valid() ? client_user_name : "Anonymous";
 
@@ -2984,6 +2988,7 @@ void WorkerThread::doRun()
 										client_user_avatar_settings = user->avatar_settings;
 										client_user_flags = user->flags;
 										client_gesture_settings = user->gesture_settings;
+										client_equipped_gear_settings = user->equipped_gear_settings;
 
 										logged_in = true;
 									}
@@ -3003,6 +3008,7 @@ void WorkerThread::doRun()
 								writeAvatarSettingsToStream(client_user_avatar_settings, scratch_packet);
 								scratch_packet.writeUInt32(client_user_flags);
 								client_gesture_settings.writeToStream(scratch_packet);
+								client_equipped_gear_settings.writeToStream(scratch_packet);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -3092,6 +3098,7 @@ void WorkerThread::doRun()
 												client_user_id = new_user->id; // Log user in as well.
 												client_user_name = new_user->name;
 												client_user_avatar_settings = new_user->avatar_settings;
+												client_equipped_gear_settings = new_user->equipped_gear_settings;
 												client_user_flags = new_user->flags;
 
 												world_state->addPersonalWorldForUser(new_user, lock);

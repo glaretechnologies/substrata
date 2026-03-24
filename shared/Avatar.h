@@ -8,6 +8,7 @@ Generated at 2016-01-12 12:24:54 +1300
 
 
 #include "WorldMaterial.h"
+#include "GearItem.h"
 #if GUI_CLIENT
 #include "../gui_client/AvatarGraphics.h"
 #endif
@@ -49,6 +50,18 @@ struct AvatarSettings
 
 	bool operator == (const AvatarSettings& other) const;
 };
+
+
+struct EquippedGearSettings
+{
+	bool operator == (const EquippedGearSettings& other) const;
+	void writeToStream(RandomAccessOutStream& stream) const;
+
+	std::vector<GearItemRef> equipped_gear;
+};
+
+void readEquippedGearSettingsFromStream(RandomAccessInStream& stream, EquippedGearSettings& settings);
+
 
 
 /*=====================================================================
@@ -134,6 +147,8 @@ public:
 
 	static const uint32 CHATBOT_FLAG                             = 1; // Is this avatar the avatar of a ChatBot?
 	uint32 flags;
+
+	EquippedGearSettings equipped_gear_settings;
 
 	uint32 anim_state; // See AvatarGraphics::ANIM_STATE_IN_AIR flag etc..
 	uint32 last_physics_input_bitflags;
@@ -251,4 +266,4 @@ void readAvatarSettingsFromStream(RandomAccessInStream& stream, AvatarSettings& 
 
 
 void writeAvatarToNetworkStream(const Avatar& world_ob, RandomAccessOutStream& stream); // Write without version.  Writes UID.
-void readAvatarFromNetworkStreamGivenUID(RandomAccessInStream& stream, Avatar& ob); // UID will have been read already
+void readAvatarFromNetworkStream(RandomAccessInStream& stream, Avatar& ob);

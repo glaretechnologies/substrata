@@ -78,9 +78,9 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/CryptoRNG.h"
 #include "../utils/FileInStream.h"
 #include "../utils/IncludeXXHash.h"
-#include "../utils/IndigoXMLDoc.h"
 #include "../utils/FastPoolAllocator.h"
 #include "../utils/RuntimeCheck.h"
+#include "../utils/IndigoXMLDoc.h"
 #include <utils/IncludeHalf.h>
 #include "../utils/MemAlloc.h"
 #include "../utils/UTF8Utils.h"
@@ -459,6 +459,7 @@ void GUIClient::initAudioEngine()
 
 
 static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator);
+static void assignLoadedOpenGLTexturesToGearItemMats(GearItem* item, EquippedGearGraphics* equipped_gear, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator);
 
 
 static const float arc_handle_half_angle = 1.5f;
@@ -1353,14 +1354,7 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
 		const WorldMaterial* mat = ob.materials[i].ptr();
-		if(!mat->colour_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
-		if(!mat->emission_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
-		if(!mat->roughness.texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
-		if(!mat->normal_map_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
+		startLoadingMaterialTexturesForObOrAvatar(mat, ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, ob_lod_level);
 	}
 
 	// Start loading lightmap
@@ -1401,24 +1395,37 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 }
 
 
-void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar)
+void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level, float max_dist_for_ob_lod_level)
 {
 	// Prioritise loading our avatar first.
-	const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
+	const float our_avatar_importance_factor = av.our_avatar ? 1.0e4f : 1.f;
 
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		const WorldMaterial* mat = av.avatar_settings.materials[i].ptr();
-		if(!mat->colour_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
-		if(!mat->emission_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
-		if(!mat->roughness.texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
-		if(!mat->normal_map_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
+		startLoadingMaterialTexturesForObOrAvatar(av.avatar_settings.materials[i].ptr(), /*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, ob_lod_level);
 	}
+
+	// Process gear item materials
+	for(size_t z=0; z<av.equipped_gear_settings.equipped_gear.size(); ++z)
+	{
+		GearItem* item = av.equipped_gear_settings.equipped_gear[z].ptr();
+		for(size_t i=0; i<item->materials.size(); ++i)
+			startLoadingMaterialTexturesForObOrAvatar(item->materials[i].ptr(), /*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, ob_lod_level);
+	}
+}
+
+
+void GUIClient::startLoadingMaterialTexturesForObOrAvatar(const WorldMaterial* mat, UID ob_uid, UID av_uid, Vec4f pos, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, int ob_lod_level)
+{
+	if(!mat->colour_texture_url.empty())
+		startLoadingTextureForObjectOrAvatar(ob_uid, av_uid, pos, aabb_ws_longest_len, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, importance_factor, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
+	if(!mat->emission_texture_url.empty())
+		startLoadingTextureForObjectOrAvatar(ob_uid, av_uid, pos, aabb_ws_longest_len, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, importance_factor, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
+	if(!mat->roughness.texture_url.empty())
+		startLoadingTextureForObjectOrAvatar(ob_uid, av_uid, pos, aabb_ws_longest_len, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, importance_factor, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
+	if(!mat->normal_map_url.empty())
+		startLoadingTextureForObjectOrAvatar(ob_uid, av_uid, pos, aabb_ws_longest_len, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, importance_factor, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
 }
 
 
@@ -1763,7 +1770,7 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 }
 
 
-void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar)
+void GUIClient::startDownloadingResourcesForAvatar(Avatar* avatar, int ob_lod_level)
 {
 	glare::ArenaFrame frame(arena_allocator);
 	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
@@ -1775,7 +1782,7 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level,
 
 	DependencyURLSet dependency_URLs(std::less<DependencyURL>(), stl_arena_allocator);
 
-	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
+	avatar->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
 
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 	{
@@ -1790,24 +1797,24 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level,
 			bool in_range = true;
 			if(has_video_extension)
 			{
-				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+				const double ob_dist = avatar->pos.getDist(cam_controller.getPosition());
 				const double max_play_dist = AnimatedTexData::maxVidPlayDist();
 				in_range = ob_dist < max_play_dist;
 			}
 
 			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 			{
-				const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
+				const float our_avatar_importance_factor = avatar->our_avatar ? 1.0e4f : 1.f;
 
 				DownloadingResourceInfo info;
 				info.texture_params.use_sRGB = url_info.use_sRGB;
 				info.build_dynamic_physics_ob = false;
-				info.pos = ob->pos;
+				info.pos = avatar->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor);
 				info.used_by_other = true;
 
 				// Copy URL to one not allocated from arena.
-				startDownloadingResource(URLString(url.begin(), url.end()), ob->pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, info);
+				startDownloadingResource(URLString(url.begin(), url.end()), avatar->pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, info);
 			}
 		}
 	}
@@ -1897,6 +1904,28 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 }
 
 
+// Returns true if mat changed, false otherwise
+static bool doAssignLoadedOpenGLTexturesToMaterial(OpenGLMaterial& opengl_mat, const WorldMaterial* world_mat, GLObject* gl_ob, size_t mat_index, OpenGLEngine& opengl_engine, 
+	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, bool use_basis)
+{
+	bool mat_changed = false;
+
+	checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
+
+	checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
+		/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
+
+	checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
+		/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
+
+	checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
+
+	return mat_changed;
+}
+
+
 // Update textures to correct LOD-level textures.
 // Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
@@ -1913,19 +1942,7 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
 		const WorldMaterial* world_mat = (z < ob->materials.size()) ? ob->materials[z].ptr() : NULL;
 
-		bool mat_changed = false;
-
-		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
-			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
-
-		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
-
-		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
-
-		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
-			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
+		bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
 
 		if(use_lightmaps && isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
 		{
@@ -1980,31 +1997,58 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 {
 	ZoneScoped; // Tracy profiler
 
-	GLObject* gl_ob = av->graphics.skinned_gl_ob.ptr();
-	if(!gl_ob)
-		return;
-
-	for(size_t z=0; z<gl_ob->materials.size(); ++z)
+	GLObject* avatar_gl_ob = av->graphics.skinned_gl_ob.ptr();
+	if(avatar_gl_ob)
 	{
-		OpenGLMaterial& opengl_mat = gl_ob->materials[z];
-		const WorldMaterial* world_mat = (z < av->avatar_settings.materials.size()) ? av->avatar_settings.materials[z].ptr() : NULL;
+		for(size_t z=0; z<avatar_gl_ob->materials.size(); ++z)
+		{
+			OpenGLMaterial& opengl_mat = avatar_gl_ob->materials[z];
+			const WorldMaterial* world_mat = (z < av->avatar_settings.materials.size()) ? av->avatar_settings.materials[z].ptr() : NULL;
 
-		bool mat_changed = false;
+			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, avatar_gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
+			if(mat_changed)
+				opengl_engine.materialTextureChanged(*avatar_gl_ob, opengl_mat);
+		}
+	}
 
-		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
-			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
+	// Assign to equipped gear mats
+	for(size_t i=0; i<myMin(av->graphics.equipped_gear_graphics.size(), av->equipped_gear_settings.equipped_gear.size()); ++i)
+	{
+		GLObject* gl_ob = av->graphics.equipped_gear_graphics[i].gear_gl_ob.ptr();
+		if(gl_ob)
+		{
+			GearItem* item = av->equipped_gear_settings.equipped_gear[i].ptr();
 
-		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
+			for(size_t z=0; z<gl_ob->materials.size(); ++z)
+			{
+				OpenGLMaterial& opengl_mat = gl_ob->materials[z];
+				const WorldMaterial* world_mat = (z < item->materials.size()) ? item->materials[z].ptr() : NULL;
 
-		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
-			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
+				const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
+				if(mat_changed)
+					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
+			}
+		}
+	}
+}
 
-		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
-			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
-		
-		if(mat_changed)
-			opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
+
+static void assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, EquippedGearGraphics* equipped_gear, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
+{
+	ZoneScoped; // Tracy profiler
+
+	GLObject* gl_ob = equipped_gear->gear_gl_ob.ptr();
+	if(gl_ob)
+	{
+		for(size_t z=0; z<gl_ob->materials.size(); ++z)
+		{
+			OpenGLMaterial& opengl_mat = gl_ob->materials[z];
+			const WorldMaterial* world_mat = (z < item->materials.size()) ? item->materials[z].ptr() : NULL;
+
+			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
+			if(mat_changed)
+				opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
+		}
 	}
 }
 
@@ -2991,6 +3035,9 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 }
 
 
+// The meshdata for the avatar model is loaded into the opengl engine.
+// Create gl_ob and physics objects for avatar.  
+// Assign any loaded textures.
 void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
 {
 	// conPrint("GUIClient::loadPresentAvatarModel");
@@ -3065,14 +3112,77 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 }
 
 
+void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics* equipped_gear_graphics, Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
+{
+	conPrint("GUIClient::loadPresentGearModel");
+
+	//removeAndDeleteGLObjectForAvatar(*avatar);
+
+	//const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
+
+	// Create gl and physics object now
+	glare::ArenaFrame frame(arena_allocator);
+	GLObjectRef gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, item->materials, /*lightmap_url=*/URLString(), 
+		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, Matrix4f::identity());
+
+	equipped_gear_graphics->gear_gl_ob = gl_ob;
+
+	avatar->graphics.updateGearBones();
+
+	mesh_data->meshDataBecameUsed();
+//TEMP TODO	avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+	//EquippedGearGraphics* equipped_gear = avatar->graphics.equipped_gear[equipped_gear_index]
+	
+	assignLoadedOpenGLTexturesToGearItemMats(item, equipped_gear_graphics, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+
+	//const float current_time = (float)Clock::getTimeSinceInit();
+	//const bool use_materialise_effect = false; // avatar->use_materialise_effect_on_load && (current_time - avatar->materialise_effect_start_time < 2.0f);
+
+	//for(size_t z=0; z<gl_ob->materials.size(); ++z)
+	//{
+	//	gl_ob->materials[z].materialise_effect = use_materialise_effect;
+	//	gl_ob->materials[z].materialise_start_time = avatar->materialise_effect_start_time;
+	//}
+
+//TEMP TODO avatar->graphics.loaded_lod_level = av_lod_level;
+
+	opengl_engine->addObject(gl_ob);
+
+	conPrint("GUIClient::loadPresentGearModel done");
+}
+
+
+static Matrix4f gearObToWorldMatrix(const GearItem& item)
+{
+	const Vec4f pos((float)item.translation.x, (float)item.translation.y, (float)item.translation.z, 1.f);
+
+	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
+	Vec3f use_scale = item.scale;
+	if(std::fabs(use_scale.x) < 1.0e-6f) use_scale.x = 1.0e-6f;
+	if(std::fabs(use_scale.y) < 1.0e-6f) use_scale.y = 1.0e-6f;
+	if(std::fabs(use_scale.z) < 1.0e-6f) use_scale.z = 1.0e-6f;
+
+	// Equivalent to
+	//return Matrix4f::translationMatrix(pos + ob.translation) *
+	//	Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), ob.angle) *
+	//	Matrix4f::scaleMatrix(use_scale.x, use_scale.y, use_scale.z));
+
+	Matrix4f rot = Matrix4f::rotationMatrix(normalise(item.axis.toVec4fVector()), item.angle);
+	rot.setColumn(0, rot.getColumn(0) * use_scale.x);
+	rot.setColumn(1, rot.getColumn(1) * use_scale.y);
+	rot.setColumn(2, rot.getColumn(2) * use_scale.z);
+	rot.setColumn(3, pos);
+	return rot;
+}
+
+
 // Check if the avatar model file is downloaded.
 // If so, load the model into the OpenGL engine.
 // If not, queue up the model download.
 // Also enqueue any downloads for missing resources such as textures.
 void GUIClient::loadModelForAvatar(Avatar* avatar)
 {
-	const bool our_avatar = avatar->uid == this->client_avatar_uid;
-
 	const int ob_lod_level = avatar->getLODLevel(cam_controller.getPosition());
 	const int ob_model_lod_level = ob_lod_level;
 
@@ -3114,9 +3224,9 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 
 		// Start downloading any resources we don't have that the object uses.
 		if(!avatar_is_default_model) // Avoid downloading optimised version of default avatar; is already optimised.
-			startDownloadingResourcesForAvatar(avatar, ob_lod_level, our_avatar);
+			startDownloadingResourcesForAvatar(avatar, ob_lod_level);
 
-		startLoadingTexturesForAvatar(*avatar, ob_lod_level, max_dist_for_ob_lod_level, our_avatar);
+		startLoadingTexturesForAvatar(*avatar, ob_lod_level, max_dist_for_ob_lod_level);
 
 		// Add any objects with gif or mp4 textures to the set of animated objects.
 		/*for(size_t i=0; i<avatar->materials.size(); ++i)
@@ -3128,59 +3238,128 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			}
 		}*/
 
-
-		bool added_opengl_ob = false;
-
-		WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
-		const URLString lod_model_url = avatar_is_default_model ? DEFAULT_AVATAR_MODEL_URL : WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level, options);
-
-		avatar->graphics.loaded_lod_level = ob_lod_level;
-
-
-		Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
-		if(mesh_data.nonNull())
+		//-------------------------------- Load or start loading the avatar model --------------------------
 		{
-			const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
-			if(is_meshdata_loaded_into_opengl)
-			{
-				loadPresentAvatarModel(avatar, ob_lod_level, mesh_data);
+			bool added_opengl_ob = false;
 
-				added_opengl_ob = true;
-			}
-		}
-		else
-		{
-			if(resource_manager->isFileForURLPresent(lod_model_url))
+			WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
+			const URLString lod_model_url = avatar_is_default_model ? DEFAULT_AVATAR_MODEL_URL : WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level, options);
+
+			avatar->graphics.loaded_lod_level = ob_lod_level;
+
+
+			Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
+			if(mesh_data.nonNull())
 			{
-				const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this mesh.
-				if(just_added)
+				const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
+				if(is_meshdata_loaded_into_opengl)
 				{
-					// Do the model loading in a different thread
-					Reference<LoadModelTask> load_model_task = new LoadModelTask();
+					loadPresentAvatarModel(avatar, ob_lod_level, mesh_data);
 
-					load_model_task->resource = resource_manager->getOrCreateResourceForURL(lod_model_url);
-					load_model_task->lod_model_url = lod_model_url;
-					load_model_task->model_lod_level = ob_model_lod_level;
-					load_model_task->opengl_engine = this->opengl_engine;
-					load_model_task->result_msg_queue = &this->msg_queue;
-					load_model_task->resource_manager = resource_manager;
-					load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
-					load_model_task->worker_allocator = worker_allocator;
-					load_model_task->upload_thread = opengl_upload_thread;
-
-					load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
+					added_opengl_ob = true;
 				}
-				else
-					load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *avatar, our_avatar);
+			}
+			else
+			{
+				if(resource_manager->isFileForURLPresent(lod_model_url))
+				{
+					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this mesh.
+					if(just_added)
+					{
+						// Do the model loading in a different thread
+						Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+						load_model_task->resource = resource_manager->getOrCreateResourceForURL(lod_model_url);
+						load_model_task->lod_model_url = lod_model_url;
+						load_model_task->model_lod_level = ob_model_lod_level;
+						load_model_task->opengl_engine = this->opengl_engine;
+						load_model_task->result_msg_queue = &this->msg_queue;
+						load_model_task->resource_manager = resource_manager;
+						load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
+						load_model_task->worker_allocator = worker_allocator;
+						load_model_task->upload_thread = opengl_upload_thread;
+
+						load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
+					}
+					else
+						load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *avatar);
+				}
+			}
+
+			if(!added_opengl_ob)
+			{
+				this->loading_model_URL_to_avatar_UID_map[lod_model_url].insert(avatar->uid);
+			}
+
+			//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+		}
+
+		//-------------------------------- Load or start loading the equipped gear models --------------------------
+
+		// Build equipped gear graphics vector
+		if(avatar->equipped_gear_settings.equipped_gear.size() != avatar->graphics.equipped_gear_graphics.size())
+		{
+			avatar->graphics.equipped_gear_graphics.resize(avatar->equipped_gear_settings.equipped_gear.size());
+			for(size_t i=0; i<avatar->graphics.equipped_gear_graphics.size(); ++i)
+			{
+				avatar->graphics.equipped_gear_graphics[i].bone_name = avatar->equipped_gear_settings.equipped_gear[i]->bone_name;
+				avatar->graphics.equipped_gear_graphics[i].transform = gearObToWorldMatrix(*avatar->equipped_gear_settings.equipped_gear[i]);
 			}
 		}
 
-		if(!added_opengl_ob)
-		{
-			this->loading_model_URL_to_avatar_UID_map[lod_model_url].insert(avatar->uid);
-		}
 
-		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+		for(size_t i=0; i<avatar->graphics.equipped_gear_graphics.size(); ++i)
+		{
+			GearItem* gear_item = avatar->equipped_gear_settings.equipped_gear[i].ptr();
+			EquippedGearGraphics* equipped_gear_graphics = &avatar->graphics.equipped_gear_graphics[i];
+
+			bool added_opengl_ob = false;
+
+			WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
+			const URLString lod_model_url = WorldObject::getLODModelURLForLevel(gear_item->model_url, ob_model_lod_level, options);
+
+		//TEMP	avatar->graphics.loaded_lod_level = ob_lod_level;
+
+			Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
+			if(mesh_data.nonNull())
+			{
+				const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
+				if(is_meshdata_loaded_into_opengl)
+				{
+					loadPresentGearModel(gear_item, equipped_gear_graphics, avatar, ob_lod_level, mesh_data);
+					added_opengl_ob = true;
+				}
+			}
+			else
+			{
+				if(resource_manager->isFileForURLPresent(lod_model_url))
+				{
+					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this mesh.
+					if(just_added)
+					{
+						// Do the model loading in a different thread
+						Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+						load_model_task->resource = resource_manager->getOrCreateResourceForURL(lod_model_url);
+						load_model_task->lod_model_url = lod_model_url;
+						load_model_task->model_lod_level = ob_model_lod_level;
+						load_model_task->opengl_engine = this->opengl_engine;
+						load_model_task->result_msg_queue = &this->msg_queue;
+						load_model_task->resource_manager = resource_manager;
+						load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
+						load_model_task->worker_allocator = worker_allocator;
+						load_model_task->upload_thread = opengl_upload_thread;
+
+						load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
+					}
+					else
+						load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *avatar);
+				}
+			}
+
+			if(!added_opengl_ob)
+				this->loading_model_URL_to_avatar_UID_map[lod_model_url].insert(avatar->uid);
+		}
 	}
 	catch(glare::Exception& e)
 	{
@@ -4417,24 +4596,43 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 			{
 				Avatar* av = res2->second.ptr();
 						
-				const bool our_avatar = av->uid == this->client_avatar_uid;
-				if(cam_controller.thirdPersonEnabled() || !our_avatar) // Don't load graphics for our avatar if first person perspective
+				if(cam_controller.thirdPersonEnabled() || !av->our_avatar) // Don't load graphics for our avatar if first person perspective
 				{
 					const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
+					Avatar::GetLODModelURLOptions options(this->server_has_optimised_meshes, this->server_opt_mesh_version);
 
 					// Check the avatar wants this particular LOD level model right now:
 					// If we are using the default avatar, make sure this check doesn't fail due to getLODModelURLForLevel() appending "_optX" suffix.
-					Avatar::GetLODModelURLOptions options(this->server_has_optimised_meshes, this->server_opt_mesh_version);
-					const URLString current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level, options);
-					if((current_desired_model_LOD_URL == lod_model_url) || (av->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL))
 					{
-						try
+						const URLString current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level, options);
+						if((current_desired_model_LOD_URL == lod_model_url) || (av->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL))
 						{
-							loadPresentAvatarModel(av, av_lod_level, the_mesh_data);
+							try
+							{
+								loadPresentAvatarModel(av, av_lod_level, the_mesh_data);
+							}
+							catch(glare::Exception& e)
+							{
+								print("Error while loading avatar model: " + e.what());
+							}
 						}
-						catch(glare::Exception& e)
+					}
+
+					// Assign to any loading gear items
+					for(size_t i=0; i<myMin(av->equipped_gear_settings.equipped_gear.size(), av->graphics.equipped_gear_graphics.size()); ++i)
+					{
+						const GearItem* item = av->equipped_gear_settings.equipped_gear[i].ptr();
+						const URLString current_desired_model_LOD_URL = av->getLODModelURLForLevel(item->model_url, av_lod_level, options);
+						if(current_desired_model_LOD_URL == lod_model_url)
 						{
-							print("Error while loading avatar model: " + e.what());
+							try
+							{
+								loadPresentGearModel(item, &av->graphics.equipped_gear_graphics[i], av, av_lod_level, the_mesh_data);
+							}
+							catch(glare::Exception& e)
+							{
+								print("Error while loading gear model: " + e.what());
+							}
 						}
 					}
 				}
@@ -4573,6 +4771,7 @@ void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLStr
 }
 
 
+// Called from UI code, such as MainWindow::on_actionAvatarSettings_triggered(), when our avatar settings have changed.
 // loaded_mesh may be null for the default xbot model.
 void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials)
 {
@@ -4622,6 +4821,7 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 	avatar.avatar_settings.model_url = mesh_URL;
 	avatar.avatar_settings.pre_ob_to_world_matrix = pre_ob_to_world_matrix;
 	avatar.avatar_settings.materials = materials;
+	avatar.equipped_gear_settings = this->logged_in_equipped_gear_settings;
 
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
@@ -4651,7 +4851,7 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 	// Generate LOD textures for materials, if not already present on disk.
 	// LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *gui_client.resource_manager, *gui_client.task_manager);
 
-	// Send AvatarFullUpdate message to server
+	//---------- Send AvatarFullUpdate message to server ----------
 	MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 	writeAvatarToNetworkStream(avatar, scratch_packet);
 
@@ -8875,6 +9075,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_name = "";
 			this->logged_in_user_flags = 0;
 			this->logged_in_avatar_settings = AvatarSettings();
+			this->logged_in_equipped_gear_settings = EquippedGearSettings();
 
 			ui_interface->setTextAsNotLoggedIn();
 
@@ -9082,6 +9283,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_name = m->username;
 			this->logged_in_user_flags = m->user_flags;
 			this->logged_in_avatar_settings = m->avatar_settings;
+			this->logged_in_equipped_gear_settings = m->equipped_gear_settings;
 
 			logMessage("Logged in as '" + m->username + "', id " + toString(this->logged_in_user_id.value()));
 
@@ -9103,10 +9305,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.avatar_settings = m->avatar_settings;
 			avatar.name = m->username;
+			avatar.equipped_gear_settings = m->equipped_gear_settings;
 
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 			writeAvatarToNetworkStream(avatar, scratch_packet);
-				
+
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
 		break;
@@ -9117,6 +9320,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->logged_in_user_name = "";
 			this->logged_in_user_flags = 0;
 			this->logged_in_avatar_settings = AvatarSettings();
+			this->logged_in_equipped_gear_settings = EquippedGearSettings();
 
 			recolourParcelsForLoggedInState();
 			ui_interface->updateWorldSettingsControlsEditable();
@@ -9150,7 +9354,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			misc_info_ui.showLoggedInButton(m->username);
 
-			// Send AvatarFullUpdate message, to change the nametag on our avatar.
+			//------------ Send AvatarFullUpdate message, to change the nametag on our avatar. ----------
 			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
 			Avatar avatar;
 			avatar.uid = this->client_avatar_uid;
@@ -12752,6 +12956,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	this->logged_in_user_name = "";
 	this->logged_in_user_flags = 0;
 	this->logged_in_avatar_settings = AvatarSettings();
+	this->logged_in_equipped_gear_settings = EquippedGearSettings();
 
 	this->server_using_lod_chunks = false;
 
@@ -13120,6 +13325,7 @@ void GUIClient::changeToDifferentWorld(const URLParseResults& parse_res)
 		avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 		avatar.avatar_settings = this->logged_in_avatar_settings;
 		avatar.name = this->logged_in_user_name;
+		avatar.equipped_gear_settings = this->logged_in_equipped_gear_settings;
 
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
 		writeAvatarToNetworkStream(avatar, scratch_packet);
@@ -15277,12 +15483,8 @@ void GUIClient::stopGesture()
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 		{
 			Avatar* av = it->second.getPointer();
-
-			const bool our_avatar = av->uid == this->client_avatar_uid;
-			if(our_avatar)
-			{
+			if(av->isOurAvatar())
 				av->graphics.stopGesture(cur_time/*, gesture_name*/);
-			}
 		}
 	}
 

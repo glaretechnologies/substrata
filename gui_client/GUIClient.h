@@ -204,7 +204,7 @@ public:
 	void setMicForVoiceChatEnabled(bool enabled);
 
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
-	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
+	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level);
 
 	void startDownloadingResource(const URLString& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, const DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	
@@ -267,6 +267,7 @@ public:
 	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock) REQUIRES(world_state->mutex);
 	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, int voxel_subsample_factor, WorldStateLock& world_state_lock);
 	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
+	void loadPresentGearModel(const GearItem* item, EquippedGearGraphics* equipped_gear_graphics, Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
 	void loadModelForAvatar(Avatar* avatar);
 	void loadScriptForObject(WorldObject* ob, WorldStateLock& world_state_lock);
 	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
@@ -343,7 +344,8 @@ public:
 	void startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
 		int ob_lod_level, const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0);
-	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
+	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
+	void startLoadingMaterialTexturesForObOrAvatar(const WorldMaterial* mat, UID ob_uid, UID av_uid, Vec4f pos, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, int ob_lod_level);
 	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
@@ -802,6 +804,7 @@ public:
 	std::string logged_in_user_name;
 	uint32 logged_in_user_flags;
 	AvatarSettings logged_in_avatar_settings; // Last avatar settings received from server in a LoggedInMessage.
+	EquippedGearSettings logged_in_equipped_gear_settings; // Last equipped gear settings received from server in a LoggedInMessage.
 
 	bool server_using_lod_chunks; // Should be equal to !world_state->lod_chunks.empty(), cached in a boolean.
 

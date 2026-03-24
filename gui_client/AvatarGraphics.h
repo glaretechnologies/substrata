@@ -84,6 +84,18 @@ struct PoseConstraint
 #endif
 
 
+struct EquippedGearGraphics
+{
+	EquippedGearGraphics();
+	~EquippedGearGraphics();
+
+	Matrix4f transform; // Relative to bone transform.
+	Reference<GLObject> gear_gl_ob;
+	std::string bone_name; // NOTE: have this in here? or just keep in GearItem?
+	int bone_node_i;
+};
+
+
 /*=====================================================================
 AvatarGraphics
 --------------
@@ -118,6 +130,7 @@ public:
 
 	void build(bool our_avatar);
 	//void create(OpenGLEngine& engine, const std::string& URL);
+	void updateGearBones();
 
 	void destroy(OpenGLEngine& engine, PhysicsWorld& physics_world);
 	
@@ -147,6 +160,8 @@ public:
 	
 	Reference<GLObject> skinned_gl_ob;
 	int loaded_lod_level;
+
+	std::vector<EquippedGearGraphics> equipped_gear_graphics;
 
 private:
 	Vec3f avatar_rotation_at_turn_start;

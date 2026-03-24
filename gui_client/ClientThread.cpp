@@ -382,15 +382,13 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			// conPrint("received Protocol::AvatarFullUpdate");
 
-			const UID avatar_uid = readUIDFromStream(msg_buffer);
-
 			Avatar temp_avatar;
-			readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+			readAvatarFromNetworkStream(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 			// Look up existing avatar in world state
 			{
 				Lock lock(world_state->mutex);
-				auto res = world_state->avatars.find(avatar_uid);
+				auto res = world_state->avatars.find(temp_avatar.uid);
 				if(res != world_state->avatars.end())
 				{
 					Avatar* avatar = res->second.getPointer();
@@ -405,29 +403,28 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			// conPrint("received Protocol::AvatarIsHere");
 
-			const UID avatar_uid = readUIDFromStream(msg_buffer);
 			Avatar temp_avatar;
-			readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+			readAvatarFromNetworkStream(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 			// Look up existing avatar in world state
 			{
 				::Lock lock(world_state->mutex);
-				auto res = world_state->avatars.find(avatar_uid);
+				auto res = world_state->avatars.find(temp_avatar.uid);
 				if(res == world_state->avatars.end())
 				{
 					// Avatar for UID not already created, create it now.
 					AvatarRef avatar = new Avatar();
-					avatar->uid = avatar_uid;
-					avatar->our_avatar = this->client_avatar_uid == avatar_uid;
+					avatar->uid = temp_avatar.uid;
+					avatar->our_avatar = this->client_avatar_uid == temp_avatar.uid;
 					avatar->copyNetworkStateFrom(temp_avatar);
 					avatar->state = Avatar::State_JustCreated;
 					avatar->other_dirty = true;
 					avatar->generatePseudoRandomNameColour();
-					world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
+					world_state->avatars.insert(std::make_pair(temp_avatar.uid, avatar));
 
 					avatar->setTransformAndHistory(temp_avatar.pos, temp_avatar.rotation);
 
-					out_msg_queue->enqueue(new AvatarIsHereMessage(avatar_uid)); // Inform MainWindow
+					out_msg_queue->enqueue(new AvatarIsHereMessage(temp_avatar.uid)); // Inform MainWindow
 				}
 			}
 			break;
@@ -436,29 +433,28 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		{
 			// conPrint("received Protocol::AvatarCreated");
 
-			const UID avatar_uid = readUIDFromStream(msg_buffer);
 			Avatar temp_avatar;
-			readAvatarFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+			readAvatarFromNetworkStream(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 			// Look up existing avatar in world state
 			{
 				::Lock lock(world_state->mutex);
-				auto res = world_state->avatars.find(avatar_uid);
+				auto res = world_state->avatars.find(temp_avatar.uid);
 				if(res == world_state->avatars.end())
 				{
 					// Avatar for UID not already created, create it now.
 					AvatarRef avatar = new Avatar();
-					avatar->uid = avatar_uid;
-					avatar->our_avatar = this->client_avatar_uid == avatar_uid;
+					avatar->uid = temp_avatar.uid;
+					avatar->our_avatar = this->client_avatar_uid == temp_avatar.uid;
 					avatar->copyNetworkStateFrom(temp_avatar);
 					avatar->state = Avatar::State_JustCreated;
 					avatar->other_dirty = true;
 					avatar->generatePseudoRandomNameColour();
-					world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
+					world_state->avatars.insert(std::make_pair(temp_avatar.uid, avatar));
 
 					avatar->setTransformAndHistory(temp_avatar.pos, temp_avatar.rotation);
 
-					out_msg_queue->enqueue(new AvatarCreatedMessage(avatar_uid)); // Inform MainWindow
+					out_msg_queue->enqueue(new AvatarCreatedMessage(temp_avatar.uid)); // Inform MainWindow
 				}
 			}
 			break;
@@ -1176,7 +1172,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			const UserID logged_in_user_id = readUserIDFromStream(msg_buffer); 
 			const std::string logged_in_username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 			Reference<LoggedInMessage> msg = new LoggedInMessage(logged_in_user_id, logged_in_username);
-						
+
 			readAvatarSettingsFromStream(msg_buffer, msg->avatar_settings);
 
 			uint32 logged_in_user_flags = 0;
@@ -1189,6 +1185,10 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			// Read gesture settings if present in message
 			if(!msg_buffer.endOfStream())
 				readGestureSettingsFromStream(msg_buffer, msg->gesture_settings);
+
+			// Read equipped gear settings if present in message
+			if(!msg_buffer.endOfStream())
+				readEquippedGearSettingsFromStream(msg_buffer, msg->equipped_gear_settings);
 
 
 			out_msg_queue->enqueue(msg);

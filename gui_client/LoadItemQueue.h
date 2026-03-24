@@ -68,12 +68,12 @@ public:
 	~LoadItemQueue();
 
 	void enqueueItem(const URLString& key, const WorldObject& ob, const glare::TaskRef& task, float task_max_dist);
-	void enqueueItem(const URLString& key, const Avatar& ob, const glare::TaskRef& task, float task_max_dist, bool our_avatar);
+	void enqueueItem(const URLString& key, const Avatar& avatar, const glare::TaskRef& task, float task_max_dist);
 	void enqueueItem(const URLString& key, const Vec4f& pos, float aabb_ws_longest_len, const glare::TaskRef& task, float task_max_dist, float importance_factor);
 	void enqueueItem(const URLString& key, const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist);
 
 	void checkUpdateItemPosition(const URLString& key, const WorldObject& ob);
-	void checkUpdateItemPosition(const URLString& key, const Avatar& ob, bool our_avatar);
+	void checkUpdateItemPosition(const URLString& key, const Avatar& ob);
 	void checkUpdateItemPosition(const URLString& key, const Vec4f& pos, float aabb_ws_longest_len, float importance_factor);
 	void checkUpdateItemPosition(const URLString& key, const Vec4f& pos, float size_factor);
 
