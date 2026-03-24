@@ -298,8 +298,8 @@ void Avatar::convertLocalPathsToURLS(ResourceManager& resource_manager)
 			item->model_url = resource_manager.URLForPathAndHash(toStdString(item->model_url), FileChecksum::fileChecksum(item->model_url));
 
 		// Process gear materials
-		for(size_t i=0; i<item->materials.size(); ++i)
-			item->materials[i]->convertLocalPathsToURLS(resource_manager);
+		for(size_t z=0; z<item->materials.size(); ++z)
+			item->materials[z]->convertLocalPathsToURLS(resource_manager);
 	}
 }
 
