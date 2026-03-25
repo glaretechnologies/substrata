@@ -73,6 +73,16 @@ typedef Reference<GearItem> GearItemRef;
 
 
 
+struct GearItemRefHash
+{
+	size_t operator() (const GearItemRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};
+
+
+
 void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item);
 
 

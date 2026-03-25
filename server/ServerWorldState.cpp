@@ -97,6 +97,7 @@ ServerAllWorldsState::ServerAllWorldsState()
 	next_order_uid = 0;
 	next_sub_eth_transaction_uid = 0;
 	next_chatbot_uid = 0;
+	next_gear_item_uid = UID(0);
 
 	setWorldState(/*world name=*/"", new ServerWorldState());
 
@@ -163,6 +164,7 @@ static const uint32 SUB_EVENT_CHUNK = 117;
 static const uint32 MIGRATION_VERSION_CHUNK = 118;
 static const uint32 PHOTO_CHUNK = 119;
 static const uint32 CHATBOT_CHUNK = 120;
+static const uint32 GEAR_ITEM_CHUNK = 121;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -197,6 +199,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_user_secrets = 0;
 	size_t num_lod_chunks = 0;
 	size_t num_events = 0;
+	size_t num_gear_items = 0;
 	size_t num_resources = 0;
 	size_t num_worlds = 0;
 	size_t num_photos = 0;
@@ -574,6 +577,18 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					events[event->id] = event;
 					num_events++;
 				}
+				else if(chunk == GEAR_ITEM_CHUNK)
+				{
+					// Deserialise GearItem
+					GearItemRef item = new GearItem();
+					readGearItemFromStream(stream, *item);
+
+					next_gear_item_uid = UID(myMax(item->id.value() + 1, next_gear_item_uid.value()));
+
+					item->database_key = database_key;
+					gear_items[item->id] = item;
+					num_gear_items++;
+				}
 				else if(chunk == MIGRATION_VERSION_CHUNK)
 				{
 					const uint32 chunk_version = stream.readInt32();
@@ -817,7 +832,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
 		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " + 
 		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s), " + toString(num_photos) + " photo(s), " + toString(num_worlds) + " world(s), " + 
-		toString(num_chatbots) + " chatbot(s) in " + timer.elapsedStringNSigFigs(4));
+		toString(num_chatbots) + " chatbot(s), " + toString(num_gear_items) + " gear item(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -1261,6 +1276,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_user_secrets = 0;
 		size_t num_lod_chunks = 0;
 		size_t num_events = 0;
+		size_t num_gear_items = 0;
 		size_t num_worlds = 0;
 		size_t num_photos = 0;
 		size_t num_chatbots = 0;
@@ -1657,6 +1673,26 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 			db_dirty_events.clear();
 		}
 
+		// Write GearItems
+		{
+			for(auto it = db_dirty_gear_items.begin(); it != db_dirty_gear_items.end(); ++it)
+			{
+				GearItem* item = it->ptr();
+				temp_buf.clear();
+				temp_buf.writeUInt32(GEAR_ITEM_CHUNK);
+				item->writeToStream(temp_buf);
+
+				if(!item->database_key.valid())
+					item->database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(item->database_key, temp_buf.buf);
+
+				num_gear_items++;
+			}
+
+			db_dirty_gear_items.clear();
+		}
+
 		// Write MAP_TILE_INFO_CHUNK
 		if(map_tile_info.db_dirty)
 		{
@@ -1780,6 +1816,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		if(num_user_secrets > 0)          msg += toString(num_user_secrets) + " user secret(s), ";
 		if(num_lod_chunks > 0)            msg += toString(num_lod_chunks) + " LOD chunk(s), ";
 		if(num_events > 0)                msg += toString(num_events) + " event(s), ";
+		if(num_gear_items > 0)            msg += toString(num_gear_items) + " gear item(s), ";
 		if(num_photos > 0)                msg += toString(num_photos) + " photo(s), ";
 		if(num_chatbots > 0)              msg += toString(num_chatbots) + " chatbot(s), ";
 		removeSuffixInPlace(msg, ", ");
@@ -1924,6 +1961,15 @@ uint64 ServerAllWorldsState::getNextChatBotUID()
 
 	Lock lock(mutex);
 	return next_chatbot_uid++;
+}
+
+
+UID ServerAllWorldsState::getNextGearItemUID()
+{
+	Lock lock(mutex);
+	const UID next = next_gear_item_uid;
+	next_gear_item_uid = UID(next_gear_item_uid.value() + 1); // next_gear_item_uid++
+	return next;
 }
 
 

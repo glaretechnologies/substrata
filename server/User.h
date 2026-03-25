@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2017 -
 
 
 class RandomAccessInStream;
+class ServerAllWorldsState;
 
 
 struct EmailSendingInfo
@@ -61,7 +62,7 @@ public:
 
 	void setNewPasswordAndSalt(const std::string& new_password);
 
-	void getEquippedGear(GearItems& gear_items_out) const;
+	void getEquippedGear(ServerAllWorldsState* world_state, GearItems& gear_items_out) const;
 	void updateEquippedGearIDs(const GearItems& equipped_gear_items);
 
 	UserID id;
@@ -83,7 +84,7 @@ public:
 
 	GestureSettings gesture_settings;
 
-	std::map<UID, GearItemRef> gear; // Map from UID to GearItemRef
+	std::set<UID> gear_ids;
 	std::vector<UID> equipped_gear_ids;
 
 	static const uint32 WORLD_GARDENER_FLAG           = 1; // Can this user add objects outside of parcels
