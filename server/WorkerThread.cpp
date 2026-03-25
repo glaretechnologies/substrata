@@ -1561,24 +1561,24 @@ void WorkerThread::doRun()
 									if(client_user_id.valid())
 									{
 										const bool avatar_settings_changed = !(client_user_avatar_settings == avatar->avatar_settings);
-										const bool equipped_gear_changed   = !(client_equipped_gear         == avatar->equipped_gear);
+										const bool equipped_gear_changed   = !(client_equipped_gear        == avatar->equipped_gear);
 
 										if((avatar_settings_changed || equipped_gear_changed) && !world_state->isInReadOnlyMode())
 										{
-											client_user_avatar_settings = avatar->avatar_settings;
-											client_equipped_gear        = avatar->equipped_gear;
-
 											auto res2 = world_state->user_id_to_users.find(client_user_id);
 											if(res2 != world_state->user_id_to_users.end())
 											{
 												Reference<User> client_user = res2->second;
 												client_user->avatar_settings = avatar->avatar_settings;
 												client_user->updateEquippedGearIDs(avatar->equipped_gear);
-												client_user->getEquippedGear(avatar->equipped_gear); // Update avatar equipped_gear with authoritative data from the server.
+												client_user->getEquippedGear(avatar->equipped_gear); // Update avatar->equipped_gear with authoritative data from the server.
 												world_state->addUserAsDBDirty(client_user);
 
 												conPrintIfNotFuzzing("Updated user avatar settings and equipped gear settings.  model_url: " + toStdString(client_user->avatar_settings.model_url));
 											}
+
+											client_user_avatar_settings = avatar->avatar_settings;
+											client_equipped_gear        = avatar->equipped_gear;
 										}
 									}
 
