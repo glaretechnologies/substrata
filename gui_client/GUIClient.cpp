@@ -383,20 +383,6 @@ static float xrFilterMove2DAxis(float value)
 }
 
 
-static bool xrInteractionProfileContains(const XRHandInputState& hand_state, const char* profile_name_fragment)
-{
-	return hand_state.interaction_profile_valid && (hand_state.interaction_profile.find(profile_name_fragment) != std::string::npos);
-}
-
-
-static bool xrAnyHandUsesViveFocus3Controller(const XRHandInputState& left_hand_state, const XRHandInputState& right_hand_state)
-{
-	return
-		xrInteractionProfileContains(left_hand_state, "vive_focus3_controller") ||
-		xrInteractionProfileContains(right_hand_state, "vive_focus3_controller");
-}
-
-
 static std::string xrFindFirstExistingModelPath(const std::vector<std::string>& candidate_paths)
 {
 	for(size_t i=0; i<candidate_paths.size(); ++i)
@@ -1423,6 +1409,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		xr_teleport_marker->always_visible = true;
 		xr_teleport_marker->setSingleMaterial(material);
 	}
+
+	tryUpgradeXRControllerVisualsToViveFocus3RenderModels();
 
 	{
 		// Make ob_denied_move_marker
@@ -6784,16 +6772,13 @@ void GUIClient::tryUpgradeXRControllerVisualsToViveFocus3RenderModels()
 	if(opengl_engine.isNull())
 		return;
 
-	if(!xrAnyHandUsesViveFocus3Controller(xr_left_hand_state, xr_right_hand_state))
-		return;
-
 	xr_focus3_controller_render_models_attempted = true;
 
 	const std::string left_model_path  = xrGetViveFocus3ControllerModelPath(/*right_hand=*/false);
 	const std::string right_model_path = xrGetViveFocus3ControllerModelPath(/*right_hand=*/true);
 	if(left_model_path.empty() || right_model_path.empty())
 	{
-		logAndConPrintMessage("VIVE Focus 3 render-model files were not found locally, so XR controller visuals will stay on the built-in fallback proxies.");
+		logAndConPrintMessage("VIVE Focus 3 render-model files were not found locally during startup, so XR controller visuals will stay on the built-in fallback proxies.");
 		return;
 	}
 
