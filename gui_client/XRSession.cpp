@@ -202,7 +202,9 @@ static void clampRecommendedSwapchainSizeForRuntime(const XRRuntimeProbeResult& 
 		return;
 
 	const uint32_t max_dim = myMax(width, height);
-	static const uint32_t steamvr_safe_max_dim = 3200u;
+	// VIVE Business Streaming + SteamVR can recommend eye sizes that are a bit too ambitious for stable head-turn latency.
+	// Clamp more aggressively so the compositor has enough headroom and doesn't expose black reprojection edges on quick turns.
+	static const uint32_t steamvr_safe_max_dim = 2200u;
 	if(max_dim <= steamvr_safe_max_dim)
 		return;
 
