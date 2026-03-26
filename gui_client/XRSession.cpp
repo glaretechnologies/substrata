@@ -2101,6 +2101,16 @@ void XRSession::renderFrame(OpenGLEngine& opengl_engine, const CameraController&
 					opengl_engine.setNearDrawDistance(near_draw_dist);
 					opengl_engine.setMaxDrawDistance(max_draw_dist);
 
+					OpenGLScene* scene = opengl_engine.getCurrentScene();
+					const bool old_render_to_main_render_framebuffer = scene ? scene->render_to_main_render_framebuffer : false;
+					const bool old_collect_stats = scene ? scene->collect_stats : false;
+					if(scene)
+					{
+						// In XR, render directly into the eye framebuffer to avoid desktop-style offscreen/MSAA resolves and viewport-size realloc churn.
+						scene->render_to_main_render_framebuffer = false;
+						scene->collect_stats = false;
+					}
+
 					projection_views.resize(last_result.located_view_count);
 					bool rendered_all_views = true;
 
@@ -2225,6 +2235,11 @@ void XRSession::renderFrame(OpenGLEngine& opengl_engine, const CameraController&
 					opengl_engine.setViewportDims(prev_viewport[2], prev_viewport[3]);
 					glBindFramebuffer(GL_DRAW_FRAMEBUFFER, prev_draw_fbo);
 					glViewport(prev_viewport[0], prev_viewport[1], prev_viewport[2], prev_viewport[3]);
+					if(scene)
+					{
+						scene->render_to_main_render_framebuffer = old_render_to_main_render_framebuffer;
+						scene->collect_stats = old_collect_stats;
+					}
 
 					if(rendered_all_views && !projection_views.empty())
 					{
