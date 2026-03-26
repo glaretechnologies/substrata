@@ -159,7 +159,6 @@ static const float XR_MOVE2D_DEADZONE = 0.18f;
 static const float XR_SMOOTH_TURN_SPEED = 400.f;
 static const float XR_CONTROLLER_VIS_RADIUS = 0.018f;
 static const float XR_CONTROLLER_VIS_LENGTH = 0.12f;
-static const double XR_CONTROLLER_VIS_HOLD_TIME = 0.75;
 
 
 enum class XRLaunchMode
@@ -6846,7 +6845,7 @@ void GUIClient::updateXRControllerVisuals()
 			last_transform = controller_transform;
 			last_valid_time = cur_time;
 		}
-		else if((last_valid_time >= 0.0) && ((cur_time - last_valid_time) <= XR_CONTROLLER_VIS_HOLD_TIME))
+		else if(last_valid_time >= 0.0)
 		{
 			controller_transform = last_transform;
 		}
