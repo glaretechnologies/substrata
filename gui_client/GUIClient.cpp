@@ -155,6 +155,8 @@ static const float XR_TELEPORT_TRIGGER_PRESS_THRESHOLD = 0.65f;
 static const float XR_TELEPORT_TRIGGER_RELEASE_THRESHOLD = 0.35f;
 static const float XR_TELEPORT_MIN_WALKABLE_NORMAL_Z = 0.65f;
 static const float XR_TELEPORT_TARGET_Z_OFFSET = 0.05f;
+static const float XR_MOVE2D_DEADZONE = 0.18f;
+static const float XR_SMOOTH_TURN_SPEED = 400.f;
 
 
 enum class XRLaunchMode
@@ -364,6 +366,17 @@ static bool xrTeleportButtonHeld(const XRHandInputState& hand_state, bool releas
 	const float trigger_threshold = release_threshold ? XR_TELEPORT_TRIGGER_RELEASE_THRESHOLD : XR_TELEPORT_TRIGGER_PRESS_THRESHOLD;
 	const bool trigger_down = hand_state.trigger_active && (hand_state.trigger_value >= trigger_threshold);
 	return select_down || trigger_down;
+}
+
+
+static float xrFilterMove2DAxis(float value)
+{
+	const float abs_value = std::fabs(value);
+	if(abs_value <= XR_MOVE2D_DEADZONE)
+		return 0.f;
+
+	const float scaled = (abs_value - XR_MOVE2D_DEADZONE) / (1.f - XR_MOVE2D_DEADZONE);
+	return std::copysign(scaled, value);
 }
 
 
@@ -6527,6 +6540,8 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		hud_ui.setCrosshairDotVisible(!last_cursor_movement_was_from_mouse);
 	}
 
+	updateXRControllerLocomotion(dt, move_key_pressed);
+
 	if(cam_controller.current_cam_mode == CameraController::CameraMode_FreeCamera)
 	{
 		this->cam_controller.setFreeCamMovementDesiredVel(player_physics.getMoveDesiredVel());
@@ -6538,6 +6553,55 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 	{
 		stopGesture();
 		gesture_ui.stopAnyGesturePlaying();
+	}
+}
+
+
+void GUIClient::updateXRControllerLocomotion(float dt, bool& move_key_pressed)
+{
+	const bool xr_locomotion_allowed =
+		(xr_session != NULL) &&
+		xr_session->isInitialised() &&
+		(vehicle_controller_inside.isNull()) &&
+		(this->cam_controller.current_cam_mode == CameraController::CameraMode_Standard);
+
+	if(!xr_locomotion_allowed)
+		return;
+
+	Vec3d xr_head_angles;
+	Vec3d xr_head_pos;
+	if(!getCurrentXRTrackedHeadPose(xr_head_pos, xr_head_angles))
+		return;
+	(void)xr_head_pos;
+
+	CameraController xr_move_cam = this->cam_controller;
+	xr_move_cam.setAngles(Vec3d(/*heading=*/xr_head_angles.x, /*pitch=*/Maths::pi_2<double>(), /*roll=*/0.0));
+
+	const float move_speed_factor = player_physics.flyModeEnabled() ? 4.f : 2.f;
+	const float left_axis_x = xr_left_hand_state.move2d_active ? xrFilterMove2DAxis(xr_left_hand_state.move2d_value.x) : 0.f;
+	const float left_axis_y = xr_left_hand_state.move2d_active ? xrFilterMove2DAxis(xr_left_hand_state.move2d_value.y) : 0.f;
+
+	if(left_axis_x != 0.f)
+	{
+		player_physics.processStrafeRight(move_speed_factor * std::pow(left_axis_x, 3.f), /*runpressed=*/false, xr_move_cam);
+		move_key_pressed = true;
+		last_cursor_movement_was_from_mouse = false;
+	}
+
+	if(left_axis_y != 0.f)
+	{
+		player_physics.processMoveForwards(move_speed_factor * -std::pow(left_axis_y, 3.f), /*runpressed=*/false, xr_move_cam);
+		move_key_pressed = true;
+		last_cursor_movement_was_from_mouse = false;
+	}
+
+	const float right_axis_x = xr_right_hand_state.move2d_active ? xrFilterMove2DAxis(xr_right_hand_state.move2d_value.x) : 0.f;
+	if(right_axis_x != 0.f)
+	{
+		this->cam_controller.updateRotation(/*pitch_delta=*/0, /*heading_delta=*/dt * XR_SMOOTH_TURN_SPEED * std::pow(right_axis_x, 3.f));
+
+		if(std::fabs(right_axis_x) > 0.5f)
+			last_cursor_movement_was_from_mouse = false;
 	}
 }
 
@@ -11094,6 +11158,8 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 			msg += prefix + " select_pressed: " + boolToString(hand_state.select_pressed) + "\n";
 			msg += prefix + " trigger_active: " + boolToString(hand_state.trigger_active) + "\n";
 			msg += prefix + " trigger_value: " + floatToStringNDecimalPlaces(hand_state.trigger_value, 3) + "\n";
+			msg += prefix + " move2d_active: " + boolToString(hand_state.move2d_active) + "\n";
+			msg += prefix + " move2d_value: (" + floatToStringNDecimalPlaces(hand_state.move2d_value.x, 3) + ", " + floatToStringNDecimalPlaces(hand_state.move2d_value.y, 3) + ")\n";
 			append_xr_pose_state(prefix + " grip pose", hand_state.grip_pose);
 			append_xr_pose_state(prefix + " aim pose", hand_state.aim_pose);
 		};

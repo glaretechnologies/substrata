@@ -425,6 +425,7 @@ public:
 	void updateObjectsWithDiagnosticVis();
 
 	void processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out);
+	void updateXRControllerLocomotion(float dt, bool& move_key_pressed);
 	void updateXRTeleportLocomotion();
 	void hideXRTeleportVisuals();
 	bool getCurrentXRTrackedHeadPose(Vec3d& pos_out, Vec3d& angles_out) const;

@@ -712,7 +712,8 @@ struct XRSession::OpaqueState
 		grip_pose_action(XR_NULL_HANDLE),
 		aim_pose_action(XR_NULL_HANDLE),
 		select_action(XR_NULL_HANDLE),
-		trigger_action(XR_NULL_HANDLE)
+		trigger_action(XR_NULL_HANDLE),
+		move2d_action(XR_NULL_HANDLE)
 	{
 		std::memset(&view_state, 0, sizeof(view_state));
 		view_state.type = XR_TYPE_VIEW_STATE;
@@ -747,6 +748,7 @@ struct XRSession::OpaqueState
 	XrAction aim_pose_action;
 	XrAction select_action;
 	XrAction trigger_action;
+	XrAction move2d_action;
 	HandActionState hands[2];
 };
 
@@ -807,6 +809,12 @@ static void destroyActionSubsystem(XRHandInputState& left_hand_state_out, XRHand
 	{
 		xrDestroyAction(state.trigger_action);
 		state.trigger_action = XR_NULL_HANDLE;
+	}
+
+	if(state.move2d_action != XR_NULL_HANDLE)
+	{
+		xrDestroyAction(state.move2d_action);
+		state.move2d_action = XR_NULL_HANDLE;
 	}
 
 	if(state.select_action != XR_NULL_HANDLE)
@@ -984,6 +992,12 @@ static bool initialiseActionSubsystem(XRRuntimeProbeResult& result, XRHandInputS
 		return false;
 	}
 
+	if(!createAction(state.action_set, "hand_move2d", "Hand Move2D", XR_ACTION_TYPE_VECTOR2F_INPUT, hand_subaction_paths, 2, state.move2d_action, error))
+	{
+		result.actions_message = error;
+		return false;
+	}
+
 	result.input_actions_created = true;
 
 	uint32_t successful_binding_profile_count = 0;
@@ -1010,9 +1024,11 @@ static bool initialiseActionSubsystem(XRRuntimeProbeResult& result, XRHandInputS
 			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
 			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
 			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
-			{ state.trigger_action, "/user/hand/right/input/trigger/value" }
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
 		};
 
 		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/oculus/touch_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
@@ -1026,9 +1042,11 @@ static bool initialiseActionSubsystem(XRRuntimeProbeResult& result, XRHandInputS
 			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
 			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
 			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
-			{ state.trigger_action, "/user/hand/right/input/trigger/value" }
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
 		};
 
 		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/valve/index_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
@@ -1042,9 +1060,13 @@ static bool initialiseActionSubsystem(XRRuntimeProbeResult& result, XRHandInputS
 			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
 			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.select_action, "/user/hand/left/input/trackpad/click" },
+			{ state.move2d_action, "/user/hand/left/input/trackpad" },
 			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
-			{ state.trigger_action, "/user/hand/right/input/trigger/value" }
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.select_action, "/user/hand/right/input/trackpad/click" },
+			{ state.move2d_action, "/user/hand/right/input/trackpad" }
 		};
 
 		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/htc/vive_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
@@ -1058,12 +1080,50 @@ static bool initialiseActionSubsystem(XRRuntimeProbeResult& result, XRHandInputS
 			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
 			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
 			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
 			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
-			{ state.trigger_action, "/user/hand/right/input/trigger/value" }
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
 		};
 
 		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/microsoft/motion_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
+			successful_binding_profile_count++;
+		else
+			last_binding_error = error;
+	}
+
+	{
+		const ActionBindingDef bindings[] = {
+			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
+			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
+		};
+
+		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/htc/vive_cosmos_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
+			successful_binding_profile_count++;
+		else
+			last_binding_error = error;
+	}
+
+	{
+		const ActionBindingDef bindings[] = {
+			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
+			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
+		};
+
+		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/htc/vive_focus3_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
 			successful_binding_profile_count++;
 		else
 			last_binding_error = error;
@@ -1164,6 +1224,26 @@ static bool queryFloatActionState(XrSession session, XrAction action, XrPath sub
 
 	is_active_out = (action_state.isActive == XR_TRUE);
 	current_state_out = action_state.currentState;
+	return true;
+}
+
+
+static bool queryVector2fActionState(XrSession session, XrAction action, XrPath subaction_path, bool& is_active_out, Vec2f& current_state_out, std::string& error_out)
+{
+	XrActionStateGetInfo get_info = { XR_TYPE_ACTION_STATE_GET_INFO };
+	get_info.action = action;
+	get_info.subactionPath = subaction_path;
+
+	XrActionStateVector2f action_state = { XR_TYPE_ACTION_STATE_VECTOR2F };
+	const XrResult state_res = xrGetActionStateVector2f(session, &get_info, &action_state);
+	if(XR_FAILED(state_res))
+	{
+		error_out = "xrGetActionStateVector2f failed with XrResult=" + std::to_string((int)state_res);
+		return false;
+	}
+
+	is_active_out = (action_state.isActive == XR_TRUE);
+	current_state_out = Vec2f(action_state.currentState.x, action_state.currentState.y);
 	return true;
 }
 
@@ -1787,6 +1867,12 @@ void XRSession::renderFrame(OpenGLEngine& opengl_engine, const CameraController&
 				last_result.actions_message = action_error;
 
 			if(!queryFloatActionState(state->session, state->trigger_action, state->hands[1].user_path, right_hand_state.trigger_active, right_hand_state.trigger_value, action_error))
+				last_result.actions_message = action_error;
+
+			if(!queryVector2fActionState(state->session, state->move2d_action, state->hands[0].user_path, left_hand_state.move2d_active, left_hand_state.move2d_value, action_error))
+				last_result.actions_message = action_error;
+
+			if(!queryVector2fActionState(state->session, state->move2d_action, state->hands[1].user_path, right_hand_state.move2d_active, right_hand_state.move2d_value, action_error))
 				last_result.actions_message = action_error;
 
 			if(last_result.actions_message.empty())
