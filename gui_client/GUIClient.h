@@ -426,7 +426,9 @@ public:
 
 	void processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out);
 	void updateXRControllerLocomotion(float dt, bool& move_key_pressed);
+	void updateXRControllerVisuals();
 	void updateXRTeleportLocomotion();
+	void hideXRControllerVisuals();
 	void hideXRTeleportVisuals();
 	bool getCurrentXRTrackedHeadPose(Vec3d& pos_out, Vec3d& angles_out) const;
 	bool getCurrentXRRawHeadPose(Vec3d& pos_out, Vec3d& angles_out) const;
@@ -912,6 +914,10 @@ public:
 
 	Reference<GLObject> ob_placement_beam;
 	Reference<GLObject> ob_placement_marker;
+	Reference<GLObject> xr_left_controller_vis;
+	bool xr_left_controller_vis_in_engine;
+	Reference<GLObject> xr_right_controller_vis;
+	bool xr_right_controller_vis_in_engine;
 	Reference<GLObject> xr_teleport_beam;
 	bool xr_teleport_beam_in_engine;
 	Reference<GLObject> xr_teleport_marker;
