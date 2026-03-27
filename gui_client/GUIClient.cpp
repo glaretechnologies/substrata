@@ -157,6 +157,8 @@ static const float XR_TELEPORT_MIN_WALKABLE_NORMAL_Z = 0.65f;
 static const float XR_TELEPORT_TARGET_Z_OFFSET = 0.05f;
 static const float XR_MOVE2D_DEADZONE = 0.18f;
 static const float XR_SMOOTH_TURN_SPEED = 400.f;
+static const float XR_CONTROLLER_VIS_RADIUS = 0.018f;
+static const float XR_CONTROLLER_VIS_LENGTH = 0.12f;
 
 
 enum class XRLaunchMode
@@ -380,6 +382,26 @@ static float xrFilterMove2DAxis(float value)
 }
 
 
+static bool buildXRControllerVisualTransform(const XRHandInputState& hand_state, Matrix4f& ob_to_world_out)
+{
+	const XRTrackedPoseState* pose_state =
+		xrTrackedPoseHasWorldTransform(hand_state.grip_pose) ? &hand_state.grip_pose :
+		(xrTrackedPoseHasWorldTransform(hand_state.aim_pose) ? &hand_state.aim_pose : NULL);
+
+	if(!pose_state)
+		return false;
+
+	const Matrix4f& pose = pose_state->object_to_world_matrix;
+	const Vec4f controller_right = pose.getColumn(0);
+	const Vec4f controller_forward = pose.getColumn(1);
+	const Vec4f controller_up = pose.getColumn(2);
+	const Vec4f controller_pos = pose.getColumn(3) + controller_forward * 0.055f - controller_up * 0.015f;
+	const Matrix4f controller_basis(controller_right, controller_up, controller_forward, controller_pos);
+	ob_to_world_out = controller_basis * Matrix4f::scaleMatrix(XR_CONTROLLER_VIS_RADIUS, XR_CONTROLLER_VIS_RADIUS, XR_CONTROLLER_VIS_LENGTH);
+	return true;
+}
+
+
 static std::string formatXRTraceScalar(double v)
 {
 	return std::isfinite(v) ? doubleToStringNDecimalPlaces(v, 6) : "";
@@ -441,6 +463,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	shown_object_modification_error_msg(false),
 	num_frames_since_fps_timer_reset(0),
 	last_fps(0),
+	xr_left_controller_vis_in_engine(false),
+	xr_right_controller_vis_in_engine(false),
 	xr_teleport_beam_in_engine(false),
 	xr_teleport_marker_in_engine(false),
 	xr_teleport_active(false),
@@ -1260,6 +1284,28 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	// Make XR teleport beam and landing marker models.
 	{
+		xr_left_controller_vis = opengl_engine->allocateObject();
+		xr_left_controller_vis->ob_to_world_matrix = Matrix4f::identity();
+		xr_left_controller_vis->mesh_data = opengl_engine->getCylinderMesh();
+		xr_left_controller_vis->always_visible = true;
+
+		OpenGLMaterial left_material;
+		left_material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.25f, 0.85f, 1.0f));
+		left_material.transparent = true;
+		left_material.alpha = 0.92f;
+		xr_left_controller_vis->setSingleMaterial(left_material);
+
+		xr_right_controller_vis = opengl_engine->allocateObject();
+		xr_right_controller_vis->ob_to_world_matrix = Matrix4f::identity();
+		xr_right_controller_vis->mesh_data = opengl_engine->getCylinderMesh();
+		xr_right_controller_vis->always_visible = true;
+
+		OpenGLMaterial right_material;
+		right_material.albedo_linear_rgb = toLinearSRGB(Colour3f(1.0f, 0.55f, 0.2f));
+		right_material.transparent = true;
+		right_material.alpha = 0.92f;
+		xr_right_controller_vis->setSingleMaterial(right_material);
+
 		xr_teleport_beam = opengl_engine->allocateObject();
 		xr_teleport_beam->ob_to_world_matrix = Matrix4f::identity();
 		xr_teleport_beam->mesh_data = opengl_engine->getCylinderMesh();
@@ -1785,6 +1831,10 @@ void GUIClient::shutdown()
 
 	ob_placement_beam = NULL;
 	ob_placement_marker = NULL;
+	xr_left_controller_vis = NULL;
+	xr_right_controller_vis = NULL;
+	xr_left_controller_vis_in_engine = false;
+	xr_right_controller_vis_in_engine = false;
 	xr_teleport_beam = NULL;
 	xr_teleport_marker = NULL;
 	xr_teleport_beam_in_engine = false;
@@ -6590,7 +6640,7 @@ void GUIClient::updateXRControllerLocomotion(float dt, bool& move_key_pressed)
 
 	if(left_axis_y != 0.f)
 	{
-		player_physics.processMoveForwards(move_speed_factor * -std::pow(left_axis_y, 3.f), /*runpressed=*/false, xr_move_cam);
+		player_physics.processMoveForwards(move_speed_factor * std::pow(left_axis_y, 3.f), /*runpressed=*/false, xr_move_cam);
 		move_key_pressed = true;
 		last_cursor_movement_was_from_mouse = false;
 	}
@@ -6603,6 +6653,66 @@ void GUIClient::updateXRControllerLocomotion(float dt, bool& move_key_pressed)
 		if(std::fabs(right_axis_x) > 0.5f)
 			last_cursor_movement_was_from_mouse = false;
 	}
+}
+
+
+void GUIClient::hideXRControllerVisuals()
+{
+	if(opengl_engine.nonNull())
+	{
+		if(xr_left_controller_vis_in_engine && xr_left_controller_vis.nonNull())
+			opengl_engine->removeObject(xr_left_controller_vis);
+		if(xr_right_controller_vis_in_engine && xr_right_controller_vis.nonNull())
+			opengl_engine->removeObject(xr_right_controller_vis);
+	}
+
+	xr_left_controller_vis_in_engine = false;
+	xr_right_controller_vis_in_engine = false;
+}
+
+
+void GUIClient::updateXRControllerVisuals()
+{
+	const bool xr_visuals_allowed =
+		(xr_session != NULL) &&
+		xr_session->isInitialised() &&
+		opengl_engine.nonNull();
+
+	if(!xr_visuals_allowed)
+	{
+		hideXRControllerVisuals();
+		return;
+	}
+
+	const auto update_controller_vis = [this](const XRHandInputState& hand_state, const Reference<GLObject>& vis_ob, bool& in_engine)
+	{
+		if(vis_ob.isNull())
+			return;
+
+		Matrix4f controller_transform;
+		if(!buildXRControllerVisualTransform(hand_state, controller_transform))
+		{
+			if(in_engine)
+			{
+				opengl_engine->removeObject(vis_ob);
+				in_engine = false;
+			}
+			return;
+		}
+
+		vis_ob->ob_to_world_matrix = controller_transform;
+
+		if(!in_engine)
+		{
+			opengl_engine->addObject(vis_ob);
+			in_engine = true;
+		}
+		else
+			opengl_engine->updateObjectTransformData(*vis_ob);
+	};
+
+	update_controller_vis(xr_left_hand_state, xr_left_controller_vis, xr_left_controller_vis_in_engine);
+	update_controller_vis(xr_right_hand_state, xr_right_controller_vis, xr_right_controller_vis_in_engine);
 }
 
 
@@ -7220,6 +7330,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	updateXRTeleportLocomotion();
+	updateXRControllerVisuals();
 
 	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
 
