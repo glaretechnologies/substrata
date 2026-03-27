@@ -1051,6 +1051,98 @@ static bool initialiseActionSubsystem(XRRuntimeProbeResult& result, XRHandInputS
 			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
 		};
 
+		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/meta/touch_controller_quest_2", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
+			successful_binding_profile_count++;
+		else
+			last_binding_error = error;
+	}
+
+	{
+		const ActionBindingDef bindings[] = {
+			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
+			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
+		};
+
+		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/meta/touch_controller_plus", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
+			successful_binding_profile_count++;
+		else
+			last_binding_error = error;
+	}
+
+	{
+		const ActionBindingDef bindings[] = {
+			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
+			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
+		};
+
+		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/meta/touch_plus_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
+			successful_binding_profile_count++;
+		else
+			last_binding_error = error;
+	}
+
+	{
+		const ActionBindingDef bindings[] = {
+			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
+			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
+		};
+
+		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/facebook/touch_controller_pro", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
+			successful_binding_profile_count++;
+		else
+			last_binding_error = error;
+	}
+
+	{
+		const ActionBindingDef bindings[] = {
+			{ state.select_action, "/user/hand/left/input/primary/click" },
+			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
+			{ state.select_action, "/user/hand/right/input/primary/click" },
+			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
+		};
+
+		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/khr/generic_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
+			successful_binding_profile_count++;
+		else
+			last_binding_error = error;
+	}
+
+	{
+		const ActionBindingDef bindings[] = {
+			{ state.grip_pose_action, "/user/hand/left/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/left/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/left/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/left/input/thumbstick" },
+			{ state.grip_pose_action, "/user/hand/right/input/grip/pose" },
+			{ state.aim_pose_action, "/user/hand/right/input/aim/pose" },
+			{ state.trigger_action, "/user/hand/right/input/trigger/value" },
+			{ state.move2d_action, "/user/hand/right/input/thumbstick" }
+		};
+
 		if(suggestBindingsForProfile(state.instance, "/interaction_profiles/valve/index_controller", bindings, sizeof(bindings) / sizeof(bindings[0]), error))
 			successful_binding_profile_count++;
 		else
