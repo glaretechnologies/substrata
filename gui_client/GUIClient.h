@@ -427,6 +427,7 @@ public:
 	void processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out);
 	void updateXRControllerLocomotion(float dt, bool& move_key_pressed);
 	void updateXRControllerVisuals();
+	void tryUpgradeXRControllerVisualsToViveFocus3RenderModels();
 	void updateXRTeleportLocomotion();
 	void hideXRControllerVisuals();
 	void hideXRTeleportVisuals();
@@ -922,6 +923,8 @@ public:
 	bool xr_left_controller_vis_in_engine;
 	Reference<GLObject> xr_right_controller_vis;
 	bool xr_right_controller_vis_in_engine;
+	bool xr_focus3_controller_render_models_attempted;
+	bool xr_focus3_controller_render_models_loaded;
 	Reference<GLObject> xr_teleport_beam;
 	bool xr_teleport_beam_in_engine;
 	Reference<GLObject> xr_teleport_marker;

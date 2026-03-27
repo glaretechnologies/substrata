@@ -383,8 +383,100 @@ static float xrFilterMove2DAxis(float value)
 }
 
 
-static bool buildXRControllerVisualTransform(const XRHandInputState& hand_state, Matrix4f& ob_to_world_out)
+static bool xrInteractionProfileContains(const XRHandInputState& hand_state, const char* profile_name_fragment)
 {
+	return hand_state.interaction_profile_valid && (hand_state.interaction_profile.find(profile_name_fragment) != std::string::npos);
+}
+
+
+static bool xrAnyHandUsesViveFocus3Controller(const XRHandInputState& left_hand_state, const XRHandInputState& right_hand_state)
+{
+	return
+		xrInteractionProfileContains(left_hand_state, "vive_focus3_controller") ||
+		xrInteractionProfileContains(right_hand_state, "vive_focus3_controller");
+}
+
+
+static std::string xrFindFirstExistingModelPath(const std::vector<std::string>& candidate_paths)
+{
+	for(size_t i=0; i<candidate_paths.size(); ++i)
+		if(FileUtils::fileExists(candidate_paths[i]))
+			return candidate_paths[i];
+
+	return "";
+}
+
+
+static std::string xrGetViveFocus3ControllerModelPath(bool right_hand)
+{
+	const std::string side_dir  = right_hand ? "vive_focus3_controller_right" : "vive_focus3_controller_left";
+	const std::string file_name = right_hand ? "Focus3_controller_right.obj"  : "Focus3_controller_left.obj";
+
+	std::vector<std::string> candidate_paths;
+	candidate_paths.push_back("C:/Program Files/VIVE Business Streaming/RRDriver/htc_business_streaming/resources/rendermodels/vive_focus3_controller/" + side_dir + "/" + file_name);
+	candidate_paths.push_back("C:/Program Files/VIVE Business Streaming/Updater/App/RRDriver/htc_business_streaming/resources/rendermodels/vive_focus3_controller/" + side_dir + "/" + file_name);
+
+	return xrFindFirstExistingModelPath(candidate_paths);
+}
+
+
+static Matrix4f xrMakeControllerRenderModelComponentTransform(const Vec4f& origin_obj_space, const Vec3f& rotate_xyz_deg)
+{
+	// ModelLoading rotates OBJ coordinates into the engine's z-up basis with +90 deg about X, so match that here for vendor JSON anchors.
+	const Matrix4f obj_to_engine_basis = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+	const Matrix4f component_rotation =
+		Matrix4f::rotationAroundZAxis(::degreeToRad(rotate_xyz_deg.z)) *
+		Matrix4f::rotationAroundYAxis(::degreeToRad(rotate_xyz_deg.y)) *
+		Matrix4f::rotationAroundXAxis(::degreeToRad(rotate_xyz_deg.x));
+
+	return obj_to_engine_basis * Matrix4f::translationMatrix(origin_obj_space) * component_rotation;
+}
+
+
+static Matrix4f xrGetViveFocus3ControllerGripToModelTransform(bool right_hand)
+{
+	const Vec4f grip_origin(right_hand ? -0.007f : 0.007f, -0.00182941f, 0.1019482f, 1.f);
+	const Matrix4f model_from_grip = xrMakeControllerRenderModelComponentTransform(grip_origin, Vec3f(20.6f, 0.f, 0.f));
+
+	Matrix4f grip_to_model;
+	const bool invertible = model_from_grip.getInverseForAffine3Matrix(grip_to_model);
+	assert(invertible);
+	(void)invertible;
+	return grip_to_model;
+}
+
+
+static Matrix4f xrGetViveFocus3ControllerAimToModelTransform(bool right_hand)
+{
+	const Vec4f aim_origin(right_hand ? -0.007f : 0.007f, -0.03894766f, 0.00949694f, 1.f);
+	const Matrix4f model_from_aim = xrMakeControllerRenderModelComponentTransform(aim_origin, Vec3f(-39.4f, 0.f, 0.f));
+
+	Matrix4f aim_to_model;
+	const bool invertible = model_from_aim.getInverseForAffine3Matrix(aim_to_model);
+	assert(invertible);
+	(void)invertible;
+	return aim_to_model;
+}
+
+
+static bool buildXRControllerVisualTransform(const XRHandInputState& hand_state, bool use_focus3_render_model, bool right_hand, Matrix4f& ob_to_world_out)
+{
+	if(use_focus3_render_model)
+	{
+		if(xrTrackedPoseHasWorldTransform(hand_state.grip_pose))
+		{
+			ob_to_world_out = hand_state.grip_pose.object_to_world_matrix * xrGetViveFocus3ControllerGripToModelTransform(right_hand);
+			return true;
+		}
+		if(xrTrackedPoseHasWorldTransform(hand_state.aim_pose))
+		{
+			ob_to_world_out = hand_state.aim_pose.object_to_world_matrix * xrGetViveFocus3ControllerAimToModelTransform(right_hand);
+			return true;
+		}
+
+		return false;
+	}
+
 	const XRTrackedPoseState* pose_state =
 		xrTrackedPoseHasWorldTransform(hand_state.grip_pose) ? &hand_state.grip_pose :
 		(xrTrackedPoseHasWorldTransform(hand_state.aim_pose) ? &hand_state.aim_pose : NULL);
@@ -466,6 +558,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	last_fps(0),
 	xr_left_controller_vis_in_engine(false),
 	xr_right_controller_vis_in_engine(false),
+	xr_focus3_controller_render_models_attempted(false),
+	xr_focus3_controller_render_models_loaded(false),
 	xr_teleport_beam_in_engine(false),
 	xr_teleport_marker_in_engine(false),
 	xr_teleport_active(false),
@@ -1840,6 +1934,8 @@ void GUIClient::shutdown()
 	xr_right_controller_vis = NULL;
 	xr_left_controller_vis_in_engine = false;
 	xr_right_controller_vis_in_engine = false;
+	xr_focus3_controller_render_models_attempted = false;
+	xr_focus3_controller_render_models_loaded = false;
 	xr_left_controller_last_transform = Matrix4f::identity();
 	xr_right_controller_last_transform = Matrix4f::identity();
 	xr_left_controller_last_valid_time = -1.0;
@@ -6680,6 +6776,62 @@ void GUIClient::hideXRControllerVisuals()
 }
 
 
+void GUIClient::tryUpgradeXRControllerVisualsToViveFocus3RenderModels()
+{
+	if(xr_focus3_controller_render_models_loaded || xr_focus3_controller_render_models_attempted)
+		return;
+
+	if(opengl_engine.isNull())
+		return;
+
+	if(!xrAnyHandUsesViveFocus3Controller(xr_left_hand_state, xr_right_hand_state))
+		return;
+
+	xr_focus3_controller_render_models_attempted = true;
+
+	const std::string left_model_path  = xrGetViveFocus3ControllerModelPath(/*right_hand=*/false);
+	const std::string right_model_path = xrGetViveFocus3ControllerModelPath(/*right_hand=*/true);
+	if(left_model_path.empty() || right_model_path.empty())
+	{
+		logAndConPrintMessage("VIVE Focus 3 render-model files were not found locally, so XR controller visuals will stay on the built-in fallback proxies.");
+		return;
+	}
+
+	try
+	{
+		ModelLoading::MakeGLObjectResults left_results;
+		ModelLoading::MakeGLObjectResults right_results;
+
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, left_model_path, /*do_opengl_stuff=*/true, left_results);
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, right_model_path, /*do_opengl_stuff=*/true, right_results);
+
+		if(left_results.gl_ob.isNull() || right_results.gl_ob.isNull())
+			throw glare::Exception("Controller render model load returned a null GL object.");
+
+		hideXRControllerVisuals();
+
+		left_results.gl_ob->always_visible = true;
+		right_results.gl_ob->always_visible = true;
+
+		xr_left_controller_vis = left_results.gl_ob;
+		xr_right_controller_vis = right_results.gl_ob;
+		xr_left_controller_last_transform = Matrix4f::identity();
+		xr_right_controller_last_transform = Matrix4f::identity();
+		xr_left_controller_last_valid_time = -1.0;
+		xr_right_controller_last_valid_time = -1.0;
+		xr_focus3_controller_render_models_loaded = true;
+
+		logAndConPrintMessage(
+			"Loaded app-side VIVE Focus 3 XR controller render models from '" + left_model_path + "' and '" + right_model_path +
+			"', so controller visuals no longer depend on the runtime overlay.");
+	}
+	catch(glare::Exception& e)
+	{
+		logAndConPrintMessage("Failed to load VIVE Focus 3 XR controller render models: " + e.what());
+	}
+}
+
+
 void GUIClient::updateXRControllerVisuals()
 {
 	const bool xr_visuals_allowed =
@@ -6693,15 +6845,17 @@ void GUIClient::updateXRControllerVisuals()
 		return;
 	}
 
+	tryUpgradeXRControllerVisualsToViveFocus3RenderModels();
+
 	const double cur_time = Clock::getTimeSinceInit();
 
-	const auto update_controller_vis = [this, cur_time](const XRHandInputState& hand_state, const Reference<GLObject>& vis_ob, bool& in_engine, Matrix4f& last_transform, double& last_valid_time)
+	const auto update_controller_vis = [this, cur_time](const XRHandInputState& hand_state, const Reference<GLObject>& vis_ob, bool& in_engine, Matrix4f& last_transform, double& last_valid_time, bool right_hand)
 	{
 		if(vis_ob.isNull())
 			return;
 
 		Matrix4f controller_transform;
-		const bool have_live_pose = buildXRControllerVisualTransform(hand_state, controller_transform);
+		const bool have_live_pose = buildXRControllerVisualTransform(hand_state, xr_focus3_controller_render_models_loaded, right_hand, controller_transform);
 		if(have_live_pose)
 		{
 			last_transform = controller_transform;
@@ -6732,8 +6886,8 @@ void GUIClient::updateXRControllerVisuals()
 			opengl_engine->updateObjectTransformData(*vis_ob);
 	};
 
-	update_controller_vis(xr_left_hand_state, xr_left_controller_vis, xr_left_controller_vis_in_engine, xr_left_controller_last_transform, xr_left_controller_last_valid_time);
-	update_controller_vis(xr_right_hand_state, xr_right_controller_vis, xr_right_controller_vis_in_engine, xr_right_controller_last_transform, xr_right_controller_last_valid_time);
+	update_controller_vis(xr_left_hand_state, xr_left_controller_vis, xr_left_controller_vis_in_engine, xr_left_controller_last_transform, xr_left_controller_last_valid_time, /*right_hand=*/false);
+	update_controller_vis(xr_right_hand_state, xr_right_controller_vis, xr_right_controller_vis_in_engine, xr_right_controller_last_transform, xr_right_controller_last_valid_time, /*right_hand=*/true);
 }
 
 
