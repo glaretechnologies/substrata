@@ -4339,7 +4339,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 	ZoneScoped; // Tracy profiler
 
 	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
- 	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
+	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
 	{
 		// Clear SCRIPT_CHANGED flag first.  That way if an exception is thrown below, we won't try and create the script again repeatedly on LOD changes etc.
 		BitUtils::zeroBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
