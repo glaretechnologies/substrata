@@ -45,6 +45,8 @@ public:
 	
 	static const QString startLocationURLKey() { return "setting/start_location_URL"; }
 
+	static const QString xrLaunchModeKey() { return "setting/xr_launch_mode"; }
+
 	static const QString inputDeviceNameKey() { return "setting/input_device_name"; }
 
 	static const QString inputScaleFactorNameKey() { return "setting/input_scale_factor_name"; }

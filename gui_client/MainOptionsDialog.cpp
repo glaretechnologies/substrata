@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../qt/QtUtils.h"
 #include "../qt/SignalBlocker.h"
 #include "GUIClient.h"
+#include "XRSupport.h"
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QSettings>
 #include <utils/ComObHandle.h>
@@ -164,8 +165,26 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_i
 
 	this->customCacheDirFileSelectWidget->setEnabled(use_custom_cache_dir);
 
-	this->startLocationURLLineEdit->setText(						settings->value(startLocationURLKey()).toString());
+	QString start_location_url = settings->value(startLocationURLKey()).toString();
+	start_location_url.replace("sub://89.104.70.23", "sub://vr.metasiberia.com");
+	this->startLocationURLLineEdit->setText(start_location_url);
 
+	this->xrLaunchModeComboBox->addItem("Automatic: use VR when headset is ready", "auto");
+	this->xrLaunchModeComboBox->addItem("Desktop only", "desktop");
+	this->xrLaunchModeComboBox->addItem("VR first, then fall back to desktop", "vr");
+
+	const QString xr_launch_mode = settings->value(xrLaunchModeKey(), "auto").toString();
+	const int xr_launch_mode_index = this->xrLaunchModeComboBox->findData(xr_launch_mode);
+	SignalBlocker::setCurrentIndex(this->xrLaunchModeComboBox, (xr_launch_mode_index >= 0) ? xr_launch_mode_index : 0);
+
+	if(XR::isRuntimeCapableBuild())
+	{
+		this->xrLaunchModeComboBox->setToolTip("Automatic mode starts VR when the headset and OpenXR runtime are available, then falls back to desktop if startup fails.");
+	}
+	else
+	{
+		this->xrLaunchModeComboBox->setToolTip("This build was compiled without XR support. The launch mode will take effect after rebuilding with XR support enabled.");
+	}
 
 	const auto dev_names = getAudioInputDeviceNames();
 	for(size_t i=0; i<dev_names.size(); ++i)
@@ -200,7 +219,10 @@ void MainOptionsDialog::accepted()
 
 	settings->setValue(customCacheDirKey(),							this->customCacheDirFileSelectWidget->filename());
 
-	settings->setValue(startLocationURLKey(),						this->startLocationURLLineEdit->text());
+	QString start_location_url = this->startLocationURLLineEdit->text();
+	start_location_url.replace("sub://89.104.70.23", "sub://vr.metasiberia.com");
+	settings->setValue(startLocationURLKey(), start_location_url);
+	settings->setValue(xrLaunchModeKey(), this->xrLaunchModeComboBox->currentData().toString());
 
 	settings->setValue(inputDeviceNameKey(),						this->inputDeviceComboBox->currentText());
 	settings->setValue(inputScaleFactorNameKey(),					this->inputVolumeScaleHorizontalSlider->value());

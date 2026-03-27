@@ -59,6 +59,9 @@ public:
 	bool isCursorHidden();
 
 	void setCursorIfNotHidden(Qt::CursorShape new_shape);
+	void setExternalPerspectiveCameraTransform(const Matrix4f& world_to_camera_space_matrix, float sensor_width, float lens_sensor_dist, float render_aspect_ratio,
+		float lens_shift_up, float lens_shift_right, bool projection_matrix_override_valid, const Matrix4f& projection_matrix_override);
+	void clearExternalPerspectiveCameraTransform();
 
 	static float defaultSensorWidth() { return 0.035f; }
 	static float defaultLensSensorDist() { return 0.025f; }
@@ -131,6 +134,15 @@ public:
 
 	bool take_map_screenshot;
 	float screenshot_ortho_sensor_width_m;
+	bool external_perspective_camera_transform_enabled;
+	Matrix4f external_world_to_camera_space_matrix;
+	float external_sensor_width;
+	float external_lens_sensor_dist;
+	float external_render_aspect_ratio;
+	float external_lens_shift_up;
+	float external_lens_shift_right;
+	bool external_projection_matrix_override_valid;
+	Matrix4f external_projection_matrix_override;
 
 	bool allow_bindless_textures;
 	bool allow_multi_draw_indirect;

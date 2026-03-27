@@ -16,7 +16,9 @@ Copyright Glare Technologies Limited 2024 -
 #include "ObInfoUI.h"
 #include "MiscInfoUI.h"
 #include "HeadUpDisplayUI.h"
+#include "PhotoModeUI.h"
 #include "ChatUI.h"
+#include "webcam/WebcamCapture.h"
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
 #include "MeshManager.h"
@@ -24,6 +26,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "URLParser.h"
 #include "WorldState.h"
 #include "URLWhitelist.h"
+#include "XRSession.h"
 #include "EmscriptenResourceDownloader.h"
 #include "UploadResourceThread.h"
 #include "ScriptedObjectProximityChecker.h"
@@ -52,8 +55,10 @@ Copyright Glare Technologies Limited 2024 -
 #include <maths/LineSegment4f.h>
 #include <networking/IPAddress.h>
 #include <string>
+#include <map>
 #include <unordered_set>
 #include <deque>
+#include <fstream>
 class UDPSocket;
 namespace Ui { class MainWindow; }
 class TextureServer;
@@ -96,7 +101,6 @@ class PBOPool;
 class VBO;
 class PBO;
 class GestureSettings;
-class PhotoModeUI;
 namespace Scripting { class ObjectScriptsEvaluator; }
 
 
@@ -174,9 +178,13 @@ public:
 
 
 	void timerEvent(const MouseCursorState& mouse_cursor_state);
+	void renderXRFrame(float near_draw_dist, float max_draw_dist);
+	const XRMirrorView& getXRMirrorView() const { return xr_mirror_view; }
 
 
 	Reference<SettingsStore> getSettingsStore() { return settings; }
+	bool isLoggedIn() const { return logged_in_user_id.valid(); }
+	const std::vector<std::string>& getRecentEmojiHistory() const { return recent_emoji_history; }
 
 	void setGLWidgetContextAsCurrent();
 	Vec2i getGlWidgetPosInGlobalSpace();
@@ -195,13 +203,19 @@ public:
 	virtual void reloadShaders() override;
 	//----------------------- End ReloadShadersCallback interface -----------------------
 
-	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags);
+	void performGestureClicked(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim);
 	void stopGestureClicked(const std::string& gesture_name);
-	void performGestureOnOurAvatar(const std::string& gesture_name, const URLString& gesture_anim_URL, uint32 flags, double global_start_time);
+	void performGestureOnOurAvatar(const std::string& gesture_name, const URLString& gesture_anim_URL, bool animate_head, bool loop_anim, double global_start_time);
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
 	void setPhotoModeEnabled(bool enabled);
 	void setMicForVoiceChatEnabled(bool enabled);
+	void setWebcamEnabled(bool enabled);
+#if defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(USE_SDL)
+	// Get current webcam frame as QImage (for Qt UI)
+	// Implementation in .cpp file to avoid Qt header dependency
+	void* getWebcamFrameAsQImage() const; // Returns QImage* (cast to QImage* in implementation)
+#endif
 
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
@@ -253,6 +267,10 @@ public:
 	void gestureSettingsChanged(const GestureSettings& new_gesture_settings);
 	void worldSettingsChangedFromUI(const WorldSettings& new_world_settings);
 	void applyWorldSettingsToOpenGLEngine();
+	void spawnFloatingChatMessageForAvatar(const UID& avatar_uid, const std::string& message, double cur_time);
+	void removeFloatingChatMessageForAvatar(const UID& avatar_uid);
+	void removeAllFloatingChatMessages();
+	void recordRecentEmojiUsage(const std::string& emoji);
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
@@ -261,6 +279,7 @@ public:
 	void deselectParcel();
 	void visitSubURL(const std::string& URL, bool push_cur_URL_on_nav_stack = true, bool adjust_cur_URL_pos_back = false); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
+	GLObjectRef makeFloatingChatMessageGLObject(const std::string& message);
 	GLObjectRef makeSpeakerGLObject();
 public:
 	void makeShaders();
@@ -287,6 +306,8 @@ public:
 	void handleMessages(double global_time, double cur_time);
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
+	void queuePendingCameraPairCreate(const Vec3d& camera_pos, const Vec3d& screen_pos);
+	void renderWorldCameraStreams();
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
@@ -301,8 +322,7 @@ public:
 	bool isResourceCurrentlyNeededForObject(const URLString& url, const WorldObject* ob) const;
 	bool isResourceCurrentlyNeededForObjectGivenIsDependency(const URLString& url, const WorldObject* ob) const;
 	bool isDownloadingResourceCurrentlyNeeded(const URLString& url) const;
-	void handleDownloadedAnimationResource(const std::string& local_path, const Reference<Resource>& resource, Reference<LoadedBuffer> loaded_buffer);
-	void handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path);
+	void handleDownloadedAnimationResource(const std::string local_path, const Reference<Resource>& resource);
 public:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool connectedToUsersWorldOrGodUser();
@@ -325,6 +345,7 @@ public:
 
 	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
 	void sendChatMessage(const std::string& message);
+	void sendEmojiChatMessage(const std::string& emoji);
 
 	// If the object was not in a parcel with write permissions at all, returns false.
 	// If the object can not be made to fit in the current parcel, returns false.
@@ -341,7 +362,7 @@ public:
 	void startLoadingTextureForLocalPath(const OpenGLTextureKey& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 		const TextureParams& tex_params);
 	void startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
-		int ob_lod_level, const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression);
+		int ob_lod_level, const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression, bool use_basis);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
 	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
@@ -357,6 +378,7 @@ public:
 	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
 	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const js::AABBox& aabb_os) REQUIRES(world_state->mutex);
 	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object) REQUIRES(world_state->mutex);
+	bool rollbackSelectedObjectTransformAfterServerRejection();
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
@@ -403,6 +425,13 @@ public:
 	void updateObjectsWithDiagnosticVis();
 
 	void processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out);
+	bool getCurrentXRTrackedHeadPose(Vec3d& pos_out, Vec3d& angles_out) const;
+	bool getCurrentXRRawHeadPose(Vec3d& pos_out, Vec3d& angles_out) const;
+	void getCurrentAvatarPoseForNetworking(Vec3d& pos_out, Vec3d& angles_out);
+	void getCurrentListenerPose(Vec3d& pos_out, Vec3d& angles_out) const;
+	bool requestXRRecenter();
+	void resetXRTraceCapture();
+	void appendXRTraceSample();
 
 	void setFlyModeEnabled(bool enabled);
 
@@ -426,6 +455,12 @@ public:
 	void setObjectLoadDistance(float new_dist);
 
 	void setOnlyLoadMostImportantObs(bool only_load_most_important_obs);
+
+	bool shouldDisableBasisTexturesForCurrentServer() const;
+	bool shouldDisableLODForCurrentServer() const;
+	int getEffectiveLODLevel(const WorldObject* ob, const Vec3d& campos) const;
+	void tryResolvePendingCameraPairCreateForObject(WorldObject* created_ob, WorldStateLock& world_state_lock);
+	void tryAutoLinkUnboundCameraScreen(WorldObject* maybe_screen_ob, WorldStateLock& world_state_lock);
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -467,7 +502,6 @@ public:
 	std::map<WorldObject*, Reference<VehiclePhysics>> vehicle_controllers; // Map from controlled object to vehicle controller for that object.
 	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
 	uint32 cur_seat_index; // Current vehicle seat index.
-
 	Reference<WorldObject> seat_sitting_on; // Seat object that the avatar is currently sitting on, or NULL if not sitting.
 
 	double last_vehicle_renewal_msg_time;
@@ -505,6 +539,12 @@ public:
 	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
 	Vec4f selection_point_os; // Point on selected object where selection ray hit, in object space.
 	bool selected_ob_picked_up; // Is selected object 'picked up' e.g. being moved?
+	bool have_selected_ob_transform_rollback;
+	UID selected_ob_transform_rollback_uid;
+	Vec3d selected_ob_transform_rollback_pos;
+	Vec3f selected_ob_transform_rollback_axis;
+	float selected_ob_transform_rollback_angle;
+	Vec3f selected_ob_transform_rollback_scale;
 
 	ParcelRef selected_parcel;
 
@@ -527,8 +567,6 @@ public:
 
 	WorldDetails connected_world_details;
 	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
-	bool world_settings_locally_dirty;
-	Timer world_settings_local_change_timer;
 	
 
 	Reference<Indigo::Mesh> ground_quad_mesh;
@@ -549,6 +587,12 @@ public:
 
 	Reference<OpenGLMeshRenderData> seat_opengl_mesh;
 	PhysicsShape seat_shape;
+
+	Reference<OpenGLMeshRenderData> camera_opengl_mesh;
+	PhysicsShape camera_shape;
+
+	Reference<OpenGLMeshRenderData> camera_screen_opengl_mesh;
+	PhysicsShape camera_screen_shape;
 
 	Reference<OpenGLMeshRenderData> portal_opengl_mesh;
 	PhysicsShape portal_shape;
@@ -604,13 +648,26 @@ public:
 
 	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is. 
 	// -1 if no parcel UID in URL.
-	bool go_to_world_spawn_pos; // Do we want to move to the world settings spawn position (if set) once the world settings are received from the server?
 
 	Timer fps_display_timer;
 	int num_frames_since_fps_timer_reset;
 	double last_fps;
-
-	double last_physics_sim_time;
+	XRSession* xr_session;
+	XRRuntimeProbeResult xr_runtime_probe_result;
+	XRMirrorView xr_mirror_view;
+	XRTrackedPoseState xr_head_pose_state;
+	XRTrackedPoseState xr_raw_head_pose_state;
+	XREyeViewState xr_left_eye_view_state;
+	XREyeViewState xr_right_eye_view_state;
+	XRHandInputState xr_left_hand_state;
+	XRHandInputState xr_right_hand_state;
+	bool xr_runtime_probe_done;
+	bool xr_logged_head_pose_alignment;
+	std::string xr_pose_trace_path;
+	std::ofstream xr_pose_trace_stream;
+	double xr_pose_trace_start_time;
+	double xr_pose_trace_last_write_time;
+	size_t xr_pose_trace_sample_count;
 
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
@@ -697,13 +754,50 @@ public:
 
 	UID last_restored_ob_uid_in_edit;
 
+	struct PendingCameraPairCreate
+	{
+		Vec3d camera_pos;
+		Vec3d screen_pos;
+		UID camera_uid;
+		UID screen_uid;
+		double creation_time;
+	};
+	std::vector<PendingCameraPairCreate> pending_camera_pair_creates;
+
+	struct CameraStreamRenderState
+	{
+		CameraStreamRenderState() : tex_w(0), tex_h(0), last_render_time(-1.0), basis_mode(0), dark_frame_streak(0) {}
+
+		OpenGLTextureRef stream_texture;
+		int tex_w;
+		int tex_h;
+		double last_render_time;
+		int basis_mode;
+		uint32 dark_frame_streak;
+	};
+	std::unordered_map<uint64, CameraStreamRenderState> camera_stream_states;
+	size_t camera_stream_round_robin_cursor = 0;
+
+	struct FloatingChatMessageState
+	{
+		std::string message;
+		GLObjectRef gl_ob;
+		double start_time;
+		double duration_seconds;
+		float world_height;
+		float rise_distance;
+	};
+	std::map<UID, FloatingChatMessageState> floating_chat_message_states;
+	std::vector<std::string> recent_emoji_history;
+
 	GLUIRef gl_ui;
 	GestureUI gesture_ui; // Draws gesture buttons, also selfie and enable mic button
 	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
 	MiscInfoUI misc_info_ui; // For showing messages from the server, vehicle speed etc.
 	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
-	Reference<PhotoModeUI> photo_mode_ui;
+	PhotoModeUI photo_mode_ui;
+	WebcamCapture webcam_capture; // Webcam capture and display
 	Reference<MiniMap> minimap;
 
 	bool running_destructor;
@@ -797,6 +891,7 @@ public:
 	ServerConnectionState connection_state;
 
 	bool received_world_settings_since_connect_or_world_change; // Have we received a WorldSettingsInitialSendMessage since connecting to the server?
+	bool world_settings_locally_dirty;
 
 	UserID logged_in_user_id;
 	std::string logged_in_user_name;
@@ -830,7 +925,13 @@ public:
 
 	js::Vector<Reference<ThreadMessage>, 16> temp_msgs;
 
+	bool extracted_anim_data_loaded;
+
 	URLParseResults last_url_parse_results;
+	
+	// Pending transit connection (for SDL UI)
+	URLParseResults pending_transit_connection;
+	bool has_pending_transit_connection;
 
 	struct Notification
 	{
@@ -889,6 +990,7 @@ public:
 
 	bool use_lightmaps;
 	Timer retry_connection_timer;
+	Timer world_settings_local_change_timer;
 
 
 	ThreadManager opengl_worker_thread_manager;
@@ -914,6 +1016,4 @@ public:
 	bool ui_hidden;
 
 	bool only_load_most_important_obs;
-
-	double last_ping_send_time;
 };

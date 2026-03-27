@@ -9,6 +9,25 @@ endif()
 include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
 
+if(XR_SUPPORT)
+	if(EMSCRIPTEN)
+		message(FATAL_ERROR "XR_SUPPORT is only supported for native builds.")
+	endif()
+
+	if(OPENXR_SDK_DIR STREQUAL "")
+		message(FATAL_ERROR "XR_SUPPORT=ON requires OPENXR_SDK_DIR to point to an installed OpenXR SDK root.")
+	endif()
+
+	if(NOT EXISTS "${OPENXR_SDK_DIR}/cmake/OpenXRConfig.cmake")
+		message(FATAL_ERROR "Could not find OpenXRConfig.cmake in '${OPENXR_SDK_DIR}/cmake'. Please set -DOPENXR_SDK_DIR to an installed OpenXR SDK root.")
+	endif()
+
+	find_package(OpenXR CONFIG REQUIRED PATHS "${OPENXR_SDK_DIR}/cmake" NO_DEFAULT_PATH)
+endif()
+
+# Needed for webcam/* headers that are included as "webcam/..." from within gui_client/webcam sources.
+include_directories(${CMAKE_SOURCE_DIR}/gui_client)
+
 if(NOT EMSCRIPTEN)
 	include(../cmake/winter.cmake)
 endif()
@@ -62,6 +81,7 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client GuiClientApplication)
 	addMocFileRule(gui_client GlWidget)
 	addMocFileRule(gui_client AvatarSettingsDialog)
+	addMocFileRule(gui_client AvatarSettingsWidget)
 	addMocFileRule(gui_client AvatarPreviewWidget)
 	addMocFileRule(gui_client AddObjectDialog)
 	addMocFileRule(gui_client AddVideoDialog)
@@ -80,6 +100,8 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client IndigoView)
 	addMocFileRule(gui_client ShaderEditorDialog)
 	addMocFileRule(gui_client AboutDialog)
+	addMocFileRule(gui_client UpdateDialog)
+	addMocFileRule(gui_client UpdateManager)
 	addMocFileRule(gui_client MainOptionsDialog)
 	addMocFileRule(gui_client MainOptionsDialog)
 	addMocFileRule(gui_client GoToParcelDialog)
@@ -91,6 +113,13 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client TerrainSpecSectionWidget)
 	addMocFileRule(gui_client WorldSettingsWidget)
 	addMocFileRule(gui_client CreateObjectsDialog)
+	addMocFileRule(gui_client VRoidAuthFlow)
+
+	# Webcam Qt UI (Qt Multimedia).  Not built for SDL configurations.
+	addMocFileRule(gui_client/webcam WebcamWindow)
+	addMocFileRule(gui_client/webcam WebcamVideoView)
+	addMocFileRule(gui_client/webcam WebcamControlPanel)
+	addMocFileRule(gui_client/webcam WebcamSettingsDialog)
 
 	addMocFileRule(qt FileSelectWidget)
 	addMocFileRule(qt RealControl)
@@ -101,6 +130,7 @@ if(NOT USE_SDL)
 	addUIFileRule(gui_client AddObjectDialog)
 	addUIFileRule(gui_client AddVideoDialog)
 	addUIFileRule(gui_client AvatarSettingsDialog)
+	addUIFileRule(gui_client AvatarSettingsWidget)
 	addUIFileRule(gui_client MainWindow)
 	addUIFileRule(gui_client ObjectEditor)
 	addUIFileRule(gui_client EnvironmentOptionsWidget)
@@ -251,6 +281,12 @@ ${CMAKE_SOURCE_DIR}/gui_client/URLParser.h
 ${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.h
 ${CMAKE_SOURCE_DIR}/gui_client/VehiclePhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/XRSupport.cpp
+${CMAKE_SOURCE_DIR}/gui_client/XRSupport.h
+${CMAKE_SOURCE_DIR}/gui_client/XRSession.cpp
+${CMAKE_SOURCE_DIR}/gui_client/XRSession.h
+${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamCapture.cpp
+${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamCapture.h
 ${CMAKE_SOURCE_DIR}/gui_client/WebViewData.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/WebViewData.h
 ${CMAKE_SOURCE_DIR}/gui_client/WinterShaderEvaluator.cpp
@@ -300,6 +336,9 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsWidget.ui
 		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.ui
@@ -340,6 +379,10 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.h
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.ui
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindowTestCode.txt
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateManager.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateManager.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.ui
@@ -379,15 +422,29 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.ui
+
+		# Webcam Qt UI (Qt Multimedia).  Not built for SDL configurations.
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamWindow.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamWindow.h
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamVideoView.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamVideoView.h
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamControlPanel.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamControlPanel.h
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamSettingsDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamSettingsDialog.h
 	)
 endif()
 
-if(NOT USE_SDL)
+	if(NOT USE_SDL)
 	SET(gui_client ${gui_client}
+	${CMAKE_SOURCE_DIR}/gui_client/VRoidAuthFlow.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/VRoidAuthFlow.h
+
 	${CMAKE_SOURCE_DIR}/gui_client/moc_MainWindow.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GuiClientApplication.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GlWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AddVideoDialog.cpp
@@ -406,6 +463,8 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/moc_IndigoView.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_ShaderEditorDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_UpdateDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_UpdateManager.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GoToPositionDialog.cpp
@@ -416,10 +475,18 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/moc_TerrainSpecSectionWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_WorldSettingsWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_CreateObjectsDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_VRoidAuthFlow.cpp
+
+	# Webcam Qt UI (Qt Multimedia)
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamWindow.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamControlPanel.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamVideoView.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamSettingsDialog.cpp
 
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_EnvironmentOptionsWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_ParcelEditor.h
@@ -1068,7 +1135,7 @@ if(APPLE)
 	# Plist stuff.
 	SET(MACOSX_BUNDLE_ICON_FILE Cyberspace.icns)
 	SET(MACOSX_BUNDLE_COPYRIGHT "Copyright 2022 Glare Technologies Ltd.")
-	SET(MACOSX_BUNDLE_BUNDLE_NAME "Substrata")
+	SET(MACOSX_BUNDLE_BUNDLE_NAME "Metasiberia Beta")
 	SET(MACOSX_BUNDLE_BUNDLE_VERSION "${SUBSTRATA_VERSION}")
 	SET(MACOSX_BUNDLE_SHORT_VERSION_STRING "${SUBSTRATA_VERSION}")
 	SET(MACOSX_BUNDLE_GUI_IDENTIFIER com.glaretechnologies.substrata)
@@ -1132,6 +1199,10 @@ ${settings}
 
 add_definitions(-DGUI_CLIENT=1)
 
+if(XR_SUPPORT)
+	add_definitions(-DXR_SUPPORT=1)
+endif()
+
 include(../cmake/shared_target_settings.cmake)
 
 if(USE_SDL)
@@ -1186,7 +1257,7 @@ if(EMSCRIPTEN)
 		"-sPTHREAD_POOL_SIZE=30" # See calculation above
 		"-sSTACK_SIZE=262144"
 		"-sEXPORTED_RUNTIME_METHODS=ccall" # Needed to be able to call into C++ from JS.  Used in emscripten_browser_clipboard.
-		"-sEXPORTED_FUNCTIONS=_processFilePickerFile,_malloc,_free,_main"
+		"-sEXPORTED_FUNCTIONS=_processAvatarModelFile,_processGestureAnimationFile,_malloc,_free,_main"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
 		--use-preload-cache # Cache the preloaded data in IndexedDB for subsequent page visits.
 		--preload-file data # Use preloaded data, read it from the 'data' directory in the Emscripten build dir.
@@ -1284,12 +1355,18 @@ elseif(WIN32)
 			optimized Qt5Core
 			optimized Qt5OpenGL
 			optimized Qt5Widgets
+			optimized Qt5Multimedia
+			optimized Qt5MultimediaWidgets
+			optimized Qt5Network
 			optimized Qt5Gamepad
 			debug qtmaind
 			debug Qt5Guid
 			debug Qt5Cored
 			debug Qt5OpenGLd
 			debug Qt5Widgetsd
+			debug Qt5Multimediad
+			debug Qt5MultimediaWidgetsd
+			debug Qt5Networkd
 			debug Qt5Gamepadd
 		)
 	endif()
@@ -1383,6 +1460,12 @@ else() # linux
 
 	add_definitions(-D__LINUX_PULSE__) # Add config choice define for RTAudio
 
+	if(USE_SDL)
+		target_link_libraries(${CURRENT_TARGET} PRIVATE
+			SDL2
+		)
+	endif()
+
 	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		GL
 		Qt5Gui
@@ -1390,6 +1473,7 @@ else() # linux
 		Qt5OpenGL
 		Qt5Widgets
 		Qt5Multimedia
+		Qt5MultimediaWidgets
 		Qt5Network
 		Qt5Gamepad
 		dl
@@ -1411,4 +1495,8 @@ else() # linux
 
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN/lib'")
+endif()
+
+if(XR_SUPPORT)
+	target_link_libraries(${CURRENT_TARGET} OpenXR::openxr_loader)
 endif()
