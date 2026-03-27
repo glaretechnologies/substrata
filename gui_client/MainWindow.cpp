@@ -4986,7 +4986,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		return;
 	}
 
-	if(e->key() == Qt::Key_Home)
+	if((e->key() == Qt::Key_Home) || (e->key() == Qt::Key_End))
 	{
 		if(gui_client.requestXRRecenter())
 			gui_client.showInfoNotification("XR recentered. Keep looking straight ahead in the headset.");
