@@ -63,7 +63,8 @@ public:
 	std::string name;
 	std::string description;
 
-	std::string preview_image_URL;
+	//URLString preview_image_URL;
+	uint64 preview_image_screenshot_id;
 
 	DatabaseKey database_key;
 };
@@ -92,6 +93,7 @@ struct GearItems
 {
 	bool operator == (const GearItems& other) const;
 	void writeToStream(RandomAccessOutStream& stream) const;
+	void removeItem(const GearItemRef& item); // Removes the first item whose id matches item->id.
 
 	std::vector<GearItemRef> items;
 };

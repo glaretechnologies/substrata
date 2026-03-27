@@ -55,7 +55,8 @@ bool GearItem::operator==(const GearItem& other) const
 		name == other.name &&
 		description == other.description &&
 
-		preview_image_URL == other.preview_image_URL;
+		preview_image_screenshot_id == other.preview_image_screenshot_id;
+		//preview_image_URL == other.preview_image_URL;
 }
 
 
@@ -94,7 +95,8 @@ void GearItem::writeToStream(RandomAccessOutStream& stream) const
 	stream.writeStringLengthFirst(name);
 	stream.writeStringLengthFirst(description);
 
-	stream.writeStringLengthFirst(preview_image_URL);
+	//stream.writeStringLengthFirst(preview_image_URL);
+	stream.writeUInt64(preview_image_screenshot_id);
 
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
@@ -145,7 +147,8 @@ void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item)
 	item.name = stream.readStringLengthFirst(GearItem::MAX_NAME_SIZE);
 	item.description = stream.readStringLengthFirst(GearItem::MAX_DESCRIPTION_SIZE);
 
-	item.preview_image_URL = stream.readStringLengthFirst(GearItem::MAX_PREVIEW_URL_SIZE);
+	//item.preview_image_URL = stream.readStringLengthFirst(GearItem::MAX_PREVIEW_URL_SIZE);
+	item.preview_image_screenshot_id = stream.readUInt64();
 
 	// Discard any remaining unread data
 	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
@@ -170,6 +173,19 @@ bool GearItems::operator==(const GearItems& other) const
 			return false;
 	
 	return true;
+}
+
+
+void GearItems::removeItem(const GearItemRef& item)
+{
+	for(auto it = items.begin(); it != items.end(); ++it)
+	{
+		if((*it)->id == item->id)
+		{
+			items.erase(it);
+			return;
+		}
+	}
 }
 
 

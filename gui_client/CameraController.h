@@ -46,7 +46,7 @@ public:
 
 	
 	Vec3d getAngles() const; // Specified as (heading, pitch, roll).
-	Vec3d getAvatarAngles(); // For modes like CameraMode_FreeCamera, the camera angles change but the avatar angles remain as they were.
+	Vec3d getAvatarAngles() const; // For modes like CameraMode_FreeCamera, the camera angles change but the avatar angles remain as they were.
 
 	void setAngles(const Vec3d& newangles);
 

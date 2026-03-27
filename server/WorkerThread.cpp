@@ -3354,6 +3354,36 @@ void WorkerThread::doRun()
 
 							break;
 						}
+					case Protocol::QueryUserGear:
+						{
+							conPrintIfNotFuzzing("QueryUserGear");
+
+							GearItems all_gear;
+							if(client_user_id.valid())
+							{
+								WorldStateLock lock(world_state->mutex);
+								auto user_it = world_state->user_id_to_users.find(client_user_id);
+								if(user_it != world_state->user_id_to_users.end())
+								{
+									const User* user = user_it->second.ptr();
+									for(const UID& gear_id : user->gear_ids)
+									{
+										auto gear_it = world_state->gear_items.find(gear_id);
+										if(gear_it != world_state->gear_items.end())
+											all_gear.items.push_back(gear_it->second);
+									}
+								}
+							}
+
+							MessageUtils::initPacket(scratch_packet, Protocol::UserGearList);
+							all_gear.writeToStream(scratch_packet);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
+
+							break;
+						}
 					case Protocol::PingMessage:
 						{
 							// Send pong message back

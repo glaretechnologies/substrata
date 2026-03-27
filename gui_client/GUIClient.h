@@ -97,6 +97,7 @@ class VBO;
 class PBO;
 class GestureSettings;
 class PhotoModeUI;
+class GearInventoryUI;
 namespace Scripting { class ObjectScriptsEvaluator; }
 
 
@@ -251,6 +252,8 @@ public:
 	std::string getCurrentURL() const;
 	void goBack();
 	void gestureSettingsChanged(const GestureSettings& new_gesture_settings);
+	void gearItemClicked(const GearItemRef& item);         // Called when a gear item thumbnail is clicked in the All Gear panel.
+	void equippedGearItemClicked(const GearItemRef& item); // Called when a gear item thumbnail is clicked in the Equipped panel.
 	void worldSettingsChangedFromUI(const WorldSettings& new_world_settings);
 	void applyWorldSettingsToOpenGLEngine();
 public:
@@ -706,6 +709,7 @@ public:
 	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
 	Reference<PhotoModeUI> photo_mode_ui;
+	Reference<GearInventoryUI> gear_inventory_ui;
 	Reference<MiniMap> minimap;
 
 	bool running_destructor;

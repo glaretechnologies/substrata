@@ -187,6 +187,14 @@ public:
 };
 
 
+class UserGearListMessage : public ThreadMessage
+{
+public:
+	UserGearListMessage() : ThreadMessage(Msg_UserGearListMessage) {}
+	GearItems all_gear;
+};
+
+
 class SignedUpMessage : public ThreadMessage
 {
 public:

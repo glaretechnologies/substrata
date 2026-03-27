@@ -44,6 +44,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "JoltUtils.h"
 #include "MiniMap.h"
 #include "PhotoModeUI.h"
+#include "GearInventoryUI.h"
 #include "CEF.h"
 #include <limits>
 #if !defined(EMSCRIPTEN)
@@ -1041,6 +1042,8 @@ void GUIClient::shutdown()
 	chat_ui.destroy();
 
 	photo_mode_ui = nullptr;
+
+	gear_inventory_ui = nullptr;
 
 	minimap = nullptr;
 
@@ -5949,6 +5952,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	
 	gesture_ui.think();
 	hud_ui.think();
+	if(gear_inventory_ui)
+	{
+		gear_inventory_ui->think();
+		if(gear_inventory_ui->close_soon)
+			gear_inventory_ui = nullptr;
+	}
 	if(minimap)
 		minimap->think();
 
@@ -9340,6 +9349,16 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			writeAvatarToNetworkStream(avatar, scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+		break;
+		case Msg_UserGearListMessage:
+		{
+			const UserGearListMessage* m = checkedDowncastPtr<const UserGearListMessage>(msg);
+			conPrint("Received UserGearList: " + toString(m->all_gear.items.size()) + " item(s).");
+			for(size_t i = 0; i < m->all_gear.items.size(); ++i)
+				conPrint("  [" + toString(i) + "] id=" + m->all_gear.items[i]->id.toString() + " name='" + m->all_gear.items[i]->name + "'");
+			if(gear_inventory_ui)
+				gear_inventory_ui->setAllGear(m->all_gear);
 		}
 		break;
 		case Msg_SignedUpMessage:
@@ -15160,6 +15179,8 @@ void GUIClient::viewportResized(int w, int h)
 	chat_ui.viewportResized(w, h);
 	if(photo_mode_ui)
 		photo_mode_ui->viewportResized(w, h);
+	if(gear_inventory_ui)
+		gear_inventory_ui->viewportResized(w, h);
 	if(minimap)
 		minimap->viewportResized(w, h);
 }
@@ -16116,6 +16137,105 @@ void GUIClient::gestureSettingsChanged(const GestureSettings& new_gesture_settin
 }
 
 
+static Avatar buildOurCurrentAvatar(const GUIClient& gc)
+{
+	const Vec3d cam_angles = gc.cam_controller.getAvatarAngles();
+	Avatar av;
+	av.uid             = gc.client_avatar_uid;
+	av.pos             = Vec3d(gc.cam_controller.getFirstPersonPosition());
+	av.rotation        = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+	av.name            = gc.logged_in_user_name;
+	av.avatar_settings = gc.logged_in_avatar_settings;
+	av.equipped_gear   = gc.logged_in_equipped_gear;
+	return av;
+}
+
+
+// The user clicked on an unequipped gear item, so equip it.
+void GUIClient::gearItemClicked(const GearItemRef& item)
+{
+	conPrint("Equipping gear item: id=" + item->id.toString() + " name='" + item->name + "'");
+
+	// Don't equip if already equipped
+	for(const GearItemRef& g : logged_in_equipped_gear.items)
+		if(g->id == item->id)
+			return;
+
+	// Append to equipped gear
+	logged_in_equipped_gear.items.push_back(item);
+
+	// Update avatar in world state and trigger graphics reload
+	{
+		WorldStateLock lock(world_state->mutex);
+		auto it = world_state->avatars.find(client_avatar_uid);
+		if(it != world_state->avatars.end())
+		{
+			Avatar* av = it->second.ptr();
+			av->equipped_gear.items.push_back(item);
+			av->graphics.loaded_lod_level = -1; // Force loadModelForAvatar to re-run and load the new gear model
+			loadModelForAvatar(av);
+		}
+	}
+
+	// Notify server
+	const Avatar av = buildOurCurrentAvatar(*this);
+	MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+	writeAvatarToNetworkStream(av, scratch_packet);
+	enqueueMessageToSend(*client_thread, scratch_packet);
+
+	// Refresh inventory UI
+	if(gear_inventory_ui)
+		gear_inventory_ui->setEquippedGear(logged_in_equipped_gear);
+}
+
+// The user clicked on an equipped gear item, so unequip it.
+void GUIClient::equippedGearItemClicked(const GearItemRef& item)
+{
+	conPrint("Unequipping gear item: id=" + item->id.toString() + " name='" + item->name + "'");
+
+	// Remove from logged_in_equipped_gear
+	logged_in_equipped_gear.removeItem(item);
+
+	// Remove from avatar in world state and clean up GL object
+	{
+		WorldStateLock lock(world_state->mutex);
+		auto it = world_state->avatars.find(client_avatar_uid);
+		if(it != world_state->avatars.end())
+		{
+			Avatar* av = it->second.ptr();
+			for(size_t i = 0; i < av->equipped_gear.items.size(); ++i)
+			{
+				if(av->equipped_gear.items[i]->id == item->id)
+				{
+					// Remove the GL object from the scene before erasing the slot
+					if(i < av->graphics.equipped_gear_graphics.size())
+					{
+						if(av->graphics.equipped_gear_graphics[i].gear_gl_ob.nonNull())
+							opengl_engine->removeObject(av->graphics.equipped_gear_graphics[i].gear_gl_ob);
+						av->graphics.equipped_gear_graphics.erase(av->graphics.equipped_gear_graphics.begin() + i);
+					}
+					av->equipped_gear.items.erase(av->equipped_gear.items.begin() + i);
+					break;
+				}
+			}
+
+			av->graphics.loaded_lod_level = -1; // Force loadModelForAvatar to re-run and load the new gear model
+			loadModelForAvatar(av);
+		}
+	}
+
+	// Notify server
+	const Avatar av = buildOurCurrentAvatar(*this);
+	MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+	writeAvatarToNetworkStream(av, scratch_packet);
+	enqueueMessageToSend(*client_thread, scratch_packet);
+
+	// Refresh inventory UI
+	if(gear_inventory_ui)
+		gear_inventory_ui->setEquippedGear(logged_in_equipped_gear);
+}
+
+
 void GUIClient::worldSettingsChangedFromUI(const WorldSettings& new_world_settings)
 {
 	const bool terrain_changed = !(this->connected_world_settings.terrain_spec == new_world_settings.terrain_spec);
@@ -16481,6 +16601,25 @@ void GUIClient::keyPressed(KeyEvent& e)
 			{
 				showErrorNotification(e.what());
 			}
+		}
+	}
+	else if(e.key == Key::Key_I)
+	{
+		if(gear_inventory_ui)
+		{
+			gear_inventory_ui = nullptr; // Close
+		}
+		else
+		{
+			gear_inventory_ui = new GearInventoryUI(this, gl_ui);
+
+			// Populate equipped panel
+			gear_inventory_ui->setEquippedGear(this->logged_in_equipped_gear);
+
+			// Ask the server for the full owned-gear list (response populates the All Gear panel).
+			conPrint("Gear inventory opened, sending QueryUserGear.");
+			MessageUtils::initPacket(scratch_packet, Protocol::QueryUserGear);
+			enqueueMessageToSend(*client_thread, scratch_packet);
 		}
 	}
 	if(this->selected_ob.nonNull())

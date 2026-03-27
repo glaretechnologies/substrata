@@ -297,7 +297,7 @@ static Vec3d oppositeDirAngles(const Vec3d& rotation)
 }
 
 
-Vec3d CameraController::getAvatarAngles()
+Vec3d CameraController::getAvatarAngles() const
 {
 	if(current_cam_mode == CameraMode_Standard)
 	{

@@ -1201,6 +1201,13 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			out_msg_queue->enqueue(new LoggedOutMessage());
 			break;
 		}
+	case Protocol::UserGearList:
+		{
+			Reference<UserGearListMessage> msg = new UserGearListMessage();
+			readGearItemsFromStream(msg_buffer, msg->all_gear);
+			out_msg_queue->enqueue(msg);
+			break;
+		}
 	case Protocol::SignedUpMessageID:
 		{
 			//conPrint("Received SignedUpMessageID msg.");
