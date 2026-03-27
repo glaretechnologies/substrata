@@ -215,7 +215,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		{
 			// Append the first animation (Idle) and build the retargetting data.
 			animation_data.loadAndRetargetAnim(*anim_manager->getAnimation("Idle.subanim", *resource_manager));
-		
+
 			// Append all the other animations
 			for(size_t i=0; i<staticArrayNumElems(anim_names); ++i)
 				animation_data.appendAnimationData(*anim_manager->getAnimation(URLString(anim_names[i]) + ".subanim", *resource_manager));

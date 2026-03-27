@@ -160,7 +160,7 @@ public:
 	// Called after the initial connectToServer() has completed.
 	void postConnectInitialise();
 
-	void afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine, 
+	void afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine,
 		const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts);
 
 	void initAudioEngine();
@@ -221,7 +221,7 @@ public:
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
 
 	void startDownloadingResource(const URLString& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, const DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
-	
+
 	std::string getDiagnosticsString(bool do_graphics_diagnostics, bool do_physics_diagnostics, bool do_terrain_diagnostics, double last_timerEvent_CPU_work_elapsed, double last_updateGL_time);
 	void diagnosticsSettingsChanged();
 	void updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_state);
@@ -234,7 +234,7 @@ public:
 		Vec4f normal;
 		float scale;
 	};
-	
+
 	void thirdPersonCameraToggled(bool enabled);
 	void applyUndoOrRedoObject(const WorldObjectRef& restored_ob);
 	void summonBike();
@@ -357,11 +357,11 @@ public:
 	bool checkAddAudioToProcessingSet(const URLString& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
-	void startLoadingTextureIfPresent(const URLString& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureIfPresent(const URLString& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor,
 		const TextureParams& tex_params);
-	void startLoadingTextureForLocalPath(const OpenGLTextureKey& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+	void startLoadingTextureForLocalPath(const OpenGLTextureKey& local_abs_tex_path, const Reference<Resource>& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor,
 		const TextureParams& tex_params);
-	void startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, 
+	void startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat,
 		int ob_lod_level, const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression, bool use_basis);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
@@ -410,7 +410,7 @@ public:
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
 	void createPathControlledPathVisObjects(const WorldObject& ob);
 	Reference<VehiclePhysics> createVehicleControllerForScript(WorldObject* ob);
-	
+
 	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time) const;
 	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time) const;
 	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
@@ -420,7 +420,7 @@ public:
 	void destroyVehiclePhysicsControllingObject(WorldObject* ob);
 	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
-	
+
 	void updateDiagnosticAABBForObject(WorldObject* ob); // Returns if vis still valid/needed.
 	void updateObjectsWithDiagnosticVis();
 
@@ -452,7 +452,7 @@ public:
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
-	void handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
+	void handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape,
 		int voxel_subsample_factor, uint64 voxel_hash);
 	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
@@ -483,7 +483,7 @@ public:
 	// NOTE: called off main thread, needs to be threadsafe
 	virtual void contactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2/*PhysicsObject* ob_a, PhysicsObject* ob_b*/, const JPH::ContactManifold& contact_manifold) override;
 	//----------------------- end PhysicsWorldEventListener interface -----------------------
-	
+
 
 	Reference<TextureLoadedThreadMessage> allocTextureLoadedThreadMessage();
 
@@ -573,7 +573,7 @@ public:
 
 	WorldDetails connected_world_details;
 	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
-	
+
 
 	Reference<Indigo::Mesh> ground_quad_mesh;
 	Reference<OpenGLMeshRenderData> ground_quad_mesh_opengl_data;
@@ -639,7 +639,7 @@ public:
 
 	StandardPrintOutput print_output;
 	//glare::TaskManager* task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff. Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent(). Lazily created.
-	
+
 	glare::TaskManager model_and_texture_loader_task_manager;
 
 	// For short, processor-intensive tasks that the main thread depends on, such as computing animation data for the current frame, or executing Jolt physics tasks.
@@ -652,7 +652,7 @@ public:
 	std::string server_hostname; // e.g. "substrata.info" or "localhost"
 	std::string server_worldname; // e.g. "" or "ono-sendai"
 
-	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is. 
+	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is.
 	// -1 if no parcel UID in URL.
 
 	Timer fps_display_timer;
@@ -688,7 +688,7 @@ public:
 
 	Reference<VBO> dummy_vert_vbo;
 	Reference<VBO> dummy_index_vbo;
-	
+
 	bool process_model_loaded_next;
 
 	// Textures being loaded or already loaded.
@@ -736,7 +736,7 @@ public:
 
 	std::set<WorldObjectRef> objs_with_lightmap_rebuild_needed;
 
-	
+
 
 
 	struct tls_config* client_tls_config;
@@ -953,7 +953,7 @@ public:
 	bool extracted_anim_data_loaded;
 
 	URLParseResults last_url_parse_results;
-	
+
 	// Pending transit connection (for SDL UI)
 	URLParseResults pending_transit_connection;
 	bool has_pending_transit_connection;
@@ -1006,7 +1006,7 @@ public:
 		int voxel_subsample_factor;
 		uint64 voxel_hash;
 	};
-	
+
 
 	js::Vector<AsyncUploadedGeometryInfo, 16> temp_uploaded_geom_infos;
 	js::Vector<PBOAsyncUploadedTextureInfo, 16> temp_loaded_texture_infos;

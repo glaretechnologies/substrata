@@ -42,7 +42,7 @@ public:
 	static const QString useCustomCacheDirKey() { return "setting/use_custom_cache_dir"; }
 
 	static const QString customCacheDirKey() { return "setting/custom_cache_dir"; }
-	
+
 	static const QString startLocationURLKey() { return "setting/start_location_URL"; }
 
 	static const QString xrLaunchModeKey() { return "setting/xr_launch_mode"; }
