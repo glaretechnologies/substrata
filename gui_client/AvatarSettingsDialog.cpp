@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "AddObjectDialog.h"
+#include "AvatarGroundingUtils.h"
 #include "ModelLoading.h"
 #include "AnimationManager.h"
 #include "../shared/ResourceManager.h"
@@ -201,31 +202,34 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 			original_left_eye_pos = Vec4f(0,1.67,0,1);
 		}*/
 
-		Vec4f original_toe_pos = preview_gl_ob->mesh_data->animation_data.getNodePositionModelSpace("LeftToe_End", /*use_retarget_adjustment=*/false);
-
-		// TEMP: Load animation data for ready-player-me type avatars
-		//float eye_height_adjustment = 0;
-		float foot_bottom_height = original_toe_pos[1] - 0.0362269469; // Should be ~= 0
+		AnimationData& animation_data = preview_gl_ob->mesh_data->animation_data;
+		AvatarGrounding::GroundingInfo grounding = AvatarGrounding::computeGroundingInfo(
+			animation_data,
+			/*use_retarget_adjustment=*/false,
+			AvatarGrounding::kDefaultToeBottomOffsetM
+		);
+		float foot_bottom_height = grounding.foot_bottom_height;
+		float avatar_anchor_height = grounding.anchor_height_from_origin;
 		//printVar(foot_bottom_height);
 		if(true)
 		{
 			// Append the first animation (Idle) and build the retargetting data.
-			preview_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(*anim_manager->getAnimation("Idle.subanim", *resource_manager));
+			animation_data.loadAndRetargetAnim(*anim_manager->getAnimation("Idle.subanim", *resource_manager));
 		
 			// Append all the other animations
 			for(size_t i=0; i<staticArrayNumElems(anim_names); ++i)
-				preview_gl_ob->mesh_data->animation_data.appendAnimationData(*anim_manager->getAnimation(URLString(anim_names[i]) + ".subanim", *resource_manager));
+				animation_data.appendAnimationData(*anim_manager->getAnimation(URLString(anim_names[i]) + ".subanim", *resource_manager));
 
-
-			// If we loaded the extracted_avatar_anim bone data, then the avatar will be floating off the ground for female leg lengths, so move down.
-			//eye_height_adjustment = -1.67 + original_left_eye_pos[1];
-
-			Vec4f new_toe_pos = preview_gl_ob->mesh_data->animation_data.getNodePositionModelSpace("LeftToe_End", /*use_retarget_adjustment=*/true);
-			conPrint("new_toe_pos: " + new_toe_pos.toStringNSigFigs(4));
-
-			foot_bottom_height = new_toe_pos[1] - 0.03; // Height of foot bottom for avatar with retargetted animation, off ground.
+			grounding = AvatarGrounding::computeGroundingInfo(
+				animation_data,
+				/*use_retarget_adjustment=*/true,
+				AvatarGrounding::kRetargetedToeBottomOffsetM
+			);
+			foot_bottom_height = grounding.foot_bottom_height;
+			avatar_anchor_height = grounding.anchor_height_from_origin;
 
 			conPrint("foot_bottom_height: " + doubleToStringNSigFigs(foot_bottom_height, 4));
+			conPrint("avatar_anchor_height: " + doubleToStringNSigFigs(avatar_anchor_height, 4));
 		}
 
 		// Populate current animation combobox with anim names
@@ -238,9 +242,8 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		preview_gl_ob->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.getAnimationIndex("Idle"));
 		SignalBlocker::setCurrentIndex(animationComboBox, preview_gl_ob->current_anim_i);
 
-		// Construct transformation to bring ready-player-me avatars to z-up and standing on the ground.
-		// We want to translate the avatar down from 1.67 metres in the sky (which is the default substrata eye height), to the ground
-		this->pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -1.67 - foot_bottom_height) * preview_gl_ob->ob_to_world_matrix;
+		// Align the avatar eye level with the camera origin using eye bones when available.
+		this->pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -avatar_anchor_height) * preview_gl_ob->ob_to_world_matrix;
 
 		preview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -foot_bottom_height) * preview_gl_ob->ob_to_world_matrix;
 

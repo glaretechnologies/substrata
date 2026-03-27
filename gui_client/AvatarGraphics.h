@@ -270,6 +270,7 @@ private:
 
 	float upper_right_arm_len, lower_right_arm_len;
 	float upper_left_arm_len, lower_left_arm_len;
+	float avatar_eye_height_above_ground;
 
 	Avatar* avatar;
 	bool our_avatar;

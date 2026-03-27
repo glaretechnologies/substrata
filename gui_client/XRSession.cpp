@@ -2007,6 +2007,8 @@ void XRSession::renderFrame(OpenGLEngine& opengl_engine, const CameraController&
 					GLint prev_viewport[4] = { 0, 0, 0, 0 };
 					glGetIntegerv(GL_VIEWPORT, prev_viewport);
 					const Reference<FrameBuffer> old_target_frame_buffer = opengl_engine.getTargetFrameBuffer();
+					const int old_main_viewport_w = opengl_engine.getMainViewPortWidth();
+					const int old_main_viewport_h = opengl_engine.getMainViewPortHeight();
 
 					opengl_engine.setNearDrawDistance(near_draw_dist);
 					opengl_engine.setMaxDrawDistance(max_draw_dist);
@@ -2072,6 +2074,7 @@ void XRSession::renderFrame(OpenGLEngine& opengl_engine, const CameraController&
 						}
 
 						opengl_engine.setTargetFrameBufferAndViewport(view_swapchain.framebuffers[image_index]);
+						opengl_engine.setMainViewportDims((int)view_swapchain.width, (int)view_swapchain.height);
 
 						Matrix4f world_to_camera_space_matrix;
 						buildWorldToCameraMatrixFromXRPose(state->views[i].pose, effective_orientation_offset, effective_yaw_offset, world_translation, world_to_camera_space_matrix);
@@ -2130,6 +2133,7 @@ void XRSession::renderFrame(OpenGLEngine& opengl_engine, const CameraController&
 
 					opengl_engine.setTargetFrameBuffer(old_target_frame_buffer);
 					opengl_engine.clearProjectionMatrixOverride();
+					opengl_engine.setMainViewportDims(old_main_viewport_w, old_main_viewport_h);
 					opengl_engine.setViewportDims(prev_viewport[2], prev_viewport[3]);
 					glBindFramebuffer(GL_DRAW_FRAMEBUFFER, prev_draw_fbo);
 					glViewport(prev_viewport[0], prev_viewport[1], prev_viewport[2], prev_viewport[3]);
