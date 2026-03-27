@@ -153,6 +153,16 @@ MESSAGE("SDL_BUILD_DIR: ${SDL_BUILD_DIR}")
 SET(USE_SDL OFF CACHE BOOL "Use SDL for client UI instead of Qt")
 MESSAGE("USE_SDL (instead of Qt): ${USE_SDL}")
 
+SET(XR_SUPPORT OFF CACHE BOOL "Enable experimental XR/OpenXR integration for native clients")
+MESSAGE("XR_SUPPORT: ${XR_SUPPORT}")
+
+set(default_openxr_sdk_dir "")
+if(EXISTS "${GLARE_CORE_LIBS_ENV}/OpenXR-SDK-1.1.57/install/cmake/OpenXRConfig.cmake")
+	set(default_openxr_sdk_dir "${GLARE_CORE_LIBS_ENV}/OpenXR-SDK-1.1.57/install")
+endif()
+SET(OPENXR_SDK_DIR "${default_openxr_sdk_dir}" CACHE PATH "Path to installed OpenXR SDK root (contains include/, lib/, cmake/)")
+MESSAGE("OPENXR_SDK_DIR: ${OPENXR_SDK_DIR}")
+
 
 # External library directory (apart from llvm, openssl and Qt)
 set(imathdir	"${GLARE_CORE_TRUNK_DIR_ENV}/Imath")
@@ -299,7 +309,7 @@ ADD_SUBDIRECTORY(server server)
 
 #ADD_SUBDIRECTORY(lightmapper_bot lightmapper_bot)
 
-#ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
+ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
 
 #ADD_SUBDIRECTORY(${SUBSTRATA_PRIVATE_REPO_PATH}/eth_bot eth_bot)
 

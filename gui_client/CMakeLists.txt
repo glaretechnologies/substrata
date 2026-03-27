@@ -9,6 +9,25 @@ endif()
 include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
 
+if(XR_SUPPORT)
+	if(EMSCRIPTEN)
+		message(FATAL_ERROR "XR_SUPPORT is only supported for native builds.")
+	endif()
+
+	if(OPENXR_SDK_DIR STREQUAL "")
+		message(FATAL_ERROR "XR_SUPPORT=ON requires OPENXR_SDK_DIR to point to an installed OpenXR SDK root.")
+	endif()
+
+	if(NOT EXISTS "${OPENXR_SDK_DIR}/cmake/OpenXRConfig.cmake")
+		message(FATAL_ERROR "Could not find OpenXRConfig.cmake in '${OPENXR_SDK_DIR}/cmake'. Please set -DOPENXR_SDK_DIR to an installed OpenXR SDK root.")
+	endif()
+
+	find_package(OpenXR CONFIG REQUIRED PATHS "${OPENXR_SDK_DIR}/cmake" NO_DEFAULT_PATH)
+endif()
+
+# Needed for webcam/* headers that are included as "webcam/..." from within gui_client/webcam sources.
+include_directories(${CMAKE_SOURCE_DIR}/gui_client)
+
 if(NOT EMSCRIPTEN)
 	include(../cmake/winter.cmake)
 endif()
@@ -62,6 +81,7 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client GuiClientApplication)
 	addMocFileRule(gui_client GlWidget)
 	addMocFileRule(gui_client AvatarSettingsDialog)
+	addMocFileRule(gui_client AvatarSettingsWidget)
 	addMocFileRule(gui_client AvatarPreviewWidget)
 	addMocFileRule(gui_client AddObjectDialog)
 	addMocFileRule(gui_client AddVideoDialog)
@@ -80,6 +100,8 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client IndigoView)
 	addMocFileRule(gui_client ShaderEditorDialog)
 	addMocFileRule(gui_client AboutDialog)
+	addMocFileRule(gui_client UpdateDialog)
+	addMocFileRule(gui_client UpdateManager)
 	addMocFileRule(gui_client MainOptionsDialog)
 	addMocFileRule(gui_client MainOptionsDialog)
 	addMocFileRule(gui_client GoToParcelDialog)
@@ -91,6 +113,13 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client TerrainSpecSectionWidget)
 	addMocFileRule(gui_client WorldSettingsWidget)
 	addMocFileRule(gui_client CreateObjectsDialog)
+	addMocFileRule(gui_client VRoidAuthFlow)
+
+	# Webcam Qt UI (Qt Multimedia).  Not built for SDL configurations.
+	addMocFileRule(gui_client/webcam WebcamWindow)
+	addMocFileRule(gui_client/webcam WebcamVideoView)
+	addMocFileRule(gui_client/webcam WebcamControlPanel)
+	addMocFileRule(gui_client/webcam WebcamSettingsDialog)
 
 	addMocFileRule(qt FileSelectWidget)
 	addMocFileRule(qt RealControl)
@@ -101,6 +130,7 @@ if(NOT USE_SDL)
 	addUIFileRule(gui_client AddObjectDialog)
 	addUIFileRule(gui_client AddVideoDialog)
 	addUIFileRule(gui_client AvatarSettingsDialog)
+	addUIFileRule(gui_client AvatarSettingsWidget)
 	addUIFileRule(gui_client MainWindow)
 	addUIFileRule(gui_client ObjectEditor)
 	addUIFileRule(gui_client EnvironmentOptionsWidget)
@@ -251,6 +281,12 @@ ${CMAKE_SOURCE_DIR}/gui_client/URLParser.h
 ${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.h
 ${CMAKE_SOURCE_DIR}/gui_client/VehiclePhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/XRSupport.cpp
+${CMAKE_SOURCE_DIR}/gui_client/XRSupport.h
+${CMAKE_SOURCE_DIR}/gui_client/XRSession.cpp
+${CMAKE_SOURCE_DIR}/gui_client/XRSession.h
+${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamCapture.cpp
+${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamCapture.h
 ${CMAKE_SOURCE_DIR}/gui_client/WebViewData.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/WebViewData.h
 ${CMAKE_SOURCE_DIR}/gui_client/WinterShaderEvaluator.cpp
@@ -300,6 +336,9 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsWidget.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsWidget.h
+		${CMAKE_SOURCE_DIR}/gui_client/AvatarSettingsWidget.ui
 		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/ChangePasswordDialog.ui
@@ -340,6 +379,10 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.h
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.ui
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindowTestCode.txt
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateManager.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/UpdateManager.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.ui
@@ -379,15 +422,29 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.ui
+
+		# Webcam Qt UI (Qt Multimedia).  Not built for SDL configurations.
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamWindow.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamWindow.h
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamVideoView.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamVideoView.h
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamControlPanel.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamControlPanel.h
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamSettingsDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/webcam/WebcamSettingsDialog.h
 	)
 endif()
 
-if(NOT USE_SDL)
+	if(NOT USE_SDL)
 	SET(gui_client ${gui_client}
+	${CMAKE_SOURCE_DIR}/gui_client/VRoidAuthFlow.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/VRoidAuthFlow.h
+
 	${CMAKE_SOURCE_DIR}/gui_client/moc_MainWindow.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GuiClientApplication.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GlWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AddVideoDialog.cpp
@@ -406,6 +463,8 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/moc_IndigoView.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_ShaderEditorDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_UpdateDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_UpdateManager.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GoToPositionDialog.cpp
@@ -416,10 +475,18 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/moc_TerrainSpecSectionWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_WorldSettingsWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_CreateObjectsDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_VRoidAuthFlow.cpp
+
+	# Webcam Qt UI (Qt Multimedia)
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamWindow.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamControlPanel.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamVideoView.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/webcam/moc_WebcamSettingsDialog.cpp
 
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_EnvironmentOptionsWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_ParcelEditor.h
@@ -588,7 +655,7 @@ if(USE_SDL)
 		)
 	else()
 		set(settings
-		${settings}	
+		${settings}
 		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.cpp
 		${GLARE_CORE_TRUNK_DIR_ENV}/settings/RegistrySettingsStore.h
 		)
@@ -621,22 +688,22 @@ if(1)
 	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc
 	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.h
 	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec.h
-	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc                      
-	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.h                       
-	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec.h                                  
-	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec_impl.h                             
-	../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.cc                          
-	../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.h                           
-	../resonance-audio/resonance_audio/ambisonics/ambisonic_spread_coefficients.h                    
-	../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.cc       
-	../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.h        
-	../resonance-audio/resonance_audio/ambisonics/foa_rotator.cc                                     
-	../resonance-audio/resonance_audio/ambisonics/foa_rotator.h                                      
-	../resonance-audio/resonance_audio/ambisonics/hoa_rotator.cc                                     
-	../resonance-audio/resonance_audio/ambisonics/hoa_rotator.h                                      
-	../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.cc                
-	../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.h                 
-	../resonance-audio/resonance_audio/ambisonics/utils.h                                            
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.cc
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_binaural_decoder.h
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec.h
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_codec_impl.h
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.cc
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_lookup_table.h
+	../resonance-audio/resonance_audio/ambisonics/ambisonic_spread_coefficients.h
+	../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.cc
+	../resonance-audio/resonance_audio/ambisonics/associated_legendre_polynomials_generator.h
+	../resonance-audio/resonance_audio/ambisonics/foa_rotator.cc
+	../resonance-audio/resonance_audio/ambisonics/foa_rotator.h
+	../resonance-audio/resonance_audio/ambisonics/hoa_rotator.cc
+	../resonance-audio/resonance_audio/ambisonics/hoa_rotator.h
+	../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.cc
+	../resonance-audio/resonance_audio/ambisonics/stereo_from_soundfield_converter.h
+	../resonance-audio/resonance_audio/ambisonics/utils.h
 	)
 
 	set(res_api
@@ -645,123 +712,123 @@ if(1)
 	)
 
 	set(res_base
-	../resonance-audio/resonance_audio/base/aligned_allocator.h             
-	../resonance-audio/resonance_audio/base/audio_buffer.cc                 
-	../resonance-audio/resonance_audio/base/audio_buffer.h                  
-	../resonance-audio/resonance_audio/base/channel_view.cc                 
-	../resonance-audio/resonance_audio/base/channel_view.h                  
-	../resonance-audio/resonance_audio/base/constants_and_types.h           
-	../resonance-audio/resonance_audio/base/integral_types.h                
-	../resonance-audio/resonance_audio/base/logging.h                       
-	../resonance-audio/resonance_audio/base/misc_math.cc                    
-	../resonance-audio/resonance_audio/base/misc_math.h                     
-	../resonance-audio/resonance_audio/base/object_transform.h              
-	../resonance-audio/resonance_audio/base/simd_macros.h                   
-	../resonance-audio/resonance_audio/base/simd_utils.cc                   
-	../resonance-audio/resonance_audio/base/simd_utils.h                    
-	../resonance-audio/resonance_audio/base/source_parameters.h             
-	../resonance-audio/resonance_audio/base/spherical_angle.cc              
-	../resonance-audio/resonance_audio/base/spherical_angle.h               
-	../resonance-audio/resonance_audio/base/unique_ptr_wrapper.h            
+	../resonance-audio/resonance_audio/base/aligned_allocator.h
+	../resonance-audio/resonance_audio/base/audio_buffer.cc
+	../resonance-audio/resonance_audio/base/audio_buffer.h
+	../resonance-audio/resonance_audio/base/channel_view.cc
+	../resonance-audio/resonance_audio/base/channel_view.h
+	../resonance-audio/resonance_audio/base/constants_and_types.h
+	../resonance-audio/resonance_audio/base/integral_types.h
+	../resonance-audio/resonance_audio/base/logging.h
+	../resonance-audio/resonance_audio/base/misc_math.cc
+	../resonance-audio/resonance_audio/base/misc_math.h
+	../resonance-audio/resonance_audio/base/object_transform.h
+	../resonance-audio/resonance_audio/base/simd_macros.h
+	../resonance-audio/resonance_audio/base/simd_utils.cc
+	../resonance-audio/resonance_audio/base/simd_utils.h
+	../resonance-audio/resonance_audio/base/source_parameters.h
+	../resonance-audio/resonance_audio/base/spherical_angle.cc
+	../resonance-audio/resonance_audio/base/spherical_angle.h
+	../resonance-audio/resonance_audio/base/unique_ptr_wrapper.h
 	)
 
 	set(res_dsp
-	../resonance-audio/resonance_audio/dsp/biquad_filter.cc                                  
-	../resonance-audio/resonance_audio/dsp/biquad_filter.h                                   
-	../resonance-audio/resonance_audio/dsp/channel_converter.cc                              
-	../resonance-audio/resonance_audio/dsp/channel_converter.h                               
-	../resonance-audio/resonance_audio/dsp/circular_buffer.cc                                
-	../resonance-audio/resonance_audio/dsp/circular_buffer.h                                 
-	../resonance-audio/resonance_audio/dsp/delay_filter.cc                                   
-	../resonance-audio/resonance_audio/dsp/delay_filter.h                                    
-	../resonance-audio/resonance_audio/dsp/distance_attenuation.cc                           
-	../resonance-audio/resonance_audio/dsp/distance_attenuation.h                            
-	../resonance-audio/resonance_audio/dsp/fft_manager.cc                                    
-	../resonance-audio/resonance_audio/dsp/fft_manager.h                                     
-	../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.cc                  
-	../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.h                   
-	../resonance-audio/resonance_audio/dsp/fir_filter.cc                                     
-	../resonance-audio/resonance_audio/dsp/fir_filter.h                                      
-	../resonance-audio/resonance_audio/dsp/gain.cc                                           
-	../resonance-audio/resonance_audio/dsp/gain.h                                            
-	../resonance-audio/resonance_audio/dsp/gain_mixer.cc                                     
-	../resonance-audio/resonance_audio/dsp/gain_mixer.h                                      
-	../resonance-audio/resonance_audio/dsp/gain_processor.cc                                 
-	../resonance-audio/resonance_audio/dsp/gain_processor.h                                  
-	../resonance-audio/resonance_audio/dsp/mixer.cc                                          
-	../resonance-audio/resonance_audio/dsp/mixer.h                                           
-	../resonance-audio/resonance_audio/dsp/mono_pole_filter.cc                               
-	../resonance-audio/resonance_audio/dsp/mono_pole_filter.h                                
-	../resonance-audio/resonance_audio/dsp/multi_channel_iir.cc                              
-	../resonance-audio/resonance_audio/dsp/multi_channel_iir.h                               
-	../resonance-audio/resonance_audio/dsp/near_field_processor.cc                           
-	../resonance-audio/resonance_audio/dsp/near_field_processor.h                            
-	../resonance-audio/resonance_audio/dsp/occlusion_calculator.cc                           
-	../resonance-audio/resonance_audio/dsp/occlusion_calculator.h                            
-	../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.cc                         
-	../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.h                          
-	../resonance-audio/resonance_audio/dsp/reflection.h                                      
-	../resonance-audio/resonance_audio/dsp/reflections_processor.cc                          
-	../resonance-audio/resonance_audio/dsp/reflections_processor.h                           
-	../resonance-audio/resonance_audio/dsp/resampler.cc                                      
-	../resonance-audio/resonance_audio/dsp/resampler.h                                       
-	../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.cc                       
-	../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.h                        
-	../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.cc                  
-	../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.h                   
-	../resonance-audio/resonance_audio/dsp/shoe_box_room.cc                                  
-	../resonance-audio/resonance_audio/dsp/shoe_box_room.h                                   
-	../resonance-audio/resonance_audio/dsp/sh_hrir_creator.cc                                
-	../resonance-audio/resonance_audio/dsp/sh_hrir_creator.h                                 
-	../resonance-audio/resonance_audio/dsp/spectral_reverb.cc                                
-	../resonance-audio/resonance_audio/dsp/spectral_reverb.h                                 
-	../resonance-audio/resonance_audio/dsp/spectral_reverb_constants_and_tables.h            
-	../resonance-audio/resonance_audio/dsp/stereo_panner.cc                                  
-	../resonance-audio/resonance_audio/dsp/stereo_panner.h                                   
-	../resonance-audio/resonance_audio/dsp/utils.cc                                          
-	../resonance-audio/resonance_audio/dsp/utils.h                                           
+	../resonance-audio/resonance_audio/dsp/biquad_filter.cc
+	../resonance-audio/resonance_audio/dsp/biquad_filter.h
+	../resonance-audio/resonance_audio/dsp/channel_converter.cc
+	../resonance-audio/resonance_audio/dsp/channel_converter.h
+	../resonance-audio/resonance_audio/dsp/circular_buffer.cc
+	../resonance-audio/resonance_audio/dsp/circular_buffer.h
+	../resonance-audio/resonance_audio/dsp/delay_filter.cc
+	../resonance-audio/resonance_audio/dsp/delay_filter.h
+	../resonance-audio/resonance_audio/dsp/distance_attenuation.cc
+	../resonance-audio/resonance_audio/dsp/distance_attenuation.h
+	../resonance-audio/resonance_audio/dsp/fft_manager.cc
+	../resonance-audio/resonance_audio/dsp/fft_manager.h
+	../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.cc
+	../resonance-audio/resonance_audio/dsp/filter_coefficient_generators.h
+	../resonance-audio/resonance_audio/dsp/fir_filter.cc
+	../resonance-audio/resonance_audio/dsp/fir_filter.h
+	../resonance-audio/resonance_audio/dsp/gain.cc
+	../resonance-audio/resonance_audio/dsp/gain.h
+	../resonance-audio/resonance_audio/dsp/gain_mixer.cc
+	../resonance-audio/resonance_audio/dsp/gain_mixer.h
+	../resonance-audio/resonance_audio/dsp/gain_processor.cc
+	../resonance-audio/resonance_audio/dsp/gain_processor.h
+	../resonance-audio/resonance_audio/dsp/mixer.cc
+	../resonance-audio/resonance_audio/dsp/mixer.h
+	../resonance-audio/resonance_audio/dsp/mono_pole_filter.cc
+	../resonance-audio/resonance_audio/dsp/mono_pole_filter.h
+	../resonance-audio/resonance_audio/dsp/multi_channel_iir.cc
+	../resonance-audio/resonance_audio/dsp/multi_channel_iir.h
+	../resonance-audio/resonance_audio/dsp/near_field_processor.cc
+	../resonance-audio/resonance_audio/dsp/near_field_processor.h
+	../resonance-audio/resonance_audio/dsp/occlusion_calculator.cc
+	../resonance-audio/resonance_audio/dsp/occlusion_calculator.h
+	../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.cc
+	../resonance-audio/resonance_audio/dsp/partitioned_fft_filter.h
+	../resonance-audio/resonance_audio/dsp/reflection.h
+	../resonance-audio/resonance_audio/dsp/reflections_processor.cc
+	../resonance-audio/resonance_audio/dsp/reflections_processor.h
+	../resonance-audio/resonance_audio/dsp/resampler.cc
+	../resonance-audio/resonance_audio/dsp/resampler.h
+	../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.cc
+	../resonance-audio/resonance_audio/dsp/reverb_onset_compensator.h
+	../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.cc
+	../resonance-audio/resonance_audio/dsp/reverb_onset_update_processor.h
+	../resonance-audio/resonance_audio/dsp/shoe_box_room.cc
+	../resonance-audio/resonance_audio/dsp/shoe_box_room.h
+	../resonance-audio/resonance_audio/dsp/sh_hrir_creator.cc
+	../resonance-audio/resonance_audio/dsp/sh_hrir_creator.h
+	../resonance-audio/resonance_audio/dsp/spectral_reverb.cc
+	../resonance-audio/resonance_audio/dsp/spectral_reverb.h
+	../resonance-audio/resonance_audio/dsp/spectral_reverb_constants_and_tables.h
+	../resonance-audio/resonance_audio/dsp/stereo_panner.cc
+	../resonance-audio/resonance_audio/dsp/stereo_panner.h
+	../resonance-audio/resonance_audio/dsp/utils.cc
+	../resonance-audio/resonance_audio/dsp/utils.h
 	)
 
 	set(res_graph
-	../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.cc          
-	../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.h           
-	../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.cc            
-	../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.h             
-	../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.cc          
-	../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.h           
-	../resonance-audio/resonance_audio/graph/buffered_source_node.cc                     
-	../resonance-audio/resonance_audio/graph/buffered_source_node.h                      
-	../resonance-audio/resonance_audio/graph/foa_rotator_node.cc                         
-	../resonance-audio/resonance_audio/graph/foa_rotator_node.h                          
-	../resonance-audio/resonance_audio/graph/gain_mixer_node.cc                          
-	../resonance-audio/resonance_audio/graph/gain_mixer_node.h                           
-	../resonance-audio/resonance_audio/graph/gain_node.cc                                
-	../resonance-audio/resonance_audio/graph/gain_node.h                                 
-	../resonance-audio/resonance_audio/graph/graph_manager.cc                            
-	../resonance-audio/resonance_audio/graph/graph_manager.h                             
-	../resonance-audio/resonance_audio/graph/graph_manager_config.h                      
-	../resonance-audio/resonance_audio/graph/hoa_rotator_node.cc                         
-	../resonance-audio/resonance_audio/graph/hoa_rotator_node.h                          
-	../resonance-audio/resonance_audio/graph/mixer_node.cc                               
-	../resonance-audio/resonance_audio/graph/mixer_node.h                                
-	../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.cc                
-	../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.h                 
-	../resonance-audio/resonance_audio/graph/near_field_effect_node.cc                   
-	../resonance-audio/resonance_audio/graph/near_field_effect_node.h                    
-	../resonance-audio/resonance_audio/graph/occlusion_node.cc                           
-	../resonance-audio/resonance_audio/graph/occlusion_node.h                            
-	../resonance-audio/resonance_audio/graph/reflections_node.cc                         
-	../resonance-audio/resonance_audio/graph/reflections_node.h                          
-	../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.cc                 
-	../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.h                  
-	../resonance-audio/resonance_audio/graph/reverb_node.cc                              
-	../resonance-audio/resonance_audio/graph/reverb_node.h                               
-	../resonance-audio/resonance_audio/graph/source_graph_config.h                       
-	../resonance-audio/resonance_audio/graph/source_parameters_manager.cc                
-	../resonance-audio/resonance_audio/graph/source_parameters_manager.h                 
-	../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.cc                
-	../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.h                 
-	../resonance-audio/resonance_audio/graph/system_settings.h        
+	../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.cc
+	../resonance-audio/resonance_audio/graph/ambisonic_binaural_decoder_node.h
+	../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.cc
+	../resonance-audio/resonance_audio/graph/ambisonic_mixing_encoder_node.h
+	../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.cc
+	../resonance-audio/resonance_audio/graph/binaural_surround_renderer_impl.h
+	../resonance-audio/resonance_audio/graph/buffered_source_node.cc
+	../resonance-audio/resonance_audio/graph/buffered_source_node.h
+	../resonance-audio/resonance_audio/graph/foa_rotator_node.cc
+	../resonance-audio/resonance_audio/graph/foa_rotator_node.h
+	../resonance-audio/resonance_audio/graph/gain_mixer_node.cc
+	../resonance-audio/resonance_audio/graph/gain_mixer_node.h
+	../resonance-audio/resonance_audio/graph/gain_node.cc
+	../resonance-audio/resonance_audio/graph/gain_node.h
+	../resonance-audio/resonance_audio/graph/graph_manager.cc
+	../resonance-audio/resonance_audio/graph/graph_manager.h
+	../resonance-audio/resonance_audio/graph/graph_manager_config.h
+	../resonance-audio/resonance_audio/graph/hoa_rotator_node.cc
+	../resonance-audio/resonance_audio/graph/hoa_rotator_node.h
+	../resonance-audio/resonance_audio/graph/mixer_node.cc
+	../resonance-audio/resonance_audio/graph/mixer_node.h
+	../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.cc
+	../resonance-audio/resonance_audio/graph/mono_from_soundfield_node.h
+	../resonance-audio/resonance_audio/graph/near_field_effect_node.cc
+	../resonance-audio/resonance_audio/graph/near_field_effect_node.h
+	../resonance-audio/resonance_audio/graph/occlusion_node.cc
+	../resonance-audio/resonance_audio/graph/occlusion_node.h
+	../resonance-audio/resonance_audio/graph/reflections_node.cc
+	../resonance-audio/resonance_audio/graph/reflections_node.h
+	../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.cc
+	../resonance-audio/resonance_audio/graph/resonance_audio_api_impl.h
+	../resonance-audio/resonance_audio/graph/reverb_node.cc
+	../resonance-audio/resonance_audio/graph/reverb_node.h
+	../resonance-audio/resonance_audio/graph/source_graph_config.h
+	../resonance-audio/resonance_audio/graph/source_parameters_manager.cc
+	../resonance-audio/resonance_audio/graph/source_parameters_manager.h
+	../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.cc
+	../resonance-audio/resonance_audio/graph/stereo_mixing_panner_node.h
+	../resonance-audio/resonance_audio/graph/system_settings.h
 	)
 
 	set(res_config
@@ -784,54 +851,54 @@ if(1)
 
 	set(res_platforms
 	../resonance-audio/platforms/common/common_utils.cc
-	../resonance-audio/platforms/common/room_effects_utils.cc         
-	../resonance-audio/platforms/common/room_effects_utils.h          
-	../resonance-audio/platforms/common/room_properties.h             
-	../resonance-audio/platforms/common/utils.h                       
+	../resonance-audio/platforms/common/room_effects_utils.cc
+	../resonance-audio/platforms/common/room_effects_utils.h
+	../resonance-audio/platforms/common/room_properties.h
+	../resonance-audio/platforms/common/utils.h
 	)
 
 	set(res_node
-	../resonance-audio/resonance_audio/node/node.h                
-	../resonance-audio/resonance_audio/node/processing_node.cc    
-	../resonance-audio/resonance_audio/node/processing_node.h     
-	../resonance-audio/resonance_audio/node/publisher_node.h      
-	../resonance-audio/resonance_audio/node/sink_node.cc          
-	../resonance-audio/resonance_audio/node/sink_node.h           
-	../resonance-audio/resonance_audio/node/source_node.cc        
-	../resonance-audio/resonance_audio/node/source_node.h         
-	../resonance-audio/resonance_audio/node/subscriber_node.h     
+	../resonance-audio/resonance_audio/node/node.h
+	../resonance-audio/resonance_audio/node/processing_node.cc
+	../resonance-audio/resonance_audio/node/processing_node.h
+	../resonance-audio/resonance_audio/node/publisher_node.h
+	../resonance-audio/resonance_audio/node/sink_node.cc
+	../resonance-audio/resonance_audio/node/sink_node.h
+	../resonance-audio/resonance_audio/node/source_node.cc
+	../resonance-audio/resonance_audio/node/source_node.h
+	../resonance-audio/resonance_audio/node/subscriber_node.h
 	)
 
 	set(res_utils
-	../resonance-audio/resonance_audio/utils/buffer_crossfader.cc                            
-	../resonance-audio/resonance_audio/utils/buffer_crossfader.h                             
-	../resonance-audio/resonance_audio/utils/buffer_partitioner.cc                           
-	../resonance-audio/resonance_audio/utils/buffer_partitioner.h                            
-	../resonance-audio/resonance_audio/utils/buffer_unpartitioner.cc                         
-	../resonance-audio/resonance_audio/utils/buffer_unpartitioner.h                          
-	../resonance-audio/resonance_audio/utils/lockless_task_queue.cc                          
-	../resonance-audio/resonance_audio/utils/lockless_task_queue.h                           
-	#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.cc                          
-	#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.h                           
-	../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.cc                
-	../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.h                 
-	../resonance-audio/resonance_audio/utils/pseudoinverse.h                                 
-	../resonance-audio/resonance_audio/utils/sample_type_conversion.cc                       
-	../resonance-audio/resonance_audio/utils/sample_type_conversion.h                        
-	../resonance-audio/resonance_audio/utils/semi_lockless_fifo.h                            
-	../resonance-audio/resonance_audio/utils/sum_and_difference_processor.cc                 
-	../resonance-audio/resonance_audio/utils/sum_and_difference_processor.h                  
-	../resonance-audio/resonance_audio/utils/task_thread_pool.cc                             
-	../resonance-audio/resonance_audio/utils/task_thread_pool.h                              
-	#../resonance-audio/resonance_audio/utils/test_util.cc                                    
-	#../resonance-audio/resonance_audio/utils/test_util.h                                     
-	../resonance-audio/resonance_audio/utils/threadsafe_fifo.h                               
-	#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.cc                        
-	#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.h                         
-	../resonance-audio/resonance_audio/utils/wav.cc                                          
-	../resonance-audio/resonance_audio/utils/wav.h                                           
-	../resonance-audio/resonance_audio/utils/wav_reader.cc                                   
-	../resonance-audio/resonance_audio/utils/wav_reader.h       
+	../resonance-audio/resonance_audio/utils/buffer_crossfader.cc
+	../resonance-audio/resonance_audio/utils/buffer_crossfader.h
+	../resonance-audio/resonance_audio/utils/buffer_partitioner.cc
+	../resonance-audio/resonance_audio/utils/buffer_partitioner.h
+	../resonance-audio/resonance_audio/utils/buffer_unpartitioner.cc
+	../resonance-audio/resonance_audio/utils/buffer_unpartitioner.h
+	../resonance-audio/resonance_audio/utils/lockless_task_queue.cc
+	../resonance-audio/resonance_audio/utils/lockless_task_queue.h
+	#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.cc
+	#../resonance-audio/resonance_audio/utils/ogg_vorbis_recorder.h
+	../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.cc
+	../resonance-audio/resonance_audio/utils/planar_interleaved_conversion.h
+	../resonance-audio/resonance_audio/utils/pseudoinverse.h
+	../resonance-audio/resonance_audio/utils/sample_type_conversion.cc
+	../resonance-audio/resonance_audio/utils/sample_type_conversion.h
+	../resonance-audio/resonance_audio/utils/semi_lockless_fifo.h
+	../resonance-audio/resonance_audio/utils/sum_and_difference_processor.cc
+	../resonance-audio/resonance_audio/utils/sum_and_difference_processor.h
+	../resonance-audio/resonance_audio/utils/task_thread_pool.cc
+	../resonance-audio/resonance_audio/utils/task_thread_pool.h
+	#../resonance-audio/resonance_audio/utils/test_util.cc
+	#../resonance-audio/resonance_audio/utils/test_util.h
+	../resonance-audio/resonance_audio/utils/threadsafe_fifo.h
+	#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.cc
+	#../resonance-audio/resonance_audio/utils/vorbis_stream_encoder.h
+	../resonance-audio/resonance_audio/utils/wav.cc
+	../resonance-audio/resonance_audio/utils/wav.h
+	../resonance-audio/resonance_audio/utils/wav_reader.cc
+	../resonance-audio/resonance_audio/utils/wav_reader.h
 	)
 
 
@@ -1068,7 +1135,7 @@ if(APPLE)
 	# Plist stuff.
 	SET(MACOSX_BUNDLE_ICON_FILE Cyberspace.icns)
 	SET(MACOSX_BUNDLE_COPYRIGHT "Copyright 2022 Glare Technologies Ltd.")
-	SET(MACOSX_BUNDLE_BUNDLE_NAME "Substrata")
+	SET(MACOSX_BUNDLE_BUNDLE_NAME "Metasiberia Beta")
 	SET(MACOSX_BUNDLE_BUNDLE_VERSION "${SUBSTRATA_VERSION}")
 	SET(MACOSX_BUNDLE_SHORT_VERSION_STRING "${SUBSTRATA_VERSION}")
 	SET(MACOSX_BUNDLE_GUI_IDENTIFIER com.glaretechnologies.substrata)
@@ -1132,23 +1199,27 @@ ${settings}
 
 add_definitions(-DGUI_CLIENT=1)
 
+if(XR_SUPPORT)
+	add_definitions(-DXR_SUPPORT=1)
+endif()
+
 include(../cmake/shared_target_settings.cmake)
 
 if(USE_SDL)
 	include_directories(${SDL_BUILD_DIR}/include/SDL2)
-	
+
 	if(WIN32)
 		include_directories(${SDL_BUILD_DIR}/include-config-release/SDL2) # For SDL_config.h.  NOTE: SDL_config.h seems to be the same for both Debug and Release configs, at least on Windows.
 	else()
 		include_directories(${SDL_BUILD_DIR}/include-config-/SDL2)
 	endif()
-	
+
 	add_definitions(-DUSE_SDL=1)
 else()
 	# Else use Qt:
 	add_definitions(-DUSE_QT=1)
 endif()
-	
+
 
 if(EMSCRIPTEN)
 	target_link_libraries(${CURRENT_TARGET}
@@ -1156,9 +1227,9 @@ if(EMSCRIPTEN)
 		Jolt # Jolt physics
 		Opus
 	)
-	
+
 	# Note that a bunch of Emscripten C++ options are set in shared_cxx_settings.cmake as well.
-	
+
 	# Emscripten worker threads:
 	# --------------------------
 	# main_task_manager:							8
@@ -1170,9 +1241,9 @@ if(EMSCRIPTEN)
 	# StreamerThread								1
 	# UploadResourceThread							1
 	# GarbageDeleterThread							1
-	# 
+	#
 	# Total:										30
-	
+
 	target_link_options(${CURRENT_TARGET} PRIVATE
 		"-sMIN_WEBGL_VERSION=2"
 		"-sMAX_WEBGL_VERSION=2"
@@ -1186,41 +1257,41 @@ if(EMSCRIPTEN)
 		"-sPTHREAD_POOL_SIZE=30" # See calculation above
 		"-sSTACK_SIZE=262144"
 		"-sEXPORTED_RUNTIME_METHODS=ccall" # Needed to be able to call into C++ from JS.  Used in emscripten_browser_clipboard.
-		"-sEXPORTED_FUNCTIONS=_processFilePickerFile,_malloc,_free,_main"
+		"-sEXPORTED_FUNCTIONS=_processAvatarModelFile,_processGestureAnimationFile,_malloc,_free,_main"
 		"-lwebsocket.js" # To use emscripten websockets API: https://emscripten.org/docs/porting/networking.html#emscripten-websockets-api
 		--use-preload-cache # Cache the preloaded data in IndexedDB for subsequent page visits.
 		--preload-file data # Use preloaded data, read it from the 'data' directory in the Emscripten build dir.
 	)
-	
+
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_DEPENDS "data")
-	
+
 elseif(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
-	
+
 	if((NOT FUZZING) AND (NOT (USE_SANITIZER STREQUAL "")))
 		SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/ZI") # ZI = Set debug info format to 'Program Database for Edit & Continue'  for debug builds.
 		# It slows down the code too much to use for RelWithDebInfo builds.
 	endif()
-	
+
 	if(NOT (USE_SANITIZER STREQUAL ""))
 		# To avoid "cl : command line  error D8016: '/ZI' and '/fsanitize=address' command-line options are incompatible"
-		SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/Zi") 
-		SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/Zi") 
-		SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	/Zi") 
+		SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/Zi")
+		SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/Zi")
+		SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	/Zi")
 	endif()
-	
-	
-	
+
+
+
 	# Enable Tracy profiler for RELEASE and RELWITHDEBINFO configs.  Can't enable for Debug config because it clashes with Edit & Continue (/ZI).
 	if(TRACY_ENABLED)
 		add_definitions(-DTRACY_ENABLE=1)
 	endif()
-	
+
 	if(BUGSPLAT_SUPPORT)
 		add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
 	endif()
-		
+
 	if(CEF_SUPPORT)
 		add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
 	endif()
@@ -1229,41 +1300,41 @@ elseif(WIN32)
 		OpenGL32
 
 		# Media foundation video reading:
-		mfplat.lib 
-		mfreadwrite.lib 
+		mfplat.lib
+		mfreadwrite.lib
 		mfuuid.lib
 		Mf.lib
 		d3d11.lib
 		DXGI.lib
-		
+
 		# RtAudio:
 		ole32
-		winmm 
+		winmm
 		dsound
-		
+
 		# Jolt physics
 		Jolt
-		
+
 		Opus
 	)
-	
+
 	if(INDIGO_SUPPORT)
 		target_link_libraries(${CURRENT_TARGET}
 			debug 		C:/programming/indigo/output/vs2022/indigo_x64/Debug/indigo_sdk_lib.lib
 			optimized 	C:/programming/indigo/output/vs2022/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
 		)
 	endif()
-	
+
 	if(USE_SDL)
 		target_link_libraries(${CURRENT_TARGET}
-			debug "${SDL_BUILD_DIR}/Debug/SDL2d.lib" 
-			debug "${SDL_BUILD_DIR}/Debug/SDL2maind.lib" 
-			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2.lib" 
-			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2main.lib" 
+			debug "${SDL_BUILD_DIR}/Debug/SDL2d.lib"
+			debug "${SDL_BUILD_DIR}/Debug/SDL2maind.lib"
+			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2.lib"
+			optimized "${SDL_BUILD_DIR}/RelWithDebInfo/SDL2main.lib"
 		)
 	else() # Else use Qt:
 		target_link_libraries(${CURRENT_TARGET}
-		
+
 				# Qt 6:
 		#	optimized Qt6Gui
 		#	optimized Qt6Core
@@ -1277,34 +1348,40 @@ elseif(WIN32)
 		#	debug Qt6Widgetsd
 		#	debug Qt6OpenGLWidgetsd
 		#	debug Qt6Core5Compatd
-			
+
 			# Qt 5:
 			optimized qtmain
 			optimized Qt5Gui
 			optimized Qt5Core
 			optimized Qt5OpenGL
 			optimized Qt5Widgets
+			optimized Qt5Multimedia
+			optimized Qt5MultimediaWidgets
+			optimized Qt5Network
 			optimized Qt5Gamepad
 			debug qtmaind
 			debug Qt5Guid
 			debug Qt5Cored
 			debug Qt5OpenGLd
 			debug Qt5Widgetsd
+			debug Qt5Multimediad
+			debug Qt5MultimediaWidgetsd
+			debug Qt5Networkd
 			debug Qt5Gamepadd
 		)
 	endif()
-	
+
 	# Chromium embedded framework
 	if(CEF_SUPPORT)
 		target_link_libraries(${CURRENT_TARGET}
 			debug 		${cef_binary_dist_dir}/Debug/libcef.lib
 			optimized 	${cef_binary_dist_dir}/Release/libcef.lib
-			
+
 			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Debug/libcef_dll_wrapper.lib
 			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib
 		)
 	endif()
-	
+
 	if(BUGSPLAT_SUPPORT)
 		target_link_libraries(${CURRENT_TARGET}
 			optimized ${GLARE_CORE_LIBS_ENV}/BugSplat/BugSplat/x64/Release/BugSplat64.lib
@@ -1319,21 +1396,21 @@ elseif(WIN32)
 			debug "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MDd.lib"
 		)
 	endif()
-	
+
 	# target_link_options(${CURRENT_TARGET} PRIVATE "/SUBSYSTEM:CONSOLE")
 
 	# Disable ASLR (/DYNAMICBASE)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} /DYNAMICBASE:NO")
 elseif(APPLE)
-	
+
 	if(CEF_SUPPORT)
 		add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
 	endif()
 
 	add_definitions(-D__MACOSX_CORE__) # Add CoreAudio config choice define for RTAudio
 	add_definitions(-DGL_SILENCE_DEPRECATION) # Tell Mac to shut up about OpenGL being deprecated
-	
+
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
 	if(CEF_SUPPORT)
@@ -1341,12 +1418,12 @@ elseif(APPLE)
 			# Chromium embedded framework
 			#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
 			#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
-			
+
 			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 		)
 	endif()
-	
+
 	if(USE_SDL)
 		target_link_libraries(${CURRENT_TARGET} PRIVATE
 			${SDL_BUILD_DIR}/libSDL2.a
@@ -1354,7 +1431,7 @@ elseif(APPLE)
 			iconv
 		)
 	endif()
-	
+
 	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		Jolt # Jolt physics
 		Opus
@@ -1362,19 +1439,19 @@ elseif(APPLE)
 	)
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
- 
+
 	if(USE_SDL)
 		set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework Cocoa -framework IOKit -framework GameController -framework CoreHaptics -framework CoreVideo -framework ForceFeedback -framework Carbon -framework Metal")
 	else()
 		# Qt 5:
 		set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtMultimedia -framework OpenGL -framework QtGamepad -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox")
-	 
+
 		#Qt 6:
 		 #set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtOpenGLWidgets -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework QtCore5Compat")
 	endif()
-	
+
      #add_dependencies(${CURRENT_TARGET} "gui_client Helper.app")
-     
+
 else() # linux
 
 	if(CEF_SUPPORT)
@@ -1383,6 +1460,12 @@ else() # linux
 
 	add_definitions(-D__LINUX_PULSE__) # Add config choice define for RTAudio
 
+	if(USE_SDL)
+		target_link_libraries(${CURRENT_TARGET} PRIVATE
+			SDL2
+		)
+	endif()
+
 	target_link_libraries(${CURRENT_TARGET} PRIVATE
 		GL
 		Qt5Gui
@@ -1390,6 +1473,7 @@ else() # linux
 		Qt5OpenGL
 		Qt5Widgets
 		Qt5Multimedia
+		Qt5MultimediaWidgets
 		Qt5Network
 		Qt5Gamepad
 		dl
@@ -1399,7 +1483,7 @@ else() # linux
 		Jolt # Jolt physics
 		Opus
 	)
-	
+
 	if(CEF_SUPPORT)
 		target_link_libraries(${CURRENT_TARGET} PRIVATE
 			${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
@@ -1407,8 +1491,12 @@ else() # linux
 			debug		${cef_binary_dist_dir}/Debug/libcef.so
 			optimized	${cef_binary_dist_dir}/Release/libcef.so
 		)
-	endif()	
+	endif()
 
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN/lib'")
+endif()
+
+if(XR_SUPPORT)
+	target_link_libraries(${CURRENT_TARGET} OpenXR::openxr_loader)
 endif()

@@ -11,18 +11,23 @@ Copyright Glare Technologies Limited 2024 -
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
+#include "UpdateDialog.h"
+#include "UpdateManager.h"
 #include "CreateObjectsDialog.h"
+#include "webcam/WebcamWindow.h"
 #include "ClientThread.h"
 #include "GoToPositionDialog.h"
 #include "LogWindow.h"
 #include "UserDetailsWidget.h"
 #include "AvatarSettingsDialog.h"
+#include "AvatarSettingsWidget.h"
 #include "AddObjectDialog.h"
 #include "AddVideoDialog.h"
 #include "MainOptionsDialog.h"
 #include "FindObjectDialog.h"
 #include "ListObjectsNearbyDialog.h"
 #include "ModelLoading.h"
+#include "EmojiUtils.h"
 #include "TestSuite.h"
 #include "TerrainSystem.h"
 #include "GuiClientApplication.h"
@@ -46,12 +51,32 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
 #include <QtCore/QLoggingCategory>
+#include <QtCore/QTimer>
+#include <QtGui/QContextMenuEvent>
 #include <QtGui/QMouseEvent>
+#include <QtGui/QPixmap>
+#include <QtWidgets/QAction>
 #include <QtGui/QClipboard>
 #include <QtGui/QDesktopServices>
+#include <QtGui/QFont>
+#include <QtGui/QGuiApplication>
 #include <QtWidgets/QFileDialog>
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QMenu>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
+#include <QtWidgets/QInputDialog>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QFrame>
+#include <QtWidgets/QGridLayout>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QScrollArea>
+#include <QtWidgets/QTabWidget>
+#include <QtWidgets/QTabBar>
+#include <QtWidgets/QToolButton>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QWidget>
+#include <QtGui/QScreen>
 #include <QtGamepad/QGamepadManager>
 #include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
@@ -72,8 +97,10 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/FileChecksum.h"
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
+#include <algorithm>
 #include "../utils/IndigoXMLDoc.h"
 #include "../utils/LimitedAllocator.h"
+#include <Escaping.h>
 #include "../networking/MySocket.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
@@ -135,12 +162,19 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	run_as_screenshot_slave(false),
 	taking_map_screenshot(false),
 	test_screenshot_taking(false),
+	screenshot_target_worldname_set(false),
 	running_destructor(false),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	settings(NULL),
 	user_details(NULL),
 	ui(NULL),
-	minidump_sender(NULL)
+	minidump_sender(NULL),
+	update_manager(NULL),
+	chat_emoji_popup(NULL),
+	chat_emoji_tab_widget(NULL),
+	webcam_window(NULL)
+	,avatar_dock_widget(NULL)
+	,avatar_settings_widget(NULL)
 	//game_controller(NULL)
 {
 	ZoneScoped; // Tracy profiler
@@ -186,7 +220,44 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 static std::string computeWindowTitle()
 {
-	return "Substrata v" + ::cyberspace_version;
+	return "Metasiberia Beta v" + ::cyberspace_version;
+}
+
+
+static std::string canonicalHostForMetasiberia(const std::string& host)
+{
+	if(host == "89.104.70.23")
+		return "vr.metasiberia.com";
+
+	return host;
+}
+
+
+static std::string canonicaliseMetasiberiaSubURLHost(const std::string& url)
+{
+	if(!hasPrefix(url, "sub://"))
+		return url;
+
+	const size_t host_start = 6; // After "sub://"
+	const size_t host_end = url.find_first_of("/?", host_start);
+	const std::string host_port = (host_end == std::string::npos) ? url.substr(host_start) : url.substr(host_start, host_end - host_start);
+
+	std::string host = host_port;
+	std::string port_suffix;
+
+	const size_t colon_pos = host_port.find(':');
+	if(colon_pos != std::string::npos)
+	{
+		host = host_port.substr(0, colon_pos);
+		port_suffix = host_port.substr(colon_pos);
+	}
+
+	const std::string canonical_host = canonicalHostForMetasiberia(host);
+	if(canonical_host == host)
+		return url;
+
+	const std::string tail = (host_end == std::string::npos) ? std::string() : url.substr(host_end);
+	return std::string("sub://") + canonical_host + port_suffix + tail;
 }
 
 
@@ -212,7 +283,7 @@ void MainWindow::startMainTimer()
 
 #ifdef OSX
 	// Set to at least 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
-	use_interval = myMax(use_interval, 17); 
+	use_interval = myMax(use_interval, 17);
 #endif
 
 	main_timer_id = startTimer(use_interval);
@@ -231,20 +302,78 @@ void MainWindow::initialiseUI()
 		ui->setupUi(this);
 	}
 
+	// Keep favorites menu up to date (actions are rebuilt on-demand when the menu opens).
+	if(ui->menuGo_to_Favorites)
+	{
+		connect(ui->menuGo_to_Favorites, &QMenu::aboutToShow, this, &MainWindow::updateFavoritesMenu);
+		ui->menuGo_to_Favorites->installEventFilter(this); // For right-click context menu (rename/delete).
+	}
+
+	// Replace webcam dock content with full WebcamWindow (camera list, settings, etc.) before restoreState.
+	// If it fails for any reason, keep the existing simple webcam UI (label + checkbox) as a fallback.
+	webcam_window = NULL;
+	try
+	{
+		webcam_window = new WebcamWindow(this);
+		ui->webcamDockWidget->setWidget(webcam_window);
+	}
+	catch(glare::Exception& e)
+	{
+		logMessage("Webcam window init failed: " + std::string(e.what()) + " (using simple webcam UI)");
+		webcam_window = NULL;
+	}
+	catch(...)
+	{
+		logMessage("Webcam window init failed (unknown exception) (using simple webcam UI)");
+		webcam_window = NULL;
+	}
+
 	setAcceptDrops(true);
+
+	// --- Update manager (GitHub Releases) ---
+	update_manager = new UpdateManager(this);
+	connect(update_manager, &UpdateManager::updateCheckFinished, this, &MainWindow::onUpdateCheckFinished);
+	connect(update_manager, &UpdateManager::updateAvailabilityChanged, this, &MainWindow::onUpdateAvailabilityChanged);
+
+	// Kick off an async update check once the event loop is running.
+	QTimer::singleShot(1500, this, [this]() {
+		if(update_manager)
+			update_manager->checkForUpdatesAsync(/*force=*/true);
+	});
 
 	update_ob_editor_transform_timer = new QTimer(this);
 	update_ob_editor_transform_timer->setSingleShot(true);
 	connect(update_ob_editor_transform_timer, SIGNAL(timeout()), this, SLOT(updateObjectEditorObTransformSlot()));
 
+	// Avatar settings dock (replaces the old modal dialog).
+	avatar_dock_widget = new QDockWidget(tr("Avatar Settings"), this);
+	avatar_dock_widget->setObjectName("avatarDockWidget");
+	avatar_dock_widget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+
+	avatar_settings_widget = new AvatarSettingsWidget(
+		avatar_dock_widget,
+		this->base_dir_path,
+		this->settings,
+		gui_client.resource_manager,
+		&gui_client.animation_manager,
+		&gui_client,
+		[this]() { ui->glWidget->makeCurrent(); }
+	);
+	avatar_dock_widget->setWidget(avatar_settings_widget);
+	addDockWidget(Qt::LeftDockWidgetArea, avatar_dock_widget);
+	avatar_dock_widget->hide();
+	connect(avatar_settings_widget, SIGNAL(requestClose()), avatar_dock_widget, SLOT(hide()));
+
 	// Add dock widgets to Window menu
 	ui->menuWindow->addSeparator();
 	ui->menuWindow->addAction(ui->editorDockWidget->toggleViewAction());
+	ui->menuWindow->addAction(avatar_dock_widget->toggleViewAction());
 	ui->menuWindow->addAction(ui->materialBrowserDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->environmentDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->worldSettingsDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->chatDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->helpInfoDockWidget->toggleViewAction());
+	ui->menuWindow->addAction(ui->webcamDockWidget->toggleViewAction());
 #if INDIGO_SUPPORT
 	ui->menuWindow->addAction(ui->indigoViewDockWidget->toggleViewAction());
 #endif
@@ -252,11 +381,11 @@ void MainWindow::initialiseUI()
 
 
 	// Always disable MDI for now, seems to be slower in general in Substrata
-	// 
+	//
 	// 	-u sub://substrata.info/?x=-1.3&y=-5.1&z=1.67&heading=85.3
 	// -------------------------------------------------------------
 	// 1.67 ms CPU, 6.06 ms GPU
-	// 
+	//
 	// -u sub://substrata.info/?x=-1.3&y=-5.1&z=1.67&heading=85.3  --no_MDI
 	// -------------------------------------------------------------
 	// 2.18 ms CPU, 4.53 ms GPU
@@ -346,6 +475,51 @@ void MainWindow::initialiseUI()
 	ui->environmentOptionsWidget->init(settings);
 	connect(ui->environmentOptionsWidget, SIGNAL(settingChanged()), this, SLOT(environmentSettingChangedSlot()));
 
+	// Apply initial Northern Lights checkbox state to the active Qt scene.
+	if(ui->glWidget->opengl_engine.nonNull() && ui->glWidget->opengl_engine->getCurrentScene())
+	{
+		const bool northern_lights_enabled = ui->environmentOptionsWidget->getNorthernLightsEnabled();
+		ui->glWidget->opengl_engine->getCurrentScene()->draw_aurora = northern_lights_enabled;
+	}
+
+	if(ui->chatEmojiButton)
+	{
+		QFont emoji_font = ui->chatEmojiButton->font();
+#if defined(_WIN32)
+		emoji_font.setFamily("Segoe UI Emoji");
+#endif
+		emoji_font.setPixelSize(22);
+		ui->chatEmojiButton->setFont(emoji_font);
+		ui->chatEmojiButton->setText(QtUtils::toQString(EmojiUtils::pickerButtonLabel()));
+
+		chat_emoji_popup = new QDialog(this, Qt::Popup);
+		chat_emoji_popup->setWindowTitle(QtUtils::toQString(std::string("\xD0\xAD\xD0\xBC\xD0\xBE\xD0\xB4\xD0\xB7\xD0\xB8")));
+		chat_emoji_popup->setObjectName("chatEmojiPopup");
+		chat_emoji_popup->setStyleSheet(
+			"QDialog#chatEmojiPopup { background: #f3f5f8; border: 1px solid #d7dde5; }"
+			"QTabWidget::pane { border: 1px solid #d7dde5; background: #f3f5f8; top: -1px; }"
+			"QTabBar::tab { background: #e8edf4; color: #2b3442; padding: 10px 12px; margin-right: 2px; border: 1px solid #d7dde5; border-bottom: none; min-width: 92px; }"
+			"QTabBar::tab:selected { background: #ffffff; color: #111827; }"
+			"QScrollArea { border: none; background: transparent; }"
+		);
+		QVBoxLayout* popup_layout = new QVBoxLayout(chat_emoji_popup);
+		chat_emoji_popup->setWindowTitle(QtUtils::toQString(std::string("\xD0\xAD\xD0\xBC\xD0\xBE\xD0\xB4\xD0\xB7\xD0\xB8")));
+		popup_layout->setContentsMargins(12, 12, 12, 12);
+		popup_layout->setSpacing(10);
+
+		chat_emoji_tab_widget = new QTabWidget(chat_emoji_popup);
+		chat_emoji_tab_widget->setDocumentMode(true);
+		chat_emoji_tab_widget->tabBar()->setExpanding(true);
+		chat_emoji_tab_widget->tabBar()->setUsesScrollButtons(false);
+		chat_emoji_tab_widget->setMinimumSize(900, 700);
+		popup_layout->addWidget(chat_emoji_tab_widget);
+
+		rebuildChatEmojiPopupContents();
+		chat_emoji_popup->setMinimumSize(940, 780);
+		chat_emoji_popup->resize(940, 780);
+		connect(ui->chatEmojiButton, &QToolButton::clicked, this, &MainWindow::toggleChatEmojiPopup);
+	}
+
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->glWidget, SIGNAL(mousePressed(QMouseEvent*)), this, SLOT(glWidgetMousePressed(QMouseEvent*)));
@@ -393,7 +567,7 @@ void MainWindow::initialiseUI()
 	ui->parcelEditor->hide();
 
 	startMainTimer();
-	
+
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 	ui->infoDockWidget->hide();
 
@@ -433,7 +607,7 @@ void MainWindow::initialiseUI()
 			throw glare::Exception("GetAdapter failed: " + PlatformUtils::COMErrorString(hr));
 		DXGI_ADAPTER_DESC desc;
 		adapter->GetDesc(&desc);
-		logMessage("Direct3D device adapter: " + StringUtils::PlatformToUTF8UnicodeEncoding(desc.Description) + ", LUID: {" + toString((uint32)desc.AdapterLuid.LowPart) + ", " + toString((int32)desc.AdapterLuid.HighPart) + "}");
+		logMessage("Direct3D device adapter: " + StringUtils::PlatformToUTF8UnicodeEncoding(desc.Description) + ", LUID: {" + toString((uint32)desc.AdapterLuid.LowPart) + ", " + toString(desc.AdapterLuid.HighPart) + "}");
 	}
 #endif //_WIN32
 
@@ -513,7 +687,16 @@ void MainWindow::afterGLInitInitialise()
 {
 	ZoneScoped; // Tracy profiler
 
-	
+	// Ensure main GL context is current while creating GL resources (UI textures, etc).
+	// If resources are created against the wrong Qt GL context, rendering can corrupt into black quads.
+	ui->glWidget->makeCurrent();
+	struct DoneCurrent
+	{
+		GlWidget* w;
+		~DoneCurrent() { if(w) w->doneCurrent(); }
+	} done_current{ ui->glWidget };
+
+
 	if(settings->value("mainwindow/flyMode", QVariant(false)).toBool())
 	{
 		ui->actionFly_Mode->setChecked(true);
@@ -535,7 +718,7 @@ void MainWindow::afterGLInitInitialise()
 #else
 		// Linux:
 		const std::string font_path       = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
-		const std::string emoji_font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf"; 
+		const std::string emoji_font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
 #endif
 
 	TextRendererRef text_renderer = new TextRenderer();
@@ -620,7 +803,7 @@ MainWindow::~MainWindow()
 
 	delete ui;
 	ui = nullptr;
-	
+
 	settings_store = nullptr;
 	// NOTE: can't delete settings here as some widget destructors access it after here.
 }
@@ -885,12 +1068,14 @@ void MainWindow::showEditorDockWidget()
 
 void MainWindow::setObjectEditorControlsEditable(bool editable)
 {
+	ui->objectEditor->setTextFontFeatureSupported(gui_client.server_protocol_version >= 51);
 	ui->objectEditor->setControlsEditable(editable);
 }
 
 
 void MainWindow::setObjectEditorFromOb(const WorldObject& ob, int selected_mat_index, bool ob_in_editing_users_world)
 {
+	ui->objectEditor->setTextFontFeatureSupported(gui_client.server_protocol_version >= 51);
 	ui->objectEditor->setFromObject(ob, selected_mat_index, ob_in_editing_users_world);
 }
 
@@ -1061,7 +1246,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(closing || in_CEF_message_loop)
 		return;
 
-	// We don't want to do the closeEvent stuff in the CEF message loop.  
+	// We don't want to do the closeEvent stuff in the CEF message loop.
 	// If we got a close event in there, handle it now when we're in the main message loop, and not the CEF message loop.
 	assert(!in_CEF_message_loop);
 	if(should_close)
@@ -1111,17 +1296,41 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	mouse_cursor_state.ctrl_key_down = ctrl_key_down;
 	gui_client.timerEvent(mouse_cursor_state);
 
+	// Update webcam dock (Qt).
+	// Legacy path only (simple UI).  If WebcamWindow is active, it owns its own preview.
+	if(!webcam_window && ui->webcamDockWidget->isVisible())
+	{
+		if(ui->webcamEnableCheckBox->isChecked())
+		{
+#if defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(USE_SDL)
+			QImage* qimg = static_cast<QImage*>(gui_client.getWebcamFrameAsQImage());
+			if(qimg && !qimg->isNull())
+				ui->webcamLabel->setPixmap(QPixmap::fromImage(*qimg));
+			else
+				ui->webcamLabel->setText("Waiting for webcam frame...");
+#else
+			ui->webcamLabel->setText("Webcam capture is not supported on this platform/build.");
+			ui->webcamLabel->setPixmap(QPixmap());
+#endif
+		}
+		else
+		{
+			ui->webcamLabel->setText("Webcam disabled");
+			ui->webcamLabel->setPixmap(QPixmap());
+		}
+	}
+
 #if INDIGO_SUPPORT
 	if(this->ui->indigoView)
 		this->ui->indigoView->timerThink();
 #endif
 
 	updateDiagnostics();
-	
+
 	updateStatusBar();
 
 	runScreenshotCode();
-	
+
 	// Update URL Bar
 	if(this->url_widget->shouldBeUpdated())
 	{
@@ -1134,7 +1343,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// conPrint("Positioning ui->infoDockWidget at " + toString(gl_pos.x()) + ", " + toString(gl_pos.y()));
 		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 1);
 	}
-	
+
 
 	if(need_help_info_dock_widget_position)
 	{
@@ -1156,6 +1365,29 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}*/
 
 	ui->glWidget->makeCurrent();
+
+	// Render world-camera streams (Camera -> CameraScreen) before the main scene draw.
+	// Requires the main GL context to be current.
+	gui_client.renderWorldCameraStreams();
+	gui_client.renderXRFrame(ui->glWidget->near_draw_dist, ui->glWidget->max_draw_dist);
+	if(gui_client.getXRMirrorView().valid)
+	{
+		const XRMirrorView& mirror_view = gui_client.getXRMirrorView();
+		ui->glWidget->setExternalPerspectiveCameraTransform(
+			mirror_view.world_to_camera_space_matrix,
+			mirror_view.sensor_width,
+			mirror_view.lens_sensor_dist,
+			mirror_view.render_aspect_ratio,
+			mirror_view.lens_shift_up,
+			mirror_view.lens_shift_right,
+			mirror_view.projection_matrix_override_valid,
+			mirror_view.projection_matrix_override
+		);
+	}
+	else
+	{
+		ui->glWidget->clearExternalPerspectiveCameraTransform();
+	}
 
 	//Timer timer;
 	{
@@ -1208,7 +1440,7 @@ void MainWindow::updateDiagnostics()
 		ZoneScopedN("diagnostics"); // Tracy profiler
 
 		//const double fps = num_frames / (double)fps_display_timer.elapsed();
-		
+
 		const bool do_graphics_diagnostics = ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked();
 		const bool do_physics_diagnostics = ui->diagnosticsWidget->physicsDiagnosticsCheckBox->isChecked();
 		const bool do_terrain_diagnostics = ui->diagnosticsWidget->terrainDiagnosticsCheckBox->isChecked();
@@ -1235,6 +1467,8 @@ void MainWindow::runScreenshotCode()
 					conPrint("Reading command from screenshot_command_socket etc...");
 					const std::string command = test_screenshot_taking ? "takescreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
 					conPrint("Read screenshot command: " + command);
+					screenshot_target_worldname_set = false;
+					screenshot_target_worldname.clear();
 					if(command == "takescreenshot")
 					{
 						if(test_screenshot_taking)
@@ -1297,6 +1531,49 @@ void MainWindow::runScreenshotCode()
 						screenshot_highlight_parcel_id = -1;
 						taking_map_screenshot = true;
 					}
+					else if(command == "takemapscreenshot_world")
+					{
+						const std::string world_name = screenshot_command_socket->readStringLengthFirst(10000);
+						const int tile_x = screenshot_command_socket->readInt32();
+						const int tile_y = screenshot_command_socket->readInt32();
+						const int tile_z = screenshot_command_socket->readInt32();
+						screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+
+						screenshot_target_worldname_set = true;
+						screenshot_target_worldname = world_name;
+
+						const int TILE_WIDTH_PX = 256; // Works the easiest with leaflet.js
+						const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
+						const double pos_x = (tile_x + 0.5) * TILE_WIDTH_M;
+						const double pos_y = (tile_y + 0.5) * TILE_WIDTH_M;
+						const double pos_z = 200.0;
+						const double heading_deg = 0.0;
+
+						// Switch to the requested world if needed, then let the normal "loaded_all" logic wait until everything is ready.
+						if(gui_client.server_worldname != world_name)
+						{
+							std::string URL = "sub://" + gui_client.server_hostname + "/";
+							URL += web::Escaping::URLEscape(world_name);
+							URL += "?x=" + doubleToStringNDecimalPlaces(pos_x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos_y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos_z, 2) +
+								"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1);
+							gui_client.visitSubURL(URL, /*push_cur_URL_on_nav_stack=*/false, /*adjust_cur_URL_pos_back=*/false);
+
+							total_timer.reset();
+							time_since_last_screenshot.reset();
+							time_since_last_waiting_msg.reset();
+						}
+
+						screenshot_campos = Vec3d(pos_x, pos_y, pos_z);
+						screenshot_camangles = Vec3d(
+							0, // Heading
+							3.14, // pitch
+							0 // roll
+						);
+						screenshot_ortho_sensor_width_m = TILE_WIDTH_M;
+						screenshot_width_px = TILE_WIDTH_PX;
+						screenshot_highlight_parcel_id = -1;
+						taking_map_screenshot = true;
+					}
 					else if(command == "quit")
 					{
 						conPrint("Received quit command, exiting...");
@@ -1321,6 +1598,10 @@ void MainWindow::runScreenshotCode()
 	{
 		if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
 		{
+			// If we were asked to take a map screenshot for a specific world, wait until we are actually in that world.
+			if(screenshot_target_worldname_set && (gui_client.server_worldname != screenshot_target_worldname))
+				return;
+
 			gui_client.cam_controller.setAngles(screenshot_camangles);
 			gui_client.cam_controller.setFirstAndThirdPersonPositions(screenshot_campos);
 			gui_client.player_physics.setEyePosition(screenshot_campos);
@@ -1425,6 +1706,8 @@ void MainWindow::runScreenshotCode()
 
 				// Reset screenshot state
 				screenshot_output_path.clear();
+				screenshot_target_worldname_set = false;
+				screenshot_target_worldname.clear();
 
 				time_since_last_screenshot.reset();
 
@@ -1509,25 +1792,18 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 
 void MainWindow::on_actionAvatarSettings_triggered()
 {
-	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager, &gui_client.animation_manager);
-	const int res = dialog.exec();
-	ui->glWidget->makeCurrent();// Change back from the dialog GL context to the mainwindow GL context.
-
-	if((res == QDialog::Accepted) && dialog.loaded_mesh.nonNull()) //  loaded_object.nonNull()) // If the dialog was accepted, and we loaded something:
+	if(avatar_dock_widget)
 	{
-		try
-		{
-			gui_client.updateOurAvatarModel(dialog.loaded_mesh, dialog.result_path, dialog.pre_ob_to_world_matrix, dialog.loaded_materials);
-		}
-		catch(glare::Exception& e)
-		{
-			// Show error
-			print(e.what());
-			QErrorMessage m;
-			m.showMessage(QtUtils::toQString(e.what()));
-			m.exec();
-		}
+		avatar_dock_widget->show();
+		avatar_dock_widget->raise();
+		avatar_dock_widget->activateWindow();
+		return;
 	}
+
+	// Fallback (should not happen): keep legacy modal dialog if dock creation failed.
+	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager, &gui_client.animation_manager);
+	(void)dialog.exec();
+	ui->glWidget->makeCurrent();
 }
 
 
@@ -1547,7 +1823,7 @@ void MainWindow::on_actionAddObject_triggered()
 		return;
 	}
 
-	AddObjectDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager, 
+	AddObjectDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager,
 #ifdef _WIN32
 		this->device_manager.ptr,
 #else
@@ -1634,7 +1910,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
@@ -1677,6 +1953,8 @@ void MainWindow::on_actionAdd_Text_triggered()
 	new_world_object->angle = total_rot_angle;
 	new_world_object->scale = Vec3f(0.4f);
 	new_world_object->content = "Some Text";
+	new_world_object->text_font = "Default"; // Initialize font field
+	new_world_object->changed_flags = 0; // NO update flags for new object creation
 	new_world_object->setAABBOS(js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1)));
 
 	new_world_object->materials.resize(1);
@@ -1686,7 +1964,7 @@ void MainWindow::on_actionAdd_Text_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
@@ -1740,7 +2018,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
@@ -1749,8 +2027,144 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 }
 
 
+void MainWindow::on_actionAdd_Camera_triggered()
+{
+	if(gui_client.connection_state != GUIClient::ServerConnectionState_Connected)
+	{
+		showErrorNotification("Not connected to server.");
+		return;
+	}
+
+	const uint32 camera_feature_protocol_version = 50; // ObjectType_Camera / ObjectType_CameraScreen support.
+	if(gui_client.server_protocol_version < camera_feature_protocol_version)
+	{
+		showErrorNotification("This server does not support cameras yet. Server protocol version is " + toString(gui_client.server_protocol_version) +
+			", required >= " + toString(camera_feature_protocol_version) + ".");
+		return;
+	}
+
+	const Vec3d player_pos = gui_client.cam_controller.getFirstPersonPosition();
+	const Vec3d fwd = gui_client.cam_controller.getForwardsVec();
+	const Vec3d right = gui_client.cam_controller.getRightVec();
+	const Vec3d up = gui_client.cam_controller.getUpVec();
+	const Vec3d cam_ob_pos = player_pos + fwd * 2.0f - Vec3d(0,0,PlayerPhysics::getEyeHeight() * 0.4f);
+	const Vec3d screen_ob_pos = cam_ob_pos + right * 1.2 + up * 0.2;
+
+	// Check permissions for both objects.
+	bool cam_ob_pos_in_parcel;
+	if(!gui_client.haveParcelObjectCreatePermissions(cam_ob_pos, cam_ob_pos_in_parcel))
+	{
+		if(cam_ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create cameras in a parcel that you have write permissions for.");
+		return;
+	}
+
+	bool screen_ob_pos_in_parcel;
+	if(!gui_client.haveParcelObjectCreatePermissions(screen_ob_pos, screen_ob_pos_in_parcel))
+	{
+		if(screen_ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create camera screens in a parcel that you have write permissions for.");
+		return;
+	}
+
+	// Screen mesh "forward" convention is local +Y (same as many existing object types),
+	// while camera capture currently uses camera local +X as lens-forward.
+	// Keep separate snapped angles so the camera points where the player looks,
+	// and the screen stays oriented consistently with existing object conventions.
+	const float camera_facing_angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x, Maths::pi_4<float>());
+	const float screen_facing_angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>());
+
+	// Keep camera model upright by default (x = +90 deg in ObjectEditor),
+	// while still orienting it towards the player's current facing direction around z.
+	const Quatf yaw_rot = Quatf::zAxisRot(camera_facing_angle);
+	const Quatf upright_rot = Quatf::xAxisRot(Maths::pi_2<float>());
+	const Quatf camera_rot = normalise(yaw_rot * upright_rot);
+	Vec4f camera_axis_4;
+	float camera_angle = 0.f;
+	camera_rot.toAxisAndAngle(camera_axis_4, camera_angle);
+	const Vec3f camera_axis = Vec3f(camera_axis_4);
+
+	if(gui_client.camera_opengl_mesh.isNull() || gui_client.camera_screen_opengl_mesh.isNull())
+	{
+		showErrorNotification("Camera meshes are not initialised yet. Please wait a moment and try again.");
+		return;
+	}
+
+	WorldObjectRef camera_ob = new WorldObject();
+	camera_ob->uid = UID(0); // Will be set by server
+	camera_ob->object_type = WorldObject::ObjectType_Camera;
+	camera_ob->pos = cam_ob_pos;
+	camera_ob->axis = camera_axis;
+	camera_ob->angle = camera_angle;
+	camera_ob->scale = Vec3f(0.65f, 0.65f, 0.65f);
+	camera_ob->type_data.camera_data.fov_y_rad = Maths::pi<float>() * 60.f / 180.f;
+	camera_ob->type_data.camera_data.near_dist = 0.1f;
+	camera_ob->type_data.camera_data.far_dist = 1000.f;
+	camera_ob->type_data.camera_data.render_width = 512;
+	camera_ob->type_data.camera_data.render_height = 288;
+	camera_ob->type_data.camera_data.max_fps = 10;
+	camera_ob->type_data.camera_data.enabled = 1;
+	camera_ob->materials.push_back(new WorldMaterial());
+	camera_ob->materials.back()->colour_rgb = Colour3f(0.15f, 0.15f, 0.15f);
+	camera_ob->setAABBOS(gui_client.camera_opengl_mesh->aabb_os);
+
+	WorldObjectRef screen_ob = new WorldObject();
+	screen_ob->uid = UID(0); // Will be set by server
+	screen_ob->object_type = WorldObject::ObjectType_CameraScreen;
+	screen_ob->pos = screen_ob_pos;
+	screen_ob->axis = Vec3f(0, 0, 1);
+	screen_ob->angle = screen_facing_angle;
+	screen_ob->scale = Vec3f(1.4f, 0.06f, 0.8f);
+	screen_ob->type_data.camera_screen_data.source_camera_uid = 0; // Will be linked in a later phase after server-assigned UID is known.
+	screen_ob->type_data.camera_screen_data.material_index = 0;
+	screen_ob->type_data.camera_screen_data.enabled = 1;
+	screen_ob->type_data.camera_screen_data._padding = 0;
+	screen_ob->materials.push_back(new WorldMaterial());
+	screen_ob->materials.back()->colour_rgb = Colour3f(0.05f, 0.05f, 0.05f);
+	screen_ob->setAABBOS(gui_client.camera_screen_opengl_mesh->aabb_os);
+
+	// Register expected camera/screen pair before network create messages to avoid a race
+	// where server-assigned UIDs arrive before the pending pair is queued.
+	gui_client.queuePendingCameraPairCreate(cam_ob_pos, screen_ob_pos);
+
+	// Send CreateObject message for camera
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		camera_ob->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
+		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+	}
+
+	// Send CreateObject message for camera screen
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+		screen_ob->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
+		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+	}
+
+	showInfoNotification("Added camera and camera screen.");
+}
+
+
 void MainWindow::on_actionAdd_Seat_triggered()
 {
+	if(gui_client.connection_state != GUIClient::ServerConnectionState_Connected)
+	{
+		showErrorNotification("Not connected to server.");
+		return;
+	}
+
+	const uint32 seat_feature_protocol_version = 49; // AvatarSatOnSeat / AvatarGotUpFromSeat support.
+	if(gui_client.server_protocol_version < seat_feature_protocol_version)
+	{
+		showErrorNotification("This server does not support seats yet. Server protocol version is " + toString(gui_client.server_protocol_version) +
+			", required >= " + toString(seat_feature_protocol_version) + ".");
+		return;
+	}
+
 	const float seat_w = 0.5f;
 	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + gui_client.cam_controller.getForwardsVec() * 2.0f -
 		Vec3d(0,0,PlayerPhysics::getEyeHeight() * 0.3f);
@@ -1791,7 +2205,7 @@ void MainWindow::on_actionAdd_Seat_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
@@ -1802,7 +2216,7 @@ void MainWindow::on_actionAdd_Seat_triggered()
 
 void MainWindow::on_actionAdd_Portal_triggered()
 {
-	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + 
+	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() +
 		removeComponentInDir(gui_client.cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3.0f - // Forwards from the camera position, parallel to ground plane
 		Vec3d(0,0,PlayerPhysics::getEyeHeight()); // Then drop down to ground level that the player is standing on.
 
@@ -1832,12 +2246,208 @@ void MainWindow::on_actionAdd_Portal_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
 
 	showInfoNotification("Added portal.");
+}
+
+
+static const char* favoritesSettingsKey()
+{
+	return "mainwindow/favorites";
+}
+
+
+struct FavoriteLocation
+{
+	QString name;
+	QString url;
+};
+
+
+static std::vector<FavoriteLocation> loadFavoriteLocations(QSettings& settings)
+{
+	std::vector<FavoriteLocation> out;
+	const QStringList rows = settings.value(favoritesSettingsKey()).toStringList();
+	out.reserve((size_t)rows.size());
+
+	for(const QString& row : rows)
+	{
+		const int tab_i = row.indexOf('\t');
+		if(tab_i <= 0)
+			continue;
+
+		FavoriteLocation fav;
+		fav.name = row.left(tab_i).trimmed();
+		fav.url  = row.mid(tab_i + 1).trimmed();
+		if(!fav.name.isEmpty() && !fav.url.isEmpty())
+			out.push_back(fav);
+	}
+
+	return out;
+}
+
+
+static void saveFavoriteLocations(QSettings& settings, const std::vector<FavoriteLocation>& favs)
+{
+	QStringList rows;
+	rows.reserve((int)favs.size());
+	for(const FavoriteLocation& fav : favs)
+		rows.push_back(fav.name + "\t" + fav.url);
+	settings.setValue(favoritesSettingsKey(), rows);
+}
+
+
+void MainWindow::on_actionAdd_to_Favorites_triggered()
+{
+	const QString url = url_widget ? QtUtils::toQString(url_widget->getURL()).trimmed() : QString();
+	if(url.isEmpty())
+	{
+		showErrorNotification("No current location URL to add to favorites.");
+		return;
+	}
+
+	if(!settings)
+	{
+		showErrorNotification("Internal error: settings not available.");
+		return;
+	}
+
+	std::vector<FavoriteLocation> favs = loadFavoriteLocations(*settings);
+	for(const FavoriteLocation& fav : favs)
+	{
+		if(fav.url == url)
+		{
+			showInfoNotification("Location already in favorites.");
+			return;
+		}
+	}
+
+	FavoriteLocation fav;
+	fav.name = "Favorite " + QString::number((int)favs.size() + 1);
+	fav.url = url;
+	favs.push_back(fav);
+	saveFavoriteLocations(*settings, favs);
+
+	updateFavoritesMenu();
+	showInfoNotification("Added to favorites.");
+}
+
+
+void MainWindow::updateFavoritesMenu()
+{
+	if(!ui || !ui->menuGo_to_Favorites || !settings)
+		return;
+
+	ui->menuGo_to_Favorites->clear();
+
+	const std::vector<FavoriteLocation> favs = loadFavoriteLocations(*settings);
+	if(favs.empty())
+	{
+		QAction* a = ui->menuGo_to_Favorites->addAction(tr("(No favorites)"));
+		a->setEnabled(false);
+		return;
+	}
+
+	for(const FavoriteLocation& fav : favs)
+	{
+		QAction* a = ui->menuGo_to_Favorites->addAction(fav.name);
+		a->setData(fav.url);
+		connect(a, &QAction::triggered, this, [this, fav]() {
+			visitSubURL(QtUtils::toStdString(fav.url));
+		});
+	}
+}
+
+
+bool MainWindow::eventFilter(QObject* obj, QEvent* event)
+{
+	// Right-click on a favorite location in the "Go to Favorites" menu to rename or delete it.
+	if(ui && ui->menuGo_to_Favorites && settings && (obj == ui->menuGo_to_Favorites))
+	{
+		QPoint menu_pos;
+		QPoint global_pos;
+
+		if(event->type() == QEvent::ContextMenu)
+		{
+			QContextMenuEvent* ce = static_cast<QContextMenuEvent*>(event);
+			menu_pos   = ce->pos();
+			global_pos = ce->globalPos();
+		}
+		else if(event->type() == QEvent::MouseButtonPress)
+		{
+			QMouseEvent* me = static_cast<QMouseEvent*>(event);
+			if(me->button() != Qt::RightButton)
+				return QMainWindow::eventFilter(obj, event);
+
+			menu_pos   = me->pos();
+			global_pos = me->globalPos();
+		}
+		else
+		{
+			return QMainWindow::eventFilter(obj, event);
+		}
+
+		QAction* a = ui->menuGo_to_Favorites->actionAt(menu_pos);
+		if(!a)
+			return QMainWindow::eventFilter(obj, event);
+
+		const QString url = a->data().toString().trimmed();
+		if(url.isEmpty())
+			return QMainWindow::eventFilter(obj, event);
+
+		QMenu context_menu;
+		QAction* rename_action = context_menu.addAction(tr("Rename"));
+		QAction* delete_action = context_menu.addAction(tr("Delete"));
+
+		QAction* chosen_action = context_menu.exec(global_pos);
+		if(chosen_action == rename_action)
+		{
+			bool ok = false;
+			const QString new_name = QInputDialog::getText(this, tr("Rename favorite"), tr("New name:"), QLineEdit::Normal, a->text(), &ok).trimmed();
+			if(ok && !new_name.isEmpty())
+			{
+				std::vector<FavoriteLocation> favs = loadFavoriteLocations(*settings);
+				for(FavoriteLocation& fav : favs)
+				{
+					if(fav.url == url)
+					{
+						fav.name = new_name;
+						saveFavoriteLocations(*settings, favs);
+						updateFavoritesMenu();
+						showInfoNotification("Favorite renamed.");
+						break;
+					}
+				}
+			}
+			return true; // Eat the event so the menu doesn't trigger navigation.
+		}
+		else if(chosen_action == delete_action)
+		{
+			const QMessageBox::StandardButton res = QMessageBox::question(this, tr("Delete favorite"), tr("Delete this favorite?"), QMessageBox::Yes | QMessageBox::No);
+			if(res == QMessageBox::Yes)
+			{
+				std::vector<FavoriteLocation> favs = loadFavoriteLocations(*settings);
+				const size_t old_size = favs.size();
+				favs.erase(std::remove_if(favs.begin(), favs.end(), [&](const FavoriteLocation& fav) { return fav.url == url; }), favs.end());
+				if(favs.size() != old_size)
+				{
+					saveFavoriteLocations(*settings, favs);
+					updateFavoritesMenu();
+					showInfoNotification("Favorite deleted.");
+				}
+			}
+			return true; // Eat the event so we don't navigate on right click.
+		}
+
+		// No action chosen, still eat the event so we don't navigate on right click.
+		return true;
+	}
+
+	return QMainWindow::eventFilter(obj, event);
 }
 
 
@@ -1869,7 +2479,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	new_world_object->scale = Vec3f(/*width=*/1.f, /*depth=*/0.02f, /*height=*/1080.f / 1920.f);
 	new_world_object->max_model_lod_level = 0;
 
-	new_world_object->target_url = "https://substrata.info/"; // Use a default URL - indicates to users how to set the URL.
+	new_world_object->target_url = "https://vr.metasiberia.com/"; // Use a default URL - indicates to users how to set the URL.
 
 	new_world_object->materials.resize(2);
 	new_world_object->materials[0] = new WorldMaterial();
@@ -1883,7 +2493,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
@@ -1913,7 +2523,7 @@ void MainWindow::on_actionAdd_Video_triggered()
 			return;
 		}
 
-		AddVideoDialog dialog(this->settings, gui_client.resource_manager, 
+		AddVideoDialog dialog(this->settings, gui_client.resource_manager,
 #ifdef _WIN32
 			this->device_manager.ptr
 #else
@@ -1967,7 +2577,7 @@ void MainWindow::on_actionAdd_Video_triggered()
 			// Send CreateObject message to server
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(scratch_packet);
+				new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 				enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 			}
@@ -1990,10 +2600,11 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 {
 	try
 	{
-		const float quad_w = 0.0f;
+		const float panel_w = 0.78f;
+		const float panel_h = 0.24f;
 		const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + gui_client.cam_controller.getForwardsVec() * 2.0f -
-			gui_client.cam_controller.getUpVec() * quad_w * 0.5f -
-			gui_client.cam_controller.getRightVec() * quad_w * 0.5f;
+			gui_client.cam_controller.getUpVec() * panel_h * 0.5f -
+			gui_client.cam_controller.getRightVec() * panel_w * 0.5f;
 
 		// Check permissions
 		bool ob_pos_in_parcel;
@@ -2003,7 +2614,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			if(ob_pos_in_parcel)
 				showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
 			else
-				showErrorNotification("You can only create audio sources in a parcel that you have write permissions for.");
+				showErrorNotification("You can only create audio players in a parcel that you have write permissions for.");
 			return;
 		}
 
@@ -2011,67 +2622,74 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 
 		QFileDialog::Options options;
 		QString selected_filter;
-		const QString selected_filename = QFileDialog::getOpenFileName(this,
-			tr("Select audio file..."),
+		const QStringList selected_filenames = QFileDialog::getOpenFileNames(this,
+			tr("Select audio file(s)..."),
 			last_audio_dir,
 			tr("Audio file (*.mp3 *.wav)"), // tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
 			&selected_filter,
 			options
 		);
 
-		if(selected_filename != "")
+		if(!selected_filenames.isEmpty())
 		{
-			settings->setValue("mainwindow/lastAudioFileDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
+			settings->setValue("mainwindow/lastAudioFileDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filenames[0]))));
 
-			const std::string path = QtUtils::toStdString(selected_filename);
+			std::vector<URLString> audio_file_URLs;
+			audio_file_URLs.reserve(selected_filenames.size());
+			for(int i=0; i<selected_filenames.size(); ++i)
+			{
+				const std::string path = QtUtils::toStdString(selected_filenames[i]);
 
-			// Compute hash over audio file
-			const uint64 audio_file_hash = FileChecksum::fileChecksum(path);
+				// Compute hash over audio file
+				const uint64 audio_file_hash = FileChecksum::fileChecksum(path);
 
-			const URLString audio_file_URL = ResourceManager::URLForPathAndHash(path, audio_file_hash);
+				const URLString audio_file_URL = ResourceManager::URLForPathAndHash(path, audio_file_hash);
+				audio_file_URLs.push_back(audio_file_URL);
 
-			// Copy audio file to local resources dir.  UploadResourceThread will read from here.
-			gui_client.resource_manager->copyLocalFileToResourceDir(path, audio_file_URL);
+				// Copy audio file to local resources dir.  UploadResourceThread will read from here.
+				gui_client.resource_manager->copyLocalFileToResourceDir(path, audio_file_URL);
+			}
 
-			const URLString model_URL = "Capsule_obj_7611321750126528672.bmesh"; // This file is in the client distribution.
-		
 			WorldObjectRef new_world_object = new WorldObject();
 			new_world_object->uid = UID(0); // Will be set by server
-			new_world_object->object_type = WorldObject::ObjectType_Generic;
+			new_world_object->object_type = WorldObject::ObjectType_WebView;
 			new_world_object->pos = ob_pos;
 			new_world_object->axis = Vec3f(0, 0, 1);
-			new_world_object->angle = 0;
-			new_world_object->scale = Vec3f(0.2f);
-			new_world_object->model_url = model_URL;
-			new_world_object->audio_source_url = audio_file_URL;
-			new_world_object->materials.resize(1);
-			new_world_object->materials[0] = new WorldMaterial();
-			new_world_object->materials[0]->colour_rgb = Colour3f(1,0,0);
+			new_world_object->angle = Maths::roundToMultipleFloating((float)gui_client.cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
+			new_world_object->scale = Vec3f(panel_w, 0.02f, panel_h);
+			new_world_object->max_model_lod_level = 0;
+			new_world_object->model_url = "image_cube_5438347426447337425.bmesh";
+			new_world_object->target_url = WorldObject::audioPlayerTargetURL();
+			new_world_object->audio_volume = 1.0f;
+			BitUtils::setOrZeroBit(new_world_object->flags, WorldObject::AUDIO_AUTOPLAY, false);
+			BitUtils::setOrZeroBit(new_world_object->flags, WorldObject::AUDIO_LOOP, false);
+			BitUtils::setOrZeroBit(new_world_object->flags, WorldObject::AUDIO_SHUFFLE, false);
 
-			// Set aabb_ws
-			
-			/*WorldObject loaded_object;
-			BatchedMeshRef batched_mesh;
-			ModelLoading::makeGLObjectForModelFile(task_manager, model_obj_path, batched_mesh, loaded_object);
-			if(batched_mesh.nonNull())
+			for(size_t i=0; i<audio_file_URLs.size(); ++i)
 			{
-				const js::AABBox aabb_os = batched_mesh->aabb_os;
-				new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
-			}*/
+				if(i > 0)
+					new_world_object->content += "\n";
+				new_world_object->content += audio_file_URLs[i];
+			}
 
-			const js::AABBox aabb_os(Vec4f(-0.25f, -0.25f, -0.5f, 1.0f), Vec4f(0.25f, 0.25f, 0.5f, 1.0f)); // AABB os of capsule.obj
+			new_world_object->materials.resize(2);
+			new_world_object->materials[0] = new WorldMaterial();
+			new_world_object->materials[0]->colour_rgb = Colour3f(1.f);
+			new_world_object->materials[1] = new WorldMaterial();
+
+			const js::AABBox aabb_os = gui_client.image_cube_shape.getAABBOS();
 			new_world_object->setAABBOS(aabb_os);
 
 
 			// Send CreateObject message to server
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(scratch_packet);
+				new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 				enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 			}
 
-			showInfoNotification("Added audio source.");
+			showInfoNotification("Added audio player.");
 		}
 	}
 	catch(glare::Exception& e)
@@ -2144,7 +2762,7 @@ void MainWindow::on_actionAdd_Decal_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
@@ -2175,7 +2793,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 		return;
 	}
 
-	
+
 	WorldObjectRef new_world_object = new WorldObject();
 	new_world_object->uid = UID(0); // Will be set by server
 	new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
@@ -2192,7 +2810,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	// Send CreateObject message to server
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(scratch_packet);
+		new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 		enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 	}
@@ -2215,6 +2833,23 @@ void MainWindow::on_actionCopy_Object_triggered()
 		gui_client.selected_ob->writeToStream(temp_buf);
 
 		mime_data->setData(/*mime-type:*/"x-substrata-object-binary", QByteArray((const char*)temp_buf.buf.data(), (int)temp_buf.buf.size()));
+		clipboard->setMimeData(mime_data);
+	}
+	else if(gui_client.selected_parcel.nonNull())
+	{
+		if(!gui_client.logged_in_user_id.valid() || !isGodUser(gui_client.logged_in_user_id))
+		{
+			showErrorNotification("Only superadmin can copy parcels.");
+			return;
+		}
+
+		QClipboard* clipboard = QGuiApplication::clipboard();
+		QMimeData* mime_data = new QMimeData();
+
+		BufferOutStream temp_buf;
+		writeParcelToNetworkStream(*gui_client.selected_parcel, temp_buf, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
+
+		mime_data->setData(/*mime-type:*/"x-substrata-parcel-binary", QByteArray((const char*)temp_buf.buf.data(), (int)temp_buf.buf.size()));
 		clipboard->setMimeData(mime_data);
 	}
 }
@@ -2343,7 +2978,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					// Note that the recreated object will have a different ID than in the clipboard.
 					{
 						MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-						pasted_ob->writeToNetworkStream(scratch_packet);
+						pasted_ob->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 						enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 
@@ -2353,6 +2988,74 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 				catch(glare::Exception& e)
 				{
 					conPrint("Error while reading object from clipboard: " + e.what());
+				}
+			}
+			else if(mime_data->hasFormat("x-substrata-parcel-binary")) // Binary encoded parcel, from a user copying a parcel.
+			{
+				if(!gui_client.logged_in_user_id.valid() || !isGodUser(gui_client.logged_in_user_id))
+				{
+					showErrorNotification("Only superadmin can paste parcels.");
+					return;
+				}
+
+				const QByteArray parcel_data = mime_data->data("x-substrata-parcel-binary");
+
+				// Copy QByteArray to BufferInStream
+				BufferInStream in_stream_buf;
+				in_stream_buf.buf.resize(parcel_data.size());
+				if(parcel_data.size() > 0)
+					std::memcpy(in_stream_buf.buf.data(), parcel_data.data(), parcel_data.size());
+
+				try
+				{
+					Parcel pasted_parcel;
+					(void)readParcelIDFromStream(in_stream_buf); // Read and ignore source parcel id.
+					readParcelFromNetworkStreamGivenID(in_stream_buf, pasted_parcel, Protocol::CyberspaceProtocolVersion);
+
+					// Offset parcel in XY using camera right+forward, so the pasted parcel is clearly visible nearby.
+					const double size_x = std::fabs(pasted_parcel.aabb_max.x - pasted_parcel.aabb_min.x);
+					const double size_y = std::fabs(pasted_parcel.aabb_max.y - pasted_parcel.aabb_min.y);
+					const double side_dist = std::max(std::max(size_x, size_y), 1.0) + 3.0;
+					const double forward_dist = std::max(std::min(size_x, size_y), 1.0) + 2.0;
+
+					Vec2d right_2d(gui_client.cam_controller.getRightVec().x, gui_client.cam_controller.getRightVec().y);
+					double right_len = std::sqrt(right_2d.x * right_2d.x + right_2d.y * right_2d.y);
+					if(right_len > 1.0e-6)
+						right_2d /= right_len;
+					else
+						right_2d = Vec2d(1.0, 0.0);
+
+					Vec2d forw_2d(gui_client.cam_controller.getForwardsVec().x, gui_client.cam_controller.getForwardsVec().y);
+					double forw_len = std::sqrt(forw_2d.x * forw_2d.x + forw_2d.y * forw_2d.y);
+					if(forw_len > 1.0e-6)
+						forw_2d /= forw_len;
+					else
+						forw_2d = Vec2d(0.0, 1.0);
+
+					const Vec2d offset = right_2d * side_dist + forw_2d * forward_dist;
+
+					for(int i=0; i<4; ++i)
+						pasted_parcel.verts[i] += offset;
+
+					pasted_parcel.id = ParcelID::invalidParcelID(); // Signal "create new parcel" to server.
+					pasted_parcel.created_time = TimeStamp::currentTime();
+					pasted_parcel.build();
+
+					// Create parcel by sending ParcelFullUpdate with invalid parcel id; server will assign a fresh id.
+					MessageUtils::initPacket(scratch_packet, Protocol::ParcelFullUpdate);
+					writeParcelToNetworkStream(pasted_parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
+					enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+
+					// Force parcel list refresh (helps if server-side broadcast is delayed).
+					MessageUtils::initPacket(scratch_packet, Protocol::QueryParcels);
+					enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+
+					showInfoNotification("Parcel pasted. Server will assign a new parcel ID.");
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Error while reading parcel from clipboard: " + e.what());
+					showErrorNotification("Failed to paste parcel: " + e.what());
 				}
 			}
 			else if(mime_data->hasImage()) // Image data (for example from snip screen)
@@ -2497,7 +3200,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		// Send CreateObject message to server
 		{
 			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(scratch_packet);
+			new_world_object->writeToNetworkStream(scratch_packet, gui_client.server_protocol_version);
 
 			enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
 		}
@@ -2674,7 +3377,9 @@ void MainWindow::on_actionThird_Person_Camera_triggered()
 void MainWindow::on_actionGoToMainWorld_triggered()
 {
 	URLParseResults parse_results;
-	parse_results.hostname = gui_client.server_hostname;
+	std::string hostname = gui_client.server_hostname.empty() ? std::string("vr.metasiberia.com") : gui_client.server_hostname;
+	hostname = canonicalHostForMetasiberia(hostname);
+	parse_results.hostname = hostname;
 
 	gui_client.connectToServer(parse_results);
 }
@@ -2685,7 +3390,7 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 	if(gui_client.logged_in_user_name != "")
 	{
 		URLParseResults parse_results;
-		parse_results.hostname = gui_client.server_hostname;
+		parse_results.hostname = canonicalHostForMetasiberia(gui_client.server_hostname);
 		parse_results.worldname = gui_client.logged_in_user_name;
 
 		gui_client.connectToServer(parse_results);
@@ -2703,10 +3408,28 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
 {
 	URLParseResults parse_results;
-	parse_results.hostname = gui_client.server_hostname;
+	parse_results.hostname = canonicalHostForMetasiberia(gui_client.server_hostname);
 	parse_results.worldname = "cryptovoxels";
 
 	gui_client.connectToServer(parse_results);
+}
+
+
+void MainWindow::on_actionGo_to_Substrata_Server_triggered()
+{
+	visitSubURL("sub://substrata.info/");
+}
+
+
+void MainWindow::on_actionGo_to_Metasiberia_Server_triggered()
+{
+	visitSubURL("sub://vr.metasiberia.com/");
+}
+
+
+void MainWindow::on_actionGo_to_Shki_nvkz_Server_triggered()
+{
+	visitSubURL("sub://176.197.223.42/");
 }
 
 
@@ -2766,7 +3489,7 @@ void MainWindow::on_actionGo_to_Position_triggered()
 			d.YDoubleSpinBox->value(),
 			d.ZDoubleSpinBox->value()
 		);
-			
+
 		gui_client.cam_controller.setFirstAndThirdPersonPositions(pos);
 		gui_client.player_physics.setEyePosition(pos);
 	}
@@ -2775,15 +3498,19 @@ void MainWindow::on_actionGo_to_Position_triggered()
 
 void MainWindow::on_actionSet_Start_Location_triggered()
 {
-	settings->setValue(MainOptionsDialog::startLocationURLKey(), QtUtils::toQString(this->url_widget->getURL()));
+	const std::string canonical_url = canonicaliseMetasiberiaSubURLHost(this->url_widget->getURL());
+	settings->setValue(MainOptionsDialog::startLocationURLKey(), QtUtils::toQString(canonical_url));
 }
 
 
 void MainWindow::on_actionGo_To_Start_Location_triggered()
 {
 	const std::string start_URL = QtUtils::toStdString(settings->value(MainOptionsDialog::startLocationURLKey()).toString());
+	const std::string canonical_start_URL = canonicaliseMetasiberiaSubURLHost(start_URL);
+	if(canonical_start_URL != start_URL)
+		settings->setValue(MainOptionsDialog::startLocationURLKey(), QtUtils::toQString(canonical_start_URL));
 
-	if(start_URL.empty())
+	if(canonical_start_URL.empty())
 	{
 		QMessageBox msgBox;
 		msgBox.setWindowTitle("Invalid start location URL");
@@ -2791,7 +3518,7 @@ void MainWindow::on_actionGo_To_Start_Location_triggered()
 		msgBox.exec();
 	}
 	else
-		visitSubURL(start_URL);
+		visitSubURL(canonical_start_URL);
 }
 
 
@@ -2897,7 +3624,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 		FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
 
 		PNGDecoder::write(*map, path);
-	
+
 		showInfoNotification("Saved screenshot to " + path);
 
 		settings_store->setStringValue("photo/last_saved_photo_path", path);
@@ -2939,6 +3666,48 @@ void MainWindow::on_actionAbout_Substrata_triggered()
 }
 
 
+void MainWindow::on_webcamEnableCheckBox_toggled(bool checked)
+{
+	// If the full WebcamWindow is active, it owns capture and UI.
+	if(webcam_window)
+		return;
+
+	// Keep capture state in sync with checkbox state.
+	gui_client.setWebcamEnabled(checked);
+
+	if(!checked)
+	{
+		ui->webcamLabel->setText("Webcam disabled");
+		ui->webcamLabel->setPixmap(QPixmap());
+	}
+}
+
+
+void MainWindow::setWebcamWindowVisible(bool visible)
+{
+	if(!ui || !ui->webcamDockWidget)
+		return;
+
+	ui->webcamDockWidget->setVisible(visible);
+
+	// If user hides the dock, stop capturing to avoid background CPU usage.
+	if(!visible)
+	{
+		if(webcam_window)
+			webcam_window->setWebcamEnabled(false);
+		else if(ui->webcamEnableCheckBox)
+			ui->webcamEnableCheckBox->setChecked(false);
+	}
+}
+
+
+void MainWindow::on_actionUpdate_triggered()
+{
+	UpdateDialog d(update_manager, this);
+	d.exec();
+}
+
+
 void MainWindow::on_actionOptions_triggered()
 {
 	const std::string prev_audio_input_dev_name = QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
@@ -2973,6 +3742,53 @@ void MainWindow::on_actionOptions_triggered()
 			&gui_client.mic_read_status
 		);
 		gui_client.mic_read_thread_manager.addThread(mic_read_thread);
+	}
+}
+
+
+void MainWindow::onUpdateCheckFinished()
+{
+	onUpdateAvailabilityChanged(update_manager && update_manager->updateAvailable());
+}
+
+
+void MainWindow::onUpdateAvailabilityChanged(bool available)
+{
+	if(!ui || !ui->actionUpdate || !update_manager)
+		return;
+
+	// Default UI state.
+	ui->actionUpdate->setText("Update");
+
+	if(update_manager->checkInProgress())
+		return;
+
+	if(!update_manager->lastErrorString().isEmpty())
+	{
+		statusBar()->showMessage("Update check failed: " + update_manager->lastErrorString(), 15000);
+		return;
+	}
+
+	if(!update_manager->hasCheckResult())
+		return;
+
+	if(available)
+	{
+		const QString tag = update_manager->latest().tag;
+		ui->actionUpdate->setText("Update (" + tag + ")");
+
+		// Notify once per tag.
+		const QString last_notified = settings ? settings->value("update/last_notified_tag", "").toString() : QString();
+		if(settings && (last_notified != tag))
+		{
+			settings->setValue("update/last_notified_tag", tag);
+			statusBar()->showMessage("Update available: " + tag, 20000);
+			QMessageBox::information(this, "Update available", "A new version is available: " + tag + "\n\nOpen Help -> Update to download and install.");
+		}
+	}
+	else
+	{
+		statusBar()->showMessage("You are up to date.", 8000);
 	}
 }
 
@@ -3116,7 +3932,7 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 		gui_client.audio_engine.setMasterVolume(0.f);
 	}
 	else
-	{	
+	{
 		gui_client.audio_engine.setMasterVolume(1.f);
 	}
 }
@@ -3278,7 +4094,7 @@ void MainWindow::on_actionLoad_Objects_From_Disk_triggered()
 		&selected_filter,
 		options
 	);
-	 
+
 	if(!selected_filename.isEmpty())
 	{
 		settings->setValue("mainwindow/lastSaveObjectDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
@@ -3286,7 +4102,7 @@ void MainWindow::on_actionLoad_Objects_From_Disk_triggered()
 		// Do the work in another thread so we don't lock up the main thread.
 		// The work will be done in a LoadObjectsFromXMLTask.
 		ThreadSafeQueue<std::string> message_queue; // Messages will be emitted from LoadObjectsFromXMLTask, placed into this queue, and then read by the CreateObjectsDialog.
-		
+
 		{
 			CreateObjectsDialog dialog(settings);
 			dialog.msg_queue = &message_queue;
@@ -3364,17 +4180,170 @@ void MainWindow::diagnosticsReloadTerrain()
 }
 
 
+void MainWindow::rebuildChatEmojiPopupContents()
+{
+	if(!chat_emoji_tab_widget)
+		return;
+
+	QString previous_tab_title;
+	if(chat_emoji_tab_widget->currentIndex() >= 0)
+		previous_tab_title = chat_emoji_tab_widget->tabText(chat_emoji_tab_widget->currentIndex());
+
+	while(chat_emoji_tab_widget->count() > 0)
+	{
+		QWidget* page = chat_emoji_tab_widget->widget(0);
+		chat_emoji_tab_widget->removeTab(0);
+		delete page;
+	}
+
+	QFont emoji_picker_font = this->font();
+#if defined(_WIN32)
+	emoji_picker_font.setFamily("Segoe UI Emoji");
+#endif
+	emoji_picker_font.setPixelSize(54);
+
+	const auto picker_categories = EmojiUtils::buildPickerCategories(gui_client.getRecentEmojiHistory());
+	const QString empty_recent_text = QtUtils::toQString(std::string("\xD0\x97\xD0\xB4\xD0\xB5\xD1\x81\xD1\x8C \xD0\xBF\xD0\xBE\xD1\x8F\xD0\xB2\xD1\x8F\xD1\x82\xD1\x81\xD1\x8F \xD0\xBF\xD0\xBE\xD1\x81\xD0\xBB\xD0\xB5\xD0\xB4\xD0\xBD\xD0\xB8\xD0\xB5 emoji"));
+	const QString emoji_button_style =
+		"QToolButton { background: #ffffff; border: 1px solid #d7dde5; border-radius: 12px; padding: 0px; color: #111827; }"
+		"QToolButton:hover { background: #eef4ff; border-color: #8ab2ff; }"
+		"QToolButton:pressed { background: #dde9ff; }";
+
+	for(size_t i=0; i<picker_categories.size(); ++i)
+	{
+		const EmojiUtils::EmojiPickerCategory& category = picker_categories[i];
+
+		QScrollArea* scroll_area = new QScrollArea(chat_emoji_tab_widget);
+		scroll_area->setWidgetResizable(true);
+		scroll_area->setFrameShape(QFrame::NoFrame);
+		scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+		QWidget* page = new QWidget(scroll_area);
+		QGridLayout* grid_layout = new QGridLayout(page);
+		grid_layout->setContentsMargins(12, 12, 18, 12);
+		grid_layout->setHorizontalSpacing(12);
+		grid_layout->setVerticalSpacing(12);
+		grid_layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+
+		if(category.emojis.empty())
+		{
+			QLabel* empty_label = new QLabel(empty_recent_text, page);
+			empty_label->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+			empty_label->setMinimumHeight(180);
+			empty_label->setStyleSheet("QLabel { color: #6b7280; font-size: 16px; padding-top: 28px; }");
+			grid_layout->addWidget(empty_label, 0, 0, 1, myMax(1, category.num_columns));
+		}
+		else
+		{
+			const int button_size_px = 88;
+			for(size_t z=0; z<category.emojis.size(); ++z)
+			{
+				QToolButton* emoji_choice_button = new QToolButton(page);
+				emoji_choice_button->setFont(emoji_picker_font);
+				emoji_choice_button->setText(QtUtils::toQString(category.emojis[z]));
+				emoji_choice_button->setFixedSize(QSize(button_size_px, button_size_px));
+				emoji_choice_button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+				emoji_choice_button->setCursor(Qt::PointingHandCursor);
+				emoji_choice_button->setToolTip(QtUtils::toQString(std::string(EmojiUtils::emojiDisplayName(category.emojis[z]))));
+				emoji_choice_button->setStyleSheet(emoji_button_style);
+
+				const std::string emoji = category.emojis[z];
+				connect(emoji_choice_button, &QToolButton::clicked, this, [this, emoji]() {
+					sendChatOrEmojiMessage(emoji);
+					rebuildChatEmojiPopupContents();
+				});
+
+				grid_layout->addWidget(emoji_choice_button, (int)(z / category.num_columns), (int)(z % category.num_columns));
+			}
+		}
+
+		const int min_page_width = 24 + myMax(1, category.num_columns) * 88 + myMax(0, category.num_columns - 1) * 12;
+		page->setMinimumWidth(min_page_width);
+		scroll_area->setWidget(page);
+		chat_emoji_tab_widget->addTab(scroll_area, QtUtils::toQString(category.title));
+	}
+
+	int current_tab_index = 0;
+	if(!picker_categories.empty() && picker_categories[0].emojis.empty() && picker_categories.size() > 1)
+		current_tab_index = 1;
+
+	if(!previous_tab_title.isEmpty())
+	{
+		for(int i=0; i<chat_emoji_tab_widget->count(); ++i)
+		{
+			if(chat_emoji_tab_widget->tabText(i) == previous_tab_title)
+			{
+				current_tab_index = i;
+				break;
+			}
+		}
+	}
+
+	if(chat_emoji_tab_widget->count() > 0)
+		chat_emoji_tab_widget->setCurrentIndex(myClamp(current_tab_index, 0, chat_emoji_tab_widget->count() - 1));
+}
+
+
+void MainWindow::sendChatOrEmojiMessage(const std::string& message)
+{
+	if(message.empty())
+		return;
+
+	if(EmojiUtils::isSupportedEmoji(message))
+		gui_client.sendEmojiChatMessage(message);
+	else
+		gui_client.sendChatMessage(message);
+}
+
+
+void MainWindow::toggleChatEmojiPopup()
+{
+	if(!chat_emoji_popup || !ui || !ui->chatEmojiButton)
+		return;
+
+	if(chat_emoji_popup->isVisible())
+	{
+		chat_emoji_popup->hide();
+		return;
+	}
+
+	rebuildChatEmojiPopupContents();
+	chat_emoji_popup->resize(chat_emoji_popup->minimumSize());
+
+	QPoint popup_pos = ui->chatEmojiButton->mapToGlobal(
+		QPoint(
+			ui->chatEmojiButton->width() - chat_emoji_popup->width(),
+			-chat_emoji_popup->height() - 4
+		)
+	);
+
+	QScreen* target_screen = QGuiApplication::screenAt(ui->chatEmojiButton->mapToGlobal(ui->chatEmojiButton->rect().center()));
+	if(!target_screen)
+		target_screen = QGuiApplication::primaryScreen();
+
+	if(target_screen)
+	{
+		const QRect available = target_screen->availableGeometry();
+		popup_pos.setX(qBound(available.left(), popup_pos.x(), available.right() - chat_emoji_popup->width()));
+		popup_pos.setY(qBound(available.top(), popup_pos.y(), available.bottom() - chat_emoji_popup->height()));
+	}
+
+	chat_emoji_popup->move(popup_pos);
+	chat_emoji_popup->show();
+	chat_emoji_popup->raise();
+	chat_emoji_popup->activateWindow();
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
 
 	const std::string message = QtUtils::toIndString(ui->chatMessageLineEdit->text());
+	if(message.empty())
+		return;
 
-	// Make message packet and enqueue to send
-	MessageUtils::initPacket(scratch_packet, Protocol::ChatMessageID);
-	scratch_packet.writeStringLengthFirst(message);
-
-	enqueueMessageToSend(*gui_client.client_thread, scratch_packet);
+	sendChatOrEmojiMessage(message);
 
 	ui->chatMessageLineEdit->clear();
 }
@@ -3462,7 +4431,14 @@ void MainWindow::environmentSettingChangedSlot()
 		const float phi   = ::degreeToRad((float)ui->environmentOptionsWidget->sunPhiRealControl->value());
 		const Vec4f sundir = GeometrySampling::dirForSphericalCoords(phi, theta);
 
-		opengl_engine->setSunDir(sundir);
+		ui->glWidget->opengl_engine->setSunDir(sundir);
+
+		// Keep aurora rendering state in sync with the checkbox.
+		if(ui->glWidget->opengl_engine->getCurrentScene())
+		{
+			const bool northern_lights_enabled = ui->environmentOptionsWidget->getNorthernLightsEnabled();
+			ui->glWidget->opengl_engine->getCurrentScene()->draw_aurora = northern_lights_enabled;
+		}
 	}
 }
 
@@ -3529,7 +4505,7 @@ void MainWindow::removeLightmapSignalSlot()
 void MainWindow::posAndRot3DControlsToggledSlot()
 {
 	gui_client.posAndRot3DControlsToggled(ui->objectEditor->posAndRot3DControlsEnabled());
-	
+
 	settings->setValue("objectEditor/show3DControlsCheckBoxChecked", ui->objectEditor->posAndRot3DControlsEnabled());
 }
 
@@ -3558,7 +4534,7 @@ void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub:/
 {
 	try
 	{
-		gui_client.visitSubURL(URL);
+		gui_client.visitSubURL(canonicaliseMetasiberiaSubURLHost(URL));
 	}
 	catch(glare::Exception& e) // Handle URL parse failure
 	{
@@ -3603,7 +4579,7 @@ static uint32 fromQtModifiers(Qt::KeyboardModifiers modifiers)
 	const bool alt_key_down  = (modifiers & Qt::AltModifier)     != 0;
 	const bool shift_down    = (modifiers & Qt::ShiftModifier)   != 0;
 
-	return 
+	return
 		(ctrl_key_down ? Modifiers::Ctrl  : 0) |
 		(alt_key_down  ? Modifiers::Alt   : 0) |
 		(shift_down    ? Modifiers::Shift : 0);
@@ -3743,6 +4719,12 @@ void MainWindow::setParcelEditorForParcel(const Parcel& parcel)
 void MainWindow::setParcelEditorEnabled(bool b)
 {
 	ui->parcelEditor->setEnabled(b);
+}
+
+
+void MainWindow::setParcelEditorPermissions(bool can_edit_basic_fields, bool can_edit_owner_and_geometry, bool can_edit_member_lists)
+{
+	ui->parcelEditor->setEditingPermissions(can_edit_basic_fields, can_edit_owner_and_geometry, can_edit_member_lists);
 }
 
 
@@ -3891,7 +4873,7 @@ void MainWindow::updateObjectEditorObTransformSlot()
 void setKeyEventFromQt(const QKeyEvent* e, KeyEvent& event_out)
 {
 	KeyEvent& ev = event_out;
-	
+
 	ev.key = Key::Key_None;
 	ev.native_virtual_key = e->nativeVirtualKey();
 	//ev.text = QtUtils::toStdString(e->text());
@@ -4004,6 +4986,15 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		return;
 	}
 
+	if((e->key() == Qt::Key_Home) || (e->key() == Qt::Key_End))
+	{
+		if(gui_client.requestXRRecenter())
+			gui_client.showInfoNotification("XR recentered. Keep looking straight ahead in the headset.");
+		else
+			gui_client.showInfoNotification("XR recenter is unavailable because there is no active XR session.");
+		return;
+	}
+
 #if BUILD_TESTS
 	if(e->key() == Qt::Key_F6)
 	{
@@ -4039,8 +5030,8 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	KeyEvent key_event;
 	setKeyEventFromQt(e, key_event);
 
-	if(!e->text().isEmpty() && 
-		key_event.key != Key::Key_Backspace && 
+	if(!e->text().isEmpty() &&
+		key_event.key != Key::Key_Backspace &&
 		key_event.key != Key::Key_Delete &&
 		key_event.key != Key::Key_Left &&
 		key_event.key != Key::Key_Right &&
@@ -4139,7 +5130,7 @@ void MainWindow::handleURL(const QUrl &url)
 	try
 	{
 		URLParseResults parse_results = URLParser::parseURL(QtUtils::toStdString(url.toString()));
-		
+
 		gui_client.connectToServer(parse_results);
 	}
 	catch(glare::Exception& e)
@@ -4151,7 +5142,7 @@ void MainWindow::handleURL(const QUrl &url)
 
 void MainWindow::openServerScriptLogSlot()
 {
-	const std::string hostname = gui_client.server_hostname.empty() ? "substrata.info" : gui_client.server_hostname;
+	const std::string hostname = gui_client.server_hostname.empty() ? "vr.metasiberia.com" : gui_client.server_hostname;
 
 	QDesktopServices::openUrl(QtUtils::toQString("https://" + hostname + "/script_log"));
 }
@@ -4304,7 +5295,7 @@ void* MainWindow::getID3D11Device() const
 }
 
 
-std::string MainWindow::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key, [[maybe_unused]] int file_picker_id)
+std::string MainWindow::showOpenFileDialog(const std::string& caption, const std::vector<FileTypeFilter>& file_type_filters, const std::string& settings_key)
 {
 	QString previous_file = "";
 
@@ -4373,7 +5364,7 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, Native
 				try
 				{
 					URLParseResults parse_results = URLParser::parseURL(url);
-		
+
 					gui_client.connectToServer(parse_results);
 
 					// Flash the taskbar icon, since the this window may not be visible.
@@ -4513,8 +5504,8 @@ int main(int argc, char *argv[])
 
 		// BugSplat initialization.
 		minidump_sender = new MiniDmpSender(
-			L"Substrata", // database
-			L"Substrata", // app
+			L"Metasiberia", // database
+			L"Metasiberia Beta", // app
 			StringUtils::UTF8ToPlatformUnicodeEncoding(cyberspace_version).c_str(), // version
 			NULL, // app identifier
 			MDSF_USEGUARDMEMORY | MDSF_LOGFILE | MDSF_PREVENTHIJACKING // flags
@@ -4581,7 +5572,7 @@ int main(int argc, char *argv[])
 
 
 		QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
-	
+
 		conPrint("cyberspace_base_dir_path: " + cyberspace_base_dir_path);
 
 		// Get a vector of the args.  Note that we will use app.arguments(), because it's the only way to get the args in Unicode in Qt.
@@ -4601,6 +5592,8 @@ int main(int argc, char *argv[])
 		syntax["--testscreenshot"] = std::vector<ArgumentParser::ArgumentType>(); // Test screenshot taking
 		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
 		syntax["--no_bindless"] = std::vector<ArgumentParser::ArgumentType>(); // Disable bindless textures in graphics engine
+		syntax["--vr"] = std::vector<ArgumentParser::ArgumentType>(); // Prefer VR startup when XR is compiled in.
+		syntax["--desktop"] = std::vector<ArgumentParser::ArgumentType>(); // Disable XR startup and stay in desktop mode.
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it
@@ -4621,9 +5614,9 @@ int main(int argc, char *argv[])
 		}
 
 
-		//std::string server_hostname = "substrata.info";
+		//std::string server_hostname = "vr.metasiberia.com";
 		//std::string server_userpath = "";
-		std::string server_URL = "sub://substrata.info";
+		std::string server_URL = "sub://vr.metasiberia.com";
 		bool server_URL_explicitly_specified = false;
 
 		if(parsed_args.isArgPresent("-h"))
@@ -4655,8 +5648,8 @@ int main(int argc, char *argv[])
 		else if(parsed_args.isArgPresent("-linku"))
 		{
 #if defined(_WIN32)
-			// If we already have a Substrata application open on this computer, we want to tell that one to go to the URL, instead of opening another Substrata.
-			// Search for an already existing Window called "Substrata vx.y"
+			// If we already have a Metasiberia application open on this computer, we want to tell that one to go to the URL, instead of opening another instance.
+			// Search for an already existing Window called "Metasiberia Beta vx.y"
 			// If it exists, send a Windows message to that process, telling it to open the URL, and return from this process.
 			// TODO: work out how to do this on Mac and Linux, if it's needed.
 			const std::string target_window_title = computeWindowTitle();
@@ -4710,8 +5703,16 @@ int main(int argc, char *argv[])
 			{
 				const std::string start_loc_URL_setting = QtUtils::toStdString(mw.settings->value(MainOptionsDialog::startLocationURLKey()).toString());
 				if(!start_loc_URL_setting.empty())
-					server_URL = start_loc_URL_setting;
+				{
+					const std::string canonical_start_loc_URL = canonicaliseMetasiberiaSubURLHost(start_loc_URL_setting);
+					if(canonical_start_loc_URL != start_loc_URL_setting)
+						mw.settings->setValue(MainOptionsDialog::startLocationURLKey(), QtUtils::toQString(canonical_start_loc_URL));
+
+					server_URL = canonical_start_loc_URL;
+				}
 			}
+
+			server_URL = canonicaliseMetasiberiaSubURLHost(server_URL);
 
 			try
 			{
@@ -4767,9 +5768,9 @@ int main(int argc, char *argv[])
 			if(!mw.ui->glWidget->opengl_engine->initSucceeded())
 			{
 				const std::string msg = "OpenGL engine initialisation failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg();
-				
+
 				mw.logMessage(msg);
-				
+
 				QtUtils::showErrorMessageDialog(msg, &mw);
 				return 1;
 			}
@@ -4796,7 +5797,7 @@ int main(int argc, char *argv[])
 
 		delete log_file;
 		log_file = nullptr;
-		
+
 		GUIClient::staticShutdown();
 
 #if defined(_WIN32)

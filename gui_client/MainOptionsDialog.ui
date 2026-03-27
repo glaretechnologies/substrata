@@ -71,7 +71,7 @@
    <item>
     <widget class="QGroupBox" name="groupBox">
      <property name="title">
-      <string>Graphics (restart Substrata to apply changes)</string>
+      <string>Graphics (restart Metasiberia to apply changes)</string>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
@@ -143,7 +143,7 @@
    <item>
     <widget class="QGroupBox" name="groupBox_3">
      <property name="title">
-      <string>Disk options (restart Substrata to apply changes)</string>
+      <string>Disk options (restart Metasiberia to apply changes)</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
       <item row="0" column="0">
@@ -174,6 +174,16 @@
       </item>
       <item row="0" column="1">
        <widget class="QLineEdit" name="startLocationURLLineEdit"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>XR / VR launch mode</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="xrLaunchModeComboBox"/>
       </item>
      </layout>
     </widget>

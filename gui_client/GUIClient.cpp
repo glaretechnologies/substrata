@@ -11,6 +11,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "ModelLoading.h"
 #include "MeshBuilding.h"
 #include "ThreadMessages.h"
+#include "EmojiUtils.h"
+#include "FloatingChatMessageUtils.h"
 #include "TerrainSystem.h"
 #include "TerrainDecalManager.h"
 #include "LoadScriptTask.h"
@@ -43,9 +45,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
 #include "MiniMap.h"
-#include "PhotoModeUI.h"
 #include "CEF.h"
-#include <limits>
 #if !defined(EMSCRIPTEN)
 #include "../networking/TLSSocket.h"
 #endif
@@ -70,6 +70,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/Exception.h"
 #include "../utils/TaskManager.h"
 #include "../utils/SocketBufferOutStream.h"
+#include "../utils/BufferOutStream.h"
 #include "../utils/StringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
@@ -77,6 +78,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/OpenSSL.h"
 #include "../utils/CryptoRNG.h"
 #include "../utils/FileInStream.h"
+#include "../utils/BufferViewInStream.h"
 #include "../utils/IncludeXXHash.h"
 #include "../utils/IndigoXMLDoc.h"
 #include "../utils/FastPoolAllocator.h"
@@ -89,6 +91,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../graphics/ImageMap.h"
 #include "../graphics/SRGBUtils.h"
 #include "../graphics/BasisDecoder.h"
+#include "../graphics/PNGDecoder.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include <video/VideoReader.h>
@@ -112,6 +115,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <BugSplat.h>
 #endif
 #include <clocale>
+#include <cmath>
+#include <exception>
 #if defined(EMSCRIPTEN)
 #include <emscripten/emscripten.h>
 #include <unistd.h>
@@ -141,6 +146,389 @@ static std::vector<AvatarRef> test_avatars;
 static std::vector<double> test_avatar_phases;
 
 
+static const char* const XR_LAUNCH_MODE_SETTINGS_KEY = "setting/xr_launch_mode";
+static const float XR_TELEPORT_TRACE_MAX_DIST = 15.f;
+static const float XR_TELEPORT_BEAM_RADIUS = 0.0125f;
+static const float XR_TELEPORT_MARKER_RADIUS = 0.22f;
+static const float XR_TELEPORT_MARKER_THICKNESS = 0.015f;
+static const float XR_TELEPORT_TRIGGER_PRESS_THRESHOLD = 0.65f;
+static const float XR_TELEPORT_TRIGGER_RELEASE_THRESHOLD = 0.35f;
+static const float XR_TELEPORT_MIN_WALKABLE_NORMAL_Z = 0.65f;
+static const float XR_TELEPORT_TARGET_Z_OFFSET = 0.05f;
+static const float XR_MOVE2D_DEADZONE = 0.18f;
+static const float XR_SMOOTH_TURN_SPEED = 400.f;
+static const float XR_CONTROLLER_VIS_RADIUS = 0.018f;
+static const float XR_CONTROLLER_VIS_LENGTH = 0.12f;
+
+
+enum class XRLaunchMode
+{
+	Auto,
+	Desktop,
+	VR
+};
+
+
+struct XRLaunchModeDecision
+{
+	XRLaunchModeDecision() : mode(XRLaunchMode::Auto) {}
+
+	XRLaunchMode mode;
+	std::string source;
+	std::string detail;
+};
+
+
+static bool parseXRBooleanString(const std::string& raw_value, bool& value_out)
+{
+	const std::string value = toLowerCase(raw_value);
+	if((value == "1") || (value == "true") || (value == "yes") || (value == "on"))
+	{
+		value_out = true;
+		return true;
+	}
+	if((value == "0") || (value == "false") || (value == "no") || (value == "off"))
+	{
+		value_out = false;
+		return true;
+	}
+
+	return false;
+}
+
+
+static XRLaunchMode parseXRLaunchModeString(const std::string& raw_value)
+{
+	const std::string value = toLowerCase(raw_value);
+
+	if((value == "desktop") || (value == "off") || (value == "disabled"))
+		return XRLaunchMode::Desktop;
+	if((value == "vr") || (value == "xr") || (value == "on") || (value == "enabled"))
+		return XRLaunchMode::VR;
+
+	return XRLaunchMode::Auto;
+}
+
+
+static std::string xrLaunchModeToString(const XRLaunchMode mode)
+{
+	switch(mode)
+	{
+	case XRLaunchMode::Auto:    return "auto";
+	case XRLaunchMode::Desktop: return "desktop";
+	case XRLaunchMode::VR:      return "vr";
+	default:                    return "auto";
+	}
+}
+
+
+static XRLaunchModeDecision chooseXRLaunchMode(const ArgumentParser& parsed_args, SettingsStore* settings)
+{
+	XRLaunchModeDecision decision;
+
+	if(parsed_args.isArgPresent("--desktop") && parsed_args.isArgPresent("--vr"))
+	{
+		decision.mode = XRLaunchMode::Desktop;
+		decision.source = "command line";
+		decision.detail = "Both --desktop and --vr were specified, so desktop mode takes precedence.";
+		return decision;
+	}
+
+	if(parsed_args.isArgPresent("--desktop"))
+	{
+		decision.mode = XRLaunchMode::Desktop;
+		decision.source = "command line";
+		decision.detail = "Desktop mode was requested with --desktop.";
+		return decision;
+	}
+
+	if(parsed_args.isArgPresent("--vr"))
+	{
+		decision.mode = XRLaunchMode::VR;
+		decision.source = "command line";
+		decision.detail = "VR mode was requested with --vr.";
+		return decision;
+	}
+
+	try
+	{
+		const std::string env_value = PlatformUtils::getEnvironmentVariable("SUBSTRATA_ENABLE_XR");
+		bool env_wants_vr = false;
+		if(parseXRBooleanString(env_value, env_wants_vr))
+		{
+			decision.mode = env_wants_vr ? XRLaunchMode::VR : XRLaunchMode::Desktop;
+			decision.source = "environment";
+			decision.detail = std::string("SUBSTRATA_ENABLE_XR=") + env_value +
+				(env_wants_vr ? " requested VR startup." : " requested desktop-only startup.");
+			return decision;
+		}
+	}
+	catch(glare::Exception&)
+	{}
+
+	if(settings)
+	{
+		const XRLaunchMode settings_mode = parseXRLaunchModeString(settings->getStringValue(XR_LAUNCH_MODE_SETTINGS_KEY, "auto"));
+		decision.mode = settings_mode;
+		decision.source = "settings";
+		decision.detail = "XR launch mode loaded from settings: " + xrLaunchModeToString(settings_mode) + ".";
+		return decision;
+	}
+
+	decision.mode = XRLaunchMode::Auto;
+	decision.source = "default";
+	decision.detail = "XR launch mode defaulted to automatic startup with desktop fallback.";
+	return decision;
+}
+
+
+static XRRuntimeProbeResult makeXRLaunchInactiveResult(const XRLaunchModeDecision& decision)
+{
+	XRRuntimeProbeResult result = {};
+#if defined(XR_SUPPORT)
+	result.xr_compiled_in = true;
+	result.backend_name = "OpenXR";
+	if(decision.mode == XRLaunchMode::Desktop)
+		result.message = "XR launch mode is set to desktop, so OpenXR startup was skipped.";
+	else
+		result.message = "OpenXR startup has not been attempted yet.";
+#else
+	result.backend_name = "None";
+	if(decision.mode == XRLaunchMode::Desktop)
+		result.message = "XR support is not compiled into this build.";
+	else
+		result.message = "XR startup was requested, but XR support is not compiled into this build.";
+#endif
+	return result;
+}
+
+
+static Vec3d getCameraAnglesFromTrackedHeadBasis(const Vec3d& cam_forward, const Vec3d& camera_right)
+{
+	const Vec3d forward = normalise(cam_forward);
+	const Vec3d right = normalise(camera_right);
+
+	Vec3d rotation;
+	rotation.x = std::atan2(forward.y, forward.x);
+	rotation.y = std::acos(myClamp(forward.z, -1.0, 1.0));
+
+	const Vec3d world_up(0, 0, 1);
+	const Vec3d rollplane_x_basis = crossProduct(forward, world_up);
+	if(rollplane_x_basis.length2() > 1.0e-10)
+	{
+		const Vec3d rollplane_x = normalise(rollplane_x_basis);
+		const Vec3d rollplane_y = normalise(crossProduct(rollplane_x, forward));
+		rotation.z = std::atan2(dot(right, rollplane_y), dot(right, rollplane_x));
+	}
+	else
+	{
+		rotation.z = 0;
+	}
+
+	return rotation;
+}
+
+
+static bool extractTrackedHeadPose(const XRTrackedPoseState& head_pose_state, Vec3d& pos_out, Vec3d& angles_out)
+{
+	if(!(head_pose_state.active && head_pose_state.position_valid && head_pose_state.orientation_valid))
+		return false;
+
+	const Matrix4f& object_to_world = head_pose_state.object_to_world_matrix;
+	pos_out = toVec3d(object_to_world.getColumn(3));
+	angles_out = getCameraAnglesFromTrackedHeadBasis(toVec3d(object_to_world.getColumn(1)), toVec3d(object_to_world.getColumn(0)));
+
+	return
+		std::isfinite(pos_out.x) && std::isfinite(pos_out.y) && std::isfinite(pos_out.z) &&
+		std::isfinite(angles_out.x) && std::isfinite(angles_out.y) && std::isfinite(angles_out.z);
+}
+
+
+static bool xrTrackedPoseHasWorldTransform(const XRTrackedPoseState& pose_state)
+{
+	return pose_state.active && pose_state.position_valid && pose_state.orientation_valid;
+}
+
+
+static Vec4f getXRTrackedPoseWorldPosition(const XRTrackedPoseState& pose_state)
+{
+	return pose_state.object_to_world_matrix.getColumn(3);
+}
+
+
+static Vec4f getXRTrackedPoseWorldForwardDir(const XRTrackedPoseState& pose_state)
+{
+	return normalise(pose_state.object_to_world_matrix.getColumn(1));
+}
+
+
+static bool xrTeleportButtonHeld(const XRHandInputState& hand_state, bool release_threshold)
+{
+	const bool select_down = hand_state.select_active && hand_state.select_pressed;
+	const float trigger_threshold = release_threshold ? XR_TELEPORT_TRIGGER_RELEASE_THRESHOLD : XR_TELEPORT_TRIGGER_PRESS_THRESHOLD;
+	const bool trigger_down = hand_state.trigger_active && (hand_state.trigger_value >= trigger_threshold);
+	return select_down || trigger_down;
+}
+
+
+static float xrFilterMove2DAxis(float value)
+{
+	const float abs_value = std::fabs(value);
+	if(abs_value <= XR_MOVE2D_DEADZONE)
+		return 0.f;
+
+	const float scaled = (abs_value - XR_MOVE2D_DEADZONE) / (1.f - XR_MOVE2D_DEADZONE);
+	return std::copysign(scaled, value);
+}
+
+
+static std::string xrFindFirstExistingModelPath(const std::vector<std::string>& candidate_paths)
+{
+	for(size_t i=0; i<candidate_paths.size(); ++i)
+		if(FileUtils::fileExists(candidate_paths[i]))
+			return candidate_paths[i];
+
+	return "";
+}
+
+
+static std::string xrGetViveFocus3ControllerModelPath(bool right_hand)
+{
+	const std::string side_dir  = right_hand ? "vive_focus3_controller_right" : "vive_focus3_controller_left";
+	const std::string file_name = right_hand ? "Focus3_controller_right.obj"  : "Focus3_controller_left.obj";
+
+	std::vector<std::string> candidate_paths;
+	candidate_paths.push_back("C:/Program Files/VIVE Business Streaming/RRDriver/htc_business_streaming/resources/rendermodels/vive_focus3_controller/" + side_dir + "/" + file_name);
+	candidate_paths.push_back("C:/Program Files/VIVE Business Streaming/Updater/App/RRDriver/htc_business_streaming/resources/rendermodels/vive_focus3_controller/" + side_dir + "/" + file_name);
+
+	return xrFindFirstExistingModelPath(candidate_paths);
+}
+
+
+static Matrix4f xrMakeControllerRenderModelComponentTransform(const Vec4f& origin_obj_space, const Vec3f& rotate_xyz_deg)
+{
+	// ModelLoading rotates OBJ coordinates into the engine's z-up basis with +90 deg about X, so match that here for vendor JSON anchors.
+	const Matrix4f obj_to_engine_basis = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+	const Matrix4f component_rotation =
+		Matrix4f::rotationAroundZAxis(::degreeToRad(rotate_xyz_deg.z)) *
+		Matrix4f::rotationAroundYAxis(::degreeToRad(rotate_xyz_deg.y)) *
+		Matrix4f::rotationAroundXAxis(::degreeToRad(rotate_xyz_deg.x));
+
+	return obj_to_engine_basis * Matrix4f::translationMatrix(origin_obj_space) * component_rotation;
+}
+
+
+static Matrix4f xrGetViveFocus3ControllerGripToModelTransform(bool right_hand)
+{
+	const Vec4f grip_origin(right_hand ? -0.007f : 0.007f, -0.00182941f, 0.1019482f, 1.f);
+	const Matrix4f model_from_grip = xrMakeControllerRenderModelComponentTransform(grip_origin, Vec3f(20.6f, 0.f, 0.f));
+
+	Matrix4f grip_to_model;
+	const bool invertible = model_from_grip.getInverseForAffine3Matrix(grip_to_model);
+	assert(invertible);
+	(void)invertible;
+	return grip_to_model;
+}
+
+
+static Matrix4f xrGetViveFocus3ControllerAimToModelTransform(bool right_hand)
+{
+	const Vec4f aim_origin(right_hand ? -0.007f : 0.007f, -0.03894766f, 0.00949694f, 1.f);
+	const Matrix4f model_from_aim = xrMakeControllerRenderModelComponentTransform(aim_origin, Vec3f(-39.4f, 0.f, 0.f));
+
+	Matrix4f aim_to_model;
+	const bool invertible = model_from_aim.getInverseForAffine3Matrix(aim_to_model);
+	assert(invertible);
+	(void)invertible;
+	return aim_to_model;
+}
+
+
+static bool buildXRControllerVisualTransform(const XRHandInputState& hand_state, bool use_focus3_render_model, bool right_hand, Matrix4f& ob_to_world_out)
+{
+	if(use_focus3_render_model)
+	{
+		if(xrTrackedPoseHasWorldTransform(hand_state.grip_pose))
+		{
+			ob_to_world_out = hand_state.grip_pose.object_to_world_matrix * xrGetViveFocus3ControllerGripToModelTransform(right_hand);
+			return true;
+		}
+		if(xrTrackedPoseHasWorldTransform(hand_state.aim_pose))
+		{
+			ob_to_world_out = hand_state.aim_pose.object_to_world_matrix * xrGetViveFocus3ControllerAimToModelTransform(right_hand);
+			return true;
+		}
+
+		return false;
+	}
+
+	const XRTrackedPoseState* pose_state =
+		xrTrackedPoseHasWorldTransform(hand_state.grip_pose) ? &hand_state.grip_pose :
+		(xrTrackedPoseHasWorldTransform(hand_state.aim_pose) ? &hand_state.aim_pose : NULL);
+
+	if(!pose_state)
+		return false;
+
+	const Matrix4f& pose = pose_state->object_to_world_matrix;
+	const Vec4f controller_right = pose.getColumn(0);
+	const Vec4f controller_forward = pose.getColumn(1);
+	const Vec4f controller_up = pose.getColumn(2);
+	const Vec4f controller_pos = pose.getColumn(3) + controller_forward * 0.055f - controller_up * 0.015f;
+	const Matrix4f controller_basis(controller_right, controller_up, controller_forward, controller_pos);
+	ob_to_world_out = controller_basis * Matrix4f::scaleMatrix(XR_CONTROLLER_VIS_RADIUS, XR_CONTROLLER_VIS_RADIUS, XR_CONTROLLER_VIS_LENGTH);
+	return true;
+}
+
+
+static std::string formatXRTraceScalar(double v)
+{
+	return std::isfinite(v) ? doubleToStringNDecimalPlaces(v, 6) : "";
+}
+
+
+static void appendXRTracePoseCSV(std::ostream& stream, const XRTrackedPoseState& pose_state)
+{
+	stream
+		<< (pose_state.active ? "1" : "0") << ','
+		<< (pose_state.position_valid ? "1" : "0") << ','
+		<< (pose_state.orientation_valid ? "1" : "0") << ','
+		<< (pose_state.position_tracked ? "1" : "0") << ','
+		<< (pose_state.orientation_tracked ? "1" : "0") << ',';
+
+	Vec3d pos;
+	Vec3d angles;
+	if(extractTrackedHeadPose(pose_state, pos, angles))
+	{
+		stream
+			<< formatXRTraceScalar(pos.x) << ','
+			<< formatXRTraceScalar(pos.y) << ','
+			<< formatXRTraceScalar(pos.z) << ','
+			<< formatXRTraceScalar(radToDegree(angles.x)) << ','
+			<< formatXRTraceScalar(radToDegree(angles.y)) << ','
+			<< formatXRTraceScalar(radToDegree(angles.z));
+	}
+	else
+	{
+		stream << ",,,,,";
+	}
+}
+
+
+static void appendXREyeViewTraceCSV(std::ostream& stream, const XREyeViewState& eye_state)
+{
+	appendXRTracePoseCSV(stream, eye_state.raw_pose);
+	stream << ',';
+	appendXRTracePoseCSV(stream, eye_state.world_pose);
+	stream
+		<< ','
+		<< (eye_state.fov_valid ? "1" : "0") << ','
+		<< formatXRTraceScalar(eye_state.angle_left_deg) << ','
+		<< formatXRTraceScalar(eye_state.angle_right_deg) << ','
+		<< formatXRTraceScalar(eye_state.angle_up_deg) << ','
+		<< formatXRTraceScalar(eye_state.angle_down_deg);
+}
+
+
 GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args)
 :	base_dir_path(base_dir_path_),
 	appdata_path(appdata_path_),
@@ -153,10 +541,27 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	shown_object_modification_error_msg(false),
 	num_frames_since_fps_timer_reset(0),
 	last_fps(0),
-	last_physics_sim_time(0),
+	xr_left_controller_vis_in_engine(false),
+	xr_right_controller_vis_in_engine(false),
+	xr_focus3_controller_render_models_attempted(false),
+	xr_focus3_controller_render_models_loaded(false),
+	xr_teleport_beam_in_engine(false),
+	xr_teleport_marker_in_engine(false),
+	xr_teleport_active(false),
+	xr_teleport_active_hand_is_right(true),
+	xr_teleport_target_valid(false),
+	xr_teleport_target_pos(Vec4f(0, 0, 0, 1)),
+	xr_teleport_target_normal(Vec4f(0, 0, 1, 0)),
+	xr_left_controller_last_transform(Matrix4f::identity()),
+	xr_right_controller_last_transform(Matrix4f::identity()),
+	xr_left_controller_last_valid_time(-1.0),
+	xr_right_controller_last_valid_time(-1.0),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
+	have_selected_ob_transform_rollback(false),
+	selected_ob_transform_rollback_uid(UID::invalidUID()),
+	selected_ob_transform_rollback_angle(0.f),
 	process_model_loaded_next(true),
 	load_distance(0),
 	load_distance2(0),
@@ -174,9 +579,14 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 #endif
 	//task_manager(NULL), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
 	url_parcel_uid(-1),
-	go_to_world_spawn_pos(false),
 	running_destructor(false),
 	biome_manager(NULL),
+	xr_session(NULL),
+	xr_runtime_probe_done(false),
+	xr_logged_head_pose_alignment(false),
+	xr_pose_trace_start_time(-1.0),
+	xr_pose_trace_last_write_time(-1.0),
+	xr_pose_trace_sample_count(0),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	frame_num(0),
 	next_lod_changes_begin_i(0),
@@ -199,8 +609,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	cur_loading_model_lod_level(-1),
 	obs_with_scripts(/*empty val=*/WorldObjectRef()),
 	ui_hidden(false),
-	only_load_most_important_obs(false),
-	last_ping_send_time(-1000)
+	only_load_most_important_obs(false)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -230,7 +639,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	texture_server = new TextureServer(/*use_canonical_path_keys=*/false); // Just used for caching textures for GUIClient::setMaterialFlagsForObject()
 
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
-	
+
 	this->world_ob_pool_allocator = new glare::FastPoolAllocator(/*ob alloc size=*/sizeof(WorldObject), /*alignment=*/64, /*block capacity=*/1024);
 	this->world_ob_pool_allocator->name = "world_ob_pool_allocator";
 
@@ -245,7 +654,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	{
 #if EMSCRIPTEN
 		const uint64 rnd_buf = (uint64)(emscripten_random() * (float)std::numeric_limits<uint64>::max());
-		this->rng = PCG32(1, rnd_buf); 
+		this->rng = PCG32(1, rnd_buf);
 #else
 		uint64 rnd_buf;
 		CryptoRNG::getRandomBytes((uint8*)&rnd_buf, sizeof(uint64));
@@ -298,18 +707,72 @@ void GUIClient::staticShutdown()
 }
 
 
+namespace
+{
+static const char* recentEmojiSettingsKey()
+{
+	return "chat/recent_emojis";
+}
+
+
+static std::vector<std::string> loadRecentEmojiHistoryFromSettings(const Reference<SettingsStore>& settings)
+{
+	std::vector<std::string> out;
+	if(settings.isNull())
+		return out;
+
+	const std::vector<std::string> tokens = ::split(settings->getStringValue(recentEmojiSettingsKey(), ""), '\n');
+	out.reserve(tokens.size());
+
+	for(size_t i=0; i<tokens.size(); ++i)
+	{
+		if(!EmojiUtils::isSupportedEmoji(tokens[i]))
+			continue;
+
+		bool already_present = false;
+		for(size_t z=0; z<out.size(); ++z)
+		{
+			if(out[z] == tokens[i])
+			{
+				already_present = true;
+				break;
+			}
+		}
+
+		if(!already_present)
+			out.push_back(tokens[i]);
+
+		if(out.size() >= EmojiUtils::maxRecentEmojiCount())
+			break;
+	}
+
+	return out;
+}
+
+
+static void saveRecentEmojiHistoryToSettings(const Reference<SettingsStore>& settings, const std::vector<std::string>& recent_emojis)
+{
+	if(settings.isNull())
+		return;
+
+	settings->setStringValue(recentEmojiSettingsKey(), StringUtils::join(recent_emojis, "\n"));
+}
+}
+
+
 // Initialise everything needed for the initial ClientThread launch.
 void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Reference<SettingsStore>& settings_store_, UIInterface* ui_interface_, glare::TaskManager* high_priority_task_manager_, Reference<glare::Allocator> worker_allocator_)
 {
 	ZoneScoped; // Tracy profiler
 
-	conPrint("Substrata version " + cyberspace_version);
+	conPrint("Metasiberia Beta version " + cyberspace_version);
 
 	cache_dir = cache_dir_;
 	settings = settings_store_;
 	ui_interface = ui_interface_;
 	high_priority_task_manager = high_priority_task_manager_;
 	worker_allocator = worker_allocator_;
+	recent_emoji_history = loadRecentEmojiHistoryFromSettings(settings);
 
 	PhysicsWorld::init(); // init Jolt stuff
 
@@ -332,6 +795,71 @@ void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Refere
 	tls_config_insecure_noverifyname(client_tls_config);
 #endif
 }
+
+
+namespace
+{
+static std::string gestureSettingsLocalDirPath(const std::string& appdata_path)
+{
+	return appdata_path + "/gesture_settings";
+}
+
+
+static std::string gestureSettingsLocalPathForUser(const std::string& appdata_path, const std::string& server_hostname, const UserID& user_id)
+{
+	if(!user_id.valid())
+		return std::string();
+
+	const std::string use_host = server_hostname.empty() ? "unknown_host" : FileUtils::makeOSFriendlyFilename(server_hostname);
+
+	return gestureSettingsLocalDirPath(appdata_path) + "/" + use_host + "_user_" + toString(user_id.value()) + ".bin";
+}
+
+
+static bool tryLoadGestureSettingsFromDisk(const std::string& path, GestureSettings& settings_out)
+{
+	try
+	{
+		if(path.empty() || !FileUtils::fileExists(path))
+			return false;
+
+		std::vector<unsigned char> file_data;
+		FileUtils::readEntireFile(path, file_data);
+
+		BufferViewInStream in_stream(ArrayRef<uint8>((const uint8*)file_data.data(), file_data.size()));
+		readGestureSettingsFromStream(in_stream, settings_out);
+		return true;
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WARNING: failed to load gesture settings from '" + path + "': " + e.what());
+		return false;
+	}
+}
+
+
+static void trySaveGestureSettingsToDisk(const std::string& path, const GestureSettings& settings)
+{
+	try
+	{
+		if(path.empty())
+			return;
+
+		const std::string dir = FileUtils::getDirectory(path);
+		if(!dir.empty())
+			FileUtils::createDirIfDoesNotExist(dir);
+
+		BufferOutStream out_stream;
+		settings.writeToStream(out_stream);
+
+		FileUtils::writeEntireFileAtomically(path, (const char*)out_stream.buf.data(), out_stream.buf.size());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WARNING: failed to save gesture settings to '" + path + "': " + e.what());
+	}
+}
+} // end anonymous namespace
 
 
 // These animations will be included in both the web and native distributions.
@@ -396,6 +924,22 @@ void GUIClient::postConnectInitialise()
 	for(size_t i=0; i<staticArrayNumElems(movement_anim_names); ++i)
 		resource_manager->addExternalResource(/*URL=*/URLString(movement_anim_names[i]) + ".subanim", /*local (abs) path=*/resources_dir_path + "/animations/" + std::string(movement_anim_names[i]) + ".subanim");
 
+	// Add built-in gesture animations as external resources.
+	// These are shipped with the client (see resources/animations).  This avoids needing the server to host the default gesture anim files.
+	{
+		const GestureSettings default_gesture_settings = GestureSettings::defaultGestureSettings();
+		for(size_t i=0; i<default_gesture_settings.gesture_settings.size(); ++i)
+		{
+			const URLString& anim_URL = default_gesture_settings.gesture_settings[i].anim_URL;
+			if(anim_URL.empty())
+				continue;
+
+			const std::string local_anim_path = resources_dir_path + "/animations/" + toStdString(anim_URL);
+			if(FileUtils::fileExists(local_anim_path))
+				resource_manager->addExternalResource(/*URL=*/anim_URL, /*local (abs) path=*/local_anim_path);
+		}
+	}
+
 
 	// Add capsule mesh resource (used for audio objects)
 	const URLString capsule_model_URL = "Capsule_obj_7611321750126528672.bmesh";
@@ -405,9 +949,13 @@ void GUIClient::postConnectInitialise()
 		resource_manager->addExternalResource(/*URL=*/capsule_model_URL, /*local (abs) path=*/capsule_local_model_path);
 	}
 
-	// Init audio engine immediately if we are not on the web.  Web browsers need to wait for an input gesture is completed before trying to play sounds.
+	// Init audio engine immediately if we are not on the web.
+	// Web browsers need to wait for an input gesture is completed before trying to play sounds.
+	// For screenshot slave mode (used by screenshot_bot on headless Linux), avoid audio init
+	// to prevent ALSA/Pulse backend failures from aborting the process.
 #ifndef EMSCRIPTEN
-	initAudioEngine();
+	if(!parsed_args.isArgPresent("--screenshotslave"))
+		initAudioEngine();
 #endif
 
 	checkCreateResourceDownloadThreads();
@@ -451,9 +999,17 @@ void GUIClient::initAudioEngine()
 		t->result_msg_queue = &this->msg_queue;
 		model_and_texture_loader_task_manager.addTask(t);
 	}
-	catch(glare::Exception& e) 
+	catch(glare::Exception& e)
 	{
 		logMessage("Audio engine could not be initialised: " + e.what());
+	}
+	catch(std::exception& e)
+	{
+		logMessage(std::string("Audio engine initialisation failed with std::exception: ") + e.what());
+	}
+	catch(...)
+	{
+		logMessage("Audio engine initialisation failed with unknown exception.");
 	}
 }
 
@@ -464,13 +1020,106 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 static const float arc_handle_half_angle = 1.5f;
 
 
-void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine_, 
+void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine_,
 	const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts)
 {
 	ZoneScoped; // Tracy profiler
 
 	opengl_engine = opengl_engine_;
 
+	if(xr_session)
+	{
+		delete xr_session;
+		xr_session = NULL;
+	}
+	xr_mirror_view.valid = false;
+	xr_head_pose_state = XRTrackedPoseState();
+	xr_raw_head_pose_state = XRTrackedPoseState();
+	xr_left_eye_view_state = XREyeViewState();
+	xr_right_eye_view_state = XREyeViewState();
+	xr_left_hand_state = XRHandInputState();
+	xr_right_hand_state = XRHandInputState();
+	xr_logged_head_pose_alignment = false;
+	const XRLaunchModeDecision xr_launch_mode_decision = chooseXRLaunchMode(parsed_args, settings.ptr());
+	xr_runtime_probe_result = makeXRLaunchInactiveResult(xr_launch_mode_decision);
+	if(xr_pose_trace_stream.is_open())
+		xr_pose_trace_stream.close();
+	xr_pose_trace_start_time = -1.0;
+	xr_pose_trace_last_write_time = -1.0;
+	xr_pose_trace_sample_count = 0;
+	xr_runtime_probe_done = true;
+
+	logMessage("[XR] launch mode: " + xrLaunchModeToString(xr_launch_mode_decision.mode) + " (" + xr_launch_mode_decision.source + ")");
+	logMessage("[XR] " + xr_launch_mode_decision.detail);
+
+	const bool should_attempt_xr_startup = (xr_launch_mode_decision.mode != XRLaunchMode::Desktop);
+	if(should_attempt_xr_startup)
+	{
+		xr_session = new XRSession();
+		xr_session->initialiseForCurrentOpenGLContext();
+		xr_runtime_probe_result = xr_session->getLastResult();
+		xr_mirror_view = xr_session->getMirrorView();
+		xr_head_pose_state = xr_session->getHeadPoseState();
+		xr_raw_head_pose_state = xr_session->getRawHeadPoseState();
+		xr_left_eye_view_state = xr_session->getLeftEyeViewState();
+		xr_right_eye_view_state = xr_session->getRightEyeViewState();
+		xr_left_hand_state = xr_session->getLeftHandState();
+		xr_right_hand_state = xr_session->getRightHandState();
+		if(!xr_session->isInitialised())
+		{
+			const std::string failure_message = xr_runtime_probe_result.message;
+			delete xr_session;
+			xr_session = NULL;
+			if(xr_launch_mode_decision.mode == XRLaunchMode::Auto)
+				logMessage("[XR] Automatic XR startup failed, continuing in desktop mode. Reason: " + failure_message);
+			else
+				logMessage("[XR] VR startup failed, continuing in desktop mode. Reason: " + failure_message);
+		}
+		else
+		{
+			resetXRTraceCapture();
+		}
+	}
+	else
+	{
+		logMessage("[XR] " + xr_runtime_probe_result.message);
+	}
+
+	if(should_attempt_xr_startup && xr_runtime_probe_result.xr_compiled_in)
+	{
+		std::string msg = "[XR] backend: " + xr_runtime_probe_result.backend_name + ", loader reachable: " + boolToString(xr_runtime_probe_result.loader_reachable) +
+			", instance created: " + boolToString(xr_runtime_probe_result.instance_created) +
+			", system available: " + boolToString(xr_runtime_probe_result.system_available) +
+			", graphics requirements: " + boolToString(xr_runtime_probe_result.graphics_requirements_obtained) +
+			", session created: " + boolToString(xr_runtime_probe_result.session_created) +
+			", local space: " + boolToString(xr_runtime_probe_result.local_reference_space_created);
+		if(!xr_runtime_probe_result.runtime_name.empty())
+			msg += ", runtime: " + xr_runtime_probe_result.runtime_name + " " + xr_runtime_probe_result.runtime_version_string;
+		if(!xr_runtime_probe_result.system_name.empty())
+			msg += ", system: " + xr_runtime_probe_result.system_name;
+		if(xr_runtime_probe_result.configured_view_count > 0)
+			msg += ", configured views: " + toString(xr_runtime_probe_result.configured_view_count);
+		if(!xr_runtime_probe_result.reference_space_type_string.empty())
+			msg += ", reference space: " + xr_runtime_probe_result.reference_space_type_string;
+		if(xr_runtime_probe_result.swapchains_created)
+			msg += ", swapchains: true";
+		if(xr_runtime_probe_result.action_set_created)
+			msg += ", action set: true";
+		if(xr_runtime_probe_result.action_bindings_suggested)
+			msg += ", binding profiles: " + toString(xr_runtime_probe_result.suggested_binding_profile_count);
+		if(xr_runtime_probe_result.action_spaces_created)
+			msg += ", hand spaces: true";
+		if(!xr_runtime_probe_result.swapchain_format_string.empty())
+			msg += ", swapchain format: " + xr_runtime_probe_result.swapchain_format_string;
+		logMessage(msg);
+		logMessage("[XR] " + xr_runtime_probe_result.message);
+		if(!xr_runtime_probe_result.actions_message.empty())
+			logMessage("[XR] " + xr_runtime_probe_result.actions_message);
+	}
+	else if(should_attempt_xr_startup)
+	{
+		logMessage("[XR] " + xr_runtime_probe_result.message);
+	}
 
 	this->only_load_most_important_obs = settings->getBoolValue(/*MainOptionsDialog::onlyLoadMostImportantObsKey=*/"only_load_most_important_obs", /*default value=*/onlyLoadMostImportantObjectsDefaultValue());
 
@@ -491,19 +1140,25 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	gl_ui = new GLUI();
 	gl_ui->create(opengl_engine, (float)device_pixel_ratio, fonts, emoji_fonts, &this->stack_allocator);
 
-	gesture_ui.create(/*gui_client_=*/this, gl_ui);
+	gesture_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
-	ob_info_ui.create(/*gui_client_=*/this, gl_ui);
+	ob_info_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
-	misc_info_ui.create(/*gui_client_=*/this, gl_ui);
-	
-	hud_ui.create(/*gui_client_=*/this, gl_ui);
+	misc_info_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
 
-	chat_ui.create(/*gui_client_=*/this, gl_ui);
+	hud_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+
+	chat_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui);
+
+	// Webcam capture uses Media Foundation on Windows; update runs from GUIClient::timerEvent() when enabled.
+	webcam_capture.create(/*gui_client_=*/this, gl_ui, opengl_engine);
 
 	// Chat UI should be drawn above the movement button if present.
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
 	chat_ui.setDrawAreaBottomLeftY(bottom_left_y);
+
+	photo_mode_ui.create(opengl_engine, /*gui_client_=*/this, gl_ui, this->settings);
+	photo_mode_ui.setVisible(false);
 
 
 	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
@@ -638,6 +1293,20 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		seat_shape = results.physics_shape;
 	}
 
+	// Make camera mesh
+	{
+		MeshBuilding::MeshBuildingResults results = MeshBuilding::makeCameraMeshes(base_dir_path, *opengl_engine->vert_buf_allocator);
+		camera_opengl_mesh = results.opengl_mesh_data;
+		camera_shape = results.physics_shape;
+	}
+
+	// Make camera screen mesh
+	{
+		MeshBuilding::MeshBuildingResults results = MeshBuilding::makeCameraScreenMesh(*opengl_engine->vert_buf_allocator);
+		camera_screen_opengl_mesh = results.opengl_mesh_data;
+		camera_screen_shape = results.physics_shape;
+	}
+
 	// Make portal meshes
 	{
 		MeshBuilding::MeshBuildingResults results = MeshBuilding::makePortalMeshes(base_dir_path, *opengl_engine->vert_buf_allocator);
@@ -664,7 +1333,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		voxel_group.voxels.push_back(Voxel(Vec3i(0,0,0), /*mat index=*/0));
 
 		PhysicsShape single_voxel_shape;
-		Reference<OpenGLMeshRenderData> single_voxel_mesh_opengl_data = ModelLoading::makeModelForVoxelGroup(voxel_group, /*subsample_factor=*/1, /*ob_to_world_matrix=*/Matrix4f::identity(), /*vert_buf_allocator=*/opengl_engine->vert_buf_allocator.ptr(), 
+		Reference<OpenGLMeshRenderData> single_voxel_mesh_opengl_data = ModelLoading::makeModelForVoxelGroup(voxel_group, /*subsample_factor=*/1, /*ob_to_world_matrix=*/Matrix4f::identity(), /*vert_buf_allocator=*/opengl_engine->vert_buf_allocator.ptr(),
 			/*do_opengl_stuff=*/true, need_lightmap_uvs, mat_transparent, /*build_dynamic_physics_ob=*/false, worker_allocator.ptr(), /*physics shape out=*/single_voxel_shape);
 
 		single_voxel_meshdata = new MeshData(/*url=*/"single voxel meshdata", single_voxel_mesh_opengl_data, &mesh_manager);
@@ -696,6 +1365,51 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 		ob_placement_marker->setSingleMaterial(material);
 	}
+
+	// Make XR teleport beam and landing marker models.
+	{
+		xr_left_controller_vis = opengl_engine->allocateObject();
+		xr_left_controller_vis->ob_to_world_matrix = Matrix4f::identity();
+		xr_left_controller_vis->mesh_data = opengl_engine->getCylinderMesh();
+		xr_left_controller_vis->always_visible = true;
+
+		OpenGLMaterial left_material;
+		left_material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.25f, 0.85f, 1.0f));
+		left_material.transparent = true;
+		left_material.alpha = 0.92f;
+		xr_left_controller_vis->setSingleMaterial(left_material);
+
+		xr_right_controller_vis = opengl_engine->allocateObject();
+		xr_right_controller_vis->ob_to_world_matrix = Matrix4f::identity();
+		xr_right_controller_vis->mesh_data = opengl_engine->getCylinderMesh();
+		xr_right_controller_vis->always_visible = true;
+
+		OpenGLMaterial right_material;
+		right_material.albedo_linear_rgb = toLinearSRGB(Colour3f(1.0f, 0.55f, 0.2f));
+		right_material.transparent = true;
+		right_material.alpha = 0.92f;
+		xr_right_controller_vis->setSingleMaterial(right_material);
+
+		xr_teleport_beam = opengl_engine->allocateObject();
+		xr_teleport_beam->ob_to_world_matrix = Matrix4f::identity();
+		xr_teleport_beam->mesh_data = opengl_engine->getCylinderMesh();
+		xr_teleport_beam->always_visible = true;
+
+		OpenGLMaterial material;
+		material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.2f, 0.55f, 0.95f));
+		material.transparent = true;
+		material.alpha = 0.85f;
+
+		xr_teleport_beam->setSingleMaterial(material);
+
+		xr_teleport_marker = opengl_engine->allocateObject();
+		xr_teleport_marker->ob_to_world_matrix = Matrix4f::identity();
+		xr_teleport_marker->mesh_data = opengl_engine->getSphereMeshData();
+		xr_teleport_marker->always_visible = true;
+		xr_teleport_marker->setSingleMaterial(material);
+	}
+
+	tryUpgradeXRControllerVisualsToViveFocus3RenderModels();
 
 	{
 		// Make ob_denied_move_marker
@@ -736,7 +1450,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		voxel_edit_face_marker->setSingleMaterial(material);
 	}
 
-	
+
 	// TEMP: make an avatar for testing of animation retargeting etc.
 #if 0
 	if(false) // test_avatars.empty() && extracted_anim_data_loaded)
@@ -770,20 +1484,20 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
 
 
-			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 
+			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0,
 				test_avatar->avatar_settings.materials, /*lightmap_url=*/URLString(), /*use_basis=*/true, *resource_manager, &arena_allocator, ob_to_world_matrix);
 
-				
+
 			// Load animation data
 			{
-				
+
 				AnimationData extracted_anim_data;
 				extracted_anim_data.readFromStream(file);
 
 				test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(extracted_anim_data);
 			}
 
-			test_avatar->graphics.build();
+			test_avatar->graphics.build(test_avatar->our_avatar);
 
 			for(size_t z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
 				test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
@@ -805,10 +1519,10 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	if(false)
 	{
 		ModelLoading::MakeGLObjectResults results;
-		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, 
-			//"D:\\models\\readyplayerme_avatar_animation_18.glb", 
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, /*allocator=*/nullptr,
+			//"D:\\models\\readyplayerme_avatar_animation_18.glb",
 			"D:\\models\\BMWCONCEPTBIKE\\bike no armature.glb",
-			//"N:\\glare-core\\trunk\\testfiles\\gltf\\BoxAnimated.glb", 
+			//"N:\\glare-core\\trunk\\testfiles\\gltf\\BoxAnimated.glb",
 			/*do_opengl_stuff=*/true,
 			results);
 
@@ -908,6 +1622,120 @@ GUIClient::~GUIClient()
 }
 
 
+bool GUIClient::getCurrentXRTrackedHeadPose(Vec3d& pos_out, Vec3d& angles_out) const
+{
+	return extractTrackedHeadPose(this->xr_head_pose_state, pos_out, angles_out);
+}
+
+
+bool GUIClient::getCurrentXRRawHeadPose(Vec3d& pos_out, Vec3d& angles_out) const
+{
+	return extractTrackedHeadPose(this->xr_raw_head_pose_state, pos_out, angles_out);
+}
+
+
+void GUIClient::getCurrentAvatarPoseForNetworking(Vec3d& pos_out, Vec3d& angles_out)
+{
+	if(!getCurrentXRTrackedHeadPose(pos_out, angles_out))
+	{
+		pos_out = this->cam_controller.getFirstPersonPosition();
+		angles_out = this->cam_controller.getAvatarAngles();
+	}
+}
+
+
+void GUIClient::getCurrentListenerPose(Vec3d& pos_out, Vec3d& angles_out) const
+{
+	if(!getCurrentXRTrackedHeadPose(pos_out, angles_out))
+	{
+		pos_out = this->cam_controller.getPosition();
+		angles_out = this->cam_controller.getAngles();
+	}
+}
+
+
+void GUIClient::resetXRTraceCapture()
+{
+	xr_pose_trace_path = appdata_path + "/xr_pose_trace.csv";
+	if(xr_pose_trace_stream.is_open())
+		xr_pose_trace_stream.close();
+
+	xr_pose_trace_stream.open(xr_pose_trace_path.c_str(), std::ios::out | std::ios::trunc);
+	xr_pose_trace_start_time = Clock::getTimeSinceInit();
+	xr_pose_trace_last_write_time = -1.0;
+	xr_pose_trace_sample_count = 0;
+
+	if(xr_pose_trace_stream.is_open())
+	{
+		xr_pose_trace_stream
+			<< "time_s,session_state,reference_space,"
+			<< "raw_active,raw_pos_valid,raw_orient_valid,raw_pos_tracked,raw_orient_tracked,raw_x,raw_y,raw_z,raw_yaw_deg,raw_pitch_deg,raw_roll_deg,"
+			<< "world_active,world_pos_valid,world_orient_valid,world_pos_tracked,world_orient_tracked,world_x,world_y,world_z,world_yaw_deg,world_pitch_deg,world_roll_deg,"
+			<< "left_raw_active,left_raw_pos_valid,left_raw_orient_valid,left_raw_pos_tracked,left_raw_orient_tracked,left_raw_x,left_raw_y,left_raw_z,left_raw_yaw_deg,left_raw_pitch_deg,left_raw_roll_deg,"
+			<< "left_world_active,left_world_pos_valid,left_world_orient_valid,left_world_pos_tracked,left_world_orient_tracked,left_world_x,left_world_y,left_world_z,left_world_yaw_deg,left_world_pitch_deg,left_world_roll_deg,"
+			<< "left_fov_valid,left_fov_left_deg,left_fov_right_deg,left_fov_up_deg,left_fov_down_deg,"
+			<< "right_raw_active,right_raw_pos_valid,right_raw_orient_valid,right_raw_pos_tracked,right_raw_orient_tracked,right_raw_x,right_raw_y,right_raw_z,right_raw_yaw_deg,right_raw_pitch_deg,right_raw_roll_deg,"
+			<< "right_world_active,right_world_pos_valid,right_world_orient_valid,right_world_pos_tracked,right_world_orient_tracked,right_world_x,right_world_y,right_world_z,right_world_yaw_deg,right_world_pitch_deg,right_world_roll_deg,"
+			<< "right_fov_valid,right_fov_left_deg,right_fov_right_deg,right_fov_up_deg,right_fov_down_deg,"
+			<< "cam_heading_deg,cam_pitch_deg,cam_roll_deg,avatar_heading_deg,avatar_pitch_deg,avatar_roll_deg\n";
+		xr_pose_trace_stream.flush();
+		logMessage("[XR] Pose trace capture reset: " + xr_pose_trace_path);
+	}
+}
+
+
+void GUIClient::appendXRTraceSample()
+{
+	if(!xr_pose_trace_stream.is_open())
+		return;
+
+	const double now = Clock::getTimeSinceInit();
+	if((xr_pose_trace_last_write_time >= 0.0) && ((now - xr_pose_trace_last_write_time) < 0.1))
+		return;
+
+	xr_pose_trace_last_write_time = now;
+	xr_pose_trace_sample_count++;
+
+	const Vec3d cam_angles = cam_controller.getAngles();
+	const Vec3d avatar_angles = cam_controller.getAvatarAngles();
+
+	xr_pose_trace_stream
+		<< formatXRTraceScalar(now - xr_pose_trace_start_time) << ','
+		<< xr_runtime_probe_result.session_state_string << ','
+		<< xr_runtime_probe_result.reference_space_type_string << ',';
+	appendXRTracePoseCSV(xr_pose_trace_stream, xr_raw_head_pose_state);
+	xr_pose_trace_stream << ',';
+	appendXRTracePoseCSV(xr_pose_trace_stream, xr_head_pose_state);
+	xr_pose_trace_stream << ',';
+	appendXREyeViewTraceCSV(xr_pose_trace_stream, xr_left_eye_view_state);
+	xr_pose_trace_stream << ',';
+	appendXREyeViewTraceCSV(xr_pose_trace_stream, xr_right_eye_view_state);
+	xr_pose_trace_stream
+		<< ','
+		<< formatXRTraceScalar(radToDegree(cam_angles.x)) << ','
+		<< formatXRTraceScalar(radToDegree(cam_angles.y)) << ','
+		<< formatXRTraceScalar(radToDegree(cam_angles.z)) << ','
+		<< formatXRTraceScalar(radToDegree(avatar_angles.x)) << ','
+		<< formatXRTraceScalar(radToDegree(avatar_angles.y)) << ','
+		<< formatXRTraceScalar(radToDegree(avatar_angles.z)) << '\n';
+
+	if((xr_pose_trace_sample_count % 20) == 0)
+		xr_pose_trace_stream.flush();
+}
+
+
+bool GUIClient::requestXRRecenter()
+{
+	if(!xr_session)
+		return false;
+
+	xr_session->requestRecenter();
+	resetXRTraceCapture();
+	logMessage("[XR] Manual headset recenter requested. Keep the headset on your head and look straight ahead.");
+	return true;
+}
+
+
 
 void GUIClient::makeShaders()
 {
@@ -916,7 +1744,7 @@ void GUIClient::makeShaders()
 		const std::string use_shader_dir = base_dir_path + "/data/shaders";
 		const std::string version_directive    = opengl_engine->getVersionDirective();
 		const std::string preprocessor_defines = opengl_engine->getPreprocessorDefines();
-				
+
 		parcel_shader_prog = new OpenGLProgram(
 			"parcel hologram prog",
 			new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
@@ -927,7 +1755,7 @@ void GUIClient::makeShaders()
 		opengl_engine->addProgram(parcel_shader_prog);
 		// Let any glare::Exception thrown fall through to below.
 	}
-	
+
 	// Make shader for portal
 	{
 		std::string use_shader_dir = base_dir_path + "/data/shaders";
@@ -943,7 +1771,7 @@ void GUIClient::makeShaders()
 		const std::string version_directive    = opengl_engine->getVersionDirective();
 		const std::string preprocessor_defines_vert = opengl_engine->getPreprocessorDefinesWithCommonVertStructs();
 		const std::string preprocessor_defines      = opengl_engine->getPreprocessorDefinesWithCommonVertStructs();
-				
+
 		portal_shader_prog = new OpenGLProgram(
 			"portal prog",
 			new OpenGLShader(use_shader_dir + "/portal_vert_shader.glsl", version_directive, preprocessor_defines_vert, GL_VERTEX_SHADER),
@@ -982,6 +1810,25 @@ void GUIClient::shutdown()
 	async_model_loaded_messages_to_process.clear();
 	async_texture_loaded_messages_to_process.clear();
 
+	if(xr_session)
+	{
+		delete xr_session;
+		xr_session = NULL;
+	}
+	xr_head_pose_state = XRTrackedPoseState();
+	xr_raw_head_pose_state = XRTrackedPoseState();
+	xr_left_hand_state = XRHandInputState();
+	xr_right_hand_state = XRHandInputState();
+	xr_logged_head_pose_alignment = false;
+	if(xr_pose_trace_stream.is_open())
+	{
+		xr_pose_trace_stream.flush();
+		xr_pose_trace_stream.close();
+	}
+	xr_pose_trace_start_time = -1.0;
+	xr_pose_trace_last_write_time = -1.0;
+	xr_pose_trace_sample_count = 0;
+
 
 	// Clear web_view_obs - will close QWebEngineViews
 	for(auto entry : web_view_obs)
@@ -1007,10 +1854,11 @@ void GUIClient::shutdown()
 	for(size_t i=0; i<test_avatars.size(); ++i)
 		test_avatars[i]->graphics.destroy(*opengl_engine, *physics_world); // Remove any OpenGL object for it
 
+	removeAllFloatingChatMessages();
 
 	disconnectFromServerAndClearAllObjects();
 
-	
+
 	if(biome_manager)
 	{
 		delete biome_manager;
@@ -1019,12 +1867,12 @@ void GUIClient::shutdown()
 
 	// Remove the notifications from the UI
 	for(auto it = notifications.begin(); it != notifications.end(); ++it)
-		gl_ui->removeWidget(it->text_view); 
+		gl_ui->removeWidget(it->text_view);
 	notifications.clear();
 
 	// Remove the script_messages from the UI
 	for(auto it = script_messages.begin(); it != script_messages.end(); ++it)
-		gl_ui->removeWidget(it->text_view); 
+		gl_ui->removeWidget(it->text_view);
 	script_messages.clear();
 
 	default_array_tex = nullptr;
@@ -1034,12 +1882,14 @@ void GUIClient::shutdown()
 	ob_info_ui.destroy();
 
 	gesture_ui.destroy();
-	
+
 	hud_ui.destroy();
 
 	chat_ui.destroy();
 
-	photo_mode_ui = nullptr;
+	photo_mode_ui.destroy();
+
+	webcam_capture.destroy();
 
 	minimap = nullptr;
 
@@ -1055,7 +1905,11 @@ void GUIClient::shutdown()
 	image_cube_opengl_mesh = NULL;
 	spotlight_opengl_mesh = NULL;
 	seat_opengl_mesh = NULL;
+	camera_opengl_mesh = NULL;
+	camera_screen_opengl_mesh = NULL;
 	portal_opengl_mesh = NULL;
+	camera_shape = PhysicsShape();
+	camera_screen_shape = PhysicsShape();
 	portal_shape = PhysicsShape();
 	cur_loading_mesh_data = NULL;
 	single_voxel_meshdata = NULL;
@@ -1063,6 +1917,22 @@ void GUIClient::shutdown()
 
 	ob_placement_beam = NULL;
 	ob_placement_marker = NULL;
+	xr_left_controller_vis = NULL;
+	xr_right_controller_vis = NULL;
+	xr_left_controller_vis_in_engine = false;
+	xr_right_controller_vis_in_engine = false;
+	xr_focus3_controller_render_models_attempted = false;
+	xr_focus3_controller_render_models_loaded = false;
+	xr_left_controller_last_transform = Matrix4f::identity();
+	xr_right_controller_last_transform = Matrix4f::identity();
+	xr_left_controller_last_valid_time = -1.0;
+	xr_right_controller_last_valid_time = -1.0;
+	xr_teleport_beam = NULL;
+	xr_teleport_marker = NULL;
+	xr_teleport_beam_in_engine = false;
+	xr_teleport_marker_in_engine = false;
+	xr_teleport_active = false;
+	xr_teleport_target_valid = false;
 	voxel_edit_marker = NULL;
 	voxel_edit_face_marker = NULL;
 	ob_denied_move_marker = NULL;
@@ -1079,7 +1949,7 @@ void GUIClient::shutdown()
 	car_body_gl_object = NULL;
 	mouseover_selected_gl_ob = NULL;
 
-	
+
 	client_thread_manager.killThreadsBlocking();
 	client_udp_handler_thread_manager.killThreadsBlocking();
 	mic_read_thread_manager.killThreadsBlocking();
@@ -1088,7 +1958,7 @@ void GUIClient::shutdown()
 	net_resource_download_thread_manager.killThreadsBlocking();
 	save_resources_db_thread_manager.killThreadsBlocking();
 	garbage_deleter_thread_manager.killThreadsBlocking();
-	
+
 
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 
@@ -1220,6 +2090,120 @@ void GUIClient::sendChatMessage(const std::string& message)
 }
 
 
+void GUIClient::sendEmojiChatMessage(const std::string& emoji)
+{
+	if(!EmojiUtils::isSupportedEmoji(emoji))
+		return;
+
+	if(this->connection_state == ServerConnectionState_NotConnected)
+	{
+		showErrorNotification("Can't send a chat message when not connected to server.");
+		return;
+	}
+
+	recordRecentEmojiUsage(emoji);
+	sendChatMessage(emoji);
+
+	if(audio_engine.isInitialised())
+		audio_engine.playOneShotSound(resources_dir_path + "/sounds/ms_chat_zvuk.mp3", cam_controller.getPosition().toVec4fPoint());
+}
+
+
+void GUIClient::recordRecentEmojiUsage(const std::string& emoji)
+{
+	if(!EmojiUtils::isSupportedEmoji(emoji))
+		return;
+
+	size_t existing_index = recent_emoji_history.size();
+	for(size_t i=0; i<recent_emoji_history.size(); ++i)
+	{
+		if(recent_emoji_history[i] == emoji)
+		{
+			existing_index = i;
+			break;
+		}
+	}
+
+	if(existing_index < recent_emoji_history.size())
+		recent_emoji_history.erase(recent_emoji_history.begin() + existing_index);
+
+	recent_emoji_history.insert(recent_emoji_history.begin(), emoji);
+
+	if(recent_emoji_history.size() > EmojiUtils::maxRecentEmojiCount())
+		recent_emoji_history.resize(EmojiUtils::maxRecentEmojiCount());
+
+	saveRecentEmojiHistoryToSettings(settings, recent_emoji_history);
+}
+
+
+static double getFloatingChatMessageDuration(const std::string& preview)
+{
+	if(EmojiUtils::isSupportedEmoji(preview))
+		return 1.6;
+
+	const double num_code_points = (double)UTF8Utils::numCodePointsInString(preview);
+	return myMin(3.0, 1.9 + num_code_points * 0.05);
+}
+
+
+static float getFloatingChatMessageWorldHeight(const std::string& preview)
+{
+	return EmojiUtils::isSupportedEmoji(preview) ? 0.55f : 0.38f;
+}
+
+
+static float getFloatingChatMessageRiseDistance(const std::string& preview)
+{
+	return EmojiUtils::isSupportedEmoji(preview) ? 1.25f : 1.0f;
+}
+
+
+void GUIClient::spawnFloatingChatMessageForAvatar(const UID& avatar_uid, const std::string& message, double cur_time)
+{
+	if(!avatar_uid.valid() || opengl_engine.isNull() || gl_ui.isNull())
+		return;
+
+	const std::string preview = FloatingChatMessageUtils::makePreview(message);
+	if(preview.empty())
+		return;
+
+	removeFloatingChatMessageForAvatar(avatar_uid);
+
+	FloatingChatMessageState state;
+	state.message = preview;
+	state.start_time = cur_time;
+	state.duration_seconds = getFloatingChatMessageDuration(preview);
+	state.world_height = getFloatingChatMessageWorldHeight(preview);
+	state.rise_distance = getFloatingChatMessageRiseDistance(preview);
+	state.gl_ob = makeFloatingChatMessageGLObject(preview);
+	if(state.gl_ob.nonNull())
+	{
+		opengl_engine->addObject(state.gl_ob);
+		floating_chat_message_states[avatar_uid] = state;
+	}
+}
+
+
+void GUIClient::removeFloatingChatMessageForAvatar(const UID& avatar_uid)
+{
+	auto res = floating_chat_message_states.find(avatar_uid);
+	if(res != floating_chat_message_states.end())
+	{
+		checkRemoveObAndSetRefToNull(opengl_engine, res->second.gl_ob);
+		floating_chat_message_states.erase(res);
+	}
+}
+
+
+void GUIClient::removeAllFloatingChatMessages()
+{
+	for(auto it = floating_chat_message_states.begin(); it != floating_chat_message_states.end(); ++it)
+		checkRemoveObAndSetRefToNull(opengl_engine, it->second.gl_ob);
+
+	floating_chat_message_states.clear();
+}
+
+
 bool GUIClient::checkAddAudioToProcessingSet(const URLString& url)
 {
 	auto res = audio_processing.insert(url);
@@ -1256,7 +2240,7 @@ static inline bool isValidLightMapURL(OpenGLEngine& opengl_engine, const string_
 			else
 			{
 				const string_view extension = getExtensionStringView(URL);
-				return (extension != "ktx") && (extension != "ktx2"); 
+				return (extension != "ktx") && (extension != "ktx2");
 			}
 		}
 		else
@@ -1265,8 +2249,14 @@ static inline bool isValidLightMapURL(OpenGLEngine& opengl_engine, const string_
 }
 
 
+static bool shouldUseBasisTexturesForWorldObject(const WorldObject& ob, bool server_has_basis_textures)
+{
+	return server_has_basis_textures;
+}
+
+
 // Start loading texture, if present
-void GUIClient::startLoadingTextureIfPresent(const URLString& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+void GUIClient::startLoadingTextureIfPresent(const URLString& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor,
 	const TextureParams& tex_params)
 {
 	if(isValidImageTextureURL(tex_url))
@@ -1282,7 +2272,7 @@ void GUIClient::startLoadingTextureIfPresent(const URLString& tex_url, const Vec
 }
 
 
-void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_abs_tex_path, const ResourceRef& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
+void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_abs_tex_path, const ResourceRef& resource, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor,
 		const TextureParams& tex_params)
 {
 	//assert(resource_manager->getExistingResourceForURL(tex_url).nonNull() && resource_manager->getExistingResourceForURL(tex_url)->getState() == Resource::State_Present);
@@ -1299,10 +2289,10 @@ void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_ab
 
 			load_item_queue.enqueueItem(
 				resource->URL, // key
-				centroid_ws, 
-				aabb_ws_longest_len, 
+				centroid_ws,
+				aabb_ws_longest_len,
 				task,
-				max_task_dist, 
+				max_task_dist,
 				importance_factor
 			);
 		}
@@ -1316,11 +2306,11 @@ void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_ab
 
 // max_dist_for_ob_lod_level: maximum distance from camera at which the object will still be at ob_lod_level.
 // max_dist_for_ob_lod_level_clamped_0: maximum distance from camera at which the object will still be at max(0, ob_lod_level).   [e.g. treats level -1 as 0]
-void GUIClient::startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, 
-	const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression)
+void GUIClient::startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UID& avatar_uid, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level,
+	const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression, bool use_basis)
 {
 	glare::ArenaFrame frame(arena_allocator);
-	const WorldMaterial::GetURLOptions get_url_options(/*use basis=*/server_has_basis_textures, /*arena allocator=*/&arena_allocator);
+	const WorldMaterial::GetURLOptions get_url_options(/*use basis=*/use_basis, /*arena allocator=*/&arena_allocator);
 
 	const URLString temp_lod_tex_url = world_mat.getLODTextureURLForLevel(get_url_options, texture_url, ob_lod_level, tex_has_alpha);
 
@@ -1339,7 +2329,6 @@ void GUIClient::startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UI
 	else if(avatar_uid.valid())
 		this->loading_texture_URL_to_avatar_UID_map[lod_tex_url].insert(avatar_uid);
 
-
 	TextureParams tex_params;
 	tex_params.use_sRGB = use_sRGB;
 	tex_params.allow_compression = allow_compression;
@@ -1349,18 +2338,20 @@ void GUIClient::startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UI
 
 void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0)
 {
+	const bool use_basis = shouldUseBasisTexturesForWorldObject(ob, this->server_has_basis_textures);
+
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
 		const WorldMaterial* mat = ob.materials[i].ptr();
 		if(!mat->colour_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow_compression=*/true, use_basis);
 		if(!mat->emission_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow_compression=*/true, use_basis);
 		if(!mat->roughness.texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/true, use_basis);
 		if(!mat->normal_map_url.empty())
-			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false);
+			startLoadingTextureForObjectOrAvatar(ob.uid, /*avatar uid=*/UID::invalidUID(), ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, max_dist_for_ob_lod_level_clamped_0, /*importance factor=*/1.f, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow_compression=*/false, use_basis);
 	}
 
 	// Start loading lightmap
@@ -1388,8 +2379,8 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					// This code is also in startDownloadingResourcesForObject().
 					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 					tex_params.use_mipmaps = false;
-					load_item_queue.enqueueItem(/*key=*/lod_tex_url, ob, 
-						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+					load_item_queue.enqueueItem(/*key=*/lod_tex_url, ob,
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 						max_dist_for_ob_lod_level_clamped_0); // Lightmaps don't have LOD level -1 so used max dist for LOD level >= 0.
 				}
 				// Lightmaps are only used by a single object, so there should be no other uses of the lightmap, so don't need to call load_item_queue.checkUpdateItemPosition()
@@ -1411,13 +2402,13 @@ void GUIClient::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level
 	{
 		const WorldMaterial* mat = av.avatar_settings.materials[i].ptr();
 		if(!mat->colour_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->colour_texture_url, mat->colourTexHasAlpha(), /*use_sRGB=*/true, /*allow compression=*/true, /*use_basis=*/this->server_has_basis_textures);
 		if(!mat->emission_texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true, /*allow compression=*/true, /*use_basis=*/this->server_has_basis_textures);
 		if(!mat->roughness.texture_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/true, /*use_basis=*/this->server_has_basis_textures);
 		if(!mat->normal_map_url.empty())
-			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false);
+			startLoadingTextureForObjectOrAvatar(/*ob uid=*/UID::invalidUID(), av.uid, av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level, our_avatar_importance_factor, *mat, ob_lod_level, mat->normal_map_url, /*has_alpha=*/false, /*use_sRGB=*/false, /*allow compression=*/false, /*use_basis=*/this->server_has_basis_textures);
 	}
 }
 
@@ -1670,41 +2661,24 @@ bool GUIClient::isDownloadingResourceCurrentlyNeeded(const URLString& URL) const
 }
 
 
-void GUIClient::handleAnimationFilePickedFromEmscripten(const std::string& local_anim_path)
-{
-	gesture_ui.handleAnimationFilePickedFromEmscripten(local_anim_path);
-}
-
-
 // Handle finished downloading a ".subanim" file.
-// For emscripten, load from 'loaded_buffer' memory buffer instead of from resource on disk.
-void GUIClient::handleDownloadedAnimationResource(const std::string& local_path, const ResourceRef& resource, Reference<LoadedBuffer> loaded_buffer) 
+void GUIClient::handleDownloadedAnimationResource(const std::string local_path, const ResourceRef& resource)
 {
 	conPrint("GUIClient::handleDownloadedAnimationResource(): local_path: " + local_path);
 
-	try
+	// Iterate over avatars, peform gesture for any avatars that were waiting for the gesture anim to download.
 	{
-		if(loaded_buffer)
-			animation_manager.loadAnimFromBuffer(resource->URL, loaded_buffer); // Explicitly load into the animation manager from the in-mem buffer (loaded_buffer) instead of from disk/resource manager.
+		Lock lock(this->world_state->mutex);
 
-		// Iterate over avatars, perform gesture for any avatars that were waiting for the gesture anim to download.
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 		{
-			Lock lock(this->world_state->mutex);
-
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+			Avatar* av = it->second.getPointer();
+			if(!av->graphics.pending_gesture_URL.empty() && (av->graphics.pending_gesture_URL == resource->URL))
 			{
-				Avatar* av = it->second.getPointer();
-				if(av->pending_gesture_URL == resource->URL)
-				{
-					const double cur_time = Clock::getTimeSinceInit();
-					av->performPendingGesture(cur_time, animation_manager, *resource_manager);
-				}
+				const double cur_time = Clock::getTimeSinceInit();
+				av->graphics.performPendingGesture(cur_time, animation_manager, *resource_manager);
 			}
 		}
-	}
-	catch(glare::Exception& e)
-	{
-		logAndConPrintMessage("Error while loading animation: " + e.what());
 	}
 }
 
@@ -1735,7 +2709,7 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 	{
 		const DependencyURL& url_info = *it;
 		const URLString& url = url_info.URL;
-		
+
 		if(!resource_manager->isFileForURLPresent(url))
 		{
 			if(isResourceCurrentlyNeededForObjectGivenIsDependency(url, ob))
@@ -1811,21 +2785,32 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level,
 			}
 		}
 	}
+
 }
 
 
 // For when the desired texture LOD is not loaded, pick another texture LOD that is loaded (if it exists).
 // Prefer lower LOD levels (more detail).
-static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const OpenGLTextureKey& base_tex_path, bool tex_has_alpha, bool use_sRGB, bool use_basis, OpenGLEngine& opengl_engine, glare::ArenaAllocator* allocator)
+static Reference<OpenGLTexture> getBestTextureLODForFamily(const WorldMaterial& world_mat, const OpenGLTextureKey& base_tex_path, bool tex_has_alpha, bool use_sRGB, bool family_use_basis, OpenGLEngine& opengl_engine, glare::ArenaAllocator* allocator)
 {
 	for(int lvl=world_mat.minLODLevel(); lvl<=2; ++lvl)
 	{
-		const WorldMaterial::GetURLOptions get_url_options(use_basis, allocator);
+		const WorldMaterial::GetURLOptions get_url_options(family_use_basis, allocator);
 		const OpenGLTextureKey tex_lod_path = world_mat.getLODTexturePathForLevel(get_url_options, base_tex_path, lvl, tex_has_alpha);
 		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(tex_lod_path);
 		if(tex.nonNull())
 			return tex;
 	}
+
+	return Reference<OpenGLTexture>();
+}
+
+
+static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const OpenGLTextureKey& base_tex_path, bool tex_has_alpha, bool use_sRGB, bool use_basis, OpenGLEngine& opengl_engine, glare::ArenaAllocator* allocator)
+{
+	Reference<OpenGLTexture> tex = getBestTextureLODForFamily(world_mat, base_tex_path, tex_has_alpha, use_sRGB, use_basis, opengl_engine, allocator);
+	if(tex.nonNull())
+		return tex;
 
 	return Reference<OpenGLTexture>();
 }
@@ -1852,7 +2837,7 @@ static inline bool isNonEmptyAndNotMp4(const string_view path)
 }
 
 
-static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const URLString& texture_URL, const OpenGLTextureKey& desired_tex_path, GLObject* ob, size_t mat_index, OpenGLEngine& opengl_engine, 
+static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const URLString& texture_URL, const OpenGLTextureKey& desired_tex_path, GLObject* ob, size_t mat_index, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, bool use_basis, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out)
 {
 	if(isNonEmptyAndNotMp4(desired_tex_path))
@@ -1870,7 +2855,7 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 					OpenGLTextureKey base_tex_path(stl_allocator);
 					resource_manager.getTexPathForURL(texture_URL, /*path out=*/base_tex_path);
 
-					new_tex = getBestTextureLOD(*world_mat, base_tex_path, tex_has_alpha, /*use_sRGB=*/use_sRGB, use_basis, opengl_engine, allocator); 
+					new_tex = getBestTextureLOD(*world_mat, base_tex_path, tex_has_alpha, /*use_sRGB=*/use_sRGB, use_basis, opengl_engine, allocator);
 				}
 
 				if(new_tex != opengl_texture) // If we have a new texture to assign to opengl_texture:
@@ -1900,7 +2885,7 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 // Update textures to correct LOD-level textures.
 // Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
-static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, 
+static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager,
 	AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
 {
 	ZoneScoped; // Tracy profiler
@@ -1915,16 +2900,16 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 
 		bool mat_changed = false;
 
-		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis,
 			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis,
 			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis,
 			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis,
 			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
 
 		if(use_lightmaps && isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
@@ -1971,7 +2956,7 @@ void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 
 	glare::ArenaFrame frame(arena_allocator);
 
-	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures), this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 }
 
 
@@ -1991,18 +2976,18 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 
 		bool mat_changed = false;
 
-		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis,
 			/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis,
 			/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis,
 			/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
 
-		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+		checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis,
 			/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
-		
+
 		if(mat_changed)
 			opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 	}
@@ -2023,12 +3008,12 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_start_a
 
 		Phi_v = 683 integral(y_bar(lambda) L_e A 2pi(1 - cos(alpha))) dlambda						[683 comes from definition of luminous flux]
 		Phi_v = 683 L_e A 2pi(1 - cos(alpha)) integral(y_bar(lambda)) dlambda
-		
+
 		integral(y_bar(lambda)) dlambda ~= 106 nm [From Indigo - e.g. average luminous efficiency is ~ 0.3 over 400 to 700 nm]
 		so
 
 		Phi_v = 683 L_e A 2pi(1 - cos(alpha)) (106 * 10^-9)
-		
+
 		Assume A = 1, then
 
 		Phi_v = 683 * 106 * 10^-9 * L_e * 2pi(1 - cos(alpha))
@@ -2063,7 +3048,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	const int font_size_px = 42;
 
 	std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
-	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
+	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine, gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text,
 		/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
 
 	// We will make a physics object that has the same dimensions in object space as the text mesh vertices.  This means we can use the same pos, rot and scale
@@ -2092,7 +3077,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	glare::ArenaFrame frame(arena_allocator);
 
 	if(ob->materials.size() >= 1)
-		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, gl_mat_0);
+		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, /*use_basis=*/shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures), *this->resource_manager, &arena_allocator, gl_mat_0);
 
 
 	gl_mat_0.alpha_blend = true; // Make use alpha blending
@@ -2164,7 +3149,7 @@ void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string&
 
 
 // Load or reload an object's 3d model.
-// 
+//
 // Check if the model file is downloaded.
 // If so, load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the model download.
@@ -2180,8 +3165,9 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 	if(!ob->in_proximity)
 		return;
 
-	const int ob_lod_level = ob->getLODLevel(campos);
-	
+	const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
+	const bool use_basis_textures_for_ob = shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures);
+
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	//if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->/*loaded_lod_level*/loading_lod_level == ob_lod_level))
 	//	return;
@@ -2200,7 +3186,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 	// Compute the maximum distance from the camera at which the object LOD level will remain what it currently is.
 	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
-	
+
 	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->getCentroidWS()));
 
 	// Compute a similar value, the maximum distance from the camera at which the object LOD level will remain what it currently is, or at which the object LOD level is zero.
@@ -2226,7 +3212,15 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 	try
 	{
+		if((ob->object_type == WorldObject::ObjectType_WebView) && ob->target_url.empty() && WorldObject::looksLikeAudioPlayerPlaylistContent(ob->content))
+			ob->target_url = WorldObject::audioPlayerTargetURL();
+
 		checkTransformOK(ob); // Throws glare::Exception if not ok.
+
+		// Older locally-created web panels may have been saved without a model URL.
+		// Keep them renderable by assigning the shared image cube mesh URL on load.
+		if((ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video) && ob->model_url.empty())
+			ob->model_url = "image_cube_5438347426447337425.bmesh";
 
 		const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
@@ -2255,7 +3249,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 		const float current_time = (float)Clock::getTimeSinceInit();
 		const bool use_materialise_effect = ob->use_materialise_effect_on_load && (current_time - ob->materialise_effect_start_time < 2.0f);
-		
+
 		bool load_placeholder = false;
 
 		if(ob->object_type == WorldObject::ObjectType_Hypercard)
@@ -2354,7 +3348,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				GLObjectRef opengl_ob = opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->portal_opengl_mesh;
-				
+
 				glare::ArenaFrame frame(arena_allocator);
 
 				opengl_ob->materials.resize(4);
@@ -2369,7 +3363,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				const URLString carrara1_tex_URL = "carrara1.jpg";
 				const OpenGLTextureKey carrara1_tex_local_abs_path = OpenGLTextureKey(base_dir_path + "/data/resources/materials/white marble/carrara1.jpg");
-				
+
 				opengl_ob->materials[arch_mat_index].tex_path = carrara1_tex_local_abs_path;
 
 				//--------------------- Inside wall of arch: gold material ---------------------
@@ -2430,13 +3424,13 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				GLObjectRef opengl_ob = opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
-				
+
 				glare::ArenaFrame frame(arena_allocator);
 
 				// Use material[1] from the WorldObject as the light housing GL material.
 				opengl_ob->materials.resize(2);
 				if(ob->materials.size() >= 2)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 				else
 					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
@@ -2455,12 +3449,12 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				light->gpu_data.dir = normalise(ob_to_world_matrix * Vec4f(0, 0, -1, 0));
 				light->gpu_data.light_type = 1; // spotlight
 				light->gpu_data.cone_min_cos_angle = std::cos(use_cone_end_angle);
-				light->gpu_data.cone_max_cos_angle = std::cos(use_cone_start_angle); 
+				light->gpu_data.cone_max_cos_angle = std::cos(use_cone_start_angle);
 				assert(light->gpu_data.cone_min_cos_angle < light->gpu_data.cone_max_cos_angle);
 				float scale;
 				light->gpu_data.col = computeSpotlightColour(*ob, use_cone_start_angle, use_cone_end_angle, scale);
 				light->max_light_dist = myMin(15.f, 4.f * myMax(light->gpu_data.col[0], light->gpu_data.col[1], light->gpu_data.col[2]));
-				
+
 				// Apply a light emitting material to the light surface material in the spotlight model.
 				if(ob->materials.size() >= 1)
 				{
@@ -2487,7 +3481,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 			{
 				assert(ob->physics_object.isNull());
 
-				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 				physics_ob->shape = this->seat_shape;
 				physics_ob->is_sensor = ob->isSensor();
 				physics_ob->userdata = ob;
@@ -2496,16 +3490,21 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				physics_ob->pos = ob->pos.toVec4fPoint();
 				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 				physics_ob->scale = useScaleForWorldOb(ob->scale);
+				physics_ob->kinematic = !ob->script.empty();
+				physics_ob->dynamic = ob->isDynamic();
+				physics_ob->mass = ob->mass;
+				physics_ob->friction = ob->friction;
+				physics_ob->restitution = ob->restitution;
 
 				GLObjectRef opengl_ob = opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->seat_opengl_mesh;
-				
+
 				glare::ArenaFrame frame(arena_allocator);
 
 				// Use material[0] from the WorldObject as the seat GL material.
 				opengl_ob->materials.resize(1);
 				if(ob->materials.size() >= 1)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 				else
 				{
 					// Default semi-transparent blue-grey seat color
@@ -2523,6 +3522,110 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				opengl_engine->addObject(ob->opengl_engine_ob);
 
+				physics_world->addObject(ob->physics_object);
+			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_Camera)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+				physics_ob->shape = this->camera_shape;
+				physics_ob->is_sensor = ob->isSensor();
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = useScaleForWorldOb(ob->scale);
+				physics_ob->kinematic = !ob->script.empty();
+				physics_ob->dynamic = ob->isDynamic();
+				physics_ob->mass = ob->mass;
+				physics_ob->friction = ob->friction;
+				physics_ob->restitution = ob->restitution;
+
+				GLObjectRef opengl_ob = opengl_engine->allocateObject();
+				opengl_ob->mesh_data = this->camera_opengl_mesh;
+
+				glare::ArenaFrame frame(arena_allocator);
+
+				// Camera asset can reference multiple material indices in mesh batches.
+				size_t required_num_mats = 1;
+				for(size_t i = 0; i < opengl_ob->mesh_data->batches.size(); ++i)
+					required_num_mats = myMax(required_num_mats, (size_t)opengl_ob->mesh_data->batches[i].material_index + 1);
+
+				opengl_ob->materials.resize(required_num_mats);
+				for(size_t i = 0; i < required_num_mats; ++i)
+				{
+					if(i < ob->materials.size())
+						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[i]);
+					else if(!ob->materials.empty())
+						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[i]);
+					else
+						opengl_ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
+
+					opengl_ob->materials[i].materialise_effect = use_materialise_effect;
+					opengl_ob->materials[i].materialise_start_time = ob->materialise_effect_start_time;
+				}
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
+				physics_world->addObject(ob->physics_object);
+			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_CameraScreen)
+		{
+			if(ob->opengl_engine_ob.isNull())
+			{
+				assert(ob->physics_object.isNull());
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+				physics_ob->shape = this->camera_screen_shape;
+				physics_ob->is_sensor = ob->isSensor();
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = useScaleForWorldOb(ob->scale);
+				physics_ob->kinematic = !ob->script.empty();
+				physics_ob->dynamic = ob->isDynamic();
+				physics_ob->mass = ob->mass;
+				physics_ob->friction = ob->friction;
+				physics_ob->restitution = ob->restitution;
+
+				GLObjectRef opengl_ob = opengl_engine->allocateObject();
+				opengl_ob->mesh_data = this->camera_screen_opengl_mesh;
+
+				glare::ArenaFrame frame(arena_allocator);
+
+				opengl_ob->materials.resize(1);
+				if(ob->materials.size() >= 1)
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+				else
+				{
+					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
+					opengl_ob->materials[0].emission_linear_rgb = Colour3f(1.f);
+					opengl_ob->materials[0].emission_scale = 0.0f;
+					opengl_ob->materials[0].alpha = 1.0f;
+				}
+
+				for(size_t i = 0; i < opengl_ob->materials.size(); ++i)
+				{
+					opengl_ob->materials[i].materialise_effect = use_materialise_effect;
+					opengl_ob->materials[i].materialise_start_time = ob->materialise_effect_start_time;
+				}
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+
+				opengl_engine->addObject(ob->opengl_engine_ob);
 				physics_world->addObject(ob->physics_object);
 			}
 		}
@@ -2608,7 +3711,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				ob->browser_vid_player = new BrowserVidPlayer();
 				this->browser_vid_player_obs.insert(ob);
 #else
-				// If we are playing an Mp4 file, then handle it with the AnimatedTextureManager system, 
+				// If we are playing an Mp4 file, then handle it with the AnimatedTextureManager system,
 				// which will use a Windows Media Foundation (WMF) player on Windows, and a CEF-based player on other systems.
 				if((ob->materials.size() >= 1) && hasSuffix(ob->materials[0]->emission_texture_url, "mp4"))
 				{
@@ -2646,7 +3749,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				if(hash == 1933977005784225319ull)
 				{
 					//conPrint("Using single voxel meshdata");
-				
+
 					// If this is a single voxel at (0,0,0) with mat index 0:
 					loadPresentObjectGraphicsAndPhysicsModels(ob, single_voxel_meshdata, single_voxel_shapedata, ob_lod_level, ob_model_lod_level, /*voxel_subsample_factor=*/1, world_state_lock);
 					added_opengl_ob = true;
@@ -2657,7 +3760,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 					Reference<MeshData>         mesh_data          = mesh_manager.getMeshData(pseudo_lod_model_url);
 					Reference<PhysicsShapeData> physics_shape_data = mesh_manager.getPhysicsShapeData(MeshManagerPhysicsShapeKey(pseudo_lod_model_url, ob->isDynamic()));
-				
+
 					if(mesh_data && physics_shape_data)
 					{
 						//conPrint("Meshdata for voxel " + pseudo_lod_model_url + " already in mesh manager");
@@ -2715,7 +3818,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				{
 					{
 						glare::ArenaFrame frame(arena_allocator);
-						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator);
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator);
 					}
 					assignLoadedOpenGLTexturesToMats(ob);
 					for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
@@ -2730,7 +3833,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 		{
 			assert(ob->object_type == WorldObject::ObjectType_Generic);
 
-			
+
 			//if(::hasPrefix(ob->content, "biome:")) // If we want to scatter on this object:
 			//{
 			//	if(ob->scattering_info.isNull()) // if scattering info is not computed for this object yet:
@@ -2752,7 +3855,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 			//}
 
 
-			if(!ob->model_url.empty() && 
+			if(!ob->model_url.empty() &&
 				(ob->loading_or_loaded_model_lod_level != ob_model_lod_level))  // We may already have the correct LOD model loaded, don't reload if so.
 				// (The object LOD level might have changed, but the model LOD level may be the same due to max model lod level, for example for simple cube models.)
 			{
@@ -2818,7 +3921,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				{
 					{
 						glare::ArenaFrame frame(arena_allocator);
-						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator);
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator);
 					}
 					assignLoadedOpenGLTexturesToMats(ob);
 				}
@@ -2866,13 +3969,13 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 
 // Create OpenGL and Physics objects for the WorldObject, given that the OpenGL and physics meshes are present in memory.
-void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, 
+void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level,
 	int voxel_subsample_factor, WorldStateLock& world_state_lock)
 {
 	removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
 
 	// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
-	if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->isDynamic() || ob->physics_object->isKinematic())))
+	if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
 	{
 		destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
 		physics_world->removeObject(ob->physics_object);
@@ -2881,19 +3984,20 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 	// Create gl and physics object now
 	Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+	const bool use_basis_textures_for_ob = shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures);
 
 	if(voxel_subsample_factor != 1)
 		ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)voxel_subsample_factor);
 
 	{
 		glare::ArenaFrame frame(arena_allocator);
-		ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
+		ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/use_basis_textures_for_ob, *resource_manager, &arena_allocator, ob_to_world_matrix);
 	}
 
 	if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
 			ob->opengl_engine_ob->materials[z].gen_planar_uvs = true;
-						
+
 	mesh_data->meshDataBecameUsed();
 	ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
@@ -2916,7 +4020,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 	ob->loading_or_loaded_model_lod_level = ob_model_lod_level; // NOTE: probably not needed as should have been set when loading started
 
-	// Create physics object 
+	// Create physics object
 	if(ob->physics_object.isNull()) // if object was dynamic, we may not have unloaded its physics object above, check.
 	{
 		ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
@@ -2935,7 +4039,8 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 		ob->physics_object->scale = useScaleForWorldOb(ob->scale);
 
 		// TEMP HACK
-		ob->physics_object->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
+		ob->physics_object->kinematic = !ob->script.empty();
+		ob->physics_object->dynamic = ob->isDynamic();
 		ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
 		ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
 
@@ -3001,7 +4106,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	// Create gl and physics object now
 	glare::ArenaFrame frame(arena_allocator);
-	avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/URLString(), 
+	avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/URLString(),
 		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
 
 	mesh_data->meshDataBecameUsed();
@@ -3044,21 +4149,19 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
 
-
-	// See if there is a gesture animation we should be playing, and if so, play it.
-	if(!avatar->current_gesture_name.empty())
+	// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
+	const bool our_avatar = avatar->uid == this->client_avatar_uid;
+	if(our_avatar)
 	{
-		const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-		// Sync playback.
-		// Consider at some time t, 10 seconds from now:
-		// t = cur_time + 10
-		// and start_global_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
-		// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - start_global_time))
-		// = 10 + (105 - 100) = 10 + 5 = 15
-		const double time_offset = world_state->getCurrentGlobalTime() - avatar->current_gesture_start_global_time;
-
-		avatar->performGesture(cur_time, avatar->current_gesture_name, avatar->current_gesture_URL, avatar->current_gesture_flags, avatar->current_gesture_start_global_time, time_offset, animation_manager, *resource_manager);
+		std::string gesture_name;
+		URLString gesture_URL;
+		bool animate_head, loop_anim;
+		if(gesture_ui.getCurrentGesturePlaying(gesture_name, gesture_URL, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+		{
+			const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+			const URLString anim_resource_URL = gesture_URL.empty() ? (URLString(gesture_name) + ".subanim") : gesture_URL;
+			avatar->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime(), /*time_offset=*/0, animation_manager, *resource_manager);
+		}
 	}
 
 	// conPrint("GUIClient::loadPresentAvatarModel done");
@@ -3085,7 +4188,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		return;
 
 	Timer timer;
-	
+
 
 	// If the avatar model URL is empty, we will be using the default xbot model.  Need to make it be rotated from y-up to z-up, and assign materials.
 	if(avatar->avatar_settings.model_url.empty())
@@ -3195,7 +4298,7 @@ void GUIClient::removeInstancesOfObject(WorldObject* prototype_ob)
 	//for(size_t z=0; z<prototype_ob->instances.size(); ++z)
 	//{
 	//	InstanceInfo& instance = prototype_ob->instances[z];
-	//	
+	//
 	//	if(instance.physics_object.nonNull())
 	//	{
 	//		physics_world->removeObject(instance.physics_object); // Remove from physics engine
@@ -3236,13 +4339,13 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 	ZoneScoped; // Tracy profiler
 
 	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
- 	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
+	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
 	{
 		// Clear SCRIPT_CHANGED flag first.  That way if an exception is thrown below, we won't try and create the script again repeatedly on LOD changes etc.
 		BitUtils::zeroBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
 
 		// conPrint("GUIClient::loadScriptForObject(): SCRIPT_CHANGED bit was set, destroying script_evaluator.");
-		
+
 		removeObScriptingInfo(ob);
 
 		if(hasPrefix(ob->script, "<?xml"))
@@ -3312,7 +4415,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 		}
 	}
 
-	
+
 	// If we have a script evaluator already, but the opengl ob has been recreated (due to LOD level changes), we need to recreate the instance_matrices VBO
 	//if(ob->script_evaluator.nonNull() && ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
 	//{
@@ -3415,7 +4518,7 @@ void GUIClient::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* lo
 		//	if(ob->opengl_engine_ob.nonNull())
 		//	{
 		//		ob->opengl_engine_ob->enableInstancing(*opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * count);
-		//				
+		//
 		//		opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob); // Reload mat to enable instancing
 		//	}
 		//}
@@ -3498,7 +4601,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 			{
 				//if(ob->loaded_audio_source_url == ob->audio_source_url) // If the audio file is already loaded, (e.g. ob->loaded_audio_source_url == ob->audio_source_url), then do nothing.
 				//	return;
-			
+
 				// If the object is further than MAX_AUDIO_DIST from the camera, don't load the audio.
 				const float dist = cam_controller.getPosition().toVec4fVector().getDist(ob->pos.toVec4fVector());
 				if(dist > maxAudioDistForSourceVolFactor(ob->audio_volume))
@@ -3694,7 +4797,7 @@ static float safeATan2(float y, float x)
 }
 
 
-// For each direction x, y, z, the two other basis vectors. 
+// For each direction x, y, z, the two other basis vectors.
 static const Vec4f basis_vectors[6] = { Vec4f(0,1,0,0), Vec4f(0,0,1,0), Vec4f(0,0,1,0), Vec4f(1,0,0,0), Vec4f(1,0,0,0), Vec4f(0,1,0,0) };
 
 
@@ -3815,6 +4918,35 @@ void GUIClient::updateSelectedObjectPlacementBeamAndGizmos()
 			}
 		}
 	}
+	else if(selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id) && axis_and_rot_obs_enabled)
+	{
+		const Vec4f parcel_centre(
+			(float)((selected_parcel->aabb_min.x + selected_parcel->aabb_max.x) * 0.5),
+			(float)((selected_parcel->aabb_min.y + selected_parcel->aabb_max.y) * 0.5),
+			(float)((selected_parcel->aabb_min.z + selected_parcel->aabb_max.z) * 0.5),
+			1.f
+		);
+
+		const Vec4f cam_to_parcel = parcel_centre - cam_controller.getPosition().toVec4fPoint();
+		const float control_scale = myMax(cam_to_parcel.length() * 0.2f, 0.1f);
+
+		const Vec4f arrow_origin = parcel_centre;
+		const float arrow_len = control_scale;
+
+		axis_arrow_segments[0] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(cam_to_parcel[0] > 0 ? -arrow_len : arrow_len, 0, 0, 0));
+		axis_arrow_segments[1] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, cam_to_parcel[1] > 0 ? -arrow_len : arrow_len, 0, 0));
+		axis_arrow_segments[2] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, 0, cam_to_parcel[2] > 0 ? -arrow_len : arrow_len, 0));
+
+		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+		{
+			axis_arrow_objects[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(axis_arrow_segments[i].a, axis_arrow_segments[i].b, arrow_len);
+			if(opengl_engine->isObjectAdded(axis_arrow_objects[i]))
+				opengl_engine->updateObjectTransformData(*axis_arrow_objects[i]);
+		}
+
+		for(int i=0; i<3; ++i)
+			rot_handle_lines[i].clear();
+	}
 
 	if(selected_ob && selected_ob->edit_aabb)
 	{
@@ -3894,7 +5026,7 @@ bool GUIClient::objectModificationAllowedWithMsg(const WorldObject& ob, const st
 			isGodUser(this->logged_in_user_id) || // Or the user is the 'god' (superadmin) user,
 			(this->connected_world_details.owner_id == this->logged_in_user_id) || // If this is the world of the user:
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob); // Can modify objects owned by other people if they are in parcels you have write permissions for.
-		
+
 		if(!logged_in_user_can_modify)
 		{
 			allow_modification = false;
@@ -3984,7 +5116,7 @@ void GUIClient::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_n
 	// Constrain the new position of the selected object so it stays inside the parcel it is currently in.
 	js::Vector<EdgeMarker, 16> edge_markers;
 	Vec3d new_ob_pos;
-	const bool new_transform_valid = clampObjectPositionToParcelForNewTransform(*this->selected_ob, opengl_ob, 
+	const bool new_transform_valid = clampObjectPositionToParcelForNewTransform(*this->selected_ob, opengl_ob,
 		this->selected_ob->pos, // old ob pos
 		tentative_new_to_world, // tentative new transfrom
 		edge_markers, // edge markers out.
@@ -4021,7 +5153,7 @@ void GUIClient::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_n
 			const Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(use_scale, use_scale, 0.01f);
 			const Matrix4f orientation = Matrix4f::constructFromVectorStatic(edge_markers[i].normal);
 
-			ob_denied_move_markers[i]->ob_to_world_matrix = Matrix4f::translationMatrix(edge_markers[i].pos) * 
+			ob_denied_move_markers[i]->ob_to_world_matrix = Matrix4f::translationMatrix(edge_markers[i].pos) *
 				orientation * marker_scale_matrix;
 
 			opengl_engine->updateObjectTransformData(*ob_denied_move_markers[i]);
@@ -4031,7 +5163,7 @@ void GUIClient::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_n
 		runtimeCheck(opengl_ob.nonNull() && opengl_ob->mesh_data.nonNull());
 
 		doMoveObject(ob, new_ob_pos, opengl_ob->mesh_data->aabb_os);
-	} 
+	}
 	else // else if new transfrom not valid
 	{
 		showErrorNotification("New object position is not valid - You can only move objects in a parcel that you have write permissions for.");
@@ -4049,6 +5181,16 @@ void GUIClient::doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const j
 void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object)
 {
 	GLObjectRef opengl_ob = ob->opengl_engine_ob;
+
+	if(this->selected_ob.nonNull() && (ob->uid == this->selected_ob->uid) && !have_selected_ob_transform_rollback)
+	{
+		have_selected_ob_transform_rollback = true;
+		selected_ob_transform_rollback_uid = ob->uid;
+		selected_ob_transform_rollback_pos = ob->pos;
+		selected_ob_transform_rollback_axis = ob->axis;
+		selected_ob_transform_rollback_angle = ob->angle;
+		selected_ob_transform_rollback_scale = ob->scale;
+	}
 
 	// Set world object pos
 	ob->setTransformAndHistory(new_ob_pos, new_axis, new_angle);
@@ -4080,7 +5222,7 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 	// Set a timer to call updateObjectEditorObTransformSlot() later. Not calling this every frame avoids stutters with webviews playing back videos interacting with Qt updating spinboxes.
 	ui_interface->startObEditorTimerIfNotActive();
 
-	
+
 	if(summoning_object)
 	{
 		// Send a single SummonObject message to server.
@@ -4109,7 +5251,7 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 	// Trigger sending update-lightmap update flag message later.
 	//ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
 	//objs_with_lightmap_rebuild_needed.insert(ob);
-	//lightmap_flag_timer->start(/*msec=*/2000); 
+	//lightmap_flag_timer->start(/*msec=*/2000);
 
 	// Update audio source position in audio engine.
 	if(ob->audio_source.nonNull())
@@ -4132,6 +5274,54 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 }
 
 
+bool GUIClient::rollbackSelectedObjectTransformAfterServerRejection()
+{
+	if(!have_selected_ob_transform_rollback)
+		return false;
+
+	if(this->selected_ob.isNull() || (this->selected_ob->uid != selected_ob_transform_rollback_uid))
+		return false;
+
+	WorldObjectRef ob = this->selected_ob;
+	ob->setTransformAndHistory(selected_ob_transform_rollback_pos, selected_ob_transform_rollback_axis, selected_ob_transform_rollback_angle);
+	ob->scale = selected_ob_transform_rollback_scale;
+	ob->transformChanged();
+
+	if(ob->opengl_engine_ob.nonNull())
+	{
+		ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
+		opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+	}
+
+	if(ob->physics_object)
+	{
+		physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle),
+			useScaleForWorldOb(ob->scale).toVec4fVector());
+		physics_world->setLinearAndAngularVelToZero(*ob->physics_object);
+	}
+
+	if(this->grabbed_axis != -1)
+	{
+		this->grabbed_axis = -1;
+		undo_buffer.finishWorldObjectEdit(*ob);
+		ui_interface->setCamRotationOnMouseDragEnabled(true);
+	}
+
+	if(this->selected_ob_picked_up)
+	{
+		this->selected_ob_picked_up = false;
+		ui_interface->objectEditorObjectDropped();
+		opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
+	}
+
+	have_selected_ob_transform_rollback = false;
+	selected_ob_transform_rollback_uid = UID::invalidUID();
+
+	ui_interface->startObEditorTimerIfNotActive();
+	return true;
+}
+
+
 static inline float xyDist2(const Vec4f& a, const Vec4f& b)
 {
 	Vec4f a_to_b = b - a;
@@ -4141,9 +5331,9 @@ static inline float xyDist2(const Vec4f& a, const Vec4f& b)
 static inline bool shouldDisplayLODChunk(const Vec3i& chunk_coords, const Vec4f& campos)
 {
 	const Vec4f chunk_centre = Vec4f((chunk_coords.x + 0.5f) * chunk_w, (chunk_coords.y + 0.5f) * chunk_w, 0, 1);
-	
-	const float CHUNK_DIST_THRESHOLD = 150.f;
-	
+
+	const float CHUNK_DIST_THRESHOLD = 200.f;
+
 	const float dist_to_chunk2 = xyDist2(campos, chunk_centre);
 
 	return dist_to_chunk2 > Maths::square(CHUNK_DIST_THRESHOLD);
@@ -4156,7 +5346,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 
 	if(world_state.isNull())
 		return;
-		
+
 	Timer timer;
 	{
 		WorldStateLock lock(this->world_state->mutex);
@@ -4165,6 +5355,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 		if(!this->world_state->lod_chunks.empty() && LOD_CHUNK_SUPPORT)
 			this->server_using_lod_chunks = true;
 		const bool use_server_using_lod_chunks = this->server_using_lod_chunks;
+		const bool lod_disabled                = shouldDisableLODForCurrentServer();
 
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
@@ -4203,7 +5394,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 
 			// If this object is in a chunk region, and we are displaying the chunk, then don't show the object.
 			const Vec3i chunk_coords(Maths::floorToInt(centroid[0] / chunk_w), Maths::floorToInt(centroid[1] / chunk_w), 0);
-			if(use_server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, cam_pos) && !ob->exclude_from_lod_chunk_mesh)
+			if(use_server_using_lod_chunks && !lod_disabled && shouldDisplayLODChunk(chunk_coords, cam_pos) && !ob->exclude_from_lod_chunk_mesh)
 				in_proximity = false;
 
 			assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
@@ -4220,7 +5411,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 			}
 			else // Else if object is within load distance:
 			{
-				const int lod_level = ob->getLODLevel(cam_to_ob_d2);
+				const int lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 
 				if((lod_level != ob->current_lod_level)/* || ob->opengl_engine_ob.isNull()*/)
 				{
@@ -4255,7 +5446,7 @@ void GUIClient::checkForLODChanges(Timer& timer_event_timer)
 		if(this->next_lod_changes_begin_i >= objects_size)
 			this->next_lod_changes_begin_i = 0;
 
-		//conPrint("checkForLODChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + ", " + toString(num_object_changes) + " changes, " + toString(world_state->objects.size()) + " obs, begin: " + toString(begin_i) + 
+		//conPrint("checkForLODChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + ", " + toString(num_object_changes) + " changes, " + toString(world_state->objects.size()) + " obs, begin: " + toString(begin_i) +
 		//	", end i: " + toString(i));
 
 	} // End lock scope
@@ -4292,7 +5483,7 @@ void GUIClient::checkForAudioRangeChanges()
 
 			const float dist2 = cam_pos.getDist2(ob->pos.toVec4fPoint());
 			const float max_audio_dist2 = Maths::square(maxAudioDistForSourceVolFactor(ob->audio_volume)); // MAX_AUDIO_DIST
-			
+
 			if(ob->in_audio_proximity && (dist2 > max_audio_dist2)) // If object was in audio proximity, and moved out of it:
 			{
 				// conPrint("Object moved out of audio range, removing audio object.  ob->audio_source_url: '" + ob->audio_source_url + "'");
@@ -4300,7 +5491,7 @@ void GUIClient::checkForAudioRangeChanges()
 					audio_engine.removeSource(ob->audio_source);
 				ob->audio_source = NULL;
 				ob->audio_state = WorldObject::AudioState_NotLoaded;
-				
+
 				ob->in_audio_proximity = false;
 			}
 			else if(!ob->in_audio_proximity && (dist2 <= max_audio_dist2)) // If object was out of audio proximity, and moved into it:
@@ -4314,7 +5505,7 @@ void GUIClient::checkForAudioRangeChanges()
 					// TODO: process audio resource only?
 					startDownloadingResourcesForObject(ob, ob->current_lod_level);
 				}
-				
+
 				ob->in_audio_proximity = true;
 			}
 		}
@@ -4337,7 +5528,7 @@ struct CloserToCamComparator
 
 
 
-void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
+void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape,
 	int voxel_subsample_factor, uint64 voxel_hash)
 {
 	// conPrint("handleUploadedMeshData(): lod_model_url: " + lod_model_url);
@@ -4377,9 +5568,9 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 
 				if(ob->in_proximity)
 				{
-					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+					const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 					const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
-								
+
 					// Check the object wants this particular LOD level model right now:
 					//const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
 					if(/*(current_desired_model_LOD_URL == lod_model_url)*/(ob_model_lod_level == loaded_model_lod_level) && (ob->isDynamic() == dynamic_physics_shape))
@@ -4416,9 +5607,10 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 			if(res2 != this->world_state->avatars.end())
 			{
 				Avatar* av = res2->second.ptr();
-						
+
 				const bool our_avatar = av->uid == this->client_avatar_uid;
-				if(cam_controller.thirdPersonEnabled() || !our_avatar) // Don't load graphics for our avatar if first person perspective
+				const bool should_show_our_avatar_model = our_avatar && this->cam_controller.thirdPersonEnabled();
+				if(!our_avatar || should_show_our_avatar_model) // Don't load graphics for our avatar in first-person view.
 				{
 					const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
 
@@ -4493,7 +5685,7 @@ void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLStr
 		}
 
 		//---------------------------- Assign to LOD chunks ----------------------------
-		{ 
+		{
 			ZoneScopedN("Assign to LOD chunks");
 
 			auto res = loading_texture_URL_to_chunk_coords_map.find(URL);
@@ -4613,10 +5805,12 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 		resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
 	}
 
-	const Vec3d cam_angles = cam_controller.getAvatarAngles();
+	Vec3d avatar_pos;
+	Vec3d cam_angles;
+	getCurrentAvatarPoseForNetworking(avatar_pos, cam_angles);
 	Avatar avatar;
 	avatar.uid = client_avatar_uid;
-	avatar.pos = Vec3d(cam_controller.getFirstPersonPosition());
+	avatar.pos = avatar_pos;
 	avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 	avatar.name = logged_in_user_name;
 	avatar.avatar_settings.model_url = mesh_URL;
@@ -4677,6 +5871,28 @@ void GUIClient::setOnlyLoadMostImportantObs(bool only_load_most_important_obs_)
 }
 
 
+bool GUIClient::shouldDisableBasisTexturesForCurrentServer() const
+{
+	// Match legacy v0.0.10 client behaviour for resource selection.
+	return false;
+}
+
+
+bool GUIClient::shouldDisableLODForCurrentServer() const
+{
+	return false;
+}
+
+
+int GUIClient::getEffectiveLODLevel(const WorldObject* ob, const Vec3d& campos) const
+{
+	if(shouldDisableLODForCurrentServer())
+		return -1; // Highest quality LOD at any distance.
+
+	return ob->getLODLevel(campos);
+}
+
+
 void GUIClient::processLoading(Timer& timer_event_timer)
 {
 	ZoneScoped; // Tracy profiler
@@ -4698,7 +5914,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 		Timer loading_timer;
 		//int max_items_to_process = 10;
 		//int num_items_processed = 0;
-		
+
 		// Also limit to a total number of bytes of data uploaded to OpenGL / the GPU per frame.
 		size_t total_bytes_uploaded = 0;
 		const size_t max_total_upload_bytes = 1024 * 1024;
@@ -4706,8 +5922,8 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 		//int num_models_loaded = 0;
 		//int num_textures_loaded = 0;
 		//while((cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
-		while((tex_loading_progress.loadingInProgress() || cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && 
-			(total_bytes_uploaded < max_total_upload_bytes) && 
+		while((tex_loading_progress.loadingInProgress() || cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) &&
+			(total_bytes_uploaded < max_total_upload_bytes) &&
 			(/*loading_timer*/timer_event_timer.elapsed() < MAX_LOADING_TIME) //&&
 			/*(num_items_processed < max_items_to_process)*/)
 		{
@@ -4728,7 +5944,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 				if(mesh_data_loading_progress.done())
 				{
-					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape, 
+					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape,
 						cur_loading_voxel_subsample_factor, cur_loading_voxel_hash);
 
 					cur_loading_mesh_data = NULL;
@@ -4764,7 +5980,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 					tex_loading_progress.tex_data = NULL;
 					tex_loading_progress.opengl_tex = NULL;
-					
+
 					// Now that this texture is loaded, remove from textures_processing set.
 					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
 					//assert(textures_processing.count(tex_loading_progress.path) >= 1);
@@ -4859,15 +6075,15 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 		//frame_loading_time = loading_timer.elapsed();
 		//conPrint("loading_timer: " + loading_timer.elapsedStringMSWIthNSigFigs(4) + ", total_bytes_uploaded: " + getNiceByteSize(total_bytes_uploaded));
-		
+
 		this->last_model_and_tex_loading_time = loading_timer.elapsed();
 	}
 
-	
-	
 
 
-	
+
+
+
 
 	// Check async geometry uploading queue and async texture uploading queue for any completed uploads
 	// We will keep looping until either there are no more completed uploads to process, or we have exceeded a certain amount of time.
@@ -4883,7 +6099,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 			try
 			{
-				//------------------------------------------- Check any current geometry uploads to see if they have completed ------------------------------------------- 
+				//------------------------------------------- Check any current geometry uploads to see if they have completed -------------------------------------------
 				//Timer timer2;
 				async_geom_loader.checkForUploadedGeometry(opengl_engine.ptr(), opengl_engine->getCurrentScene()->frame_num, /*loaded_geom_out=*/temp_uploaded_geom_infos); // Can throw if VBO space allocation fails
 				//const double elapsed = timer2.elapsed();
@@ -4921,7 +6137,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 			temp_uploaded_geom_infos.clear();
 
 
-			//------------------------------------------- Check any current texture uploads to see if they have completed ------------------------------------------- 
+			//------------------------------------------- Check any current texture uploads to see if they have completed -------------------------------------------
 			//Timer timer;
 			pbo_async_tex_loader.checkForUploadedTexture(opengl_engine->getCurrentScene()->frame_num, temp_loaded_texture_infos);
 			//conPrint("checkForUploadedTexture took " + timer.elapsedStringMSWIthNSigFigs());
@@ -4931,7 +6147,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 				Reference<PBOAsyncTextureUploading> loading_info_ref = temp_loaded_texture_infos[i].user_info.downcast<PBOAsyncTextureUploading>(); // Get our info about this upload
 				PBOAsyncTextureUploading& loading_info = *loading_info_ref;
-			
+
 				// Now that we have loaded all the texture data into OpenGL, if we didn't compute all mipmap level data ourselves, and we need it for trilinear filtering, then get the driver to do it.
 				//if(loading_info.need_mipmap_build) // (texture_data->W > 1 || texture_data->H > 1) && texture_data->numMipLevels() == 1 && loading_info.opengl_tex->getFiltering() == OpenGLTexture::Filtering_Fancy)
 				if((loading_info.tex_data->W > 1 || loading_info.tex_data->H > 1) && loading_info.tex_data->numMipLevels() == 1 && loading_info.opengl_tex->getFiltering() == OpenGLTexture::Filtering_Fancy)
@@ -4954,7 +6170,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 						assert(loading_info.tex_data);
 						loading_info.opengl_tex->texture_data = loading_info.tex_data;
 					}
-			
+
 					try
 					{
 						opengl_engine->addOpenGLTexture(loading_info.opengl_tex->key, loading_info.opengl_tex);
@@ -4981,7 +6197,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				break;
 		}
 
-		//------------------------------------------- Start uploading any geometry that is ready to upload ------------------------------------------- 
+		//------------------------------------------- Start uploading any geometry that is ready to upload -------------------------------------------
 		// Read from async_model_loaded_messages_to_process queue which contains ModelLoadedThreadMessages with geometry data ready to upload
 		const double MAX_START_UPLOADING_TIME = 0.001;
 		Timer uploading_timer;
@@ -5034,8 +6250,8 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				uploading_info->voxel_hash = message->voxel_hash;
 
 				// Start asynchronous load from VBO
-				async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/vert_vbo, index_vbo, dummy_vert_vbo, dummy_index_vbo, 
-					/*vert_data_src_offset_B=*/0, /*index_data_src_offset_B=*/0, message->vert_data_size_B, message->index_data_size_B, message->total_geom_size_B, 
+				async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/vert_vbo, index_vbo, dummy_vert_vbo, dummy_index_vbo,
+					/*vert_data_src_offset_B=*/0, /*index_data_src_offset_B=*/0, message->vert_data_size_B, message->index_data_size_B, message->total_geom_size_B,
 					opengl_engine->getCurrentScene()->frame_num, uploading_info);
 			}
 			else
@@ -5055,7 +6271,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 		}
 
 
-		//------------------------------------------- Start uploading any textures that are ready to upload ------------------------------------------- 
+		//------------------------------------------- Start uploading any textures that are ready to upload -------------------------------------------
 		// Read from async_texture_loaded_messages_to_process which contains TextureLoadedThreadMessage with texture data ready to upload
 
 		// We will remove items from the front of the queue.  If we can't start uploading the item currently (no free usable PBO), the item will be appended to the end of the list to try again later.
@@ -5094,7 +6310,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				// Get a free PBO, memcpy our texture data to it, and then start uploading it to the GPU.
 
 				Reference<TextureData> texture_data = message->texture_data;
-				
+
 				ArrayRef<uint8> source_data = texture_data->getDataArrayRef();
 
 				if(texture_data->isMultiFrame())
@@ -5114,7 +6330,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 					//const double elapsed = timer2.elapsed();
 					//if(elapsed > 0.0001)
 					//	conPrint("pbo->updateData() for texture of " + uInt64ToStringCommaSeparated(source_data.size()) + " B took " + doubleToStringNSigFigs(elapsed * 1.0e3, 4) + " ms (" + doubleToStringNSigFigs(source_data.size() / elapsed * 1.0e-9, 4) + " GB/s)");
-							
+
 
 					// Free image texture memory now it has been copied to the PBO.
 					if(!texture_data->isMultiFrame())
@@ -5214,7 +6430,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 			// Remove any existing visualisation AABB.
 			checkRemoveObAndSetRefToNull(opengl_engine, ob->diagnostics_gl_ob);
 			checkRemoveObAndSetRefToNull(opengl_engine, ob->diagnostics_unsmoothed_gl_ob);
-			
+
 			checkRemoveAndDeleteWidget(this->gl_ui, ob->diagnostic_text_view);
 		}
 		else
@@ -5234,7 +6450,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 					ob->diagnostics_gl_ob = opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), col);
 					opengl_engine->addObject(ob->diagnostics_gl_ob);
 				}
-			
+
 				ob->diagnostics_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3(col[0], col[1], col[2]));
 				opengl_engine->objectMaterialsUpdated(*ob->diagnostics_gl_ob);
 				ob->diagnostics_gl_ob->ob_to_world_matrix = to_world;
@@ -5262,7 +6478,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 			if(ob->diagnostic_text_view.isNull())
 			{
 				GLUITextView::CreateArgs create_args;
-				ob->diagnostic_text_view = new GLUITextView(*this->gl_ui, diag_text, Vec2f(0.f, 0.f), create_args);
+				ob->diagnostic_text_view = new GLUITextView(*this->gl_ui, this->opengl_engine, diag_text, Vec2f(0.f, 0.f), create_args);
 			}
 			else
 			{
@@ -5352,7 +6568,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 			S_down = false;
 			D_down = false;
 			space_down = false;
-			C_down = false; 
+			C_down = false;
 			left_down = false;
 			right_down = false;
 			up_down = false;
@@ -5390,7 +6606,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 
 			player_physics.processStrafeRight (selfie_move_factor * 4 * (frac_coords.x - 0.5f), SHIFT_down, this->cam_controller);
 			player_physics.processMoveForwards(selfie_move_factor * 4 * (frac_coords.y - 0.5f), SHIFT_down, this->cam_controller);
-			
+
 			move_key_pressed = true;
 		}
 
@@ -5418,13 +6634,13 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 
 		// Move vertically up or down in flymode.
 		if(ui_interface->gamepadButtonL2() != 0) // Left trigger
-		{	
+		{
 			player_physics.processMoveUp(gamepad_move_speed_factor * -pow(ui_interface->gamepadButtonL2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
 		}
 		input_out.left_trigger = ui_interface->gamepadButtonL2();
 
 		if(ui_interface->gamepadButtonR2() != 0) // Right trigger
-		{	
+		{
 			player_physics.processMoveUp(gamepad_move_speed_factor * pow(ui_interface->gamepadButtonR2(), 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
 		}
 		input_out.right_trigger = ui_interface->gamepadButtonR2();
@@ -5432,11 +6648,11 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		const float axis_left_x = ui_interface->gamepadAxisLeftX();
 		const float axis_left_y = ui_interface->gamepadAxisLeftY();
 		if(axis_left_x != 0)
-		{	
+		{
 			player_physics.processStrafeRight(gamepad_move_speed_factor * pow(axis_left_x, 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
 		}
 		if(axis_left_y != 0)
-		{	
+		{
 			player_physics.processMoveForwards(gamepad_move_speed_factor * -pow(axis_left_y, 3.f), SHIFT_down, this->cam_controller); move_key_pressed = true; last_cursor_movement_was_from_mouse = false;
 		}
 
@@ -5448,7 +6664,7 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		if(axis_right_x != 0)
 		{
 			this->cam_controller.updateRotation(/*pitch_delta=*/0, /*heading_delta=*/dt * gamepad_rotate_speed * pow(axis_right_x, 3.0f));
-			
+
 			if(std::fabs(axis_right_x) > 0.5f) // If definitely a player-initiated command (as opposed to stick drift)
 				last_cursor_movement_was_from_mouse = false; // then last cursor movement is from gamepad
 		}
@@ -5457,13 +6673,15 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 		if(axis_right_y != 0)
 		{
 			this->cam_controller.updateRotation(/*pitch_delta=*/dt *  gamepad_rotate_speed * -pow(axis_right_y, 3.f), /*heading_delta=*/0);
-		
+
 			if(std::fabs(axis_right_y) > 0.5f) // If definitely a player-initiated command (as opposed to stick drift)
 				last_cursor_movement_was_from_mouse = false; // then last cursor movement is from gamepad
 		}
 
 		hud_ui.setCrosshairDotVisible(!last_cursor_movement_was_from_mouse);
 	}
+
+	updateXRControllerLocomotion(dt, move_key_pressed);
 
 	if(cam_controller.current_cam_mode == CameraController::CameraMode_FreeCamera)
 	{
@@ -5476,6 +6694,341 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 	{
 		stopGesture();
 		gesture_ui.stopAnyGesturePlaying();
+	}
+}
+
+
+void GUIClient::updateXRControllerLocomotion(float dt, bool& move_key_pressed)
+{
+	const bool xr_locomotion_allowed =
+		(xr_session != NULL) &&
+		xr_session->isInitialised() &&
+		(vehicle_controller_inside.isNull()) &&
+		(this->cam_controller.current_cam_mode == CameraController::CameraMode_Standard);
+
+	if(!xr_locomotion_allowed)
+		return;
+
+	Vec3d xr_head_angles;
+	Vec3d xr_head_pos;
+	if(!getCurrentXRTrackedHeadPose(xr_head_pos, xr_head_angles))
+		return;
+	(void)xr_head_pos;
+
+	CameraController xr_move_cam = this->cam_controller;
+	xr_move_cam.setAngles(Vec3d(/*heading=*/xr_head_angles.x, /*pitch=*/Maths::pi_2<double>(), /*roll=*/0.0));
+
+	const float move_speed_factor = player_physics.flyModeEnabled() ? 4.f : 2.f;
+	const float left_axis_x = xr_left_hand_state.move2d_active ? xrFilterMove2DAxis(xr_left_hand_state.move2d_value.x) : 0.f;
+	const float left_axis_y = xr_left_hand_state.move2d_active ? xrFilterMove2DAxis(xr_left_hand_state.move2d_value.y) : 0.f;
+
+	if(left_axis_x != 0.f)
+	{
+		player_physics.processStrafeRight(move_speed_factor * std::pow(left_axis_x, 3.f), /*runpressed=*/false, xr_move_cam);
+		move_key_pressed = true;
+		last_cursor_movement_was_from_mouse = false;
+	}
+
+	if(left_axis_y != 0.f)
+	{
+		player_physics.processMoveForwards(move_speed_factor * std::pow(left_axis_y, 3.f), /*runpressed=*/false, xr_move_cam);
+		move_key_pressed = true;
+		last_cursor_movement_was_from_mouse = false;
+	}
+
+	const float right_axis_x = xr_right_hand_state.move2d_active ? xrFilterMove2DAxis(xr_right_hand_state.move2d_value.x) : 0.f;
+	if(right_axis_x != 0.f)
+	{
+		this->cam_controller.updateRotation(/*pitch_delta=*/0, /*heading_delta=*/dt * XR_SMOOTH_TURN_SPEED * std::pow(right_axis_x, 3.f));
+
+		if(std::fabs(right_axis_x) > 0.5f)
+			last_cursor_movement_was_from_mouse = false;
+	}
+}
+
+
+void GUIClient::hideXRControllerVisuals()
+{
+	if(opengl_engine.nonNull())
+	{
+		if(xr_left_controller_vis_in_engine && xr_left_controller_vis.nonNull())
+			opengl_engine->removeObject(xr_left_controller_vis);
+		if(xr_right_controller_vis_in_engine && xr_right_controller_vis.nonNull())
+			opengl_engine->removeObject(xr_right_controller_vis);
+	}
+
+	xr_left_controller_vis_in_engine = false;
+	xr_right_controller_vis_in_engine = false;
+}
+
+
+void GUIClient::tryUpgradeXRControllerVisualsToViveFocus3RenderModels()
+{
+	if(xr_focus3_controller_render_models_loaded || xr_focus3_controller_render_models_attempted)
+		return;
+
+	if(opengl_engine.isNull())
+		return;
+
+	xr_focus3_controller_render_models_attempted = true;
+
+	const std::string left_model_path  = xrGetViveFocus3ControllerModelPath(/*right_hand=*/false);
+	const std::string right_model_path = xrGetViveFocus3ControllerModelPath(/*right_hand=*/true);
+	if(left_model_path.empty() || right_model_path.empty())
+	{
+		logAndConPrintMessage("VIVE Focus 3 render-model files were not found locally during startup, so XR controller visuals will stay on the built-in fallback proxies.");
+		return;
+	}
+
+	try
+	{
+		ModelLoading::MakeGLObjectResults left_results;
+		ModelLoading::MakeGLObjectResults right_results;
+
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, left_model_path, /*do_opengl_stuff=*/true, left_results);
+		ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, right_model_path, /*do_opengl_stuff=*/true, right_results);
+
+		if(left_results.gl_ob.isNull() || right_results.gl_ob.isNull())
+			throw glare::Exception("Controller render model load returned a null GL object.");
+
+		hideXRControllerVisuals();
+
+		left_results.gl_ob->always_visible = true;
+		right_results.gl_ob->always_visible = true;
+
+		xr_left_controller_vis = left_results.gl_ob;
+		xr_right_controller_vis = right_results.gl_ob;
+		xr_left_controller_last_transform = Matrix4f::identity();
+		xr_right_controller_last_transform = Matrix4f::identity();
+		xr_left_controller_last_valid_time = -1.0;
+		xr_right_controller_last_valid_time = -1.0;
+		xr_focus3_controller_render_models_loaded = true;
+
+		logAndConPrintMessage(
+			"Loaded app-side VIVE Focus 3 XR controller render models from '" + left_model_path + "' and '" + right_model_path +
+			"', so controller visuals no longer depend on the runtime overlay.");
+	}
+	catch(glare::Exception& e)
+	{
+		logAndConPrintMessage("Failed to load VIVE Focus 3 XR controller render models: " + e.what());
+	}
+}
+
+
+void GUIClient::updateXRControllerVisuals()
+{
+	const bool xr_visuals_allowed =
+		(xr_session != NULL) &&
+		xr_session->isInitialised() &&
+		opengl_engine.nonNull();
+
+	if(!xr_visuals_allowed)
+	{
+		hideXRControllerVisuals();
+		return;
+	}
+
+	tryUpgradeXRControllerVisualsToViveFocus3RenderModels();
+
+	const double cur_time = Clock::getTimeSinceInit();
+
+	const auto update_controller_vis = [this, cur_time](const XRHandInputState& hand_state, const Reference<GLObject>& vis_ob, bool& in_engine, Matrix4f& last_transform, double& last_valid_time, bool right_hand)
+	{
+		if(vis_ob.isNull())
+			return;
+
+		Matrix4f controller_transform;
+		const bool have_live_pose = buildXRControllerVisualTransform(hand_state, xr_focus3_controller_render_models_loaded, right_hand, controller_transform);
+		if(have_live_pose)
+		{
+			last_transform = controller_transform;
+			last_valid_time = cur_time;
+		}
+		else if(last_valid_time >= 0.0)
+		{
+			controller_transform = last_transform;
+		}
+		else
+		{
+			if(in_engine)
+			{
+				opengl_engine->removeObject(vis_ob);
+				in_engine = false;
+			}
+			return;
+		}
+
+		vis_ob->ob_to_world_matrix = controller_transform;
+
+		if(!in_engine)
+		{
+			opengl_engine->addObject(vis_ob);
+			in_engine = true;
+		}
+		else
+			opengl_engine->updateObjectTransformData(*vis_ob);
+	};
+
+	update_controller_vis(xr_left_hand_state, xr_left_controller_vis, xr_left_controller_vis_in_engine, xr_left_controller_last_transform, xr_left_controller_last_valid_time, /*right_hand=*/false);
+	update_controller_vis(xr_right_hand_state, xr_right_controller_vis, xr_right_controller_vis_in_engine, xr_right_controller_last_transform, xr_right_controller_last_valid_time, /*right_hand=*/true);
+}
+
+
+void GUIClient::hideXRTeleportVisuals()
+{
+	if(opengl_engine.nonNull())
+	{
+		if(xr_teleport_beam_in_engine && xr_teleport_beam.nonNull())
+			opengl_engine->removeObject(xr_teleport_beam);
+		if(xr_teleport_marker_in_engine && xr_teleport_marker.nonNull())
+			opengl_engine->removeObject(xr_teleport_marker);
+	}
+
+	xr_teleport_beam_in_engine = false;
+	xr_teleport_marker_in_engine = false;
+}
+
+
+void GUIClient::updateXRTeleportLocomotion()
+{
+	const bool xr_locomotion_allowed =
+		(xr_session != NULL) &&
+		xr_session->isInitialised() &&
+		opengl_engine.nonNull() &&
+		physics_world.nonNull() &&
+		(vehicle_controller_inside.isNull()) &&
+		(this->cam_controller.current_cam_mode == CameraController::CameraMode_Standard);
+
+	if(!xr_locomotion_allowed)
+	{
+		xr_teleport_active = false;
+		xr_teleport_target_valid = false;
+		hideXRTeleportVisuals();
+		return;
+	}
+
+	const XRHandInputState* active_hand_state = NULL;
+	if(xr_teleport_active)
+	{
+		active_hand_state = xr_teleport_active_hand_is_right ? &xr_right_hand_state : &xr_left_hand_state;
+
+		if(!xrTeleportButtonHeld(*active_hand_state, /*release_threshold=*/true))
+		{
+			if(xr_teleport_target_valid)
+			{
+				const Vec3d new_capsule_bottom_pos(
+					xr_teleport_target_pos[0],
+					xr_teleport_target_pos[1],
+					xr_teleport_target_pos[2] + XR_TELEPORT_TARGET_Z_OFFSET
+				);
+				player_physics.setCapsuleBottomPosition(new_capsule_bottom_pos, /*linear_vel=*/Vec4f(0, 0, 0, 0));
+				player_physics.zeroMoveDesiredVel();
+				stopGesture();
+				gesture_ui.stopAnyGesturePlaying();
+			}
+
+			xr_teleport_active = false;
+			xr_teleport_target_valid = false;
+			hideXRTeleportVisuals();
+			return;
+		}
+	}
+	else
+	{
+		const bool right_hand_pressed = xrTeleportButtonHeld(xr_right_hand_state, /*release_threshold=*/false);
+		const bool left_hand_pressed = xrTeleportButtonHeld(xr_left_hand_state, /*release_threshold=*/false);
+
+		if(right_hand_pressed)
+		{
+			xr_teleport_active = true;
+			xr_teleport_active_hand_is_right = true;
+			active_hand_state = &xr_right_hand_state;
+		}
+		else if(left_hand_pressed)
+		{
+			xr_teleport_active = true;
+			xr_teleport_active_hand_is_right = false;
+			active_hand_state = &xr_left_hand_state;
+		}
+		else
+		{
+			xr_teleport_target_valid = false;
+			hideXRTeleportVisuals();
+			return;
+		}
+	}
+
+	if(!active_hand_state || !xrTrackedPoseHasWorldTransform(active_hand_state->aim_pose))
+	{
+		xr_teleport_target_valid = false;
+		hideXRTeleportVisuals();
+		return;
+	}
+
+	const Vec4f ray_dir = getXRTrackedPoseWorldForwardDir(active_hand_state->aim_pose);
+	const Vec4f ray_origin = getXRTrackedPoseWorldPosition(active_hand_state->aim_pose) + ray_dir * 0.03f;
+
+	RayTraceResult trace_results;
+	this->physics_world->traceRay(ray_origin, ray_dir, XR_TELEPORT_TRACE_MAX_DIST, /*ignore body id=*/JPH::BodyID(), trace_results);
+
+	const bool have_hit = (trace_results.hit_object != NULL);
+	const float beam_len = have_hit ? myMax(0.05f, trace_results.hit_t) : XR_TELEPORT_TRACE_MAX_DIST;
+	const Vec4f marker_pos = ray_origin + ray_dir * beam_len;
+
+	Vec4f marker_normal(0, 0, 1, 0);
+	bool teleport_target_valid = false;
+	if(have_hit && (trace_results.hit_normal_ws.length2() > 1.0e-10f))
+	{
+		marker_normal = normalise(trace_results.hit_normal_ws);
+		teleport_target_valid = (marker_normal[2] >= XR_TELEPORT_MIN_WALKABLE_NORMAL_Z);
+	}
+
+	xr_teleport_target_valid = teleport_target_valid;
+	if(teleport_target_valid)
+	{
+		xr_teleport_target_pos = marker_pos;
+		xr_teleport_target_normal = marker_normal;
+	}
+
+	const Colour3f teleport_colour = teleport_target_valid ? Colour3f(0.2f, 0.85f, 0.35f) : Colour3f(0.2f, 0.55f, 0.95f);
+	if(xr_teleport_beam.nonNull())
+	{
+		xr_teleport_beam->materials[0].albedo_linear_rgb = toLinearSRGB(teleport_colour);
+		if(xr_teleport_beam_in_engine)
+			opengl_engine->objectMaterialsUpdated(*xr_teleport_beam);
+
+		xr_teleport_beam->ob_to_world_matrix =
+			Matrix4f::translationMatrix(ray_origin) *
+			Matrix4f::constructFromVectorStatic(ray_dir) *
+			Matrix4f::scaleMatrix(XR_TELEPORT_BEAM_RADIUS, XR_TELEPORT_BEAM_RADIUS, beam_len);
+
+		if(!xr_teleport_beam_in_engine)
+		{
+			opengl_engine->addObject(xr_teleport_beam);
+			xr_teleport_beam_in_engine = true;
+		}
+		else
+			opengl_engine->updateObjectTransformData(*xr_teleport_beam);
+	}
+
+	if(xr_teleport_marker.nonNull())
+	{
+		xr_teleport_marker->materials[0].albedo_linear_rgb = toLinearSRGB(teleport_colour);
+		if(xr_teleport_marker_in_engine)
+			opengl_engine->objectMaterialsUpdated(*xr_teleport_marker);
+
+		xr_teleport_marker->ob_to_world_matrix =
+			Matrix4f::translationMatrix(marker_pos + marker_normal * 0.01f) *
+			Matrix4f::constructFromVectorStatic(marker_normal) *
+			Matrix4f::scaleMatrix(XR_TELEPORT_MARKER_RADIUS, XR_TELEPORT_MARKER_RADIUS, XR_TELEPORT_MARKER_THICKNESS);
+
+		if(!xr_teleport_marker_in_engine)
+		{
+			opengl_engine->addObject(xr_teleport_marker);
+			xr_teleport_marker_in_engine = true;
+		}
+		else
+			opengl_engine->updateObjectTransformData(*xr_teleport_marker);
 	}
 }
 
@@ -5512,9 +7065,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	ZoneScoped; // Tracy profiler
 	Timer timer_event_timer;
 
-	if(opengl_engine.isNull())
-		return;
-
 	if((connection_state == ServerConnectionState_NotConnected) && (retry_connection_timer.elapsed() > 10.0))
 	{
 		// Try and connect
@@ -5531,7 +7081,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	// Do Lua timer callbacks
-	if(false) // TEMP 
+	if(false) // TEMP
 	{
 		WorldStateLock lock(this->world_state->mutex);
 
@@ -5541,7 +7091,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		for(size_t i=0; i<temp_triggered_timers.size(); ++i)
 		{
 			TimerQueueTimer& timer = temp_triggered_timers[i];
-			
+
 			LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
 			if(script_evaluator)
 			{
@@ -5569,6 +7119,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	if(gl_ui.nonNull())
 		gl_ui->think();
+
+	webcam_capture.update();
 
 	// If we are connected to a server, send a UDP packet to it occasionally, so the server can work out which UDP port
 	// we are listening on.
@@ -5608,10 +7160,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	{
 		Lock lock(particles_creation_buf_mutex);
-		
+
 		for(size_t i=0; i<this->particles_creation_buf.size(); ++i)
 			this->particle_manager->addParticle(this->particles_creation_buf[i]);
-		
+
 		this->particles_creation_buf.clear();
 	}
 
@@ -5619,8 +7171,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	processLoading(timer_event_timer);
 
-	
-	
+
+
 	/*
 	Flow of loading models, textures etc.
 
@@ -5660,7 +7212,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	TracyPlot("model_loaded_messages_to_process.size()", (int64)model_loaded_messages_to_process.size());
 	TracyPlot("texture_loaded_messages_to_process.size()", (int64)texture_loaded_messages_to_process.size());
 
-	
+
 	while(!load_item_queue.empty() &&  // While there are items to remove from the load item queue,
 		(model_and_texture_loader_task_manager.getNumUnfinishedTasks() < 32) &&  // and we don't have too many tasks queued and ready to be executed by the task manager
 		(msg_queue.size() + model_loaded_messages_to_process.size() + texture_loaded_messages_to_process.size() < 32) // And we don't have too many completed load tasks:
@@ -5668,7 +7220,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	{
 		// Pop a task from the load item queue, and pass it to the model_and_texture_loader_task_manager.
 		LoadItemQueueItem item;
-		load_item_queue.dequeueFront(/*item out=*/item); 
+		load_item_queue.dequeueFront(/*item out=*/item);
 
 		// Discard task if it is now too far from the camera.  Do this so we don't load e.g. high detail models when we
 		// are no longer close to them.
@@ -5700,7 +7252,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					//assert(models_processing.count(key) > 0);
 					models_processing.erase(key);
 				}
-				
+
 				//conPrint("Discarding model load task '" + task->lod_model_url + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
 			}
 			else if(dynamic_cast<const LoadScriptTask*>(item.task.ptr()))
@@ -5708,7 +7260,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				const LoadScriptTask* task = static_cast<const LoadScriptTask*>(item.task.ptr());
 				assert(script_content_processing.count(task->script_content) > 0);
 				script_content_processing.erase(task->script_content);
-				
+
 				//conPrint("Discarding LoadScriptTask as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
 			}
 			else if(dynamic_cast<const LoadAudioTask*>(item.task.ptr()))
@@ -5716,7 +7268,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				const LoadAudioTask* task = static_cast<const LoadAudioTask*>(item.task.ptr());
 				assert(audio_processing.count(task->audio_source_url) > 0);
 				audio_processing.erase(task->audio_source_url);
-				
+
 				//conPrint("Discarding LoadAudioTask '" + task->audio_source_url + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
 			}
 		}
@@ -5746,7 +7298,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		checkForLODChanges(timer_event_timer);
 
 
-	
+
 	gesture_ui.think();
 	hud_ui.think();
 	if(minimap)
@@ -5837,33 +7389,46 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		animated_texture_manager->think(this, opengl_engine.ptr(), anim_time, dt);
 
 
-		// Process web-view objects
-		for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)
+		const bool screenshot_slave_mode = parsed_args.isArgPresent("--screenshotslave");
+		if(!screenshot_slave_mode)
 		{
-			WorldObject* ob = it->ptr();
+			// Process web-view objects
+			for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)
+			{
+				WorldObject* ob = it->ptr();
 
-			try
-			{
-				ob->web_view_data->process(this, opengl_engine.ptr(), ob, anim_time, dt);
+				try
+				{
+					ob->web_view_data->process(this, opengl_engine.ptr(), ob, anim_time, dt);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Excep while processing webview: " + e.what());
+				}
 			}
-			catch(glare::Exception& e)
+
+			// Process browser vid player objects
+			for(auto it = browser_vid_player_obs.begin(); it != browser_vid_player_obs.end(); ++it)
 			{
-				logMessage("Excep while processing webview: " + e.what());
+				WorldObject* ob = it->ptr();
+
+				try
+				{
+					ob->browser_vid_player->process(this, opengl_engine.ptr(), ob, anim_time, dt);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Excep while processing browser vid player: " + e.what());
+				}
 			}
 		}
-
-		// Process browser vid player objects
-		for(auto it = browser_vid_player_obs.begin(); it != browser_vid_player_obs.end(); ++it)
+		else
 		{
-			WorldObject* ob = it->ptr();
-
-			try
+			static bool printed_skip_msg = false;
+			if(!printed_skip_msg)
 			{
-				ob->browser_vid_player->process(this, opengl_engine.ptr(), ob, anim_time, dt);
-			}
-			catch(glare::Exception& e)
-			{
-				logMessage("Excep while processing browser vid player: " + e.what());
+				conPrint("GUIClient: skipping webview/video processing in screenshot slave mode.");
+				printed_skip_msg = true;
 			}
 		}
 
@@ -5874,23 +7439,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-
-	if((connection_state == ServerConnectionState_Connected) && (server_protocol_version >= 48) && (cur_time - last_ping_send_time) > 2.0) // Ping/pong messages were added in protocol version 48.
-	{
-		// Set last_ping_send_time in world_state
-		{
-			Lock lock(world_state->last_ping_send_time_mutex);
-			world_state->last_ping_send_time = cur_time;
-		}
-
-		// Send ping message
-		MessageUtils::initPacket(scratch_packet, Protocol::PingMessage);
-		enqueueMessageToSend(*client_thread, scratch_packet);
-
-		last_ping_send_time = cur_time;
-	}
-
 
 	//ui->indigoView->timerThink();
 
@@ -5909,7 +7457,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	handleMessages(global_time, cur_time);
-	
+
 	// Evaluate scripts on objects
 	{
 		ZoneScopedN("script eval"); // Tracy profiler
@@ -5939,6 +7487,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		processPlayerPhysicsInput((float)dt, world_render_has_keyboard_focus, /*input_out=*/physics_input); // sets player physics move impulse.
 	}
 
+	updateXRTeleportLocomotion();
+
 	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
 
 	// Advance physics sim and player physics with a maximum timestep size.
@@ -5956,7 +7506,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	{
 		PERFORMANCEAPI_INSTRUMENT("physics sim");
 		ZoneScopedN("physics sim"); // Tracy profiler
-		Timer physics_sim_timer;
 
 		for(int i=0; i<num_substeps; ++i)
 		{
@@ -6008,7 +7557,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							WorldObject* ob = (WorldObject*)physics_ob->userdata;
 
 							// conPrint("Player contacted object " + ob->uid.toString());
-						
+
 							// Take physics ownership of any such object if needed.
 							if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
 							{
@@ -6055,7 +7604,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 					player_physics.contacted_events.resize(0);
 				} // end if(!player_physics.contacted_events.empty())
-				
+
 
 
 				// Process vehicle controllers for any vehicles we are not driving:
@@ -6071,8 +7620,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				}
 			}
 		}
-
-		this->last_physics_sim_time = physics_sim_timer.elapsed();
 	}
 
 	if(hasPrefix(touched_portal_target_URL, "sub://"))
@@ -6130,7 +7677,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	updateSelectedObjectPlacementBeamAndGizmos();
 
-	
+
 	if(physics_world.nonNull())
 	{
 		Lock world_state_lock(this->world_state->mutex);
@@ -6172,7 +7719,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
 					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
 					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine.
-					if(physics_ob->isDynamic() || (physics_ob->isKinematic() && ob->is_path_controlled))
+					if(physics_ob->dynamic || (physics_ob->kinematic && ob->is_path_controlled))
 					{
 						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
 
@@ -6182,7 +7729,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						{
 							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
 							// We will also reduce smooth_translation and smooth_rotation over time here.
-							if(physics_ob->isDynamic())
+							if(physics_ob->dynamic)
 							{
 								Vec4f unit_axis;
 								float angle;
@@ -6228,7 +7775,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 
 							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
-							if(physics_ob->isDynamic() && isObjectPhysicsOwnedBySelf(*ob, global_time))
+							if(physics_ob->dynamic && isObjectPhysicsOwnedBySelf(*ob, global_time))
 							{
 								JPH::Vec3 linear_vel, angular_vel;
 								body_interface.GetLinearAndAngularVelocity(physics_ob->jolt_body_id, linear_vel, angular_vel);
@@ -6267,7 +7814,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 					if(ob->isDynamic())
 					{
-						// If this object is already owned by another user, let them continue to own it. 
+						// If this object is already owned by another user, let them continue to own it.
 						// If it is unowned, however, take ownership of it.
 						if(!isObjectPhysicsOwned(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
 						{
@@ -6287,7 +7834,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 
 		// Get camera position, if we are in a vehicle.
-		if(vehicle_controller_inside) // If we are inside a vehicle:
+		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 		{
 			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
 			const bool use_smoothed_network_transform = cur_seat_index != 0;
@@ -6310,10 +7857,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		this->cam_controller.setFirstPersonPosition(toVec3d(campos));
 
 		// Show vehicle speed on UI
-		if(vehicle_controller_inside ) // || (player_physics.getLinearVel().length() > 50.f)) // If we are inside a vehicle:
+		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 		{
-			const Vec4f vel = vehicle_controller_inside ? vehicle_controller_inside->getLinearVel(*this->physics_world) : player_physics.getLinearVel();
-			const float speed_km_h = vel.length() * (3600.0f / 1000.f);
+			const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
 			misc_info_ui.showVehicleSpeed(speed_km_h);
 			//misc_info_ui.showVehicleInfo(vehicle_controller_inside->getUIInfoMsg());
 		}
@@ -6327,7 +7873,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			player_physics.debugGetCollisionSpheres(campos, spheres);
 
 			player_phys_debug_spheres.resize(spheres.size());
-			
+
 			for(size_t i=0; i<spheres.size(); ++i)
 			{
 				if(!player_phys_debug_spheres[i])
@@ -6338,7 +7884,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 					OpenGLMaterial material;
 					material.albedo_linear_rgb = (i < 3) ? Colour3f(0.3f, 0.8f, 0.3f) : Colour3f(0.8f, 0.3f, 0.3f);
-					
+
 					material.alpha = 0.5f;
 					material.transparent = true;
 					/*if(i >= 4)
@@ -6407,7 +7953,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				const Vec4f footstrike_pos = campos - Vec4f(0, 0, PlayerPhysics::getEyeHeight(), 0) +
 					on_ground_forwards * 0.4f +
 					on_ground_right * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
-				
+
 				// conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3) + ", playing " + last_footstep_timer.elapsedStringNSigFigs(3) + " after last footstep");
 
 				const int rnd_src_i = rng.nextUInt(4);
@@ -6428,9 +7974,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 	proximity_loader.updateCamPos(campos);
 
-	
 
-	const Vec3d avatar_cam_angles = this->cam_controller.getAvatarAngles();
+
+	Vec3d avatar_pose_pos;
+	Vec3d avatar_cam_angles;
+	getCurrentAvatarPoseForNetworking(avatar_pose_pos, avatar_cam_angles);
 
 	// Find out which parcel we are in, if any.
 	ParcelID new_in_parcel_id = ParcelID::invalidParcelID();
@@ -6567,7 +8115,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 				//conPrint("source: " + toString((uint64)source) + ", hit_object: " + boolToString(hit_object) + ", source parcel: " + toString(source->userdata_1));
 
-				
+
 				const bool source_is_one_shot = (source->type == glare::AudioSource::SourceType_NonStreaming) && !source->looping;
 				if(!source_is_one_shot) // We won't be muting footsteps etc.
 				{
@@ -6627,11 +8175,13 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// Resonance seems to want a to-world transformation
 	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
 
-	const Vec3d cam_angles = this->cam_controller.getAngles();
-	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)cam_angles.x - Maths::pi_2<float>());
-	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
+	Vec3d listener_pos;
+	Vec3d listener_angles;
+	getCurrentListenerPose(listener_pos, listener_angles);
+	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)listener_angles.x - Maths::pi_2<float>());
+	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)listener_angles.y);
 	const Quatf q = z_axis_rot_q * x_axis_rot_q;
-	audio_engine.setHeadTransform(this->cam_controller.getPosition().toVec4fPoint(), q);
+	audio_engine.setHeadTransform(listener_pos.toVec4fPoint(), q);
 
 
 	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
@@ -6651,14 +8201,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		last_vehicle_renewal_msg_time = cur_time;
 	}
 
-	
+
 
 	//TEMP
 #if 0
 	for(size_t i=0; i<test_avatars.size(); ++i)
 	{
 		AvatarRef test_avatar = test_avatars[i];
-		
+
 		/*double phase_speed = 0.5;
 		if((int)(cur_time * 0.2) % 2 == 0)
 		{
@@ -6679,8 +8229,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		Vec3d pos(r * cos(phase), r * sin(phase), 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
 		const int anim_state = 0;
 		float xyplane_speed_rel_ground = 0;
-		test_avatar->graphics.setOverallTransform(*opengl_engine, pos, 
-			Vec3f(0, /*pitch=*/Maths::pi_2<float>(), (float)phase + Maths::pi_2<float>()), 
+		test_avatar->graphics.setOverallTransform(*opengl_engine, *physics_world, pos,
+			Vec3f(0, /*pitch=*/Maths::pi_2<float>(), (float)phase + Maths::pi_2<float>()),
 			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, pose_constraint, anim_events);
 		if(anim_events.footstrike)
 		{
@@ -6695,7 +8245,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		}
 	}
 #endif
-	
+
 	const Vec4f first_or_third_person_campos = this->cam_controller.getPosition().toVec4fPoint();
 
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
@@ -6711,6 +8261,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			// Make sure server_using_lod_chunks is set before we start calling shouldDisplayLODChunk() below
 			if(!this->world_state->lod_chunks.empty() && LOD_CHUNK_SUPPORT)
 				this->server_using_lod_chunks = true;
+			const bool lod_disabled = shouldDisableLODForCurrentServer();
 
 			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
 			{
@@ -6773,11 +8324,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							enableMaterialisationEffectOnOb(*ob); // Enable materialisation effect before we call loadModelForObject() below.
 
 						// Make sure lod level is set before calling loadModelForObject(), which will start downloads based on the lod level.
-						ob->current_lod_level = ob->getLODLevel(cam_controller.getPosition());
+						ob->current_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 
 						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
 						const Vec3i chunk_coords(Maths::floorToInt(ob->getCentroidWS()[0] / chunk_w), Maths::floorToInt(ob->getCentroidWS()[1] / chunk_w), 0);
-						if(this->server_using_lod_chunks && shouldDisplayLODChunk(chunk_coords, first_or_third_person_campos) && !ob->exclude_from_lod_chunk_mesh)
+						if(this->server_using_lod_chunks && !lod_disabled && shouldDisplayLODChunk(chunk_coords, first_or_third_person_campos) && !ob->exclude_from_lod_chunk_mesh)
 							ob->in_proximity = false;
 						assert(ob->exclude_from_lod_chunk_mesh == BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH));
 
@@ -6786,7 +8337,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							loadModelForObject(ob, lock);
 							loadAudioForObject(ob, /*loaded buffer=*/nullptr);
 						}
-						
+
 						if(!ob->audio_source_url.empty() || ob->object_type == WorldObject::ObjectType_WebView || ob->object_type == WorldObject::ObjectType_Video)
 							this->audio_obs.insert(ob);
 
@@ -6805,10 +8356,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 								// Update materials in opengl engine.
 								glare::ArenaFrame frame(arena_allocator);
-								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+								const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
+								const bool use_basis_textures_for_ob = shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures);
 								for(size_t i=0; i<ob->materials.size(); ++i)
 									if(i < opengl_ob->materials.size())
-										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
+										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/use_basis_textures_for_ob, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 
 								opengl_engine->objectMaterialsUpdated(*opengl_ob);
 
@@ -6856,6 +8408,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 						}
 
+						// Try to auto-link a just-created/initially-sent CameraScreen to the matching Camera.
+						// Some server paths can deliver newly created objects as InitialSend instead of JustCreated.
+						if(ob_just_created_or_initially_sent && (ob->creator_id == this->logged_in_user_id))
+						{
+							tryResolvePendingCameraPairCreateForObject(ob, lock);
+							tryAutoLinkUnboundCameraScreen(ob, lock); // Fallback if pending pair match didn't trigger.
+						}
+
 
 						if(ob->state == WorldObject::State_JustCreated)
 						{
@@ -6887,7 +8447,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				else if(ob->from_remote_lightmap_url_dirty)
 				{
 					// Try and download any resources we don't have for this object
-					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+					const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 					startDownloadingResourcesForObject(ob, ob_lod_level);
 
 					// Update materials in opengl engine, so it picks up the new lightmap URL
@@ -6895,9 +8455,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					if(opengl_ob.nonNull())
 					{
 						glare::ArenaFrame frame(arena_allocator);
+						const bool use_basis_textures_for_ob = shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures);
 						for(size_t i=0; i<ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/use_basis_textures_for_ob, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
 
@@ -6928,7 +8489,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 					ob->from_remote_physics_ownership_dirty = false;
 				}
-				
+
 				if(ob->from_remote_transform_dirty)
 				{
 					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
@@ -6951,7 +8512,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					// This is because summoning moves objects discontinuously, so we don't want to interpolate.
 					if(ob->physics_object)
 					{
-						physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), 
+						physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle),
 							Vec4f(0), Vec4f(0));
 
 						ob->physics_object->smooth_rotation = Quatf::identity(); // We don't want to smooth the transformation change.
@@ -7053,7 +8614,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 							if(ob->opengl_engine_ob.nonNull())
 							{
-								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
 									rot.toMatrix() *
 									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
@@ -7118,7 +8679,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	updateVoxelEditMarkers(mouse_cursor_state);
 
-	
+
 
 	// Send an AvatarTransformUpdate packet to the server if needed.
 	if(client_thread.nonNull() && (time_since_update_packet_sent.elapsed() > 0.1))
@@ -7128,8 +8689,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		// Send AvatarTransformUpdate packet
 		{
-			const uint32 anim_state = 
-				(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
+			const uint32 anim_state =
+				(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) |
 				(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) |
 				(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
 
@@ -7137,14 +8698,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_avatar_uid, scratch_packet);
-			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
+			writeToStream(avatar_pose_pos, scratch_packet);
 			writeToStream(Vec3f(0, (float)avatar_cam_angles.y, (float)avatar_cam_angles.x), scratch_packet);
 			scratch_packet.writeUInt32(anim_state | (input_bitmask << 16));
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
 
-		
+
 		if(world_state.nonNull())
 		{
 			Lock lock(this->world_state->mutex);
@@ -7206,7 +8767,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			for(auto it = this->world_state->dirty_from_local_parcels.begin(); it != this->world_state->dirty_from_local_parcels.end(); ++it)
 			{
 				const Parcel* parcel= it->getPointer();
-			
+
 				// Enqueue ParcelFullUpdate
 				MessageUtils::initPacket(scratch_packet, Protocol::ParcelFullUpdate);
 				writeParcelToNetworkStream(*parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
@@ -7221,7 +8782,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		time_since_update_packet_sent.reset();
 	}
 
-
 	// Send WorldSettingsUpdate message to server if we made a local change to the world settings in the UI.
 	if(world_settings_locally_dirty && (world_settings_local_change_timer.elapsed() >= 1.0) && client_thread)
 	{
@@ -7231,7 +8791,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 		world_settings_locally_dirty = false;
 	}
-
 
 	{
 		// Show a decibel level: http://msp.ucsd.edu/techniques/v0.08/book-html/node6.html
@@ -7243,7 +8802,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		gesture_ui.setCurrentMicLevel(mic_read_status.cur_level, display_level);
 	}
 
-	
+
 	if(frame_num % 8 == 0)
 		checkForAudioRangeChanges();
 
@@ -7303,10 +8862,10 @@ void GUIClient::updateParcelGraphics()
 				if(parcel->state == Parcel::State_Dead)
 				{
 					print("Removing Parcel.");
-					
+
 					// Remove any OpenGL object for it
 					checkRemoveObAndSetRefToNull(opengl_engine, parcel->opengl_engine_ob);
-					
+
 					// Remove physics object
 					checkRemoveObAndSetRefToNull(physics_world, parcel->physics_object);
 
@@ -7314,43 +8873,29 @@ void GUIClient::updateParcelGraphics()
 				}
 				else
 				{
-					const Vec4f aabb_min((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.0f);
-					const Vec4f aabb_max((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.0f);
-
 					if(ui_interface->isShowParcelsEnabled())
 					{
-						if(parcel->opengl_engine_ob.isNull())
+						// Recreate parcel GL/physics objects for reliable sync when geometry/ownership changes.
+						checkRemoveObAndSetRefToNull(opengl_engine, parcel->opengl_engine_ob);
+						checkRemoveObAndSetRefToNull(physics_world, parcel->physics_object);
+
+						const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
+						bool use_write_perms = write_perms;
+						if(ui_interface->inScreenshotTakingMode()) // If we are in screenshot-taking mode, don't highlight writable parcels.
+							use_write_perms = false;
+
+						parcel->opengl_engine_ob = parcel->makeOpenGLObject(opengl_engine, use_write_perms);
+						parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+						parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
+						opengl_engine->addObject(parcel->opengl_engine_ob);
+
+						parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
+						physics_world->addObject(parcel->physics_object);
+
+						if(this->selected_parcel.ptr() == parcel)
 						{
-							// Make OpenGL model for parcel:
-							const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
-
-							bool use_write_perms = write_perms;
-							if(ui_interface->inScreenshotTakingMode()) // If we are in screenshot-taking mode, don't highlight writable parcels.
-								use_write_perms = false;
-
-							parcel->opengl_engine_ob = parcel->makeOpenGLObject(opengl_engine, use_write_perms);
-							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
-							parcel->opengl_engine_ob->materials[0].auto_assign_shader = false;
-							opengl_engine->addObject(parcel->opengl_engine_ob);
-
-							// Make physics object for parcel:
-							assert(parcel->physics_object.isNull());
-							parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
-							physics_world->addObject(parcel->physics_object);
-						}
-						else // else if opengl ob is not null:
-						{
-							// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
-							//const Vec4f span = aabb_max - aabb_min;
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
-							//opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
-							//
-							//// Update in physics engine
-							//parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-							//physics_world->updateObjectTransformData(*parcel->physics_object);
+							opengl_engine->selectObject(parcel->opengl_engine_ob);
+							opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
 						}
 					}
 
@@ -7362,6 +8907,16 @@ void GUIClient::updateParcelGraphics()
 						this->url_parcel_uid = -1;
 
 						showInfoNotification("Jumped to parcel " + parcel->id.toString());
+					}
+
+					if(this->selected_parcel.ptr() == parcel)
+					{
+						const bool can_edit_basic_fields = this->logged_in_user_id.valid() &&
+							((this->logged_in_user_id == parcel->owner_id) || isGodUser(this->logged_in_user_id));
+						const bool can_edit_owner_and_geometry = this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id);
+						const bool can_edit_member_lists = can_edit_basic_fields;
+						ui_interface->setParcelEditorForParcel(*parcel);
+						ui_interface->setParcelEditorPermissions(can_edit_basic_fields, can_edit_owner_and_geometry, can_edit_member_lists);
 					}
 
 
@@ -7408,7 +8963,7 @@ void GUIClient::assignLODChunkSubMeshPlaceholderToOb(const LODChunk* chunk, Worl
 				ob->opengl_engine_ob = opengl_engine->allocateObject();
 				ob->opengl_engine_ob->mesh_data = chunk->graphics_ob->mesh_data; // Share the chunk's mesh data
 				ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::identity();
-						
+
 				ob->opengl_engine_ob->materials = chunk->graphics_ob->materials;
 
 				int new_num_batches = 0;
@@ -7458,7 +9013,7 @@ void GUIClient::updateLODChunkGraphics()
 	const Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
 
 	Lock lock(this->world_state->mutex);
-	
+
 	// Set chunk visibility based on distance from camera
 	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 	{
@@ -7566,7 +9121,7 @@ void GUIClient::updateLODChunkGraphics()
 					const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
 
 					Reference<LoadModelTask> load_model_task = new LoadModelTask();
-					
+
 					load_model_task->resource = resource;
 					load_model_task->lod_model_url = use_mesh_url;
 					load_model_task->model_lod_level = 0;
@@ -7578,8 +9133,8 @@ void GUIClient::updateLODChunkGraphics()
 					load_model_task->worker_allocator = worker_allocator;
 					load_model_task->upload_thread = opengl_upload_thread;
 
-					load_item_queue.enqueueItem(use_mesh_url, centroid_ws, chunk_w, 
-						load_model_task, 
+					load_item_queue.enqueueItem(use_mesh_url, centroid_ws, chunk_w,
+						load_model_task,
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 				}
 			}
@@ -7590,15 +9145,15 @@ void GUIClient::updateLODChunkGraphics()
 				this->loading_texture_URL_to_chunk_coords_map[chunk->combined_array_texture_url] = chunk->coords;
 
 				ResourceRef resource = this->resource_manager->getOrCreateResourceForURL(chunk->combined_array_texture_url);
-				
+
 				const OpenGLTextureKey path = OpenGLTextureKey(resource_manager->getLocalAbsPathForResource(*resource));
 				chunk->combined_array_texture_path = path;
 
 				if(resource->getState() == Resource::State_Present)
 				{
 					TextureParams tex_params;
-					load_item_queue.enqueueItem(chunk->combined_array_texture_url, centroid_ws, chunk_w, 
-						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+					load_item_queue.enqueueItem(chunk->combined_array_texture_url, centroid_ws, chunk_w,
+						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 				}
 			}
@@ -7628,7 +9183,7 @@ void GUIClient::handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<Me
 		if(chunk_res != world_state->lod_chunks.end())
 		{
 			LODChunk* chunk = chunk_res->second.ptr();
-	
+
 			assert(mesh_URL == chunk->computeMeshURL(this->server_has_optimised_meshes, this->server_opt_mesh_version));
 
 			try
@@ -7641,7 +9196,7 @@ void GUIClient::handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<Me
 					chunk->graphics_ob = opengl_engine->allocateObject();
 					chunk->graphics_ob->mesh_data = mesh_data->gl_meshdata;
 					chunk->graphics_ob->ob_to_world_matrix = Matrix4f::identity();
-		
+
 					chunk->graphics_ob->materials.resize(myMax<size_t>(1, mesh_data->gl_meshdata->num_materials_referenced));
 					chunk->graphics_ob->materials[0].combined = true;
 
@@ -7659,7 +9214,7 @@ void GUIClient::handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<Me
 					}
 
 
-				
+
 					//--------------------------- Get decompressed mat info ---------------------------
 					const uint64 decompressed_size = ZSTD_getFrameContentSize(chunk->compressed_mat_info.data(), chunk->compressed_mat_info.size());
 					if(decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN || decompressed_size == ZSTD_CONTENTSIZE_ERROR)
@@ -7745,8 +9300,8 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 				{
 					print("Removing avatar.");
 
-					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
-						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
+					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" +
+						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" +
 						web::Escaping::HTMLEscape(avatar->getUseName()) + "</span> left.</i>");
 
 					chat_ui.appendMessage(avatar->getUseName(), avatar->name_colour, " left.");
@@ -7757,6 +9312,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 					// Remove nametag OpenGL object
 					checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
 					checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
+					removeFloatingChatMessageForAvatar(avatar->uid);
 
 					hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
 					if(minimap)
@@ -7774,6 +9330,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 				else
 				{
 					bool reload_opengl_model = false; // load or reload model?
+					const bool should_show_our_avatar_model = our_avatar && this->cam_controller.thirdPersonEnabled();
 
 					if(avatar->state == Avatar::State_JustCreated)
 					{
@@ -7797,13 +9354,13 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						ui_interface->updateOnlineUsersList();
 					}
 
-					if((cam_controller.thirdPersonEnabled() || !our_avatar) && reload_opengl_model) // Don't load graphics for our avatar unless we are in third-person cam view mode
+					if((!our_avatar || should_show_our_avatar_model) && reload_opengl_model) // Don't load graphics for our avatar unless we are in third-person cam view mode.
 					{
 						print("(Re)Loading avatar model. model URL: " + toStdString(avatar->avatar_settings.model_url) + ", Avatar name: " + avatar->name);
 
 						// Remove any existing model and nametag
 						avatar->graphics.destroy(*opengl_engine, *physics_world);
-						
+
 						checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob); // Remove nametag ob
 						checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 
@@ -7848,9 +9405,9 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						use_xyplane_speed_rel_ground_override = true;
 						xyplane_speed_rel_ground_override = player_physics.getLastXYPlaneVelRelativeToGround().length();
 
-						avatar->anim_state = 
-							(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
-							(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) | 
+						avatar->anim_state =
+							(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) |
+							(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) |
 							(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
 					}
 
@@ -8059,11 +9616,11 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								}
 							}
 						}
-						 
+
 						AnimEvents anim_events;
-						avatar->graphics.setOverallTransform(*opengl_engine, *physics_world, *particle_manager, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
+						avatar->graphics.setOverallTransform(*opengl_engine, *physics_world, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
 							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, pose_constraint, anim_events);
-						
+
 						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike && !pose_constraint.sitting) // If avatar is on ground, and the anim played a footstrike
 						{
 							//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
@@ -8077,10 +9634,9 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 							temp_av_positions.push_back(anim_events.blob_sphere_positions[i]);
 					}
 
-					
+
 					// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
-					// Use the last head position (animated) for the nametag position.  Matches better for animations with root motion and shorter avatars etc.
-					Vec4f use_nametag_pos = avatar->graphics.getLastHeadPosition(); // Also used for red dot in HeadUpDisplay
+					Vec4f use_nametag_pos = pos.toVec4fPoint(); // Also used for red dot in HeadUpDisplay
 					if(avatar->entered_vehicle)
 					{
 						const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
@@ -8093,33 +9649,31 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						}
 					}
 
+					// We want to rotate avatar UI elements towards the camera.
+					Vec4f to_cam = normalise(use_nametag_pos - this->cam_controller.getPosition().toVec4fPoint());
+					if(!isFinite(to_cam[0]))
+						to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
+
+					const Vec4f axis_k = Vec4f(0, 0, 1, 0);
+					if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
+						to_cam[0] += 0.1f;
+
+					const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
+					const Vec4f axis_i = crossProduct(axis_j, axis_k);
+					const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
+
+					// If avatar is flying (e.g. playing floating anim) move UI elements up so they aren't blocked by the avatar head.
+					const float flying_z_offset = ((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) != 0) ? 0.3f : 0.f;
+					const float blend_speed = 0.1f;
+					avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
+
 					// Update nametag transform also
 					if(avatar->nametag_gl_ob.nonNull())
 					{
-						// We want to rotate the nametag towards the camera.
-						Vec4f to_cam = normalise(use_nametag_pos - this->cam_controller.getPosition().toVec4fPoint());
-						if(!isFinite(to_cam[0]))
-							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
-
-						const Vec4f axis_k = Vec4f(0, 0, 1, 0);
-						if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
-							to_cam[0] += 0.1;
-
-						const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
-						const Vec4f axis_i = crossProduct(axis_j, axis_k);
-						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
-
 						const float ws_height = 0.2f; // world space height of nametag in metres
 						const float ws_width = ws_height * avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(0) / avatar->nametag_gl_ob->mesh_data->aabb_os.axisLength(2);
 
 						const float total_w = ws_width + (avatar->speaker_gl_ob.nonNull() ? (0.05f + ws_height) : 0.f); // Width of nametag and speaker icon (and spacing between them).
-
-						// If avatar is flying (e.g playing floating anim) move nametag up so it isn't blocked by the avatar head, which is higher in floating anim.
-						const float flying_z_offset = ((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) != 0) ? 0.3f : 0.f;
-
-						// Blend in new z offset, don't immediately jump to it.
-						const float blend_speed = 0.1f;
-						avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
 
 						// Rotate around z-axis, then translate to just above the avatar's head.
 						avatar->nametag_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.45f + avatar->nametag_z_offset, 0)) *
@@ -8159,6 +9713,30 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 								avatar->speaker_gl_ob->materials[0].albedo_linear_rgb = col;
 								opengl_engine->objectMaterialsUpdated(*avatar->speaker_gl_ob);
 							}
+						}
+					}
+
+					auto floating_chat_message_it = floating_chat_message_states.find(avatar->uid);
+					if(floating_chat_message_it != floating_chat_message_states.end())
+					{
+						const double elapsed = cur_time - floating_chat_message_it->second.start_time;
+						if(elapsed >= floating_chat_message_it->second.duration_seconds)
+						{
+							checkRemoveObAndSetRefToNull(opengl_engine, floating_chat_message_it->second.gl_ob);
+							floating_chat_message_states.erase(floating_chat_message_it);
+						}
+						else if(floating_chat_message_it->second.gl_ob.nonNull())
+						{
+							const float ws_height = floating_chat_message_it->second.world_height;
+							const float ws_width = ws_height * floating_chat_message_it->second.gl_ob->mesh_data->aabb_os.axisLength(0) /
+								myMax(1.0e-4f, floating_chat_message_it->second.gl_ob->mesh_data->aabb_os.axisLength(2));
+							const float rise_amount = (float)(elapsed / floating_chat_message_it->second.duration_seconds) * floating_chat_message_it->second.rise_distance;
+
+							floating_chat_message_it->second.gl_ob->ob_to_world_matrix =
+								Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 1.02f + avatar->nametag_z_offset + rise_amount, 0)) *
+								rot_matrix * Matrix4f::translationMatrix(-ws_width/2, 0.f, 0.f) * Matrix4f::uniformScaleMatrix(ws_width);
+
+							opengl_engine->updateObjectTransformData(*floating_chat_message_it->second.gl_ob);
 						}
 					}
 
@@ -8379,7 +9957,7 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 				}
 			}
 		}
-		
+
 		Vec4f use_target_pos;
 		if(selfie_mode)
 		{
@@ -8393,41 +9971,41 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 			const Vec4f offset = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getThirdPersonCamTargetTranslation() : Vec4f(0);
 			use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + offset;
 		}
-		
+
 		Vec4f cam_back_dir;
 		if(selfie_mode)
 		{
 			// Slowly blend towards use_target_pos as in selfie mode it comes from getLastHeadPosition() which can vary rapidly frame to frame.
 			const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
 			cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
-		
+
 			cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist()).toVec4fVector();
 		}
 		else
 		{
 			cam_controller.current_third_person_target_pos = Vec3d(use_target_pos);
-		
+
 			cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist() + cam_controller.getUpVec() * 0.2).toVec4fVector();
 		}
-		
+
 		// Don't start tracing the ray back immediately or we may hit the vehicle.
 		const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), vehicle_controller_inside->getThirdPersonCamTraceSelfAvoidanceDist()) : 0.f;
 		// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 		// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 		RayTraceResult trace_results;
 		if(physics_world)
-			physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
+			physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist,
 				/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, /*ignore body id=*/JPH::BodyID(), trace_results);
 		else
 			trace_results.hit_object = NULL;
 
-		
+
 		if(trace_results.hit_object)
 		{
 			const float use_dist = myClamp(initial_ignore_dist + trace_results.hit_t - 0.05f, 0.5f, myMax(0.5f, cam_back_dir.length()));
 			cam_back_dir = normalise(cam_back_dir) * use_dist;
 		}
-		
+
 		//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
 		if(cam_controller.current_cam_mode != CameraController::CameraMode_FreeCamera && cam_controller.current_cam_mode != CameraController::CameraMode_TrackingCamera)
 			cam_controller.setThirdPersonCamPosition(cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir));
@@ -8442,8 +10020,7 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 
 			opengl_engine->getCurrentScene()->dof_blur_focus_distance = myMax(0.01f, cam_eye_dist - 0.015f);
 
-			if(photo_mode_ui)
-				photo_mode_ui->autofocusDistSet(cam_eye_dist);
+			photo_mode_ui.autofocusDistSet(cam_eye_dist);
 		}
 	}
 }
@@ -8486,6 +10063,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			ModelLoadedThreadMessage* loaded_msg = checkedDowncastPtr<ModelLoadedThreadMessage>(msg);
 
+			// Route to async upload queue only if geometry fits in the largest upload VBO.
+			// This matches the historical logic used when tuning for large models (e.g. College_glb).
 			if(vbo_pool && (loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize()))
 				async_model_loaded_messages_to_process.push_back(loaded_msg);
 			else
@@ -8495,10 +10074,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		case Msg_TextureLoadedThreadMessage:
 		{
 			Reference<TextureLoadedThreadMessage> loaded_msg = temp_msgs[msg_i].downcast<TextureLoadedThreadMessage>();
-			
+
 			if(opengl_upload_thread)
 			{
-				// If we are using an OpenGLUploadThread, then LoadTextureTask etc will pass messages directly to the OpenGLUploadThread, instead 
+				// If we are using an OpenGLUploadThread, then LoadTextureTask etc will pass messages directly to the OpenGLUploadThread, instead
 				// of sending a TextureLoadedThreadMessage back to this thread.
 				assert(0);
 			}
@@ -8708,10 +10287,16 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			logMessage("Connected to server.  server_protocol_version: " + toString(server_protocol_version) + ", server_capabilities: " + toString(server_capabilities) + ", server_opt_mesh_version: " + toString(server_opt_mesh_version));
 
 			TracyMessageL("ClientConnectedToServerMessage received");
-			
+
 			this->server_has_basis_textures             = BitUtils::isBitSet(this->server_capabilities, Protocol::OBJECT_TEXTURE_BASISU_SUPPORT);
 			this->server_has_basisu_terrain_detail_maps = BitUtils::isBitSet(this->server_capabilities, Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT);
 			this->server_has_optimised_meshes           = BitUtils::isBitSet(this->server_capabilities, Protocol::OPTIMISED_MESH_SUPPORT);
+			if(shouldDisableBasisTexturesForCurrentServer() && (this->server_has_basis_textures || this->server_has_basisu_terrain_detail_maps))
+			{
+				logMessage("[Textures] Disabling basis texture requests for this server because it is missing many advertised .basis resources. Falling back to original texture files.");
+				this->server_has_basis_textures = false;
+				this->server_has_basisu_terrain_detail_maps = false;
+			}
 
 			// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
 			if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
@@ -8729,22 +10314,24 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
 			}
-				
+
 			// Send CreateAvatar packet for this client's avatar
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
 
-				const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
+				Vec3d avatar_pos;
+				Vec3d cam_angles;
+				getCurrentAvatarPoseForNetworking(avatar_pos, cam_angles);
 				Avatar avatar;
 				avatar.uid = this->client_avatar_uid;
-				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+				avatar.pos = avatar_pos;
 				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 				writeAvatarToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 
-			audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3", 
+			audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3",
 				(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 		}
 		break;
@@ -8858,7 +10445,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		break;
 		case Msg_ClientProtocolTooOldMessage:
 		{
-			ui_interface->showHTMLMessageBox("Client too old", "<p>Sorry, your Substrata client is too old.</p><p>Please download and install an updated client from <a href=\"https://substrata.info/\">substrata.info</a></p>");
+			ui_interface->showHTMLMessageBox("Client too old",
+				"<p>Sorry, your Metasiberia client is too old.</p>"
+				"<p>Please use <b>Help -> Update</b> or download and install the latest version from "
+				"<a href=\"https://github.com/shipilovden/sub-metasiberia/releases\">GitHub Releases</a>.</p>");
 		}
 		break;
 		case Msg_ClientDisconnectedFromServerMessage:
@@ -8900,7 +10490,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					{
 						const std::string use_name = avatar->getUseName();
 
-						ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
+						ui_interface->appendChatMessage("<i><span style=\"color:rgb(" +
 							toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
 							")\">" + web::Escaping::HTMLEscape(use_name) + "</span> is here.</i>");
 						ui_interface->updateOnlineUsersList();
@@ -8925,7 +10515,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					const Avatar* avatar = res->second.getPointer();
 					const std::string use_name = avatar->getUseName();
 
-					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" + 
+					ui_interface->appendChatMessage("<i><span style=\"color:rgb(" +
 						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
 						")\">" + web::Escaping::HTMLEscape(use_name) + "</span> joined.</i>");
 					ui_interface->updateOnlineUsersList();
@@ -8943,7 +10533,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			{
 				// For backwards compatibility, if gesture_URL was not sent, just use the gesture name with ".subanim" appended.
 				const URLString anim_resource_URL = m->gesture_URL.empty() ? (URLString(m->gesture_name) + ".subanim") : m->gesture_URL;
-				if(resource_manager->isFileForURLPresent(anim_resource_URL)) // If the gesture animation file is present on the local disk:
+				const bool animate_head = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_ANIMATE_HEAD);
+				const bool loop_anim = BitUtils::isBitSet(m->flags, SingleGestureSettings::FLAG_LOOP);
+				if(resource_manager->isFileForURLPresent(anim_resource_URL))
 				{
 					if(world_state)
 					{
@@ -8952,36 +10544,32 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						auto res = this->world_state->avatars.find(m->avatar_uid);
 						if(res != this->world_state->avatars.end())
 						{
-							// Sync playback.
-							// Consider at some time t, 10 seconds from now:
-							// t = cur_time + 10
-							// and start_global_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
-							// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - start_global_time))
-							// = 10 + (105 - 100) = 10 + 5 = 15
+							// Sync playback to the sender's global start time.
 							const double time_offset = world_state->getCurrentGlobalTime() - m->start_global_time;
 
 							Avatar* avatar = res->second.getPointer();
-							avatar->performGesture(cur_time, m->gesture_name, anim_resource_URL, m->flags, m->start_global_time, time_offset, animation_manager, *resource_manager);
+							avatar->graphics.performGesture(cur_time, m->gesture_name, anim_resource_URL, animate_head, loop_anim, m->start_global_time, time_offset, animation_manager, *resource_manager);
 						}
 					}
 				}
 				else
 				{
-					// Start downloading the animation resource.
+					// Start downloading the animation resource (if it isn't already present).
 					DownloadingResourceInfo info;
 					info.pos = cam_controller.getPosition();
 					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
 					info.used_by_other = true;
 					startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
 
-					// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+					// Play once the animation is downloaded.
+					if(world_state.nonNull())
 					{
 						Lock lock(this->world_state->mutex);
 						auto res = this->world_state->avatars.find(m->avatar_uid);
 						if(res != this->world_state->avatars.end())
 						{
 							Avatar* avatar = res->second.getPointer();
-							avatar->setPendingGesture(m->gesture_name, anim_resource_URL, m->flags, m->start_global_time);
+							avatar->graphics.setPendingGesture(m->gesture_name, anim_resource_URL, animate_head, loop_anim, m->start_global_time);
 						}
 					}
 				}
@@ -9002,8 +10590,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					if(res != this->world_state->avatars.end())
 					{
 						Avatar* avatar = res->second.getPointer();
-						avatar->stopGesture(cur_time);
-						avatar->clearPendingGesture(); // Since we have received a stop-gesture message for this avatar, we don't want to start playing the anim when we download the animation file.
+						avatar->graphics.stopGesture(cur_time);
+						avatar->graphics.clearPendingGesture();
 					}
 				}
 			}
@@ -9035,12 +10623,14 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 				chat_ui.appendMessage(use_avatar_name, col, ": " + m->msg);
 
+				spawnFloatingChatMessageForAvatar(m->sender_avatar_uid, m->msg, cur_time);
+
 
 				// Execute any onChatMessage event handlers.
 				if(m->sender_avatar_uid.valid())
 				{
 					WorldStateLock lock(world_state->mutex);
-					
+
 					WorldObjectRef* const objects_data = scripted_ob_proximity_checker.objects.vector.data(); // NOTE: scripted_ob_proximity_checker just has all objects with Lua scripts currently.
 					const size_t objects_size          = scripted_ob_proximity_checker.objects.vector.size();
 					for(size_t i=0; i<objects_size; ++i)
@@ -9064,6 +10654,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		case Msg_ErrorMessage:
 		{
 			const ErrorMessage* m = checkedDowncastPtr<const ErrorMessage>(msg);
+			if(m->msg == "You can only place objects inside parcels you can edit in this world." ||
+				m->msg == "Object is not dynamic, physics transform updates are not allowed.")
+			{
+				rollbackSelectedObjectTransformAfterServerRejection();
+			}
 			showErrorNotification(m->msg);
 		}
 		break;
@@ -9090,23 +10685,40 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			misc_info_ui.showLoggedInButton(m->username);
 
-			// If this server has sent the user's custom gesture settings, update the gesture UI with them.
-			if(!m->gesture_settings.gesture_settings.empty())
-				gesture_ui.setCurrentGestureSettings(m->gesture_settings);
+			// Prefer locally saved gesture settings (so they persist across reboots on this client).
+			// If none exist, fall back to server-provided settings.  Finally fall back to defaults.
+			{
+				const std::string local_gesture_settings_path = gestureSettingsLocalPathForUser(appdata_path, server_hostname, logged_in_user_id);
+
+				GestureSettings local_settings;
+				if(tryLoadGestureSettingsFromDisk(local_gesture_settings_path, local_settings) && !local_settings.gesture_settings.empty())
+				{
+					gesture_ui.setCurrentGestureSettings(local_settings);
+				}
+				else if(!m->gesture_settings.gesture_settings.empty())
+				{
+					gesture_ui.setCurrentGestureSettings(m->gesture_settings);
+					trySaveGestureSettingsToDisk(local_gesture_settings_path, m->gesture_settings);
+				}
+				else
+					gesture_ui.setCurrentGestureSettings(GestureSettings::defaultGestureSettings());
+			}
 
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
-			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
+			Vec3d avatar_pos;
+			Vec3d cam_angles;
+			getCurrentAvatarPoseForNetworking(avatar_pos, cam_angles);
 			Avatar avatar;
 			avatar.uid = this->client_avatar_uid;
-			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+			avatar.pos = avatar_pos;
 			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.avatar_settings = m->avatar_settings;
 			avatar.name = m->username;
 
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 			writeAvatarToNetworkStream(avatar, scratch_packet);
-				
+
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
 		break;
@@ -9123,11 +10735,16 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			misc_info_ui.showLogInAndSignUpButtons();
 
+			// Logged-out users can't add/enable gestures, so reset to defaults.
+			gesture_ui.setCurrentGestureSettings(GestureSettings::defaultGestureSettings());
+
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
-			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
+			Vec3d avatar_pos;
+			Vec3d cam_angles;
+			getCurrentAvatarPoseForNetworking(avatar_pos, cam_angles);
 			Avatar avatar;
 			avatar.uid = this->client_avatar_uid;
-			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+			avatar.pos = avatar_pos;
 			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.avatar_settings.model_url = "";
 			avatar.name = "Anonymous";
@@ -9150,11 +10767,20 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			misc_info_ui.showLoggedInButton(m->username);
 
+			// New users start with default gesture settings locally.
+			{
+				const GestureSettings defaults = GestureSettings::defaultGestureSettings();
+				gesture_ui.setCurrentGestureSettings(defaults);
+				trySaveGestureSettingsToDisk(gestureSettingsLocalPathForUser(appdata_path, server_hostname, logged_in_user_id), defaults);
+			}
+
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
-			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
+			Vec3d avatar_pos;
+			Vec3d cam_angles;
+			getCurrentAvatarPoseForNetworking(avatar_pos, cam_angles);
 			Avatar avatar;
 			avatar.uid = this->client_avatar_uid;
-			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+			avatar.pos = avatar_pos;
 			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.avatar_settings.model_url = "";
 			avatar.name = m->username;
@@ -9168,7 +10794,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		case Msg_ServerAdminMessage:
 		{
 			const ServerAdminMessage* m = checkedDowncastPtr<const ServerAdminMessage>(msg);
-				
+
 			misc_info_ui.showServerAdminMessage(m->msg);
 		}
 		break;
@@ -9179,26 +10805,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->connected_world_settings.copyNetworkStateFrom(m->world_settings); // Store world settings to be used later
 			this->received_world_settings_since_connect_or_world_change = true;
 
-			if(m->is_initial_send && go_to_world_spawn_pos)
-			{
-				// Jump to the world_settings start location / spawn pos if set
-				if(BitUtils::isBitSet(m->world_settings.flags, WorldSettings::USE_SPAWN_POINT_FLAG))
-				{
-					this->cam_controller.setFirstAndThirdPersonPositions(m->world_settings.spawn_point);
-					this->player_physics.setEyePosition(m->world_settings.spawn_point);
-				}
-
-				go_to_world_spawn_pos = false;
-			}
-
-
-			bool ignore_update = false; // If we generated this world settings update by changing something in the local world settings UI,
-			// we want to ignore this update coming back from the server.
+			bool ignore_update = false; // If we generated this world settings update locally, ignore the server echo.
 
 			if(!m->is_initial_send)
 			{
 				ignore_update = m->sender_avatar_UID == this->client_avatar_uid;
-			
+
 				if(!ignore_update)
 					showInfoNotification("World settings updated");
 			}
@@ -9208,13 +10820,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				this->ui_interface->updateWorldSettingsUIFromWorldSettings(); // Update UI
 
 				// Reload terrain by shutting it down, will be recreated in GUIClient::updateGroundPlane().
-				if(this->terrain_system)
+				if(this->terrain_system.nonNull())
 				{
 					terrain_system->shutdown();
 					terrain_system = NULL;
 				}
 
-				if(physics_world)
+				if(physics_world.nonNull())
 				{
 					physics_world->setWaterBuoyancyEnabled(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
 					const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
@@ -9258,7 +10870,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		case Msg_UserDeselectedObjectMessage:
 		{
 			if(world_state.nonNull())
-			{	
+			{
 				//print("GUIClient: Received UserDeselectedObjectMessage");
 				const UserDeselectedObjectMessage* m = checkedDowncastPtr<const UserDeselectedObjectMessage>(msg);
 				Lock lock(this->world_state->mutex);
@@ -9292,7 +10904,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					if(resource_upload_thread_manager.getNumThreads() == 0)
 					{
 						for(size_t q=0; q<max_num_upload_threads; ++q)
-							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, &upload_queue, server_hostname, server_port, username, password, this->client_tls_config, 
+							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, &upload_queue, server_hostname, server_port, username, password, this->client_tls_config,
 								&this->num_resources_uploading));
 					}
 
@@ -9313,7 +10925,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(world_state.nonNull())
 			{
-				logMessage("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
+				conPrint("Got NewResourceOnServerMessage, URL: " + toStdString(m->URL));
 
 				// A download of this resource may have failed earlier, but should succeed now.
 				resource_manager->removeFromDownloadFailedURLs(m->URL);
@@ -9335,15 +10947,16 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						{
 							WorldObject* ob = it.getValue().ptr();
 
-							const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+							const int ob_lod_level = getEffectiveLODLevel(ob, cam_controller.getPosition());
 
 							//if(ob->using_placeholder_model)
 							{
 								glare::ArenaFrame frame(arena_allocator);
 								glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
+								const bool use_basis_textures_for_ob = shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures);
 
 								WorldObject::GetDependencyOptions options;
-								options.use_basis = this->server_has_basis_textures;
+								options.use_basis = use_basis_textures_for_ob;
 								options.include_lightmaps = this->use_lightmaps;
 								options.get_optimised_mesh = this->server_has_optimised_meshes;
 								options.opt_mesh_version = this->server_opt_mesh_version;
@@ -9401,15 +11014,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							}
 						}
 
-						if(::hasExtension(m->URL, "subanim")) // Just consider all animations (used for gestures) needed for now.
-							need_resource = true;
-
 						const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
-						//conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
+						// conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
 
 						if(need_resource && valid_extension)// && !shouldStreamResourceViaHTTP(m->URL))
 						{
-							//conPrint("Need resource, downloading: " + toStdString(m->URL));
+							// conPrint("Need resource, downloading: " + toStdString(m->URL));
 
 							startDownloadingResource(m->URL, centroid_ws, aabb_ws_longest_len, downloading_info);
 						}
@@ -9450,7 +11060,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							if(ImageDecoding::hasSupportedImageExtension(local_path))
 							{
 								//conPrint("Downloaded texture resource, loading it...");
-						
+
 								const OpenGLTextureKey tex_path(local_path);
 
 								// NOTE: For the terrain texture case, we need the CPU texture (Map2D), not just the GPU texture.
@@ -9461,7 +11071,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 									if(just_added)
 									{
-										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, info.used_by_terrain, worker_allocator, 
+										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, info.used_by_terrain, worker_allocator,
 											texture_loaded_msg_allocator, opengl_upload_thread);
 										task->loaded_buffer = m->loaded_buffer;
 										load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, task, /*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
@@ -9506,7 +11116,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 									// conPrint("handling ResourceDownloadedMessage: making LoadModelTask for " + URL);
 
-									load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
+									load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task,
 										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 								}
 								catch(glare::Exception& e)
@@ -9516,12 +11126,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 							}
 							else if(hasExtension(local_path, "subanim"))
 							{
-								handleDownloadedAnimationResource(local_path, resource, m->loaded_buffer);
+								handleDownloadedAnimationResource(local_path, resource);
 							}
 							else
 							{
 								// TODO: Handle video files here?
-							
+
 								//print("file did not have a supported image, audio, or model extension: '" + getExtension(local_path) + "'");
 							}
 						}
@@ -9556,7 +11166,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			wind_audio_source->shared_buffer = m->sound->buf;
 			wind_audio_source->sampling_rate = m->sound->sample_rate;
 			wind_audio_source->volume = 0;
-			
+
 			audio_engine.addSource(wind_audio_source);
 		}
 		break;
@@ -9649,12 +11259,12 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 
 		if(selected_ob->opengl_engine_ob.nonNull())
 		{
-			msg += 
-				"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
+			msg +=
+				"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" +
 				"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
 				"num batches (draw calls): " + toString(selected_ob->opengl_engine_ob->mesh_data->batches.size()) + "\n" +
 				"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n" +
-				"shading normals: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_shading_normals) + "\n" + 
+				"shading normals: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_shading_normals) + "\n" +
 				"vert colours: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_vert_colours) + "\n";
 
 			if(!selected_ob->opengl_engine_ob->materials.empty() && !selected_ob->materials.empty())
@@ -9666,7 +11276,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 					{
 						if(!selected_ob->materials.empty() && selected_ob->materials[i])
 							msg += "mat " + toString(i) + " min lod level: " + toString(selected_ob->materials[i]->minLODLevel()) + "\n";
-						msg += "mat " + toString(i) + " albedo tex: " + toString(mat.albedo_texture->xRes()) + "x" + toString(mat.albedo_texture->yRes()) + " (" + getNiceByteSize(mat.albedo_texture->getTotalStorageSizeB()) + "), " + 
+						msg += "mat " + toString(i) + " albedo tex: " + toString(mat.albedo_texture->xRes()) + "x" + toString(mat.albedo_texture->yRes()) + " (" + getNiceByteSize(mat.albedo_texture->getTotalStorageSizeB()) + "), " +
 							getStringForGLInternalFormat(mat.albedo_texture->getInternalFormat()) + " \n";
 					}
 					msg += "mat " + toString(i) + " colourTexHasAlpha(): " + toString(selected_ob->materials[i]->colourTexHasAlpha()) + "\n";
@@ -9722,7 +11332,6 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	if(physics_world.nonNull() && do_physics_diagnostics)
 	{
 		msg += "------------Physics------------\n";
-		msg += "physics CPU time: " + doubleToStringNSigFigs(last_physics_sim_time * 1000, 3) + " ms\n";
 		msg += physics_world->getDiagnostics();
 		msg += "------------------------------\n";
 	}
@@ -9747,7 +11356,6 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 	msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 	msg += "main loop CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 	msg += "main loop updateGL time: " + doubleToStringNSigFigs(last_updateGL_time * 1000, 3) + " ms\n";
-	msg += "physics CPU time: " + doubleToStringNSigFigs(last_physics_sim_time * 1000, 3) + " ms\n";
 	msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
 	msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
 	msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
@@ -9787,6 +11395,100 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		msg += "---------------------------------------------\n";
 	}
 
+	if(xr_runtime_probe_done)
+	{
+		const auto append_xr_pose_state = [&msg](const std::string& prefix, const XRTrackedPoseState& pose_state)
+		{
+			msg += prefix + " active: " + boolToString(pose_state.active) + "\n";
+			msg += prefix + " position_valid: " + boolToString(pose_state.position_valid) + "\n";
+			msg += prefix + " orientation_valid: " + boolToString(pose_state.orientation_valid) + "\n";
+			msg += prefix + " position_tracked: " + boolToString(pose_state.position_tracked) + "\n";
+			msg += prefix + " orientation_tracked: " + boolToString(pose_state.orientation_tracked) + "\n";
+			if(pose_state.position_valid && pose_state.orientation_valid)
+				msg += prefix + " world pos: " + pose_state.object_to_world_matrix.getColumn(3).toString() + "\n";
+		};
+
+		const auto append_xr_hand_state = [&msg, &append_xr_pose_state](const std::string& prefix, const XRHandInputState& hand_state)
+		{
+			msg += prefix + " subaction_path_valid: " + boolToString(hand_state.subaction_path_valid) + "\n";
+			msg += prefix + " interaction_profile_valid: " + boolToString(hand_state.interaction_profile_valid) + "\n";
+			if(!hand_state.interaction_profile.empty())
+				msg += prefix + " interaction profile: " + hand_state.interaction_profile + "\n";
+			msg += prefix + " select_active: " + boolToString(hand_state.select_active) + "\n";
+			msg += prefix + " select_pressed: " + boolToString(hand_state.select_pressed) + "\n";
+			msg += prefix + " trigger_active: " + boolToString(hand_state.trigger_active) + "\n";
+			msg += prefix + " trigger_value: " + floatToStringNDecimalPlaces(hand_state.trigger_value, 3) + "\n";
+			msg += prefix + " move2d_active: " + boolToString(hand_state.move2d_active) + "\n";
+			msg += prefix + " move2d_value: (" + floatToStringNDecimalPlaces(hand_state.move2d_value.x, 3) + ", " + floatToStringNDecimalPlaces(hand_state.move2d_value.y, 3) + ")\n";
+			append_xr_pose_state(prefix + " grip pose", hand_state.grip_pose);
+			append_xr_pose_state(prefix + " aim pose", hand_state.aim_pose);
+		};
+
+		msg += "---------------------XR---------------------\n";
+		msg += "backend: " + xr_runtime_probe_result.backend_name + "\n";
+		msg += "xr_compiled_in: " + boolToString(xr_runtime_probe_result.xr_compiled_in) + "\n";
+		msg += "loader_reachable: " + boolToString(xr_runtime_probe_result.loader_reachable) + "\n";
+		msg += "instance_extensions_enumerated: " + boolToString(xr_runtime_probe_result.instance_extensions_enumerated) + "\n";
+		msg += "opengl_enable_extension_available: " + boolToString(xr_runtime_probe_result.opengl_enable_extension_available) + "\n";
+		msg += "instance_created: " + boolToString(xr_runtime_probe_result.instance_created) + "\n";
+		msg += "system_available: " + boolToString(xr_runtime_probe_result.system_available) + "\n";
+		msg += "system_properties_queried: " + boolToString(xr_runtime_probe_result.system_properties_queried) + "\n";
+		msg += "graphics_requirements_obtained: " + boolToString(xr_runtime_probe_result.graphics_requirements_obtained) + "\n";
+		msg += "graphics_requirements_compatible: " + boolToString(xr_runtime_probe_result.graphics_requirements_compatible) + "\n";
+		msg += "session_created: " + boolToString(xr_runtime_probe_result.session_created) + "\n";
+		msg += "local_reference_space_created: " + boolToString(xr_runtime_probe_result.local_reference_space_created) + "\n";
+		msg += "view_configuration_enumerated: " + boolToString(xr_runtime_probe_result.view_configuration_enumerated) + "\n";
+		msg += "environment_blend_mode_selected: " + boolToString(xr_runtime_probe_result.environment_blend_mode_selected) + "\n";
+		msg += "swapchains_created: " + boolToString(xr_runtime_probe_result.swapchains_created) + "\n";
+		msg += "session_running: " + boolToString(xr_runtime_probe_result.session_running) + "\n";
+		msg += "frame_loop_active: " + boolToString(xr_runtime_probe_result.frame_loop_active) + "\n";
+		msg += "views_located: " + boolToString(xr_runtime_probe_result.views_located) + "\n";
+		msg += "should_render_current_frame: " + boolToString(xr_runtime_probe_result.should_render_current_frame) + "\n";
+		msg += "projection_layer_submitted: " + boolToString(xr_runtime_probe_result.projection_layer_submitted) + "\n";
+		msg += "action_set_created: " + boolToString(xr_runtime_probe_result.action_set_created) + "\n";
+		msg += "pose_actions_created: " + boolToString(xr_runtime_probe_result.pose_actions_created) + "\n";
+		msg += "input_actions_created: " + boolToString(xr_runtime_probe_result.input_actions_created) + "\n";
+		msg += "action_bindings_suggested: " + boolToString(xr_runtime_probe_result.action_bindings_suggested) + "\n";
+		msg += "action_sets_attached: " + boolToString(xr_runtime_probe_result.action_sets_attached) + "\n";
+		msg += "action_spaces_created: " + boolToString(xr_runtime_probe_result.action_spaces_created) + "\n";
+		msg += "actions_synced: " + boolToString(xr_runtime_probe_result.actions_synced) + "\n";
+		msg += "mirror_view_available: " + boolToString(xr_mirror_view.valid) + "\n";
+		if(!xr_runtime_probe_result.runtime_name.empty())
+			msg += "runtime: " + xr_runtime_probe_result.runtime_name + "\n";
+		if(!xr_runtime_probe_result.runtime_version_string.empty())
+			msg += "runtime version: " + xr_runtime_probe_result.runtime_version_string + "\n";
+		if(!xr_runtime_probe_result.system_name.empty())
+			msg += "system: " + xr_runtime_probe_result.system_name + "\n";
+		if(!xr_runtime_probe_result.session_state_string.empty())
+			msg += "session state: " + xr_runtime_probe_result.session_state_string + "\n";
+		if(!xr_runtime_probe_result.environment_blend_mode_string.empty())
+			msg += "environment blend mode: " + xr_runtime_probe_result.environment_blend_mode_string + "\n";
+		if(!xr_runtime_probe_result.reference_space_type_string.empty())
+			msg += "reference space: " + xr_runtime_probe_result.reference_space_type_string + "\n";
+		if(!xr_runtime_probe_result.swapchain_format_string.empty())
+			msg += "swapchain format: " + xr_runtime_probe_result.swapchain_format_string + "\n";
+		if(xr_runtime_probe_result.configured_view_count > 0)
+			msg += "configured view count: " + toString(xr_runtime_probe_result.configured_view_count) + "\n";
+		if(xr_runtime_probe_result.located_view_count > 0)
+			msg += "located view count: " + toString(xr_runtime_probe_result.located_view_count) + "\n";
+		if(xr_runtime_probe_result.suggested_binding_profile_count > 0)
+			msg += "suggested binding profile count: " + toString(xr_runtime_probe_result.suggested_binding_profile_count) + "\n";
+		if(!xr_runtime_probe_result.graphics_api_version_string.empty())
+			msg += "graphics api version: " + xr_runtime_probe_result.graphics_api_version_string + "\n";
+		if(!xr_runtime_probe_result.graphics_api_min_version_string.empty())
+			msg += "graphics api min version: " + xr_runtime_probe_result.graphics_api_min_version_string + "\n";
+		if(!xr_runtime_probe_result.graphics_api_max_version_string.empty())
+			msg += "graphics api max version: " + xr_runtime_probe_result.graphics_api_max_version_string + "\n";
+		if(!xr_runtime_probe_result.actions_message.empty())
+			msg += "actions message: " + xr_runtime_probe_result.actions_message + "\n";
+		append_xr_pose_state("raw head pose", xr_raw_head_pose_state);
+		append_xr_pose_state("head pose", xr_head_pose_state);
+		append_xr_hand_state("left hand", xr_left_hand_state);
+		append_xr_hand_state("right hand", xr_right_hand_state);
+		msg += "message: " + xr_runtime_probe_result.message + "\n";
+		msg += "---------------------------------------------\n";
+	}
+
 	if(texture_server.nonNull())
 		msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
 
@@ -9816,7 +11518,7 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		msg += proximity_loader.getDiagnostics() + "\n";
 	}*/
 
-	
+
 
 	return msg;
 }
@@ -9827,11 +11529,11 @@ void GUIClient::diagnosticsSettingsChanged()
 	const bool show_chunk_vis_aabb = ui_interface->diagnosticsVisible() && ui_interface->showLodChunksVisEnabled();
 
 	WorldStateLock lock(this->world_state->mutex);
-	
+
 	for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 	{
 		LODChunk* chunk = it->second.ptr();
-		
+
 		if(show_chunk_vis_aabb)
 		{
 			if(!chunk->getMeshURL().empty()) // Don't visualise empty chunks
@@ -9950,7 +11652,7 @@ Reference<TextureLoadedThreadMessage> GUIClient::allocTextureLoadedThreadMessage
 {
 	glare::FastPoolAllocator::AllocResult res = this->texture_loaded_msg_allocator->alloc();
 	Reference<TextureLoadedThreadMessage> msg = new (res.ptr) TextureLoadedThreadMessage();
-	
+
 	msg->allocator = texture_loaded_msg_allocator.ptr();
 	msg->allocation_index = res.index;
 	return msg;
@@ -9961,7 +11663,7 @@ static const double PHYSICS_ONWERSHIP_PERIOD = 10.0;
 
 bool GUIClient::isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time) const
 {
-	return (ob.physics_owner_id == (uint32)this->client_avatar_uid.value()) && 
+	return (ob.physics_owner_id == (uint32)this->client_avatar_uid.value()) &&
 		((global_time - ob.last_physics_ownership_change_global_time) < PHYSICS_ONWERSHIP_PERIOD);
 }
 
@@ -10022,7 +11724,7 @@ void GUIClient::destroyVehiclePhysicsControllingObject(WorldObject* ob)
 
 	if(vehicle_controller_inside.nonNull() && vehicle_controller_inside->getControlledObject() == ob)
 		vehicle_controller_inside = NULL;
-	
+
 	// Also clear if we're sitting on this object
 	if(seat_sitting_on == ob)
 		seat_sitting_on = NULL;
@@ -10125,7 +11827,7 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 							{
 								opengl_engine->updateObjectTransformData(*this->voxel_edit_marker);
 							}
-							
+
 							// Work out transform matrix so that the voxel_edit_face_marker (a quad) is rotated and placed against the voxel face that the ray trace hit.
 							// The quad lies on the z-plane in object space.
 							const Vec4f normal_os = normalise(ob_to_world.transposeMult3Vector(results.hit_normal_ws));
@@ -10179,7 +11881,7 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
 							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
 
-							
+
 							const float extra_voxel_w = 0.01f; // Make scale a bit bigger so can be seen around target voxel.
 							this->voxel_edit_marker->ob_to_world_matrix = ob_to_world * Matrix4f::translationMatrix(
 								voxel_indices.x * current_voxel_w - current_voxel_w * extra_voxel_w,
@@ -10198,7 +11900,7 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 							}
 
 							should_display_voxel_edit_marker = true;
-							
+
 							this->voxel_edit_marker->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9, 0.1, 0.1));
 							opengl_engine->objectMaterialsUpdated(*this->voxel_edit_marker);
 						}
@@ -10218,6 +11920,717 @@ void GUIClient::updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_stat
 	{
 		opengl_engine->removeObject(this->voxel_edit_face_marker);
 		voxel_edit_face_marker_in_engine = false;
+	}
+}
+
+
+void GUIClient::renderXRFrame(float near_draw_dist, float max_draw_dist)
+{
+	if(!xr_session || opengl_engine.isNull())
+	{
+		xr_mirror_view.valid = false;
+		xr_head_pose_state = XRTrackedPoseState();
+		xr_raw_head_pose_state = XRTrackedPoseState();
+		xr_left_eye_view_state = XREyeViewState();
+		xr_right_eye_view_state = XREyeViewState();
+		xr_left_hand_state = XRHandInputState();
+		xr_right_hand_state = XRHandInputState();
+		hideXRControllerVisuals();
+		return;
+	}
+
+	xr_session->renderFrame(*opengl_engine, cam_controller, near_draw_dist, max_draw_dist);
+	xr_runtime_probe_result = xr_session->getLastResult();
+	xr_mirror_view = xr_session->getMirrorView();
+	xr_head_pose_state = xr_session->getHeadPoseState();
+	xr_raw_head_pose_state = xr_session->getRawHeadPoseState();
+	xr_left_eye_view_state = xr_session->getLeftEyeViewState();
+	xr_right_eye_view_state = xr_session->getRightEyeViewState();
+	xr_left_hand_state = xr_session->getLeftHandState();
+	xr_right_hand_state = xr_session->getRightHandState();
+	updateXRControllerVisuals();
+	appendXRTraceSample();
+
+	if(!xr_logged_head_pose_alignment &&
+		xr_head_pose_state.active &&
+		xr_head_pose_state.position_valid &&
+		xr_head_pose_state.orientation_valid)
+	{
+		Vec3d head_pos;
+		Vec3d head_angles;
+		if(getCurrentXRTrackedHeadPose(head_pos, head_angles))
+		{
+			logMessage(
+				"[XR] Live HMD head pose is now driving avatar/audio alignment. world_pos=" + head_pos.toString() +
+				", yaw_deg=" + doubleToStringNDecimalPlaces(radToDegree(head_angles.x), 2) +
+				", pitch_deg=" + doubleToStringNDecimalPlaces(radToDegree(head_angles.y), 2) +
+				", roll_deg=" + doubleToStringNDecimalPlaces(radToDegree(head_angles.z), 2)
+			);
+		}
+		else
+		{
+			logMessage("[XR] Live HMD head pose is now driving avatar/audio alignment.");
+		}
+		xr_logged_head_pose_alignment = true;
+
+		Vec3d left_eye_pos;
+		Vec3d left_eye_angles;
+		Vec3d right_eye_pos;
+		Vec3d right_eye_angles;
+		if(extractTrackedHeadPose(xr_left_eye_view_state.raw_pose, left_eye_pos, left_eye_angles) &&
+			extractTrackedHeadPose(xr_right_eye_view_state.raw_pose, right_eye_pos, right_eye_angles))
+		{
+			const double ipd_m = left_eye_pos.getDist(right_eye_pos);
+			logMessage(
+				"[XR] Stereo debug: raw_ipd_m=" + doubleToStringNDecimalPlaces(ipd_m, 4) +
+				", left_fov_deg=(" + doubleToStringNDecimalPlaces(xr_left_eye_view_state.angle_left_deg, 2) + "," +
+					doubleToStringNDecimalPlaces(xr_left_eye_view_state.angle_right_deg, 2) + "," +
+					doubleToStringNDecimalPlaces(xr_left_eye_view_state.angle_up_deg, 2) + "," +
+					doubleToStringNDecimalPlaces(xr_left_eye_view_state.angle_down_deg, 2) + ")" +
+				", right_fov_deg=(" + doubleToStringNDecimalPlaces(xr_right_eye_view_state.angle_left_deg, 2) + "," +
+					doubleToStringNDecimalPlaces(xr_right_eye_view_state.angle_right_deg, 2) + "," +
+					doubleToStringNDecimalPlaces(xr_right_eye_view_state.angle_up_deg, 2) + "," +
+					doubleToStringNDecimalPlaces(xr_right_eye_view_state.angle_down_deg, 2) + ")"
+			);
+		}
+	}
+}
+
+
+void GUIClient::renderWorldCameraStreams()
+{
+	if(!opengl_engine || world_state.isNull())
+		return;
+
+	// Keep screenshot slave mode lightweight and deterministic.
+	if(parsed_args.isArgPresent("--screenshotslave"))
+		return;
+
+	// MainWindow timer may run at 1 ms. Avoid scanning all world objects every tick.
+	// Use a lighter gate so camera streams don't appear frozen/choppy.
+	const double now = Clock::getTimeSinceInit();
+	static double last_world_cam_process_time = -1.0;
+	const double min_world_cam_process_period_s = 1.0 / 30.0;
+	if((last_world_cam_process_time > 0.0) && ((now - last_world_cam_process_time) < min_world_cam_process_period_s))
+		return;
+	last_world_cam_process_time = now;
+
+	OpenGLScene* scene = opengl_engine->getCurrentScene();
+	if(scene == NULL)
+		return;
+
+	struct ActiveCameraEntry
+	{
+		WorldObjectRef camera_ob;
+		bool enabled;
+		std::vector<WorldObjectRef> screen_obs;
+	};
+
+	std::vector<ActiveCameraEntry> active_cameras;
+	std::unordered_map<uint64, size_t> camera_uid_to_index;
+	size_t active_screen_count = 0;
+	size_t unresolved_screen_count = 0;
+	size_t auto_relinked_screen_count = 0;
+
+	{
+		Lock lock(world_state->mutex);
+
+		// Gather camera objects first.
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			const WorldObjectRef& ob_ref = it.getValue();
+			if(ob_ref->object_type == WorldObject::ObjectType_Camera)
+			{
+				ActiveCameraEntry entry;
+				entry.camera_ob = ob_ref;
+				entry.enabled = (ob_ref->type_data.camera_data.enabled != 0);
+				camera_uid_to_index[ob_ref->uid.value()] = active_cameras.size();
+				active_cameras.push_back(entry);
+			}
+		}
+
+		size_t num_enabled_cameras = 0;
+		for(size_t i = 0; i < active_cameras.size(); ++i)
+			if(active_cameras[i].enabled)
+				num_enabled_cameras++;
+
+		// Link active camera screens to their camera source UID.
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+		{
+			const WorldObjectRef& ob_ref = it.getValue();
+			if((ob_ref->object_type == WorldObject::ObjectType_CameraScreen) &&
+				(ob_ref->type_data.camera_screen_data.enabled != 0))
+			{
+				active_screen_count++;
+				uint64 source_uid = ob_ref->type_data.camera_screen_data.source_camera_uid;
+				auto cam_it = camera_uid_to_index.find(source_uid);
+				const bool source_uid_unset = (source_uid == 0);
+
+				const bool mapped_to_disabled_camera = (cam_it != camera_uid_to_index.end()) &&
+					(num_enabled_cameras > 0) &&
+					(!active_cameras[cam_it->second].enabled);
+
+				// Only auto-link when source UID is explicitly unset.
+				// If source UID is set but camera is currently unavailable, keep the explicit binding and wait.
+				if(source_uid_unset)
+				{
+					const double max_auto_link_dist2 = 9.0 * 9.0; // Keep pairing local and predictable.
+					uint64 best_camera_uid = 0;
+					double best_dist2 = std::numeric_limits<double>::infinity();
+
+					for(size_t c = 0; c < active_cameras.size(); ++c)
+					{
+						const WorldObjectRef& cam_ref = active_cameras[c].camera_ob;
+						if(cam_ref.isNull())
+							continue;
+
+						const WorldObject* cam_ob = cam_ref.ptr();
+						if((num_enabled_cameras > 0) && !active_cameras[c].enabled)
+							continue;
+						if((ob_ref->creator_id.valid()) && (cam_ob->creator_id != ob_ref->creator_id))
+							continue;
+
+						const double dist2 = cam_ob->pos.getDist2(ob_ref->pos);
+						if(dist2 > max_auto_link_dist2)
+							continue;
+						if(dist2 < best_dist2)
+						{
+							best_dist2 = dist2;
+							best_camera_uid = cam_ob->uid.value();
+						}
+					}
+
+					if(best_camera_uid != 0)
+					{
+						ob_ref->type_data.camera_screen_data.source_camera_uid = best_camera_uid;
+						ob_ref->from_local_other_dirty = true;
+						world_state->dirty_from_local_objects.insert(ob_ref);
+						auto_relinked_screen_count++;
+						logMessage("[WorldCam] Auto-linked CameraScreen " + toString(ob_ref->uid.value()) + " -> Camera " + toString(best_camera_uid));
+
+						source_uid = best_camera_uid;
+						cam_it = camera_uid_to_index.find(source_uid);
+					}
+				}
+
+				if(cam_it != camera_uid_to_index.end())
+				{
+					if(!mapped_to_disabled_camera)
+						active_cameras[cam_it->second].screen_obs.push_back(ob_ref);
+				}
+				else
+					unresolved_screen_count++;
+			}
+		}
+	}
+
+	std::unordered_set<uint64> active_camera_uids_with_screens;
+	std::vector<size_t> camera_indices_with_screens;
+	camera_indices_with_screens.reserve(active_cameras.size());
+	for(size_t i = 0; i < active_cameras.size(); ++i)
+	{
+		if(!active_cameras[i].screen_obs.empty())
+		{
+			active_camera_uids_with_screens.insert(active_cameras[i].camera_ob->uid.value());
+			camera_indices_with_screens.push_back(i);
+		}
+	}
+
+	// Drop stale stream states for cameras that are gone or no longer referenced by any active screen.
+	for(auto it = camera_stream_states.begin(); it != camera_stream_states.end();)
+	{
+		if(active_camera_uids_with_screens.count(it->first) == 0)
+			it = camera_stream_states.erase(it);
+		else
+			++it;
+	}
+
+	if(active_camera_uids_with_screens.empty())
+		return;
+
+	const bool old_draw_overlay_objects = scene->draw_overlay_objects;
+	scene->draw_overlay_objects = false;
+
+	const int max_cameras_rendered_per_frame = 1; // Strong safety cap to keep main thread responsive.
+	int num_rendered = 0;
+	static uint64 total_attempted = 0;
+	static uint64 total_rendered = 0;
+	static uint64 total_throttled = 0;
+	static uint64 total_capture_invalid = 0;
+	if(camera_stream_round_robin_cursor >= camera_indices_with_screens.size())
+		camera_stream_round_robin_cursor = 0;
+	const size_t rr_start = camera_stream_round_robin_cursor;
+
+	for(size_t step = 0; (step < camera_indices_with_screens.size()) && (num_rendered < max_cameras_rendered_per_frame); ++step)
+	{
+		const size_t rr_i = (rr_start + step) % camera_indices_with_screens.size();
+		const ActiveCameraEntry& entry = active_cameras[camera_indices_with_screens[rr_i]];
+		if(entry.camera_ob.isNull())
+			continue;
+
+		WorldObject* camera_ob = entry.camera_ob.ptr();
+
+		const int configured_max_fps = myClamp((int)camera_ob->type_data.camera_data.max_fps, 1, 30);
+		const int max_fps = myMin(configured_max_fps, 8); // Keep smooth enough while still capped for responsiveness.
+		const double min_period = 1.0 / (double)max_fps;
+
+		CameraStreamRenderState& stream_state = camera_stream_states[camera_ob->uid.value()];
+		total_attempted++;
+		if((stream_state.last_render_time > 0.0) && ((now - stream_state.last_render_time) < min_period))
+		{
+			total_throttled++;
+			continue;
+		}
+
+		const int requested_render_w = myClamp((int)camera_ob->type_data.camera_data.render_width, 16, 1280);
+		const int requested_render_h = myClamp((int)camera_ob->type_data.camera_data.render_height, 16, 720);
+		const int render_w = myMax(16, requested_render_w / 2); // Global quality reduction for faster camera streaming.
+		const int render_h = myMax(16, requested_render_h / 2);
+
+		// Build camera view matrix from object basis.
+		// Ignore object scale for camera viewing (scale should affect only camera mesh appearance).
+		// Use a fixed local basis here so stream view is deterministic and tied to the Camera object transform.
+		WorldObject camera_ob_no_scale = *camera_ob;
+		camera_ob_no_scale.scale = Vec3f(1.f);
+		const Matrix4f cam_ob_to_world = obToWorldMatrix(camera_ob_no_scale);
+		// Camera view direction must follow the camera model lens axis.
+		// For the current camera mesh/orientation this is local +Z, while local +Y is up.
+		Vec4f cam_right_ws = normalise(cam_ob_to_world.getColumn(0));
+		Vec4f cam_forward_ws = normalise(cam_ob_to_world.getColumn(2) * -1.f);
+		Vec4f cam_up_ws = normalise(cam_ob_to_world.getColumn(1));
+
+		// Re-orthonormalise to avoid drift from non-uniform scaling or numeric noise.
+		cam_right_ws = crossProduct(cam_forward_ws, cam_up_ws);
+		if(cam_right_ws.length2() < 1.0e-12f)
+			cam_right_ws = Vec4f(1, 0, 0, 0);
+		else
+			cam_right_ws = normalise(cam_right_ws);
+		cam_up_ws = normalise(crossProduct(cam_right_ws, cam_forward_ws));
+
+		Matrix4f world_to_camera_rot = Matrix4f::fromRows(cam_right_ws, cam_forward_ws, cam_up_ws, Vec4f(0,0,0,1));
+		Matrix4f world_to_camera;
+		const Vec4f cam_capture_pos_ws = cam_ob_to_world.getColumn(3) + cam_up_ws * 1.0f; // Lift capture origin by 1 meter.
+		world_to_camera_rot.rightMultiplyWithTranslationMatrix(-cam_capture_pos_ws, /*result=*/world_to_camera);
+
+		const float fov_y_rad = myClamp(camera_ob->type_data.camera_data.fov_y_rad, ::degreeToRad(5.f), ::degreeToRad(175.f));
+		const float near_dist = myMax(0.01f, camera_ob->type_data.camera_data.near_dist);
+		const float far_dist = myMax(near_dist + 0.01f, camera_ob->type_data.camera_data.far_dist);
+		const float render_aspect_ratio = (float)render_w / (float)render_h;
+
+		const float sensor_width = 0.035f;
+		const float sensor_height = sensor_width / render_aspect_ratio;
+		const float lens_sensor_dist = sensor_height * 0.5f / std::tan(fov_y_rad * 0.5f);
+
+		opengl_engine->setViewportDims(render_w, render_h);
+		opengl_engine->setNearDrawDistance(near_dist);
+		opengl_engine->setMaxDrawDistance(far_dist);
+		opengl_engine->setPerspectiveCameraTransform(world_to_camera, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
+
+		// Hide camera mesh while capturing from this camera to avoid rendering "from inside" its own body.
+		// This is a common cause of fully black output when model origin is inside opaque geometry.
+		GLObjectRef camera_gl_ob = camera_ob->opengl_engine_ob;
+		const bool hide_camera_mesh_for_capture = camera_gl_ob.nonNull();
+		if(hide_camera_mesh_for_capture)
+			opengl_engine->removeObject(camera_gl_ob);
+
+		// Also hide linked camera screens during capture to avoid self-feedback lock-in
+		// (screen starts black, camera sees only that black screen, and it never recovers).
+		js::Vector<GLObjectRef, 16> removed_screen_obs;
+		for(size_t s = 0; s < entry.screen_obs.size(); ++s)
+		{
+			WorldObject* screen_ob = entry.screen_obs[s].ptr();
+			if(screen_ob && screen_ob->opengl_engine_ob.nonNull())
+			{
+				opengl_engine->removeObject(screen_ob->opengl_engine_ob);
+				removed_screen_obs.push_back(screen_ob->opengl_engine_ob);
+			}
+		}
+
+		// Use a lightweight render path for camera captures so we don't stall the GUI thread.
+		const bool old_shadow_mapping = scene->shadow_mapping;
+		const bool old_cloud_shadows = scene->cloud_shadows;
+		const bool old_render_to_main_render_framebuffer = scene->render_to_main_render_framebuffer;
+		const bool old_collect_stats = scene->collect_stats;
+		scene->shadow_mapping = false;
+		scene->cloud_shadows = false;
+		scene->render_to_main_render_framebuffer = false;
+		scene->collect_stats = false;
+
+		ImageMapUInt8Ref capture = opengl_engine->drawToBufferAndReturnImageMap();
+
+		scene->shadow_mapping = old_shadow_mapping;
+		scene->cloud_shadows = old_cloud_shadows;
+		scene->render_to_main_render_framebuffer = old_render_to_main_render_framebuffer;
+		scene->collect_stats = old_collect_stats;
+
+		for(size_t s = 0; s < removed_screen_obs.size(); ++s)
+			opengl_engine->addObject(removed_screen_obs[s]);
+
+		if(hide_camera_mesh_for_capture)
+			opengl_engine->addObject(camera_gl_ob);
+		if(capture.nonNull() && (capture->getN() >= 3))
+		{
+			const int captured_w = (int)capture->getWidth();
+			const int captured_h = (int)capture->getHeight();
+			const size_t src_channels = capture->getN();
+
+			// Use RGBA stream textures with forced opaque alpha.
+			// Keeping 4-channel upload avoids row-stride quirks on some drivers and
+			// prevents accidental transparent/black sampling from undefined alpha.
+			js::Vector<uint8, 16> rgba_capture_data;
+			const uint8* tex_data = capture->getData();
+			size_t tex_data_size = capture->getDataSize();
+			size_t tex_channels = src_channels;
+
+			const uint32 vhs_time_tick = (uint32)(now * 90.0);
+			const auto apply_vhs_style = [vhs_time_tick](int x, int y, uint8 r, uint8 g, uint8 b, uint8& out_r, uint8& out_g, uint8& out_b)
+			{
+				int rr = (int)r;
+				int gg = (int)g;
+				int bb = (int)b;
+
+				// Scanline darkening.
+				if((y & 1) != 0)
+				{
+					rr = (rr * 236) / 255;
+					gg = (gg * 236) / 255;
+					bb = (bb * 236) / 255;
+				}
+
+				// Lower colour precision for tape-like chroma.
+				rr &= 0xFC;
+				gg &= 0xFC;
+				bb &= 0xF8;
+
+				// Deterministic grain/noise.
+				const uint32 h = ((uint32)x * 73856093u) ^ ((uint32)y * 19349663u) ^ (vhs_time_tick * 83492791u);
+				const int n = (int)(h & 0x07) - 4; // [-4, +3]
+				rr = myClamp(rr + n, 0, 255);
+				gg = myClamp(gg + (n / 3), 0, 255);
+				bb = myClamp(bb + (n / 4), 0, 255);
+
+				// Mild chroma imbalance drift.
+				const int chroma = (int)(1.2 * std::sin((double)(y + (int)(vhs_time_tick & 1023)) * 0.12));
+				rr = myClamp(rr + chroma, 0, 255);
+				bb = myClamp(bb - chroma, 0, 255);
+
+				out_r = (uint8)rr;
+				out_g = (uint8)gg;
+				out_b = (uint8)bb;
+			};
+
+			if(src_channels == 4)
+			{
+				rgba_capture_data.resize((size_t)captured_w * (size_t)captured_h * 4);
+				const uint8* src = capture->getData();
+				for(size_t p = 0, d = 0; p < (size_t)captured_w * (size_t)captured_h; ++p, d += 4)
+				{
+					const int x = (int)(p % (size_t)captured_w);
+					const int y = (int)(p / (size_t)captured_w);
+					uint8 rr, gg, bb;
+					apply_vhs_style(x, y, src[p * 4 + 0], src[p * 4 + 1], src[p * 4 + 2], rr, gg, bb);
+					rgba_capture_data[d + 0] = rr;
+					rgba_capture_data[d + 1] = gg;
+					rgba_capture_data[d + 2] = bb;
+					rgba_capture_data[d + 3] = 255;
+				}
+				tex_data = rgba_capture_data.data();
+				tex_data_size = rgba_capture_data.size();
+				tex_channels = 4;
+			}
+			else if(src_channels == 3)
+			{
+				rgba_capture_data.resize((size_t)captured_w * (size_t)captured_h * 4);
+				const uint8* src = capture->getData();
+				for(size_t p = 0, d = 0; p < (size_t)captured_w * (size_t)captured_h; ++p, d += 4)
+				{
+					const int x = (int)(p % (size_t)captured_w);
+					const int y = (int)(p / (size_t)captured_w);
+					uint8 rr, gg, bb;
+					apply_vhs_style(x, y, src[p * 3 + 0], src[p * 3 + 1], src[p * 3 + 2], rr, gg, bb);
+					rgba_capture_data[d + 0] = rr;
+					rgba_capture_data[d + 1] = gg;
+					rgba_capture_data[d + 2] = bb;
+					rgba_capture_data[d + 3] = 255;
+				}
+				tex_data = rgba_capture_data.data();
+				tex_data_size = rgba_capture_data.size();
+				tex_channels = 4;
+			}
+
+			const OpenGLTextureFormat stream_tex_format = OpenGLTextureFormat::Format_RGBA_Linear_Uint8;
+
+			if(stream_state.stream_texture.isNull() || (stream_state.tex_w != captured_w) || (stream_state.tex_h != captured_h))
+			{
+				stream_state.stream_texture = new OpenGLTexture(
+					(size_t)captured_w,
+					(size_t)captured_h,
+					opengl_engine.ptr(),
+					ArrayRef<uint8>(tex_data, tex_data_size),
+					stream_tex_format,
+					OpenGLTexture::Filtering_Bilinear,
+					OpenGLTexture::Wrapping_Clamp,
+					/*has_mipmaps=*/false
+				);
+				stream_state.stream_texture->setDebugName("world_camera_stream_" + toString(camera_ob->uid.value()));
+				stream_state.tex_w = captured_w;
+				stream_state.tex_h = captured_h;
+			}
+			else
+			{
+				stream_state.stream_texture->loadIntoExistingTexture(
+					/*mipmap_level=*/0,
+					(size_t)captured_w,
+					(size_t)captured_h,
+					(size_t)captured_w * tex_channels,
+					ArrayRef<uint8>(tex_data, tex_data_size),
+					/*bind_needed=*/true
+				);
+			}
+
+			// Match the emissive brightness level used by WebView/Video screens so camera output
+			// remains visible in daylight lighting conditions.
+			const float stream_luminance_nits = 24000.0f;
+			const float min_stream_emission_scale = stream_luminance_nits / (683.002f * 106.856e-9f) * 1.0e-9f;
+
+			for(size_t s = 0; s < entry.screen_obs.size(); ++s)
+			{
+				WorldObject* screen_ob = entry.screen_obs[s].ptr();
+				if(screen_ob->opengl_engine_ob.isNull() || screen_ob->opengl_engine_ob->materials.empty())
+					continue;
+
+				const int max_mat_index = (int)screen_ob->opengl_engine_ob->materials.size() - 1;
+				(void)myClamp((int)screen_ob->type_data.camera_screen_data.material_index, 0, max_mat_index); // Reserved for advanced per-material routing.
+
+				// Apply to all materials so screens remain visible even if mesh/material index conventions differ.
+				for(int mat_index = 0; mat_index <= max_mat_index; ++mat_index)
+				{
+					OpenGLMaterial& mat = screen_ob->opengl_engine_ob->materials[mat_index];
+
+					const bool tex_binding_changed = mat.emission_texture != stream_state.stream_texture;
+					const bool albedo_binding_changed = mat.albedo_texture != stream_state.stream_texture;
+					const bool alpha_test_changed = mat.allow_alpha_test;
+					const bool emission_scale_changed = mat.emission_scale < min_stream_emission_scale;
+					const bool emission_colour_changed =
+						(mat.emission_linear_rgb.r != 1.0f) ||
+						(mat.emission_linear_rgb.g != 1.0f) ||
+						(mat.emission_linear_rgb.b != 1.0f);
+					const Matrix2f identity_tex_matrix = Matrix2f::identity();
+					const bool tex_matrix_changed =
+						(mat.tex_matrix.e[0] != identity_tex_matrix.e[0]) ||
+						(mat.tex_matrix.e[1] != identity_tex_matrix.e[1]) ||
+						(mat.tex_matrix.e[2] != identity_tex_matrix.e[2]) ||
+						(mat.tex_matrix.e[3] != identity_tex_matrix.e[3]);
+					const bool tex_translation_changed =
+						(mat.tex_translation.x != 0.0f) ||
+						(mat.tex_translation.y != 0.0f);
+					const bool double_sided_changed = !mat.simple_double_sided;
+					// Bind stream in both albedo and emission paths for robustness across shader/material variants.
+					// (alpha test is disabled below, so captured alpha cannot blank the surface)
+					mat.albedo_texture = stream_state.stream_texture;
+					mat.albedo_linear_rgb = Colour3f(1.0f);
+					mat.emission_texture = stream_state.stream_texture;
+					mat.emission_linear_rgb = Colour3f(1.0f);
+					mat.tex_matrix = Matrix2f::identity();
+					const float vhs_x_jitter = 0.0010f * (float)std::sin(now * 31.0);
+					const float vhs_y_jitter = 0.0006f * (float)std::sin(now * 17.0);
+					mat.tex_translation = Vec2f(vhs_x_jitter, vhs_y_jitter);
+					mat.simple_double_sided = true;
+					mat.allow_alpha_test = false;
+					mat.emission_scale = myMax(mat.emission_scale, min_stream_emission_scale);
+
+					if(tex_binding_changed || albedo_binding_changed || alpha_test_changed || emission_scale_changed || emission_colour_changed || tex_matrix_changed || tex_translation_changed || double_sided_changed)
+						opengl_engine->materialTextureChanged(*screen_ob->opengl_engine_ob, mat);
+				}
+			}
+
+			stream_state.last_render_time = now;
+			num_rendered++;
+			total_rendered++;
+		}
+		else
+		{
+			total_capture_invalid++;
+			// Even on failed capture, advance render timestamp so we still respect max_fps.
+			// Without this, a persistent capture failure can spin every frame and stall the UI thread.
+			stream_state.last_render_time = now;
+		}
+	}
+
+	if(!camera_indices_with_screens.empty())
+	{
+		const size_t advance = myMax((size_t)1, (size_t)num_rendered);
+		camera_stream_round_robin_cursor = (rr_start + advance) % camera_indices_with_screens.size();
+	}
+
+	{
+		static double last_world_cam_log_time = -1.0;
+		static uint64 prev_attempted = 0;
+		static uint64 prev_rendered = 0;
+		static uint64 prev_throttled = 0;
+		static uint64 prev_capture_invalid = 0;
+		if((last_world_cam_log_time < 0.0) || (now - last_world_cam_log_time > 2.0))
+		{
+			size_t enabled_cam_count = 0;
+			for(size_t i = 0; i < active_cameras.size(); ++i)
+				if(active_cameras[i].enabled)
+					enabled_cam_count++;
+
+			const uint64 attempted_delta = total_attempted - prev_attempted;
+			const uint64 rendered_delta = total_rendered - prev_rendered;
+			const uint64 throttled_delta = total_throttled - prev_throttled;
+			const uint64 capture_invalid_delta = total_capture_invalid - prev_capture_invalid;
+			prev_attempted = total_attempted;
+			prev_rendered = total_rendered;
+			prev_throttled = total_throttled;
+			prev_capture_invalid = total_capture_invalid;
+
+			conPrint(
+				"[WorldCam] cams=" + toString(active_cameras.size()) +
+				", enabled=" + toString(enabled_cam_count) +
+				", screens_enabled=" + toString(active_screen_count) +
+				", unresolved=" + toString(unresolved_screen_count) +
+				", auto_relinked=" + toString(auto_relinked_screen_count) +
+				", cams_with_screens=" + toString(camera_indices_with_screens.size()) +
+				", rendered_this_frame=" + toString(num_rendered) +
+				", attempted_d2s=" + toString(attempted_delta) +
+				", rendered_d2s=" + toString(rendered_delta) +
+				", throttled_d2s=" + toString(throttled_delta) +
+				", capture_invalid_d2s=" + toString(capture_invalid_delta) +
+				", rr_cursor=" + toString(camera_stream_round_robin_cursor)
+			);
+			last_world_cam_log_time = now;
+		}
+	}
+
+	scene->draw_overlay_objects = old_draw_overlay_objects;
+}
+
+
+void GUIClient::queuePendingCameraPairCreate(const Vec3d& camera_pos, const Vec3d& screen_pos)
+{
+	PendingCameraPairCreate pending;
+	pending.camera_pos = camera_pos;
+	pending.screen_pos = screen_pos;
+	pending.camera_uid = UID::invalidUID();
+	pending.screen_uid = UID::invalidUID();
+	pending.creation_time = Clock::getTimeSinceInit();
+	pending_camera_pair_creates.push_back(pending);
+}
+
+
+void GUIClient::tryResolvePendingCameraPairCreateForObject(WorldObject* created_ob, WorldStateLock& world_state_lock)
+{
+	(void)world_state_lock;
+
+	if((created_ob->object_type != WorldObject::ObjectType_Camera) && (created_ob->object_type != WorldObject::ObjectType_CameraScreen))
+		return;
+
+	const double now = Clock::getTimeSinceInit();
+	const double max_pending_age_s = 30.0;
+	const double max_match_dist = 2.5;
+
+	for(size_t i = 0; i < pending_camera_pair_creates.size();)
+	{
+		if((now - pending_camera_pair_creates[i].creation_time) > max_pending_age_s)
+			pending_camera_pair_creates.erase(pending_camera_pair_creates.begin() + i);
+		else
+			++i;
+	}
+
+	for(size_t i = 0; i < pending_camera_pair_creates.size(); ++i)
+	{
+		PendingCameraPairCreate& pending = pending_camera_pair_creates[i];
+
+		if(!pending.camera_uid.valid() &&
+			(created_ob->object_type == WorldObject::ObjectType_Camera) &&
+			(created_ob->pos.getDist(pending.camera_pos) <= max_match_dist))
+		{
+			pending.camera_uid = created_ob->uid;
+		}
+		else if(!pending.screen_uid.valid() &&
+			(created_ob->object_type == WorldObject::ObjectType_CameraScreen) &&
+			(created_ob->pos.getDist(pending.screen_pos) <= max_match_dist))
+		{
+			pending.screen_uid = created_ob->uid;
+		}
+
+		if(pending.camera_uid.valid() && pending.screen_uid.valid())
+		{
+			auto screen_res = world_state->objects.find(pending.screen_uid);
+			if(screen_res != world_state->objects.end())
+			{
+				WorldObject* screen_ob = screen_res.getValue().ptr();
+				if((screen_ob->object_type == WorldObject::ObjectType_CameraScreen) &&
+					(screen_ob->type_data.camera_screen_data.source_camera_uid != pending.camera_uid.value()))
+				{
+					screen_ob->type_data.camera_screen_data.source_camera_uid = pending.camera_uid.value();
+					screen_ob->from_local_other_dirty = true;
+					world_state->dirty_from_local_objects.insert(screen_res.getValue());
+				}
+			}
+
+			pending_camera_pair_creates.erase(pending_camera_pair_creates.begin() + i);
+			break;
+		}
+	}
+}
+
+
+void GUIClient::tryAutoLinkUnboundCameraScreen(WorldObject* maybe_screen_ob, WorldStateLock& world_state_lock)
+{
+	(void)world_state_lock;
+
+	if(maybe_screen_ob == NULL)
+		return;
+	if(maybe_screen_ob->object_type != WorldObject::ObjectType_CameraScreen)
+		return;
+	if(maybe_screen_ob->type_data.camera_screen_data.source_camera_uid != 0)
+		return;
+
+	size_t num_enabled_cameras = 0;
+	for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+	{
+		const WorldObjectRef& candidate_ref = it.getValue();
+		const WorldObject* candidate_ob = candidate_ref.ptr();
+		if(candidate_ob->object_type == WorldObject::ObjectType_Camera && candidate_ob->type_data.camera_data.enabled != 0)
+			num_enabled_cameras++;
+	}
+
+	uint64 best_camera_uid = 0;
+	double best_dist2 = std::numeric_limits<double>::infinity();
+	const double max_auto_link_dist2 = 9.0 * 9.0;
+
+	for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+	{
+		const WorldObjectRef& candidate_ref = it.getValue();
+		const WorldObject* candidate_ob = candidate_ref.ptr();
+		if(candidate_ob->object_type != WorldObject::ObjectType_Camera)
+			continue;
+		if((num_enabled_cameras > 0) && (candidate_ob->type_data.camera_data.enabled == 0))
+			continue;
+		if((maybe_screen_ob->creator_id.valid()) && (candidate_ob->creator_id != maybe_screen_ob->creator_id))
+			continue;
+
+		const double dist2 = candidate_ob->pos.getDist2(maybe_screen_ob->pos);
+		if(dist2 > max_auto_link_dist2)
+			continue;
+		if(dist2 < best_dist2)
+		{
+			best_dist2 = dist2;
+			best_camera_uid = candidate_ob->uid.value();
+		}
+	}
+
+	if(best_camera_uid != 0)
+	{
+		maybe_screen_ob->type_data.camera_screen_data.source_camera_uid = best_camera_uid;
+		maybe_screen_ob->from_local_other_dirty = true;
+		logMessage("[WorldCam] Auto-linked CameraScreen " + toString(maybe_screen_ob->uid.value()) + " -> Camera " + toString(best_camera_uid));
+
+		auto screen_res = world_state->objects.find(maybe_screen_ob->uid);
+		if(screen_res != world_state->objects.end())
+			world_state->dirty_from_local_objects.insert(screen_res.getValue());
 	}
 }
 
@@ -10393,7 +12806,7 @@ bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob
 	if(have_creation_perms)
 	{
 		// Get the AABB corresponding to tentative_new_ob_pos.
-		const js::AABBox ten_new_aabb_ws = opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, 
+		const js::AABBox ten_new_aabb_ws = opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob,
 			tentative_to_world_matrix);
 
 		// Constrain tentative ob pos so that the tentative new aabb lies in parcel.
@@ -10402,7 +12815,7 @@ bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob
 		if(ten_new_aabb_ws.min_[0] < (float)parcel_aabb_min.x) dpos[0] += ((float)parcel_aabb_min.x - ten_new_aabb_ws.min_[0]);
 		if(ten_new_aabb_ws.min_[1] < (float)parcel_aabb_min.y) dpos[1] += ((float)parcel_aabb_min.y - ten_new_aabb_ws.min_[1]);
 		if(ten_new_aabb_ws.min_[2] < (float)parcel_aabb_min.z) dpos[2] += ((float)parcel_aabb_min.z - ten_new_aabb_ws.min_[2]);
-			
+
 		if(ten_new_aabb_ws.max_[0] > (float)parcel_aabb_max.x) dpos[0] += ((float)parcel_aabb_max.x - ten_new_aabb_ws.max_[0]);
 		if(ten_new_aabb_ws.max_[1] > (float)parcel_aabb_max.y) dpos[1] += ((float)parcel_aabb_max.y - ten_new_aabb_ws.max_[1]);
 		if(ten_new_aabb_ws.max_[2] > (float)parcel_aabb_max.z) dpos[2] += ((float)parcel_aabb_max.z - ten_new_aabb_ws.max_[2]);
@@ -10426,6 +12839,29 @@ bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob
 
 		const Vec4f newpos = tentative_to_world_matrix.getColumn(3) + dpos;
 		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
+
+		// Keep client-side placement checks in sync with server checks.
+		// If object origin is outside all writable parcels, reject move immediately.
+		if(!isGodUser(this->logged_in_user_id) && (this->connected_world_details.owner_id != this->logged_in_user_id))
+		{
+			bool in_writable_parcel = false;
+			{
+				Lock lock(world_state->mutex);
+				for(auto& it : world_state->parcels)
+				{
+					const Parcel* parcel = it.second.ptr();
+					if(parcel->pointInParcel(new_ob_pos_out) && parcel->userHasWritePerms(this->logged_in_user_id))
+					{
+						in_writable_parcel = true;
+						break;
+					}
+				}
+			}
+
+			if(!in_writable_parcel)
+				return false;
+		}
+
 		return true;
 	}
 	else
@@ -10434,6 +12870,69 @@ bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob
 
 
 // Set material COLOUR_TEX_HAS_ALPHA_FLAG and MIN_LOD_LEVEL_IS_NEGATIVE_1 as applicable
+static bool shouldNormaliseTextureUploadToPNG(const URLString& path_or_url)
+{
+	// Keep canonical upload formats for broad client/server compatibility.
+	return
+		hasExtension(path_or_url, "webp") ||
+		hasExtension(path_or_url, "bmp")  ||
+		hasExtension(path_or_url, "tga")  ||
+		hasExtension(path_or_url, "tif")  ||
+		hasExtension(path_or_url, "tiff");
+}
+
+
+static URLString getPNGUploadPathForLocalTexture(const std::string& base_dir_path, const URLString& local_tex_path_or_url)
+{
+	if(local_tex_path_or_url.empty())
+		return local_tex_path_or_url;
+
+	if(!FileUtils::fileExists(local_tex_path_or_url)) // URL, not local path.
+		return local_tex_path_or_url;
+
+	if(!shouldNormaliseTextureUploadToPNG(local_tex_path_or_url))
+		return local_tex_path_or_url;
+
+	const std::string src_path = toStdString(local_tex_path_or_url);
+	const uint64 src_hash = FileChecksum::fileChecksum(src_path);
+	const std::string out_path = PlatformUtils::getTempDirPath() + "/upload_" + eatExtension(FileUtils::getFilename(src_path)) + "_" + toString(src_hash) + ".png";
+
+	if(!FileUtils::fileExists(out_path))
+	{
+		Reference<Map2D> map = ImageDecoding::decodeImage(base_dir_path, src_path);
+
+		if(const ImageMapUInt8* map_u8 = dynamic_cast<const ImageMapUInt8*>(map.ptr()))
+			PNGDecoder::write(*map_u8, out_path);
+		else if(const ImageMapUInt16* map_u16 = dynamic_cast<const ImageMapUInt16*>(map.ptr()))
+			PNGDecoder::write(*map_u16, out_path);
+		else
+			throw glare::Exception("Unsupported bit depth for PNG conversion of texture '" + src_path + "'.");
+
+		conPrint("Converted texture to PNG for upload compatibility: '" + src_path + "' -> '" + out_path + "'");
+	}
+
+	return toURLString(out_path);
+}
+
+
+static void normaliseObjectMaterialTexturePathsForUploadToPNG(const std::string& base_dir_path, WorldObject& ob)
+{
+	for(size_t i=0; i<ob.materials.size(); ++i)
+	{
+		WorldMaterial* mat = ob.materials[i].ptr();
+		if(!mat)
+			continue;
+
+		mat->colour_texture_url     = getPNGUploadPathForLocalTexture(base_dir_path, mat->colour_texture_url);
+		mat->emission_texture_url   = getPNGUploadPathForLocalTexture(base_dir_path, mat->emission_texture_url);
+		mat->normal_map_url         = getPNGUploadPathForLocalTexture(base_dir_path, mat->normal_map_url);
+		mat->roughness.texture_url  = getPNGUploadPathForLocalTexture(base_dir_path, mat->roughness.texture_url);
+		mat->metallic_fraction.texture_url = getPNGUploadPathForLocalTexture(base_dir_path, mat->metallic_fraction.texture_url);
+		mat->opacity.texture_url    = getPNGUploadPathForLocalTexture(base_dir_path, mat->opacity.texture_url);
+	}
+}
+
+
 void GUIClient::setMaterialFlagsForObject(WorldObject* ob)
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
@@ -10484,7 +12983,7 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 	{
 		// If the user wants to load a mesh that is not a bmesh file already, convert it to bmesh.
 		std::string bmesh_disk_path;
-		if(!hasExtension(mesh_path, "bmesh")) 
+		if(!hasExtension(mesh_path, "bmesh"))
 		{
 			// Save as bmesh in temp location
 			bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
@@ -10534,6 +13033,7 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 	new_world_object->scale = scale;
 	new_world_object->setAABBOS(aabb_os);
 
+	normaliseObjectMaterialTexturePathsForUploadToPNG(base_dir_path, *new_world_object);
 	setMaterialFlagsForObject(new_world_object.ptr());
 
 
@@ -10563,7 +13063,7 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 
 	// Generate LOD textures for materials, if not already present on disk.
 	// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
-	// 
+	//
 	// LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, *task_manager);
 	//
 	// NOTE: disabled while adding basisu stuff.  For now we will just wait for the server to generate the needed files and then download them.
@@ -10582,7 +13082,7 @@ static inline bool transformsEqual(const WorldObject& a, const WorldObject& b)
 {
 	return a.pos == b.pos &&
 		a.scale == b.scale &&
-		a.axis == b.axis && 
+		a.axis == b.axis &&
 		a.angle == b.angle;
 }
 
@@ -10602,14 +13102,14 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 	if(new_world_object->object_type == WorldObject::ObjectType_Generic)
 	{
 		BatchedMeshRef batched_mesh;
-	
+
 		if(FileUtils::fileExists(new_world_object->model_url)) // If model_url is a local file path:
 		{
 			const std::string original_mesh_path = toStdString(new_world_object->model_url);
 
 			// If the user wants to load a mesh that is not a bmesh file already, convert it to bmesh.
 			std::string bmesh_disk_path;
-			if(!hasExtension(original_mesh_path, "bmesh")) 
+			if(!hasExtension(original_mesh_path, "bmesh"))
 			{
 				// Save as bmesh in temp location
 				bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
@@ -10624,7 +13124,7 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 
 				BatchedMesh::WriteOptions write_options;
 				write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
-				
+
 				batched_mesh->writeToFile(bmesh_disk_path, write_options); // TODO: show 'processing...' dialog while it compresses and saves?
 			}
 			else
@@ -10652,11 +13152,11 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 			{
 				use_print_output.print("Downloading model '" + toStdString(new_world_object->model_url) + "'...");
 				DownloadingResourceInfo info;
-				// NOTE: don't have valid object UID here.  
+				// NOTE: don't have valid object UID here.
 				// Just hack isDownloadingResourceCurrentlyNeeded() to return true by setting used_by_other.
 				info.used_by_other = true;
 				startDownloadingResource(new_world_object->model_url, this->cam_controller.getPosition().toVec4fPoint(), 1.f, DownloadingResourceInfo());
-				
+
 				// Wait until downloaded...
 				Timer timer;
 				while(!resource_manager->isFileForURLPresent(new_world_object->model_url))
@@ -10699,9 +13199,9 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 				}
 				else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 				{
-					if(transformsEqual(*ob, *new_world_object) && 
+					if(transformsEqual(*ob, *new_world_object) &&
 						ob->getCompressedVoxels() &&
-						new_world_object->getCompressedVoxels() && 
+						new_world_object->getCompressedVoxels() &&
 						(*ob->getCompressedVoxels() == *new_world_object->getCompressedVoxels()))
 					{
 						use_print_output.print("An object with this voxel group and position " + new_world_object->pos.toStringMaxNDecimalPlaces(2) + " is already present in world, not adding.");
@@ -10789,7 +13289,7 @@ bool GUIClient::isObjectWithPosition(const Vec3d& pos)
 		if(ob->pos == pos)
 			return true;
 	}
-	
+
 	return false;
 }
 
@@ -10942,9 +13442,9 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 
 				if(restored_ob->object_type == WorldObject::ObjectType_VoxelGroup)
 				{
-					const bool voxels_same = 
+					const bool voxels_same =
 						in_world_ob->getCompressedVoxels() &&
-						restored_ob->getCompressedVoxels() && 
+						restored_ob->getCompressedVoxels() &&
 						(*in_world_ob->getCompressedVoxels() == *restored_ob->getCompressedVoxels());
 
 					voxels_different = !voxels_same;
@@ -10968,13 +13468,14 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 						opengl_ob->ob_to_world_matrix = obToWorldMatrix(*in_world_ob);
 						opengl_engine->updateObjectTransformData(*opengl_ob);
 
-						const int ob_lod_level = in_world_ob->getLODLevel(cam_controller.getPosition());
+						const int ob_lod_level = getEffectiveLODLevel(in_world_ob.ptr(), cam_controller.getPosition());
+						const bool use_basis_textures_for_ob = shouldUseBasisTexturesForWorldObject(*in_world_ob, this->server_has_basis_textures);
 
 						// Update materials in opengl engine.
 						glare::ArenaFrame frame(arena_allocator);
 						for(size_t i=0; i<in_world_ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, /*use_basis=*/use_basis_textures_for_ob, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
@@ -10982,7 +13483,7 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					// Update physics object transform
 					if(in_world_ob->physics_object)
 					{
-						physics_world->setNewObToWorldTransform(*in_world_ob->physics_object, in_world_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(in_world_ob->axis.toVec4fVector()), in_world_ob->angle), 
+						physics_world->setNewObToWorldTransform(*in_world_ob->physics_object, in_world_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(in_world_ob->axis.toVec4fVector()), in_world_ob->angle),
 							useScaleForWorldOb(in_world_ob->scale).toVec4fVector());
 					}
 
@@ -11096,7 +13597,7 @@ std::string GUIClient::serialiseAllObjectsInParcelToXML(size_t& num_obs_serialis
 {
 	std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 	xml += "<objects>\n";
-	
+
 	num_obs_serialised_out = 0;
 
 	Lock lock(world_state->mutex);
@@ -11128,7 +13629,7 @@ std::string GUIClient::serialiseAllObjectsInParcelToXML(size_t& num_obs_serialis
 	}
 	else
 		throw glare::Exception("You are not in a parcel, cannot save objects");
-	
+
 	xml += "</objects>\n";
 	return xml;
 }
@@ -11245,7 +13746,7 @@ void GUIClient::summonBike()
 	}
 
 
-	const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition() +
 		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 2 +
 		Vec3d(0,0,-1.67) + // Move down by eye height to ground
 		Vec3d(0, 0, 0.55f); // Move up off ground.  TEMP HARDCODED
@@ -11312,7 +13813,7 @@ void GUIClient::summonBike()
 	{
 		materials.push_back(WorldMaterial::loadFromXMLElem("bike_mats.xml", /*convert_rel_paths_to_abs_disk_paths=*/false, n));
 	}
-		
+
 
 
 	WorldObjectRef new_world_object = new WorldObject();
@@ -11374,7 +13875,7 @@ void GUIClient::summonHovercar()
 
 	const js::AABBox aabb_os(Vec4f(-1.053, -0.058, -2.163, 1), Vec4f(1.053, 1.284, 2.225, 1)); // Got from diagnostics widget after setting transform to identity.
 
-	const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition() +
 		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
 		Vec3d(0,0,-1.67) + // Move down by eye height to ground
 		Vec3d(0, 0, 0.0493f); // Move up off ground.  TEMP HARDCODED
@@ -11475,7 +13976,7 @@ void GUIClient::summonBoat()
 
 	const js::AABBox aabb_os(Vec4f(-0.281f, -0.165f, -1.25f, 1), Vec4f(0.281f, 0.25f, 1.25f, 1)); // Got from diagnostics widget after setting transform to identity.
 
-	const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition() +
 		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
 		Vec3d(0,0,-1.67) + // Move down by eye height to ground
 		Vec3d(0, 0, 1.0493f); // Move up off ground.  TEMP HARDCODED
@@ -11580,7 +14081,7 @@ void GUIClient::summonJetSki()
 
 	const js::AABBox aabb_os(Vec4f(-1.167f, -0.423f, -0.122f, 1), Vec4f(1.087f, 0.423f, 0.641f, 1)); // Got from diagnostics widget
 
-	const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition() +
 		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
 		Vec3d(0,0,-1.67) + // Move down by eye height to ground
 		Vec3d(0, 0, 1.0493f); // Move up off ground.  TEMP HARDCODED
@@ -11684,7 +14185,7 @@ void GUIClient::summonCar()
 
 	const js::AABBox aabb_os(Vec4f(-1.3898703f, -0.9157071f, -2.365502f, 1), Vec4f(1.3898582f, 0.8355373f, 3.8338537f, 1)); // From D:\files\substrata objects\delorean 2.xml
 
-	const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+	const Vec3d pos = this->cam_controller.getFirstPersonPosition() +
 		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
 		Vec3d(0,0,-1.67) + // Move down by eye height to ground
 		Vec3d(0, 0, 1.0493f); // Move up off ground.  TEMP HARDCODED
@@ -11785,6 +14286,11 @@ void GUIClient::objectTransformEdited()
 {
 	if(this->selected_ob.nonNull())
 	{
+		const Vec3d old_pos = this->selected_ob->pos;
+		const Vec3f old_axis = this->selected_ob->axis;
+		const float old_angle = this->selected_ob->angle;
+		const Vec3f old_scale = this->selected_ob->scale;
+
 		// Multiple edits using the object editor, in a short timespan, will be merged together,
 		// unless force_new_undo_edit is true (is set when undo or redo is issued).
 		const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
@@ -11817,9 +14323,9 @@ void GUIClient::objectTransformEdited()
 			const bool valid = clampObjectPositionToParcelForNewTransform(
 				*this->selected_ob,
 				opengl_ob,
-				this->selected_ob->pos, 
+				this->selected_ob->pos,
 				new_ob_to_world_matrix,
-				edge_markers, 
+				edge_markers,
 				new_ob_pos);
 			if(valid)
 			{
@@ -11866,6 +14372,22 @@ void GUIClient::objectTransformEdited()
 			}
 			else // Else if new transform is not valid
 			{
+				// Restore previous transform if editor values attempted to move object outside permitted placement.
+				selected_ob->setTransformAndHistory(old_pos, old_axis, old_angle);
+				selected_ob->scale = old_scale;
+				selected_ob->transformChanged();
+
+				if(opengl_ob.nonNull())
+				{
+					opengl_ob->ob_to_world_matrix = obToWorldMatrix(*selected_ob);
+					opengl_engine->updateObjectTransformData(*opengl_ob);
+				}
+
+				if(selected_ob->physics_object)
+					physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+						useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+
+				ui_interface->startObEditorTimerIfNotActive();
 				showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 			}
 		}
@@ -11889,6 +14411,11 @@ void GUIClient::objectEdited()
 	// Update object material(s) with values from editor.
 	if(this->selected_ob.nonNull())
 	{
+		const Vec3d old_pos = this->selected_ob->pos;
+		const Vec3f old_axis = this->selected_ob->axis;
+		const float old_angle = this->selected_ob->angle;
+		const Vec3f old_scale = this->selected_ob->scale;
+
 		// Multiple edits using the object editor, in a short timespan, will be merged together,
 		// unless force_new_undo_edit is true (is set when undo or redo is issued).
 		const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
@@ -11898,7 +14425,7 @@ void GUIClient::objectEdited()
 
 		//ui->objectEditor->toObject(*this->selected_ob); // Sets changed_flags on object as well.
 		ui_interface->objectEditorToObject(*this->selected_ob); // Sets changed_flags on object as well.
-			
+
 		this->selected_ob->last_modified_time = TimeStamp::currentTime(); // Gets set on server as well, this is just for updating the local display.
 		ui_interface->objectLastModifiedUpdated(*this->selected_ob);
 
@@ -11906,13 +14433,13 @@ void GUIClient::objectEdited()
 			undo_buffer.finishWorldObjectEdit(*this->selected_ob);
 		else
 			undo_buffer.replaceFinishWorldObjectEdit(*this->selected_ob);
-		
+
 		time_since_object_edited.reset();
 		force_new_undo_edit = false;
 
 		setMaterialFlagsForObject(selected_ob.ptr());
 
-		if((selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && 
+		if((selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) &&
 			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 		{
 			if(vehicle_controllers.find(selected_ob.ptr()) != vehicle_controllers.end()) // If there is a vehicle controller for selected_ob:
@@ -11932,7 +14459,7 @@ void GUIClient::objectEdited()
 				const int subsample_factor = 1;
 				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 					opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
-					worker_allocator.ptr(), 
+					worker_allocator.ptr(),
 					physics_shape);
 
 				// Remove existing physics object
@@ -11955,7 +14482,8 @@ void GUIClient::objectEdited()
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
 
-				selected_ob->physics_object->motion_type = selected_ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!selected_ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
+				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
 
 				selected_ob->physics_object->mass = selected_ob->mass;
 				selected_ob->physics_object->friction = selected_ob->friction;
@@ -11970,10 +14498,10 @@ void GUIClient::objectEdited()
 
 		// Scripted objects (e.g. objects being path controlled), need to be kinematic.  If we enabled a script, but the existing physics object is not kinematic, reload the physics object.
 		const bool physics_rebuild_needed_for_script_enabling = BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED) &&
-			selected_ob->physics_object && !selected_ob->physics_object->isKinematic() && !selected_ob->script.empty() &&
-			(selected_ob->object_type == WorldObject::ObjectType_Generic || selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
-		
-		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
+			selected_ob->physics_object && !selected_ob->physics_object->kinematic && !selected_ob->script.empty() &&
+			(selected_ob->object_type == WorldObject::ObjectType_Generic ||selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
+
+		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) ||
 			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)) ||
 			physics_rebuild_needed_for_script_enabling)
 		{
@@ -11992,7 +14520,7 @@ void GUIClient::objectEdited()
 					/*do_opengl_stuff=*/true,
 					results
 				);
-			
+
 				this->selected_ob->opengl_engine_ob = results.gl_ob;
 				this->selected_ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*this->selected_ob);
 
@@ -12004,7 +14532,7 @@ void GUIClient::objectEdited()
 				{
 					// If the user selected a mesh that is not a bmesh, convert it to bmesh.
 					std::string bmesh_disk_path;
-					if(!hasExtension(mesh_path, "bmesh")) 
+					if(!hasExtension(mesh_path, "bmesh"))
 					{
 						// Save as bmesh in temp location
 						bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
@@ -12055,16 +14583,16 @@ void GUIClient::objectEdited()
 				selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
-			
-				selected_ob->physics_object->motion_type = selected_ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!selected_ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
 
+				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
 				selected_ob->physics_object->is_sphere = FileUtils::getFilenameStringView(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
 				selected_ob->physics_object->is_cube = FileUtils::getFilenameStringView(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
 
 				selected_ob->physics_object->mass = selected_ob->mass;
 				selected_ob->physics_object->friction = selected_ob->friction;
 				selected_ob->physics_object->restitution = selected_ob->restitution;
-			
+
 				physics_world->addObject(selected_ob->physics_object);
 
 
@@ -12078,7 +14606,7 @@ void GUIClient::objectEdited()
 		// Copy all dependencies into resource directory if they are not there already.
 		// URLs will actually be paths from editing for now.
 		WorldObject::GetDependencyOptions options;
-		options.use_basis = this->server_has_basis_textures;
+		options.use_basis = shouldUseBasisTexturesForWorldObject(*this->selected_ob, this->server_has_basis_textures);
 		options.include_lightmaps = this->use_lightmaps;
 		options.get_optimised_mesh = false;//this->server_has_optimised_meshes;
 		DependencyURLVector URLs;
@@ -12095,7 +14623,7 @@ void GUIClient::objectEdited()
 				resource_manager->copyLocalFileToResourceDir(toStdString(local_path), URL);
 			}
 		}
-		
+
 
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
@@ -12107,7 +14635,7 @@ void GUIClient::objectEdited()
 		// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
 		//TEMP LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, *task_manager);
 
-		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
+		const int ob_lod_level = getEffectiveLODLevel(this->selected_ob.ptr(), cam_controller.getPosition());
 		const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
 
 		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level, max_dist_for_ob_lod_level, max_dist_for_ob_lod_level/*TEMP*/);
@@ -12126,14 +14654,15 @@ void GUIClient::objectEdited()
 				const bool valid = clampObjectPositionToParcelForNewTransform(
 					*this->selected_ob,
 					opengl_ob,
-					this->selected_ob->pos, 
+					this->selected_ob->pos,
 					new_ob_to_world_matrix,
-					edge_markers, 
+					edge_markers,
 					new_ob_pos);
 				if(valid)
 				{
 					new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
 					selected_ob->setTransformAndHistory(new_ob_pos, this->selected_ob->axis, this->selected_ob->angle);
+					const bool selected_ob_use_basis = shouldUseBasisTexturesForWorldObject(*this->selected_ob, this->server_has_basis_textures);
 
 					// Update in opengl engine.
 					if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
@@ -12148,7 +14677,7 @@ void GUIClient::objectEdited()
 								glare::ArenaFrame frame(arena_allocator);
 
 								for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator,
+									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, /*use_basis=*/selected_ob_use_basis, *this->resource_manager, &arena_allocator,
 										opengl_ob->materials[i]
 									);
 
@@ -12157,6 +14686,114 @@ void GUIClient::objectEdited()
 						}
 
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
+					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Seat)
+					{
+						if(opengl_ob.nonNull())
+						{
+							glare::ArenaFrame frame(arena_allocator);
+
+							opengl_ob->materials.resize(1); // These meshes use a single material.
+							if(!this->selected_ob->materials.empty())
+							{
+								ModelLoading::setGLMaterialFromWorldMaterial(
+									*this->selected_ob->materials[0],
+									ob_lod_level,
+									/*lightmap URL=*/"",
+									/*use_basis=*/selected_ob_use_basis,
+									*this->resource_manager,
+									&arena_allocator,
+									opengl_ob->materials[0]
+								);
+							}
+							else
+							{
+								// Keep seat visible with sane defaults even if no material is present.
+								opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.4f, 0.5f, 0.6f));
+								opengl_ob->materials[0].alpha = 0.5f;
+							}
+
+							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());
+							opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						}
+					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Camera)
+					{
+						if(opengl_ob.nonNull())
+						{
+							glare::ArenaFrame frame(arena_allocator);
+
+							size_t required_num_mats = 1;
+							for(size_t i = 0; i < opengl_ob->mesh_data->batches.size(); ++i)
+								required_num_mats = myMax(required_num_mats, (size_t)opengl_ob->mesh_data->batches[i].material_index + 1);
+
+							opengl_ob->materials.resize(required_num_mats);
+							for(size_t i = 0; i < required_num_mats; ++i)
+							{
+								if(i < this->selected_ob->materials.size())
+								{
+									ModelLoading::setGLMaterialFromWorldMaterial(
+										*this->selected_ob->materials[i],
+										ob_lod_level,
+										/*lightmap URL=*/"",
+										/*use_basis=*/selected_ob_use_basis,
+										*this->resource_manager,
+										&arena_allocator,
+										opengl_ob->materials[i]
+									);
+								}
+								else if(!this->selected_ob->materials.empty())
+								{
+									ModelLoading::setGLMaterialFromWorldMaterial(
+										*this->selected_ob->materials[0],
+										ob_lod_level,
+										/*lightmap URL=*/"",
+										/*use_basis=*/selected_ob_use_basis,
+										*this->resource_manager,
+										&arena_allocator,
+										opengl_ob->materials[i]
+									);
+								}
+								else
+								{
+									opengl_ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.15f, 0.15f, 0.15f));
+									opengl_ob->materials[i].alpha = 1.0f;
+								}
+							}
+
+							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());
+							opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						}
+					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_CameraScreen)
+					{
+						if(opengl_ob.nonNull())
+						{
+							glare::ArenaFrame frame(arena_allocator);
+
+							opengl_ob->materials.resize(1);
+
+							if(!this->selected_ob->materials.empty())
+							{
+								ModelLoading::setGLMaterialFromWorldMaterial(
+									*this->selected_ob->materials[0],
+									ob_lod_level,
+									/*lightmap URL=*/"",
+									/*use_basis=*/selected_ob_use_basis,
+									*this->resource_manager,
+									&arena_allocator,
+									opengl_ob->materials[0]
+								);
+							}
+							else
+							{
+								opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.05f, 0.05f, 0.05f));
+								opengl_ob->materials[0].alpha = 1.0f;
+							}
+
+							assignLoadedOpenGLTexturesToMats(selected_ob.ptr());
+							opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						}
 					}
 					else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 					{
@@ -12227,6 +14864,12 @@ void GUIClient::objectEdited()
 					if(selected_ob->physics_object)
 					{
 						selected_ob->physics_object->collidable = selected_ob->isCollidable();
+						selected_ob->physics_object->is_sensor = selected_ob->isSensor();
+						selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+						selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+						selected_ob->physics_object->mass = selected_ob->mass;
+						selected_ob->physics_object->friction = selected_ob->friction;
+						selected_ob->physics_object->restitution = selected_ob->restitution;
 						physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
 							useScaleForWorldOb(selected_ob->scale).toVec4fVector());
 					}
@@ -12260,6 +14903,18 @@ void GUIClient::objectEdited()
 				}
 				else // Else if new transform is not valid
 				{
+					selected_ob->setTransformAndHistory(old_pos, old_axis, old_angle);
+					selected_ob->scale = old_scale;
+					selected_ob->transformChanged();
+
+					opengl_ob->ob_to_world_matrix = obToWorldMatrix(*selected_ob);
+					opengl_engine->updateObjectTransformData(*opengl_ob);
+
+					if(selected_ob->physics_object)
+						physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+							useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+
+					ui_interface->startObEditorTimerIfNotActive();
 					showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 				}
 			}
@@ -12281,7 +14936,7 @@ void GUIClient::objectEdited()
 				loadScriptForObject(this->selected_ob.ptr(), lock);
 
 				// If we got here, new script was valid and loaded successfully.
-					
+
 				// If we were controlling a vehicle whose script just changed, we want to update the vehicle controller.  We will do this by destroying it and creating a new one,
 				// then making the user enter the vehicle again.
 				// If the script failed to load, due to e.g. a syntax error, then we don't want to destroy the vehicle controller, hence this code is after loadScriptForObject().
@@ -12346,7 +15001,7 @@ void GUIClient::updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_ma
 			MIN_SPOTLIGHT_CONE_ANGLE + 0.01f, Maths::pi<float>());
 
 		light->gpu_data.cone_min_cos_angle = std::cos(use_cone_end_angle);
-		light->gpu_data.cone_max_cos_angle = std::cos(use_cone_start_angle); 
+		light->gpu_data.cone_max_cos_angle = std::cos(use_cone_start_angle);
 		assert(light->gpu_data.cone_min_cos_angle < light->gpu_data.cone_max_cos_angle);
 
 		float scale;
@@ -12359,7 +15014,7 @@ void GUIClient::updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_ma
 		glare::ArenaFrame frame(arena_allocator);
 		opengl_ob->materials.resize(2);
 		if(ob->materials.size() >= 2)
-			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*//*ob_lod_level*/0, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*//*ob_lod_level*/0, /*lightmap URL=*/"", /*use_basis=*/shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures), *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 		else
 			opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
@@ -12409,7 +15064,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		hover_car_physics_settings.hovercar_mass = ob->mass;
 		hover_car_physics_settings.script_settings = hover_car_script->settings.downcast<Scripting::HoverCarScriptSettings>();
 
-		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
+		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
 		controller = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings, *physics_world, particle_manager.ptr());
 	}
@@ -12421,7 +15076,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		physics_settings.boat_mass = ob->mass;
 		physics_settings.script_settings = boat_script->settings.downcast<Scripting::BoatScriptSettings>();
 
-		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
+		physics_world->setObjectLayer(ob->physics_object, Layers::VEHICLES);
 
 		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, *physics_world, particle_manager.ptr(), terrain_decal_manager.ptr());
 	}
@@ -12472,6 +15127,19 @@ void GUIClient::posAndRot3DControlsToggled(bool enabled)
 
 				axis_and_rot_obs_enabled = true;
 			}
+		}
+		else if(selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id))
+		{
+			for(int i = 0; i < NUM_AXIS_ARROWS; ++i)
+				opengl_engine->addObject(axis_arrow_objects[i]);
+
+			for(int i = 0; i < 3; ++i)
+			{
+				opengl_engine->removeObject(rot_handle_arc_objects[i]);
+				rot_handle_lines[i].clear();
+			}
+
+			axis_and_rot_obs_enabled = true;
 		}
 	}
 	else
@@ -12525,7 +15193,7 @@ void GUIClient::sendLightmapNeededFlagsSlot()
 	}
 
 
-	
+
 	for(auto it = objs_with_lightmap_rebuild_needed.begin(); it != objs_with_lightmap_rebuild_needed.end(); ++it)
 	{
 		WorldObjectRef ob = *it;
@@ -12552,11 +15220,11 @@ static std::string makeURL(const std::string& server_hostname, const std::string
 	url += server_hostname;
 	url += "/";
 	url += server_worldname;
-	url += "?x="; 
+	url += "?x=";
 	url += doubleToStringNDecimalPlaces(pos.x, 1);
 	url += "&y=";
 	url += doubleToStringNDecimalPlaces(pos.y, 1);
-	url += "&z="; 
+	url += "&z=";
 	url += doubleToStringNDecimalPlaces(pos.z, 2);
 	url += "&heading=";
 	url += doubleToStringNDecimalPlaces(heading_deg, 1);
@@ -12608,9 +15276,6 @@ void GUIClient::visitSubURL(const std::string& URL, bool push_prev_URL_on_nav_st
 		this->url_parcel_uid = parse_res.parcel_uid;
 	else
 		this->url_parcel_uid = -1;
-
-	// If we have explicit coordinates in the URL, use those, otherwise use the world settings spawn pos.
-	this->go_to_world_spawn_pos = !parse_res.parsed_x && !parse_res.parsed_y && !parse_res.parsed_z;
 
 	const bool change_to_different_world_msg_supported = server_protocol_version >= 44; // ChangeToDifferentWorld message was added in protocol version 44.
 
@@ -12672,7 +15337,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	udp_socket = NULL;
 
 	load_item_queue.clear();
-	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete(); 
+	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
 
@@ -12746,6 +15411,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	this->client_avatar_uid = UID::invalidUID();
 	this->server_protocol_version = 0;
+	this->pending_camera_pair_creates.clear();
 
 
 	this->logged_in_user_id = UserID::invalidUserID();
@@ -12772,6 +15438,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	minimap = nullptr;
 
 	clearAllObjects();
+	removeAllFloatingChatMessages();
 	world_state = nullptr;
 
 	if(particle_manager)
@@ -12803,16 +15470,17 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 void GUIClient::clearAllObjects()
 {
 	deselectObject();
+	pending_camera_pair_creates.clear();
 
-	vehicle_controller_inside = nullptr;
+	vehicle_controller_inside = NULL;
 	vehicle_controllers.clear();
-
 	seat_sitting_on = nullptr;
+
 
 	if(world_state)
 	{
 		Lock lock(this->world_state->mutex);
-		
+
 		// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine.
 		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
 		{
@@ -12850,7 +15518,6 @@ void GUIClient::clearAllObjects()
 			Avatar* avatar = it->second.ptr();
 
 			avatar->entered_vehicle = NULL;
-
 			avatar->sitting_on_seat = NULL;
 
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
@@ -12862,6 +15529,8 @@ void GUIClient::clearAllObjects()
 			if(minimap)
 				minimap->removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the minimap
 		}
+
+		removeAllFloatingChatMessages();
 
 		for(auto it = world_state->lod_chunks.begin(); it != world_state->lod_chunks.end(); ++it)
 		{
@@ -12945,12 +15614,17 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	if(parse_res.parsed_z)
 		spawn_pos.z = parse_res.z;
 
-	// If we have explicit coordinates in the URL, use those, otherwise use the world settings spawn pos.
-	this->go_to_world_spawn_pos = !parse_res.parsed_x && !parse_res.parsed_y && !parse_res.parsed_z;
-
 	//-------------------------------- Do disconnect process --------------------------------
 	disconnectFromServerAndClearAllObjects();
 	//-------------------------------- End disconnect process --------------------------------
+
+	if(shouldDisableLODForCurrentServer())
+	{
+		const float increased_load_distance = 5000.f;
+		proximity_loader.setLoadDistance(increased_load_distance);
+		this->load_distance = increased_load_distance;
+		this->load_distance2 = increased_load_distance * increased_load_distance;
+	}
 
 
 	//-------------------------------- Do connect process --------------------------------
@@ -13112,11 +15786,13 @@ void GUIClient::changeToDifferentWorld(const URLParseResults& parse_res)
 
 	// Send CreateAvatar packet for this client's avatar
 	{
-		const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
+		Vec3d avatar_pos;
+		Vec3d cam_angles;
+		getCurrentAvatarPoseForNetworking(avatar_pos, cam_angles);
 
 		Avatar avatar;
 		avatar.uid = this->client_avatar_uid;
-		avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+		avatar.pos = avatar_pos;
 		avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 		avatar.avatar_settings = this->logged_in_avatar_settings;
 		avatar.name = this->logged_in_user_name;
@@ -13149,7 +15825,7 @@ void GUIClient::changeToDifferentWorld(const URLParseResults& parse_res)
 	this->world_settings_locally_dirty = false;
 
 
-	audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3", 
+	audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3",
 		(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 }
 
@@ -13161,7 +15837,7 @@ void GUIClient::checkCreateResourceDownloadThreads()
 #if defined(EMSCRIPTEN)
 		emscripten_resource_downloader.init(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, &this->download_queue, this);
 #else
-		
+
 		if(resource_download_thread_manager.getNumThreads() == 0)
 		{
 			for(int z=0; z<4; ++z)
@@ -13182,7 +15858,7 @@ void GUIClient::checkCreateManagersAndMinimap()
 	{
 		if(!terrain_decal_manager)
 			terrain_decal_manager = new TerrainDecalManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr());
-		
+
 		if(!particle_manager)
 			particle_manager = new ParticleManager(this->base_dir_path, async_texture_loader.ptr(), opengl_engine.ptr(), physics_world.ptr(), terrain_decal_manager.ptr());
 
@@ -13237,7 +15913,7 @@ pixel_y = gl_h * (lens_sensor_dist / sensor_height * r_y + 1/2)
 
 let R = lens_sensor_dist / sensor_width
 
-so 
+so
 
 pixel_x = gl_w * (R *  dot(p_ws - cam_origin, cam_right) / dot(p_ws - cam_origin, cam_forw) + 1/2)
 pixel_y = gl_h * (R * -dot(p_ws - cam_origin, cam_up)    / dot(p_ws - cam_origin, cam_forw) + 1/2)
@@ -13452,7 +16128,7 @@ static LineSegment4f clipLineSegmentToCameraFrontHalfSpace(const LineSegment4f& 
 		return segment;
 
 	/*
-	
+
 	a                  /         b
 	------------------/----------
 	d_a              /   d_b
@@ -13477,7 +16153,7 @@ static LineSegment4f clipLineSegmentToCameraFrontHalfSpace(const LineSegment4f& 
 // Returns the axis index (integer in [0, 3)) of the closest axis arrow, or the axis index of the closest rotation arc handle (integer in [3, 6))
 // or -1 if no arrow or rotation arc close to pixel coords.
 // Also returns world space coords of the closest point.
-int GUIClient::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out) 
+int GUIClient::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out)
 {
 	if(!axis_and_rot_obs_enabled)
 		return -1;
@@ -13574,6 +16250,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 	if(gl_ui.nonNull())
 	{
 		gl_ui->handleMousePress(e);
+		chat_ui.handleMousePress(e);
 		if(e.accepted)
 		{
 			ui_interface->setCamRotationOnMouseDragEnabled(false); // If the user clicked on a UI widget, we don't want click+mouse dragging to move the camera.
@@ -13623,7 +16300,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 		//{
 		//	RayTraceResult results;
 		//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, results);
-		//	
+		//
 		//	mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
 		//		static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
 		//}
@@ -13638,6 +16315,12 @@ void GUIClient::mousePressed(MouseEvent& e)
 			if(grabbed_axis >= 0) // If we grabbed an arrow or rotation arc:
 			{
 				this->ob_origin_at_grab = this->selected_ob->pos.toVec4fPoint();
+				have_selected_ob_transform_rollback = true;
+				selected_ob_transform_rollback_uid = this->selected_ob->uid;
+				selected_ob_transform_rollback_pos = this->selected_ob->pos;
+				selected_ob_transform_rollback_axis = this->selected_ob->axis;
+				selected_ob_transform_rollback_angle = this->selected_ob->angle;
+				selected_ob_transform_rollback_scale = this->selected_ob->scale;
 
 				// Usually when the mouse button is held down, moving the mouse rotates the camera.
 				// But when we have grabbed an arrow or rotation arc, it moves the object instead.  So don't rotate the camera.
@@ -13673,6 +16356,26 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 				//opengl_engine->addObject(opengl_engine->makeAABBObject(plane_p, plane_p + Vec4f(0.05f, 0.05f, 0.05f, 0), Colour4f(1, 0, 1, 1)));
 			}
+		}
+	}
+	else if(this->selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id))
+	{
+		grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e.cursor_pos.x, (float)e.cursor_pos.y), /*closest_seg_point_ws_out=*/this->grabbed_point_ws);
+
+		if(grabbed_axis >= NUM_AXIS_ARROWS)
+			grabbed_axis = -1; // Parcel gizmo supports translation only.
+
+		if(grabbed_axis >= 0)
+		{
+			this->ob_origin_at_grab = Vec4f(
+				(float)((selected_parcel->aabb_min.x + selected_parcel->aabb_max.x) * 0.5),
+				(float)((selected_parcel->aabb_min.y + selected_parcel->aabb_max.y) * 0.5),
+				(float)((selected_parcel->aabb_min.z + selected_parcel->aabb_max.z) * 0.5),
+				1.f
+			);
+
+			// When dragging parcel gizmo, don't rotate camera on mouse drag.
+			ui_interface->setCamRotationOnMouseDragEnabled(false);
 		}
 	}
 
@@ -13794,6 +16497,13 @@ void GUIClient::mouseReleased(MouseEvent& e)
 	{
 		undo_buffer.finishWorldObjectEdit(*selected_ob);
 		grabbed_axis = -1;
+		have_selected_ob_transform_rollback = false;
+		selected_ob_transform_rollback_uid = UID::invalidUID();
+	}
+	else if(grabbed_axis != -1 && selected_parcel.nonNull())
+	{
+		grabbed_axis = -1;
+		ui_interface->setParcelEditorForParcel(*selected_parcel);
 	}
 
 	// Trace through scene to see if we are clicking on a web-view.  Send mouseReleased events to the web view if so.
@@ -13876,7 +16586,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 	{
 		const Matrix4f ob_to_world = obToWorldMatrix(*ob);
 
-		const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+		const int ob_lod_level = getEffectiveLODLevel(ob.ptr(), cam_controller.getPosition());
 
 		js::Vector<bool, 16> mat_transparent(ob->materials.size());
 		for(size_t i=0; i<ob->materials.size(); ++i)
@@ -13899,7 +16609,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		gl_ob->materials.resize(ob->materials.size());
 		for(uint32 i=0; i<ob->materials.size(); ++i)
 		{
-			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, gl_ob->materials[i]);
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/shouldUseBasisTexturesForWorldObject(*ob, this->server_has_basis_textures), *this->resource_manager, &arena_allocator, gl_ob->materials[i]);
 			gl_ob->materials[i].gen_planar_uvs = true;
 			gl_ob->materials[i].draw_planar_uv_grid = true;
 		}
@@ -13931,7 +16641,9 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		physics_ob->userdata = (void*)(ob.ptr());
 		physics_ob->userdata_type = 0;
 		physics_ob->ob_uid = ob->uid;
-		physics_ob->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
+
+		physics_ob->kinematic = !ob->script.empty();
+		physics_ob->dynamic = ob->isDynamic();
 
 		physics_world->addObject(physics_ob);
 
@@ -13974,6 +16686,12 @@ void GUIClient::pickUpSelectedObject()
 			ui_interface->objectEditorObjectPickedUp();
 
 			selected_ob_picked_up = true;
+			have_selected_ob_transform_rollback = true;
+			selected_ob_transform_rollback_uid = selected_ob->uid;
+			selected_ob_transform_rollback_pos = selected_ob->pos;
+			selected_ob_transform_rollback_axis = selected_ob->axis;
+			selected_ob_transform_rollback_angle = selected_ob->angle;
+			selected_ob_transform_rollback_scale = selected_ob->scale;
 
 			undo_buffer.startWorldObjectEdit(*selected_ob);
 
@@ -14003,6 +16721,8 @@ void GUIClient::dropSelectedObject()
 		ui_interface->objectEditorObjectDropped();
 
 		selected_ob_picked_up = false;
+		have_selected_ob_transform_rollback = false;
+		selected_ob_transform_rollback_uid = UID::invalidUID();
 
 		undo_buffer.finishWorldObjectEdit(*selected_ob);
 
@@ -14048,11 +16768,44 @@ void GUIClient::doObjectSelectionTraceForMouseEvent(MouseEvent& e)
 			opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
 			opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
 
+			const bool can_edit_basic_fields = this->logged_in_user_id.valid() &&
+				((this->logged_in_user_id == selected_parcel->owner_id) || isGodUser(this->logged_in_user_id));
+			const bool can_edit_owner_and_geometry = this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id);
+			const bool can_edit_member_lists = can_edit_basic_fields;
+
 			// Show parcel editor, hide object editor.
 			ui_interface->setParcelEditorForParcel(*selected_parcel);
+			ui_interface->setParcelEditorPermissions(can_edit_basic_fields, can_edit_owner_and_geometry, can_edit_member_lists);
 			ui_interface->setParcelEditorEnabled(true);
 			ui_interface->showParcelEditor();
 			ui_interface->showEditorDockWidget(); // Show the object editor dock widget if it is hidden.
+
+			if(can_edit_owner_and_geometry && ui_interface->posAndRot3DControlsEnabled())
+			{
+				for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+					opengl_engine->addObject(axis_arrow_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					opengl_engine->removeObject(rot_handle_arc_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					rot_handle_lines[i].clear();
+
+				axis_and_rot_obs_enabled = true;
+			}
+			else
+			{
+				for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+					opengl_engine->removeObject(axis_arrow_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					opengl_engine->removeObject(rot_handle_arc_objects[i]);
+
+				for(int i=0; i<3; ++i)
+					rot_handle_lines[i].clear();
+
+				axis_and_rot_obs_enabled = false;
+			}
 		}
 		else if(results.hit_object->userdata && results.hit_object->userdata_type == 2) // If we hit an instance:
 		{
@@ -14148,7 +16901,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 				{
 					ob->browser_vid_player->mouseMoved(mouse_event, uvs);
 				}
-				else 
+				else
 				{
 					if(!ob->target_url.empty() && (ob->web_view_data.isNull() && ob->browser_vid_player.isNull())) // If the object has a target URL (and is not a web-view and not a video object):
 					{
@@ -14171,7 +16924,8 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						}
 					}
 
-					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() && !isAvatarSittingOnSeat(*ob))
+					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() &&
+						(server_protocol_version >= 49) && !isAvatarSittingOnSeat(*ob))
 					{
 						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to sit" : "Press [A] on gamepad to sit", cursor_gl_coords);
 						show_mouseover_info_ui = true;
@@ -14203,7 +16957,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
 						if(this->mouseover_selected_gl_ob.nonNull())
 						{
-							if(ob != this->selected_ob.ptr()) 
+							if(ob != this->selected_ob.ptr())
 								opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
 							this->mouseover_selected_gl_ob = NULL;
 						}
@@ -14220,7 +16974,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 			else if(results.hit_object->userdata && results.hit_object->userdata_type == 3) // If we hit an avatar:
 			{
 				const Avatar* avatar = (const Avatar*)results.hit_object->userdata;
-				if(avatar && !avatar->current_gesture_name.empty())
+				if(avatar && !avatar->graphics.current_gesture_name.empty())
 				{
 					ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to join gesture" : "Press [A] to join gesture", cursor_gl_coords);
 					show_mouseover_info_ui = true;
@@ -14340,6 +17094,76 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 			}
 		}
 	}
+	else if(selected_parcel.nonNull() && this->logged_in_user_id.valid() && isGodUser(this->logged_in_user_id) && grabbed_axis >= 0 && grabbed_axis < NUM_AXIS_ARROWS)
+	{
+		const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
+
+		Vec2f start_pixelpos, end_pixelpos;
+
+		const float MAX_MOVE_DIST = 100;
+		const Vec4f line_dir = normalise(axis_arrow_segments[grabbed_axis].b - axis_arrow_segments[grabbed_axis].a);
+		Vec4f use_line_start = axis_arrow_segments[grabbed_axis].a - line_dir * MAX_MOVE_DIST;
+		Vec4f use_line_end   = axis_arrow_segments[grabbed_axis].a + line_dir * MAX_MOVE_DIST;
+
+		const Vec4f camforw_ws = cam_controller.getForwardsVec().toVec4fVector();
+		Planef plane(origin + camforw_ws * 0.1f, -camforw_ws);
+		const bool visible = clipLineToPlaneBackHalfSpace(plane, use_line_start, use_line_end);
+		assertOrDeclareUsed(visible);
+
+		bool start_visible = getPixelForPoint(use_line_start, start_pixelpos);
+		bool end_visible   = getPixelForPoint(use_line_end,   end_pixelpos);
+
+		assert(start_visible && end_visible);
+		if(start_visible && end_visible)
+		{
+			const Vec2f mousepos((float)mouse_event.cursor_pos.x, (float)mouse_event.cursor_pos.y);
+			const Vec2f closest_pixel = closestPointOnLineSegment(mousepos, start_pixelpos, end_pixelpos);
+
+			Vec4f new_p = pointOnLineWorldSpace(axis_arrow_segments[grabbed_axis].a, axis_arrow_segments[grabbed_axis].b, closest_pixel);
+			Vec4f delta_p = new_p - grabbed_point_ws;
+
+			assert(new_p.isFinite());
+
+			Vec4f tentative_new_centre = ob_origin_at_grab + delta_p;
+			if(tentative_new_centre.getDist(ob_origin_at_grab) > MAX_MOVE_DIST)
+				tentative_new_centre = ob_origin_at_grab + (tentative_new_centre - ob_origin_at_grab) * MAX_MOVE_DIST / (tentative_new_centre - ob_origin_at_grab).length();
+
+			assert(tentative_new_centre.isFinite());
+
+			if(ui_interface->snapToGridCheckBoxChecked())
+			{
+				const double grid_spacing = ui_interface->gridSpacing();
+				if(grid_spacing > 1.0e-5)
+					tentative_new_centre[grabbed_axis] = (float)Maths::roundToMultipleFloating((double)tentative_new_centre[grabbed_axis], grid_spacing);
+			}
+
+			const Vec4f old_centre(
+				(float)((selected_parcel->aabb_min.x + selected_parcel->aabb_max.x) * 0.5),
+				(float)((selected_parcel->aabb_min.y + selected_parcel->aabb_max.y) * 0.5),
+				(float)((selected_parcel->aabb_min.z + selected_parcel->aabb_max.z) * 0.5),
+				1.f
+			);
+			const Vec4f move_delta = tentative_new_centre - old_centre;
+
+			for(int i=0; i<4; ++i)
+			{
+				selected_parcel->verts[i].x += move_delta.x[0];
+				selected_parcel->verts[i].y += move_delta.x[1];
+			}
+			selected_parcel->zbounds.x += move_delta.x[2];
+			selected_parcel->zbounds.y += move_delta.x[2];
+			selected_parcel->build();
+
+			{
+				Lock lock(world_state->mutex);
+				selected_parcel->from_remote_dirty = true; // Rebuild/update parcel visualisation locally on next parcel-graphics pass.
+				world_state->dirty_from_remote_parcels.insert(selected_parcel);
+				world_state->dirty_from_local_parcels.insert(selected_parcel);
+			}
+
+			ui_interface->setParcelEditorForParcel(*selected_parcel);
+		}
+	}
 	else if(selected_ob.nonNull() && grabbed_axis >= NUM_AXIS_ARROWS && grabbed_axis < (NUM_AXIS_ARROWS + 3)) // If we have grabbed a rotation arc and are moving it:
 	{
 		const Vec4f arc_centre = ob_origin_at_grab;// this->selected_ob->opengl_engine_ob->ob_to_world_matrix.getColumn(3);
@@ -14404,7 +17228,7 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 			{
 				Vec4f dummy_grabbed_point_ws;
 				const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)mouse_event.cursor_pos.x, (float)mouse_event.cursor_pos.y), dummy_grabbed_point_ws);
-		
+
 				if(axis >= 0 && axis < NUM_AXIS_ARROWS)
 				{
 					axis_arrow_objects[axis]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_mouseover_cols[axis % 3]);
@@ -14483,7 +17307,7 @@ void GUIClient::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		// Trigger sending update-lightmap update flag message later.
 		//ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
 		//objs_with_lightmap_rebuild_needed.insert(ob);
-		//lightmap_flag_timer->start(/*msec=*/2000); 
+		//lightmap_flag_timer->start(/*msec=*/2000);
 	}
 }
 
@@ -14551,7 +17375,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 				const Vec4f begin_pos = path_controller->waypoints[i].pos;
 
 				// Add cube at vertex
-				const Colour4f col = 
+				const Colour4f col =
 					(path_controller->waypoints[i].waypoint_type == PathWaypointIn::CurveIn) ? Colour4f(0.1f, 0.8f, 0.1f, 0.9f) : // green
 					((path_controller->waypoints[i].waypoint_type == PathWaypointIn::CurveOut) ? Colour4f(0.1f, 0.1f, 0.8f, 0.9f) :  // blue
 						 Colour4f(0.8f, 0.1f, 0.1f, 0.9f)); // red
@@ -14570,7 +17394,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 					std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
 					Rect2f rect_os;
 					OpenGLTextureRef atlas_texture;
-					Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
+					Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine, gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text,
 						/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
 
 					GLObjectRef opengl_ob = opengl_engine->allocateObject();
@@ -14619,7 +17443,7 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 				}
 				else
 				{
-					
+
 					const Vec4f end_pos = path_controller->waypoints[Maths::intMod((int)i + 1, (int)path_controller->waypoints.size())].pos;
 
 					GLObjectRef edge_gl_ob = opengl_engine->allocateObject();
@@ -14724,9 +17548,9 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	{
 		const float edge_w = DECAL_EDGE_AABB_WIDTH;
 		ob->edit_aabb = opengl_engine->makeCuboidEdgeAABBObject(
-			ob->getAABBOS().min_, 
+			ob->getAABBOS().min_,
 			ob->getAABBOS().max_ + Vec4f(2*edge_w, 2*edge_w, 2*edge_w, 0),  // Extend cube slightly so decal isn't applied to edges.
-			Colour4f(0.6f, 0.8f, 0.7f, 1.f), 
+			Colour4f(0.6f, 0.8f, 0.7f, 1.f),
 			/*edge_width_scale=*/edge_w
 		);
 
@@ -14753,18 +17577,18 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 			text += "Ctrl + left-click: Add voxel.\n"
 			"Alt + left-click: Delete voxel.\n"
 			"\n";
-	
+
 		text += "'P' key: Pick up/drop object.\n"
 			"Click and drag the mouse to move the object around when picked up.\n"
 			"'[' and  ']' keys rotate the object.\n"
 			"PgUp and  pgDown keys rotate the object.\n"
 			"'-' and '+' keys move object near/far.\n"
 			"Esc key: deselect object.";
-	
+
 		ui_interface->setHelpInfoLabel(text);
 	}
 }
-		
+
 
 void GUIClient::deselectObject()
 {
@@ -14824,6 +17648,8 @@ void GUIClient::deselectObject()
 		ui_interface->setObjectEditorEnabled(false);
 
 		this->selected_ob = NULL;
+		have_selected_ob_transform_rollback = false;
+		selected_ob_transform_rollback_uid = UID::invalidUID();
 
 		grabbed_axis = -1;
 
@@ -14843,6 +17669,16 @@ void GUIClient::deselectParcel()
 		// Deselect any currently selected object
 		opengl_engine->deselectObject(this->selected_parcel->opengl_engine_ob);
 
+		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+			opengl_engine->removeObject(this->axis_arrow_objects[i]);
+		for(int i=0; i<3; ++i)
+		{
+			opengl_engine->removeObject(this->rot_handle_arc_objects[i]);
+			rot_handle_lines[i].clear();
+		}
+		axis_and_rot_obs_enabled = false;
+		grabbed_axis = -1;
+
 		ui_interface->setParcelEditorEnabled(false);
 
 		this->selected_parcel = NULL;
@@ -14856,6 +17692,10 @@ void GUIClient::deselectParcel()
 
 void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 {
+	chat_ui.handleMouseWheelEvent(e);
+	if(e.accepted)
+		return;
+
 	if(gl_ui)
 	{
 		gl_ui->handleMouseWheelEvent(e);
@@ -14868,14 +17708,14 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 	{
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 		const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
-	
+
 		RayTraceResult results;
 		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, /*ignore body id=*/JPH::BodyID(), results);
-	
+
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
 			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
-	
+
 			const Vec4f hitpos_ws = origin + dir * results.hit_t;
 			const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
 
@@ -14911,7 +17751,7 @@ void GUIClient::onMouseWheelEvent(MouseWheelEvent& e)
 		else if(cam_controller.thirdPersonEnabled())
 		{
 			const bool scrolled_all_way_in = cam_controller.handleScrollWheelEvent((float)e.angle_delta.y);
-			const bool change_to_first_person = scrolled_all_way_in && !photo_mode_ui;
+			const bool change_to_first_person = scrolled_all_way_in && !photo_mode_ui.isPhotoModeEnabled();
 			if(change_to_first_person)
 			{
 				ui_interface->enableFirstPersonCamera();
@@ -14952,8 +17792,7 @@ void GUIClient::viewportResized(int w, int h)
 	}
 
 	chat_ui.viewportResized(w, h);
-	if(photo_mode_ui)
-		photo_mode_ui->viewportResized(w, h);
+	photo_mode_ui.viewportResized(w, h);
 	if(minimap)
 		minimap->viewportResized(w, h);
 }
@@ -14991,6 +17830,77 @@ GLObjectRef GUIClient::makeNameTagGLObject(const std::string& nametag)
 	gl_ob->materials[0].cast_shadows = false;
 	gl_ob->materials[0].tex_matrix = Matrix2f(1,0,0,-1); // Compensate for OpenGL loading textures upside down (row 0 in OpenGL is considered to be at the bottom of texture)
 	gl_ob->materials[0].tex_translation = Vec2f(0, 1);
+	return gl_ob;
+}
+
+
+GLObjectRef GUIClient::makeFloatingChatMessageGLObject(const std::string& message)
+{
+	ZoneScopedN("makeFloatingChatMessageGLObject"); // Tracy profiler
+
+	const bool emoji_only = EmojiUtils::isSupportedEmoji(message);
+
+	GLObjectRef gl_ob = opengl_engine->allocateObject();
+	gl_ob->materials.resize(1);
+
+	if(emoji_only)
+	{
+		const int FONT_SIZE_PX = 160;
+		TextRendererFontFace* emoji_font = gl_ui->getFont(FONT_SIZE_PX, /*emoji=*/true);
+
+		const TextRenderer::SizeInfo size_info = emoji_font->renderer->getTextSize(message, emoji_font, emoji_font);
+
+		const int use_font_height = FONT_SIZE_PX;
+		const int padding_x = (int)(use_font_height * 0.3f);
+		const int padding_y = (int)(use_font_height * 0.3f);
+
+		ImageMapUInt8Ref map = new ImageMapUInt8(size_info.glyphSize().x + padding_x * 2, use_font_height + padding_y * 2, 4);
+		map->zero();
+
+		emoji_font->renderer->drawText(*map, message, padding_x, padding_y + use_font_height, Colour3f(1.f), /*render SDF=*/false, emoji_font, emoji_font);
+
+		const float mesh_h = (float)map->getHeight() / (float)map->getWidth();
+		gl_ob->mesh_data = MeshPrimitiveBuilding::makeRoundedCornerRect(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,0,1,0), /*w=*/1.f, /*h=*/mesh_h, /*corner radius=*/myMin(mesh_h * 0.2f, 0.08f), /*tris_per_corner=*/8);
+		gl_ob->materials[0].alpha_blend = false;
+		gl_ob->materials[0].allow_alpha_test = true;
+		gl_ob->materials[0].fresnel_scale = 0.f;
+		gl_ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
+		TextureParams tex_params;
+		tex_params.allow_compression = false;
+		gl_ob->materials[0].albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D("floating_emoji_" + OpenGLTextureKey(message), *map, tex_params);
+	}
+	else
+	{
+		const int FONT_SIZE_PX = 44;
+		TextRendererFontFace*       font = gl_ui->getFont(FONT_SIZE_PX, /*emoji=*/false);
+		TextRendererFontFace* emoji_font = gl_ui->getFont(FONT_SIZE_PX, /*emoji=*/true);
+
+		const TextRenderer::SizeInfo size_info = font->renderer->getTextSize(message, font, emoji_font);
+
+		const int use_font_height = FONT_SIZE_PX;
+		const int padding_x = (int)(use_font_height * 0.8f);
+		const int padding_y = (int)(use_font_height * 0.45f);
+
+		ImageMapUInt8Ref map = new ImageMapUInt8(size_info.glyphSize().x + padding_x * 2, use_font_height + padding_y * 2, 3);
+		map->set(245);
+
+		font->renderer->drawText(*map, message, padding_x, padding_y + use_font_height, Colour3f(0.06f), /*render SDF=*/false, font, emoji_font);
+
+		const float mesh_h = (float)map->getHeight() / (float)map->getWidth();
+		gl_ob->mesh_data = MeshPrimitiveBuilding::makeRoundedCornerRect(*opengl_engine->vert_buf_allocator, Vec4f(1,0,0,0), Vec4f(0,0,1,0), /*w=*/1.f, /*h=*/mesh_h, /*corner radius=*/myMin(mesh_h * 0.3f, 0.1f), /*tris_per_corner=*/8);
+		gl_ob->materials[0].alpha_blend = false;
+		gl_ob->materials[0].allow_alpha_test = false;
+		gl_ob->materials[0].fresnel_scale = 0.08f;
+		gl_ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
+		TextureParams tex_params;
+		tex_params.allow_compression = false;
+		gl_ob->materials[0].albedo_texture = opengl_engine->getOrLoadOpenGLTextureForMap2D("floating_chat_message_" + OpenGLTextureKey(message), *map, tex_params);
+	}
+
+	gl_ob->materials[0].cast_shadows = false;
+	gl_ob->materials[0].tex_matrix = Matrix2f(1,0,0,-1);
+	gl_ob->materials[0].tex_translation = Vec2f(0, 1);
+	gl_ob->ob_to_world_matrix = Matrix4f::identity();
 	return gl_ob;
 }
 
@@ -15135,7 +18045,7 @@ void GUIClient::updateGroundPlane()
 		for(int i=0; i<4; ++i)
 		{
 			if(i == 0) // TEMP: don't load detail colour + height map 0 (rock), as it's not used currently in the terrain shader (see phong_frag_shader.glsl #if TERRAIN section)
-				continue; 
+				continue;
 
 			if(!use_detail_col_map_URLs[i].empty())
 			{
@@ -15166,41 +18076,41 @@ void GUIClient::updateGroundPlane()
 			TerrainPathSpecSection& path_section = path_spec.section_specs[i];
 
 			const Vec4f centroid_ws(section_spec.x  * terrain_section_width_m, section_spec.y  * terrain_section_width_m, 0, 1);
-			
+
 			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
-				load_item_queue.enqueueItem(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, 
+				load_item_queue.enqueueItem(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len,
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, this->resource_manager->getOrCreateResourceForURL(section_spec.heightmap_URL),
-						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.mask_map_URL))
-				load_item_queue.enqueueItem(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, 
+				load_item_queue.enqueueItem(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len,
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL),
-						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.tree_mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.tree_mask_map_URL))
-				load_item_queue.enqueueItem(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL), 
-						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+				load_item_queue.enqueueItem(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len,
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL),
+						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 
 		for(int i=0; i<4; ++i)
 		{
 			if(i == 0) // TEMP: don't load detail colour + height map 0 (rock), as it's not used currently in the terrain shader (see phong_frag_shader.glsl #if TERRAIN section)
-				continue; 
+				continue;
 
 			if(!use_detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_col_map_URLs[i]))
-				load_item_queue.enqueueItem(use_detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]), 
-						detail_colourmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+				load_item_queue.enqueueItem(use_detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len,
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]),
+						detail_colourmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!use_detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_height_map_URLs[i]))
-				load_item_queue.enqueueItem(use_detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
-					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), 
-						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+				load_item_queue.enqueueItem(use_detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len,
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]),
+						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------
@@ -15238,7 +18148,7 @@ void GUIClient::reloadShaders()
 	try
 	{
 		makeShaders();
-	
+
 		// Assign new portal shader to portal objects
 		{
 			Lock lock(this->world_state->mutex);
@@ -15261,10 +18171,93 @@ void GUIClient::reloadShaders()
 }
 
 
-void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, uint32 gesture_flags)
+void GUIClient::performGestureClicked(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim)
 {
-	performGestureOnOurAvatar(gesture_name, anim_resource_URL, gesture_flags, world_state->getCurrentGlobalTime());
+	if(!this->logged_in_user_id.valid())
+	{
+		showErrorNotification("You must be logged in to perform gestures.");
+		return;
+	}
+
+	const URLString use_anim_resource_URL = anim_resource_URL.empty() ? (URLString(gesture_name) + ".subanim") : anim_resource_URL;
+	performGestureOnOurAvatar(gesture_name, use_anim_resource_URL, animate_head, loop_anim, world_state->getCurrentGlobalTime());
 }
+
+
+void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const URLString& anim_resource_URL, bool animate_head, bool loop_anim, double global_start_time)
+{
+	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+	const double cur_global_time = world_state->getCurrentGlobalTime();
+
+	// Change camera view to third person if it's not already, so we can see the gesture
+	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
+
+	if(resource_manager->isFileForURLPresent(anim_resource_URL))
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* av = it->second.getPointer();
+			if(av->isOurAvatar())
+			{
+				const double time_offset = cur_global_time - global_start_time;
+				av->graphics.performGesture(cur_time, gesture_name, anim_resource_URL, animate_head, loop_anim, global_start_time, time_offset, animation_manager, *resource_manager);
+			}
+		}
+	}
+	else
+	{
+		// Start downloading the animation resource.
+		{
+			DownloadingResourceInfo info;
+			info.pos = cam_controller.getPosition();
+			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
+			info.used_by_other = true;
+			startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
+		}
+
+		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
+		{
+			Lock lock(this->world_state->mutex);
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+			{
+				Avatar* av = it->second.getPointer();
+				if(av->isOurAvatar())
+					av->graphics.setPendingGesture(gesture_name, anim_resource_URL, animate_head, loop_anim, global_start_time);
+			}
+		}
+	}
+
+	// Send AvatarPerformGesture message
+	{
+		const uint32 flags = (animate_head ? SingleGestureSettings::FLAG_ANIMATE_HEAD : 0) | (loop_anim ? SingleGestureSettings::FLAG_LOOP : 0);
+
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+		writeToStream(this->client_avatar_uid, scratch_packet);
+		scratch_packet.writeStringLengthFirst(gesture_name);
+		scratch_packet.writeStringLengthFirst(anim_resource_URL);
+		scratch_packet.writeUInt32(flags);
+		scratch_packet.writeDouble(global_start_time);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+	sent_perform_gesture_without_stop_gesture = true;
+}
+
+
+void GUIClient::setWebcamEnabled(bool enabled)
+{
+	webcam_capture.setEnabled(enabled);
+}
+
+
+#if defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(USE_SDL)
+void* GUIClient::getWebcamFrameAsQImage() const
+{
+	return webcam_capture.getCurrentFrameAsQImage();
+}
+#endif
 
 
 void GUIClient::stopGesture()
@@ -15287,6 +18280,8 @@ void GUIClient::stopGesture()
 	}
 
 	// Send AvatarStopGesture message
+	// If we are not logged in, we can't perform a gesture, so don't send a AvatarStopGesture message or we will just get error messages back from the server.
+	//if(this->logged_in_user_id.valid())
 	if(sent_perform_gesture_without_stop_gesture) // Make sure we don't spam AvatarStopGesture messages.
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
@@ -15302,74 +18297,6 @@ void GUIClient::stopGesture()
 void GUIClient::stopGestureClicked(const std::string& gesture_name)
 {
 	stopGesture();
-}
-
-
-void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const URLString& anim_resource_URL, uint32 gesture_flags, double global_start_time)
-{
-	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-
-	const double cur_global_time = world_state->getCurrentGlobalTime();
-
-	// Change camera view to third person if it's not already, so we can see the gesture
-	ui_interface->enableThirdPersonCameraIfNotAlreadyEnabled();
-
-	if(resource_manager->isFileForURLPresent(anim_resource_URL))
-	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-		{
-			Avatar* av = it->second.getPointer();
-			if(av->isOurAvatar())
-			{
-				// Sync playback.
-				// Consider at some time t, 10 seconds from now:
-				// t = cur_time + 10
-				// and global_start_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
-				// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - global_start_time))
-				// = 10 + (105 - 100) = 10 + 5 = 15
-				const double time_offset = cur_global_time - global_start_time;
-
-				av->performGesture(cur_time, gesture_name, anim_resource_URL, gesture_flags, global_start_time, time_offset, animation_manager, *resource_manager);
-			}
-		}
-	}
-	else
-	{
-		// Start downloading the animation resource.
-		{
-			DownloadingResourceInfo info;
-			info.pos = cam_controller.getPosition();
-			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(2.f, /*importance_factor=*/1.f);
-			info.used_by_other = true;
-			startDownloadingResource(anim_resource_URL, /*centroid_ws=*/cam_controller.getPosition().toVec4fPoint(), 2.f, info);
-		}
-
-		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
-		{
-			Lock lock(this->world_state->mutex);
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-			{
-				Avatar* av = it->second.getPointer();
-				if(av->isOurAvatar())
-					av->setPendingGesture(gesture_name, anim_resource_URL, gesture_flags, cur_global_time);
-			}
-		}
-	}
-
-	// Send AvatarPerformGesture message
-	{
-		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
-		writeToStream(this->client_avatar_uid, scratch_packet);
-		scratch_packet.writeStringLengthFirst(gesture_name);
-		scratch_packet.writeStringLengthFirst(anim_resource_URL);
-		scratch_packet.writeUInt32(gesture_flags);
-		scratch_packet.writeDouble(global_start_time);
-
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
-	}
-	sent_perform_gesture_without_stop_gesture = true;
 }
 
 
@@ -15389,15 +18316,9 @@ void GUIClient::setSelfieModeEnabled(bool enabled)
 void GUIClient::setPhotoModeEnabled(bool enabled)
 {
 	if(enabled)
-	{
-		this->photo_mode_ui = new PhotoModeUI(this, gl_ui, this->settings);
-	}
+		this->photo_mode_ui.enablePhotoModeUI();
 	else
-	{
-		if(this->photo_mode_ui)
-			this->photo_mode_ui->resetControlsToNonPhotoModeDefaults();
-		this->photo_mode_ui = nullptr;
-	}
+		this->photo_mode_ui.disablePhotoModeUI();
 
 	this->gesture_ui.setPhotoModeEnabledUIState(enabled);
 }
@@ -15485,21 +18406,18 @@ void GUIClient::createModelObject(const std::string& local_model_path)
 void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_image_path, int w, int h, bool has_alpha)
 {
 	// NOTE: adapted from AddObjectDialog::makeMeshForWidthAndHeight()
+	static_cast<void>(has_alpha); // Alpha flags are derived in the shared createObject() path.
 
 	BatchedMeshRef batched_mesh;
 	std::vector<WorldMaterialRef> world_materials;
 	Vec3f scale;
-	GLObjectRef gl_ob = ModelLoading::makeImageCube(*opengl_engine, *opengl_engine->vert_buf_allocator, local_image_path, w, h, batched_mesh, world_materials, scale);
-
-	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->materials = world_materials;
-	new_world_object->scale = scale;
+	ModelLoading::makeImageCube(*opengl_engine, *opengl_engine->vert_buf_allocator, local_image_path, w, h, batched_mesh, world_materials, scale);
 
 
 	const float ob_cam_right_translation = -scale.x/2;
 	const float ob_cam_up_translation    = -scale.z/2;
 
-	const Vec3d ob_pos = cam_controller.getFirstPersonPosition() + cam_controller.getForwardsVec() * 2.0f + 
+	const Vec3d ob_pos = cam_controller.getFirstPersonPosition() + cam_controller.getForwardsVec() * 2.0f +
 		cam_controller.getRightVec() * ob_cam_right_translation + cam_controller.getUpVec() * ob_cam_up_translation; // Centre object in front of camera
 
 	// Check permissions
@@ -15513,42 +18431,18 @@ void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_imag
 			showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
 		return;
 	}
-	
-	new_world_object->pos = ob_pos;
-	new_world_object->axis = Vec3f(0,0,1);
-	new_world_object->angle = Maths::roundToMultipleFloating((float)cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle, facing camera.
 
-	new_world_object->setAABBOS(batched_mesh->aabb_os);
-
-	new_world_object->model_url = "image_cube_5438347426447337425.bmesh";
-
-	BitUtils::setOrZeroBit(new_world_object->materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha); // Set COLOUR_TEX_HAS_ALPHA_FLAG flag
-
-	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
-	WorldObject::GetDependencyOptions options;
-	options.use_basis = false; // Server will want the original non-basis textures.
-	options.include_lightmaps = false;
-	options.get_optimised_mesh = false; // Server will want the original unoptimised mesh.
-	DependencyURLSet paths;
-	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
-	for(auto it = paths.begin(); it != paths.end(); ++it)
-	{
-		const URLString& path = it->URL;
-		if(FileUtils::fileExists(path))
-		{
-			const uint64 hash = FileChecksum::fileChecksum(path);
-			const URLString resource_URL = ResourceManager::URLForPathAndHash(toStdString(path), hash);
-			resource_manager->copyLocalFileToResourceDir(toStdString(path), resource_URL);
-		}
-	}
-
-	// Convert texture paths on the object to URLs
-	new_world_object->convertLocalPathsToURLS(*resource_manager);
-
-	// Send CreateObject message to server
-	MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
-	new_world_object->writeToNetworkStream(scratch_packet);
-	enqueueMessageToSend(*client_thread, scratch_packet);
+	createObject(
+		local_image_path, // mesh path used as the source of the image dependency
+		batched_mesh,
+		true, // loaded_mesh_is_image_cube
+		glare::AllocatorVector<Voxel, 16>(),
+		ob_pos,
+		scale,
+		Vec3f(0,0,1),
+		Maths::roundToMultipleFloating((float)cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()), // Round to nearest 45 degree angle, facing camera.
+		world_materials
+	);
 
 	showInfoNotification("Object created.");
 }
@@ -15558,8 +18452,8 @@ void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_imag
 static bool keyIsDeleteKey(int keycode)
 {
 #if defined(OSX)
-	return 
-		keycode == Key::Key_Backspace || 
+	return
+		keycode == Key::Key_Backspace ||
 		keycode == Key::Key_Delete;
 #else
 	return keycode == Key::Key_Delete;
@@ -15593,10 +18487,13 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 
 		player_physics.setEyePosition(Vec3d(new_player_pos), /*linear vel=*/Vec4f(0,0,0,0));
 
-		// Send AvatarGotUpFromSeat message to server
-		MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
-		writeToStream(this->client_avatar_uid, scratch_packet);
-		enqueueMessageToSend(*this->client_thread, scratch_packet);
+		// Only send seat messages if server supports them.
+		if((this->connection_state == ServerConnectionState_Connected) && (this->server_protocol_version >= 49))
+		{
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarGotUpFromSeat);
+			writeToStream(this->client_avatar_uid, scratch_packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
 
 		return;
 	}
@@ -15617,7 +18514,7 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 		const Vec4f exit_dir_ws = vehicle_right_ws * right_side_sign;
 
 		vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
-			
+
 		// Execute event handlers in any scripts that are listening for the onUserExitedVehicle event from this object.
 		{
 			WorldStateLock lock(world_state->mutex);
@@ -15666,6 +18563,20 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 				// Handle seat interaction
 				if(ob->object_type == WorldObject::ObjectType_Seat)
 				{
+					if(this->connection_state != ServerConnectionState_Connected)
+					{
+						showErrorNotification("Not connected to server.");
+						return;
+					}
+
+					const uint32 seat_feature_protocol_version = 49; // AvatarSatOnSeat / AvatarGotUpFromSeat support.
+					if(this->server_protocol_version < seat_feature_protocol_version)
+					{
+						showErrorNotification("This server does not support seats yet. Server protocol version is " + toString(this->server_protocol_version) +
+							", required >= " + toString(seat_feature_protocol_version) + ".");
+						return;
+					}
+
 					// Try to sit on the seat
 					if(this->seat_sitting_on.isNull() && !isAvatarSittingOnSeat(*ob)) // If not currently sitting on any seat and no other avatar sitting on the hit seat:
 					{
@@ -15733,12 +18644,12 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 								{
 									// Enter vehicle
 									runtimeCheck(controller_for_ob.nonNull()); // Should have been created above if was null, as free_seat_index >= 0
-										
+
 									this->cur_seat_index = (uint32)free_seat_index;
-										
+
 									this->vehicle_controller_inside = controller_for_ob;
 									this->vehicle_controller_inside->userEnteredVehicle(/*seat index=*/free_seat_index);
-								
+
 									if(free_seat_index == 0) // If taking driver's seat:
 										takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
 
@@ -15819,17 +18730,21 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 					writeToStream(ob->uid, scratch_packet);
 					enqueueMessageToSend(*client_thread, scratch_packet);
 				}
-			} // end if(hit object)
+			}
 			else if(results.hit_object->userdata && results.hit_object->userdata_type == 3) // else if we hit an avatar:
 			{
 				const Avatar* hit_avatar = (const Avatar*)results.hit_object->userdata;
 
-				if(hit_avatar && !hit_avatar->current_gesture_name.empty()) // If the avatar is performing a gesture:
+				if(hit_avatar && !hit_avatar->graphics.current_gesture_name.empty()) // If the avatar is performing a gesture:
 				{
-					// Perform the same gesture on our avatar
-					performGestureOnOurAvatar(hit_avatar->current_gesture_name, hit_avatar->current_gesture_URL, 
-						hit_avatar->current_gesture_flags,
-						hit_avatar->current_gesture_start_global_time);
+					// Perform the same gesture on our avatar.
+					performGestureOnOurAvatar(
+						hit_avatar->graphics.current_gesture_name,
+						hit_avatar->graphics.current_gesture_URL,
+						hit_avatar->graphics.current_gesture_animate_head,
+						hit_avatar->graphics.current_gesture_loop_anim,
+						hit_avatar->graphics.current_gesture_start_global_time
+					);
 				}
 			}
 		}
@@ -15867,7 +18782,7 @@ std::string GUIClient::getCurrentWebClientURLPath() const
 	const double heading_deg = Maths::doubleMod(::radToDegree(this->cam_controller.getAngles().x), 360.0);
 
 	// Use two decimal places for z coordinate so that when spawning, with gravity enabled initially, we have sufficient vertical resolution to be detected as on ground, so flying animation doesn't play.
-	url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 2) + 
+	url_path += "x=" + doubleToStringNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringNDecimalPlaces(pos.z, 2) +
 		"&heading=" + doubleToStringNDecimalPlaces(heading_deg, 1);
 
 	// If the original URL had an explicit sun angle in it, keep it.
@@ -15903,11 +18818,14 @@ void GUIClient::goBack()
 
 void GUIClient::gestureSettingsChanged(const GestureSettings& new_gesture_settings)
 {
-	// Send UserGestureSettingsChanged message to server
-	MessageUtils::initPacket(scratch_packet, Protocol::UserGestureSettingsChanged);
-	new_gesture_settings.writeToStream(scratch_packet);
-	enqueueMessageToSend(*client_thread, scratch_packet);
+	if(!this->logged_in_user_id.valid())
+	{
+		showErrorNotification("You must be logged in to add/enable gestures.");
+		return;
+	}
 
+	// Persist gesture settings locally so they survive client reboots.
+	trySaveGestureSettingsToDisk(gestureSettingsLocalPathForUser(appdata_path, server_hostname, logged_in_user_id), new_gesture_settings);
 
 	// Update gesture UI.
 	gesture_ui.setCurrentGestureSettings(new_gesture_settings);
@@ -15922,25 +18840,24 @@ void GUIClient::worldSettingsChangedFromUI(const WorldSettings& new_world_settin
 
 	// Start a timer to send WorldSettingsUpdate message to server.
 	this->world_settings_locally_dirty = true;
-	world_settings_local_change_timer.reset();
+	this->world_settings_local_change_timer.reset();
 
 	// Reload terrain by shutting it down, will be recreated in GUIClient::updateGroundPlane().
 	if(terrain_changed)
 	{
-		if(this->terrain_system)
+		if(this->terrain_system.nonNull())
 		{
 			terrain_system->shutdown();
 			terrain_system = NULL;
 		}
 
-		if(physics_world)
+		if(physics_world.nonNull())
 		{
 			physics_world->setWaterBuoyancyEnabled(BitUtils::isBitSet(this->connected_world_settings.terrain_spec.flags, TerrainSpec::WATER_ENABLED_FLAG));
-			const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f); // Avoid NaNs, Infs etc.
+			const float use_water_z = myClamp(this->connected_world_settings.terrain_spec.water_z, -1.0e8f, 1.0e8f);
 			physics_world->setWaterZ(use_water_z);
 		}
 	}
-
 
 	applyWorldSettingsToOpenGLEngine();
 }
@@ -15948,30 +18865,38 @@ void GUIClient::worldSettingsChangedFromUI(const WorldSettings& new_world_settin
 
 void GUIClient::applyWorldSettingsToOpenGLEngine()
 {
-	if(opengl_engine)
+	if(opengl_engine.isNull())
+		return;
+
+	const float sun_phi   = this->connected_world_settings.sun_phi;
+	const float sun_theta = this->connected_world_settings.sun_theta;
+	const Vec4f sun_dir = Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0);
+	assert(sun_dir.isUnitLength());
+
+	opengl_engine->setEnvMapTransform(Matrix3f::rotationAroundZAxis(sun_phi));
+
+	if(opengl_engine->getSunDir() != sun_dir)
 	{
-		const float sun_phi   = this->connected_world_settings.sun_phi;
-		const float sun_theta = this->connected_world_settings.sun_theta;
-		const Vec4f sun_dir = Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0);
-		assert(sun_dir.isUnitLength());
-		if(opengl_engine->getSunDir() != sun_dir)
-		{
-			// Avoid calling setEnvMat if dir not changed as clears env (sky) texture
-			OpenGLMaterial env_mat;
-			env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
-			//if(opengl_engine->getCurrentScene()->env_ob->materials[0].tex_matrix != env_mat.tex_matrix)
-			opengl_engine->setEnvMat(env_mat);
+		OpenGLMaterial env_mat;
+		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
+		opengl_engine->setEnvMat(env_mat);
+		opengl_engine->setSunDir(sun_dir);
+	}
 
-			opengl_engine->setSunDir(sun_dir);
-		}
+	auto sanitiseA = [](float value) -> float {
+		return (!isFinite(value)) ? 0.f : myMax(0.f, value);
+	};
+	auto sanitiseScaleHeight = [](float value) -> float {
+		return (!isFinite(value)) ? 1.f : myMax(0.01f, value);
+	};
 
-		auto sanitiseA           = [](float value) -> float { return (!isFinite(value)) ? 0.f : myMax(0.f,   value); };
-		auto sanitiseScaleHeight = [](float value) -> float { return (!isFinite(value)) ? 1.f : myMax(0.01f, value); };
-
-		opengl_engine->getCurrentScene()->fog_settings.layer_0_A = sanitiseA(this->connected_world_settings.fog_settings.layer_0_A);
-		opengl_engine->getCurrentScene()->fog_settings.layer_0_B = 1.f / sanitiseScaleHeight(this->connected_world_settings.fog_settings.layer_0_scale_height);
-		opengl_engine->getCurrentScene()->fog_settings.layer_1_A = sanitiseA(this->connected_world_settings.fog_settings.layer_1_A);
-		opengl_engine->getCurrentScene()->fog_settings.layer_1_B = 1.f / sanitiseScaleHeight(this->connected_world_settings.fog_settings.layer_1_scale_height);
+	OpenGLScene* const scene = opengl_engine->getCurrentScene();
+	if(scene)
+	{
+		scene->fog_settings.layer_0_A = sanitiseA(this->connected_world_settings.fog_settings.layer_0_A);
+		scene->fog_settings.layer_0_B = 1.f / sanitiseScaleHeight(this->connected_world_settings.fog_settings.layer_0_scale_height);
+		scene->fog_settings.layer_1_A = sanitiseA(this->connected_world_settings.fog_settings.layer_1_A);
+		scene->fog_settings.layer_1_B = 1.f / sanitiseScaleHeight(this->connected_world_settings.fog_settings.layer_1_scale_height);
 	}
 }
 
@@ -16004,7 +18929,7 @@ public:
 
 		return results.hit_t * dot(trace_dir, gui_client->cam_controller.getForwardsVec().toVec4fVector()); // Adjust from distance to depth
 	}
-	
+
 	// Return normal in camera space
 	virtual Vec3f normalCSForPosSS(const Vec2f& pos_ss)
 	{
@@ -16119,7 +19044,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 	else
 		ui_interface->setKeyboardCameraMoveEnabled(true);
 
-	
+
 	if(keyIsDeleteKey(e.key))
 	{
 		if(this->selected_ob.nonNull())
@@ -16202,7 +19127,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 			ob->materials[0].double_sided = true;
 			ob->materials[0].decal = true;
 			ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture("C:\\programming\\cyberspace\\output\\vs2022\\cyberspace_x64\\RelWithDebInfo\\foam.png");
-			ob->ob_to_world_matrix = Matrix4f::translationMatrix(hitpos) * Matrix4f::constructFromVectorStatic(hitnormal) * 
+			ob->ob_to_world_matrix = Matrix4f::translationMatrix(hitpos) * Matrix4f::constructFromVectorStatic(hitnormal) *
 				Matrix4f::scaleMatrix(1, 1, 0.1f) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 			ui->glWidget->opengl_engine->addObject(ob);
 		}
@@ -16414,7 +19339,7 @@ void GUIClient::focusOut()
 	S_down = false;
 	D_down = false;
 	space_down = false;
-	C_down = false; 
+	C_down = false;
 	left_down = false;
 	right_down = false;
 	up_down = false;
@@ -16448,10 +19373,10 @@ void GUIClient::updateNotifications(double cur_time)
 	int i=0;
 	for(auto it = notifications.begin(); it != notifications.end(); ++it, ++i)
 	{
-		it->text_view->setPos( 
+		it->text_view->setPos(
 			Vec2f(
 				myMax(-1.f, -it->text_view->getRect().getWidths().x / 2.f),
-				//-gl_ui->getUIWidthForDevIndepPixelWidth(150), 
+				//-gl_ui->getUIWidthForDevIndepPixelWidth(150),
 				gl_ui->getViewportMinMaxY() - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)
 			)
 		);
@@ -16466,7 +19391,7 @@ void GUIClient::updateNotifications(double cur_time)
 
 
 	//------------------------- Update script messages too ------------------------------------------
-	
+
 	// Check to see if we should remove any old notifications
 	for(auto it = script_messages.begin(); it != script_messages.end();)
 	{
@@ -16512,8 +19437,7 @@ void GUIClient::hideUI()
 	gesture_ui.setVisible(false);
 	misc_info_ui.setVisible(false);
 	chat_ui.setVisible(false);
-	if(photo_mode_ui)
-		photo_mode_ui->setVisible(false);
+	photo_mode_ui.setVisible(false);
 	if(minimap)
 		minimap->setVisible(false);
 
@@ -16530,8 +19454,7 @@ void GUIClient::unhideUIIfHidden()
 		gesture_ui.setVisible(true);
 		misc_info_ui.setVisible(true);
 		chat_ui.setVisible(true);
-		if(photo_mode_ui)
-			photo_mode_ui->setVisible(true);
+		photo_mode_ui.setVisible(true);
 		if(minimap)
 			minimap->setVisible(true);
 
@@ -16547,7 +19470,7 @@ void GUIClient::showErrorNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -16573,7 +19496,7 @@ void GUIClient::showInfoNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -16599,7 +19522,7 @@ void GUIClient::showScriptMessage(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, opengl_engine, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -16616,5 +19539,3 @@ void GUIClient::showScriptMessage(const std::string& message)
 		script_messages.pop_front(); // remove from list
 	}
 }
-
-
