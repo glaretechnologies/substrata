@@ -5385,7 +5385,9 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 				Avatar* av = res2->second.ptr();
 						
 				const bool our_avatar = av->uid == this->client_avatar_uid;
-				if(cam_controller.thirdPersonEnabled() || !our_avatar) // Don't load graphics for our avatar if first person perspective
+				const bool xr_active = (this->xr_session != NULL) && this->xr_session->isInitialised();
+				const bool should_show_our_avatar_model = our_avatar && this->cam_controller.thirdPersonEnabled() && !xr_active;
+				if(!our_avatar || should_show_our_avatar_model) // Don't load graphics for our avatar in first-person or XR headset view.
 				{
 					const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
 
@@ -8766,6 +8768,15 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 				else
 				{
 					bool reload_opengl_model = false; // load or reload model?
+					const bool xr_active = (this->xr_session != NULL) && this->xr_session->isInitialised();
+					const bool should_show_our_avatar_model = our_avatar && this->cam_controller.thirdPersonEnabled() && !xr_active;
+
+					if(our_avatar && xr_active)
+					{
+						avatar->graphics.destroy(*opengl_engine, *physics_world);
+						checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
+						checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
+					}
 
 					if(avatar->state == Avatar::State_JustCreated)
 					{
@@ -8789,7 +8800,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						ui_interface->updateOnlineUsersList();
 					}
 
-					if((cam_controller.thirdPersonEnabled() || !our_avatar) && reload_opengl_model) // Don't load graphics for our avatar unless we are in third-person cam view mode
+					if((!our_avatar || should_show_our_avatar_model) && reload_opengl_model) // Don't load graphics for our avatar unless we are in desktop third-person cam view mode.
 					{
 						print("(Re)Loading avatar model. model URL: " + toStdString(avatar->avatar_settings.model_url) + ", Avatar name: " + avatar->name);
 
