@@ -283,7 +283,7 @@ void MainWindow::startMainTimer()
 
 #ifdef OSX
 	// Set to at least 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
-	use_interval = myMax(use_interval, 17); 
+	use_interval = myMax(use_interval, 17);
 #endif
 
 	main_timer_id = startTimer(use_interval);
@@ -381,11 +381,11 @@ void MainWindow::initialiseUI()
 
 
 	// Always disable MDI for now, seems to be slower in general in Substrata
-	// 
+	//
 	// 	-u sub://substrata.info/?x=-1.3&y=-5.1&z=1.67&heading=85.3
 	// -------------------------------------------------------------
 	// 1.67 ms CPU, 6.06 ms GPU
-	// 
+	//
 	// -u sub://substrata.info/?x=-1.3&y=-5.1&z=1.67&heading=85.3  --no_MDI
 	// -------------------------------------------------------------
 	// 2.18 ms CPU, 4.53 ms GPU
@@ -567,7 +567,7 @@ void MainWindow::initialiseUI()
 	ui->parcelEditor->hide();
 
 	startMainTimer();
-	
+
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 	ui->infoDockWidget->hide();
 
@@ -696,7 +696,7 @@ void MainWindow::afterGLInitInitialise()
 		~DoneCurrent() { if(w) w->doneCurrent(); }
 	} done_current{ ui->glWidget };
 
-	
+
 	if(settings->value("mainwindow/flyMode", QVariant(false)).toBool())
 	{
 		ui->actionFly_Mode->setChecked(true);
@@ -718,7 +718,7 @@ void MainWindow::afterGLInitInitialise()
 #else
 		// Linux:
 		const std::string font_path       = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
-		const std::string emoji_font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf"; 
+		const std::string emoji_font_path = base_dir_path + "/data/resources/TruenoLight-E2pg.otf";
 #endif
 
 	TextRendererRef text_renderer = new TextRenderer();
@@ -803,7 +803,7 @@ MainWindow::~MainWindow()
 
 	delete ui;
 	ui = nullptr;
-	
+
 	settings_store = nullptr;
 	// NOTE: can't delete settings here as some widget destructors access it after here.
 }
@@ -1246,7 +1246,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(closing || in_CEF_message_loop)
 		return;
 
-	// We don't want to do the closeEvent stuff in the CEF message loop.  
+	// We don't want to do the closeEvent stuff in the CEF message loop.
 	// If we got a close event in there, handle it now when we're in the main message loop, and not the CEF message loop.
 	assert(!in_CEF_message_loop);
 	if(should_close)
@@ -1326,11 +1326,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 #endif
 
 	updateDiagnostics();
-	
+
 	updateStatusBar();
 
 	runScreenshotCode();
-	
+
 	// Update URL Bar
 	if(this->url_widget->shouldBeUpdated())
 	{
@@ -1343,7 +1343,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// conPrint("Positioning ui->infoDockWidget at " + toString(gl_pos.x()) + ", " + toString(gl_pos.y()));
 		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 1);
 	}
-	
+
 
 	if(need_help_info_dock_widget_position)
 	{
@@ -1440,7 +1440,7 @@ void MainWindow::updateDiagnostics()
 		ZoneScopedN("diagnostics"); // Tracy profiler
 
 		//const double fps = num_frames / (double)fps_display_timer.elapsed();
-		
+
 		const bool do_graphics_diagnostics = ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked();
 		const bool do_physics_diagnostics = ui->diagnosticsWidget->physicsDiagnosticsCheckBox->isChecked();
 		const bool do_terrain_diagnostics = ui->diagnosticsWidget->terrainDiagnosticsCheckBox->isChecked();
@@ -1823,7 +1823,7 @@ void MainWindow::on_actionAddObject_triggered()
 		return;
 	}
 
-	AddObjectDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager, 
+	AddObjectDialog dialog(this->base_dir_path, this->settings, gui_client.resource_manager,
 #ifdef _WIN32
 		this->device_manager.ptr,
 #else
@@ -2216,7 +2216,7 @@ void MainWindow::on_actionAdd_Seat_triggered()
 
 void MainWindow::on_actionAdd_Portal_triggered()
 {
-	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() + 
+	const Vec3d ob_pos = gui_client.cam_controller.getFirstPersonPosition() +
 		removeComponentInDir(gui_client.cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3.0f - // Forwards from the camera position, parallel to ground plane
 		Vec3d(0,0,PlayerPhysics::getEyeHeight()); // Then drop down to ground level that the player is standing on.
 
@@ -2523,7 +2523,7 @@ void MainWindow::on_actionAdd_Video_triggered()
 			return;
 		}
 
-		AddVideoDialog dialog(this->settings, gui_client.resource_manager, 
+		AddVideoDialog dialog(this->settings, gui_client.resource_manager,
 #ifdef _WIN32
 			this->device_manager.ptr
 #else
@@ -2793,7 +2793,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 		return;
 	}
 
-	
+
 	WorldObjectRef new_world_object = new WorldObject();
 	new_world_object->uid = UID(0); // Will be set by server
 	new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
@@ -3489,7 +3489,7 @@ void MainWindow::on_actionGo_to_Position_triggered()
 			d.YDoubleSpinBox->value(),
 			d.ZDoubleSpinBox->value()
 		);
-			
+
 		gui_client.cam_controller.setFirstAndThirdPersonPositions(pos);
 		gui_client.player_physics.setEyePosition(pos);
 	}
@@ -3624,7 +3624,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 		FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
 
 		PNGDecoder::write(*map, path);
-	
+
 		showInfoNotification("Saved screenshot to " + path);
 
 		settings_store->setStringValue("photo/last_saved_photo_path", path);
@@ -3932,7 +3932,7 @@ void MainWindow::on_actionMute_Audio_toggled(bool checked)
 		gui_client.audio_engine.setMasterVolume(0.f);
 	}
 	else
-	{	
+	{
 		gui_client.audio_engine.setMasterVolume(1.f);
 	}
 }
@@ -4094,7 +4094,7 @@ void MainWindow::on_actionLoad_Objects_From_Disk_triggered()
 		&selected_filter,
 		options
 	);
-	 
+
 	if(!selected_filename.isEmpty())
 	{
 		settings->setValue("mainwindow/lastSaveObjectDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
@@ -4102,7 +4102,7 @@ void MainWindow::on_actionLoad_Objects_From_Disk_triggered()
 		// Do the work in another thread so we don't lock up the main thread.
 		// The work will be done in a LoadObjectsFromXMLTask.
 		ThreadSafeQueue<std::string> message_queue; // Messages will be emitted from LoadObjectsFromXMLTask, placed into this queue, and then read by the CreateObjectsDialog.
-		
+
 		{
 			CreateObjectsDialog dialog(settings);
 			dialog.msg_queue = &message_queue;
@@ -4505,7 +4505,7 @@ void MainWindow::removeLightmapSignalSlot()
 void MainWindow::posAndRot3DControlsToggledSlot()
 {
 	gui_client.posAndRot3DControlsToggled(ui->objectEditor->posAndRot3DControlsEnabled());
-	
+
 	settings->setValue("objectEditor/show3DControlsCheckBoxChecked", ui->objectEditor->posAndRot3DControlsEnabled());
 }
 
@@ -4579,7 +4579,7 @@ static uint32 fromQtModifiers(Qt::KeyboardModifiers modifiers)
 	const bool alt_key_down  = (modifiers & Qt::AltModifier)     != 0;
 	const bool shift_down    = (modifiers & Qt::ShiftModifier)   != 0;
 
-	return 
+	return
 		(ctrl_key_down ? Modifiers::Ctrl  : 0) |
 		(alt_key_down  ? Modifiers::Alt   : 0) |
 		(shift_down    ? Modifiers::Shift : 0);
@@ -4873,7 +4873,7 @@ void MainWindow::updateObjectEditorObTransformSlot()
 void setKeyEventFromQt(const QKeyEvent* e, KeyEvent& event_out)
 {
 	KeyEvent& ev = event_out;
-	
+
 	ev.key = Key::Key_None;
 	ev.native_virtual_key = e->nativeVirtualKey();
 	//ev.text = QtUtils::toStdString(e->text());
@@ -5030,8 +5030,8 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	KeyEvent key_event;
 	setKeyEventFromQt(e, key_event);
 
-	if(!e->text().isEmpty() && 
-		key_event.key != Key::Key_Backspace && 
+	if(!e->text().isEmpty() &&
+		key_event.key != Key::Key_Backspace &&
 		key_event.key != Key::Key_Delete &&
 		key_event.key != Key::Key_Left &&
 		key_event.key != Key::Key_Right &&
@@ -5130,7 +5130,7 @@ void MainWindow::handleURL(const QUrl &url)
 	try
 	{
 		URLParseResults parse_results = URLParser::parseURL(QtUtils::toStdString(url.toString()));
-		
+
 		gui_client.connectToServer(parse_results);
 	}
 	catch(glare::Exception& e)
@@ -5364,7 +5364,7 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, Native
 				try
 				{
 					URLParseResults parse_results = URLParser::parseURL(url);
-		
+
 					gui_client.connectToServer(parse_results);
 
 					// Flash the taskbar icon, since the this window may not be visible.
@@ -5572,7 +5572,7 @@ int main(int argc, char *argv[])
 
 
 		QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
-	
+
 		conPrint("cyberspace_base_dir_path: " + cyberspace_base_dir_path);
 
 		// Get a vector of the args.  Note that we will use app.arguments(), because it's the only way to get the args in Unicode in Qt.
@@ -5768,9 +5768,9 @@ int main(int argc, char *argv[])
 			if(!mw.ui->glWidget->opengl_engine->initSucceeded())
 			{
 				const std::string msg = "OpenGL engine initialisation failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg();
-				
+
 				mw.logMessage(msg);
-				
+
 				QtUtils::showErrorMessageDialog(msg, &mw);
 				return 1;
 			}
@@ -5797,7 +5797,7 @@ int main(int argc, char *argv[])
 
 		delete log_file;
 		log_file = nullptr;
-		
+
 		GUIClient::staticShutdown();
 
 #if defined(_WIN32)
