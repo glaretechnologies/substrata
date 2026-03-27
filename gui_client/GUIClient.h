@@ -425,6 +425,8 @@ public:
 	void updateObjectsWithDiagnosticVis();
 
 	void processPlayerPhysicsInput(float dt, bool world_render_has_keyboard_focus, PlayerPhysicsInput& input_out);
+	void updateXRTeleportLocomotion();
+	void hideXRTeleportVisuals();
 	bool getCurrentXRTrackedHeadPose(Vec3d& pos_out, Vec3d& angles_out) const;
 	bool getCurrentXRRawHeadPose(Vec3d& pos_out, Vec3d& angles_out) const;
 	void getCurrentAvatarPoseForNetworking(Vec3d& pos_out, Vec3d& angles_out);
@@ -909,6 +911,15 @@ public:
 
 	Reference<GLObject> ob_placement_beam;
 	Reference<GLObject> ob_placement_marker;
+	Reference<GLObject> xr_teleport_beam;
+	bool xr_teleport_beam_in_engine;
+	Reference<GLObject> xr_teleport_marker;
+	bool xr_teleport_marker_in_engine;
+	bool xr_teleport_active;
+	bool xr_teleport_active_hand_is_right;
+	bool xr_teleport_target_valid;
+	Vec4f xr_teleport_target_pos;
+	Vec4f xr_teleport_target_normal;
 
 	Reference<GLObject> voxel_edit_marker;
 	bool voxel_edit_marker_in_engine;

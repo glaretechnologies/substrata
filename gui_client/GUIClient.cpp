@@ -147,6 +147,14 @@ static std::vector<double> test_avatar_phases;
 
 
 static const char* const XR_LAUNCH_MODE_SETTINGS_KEY = "setting/xr_launch_mode";
+static const float XR_TELEPORT_TRACE_MAX_DIST = 15.f;
+static const float XR_TELEPORT_BEAM_RADIUS = 0.0125f;
+static const float XR_TELEPORT_MARKER_RADIUS = 0.22f;
+static const float XR_TELEPORT_MARKER_THICKNESS = 0.015f;
+static const float XR_TELEPORT_TRIGGER_PRESS_THRESHOLD = 0.65f;
+static const float XR_TELEPORT_TRIGGER_RELEASE_THRESHOLD = 0.35f;
+static const float XR_TELEPORT_MIN_WALKABLE_NORMAL_Z = 0.65f;
+static const float XR_TELEPORT_TARGET_Z_OFFSET = 0.05f;
 
 
 enum class XRLaunchMode
@@ -332,6 +340,33 @@ static bool extractTrackedHeadPose(const XRTrackedPoseState& head_pose_state, Ve
 }
 
 
+static bool xrTrackedPoseHasWorldTransform(const XRTrackedPoseState& pose_state)
+{
+	return pose_state.active && pose_state.position_valid && pose_state.orientation_valid;
+}
+
+
+static Vec4f getXRTrackedPoseWorldPosition(const XRTrackedPoseState& pose_state)
+{
+	return pose_state.object_to_world_matrix.getColumn(3);
+}
+
+
+static Vec4f getXRTrackedPoseWorldForwardDir(const XRTrackedPoseState& pose_state)
+{
+	return normalise(pose_state.object_to_world_matrix.getColumn(1));
+}
+
+
+static bool xrTeleportButtonHeld(const XRHandInputState& hand_state, bool release_threshold)
+{
+	const bool select_down = hand_state.select_active && hand_state.select_pressed;
+	const float trigger_threshold = release_threshold ? XR_TELEPORT_TRIGGER_RELEASE_THRESHOLD : XR_TELEPORT_TRIGGER_PRESS_THRESHOLD;
+	const bool trigger_down = hand_state.trigger_active && (hand_state.trigger_value >= trigger_threshold);
+	return select_down || trigger_down;
+}
+
+
 static std::string formatXRTraceScalar(double v)
 {
 	return std::isfinite(v) ? doubleToStringNDecimalPlaces(v, 6) : "";
@@ -393,6 +428,13 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	shown_object_modification_error_msg(false),
 	num_frames_since_fps_timer_reset(0),
 	last_fps(0),
+	xr_teleport_beam_in_engine(false),
+	xr_teleport_marker_in_engine(false),
+	xr_teleport_active(false),
+	xr_teleport_active_hand_is_right(true),
+	xr_teleport_target_valid(false),
+	xr_teleport_target_pos(Vec4f(0, 0, 0, 1)),
+	xr_teleport_target_normal(Vec4f(0, 0, 1, 0)),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
@@ -1203,6 +1245,27 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		ob_placement_marker->setSingleMaterial(material);
 	}
 
+	// Make XR teleport beam and landing marker models.
+	{
+		xr_teleport_beam = opengl_engine->allocateObject();
+		xr_teleport_beam->ob_to_world_matrix = Matrix4f::identity();
+		xr_teleport_beam->mesh_data = opengl_engine->getCylinderMesh();
+		xr_teleport_beam->always_visible = true;
+
+		OpenGLMaterial material;
+		material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.2f, 0.55f, 0.95f));
+		material.transparent = true;
+		material.alpha = 0.85f;
+
+		xr_teleport_beam->setSingleMaterial(material);
+
+		xr_teleport_marker = opengl_engine->allocateObject();
+		xr_teleport_marker->ob_to_world_matrix = Matrix4f::identity();
+		xr_teleport_marker->mesh_data = opengl_engine->getSphereMeshData();
+		xr_teleport_marker->always_visible = true;
+		xr_teleport_marker->setSingleMaterial(material);
+	}
+
 	{
 		// Make ob_denied_move_marker
 		ob_denied_move_marker = opengl_engine->allocateObject();
@@ -1709,6 +1772,12 @@ void GUIClient::shutdown()
 
 	ob_placement_beam = NULL;
 	ob_placement_marker = NULL;
+	xr_teleport_beam = NULL;
+	xr_teleport_marker = NULL;
+	xr_teleport_beam_in_engine = false;
+	xr_teleport_marker_in_engine = false;
+	xr_teleport_active = false;
+	xr_teleport_target_valid = false;
 	voxel_edit_marker = NULL;
 	voxel_edit_face_marker = NULL;
 	ob_denied_move_marker = NULL;
@@ -6473,6 +6542,165 @@ void GUIClient::processPlayerPhysicsInput(float dt, bool world_render_has_keyboa
 }
 
 
+void GUIClient::hideXRTeleportVisuals()
+{
+	if(opengl_engine.nonNull())
+	{
+		if(xr_teleport_beam_in_engine && xr_teleport_beam.nonNull())
+			opengl_engine->removeObject(xr_teleport_beam);
+		if(xr_teleport_marker_in_engine && xr_teleport_marker.nonNull())
+			opengl_engine->removeObject(xr_teleport_marker);
+	}
+
+	xr_teleport_beam_in_engine = false;
+	xr_teleport_marker_in_engine = false;
+}
+
+
+void GUIClient::updateXRTeleportLocomotion()
+{
+	const bool xr_locomotion_allowed =
+		(xr_session != NULL) &&
+		xr_session->isInitialised() &&
+		opengl_engine.nonNull() &&
+		physics_world.nonNull() &&
+		(vehicle_controller_inside.isNull()) &&
+		(this->cam_controller.current_cam_mode == CameraController::CameraMode_Standard);
+
+	if(!xr_locomotion_allowed)
+	{
+		xr_teleport_active = false;
+		xr_teleport_target_valid = false;
+		hideXRTeleportVisuals();
+		return;
+	}
+
+	const XRHandInputState* active_hand_state = NULL;
+	if(xr_teleport_active)
+	{
+		active_hand_state = xr_teleport_active_hand_is_right ? &xr_right_hand_state : &xr_left_hand_state;
+
+		if(!xrTeleportButtonHeld(*active_hand_state, /*release_threshold=*/true))
+		{
+			if(xr_teleport_target_valid)
+			{
+				const Vec3d new_capsule_bottom_pos(
+					xr_teleport_target_pos[0],
+					xr_teleport_target_pos[1],
+					xr_teleport_target_pos[2] + XR_TELEPORT_TARGET_Z_OFFSET
+				);
+				player_physics.setCapsuleBottomPosition(new_capsule_bottom_pos, /*linear_vel=*/Vec4f(0, 0, 0, 0));
+				player_physics.zeroMoveDesiredVel();
+				stopGesture();
+				gesture_ui.stopAnyGesturePlaying();
+			}
+
+			xr_teleport_active = false;
+			xr_teleport_target_valid = false;
+			hideXRTeleportVisuals();
+			return;
+		}
+	}
+	else
+	{
+		const bool right_hand_pressed = xrTeleportButtonHeld(xr_right_hand_state, /*release_threshold=*/false);
+		const bool left_hand_pressed = xrTeleportButtonHeld(xr_left_hand_state, /*release_threshold=*/false);
+
+		if(right_hand_pressed)
+		{
+			xr_teleport_active = true;
+			xr_teleport_active_hand_is_right = true;
+			active_hand_state = &xr_right_hand_state;
+		}
+		else if(left_hand_pressed)
+		{
+			xr_teleport_active = true;
+			xr_teleport_active_hand_is_right = false;
+			active_hand_state = &xr_left_hand_state;
+		}
+		else
+		{
+			xr_teleport_target_valid = false;
+			hideXRTeleportVisuals();
+			return;
+		}
+	}
+
+	if(!active_hand_state || !xrTrackedPoseHasWorldTransform(active_hand_state->aim_pose))
+	{
+		xr_teleport_target_valid = false;
+		hideXRTeleportVisuals();
+		return;
+	}
+
+	const Vec4f ray_dir = getXRTrackedPoseWorldForwardDir(active_hand_state->aim_pose);
+	const Vec4f ray_origin = getXRTrackedPoseWorldPosition(active_hand_state->aim_pose) + ray_dir * 0.03f;
+
+	RayTraceResult trace_results;
+	this->physics_world->traceRay(ray_origin, ray_dir, XR_TELEPORT_TRACE_MAX_DIST, /*ignore body id=*/JPH::BodyID(), trace_results);
+
+	const bool have_hit = (trace_results.hit_object != NULL);
+	const float beam_len = have_hit ? myMax(0.05f, trace_results.hit_t) : XR_TELEPORT_TRACE_MAX_DIST;
+	const Vec4f marker_pos = ray_origin + ray_dir * beam_len;
+
+	Vec4f marker_normal(0, 0, 1, 0);
+	bool teleport_target_valid = false;
+	if(have_hit && (trace_results.hit_normal_ws.length2() > 1.0e-10f))
+	{
+		marker_normal = normalise(trace_results.hit_normal_ws);
+		teleport_target_valid = (marker_normal[2] >= XR_TELEPORT_MIN_WALKABLE_NORMAL_Z);
+	}
+
+	xr_teleport_target_valid = teleport_target_valid;
+	if(teleport_target_valid)
+	{
+		xr_teleport_target_pos = marker_pos;
+		xr_teleport_target_normal = marker_normal;
+	}
+
+	const Colour3f teleport_colour = teleport_target_valid ? Colour3f(0.2f, 0.85f, 0.35f) : Colour3f(0.2f, 0.55f, 0.95f);
+	if(xr_teleport_beam.nonNull())
+	{
+		xr_teleport_beam->materials[0].albedo_linear_rgb = toLinearSRGB(teleport_colour);
+		if(xr_teleport_beam_in_engine)
+			opengl_engine->objectMaterialsUpdated(*xr_teleport_beam);
+
+		xr_teleport_beam->ob_to_world_matrix =
+			Matrix4f::translationMatrix(ray_origin) *
+			Matrix4f::constructFromVectorStatic(ray_dir) *
+			Matrix4f::scaleMatrix(XR_TELEPORT_BEAM_RADIUS, XR_TELEPORT_BEAM_RADIUS, beam_len);
+
+		if(!xr_teleport_beam_in_engine)
+		{
+			opengl_engine->addObject(xr_teleport_beam);
+			xr_teleport_beam_in_engine = true;
+		}
+		else
+			opengl_engine->updateObjectTransformData(*xr_teleport_beam);
+	}
+
+	if(xr_teleport_marker.nonNull())
+	{
+		xr_teleport_marker->materials[0].albedo_linear_rgb = toLinearSRGB(teleport_colour);
+		if(xr_teleport_marker_in_engine)
+			opengl_engine->objectMaterialsUpdated(*xr_teleport_marker);
+
+		xr_teleport_marker->ob_to_world_matrix =
+			Matrix4f::translationMatrix(marker_pos + marker_normal * 0.01f) *
+			Matrix4f::constructFromVectorStatic(marker_normal) *
+			Matrix4f::scaleMatrix(XR_TELEPORT_MARKER_RADIUS, XR_TELEPORT_MARKER_RADIUS, XR_TELEPORT_MARKER_THICKNESS);
+
+		if(!xr_teleport_marker_in_engine)
+		{
+			opengl_engine->addObject(xr_teleport_marker);
+			xr_teleport_marker_in_engine = true;
+		}
+		else
+			opengl_engine->updateObjectTransformData(*xr_teleport_marker);
+	}
+}
+
+
 void GUIClient::setFlyModeEnabled(bool enabled)
 {
 	player_physics.setFlyModeEnabled(enabled);
@@ -6926,6 +7154,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		ZoneScopedN("processPlayerPhysicsInput"); // Tracy profiler
 		processPlayerPhysicsInput((float)dt, world_render_has_keyboard_focus, /*input_out=*/physics_input); // sets player physics move impulse.
 	}
+
+	updateXRTeleportLocomotion();
 
 	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
 
