@@ -108,6 +108,15 @@ GlWidget::GlWidget(QWidget *parent)
 	settings(NULL),
 	take_map_screenshot(false),
 	screenshot_ortho_sensor_width_m(10),
+	external_perspective_camera_transform_enabled(false),
+	external_world_to_camera_space_matrix(Matrix4f::identity()),
+	external_sensor_width(0.f),
+	external_lens_sensor_dist(0.f),
+	external_render_aspect_ratio(0.f),
+	external_lens_shift_up(0.f),
+	external_lens_shift_right(0.f),
+	external_projection_matrix_override_valid(false),
+	external_projection_matrix_override(Matrix4f::identity()),
 	allow_bindless_textures(true),
 	allow_multi_draw_indirect(true)
 {
@@ -214,6 +223,28 @@ void GlWidget::shutdown()
 void GlWidget::setCameraController(CameraController* cam_controller_)
 {
 	cam_controller = cam_controller_;
+}
+
+
+void GlWidget::setExternalPerspectiveCameraTransform(const Matrix4f& world_to_camera_space_matrix, float sensor_width, float lens_sensor_dist, float render_aspect_ratio,
+	float lens_shift_up, float lens_shift_right, bool projection_matrix_override_valid, const Matrix4f& projection_matrix_override)
+{
+	external_perspective_camera_transform_enabled = true;
+	external_world_to_camera_space_matrix = world_to_camera_space_matrix;
+	external_sensor_width = sensor_width;
+	external_lens_sensor_dist = lens_sensor_dist;
+	external_render_aspect_ratio = render_aspect_ratio;
+	external_lens_shift_up = lens_shift_up;
+	external_lens_shift_right = lens_shift_right;
+	external_projection_matrix_override_valid = projection_matrix_override_valid;
+	external_projection_matrix_override = projection_matrix_override;
+}
+
+
+void GlWidget::clearExternalPerspectiveCameraTransform()
+{
+	external_perspective_camera_transform_enabled = false;
+	external_projection_matrix_override_valid = false;
 }
 
 
@@ -351,7 +382,7 @@ void GlWidget::initializeGL()
 		if(bloom)
 			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
 
-		opengl_engine->getCurrentScene()->draw_aurora = true;
+		// Aurora setting will be controlled by Environment panel
 	}
 }
 
@@ -399,6 +430,27 @@ void GlWidget::paintGL()
 		opengl_engine->setDiagonalOrthoCameraTransform(world_to_camera_space_matrix, /*sensor_width*/screenshot_ortho_sensor_width_m, /*render_aspect_ratio=*/1.f);
 		//opengl_engine->setOrthoCameraTransform(world_to_camera_space_matrix, /*sensor_width*/screenshot_ortho_sensor_width_m, /*render_aspect_ratio=*/1.f, 0, 0);
 		opengl_engine->draw();
+		return;
+	}
+
+
+	if(external_perspective_camera_transform_enabled)
+	{
+		opengl_engine->setViewportDims(viewport_w, viewport_h);
+		opengl_engine->setNearDrawDistance(near_draw_dist);
+		opengl_engine->setMaxDrawDistance(max_draw_dist);
+		opengl_engine->setPerspectiveCameraTransform(
+			external_world_to_camera_space_matrix,
+			external_sensor_width,
+			external_lens_sensor_dist,
+			external_render_aspect_ratio,
+			external_lens_shift_up,
+			external_lens_shift_right
+		);
+		if(external_projection_matrix_override_valid)
+			opengl_engine->setProjectionMatrixOverride(external_projection_matrix_override);
+		opengl_engine->draw();
+		opengl_engine->clearProjectionMatrixOverride();
 		return;
 	}
 
