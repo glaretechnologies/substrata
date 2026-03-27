@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2026 -
 
 
 #include "../maths/Matrix4f.h"
+#include "../maths/vec2.h"
 #include <cstdint>
 #include <string>
 
@@ -73,7 +74,9 @@ struct XRHandInputState
 		select_active(false),
 		select_pressed(false),
 		trigger_active(false),
-		trigger_value(0.f)
+		trigger_value(0.f),
+		move2d_active(false),
+		move2d_value(0.f, 0.f)
 	{}
 
 	bool subaction_path_valid;
@@ -82,6 +85,8 @@ struct XRHandInputState
 	bool select_pressed;
 	bool trigger_active;
 	float trigger_value;
+	bool move2d_active;
+	Vec2f move2d_value;
 	std::string interaction_profile;
 	XRTrackedPoseState grip_pose;
 	XRTrackedPoseState aim_pose;
