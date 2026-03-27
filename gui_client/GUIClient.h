@@ -666,6 +666,10 @@ public:
 	XREyeViewState xr_right_eye_view_state;
 	XRHandInputState xr_left_hand_state;
 	XRHandInputState xr_right_hand_state;
+	Matrix4f xr_left_controller_last_transform;
+	Matrix4f xr_right_controller_last_transform;
+	double xr_left_controller_last_valid_time;
+	double xr_right_controller_last_valid_time;
 	bool xr_runtime_probe_done;
 	bool xr_logged_head_pose_alignment;
 	std::string xr_pose_trace_path;

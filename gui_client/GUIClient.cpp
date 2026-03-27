@@ -159,6 +159,7 @@ static const float XR_MOVE2D_DEADZONE = 0.18f;
 static const float XR_SMOOTH_TURN_SPEED = 400.f;
 static const float XR_CONTROLLER_VIS_RADIUS = 0.018f;
 static const float XR_CONTROLLER_VIS_LENGTH = 0.12f;
+static const double XR_CONTROLLER_VIS_HOLD_TIME = 0.75;
 
 
 enum class XRLaunchMode
@@ -472,6 +473,10 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	xr_teleport_target_valid(false),
 	xr_teleport_target_pos(Vec4f(0, 0, 0, 1)),
 	xr_teleport_target_normal(Vec4f(0, 0, 1, 0)),
+	xr_left_controller_last_transform(Matrix4f::identity()),
+	xr_right_controller_last_transform(Matrix4f::identity()),
+	xr_left_controller_last_valid_time(-1.0),
+	xr_right_controller_last_valid_time(-1.0),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
@@ -1835,6 +1840,10 @@ void GUIClient::shutdown()
 	xr_right_controller_vis = NULL;
 	xr_left_controller_vis_in_engine = false;
 	xr_right_controller_vis_in_engine = false;
+	xr_left_controller_last_transform = Matrix4f::identity();
+	xr_right_controller_last_transform = Matrix4f::identity();
+	xr_left_controller_last_valid_time = -1.0;
+	xr_right_controller_last_valid_time = -1.0;
 	xr_teleport_beam = NULL;
 	xr_teleport_marker = NULL;
 	xr_teleport_beam_in_engine = false;
@@ -6684,13 +6693,25 @@ void GUIClient::updateXRControllerVisuals()
 		return;
 	}
 
-	const auto update_controller_vis = [this](const XRHandInputState& hand_state, const Reference<GLObject>& vis_ob, bool& in_engine)
+	const double cur_time = Clock::getTimeSinceInit();
+
+	const auto update_controller_vis = [this, cur_time](const XRHandInputState& hand_state, const Reference<GLObject>& vis_ob, bool& in_engine, Matrix4f& last_transform, double& last_valid_time)
 	{
 		if(vis_ob.isNull())
 			return;
 
 		Matrix4f controller_transform;
-		if(!buildXRControllerVisualTransform(hand_state, controller_transform))
+		const bool have_live_pose = buildXRControllerVisualTransform(hand_state, controller_transform);
+		if(have_live_pose)
+		{
+			last_transform = controller_transform;
+			last_valid_time = cur_time;
+		}
+		else if((last_valid_time >= 0.0) && ((cur_time - last_valid_time) <= XR_CONTROLLER_VIS_HOLD_TIME))
+		{
+			controller_transform = last_transform;
+		}
+		else
 		{
 			if(in_engine)
 			{
@@ -6711,8 +6732,8 @@ void GUIClient::updateXRControllerVisuals()
 			opengl_engine->updateObjectTransformData(*vis_ob);
 	};
 
-	update_controller_vis(xr_left_hand_state, xr_left_controller_vis, xr_left_controller_vis_in_engine);
-	update_controller_vis(xr_right_hand_state, xr_right_controller_vis, xr_right_controller_vis_in_engine);
+	update_controller_vis(xr_left_hand_state, xr_left_controller_vis, xr_left_controller_vis_in_engine, xr_left_controller_last_transform, xr_left_controller_last_valid_time);
+	update_controller_vis(xr_right_hand_state, xr_right_controller_vis, xr_right_controller_vis_in_engine, xr_right_controller_last_transform, xr_right_controller_last_valid_time);
 }
 
 
@@ -7330,7 +7351,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	updateXRTeleportLocomotion();
-	updateXRControllerVisuals();
 
 	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
 
@@ -11786,6 +11806,7 @@ void GUIClient::renderXRFrame(float near_draw_dist, float max_draw_dist)
 		xr_right_eye_view_state = XREyeViewState();
 		xr_left_hand_state = XRHandInputState();
 		xr_right_hand_state = XRHandInputState();
+		hideXRControllerVisuals();
 		return;
 	}
 
@@ -11798,6 +11819,7 @@ void GUIClient::renderXRFrame(float near_draw_dist, float max_draw_dist)
 	xr_right_eye_view_state = xr_session->getRightEyeViewState();
 	xr_left_hand_state = xr_session->getLeftHandState();
 	xr_right_hand_state = xr_session->getRightHandState();
+	updateXRControllerVisuals();
 	appendXRTraceSample();
 
 	if(!xr_logged_head_pose_alignment &&
