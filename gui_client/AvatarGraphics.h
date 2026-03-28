@@ -141,6 +141,8 @@ public:
 	static float walkCyclePeriod() { return 1.015f; }
 	static float runCyclePeriod() { return  0.7f; }
 
+	static float getEyeHeight() { return 1.67f; } // e.g. Standard eye/camera height above ground.  1.67 m.  Should be the same as PlayerPhysics::getEyeHeight().
+
 	Vec4f getLastHeadPosition() const;
 	Vec4f getLastLeftEyePosition() const;
 	Vec4f getLastRightEyePosition() const;

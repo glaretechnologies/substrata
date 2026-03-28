@@ -3094,6 +3094,8 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
 
+	if(avatar->our_avatar && gear_inventory_ui)
+		gear_inventory_ui->setAvatarGLObject(avatar->graphics, avatar->graphics.skinned_gl_ob, avatar->avatar_settings.pre_ob_to_world_matrix);
 
 	// See if there is a gesture animation we should be playing, and if so, play it.
 	if(!avatar->current_gesture_name.empty())
@@ -16612,6 +16614,19 @@ void GUIClient::keyPressed(KeyEvent& e)
 		else
 		{
 			gear_inventory_ui = new GearInventoryUI(this, gl_ui);
+
+			// If our avatar model is already loaded, pass it to the inventory for preview.
+			if(world_state)
+			{
+				Lock lock(world_state->mutex);
+				auto it = world_state->avatars.find(client_avatar_uid);
+				if(it != world_state->avatars.end())
+				{
+					Avatar* av = it->second.ptr();
+					if(av->graphics.skinned_gl_ob)
+						gear_inventory_ui->setAvatarGLObject(av->graphics, av->graphics.skinned_gl_ob, av->avatar_settings.pre_ob_to_world_matrix);
+				}
+			}
 
 			// Populate equipped panel
 			gear_inventory_ui->setEquippedGear(this->logged_in_equipped_gear);
