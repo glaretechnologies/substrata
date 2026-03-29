@@ -100,7 +100,6 @@ private:
 	Reference<RenderBuffer> avatar_preview_color_rb;    // MSAA colour renderbuffer
 	Reference<RenderBuffer> avatar_preview_depth_rb;    // MSAA depth renderbuffer
 	GLObjectRef             avatar_preview_gl_ob;
-	//std::vector<GLObjectRef> equipped_gear_preview_gl_obs;
 	std::vector<EquippedGearGraphics> equipped_gear_graphics;
 
 	float cam_phi;        // Camera orbit angle around the Z axis (radians).

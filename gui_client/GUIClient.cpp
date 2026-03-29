@@ -1007,7 +1007,7 @@ void GUIClient::shutdown()
 	obs_with_animated_tex.clear();
 
 	for(size_t i=0; i<test_avatars.size(); ++i)
-		test_avatars[i]->graphics.destroy(*opengl_engine, *physics_world); // Remove any OpenGL object for it
+		test_avatars[i]->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/true); // Remove any OpenGL object for it
 
 
 	disconnectFromServerAndClearAllObjects();
@@ -1489,14 +1489,6 @@ void GUIClient::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 		this->seat_sitting_on = nullptr;
 
 	// TOOD: removeObScriptingInfo(&ob);
-}
-
-
-void GUIClient::removeAndDeleteGLObjectForAvatar(Avatar& av)
-{
-	av.graphics.destroy(*opengl_engine, *physics_world);
-
-	av.mesh_data = NULL;
 }
 
 
@@ -3043,9 +3035,11 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 // Assign any loaded textures.
 void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
 {
-	// conPrint("GUIClient::loadPresentAvatarModel");
+	conPrint("GUIClient::loadPresentAvatarModel.  URL: " + toStdString(avatar->avatar_settings.model_url));
 
-	removeAndDeleteGLObjectForAvatar(*avatar);
+	avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/false);
+	avatar->mesh_data = NULL;
+
 
 	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
 
@@ -3119,9 +3113,10 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics* equipped_gear_graphics, Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
 {
-	conPrint("GUIClient::loadPresentGearModel");
+	conPrint("GUIClient::loadPresentGearModel.  URL: " + toStdString(item->model_url));
 
-	//removeAndDeleteGLObjectForAvatar(*avatar);
+	// Remove any previous model for the gear
+	checkRemoveObAndSetRefToNull(opengl_engine, equipped_gear_graphics->gear_gl_ob);
 
 	//const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
 
@@ -7963,7 +7958,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 					chat_ui.appendMessage(avatar->getUseName(), avatar->name_colour, " left.");
 
 					// Remove any OpenGL object for it
-					avatar->graphics.destroy(*opengl_engine, *physics_world);
+					avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/true);
 
 					// Remove nametag OpenGL object
 					checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
@@ -8013,7 +8008,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 						print("(Re)Loading avatar model. model URL: " + toStdString(avatar->avatar_settings.model_url) + ", Avatar name: " + avatar->name);
 
 						// Remove any existing model and nametag
-						avatar->graphics.destroy(*opengl_engine, *physics_world);
+						avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/true);
 						
 						checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob); // Remove nametag ob
 						checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
@@ -11127,7 +11122,7 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 		{
 			Avatar* avatar = res->second.getPointer();
 
-			avatar->graphics.destroy(*opengl_engine, *physics_world);
+			avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/true);
 
 			// Remove nametag OpenGL object
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
@@ -13082,7 +13077,7 @@ void GUIClient::clearAllObjects()
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->nametag_gl_ob);
 			checkRemoveObAndSetRefToNull(opengl_engine, avatar->speaker_gl_ob);
 
-			avatar->graphics.destroy(*opengl_engine, *physics_world);
+			avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/true);
 
 			hud_ui.removeMarkerForAvatar(avatar); // Remove any marker for the avatar from the HUD
 			if(minimap)

@@ -132,8 +132,8 @@ public:
 	//void create(OpenGLEngine& engine, const std::string& URL);
 	void updateGearBones();
 
-	void destroy(OpenGLEngine& engine, PhysicsWorld& physics_world);
-	
+	void destroy(OpenGLEngine& engine, PhysicsWorld& physics_world, bool destroy_gear_models);
+
 	void setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target_pos); // create or update beam
 	void hideSelectedObBeam(OpenGLEngine& engine);
 

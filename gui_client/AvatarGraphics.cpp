@@ -1388,6 +1388,9 @@ void AvatarGraphics::build(bool our_avatar_)
 
 
 	skinned_gl_ob->current_anim_i = idle_anim_i; // current_anim_i will be 0 on GLObject creation, which is waving anim or something, set to idle anim.
+
+	// Gear for this avatar may have been loaded before the avatar model, in which case bone_node_i's won't have been assigned yet.  Assign now.
+	updateGearBones();
 }
 
 
@@ -1407,10 +1410,18 @@ void AvatarGraphics::updateGearBones()
 }
 
 
-void AvatarGraphics::destroy(OpenGLEngine& engine, PhysicsWorld& physics_world)
+void AvatarGraphics::destroy(OpenGLEngine& engine, PhysicsWorld& physics_world, bool destroy_gear_models)
 {
 	checkRemoveObAndSetRefToNull(engine, skinned_gl_ob);
 	checkRemoveObAndSetRefToNull(engine, selected_ob_beam);
+
+	if(destroy_gear_models)
+	{
+		for(size_t i=0; i<equipped_gear_graphics.size(); ++i)
+			checkRemoveObAndSetRefToNull(engine, equipped_gear_graphics[i].gear_gl_ob);
+		equipped_gear_graphics.clear();
+	}
+
 
 	checkRemoveObAndSetRefToNull(engine, debug_avatar_basis_ob);
 

@@ -351,7 +351,6 @@ public:
 	void startLoadingMaterialTexturesForObOrAvatar(const WorldMaterial* mat, UID ob_uid, UID av_uid, Vec4f pos, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float max_dist_for_ob_lod_level_clamped_0, float importance_factor, int ob_lod_level);
 	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
-	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
 
 	//----------------------- ObLoadingCallbacks interface -----------------------
 	//virtual void loadObject(WorldObjectRef ob);

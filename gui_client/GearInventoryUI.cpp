@@ -203,6 +203,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		args.cell_y_padding_px = 14;
 		outer_grid = new GLUIGridContainer(*gl_ui, args);
 		outer_grid->setPosAndDims(Vec2f(0.f), Vec2f(0.01f));
+		outer_grid->debug_name = "GearInventoryUI outer grid";
 		gl_ui->addWidget(outer_grid);
 	}
 
@@ -297,6 +298,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		args.cell_y_padding_px = 4;
 		equipped_grid = new GLUIGridContainer(*gl_ui, args);
 		equipped_grid->setPosAndDims(Vec2f(0.f), Vec2f(0.01f));
+		equipped_grid->debug_name = "GearInventoryUI equipped_grid";
 		gl_ui->addWidget(equipped_grid);
 		outer_grid->setCellWidget(/*x=*/1, /*y=*/1, equipped_grid);
 	}
@@ -317,6 +319,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		args.cell_y_padding_px = 4;
 		all_gear_grid = new GLUIGridContainer(*gl_ui, args);
 		all_gear_grid->setPosAndDims(Vec2f(0.f), Vec2f(0.01f));
+		all_gear_grid->debug_name = "GearInventoryUI all_gear_grid";
 		gl_ui->addWidget(all_gear_grid);
 		outer_grid->setCellWidget(/*x=*/2, /*y=*/1, all_gear_grid);
 	}
@@ -659,6 +662,8 @@ void GearInventoryUI::updateWidgetPositions()
 void GearInventoryUI::viewportResized(int w, int h)
 {
 	recreateAvatarPreviewFBO(w, h);
+
+	updateWidgetPositions();
 }
 
 
