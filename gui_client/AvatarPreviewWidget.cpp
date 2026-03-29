@@ -118,8 +118,6 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 
 	this->opengl_engine->setViewportDims(viewport_w, viewport_h);
 
-	this->opengl_engine->setMainViewportDims(viewport_w, viewport_h);
-
 	viewport_aspect_ratio = (double)width_ / (double)height_;
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))

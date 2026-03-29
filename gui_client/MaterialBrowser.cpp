@@ -180,7 +180,6 @@ void MaterialBrowser::renderThumbnails(Reference<OpenGLEngine> opengl_engine)
 			const float lens_sensor_dist = 0.03f;
 			const float render_aspect_ratio = 1.0;
 
-			opengl_engine->setMainViewportDims(PREVIEW_SIZE, PREVIEW_SIZE);
 			opengl_engine->setViewportDims(PREVIEW_SIZE, PREVIEW_SIZE);
 			opengl_engine->setNearDrawDistance(0.1f);
 			opengl_engine->setMaxDrawDistance(100.f);

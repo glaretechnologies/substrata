@@ -1416,7 +1416,7 @@ void MainWindow::runScreenshotCode()
 
 				ui->glWidget->updateGL(); // Make sure QGLWidget::paintGL gets called to set camera transform, sensor width etc.
 
-				opengl_engine->setMainViewportDims(target_viewport_w, target_viewport_h);
+				opengl_engine->setViewportDims(target_viewport_w, target_viewport_h);
 				ImageMapUInt8Ref map = opengl_engine->drawToBufferAndReturnImageMap();
 				if(map->hasAlphaChannel())
 					map = map->extract3ChannelImage();

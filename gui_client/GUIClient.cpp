@@ -5976,8 +5976,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		}
 		else // Else use crosshair as cursor:
 		{
-			const float gl_w = (float)opengl_engine->getMainViewPortWidth();
-			const float gl_h = (float)opengl_engine->getMainViewPortHeight();
+			const float gl_w = (float)opengl_engine->getViewPortWidth();
+			const float gl_h = (float)opengl_engine->getViewPortHeight();
 
 			cursor_pos = Vec2i((int)(gl_w / 2), (int)(gl_h / 2));
 			cursor_gl_coords = Vec2f(0.f);
@@ -13428,8 +13428,8 @@ Vec4f GUIClient::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const
 	const float sensor_height = sensor_width / opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
 	const float lens_sensor_dist = ::lensSensorDist();
 
-	const float gl_w = (float)opengl_engine->getMainViewPortWidth();
-	const float gl_h = (float)opengl_engine->getMainViewPortHeight();
+	const float gl_w = (float)opengl_engine->getViewPortWidth();
+	const float gl_h = (float)opengl_engine->getViewPortHeight();
 
 	const float s_x = sensor_width  * (float)(pixel_pos_x - gl_w/2) / gl_w;  // dist right on sensor from centre of sensor
 	const float s_y = sensor_height * (float)(pixel_pos_y - gl_h/2) / gl_h; // dist down on sensor from centre of sensor
@@ -13528,8 +13528,8 @@ Vec4f GUIClient::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws,
 	const float sensor_height = sensor_width / opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
 	const float lens_sensor_dist = ::lensSensorDist();
 
-	const float gl_w = (float)opengl_engine->getMainViewPortWidth(); // ui->glWidget->geometry().width();
-	const float gl_h = (float)opengl_engine->getMainViewPortHeight(); // ui->glWidget->geometry().height();
+	const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
+	const float gl_h = (float)opengl_engine->getViewPortHeight(); // ui->glWidget->geometry().height();
 
 	const Vec4f a = p_a_ws;
 	const Vec4f b = normalise(p_b_ws - p_a_ws);
@@ -13593,8 +13593,8 @@ bool GUIClient::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out)
 	const float sensor_height = sensor_width / opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
 	const float lens_sensor_dist = ::lensSensorDist();
 
-	const float gl_w = (float)opengl_engine->getMainViewPortWidth(); // ui->glWidget->geometry().width();
-	const float gl_h = (float)opengl_engine->getMainViewPortHeight(); // ui->glWidget->geometry().height();
+	const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
+	const float gl_h = (float)opengl_engine->getViewPortHeight(); // ui->glWidget->geometry().height();
 
 	const Vec4f cam_to_point = point_ws - this->cam_controller.getPosition().toVec4fPoint();
 	if(dot(cam_to_point, forwards) < 0.001)
@@ -13735,7 +13735,7 @@ int GUIClient::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clos
 			// As the axis arrow gets closer to the camera, it will appear larger.  Increase the selection distance (from arrow centre line to mouse point) accordingly.
 			const float cam_dist = closest_line_pt.getDist(origin);
 
-			const float gl_w = (float)opengl_engine->getMainViewPortWidth(); // ui->glWidget->geometry().width();
+			const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
 			const float approx_radius_px = 0.03f * gl_w / cam_dist;
 			const float use_max_select_dist = myMax(max_selection_dist, approx_radius_px);
 
@@ -13771,7 +13771,7 @@ int GUIClient::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clos
 				// As the line segment gets closer to the camera, it will appear larger.  Increase the selection distance (from line to mouse point) accordingly.
 				const float cam_dist = closest_line_pt.getDist(origin);
 
-				const float gl_w = (float)opengl_engine->getMainViewPortWidth(); // ui->glWidget->geometry().width();
+				const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
 				const float approx_radius_px = 0.02f * gl_w / cam_dist;
 				const float use_max_select_dist = myMax(max_selection_dist, approx_radius_px);
 
@@ -15866,7 +15866,7 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 	{
 		WorldStateLock lock(world_state->mutex);
 
-		const Vec2i widget_pos = use_mouse_cursor ? ui_interface->getMouseCursorWidgetPos() : Vec2i(opengl_engine->getMainViewPortWidth() / 2, opengl_engine->getMainViewPortHeight() / 2);
+		const Vec2i widget_pos = use_mouse_cursor ? ui_interface->getMouseCursorWidgetPos() : Vec2i(opengl_engine->getViewPortWidth() / 2, opengl_engine->getViewPortHeight() / 2);
 
 		// conPrint("glWidgetKeyPressed: widget_pos: " + toString(widget_pos.x()) + ", " + toString(widget_pos.y()));
 

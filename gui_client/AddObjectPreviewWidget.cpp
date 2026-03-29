@@ -109,8 +109,6 @@ void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 
 	this->opengl_engine->setViewportDims(viewport_w, viewport_h);
 
-	this->opengl_engine->setMainViewportDims(viewport_w, viewport_h);
-
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	// In Qt6, the GL widget uses a custom framebuffer (defaultFramebufferObject).  We want to make sure we draw to this.
