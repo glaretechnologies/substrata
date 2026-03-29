@@ -208,28 +208,23 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	}
 
 	// Create avatar preview scene.
-	// We set render_to_main_render_framebuffer = false so the engine renders directly to our FBO
-	// without any post-processing (bloom, MSAA, SSAO), keeping the setup simple.
 	{
 		OpenGLEngine* engine = gui_client->opengl_engine.ptr();
 
 		avatar_preview_scene = new OpenGLScene(*engine);
-		avatar_preview_scene->render_to_main_render_framebuffer = false;
 		avatar_preview_scene->draw_water = false;
 		avatar_preview_scene->water_level_z = -10000.0;
 		avatar_preview_scene->background_colour = Colour3f(0.2f);
 		engine->addScene(avatar_preview_scene);
 
-		// Set up environment material for the preview scene.
-		// setSunDir() is engine-global so we leave that at whatever the main scene uses.
 		{
 			OpenGLSceneRef old_scene = engine->getCurrentScene();
 			engine->setCurrentScene(avatar_preview_scene);
 
+			// Set up environment material for the preview scene.
 			OpenGLMaterial env_mat;
 			engine->setEnvMat(env_mat);
-
-			//engine->setSunDir(normalise(Vec4f(1,-1,1,0)));
+			engine->setSunDir(normalise(Vec4f(1,-1,1,0)));
 
 			// Load a ground plane into the GL engine
 			{
@@ -257,7 +252,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 				engine->addObject(ob);
 			}
 
-			engine->setCurrentScene(old_scene);
+			engine->setCurrentScene(old_scene); // Restore old scene
 		}
 	}
 
@@ -404,7 +399,7 @@ void GearInventoryUI::recreateAvatarPreviewFBO(int viewport_w, int viewport_h)
 	// Resolve texture — regular (non-MSAA) texture shown in the widget
 	avatar_preview_tex = new OpenGLTexture(avatar_preview_w, avatar_preview_h, engine,
 		ArrayRef<uint8>(),
-		Format_RGBA_Linear_Uint8,
+		Format_SRGBA_Uint8,
 		OpenGLTexture::Filtering_Bilinear,
 		OpenGLTexture::Wrapping_Clamp,
 		/*has_mipmaps=*/false
