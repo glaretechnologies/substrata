@@ -1852,7 +1852,7 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 							parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 						}
 
-						shot->is_map_tile = false; // There was a bug where some screenshots got mixed up with map tile screenshots, make sure the screenshot is not marked as a map tile.
+						shot->screenshot_type = Screenshot::ScreenshotType_Default; // There was a bug where some screenshots got mixed up with map tile screenshots, make sure the screenshot is not marked as a map tile.
 						shot->width_px = 650;
 						shot->highlight_parcel_id = (int)parcel->id.value();
 
@@ -1960,7 +1960,7 @@ void handleRegenerateMultipleParcelScreenshots(ServerAllWorldsState& world_state
 									parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 								}
 
-								shot->is_map_tile = false; // There was a bug where some screenshots got mixed up with map tile screenshots, make sure the screenshot is not marked as a map tile.
+								shot->screenshot_type = Screenshot::ScreenshotType_Default; // There was a bug where some screenshots got mixed up with map tile screenshots, make sure the screenshot is not marked as a map tile.
 								shot->width_px = 650;
 								shot->highlight_parcel_id = (int)parcel->id.value();
 
@@ -2093,7 +2093,7 @@ void handleRecreateMapTilesPost(ServerAllWorldsState& world_state, const web::Re
 				tile_info.cur_tile_screenshot->id = next_shot_id++;
 				tile_info.cur_tile_screenshot->created_time = TimeStamp::currentTime();
 				tile_info.cur_tile_screenshot->state = Screenshot::ScreenshotState_notdone;
-				tile_info.cur_tile_screenshot->is_map_tile = true;
+				tile_info.cur_tile_screenshot->screenshot_type = Screenshot::ScreenshotType_MapTile;
 				tile_info.cur_tile_screenshot->tile_x = key.x;
 				tile_info.cur_tile_screenshot->tile_y = key.y;
 				tile_info.cur_tile_screenshot->tile_z = key.z;

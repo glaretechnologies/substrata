@@ -271,6 +271,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/AnimationManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/AnimationManager.h
 ${CMAKE_SOURCE_DIR}/gui_client/GestureManagerUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/GestureManagerUI.h
+${CMAKE_SOURCE_DIR}/gui_client/GearInventoryUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/GearInventoryUI.h
 )
 
 
