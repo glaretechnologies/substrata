@@ -317,6 +317,10 @@ public:
 	bool run_as_screenshot_slave;
 	Reference<MySocket> screenshot_command_socket;
 	bool taking_map_screenshot;
+	bool taking_gear_screenshot;
+	GearItemRef screenshot_gear_item; // Gear item to render when taking_gear_screenshot is true
+	WorldObjectRef screenshot_gear_world_ob; // Temp WorldObject used to drive gear model loading for gear screenshots
+	bool screenshot_gear_model_load_started; // Set when we have called loadModelForObject for the gear model
 	bool test_screenshot_taking;
 	int screenshot_highlight_parcel_id;
 	int screenshot_width_px;
