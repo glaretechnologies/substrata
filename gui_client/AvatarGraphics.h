@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <string>
 #include <vector>
 struct GLObject;
+struct MeshData;
 class OpenGLEngine;
 class PhysicsWorld;
 class PhysicsObject;
@@ -93,6 +94,8 @@ struct EquippedGearGraphics
 	Reference<GLObject> gear_gl_ob;
 	std::string bone_name; // NOTE: have this in here? or just keep in GearItem?
 	int bone_node_i;
+
+	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 };
 
 
@@ -164,6 +167,8 @@ public:
 	int loaded_lod_level;
 
 	std::vector<EquippedGearGraphics> equipped_gear_graphics;
+
+	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 private:
 	Vec3f avatar_rotation_at_turn_start;

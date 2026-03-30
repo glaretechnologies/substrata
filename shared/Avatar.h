@@ -173,8 +173,6 @@ public:
 	Reference<GLUIImage> minimap_marker;
 	Reference<GLUIImage> minimap_marker_arrow;
 
-	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
-
 	Reference<WorldObject> entered_vehicle; // Reference to vehicle object that the avatar has entered, or should enter (e.g. is driving or a passenger)
 	uint32 vehicle_seat_index; // The index of the seat the avatar is sitting in, or will sit in, or was sitting in if the avatar has just exited the vehicle.
 	Reference<WorldObject> sitting_on_seat; // Reference to seat object that the avatar is sitting on

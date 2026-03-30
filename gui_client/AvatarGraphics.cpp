@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "AnimationManager.h"
 #include "PhysicsWorld.h"
 #include "ParticleManager.h"
+#include "MeshManager.h"
 #include "../shared/GestureSettings.h"
 #include "opengl/OpenGLEngine.h"
 #include "opengl/MeshPrimitiveBuilding.h"
@@ -1415,6 +1416,8 @@ void AvatarGraphics::destroy(OpenGLEngine& engine, PhysicsWorld& physics_world, 
 	checkRemoveObAndSetRefToNull(engine, skinned_gl_ob);
 	checkRemoveObAndSetRefToNull(engine, selected_ob_beam);
 
+	this->mesh_data = nullptr;
+
 	if(destroy_gear_models)
 	{
 		for(size_t i=0; i<equipped_gear_graphics.size(); ++i)
@@ -1424,7 +1427,6 @@ void AvatarGraphics::destroy(OpenGLEngine& engine, PhysicsWorld& physics_world, 
 
 
 	checkRemoveObAndSetRefToNull(engine, debug_avatar_basis_ob);
-
 
 	checkRemoveObAndSetRefToNull(physics_world, physics_ob);
 }

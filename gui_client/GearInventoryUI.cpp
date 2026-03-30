@@ -287,7 +287,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	{
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
-		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Equipped", Vec2f(0.f), args);
+		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Equipped Gear", Vec2f(0.f), args);
 		outer_grid->setCellWidget(/*x=*/1, /*y=*/0, equipped_header_text);
 	}
 	{

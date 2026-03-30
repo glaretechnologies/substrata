@@ -3038,7 +3038,6 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 	conPrint("GUIClient::loadPresentAvatarModel.  URL: " + toStdString(avatar->avatar_settings.model_url));
 
 	avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/false);
-	avatar->mesh_data = NULL;
 
 
 	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
@@ -3049,7 +3048,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
 
 	mesh_data->meshDataBecameUsed();
-	avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+	avatar->graphics.mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 	// Load animation data for ready-player-me type avatars
 	if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
@@ -3118,37 +3117,32 @@ void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics*
 	// Remove any previous model for the gear
 	checkRemoveObAndSetRefToNull(opengl_engine, equipped_gear_graphics->gear_gl_ob);
 
-	//const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
-
 	// Create gl and physics object now
 	glare::ArenaFrame frame(arena_allocator);
 	GLObjectRef gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, item->materials, /*lightmap_url=*/URLString(), 
 		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, Matrix4f::identity());
 
 	equipped_gear_graphics->gear_gl_ob = gl_ob;
+	equipped_gear_graphics->mesh_data = mesh_data;
+	mesh_data->meshDataBecameUsed();
 
 	avatar->graphics.updateGearBones();
 
-	mesh_data->meshDataBecameUsed();
-//TEMP TODO	avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
-
-	//EquippedGearGraphics* equipped_gear = avatar->graphics.equipped_gear[equipped_gear_index]
-	
 	assignLoadedOpenGLTexturesToGearItemMats(item, equipped_gear_graphics, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 
-	//const float current_time = (float)Clock::getTimeSinceInit();
-	//const bool use_materialise_effect = false; // avatar->use_materialise_effect_on_load && (current_time - avatar->materialise_effect_start_time < 2.0f);
+	const float current_time = (float)Clock::getTimeSinceInit();
 
-	//for(size_t z=0; z<gl_ob->materials.size(); ++z)
-	//{
-	//	gl_ob->materials[z].materialise_effect = use_materialise_effect;
-	//	gl_ob->materials[z].materialise_start_time = avatar->materialise_effect_start_time;
-	//}
+	for(size_t z=0; z<gl_ob->materials.size(); ++z)
+	{
+		gl_ob->materials[z].materialise_effect = true;
+		gl_ob->materials[z].materialise_start_time = current_time;
+	}
 
 //TEMP TODO avatar->graphics.loaded_lod_level = av_lod_level;
 
 	opengl_engine->addObject(gl_ob);
 
+	// Update gear inventory avatar preview
 	if(avatar->our_avatar && gear_inventory_ui)
 		gear_inventory_ui->setAvatarGLObject(avatar->graphics, avatar->graphics.skinned_gl_ob, avatar->avatar_settings.pre_ob_to_world_matrix);
 
@@ -3194,8 +3188,8 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 	const float max_dist_for_ob_model_lod_level = avatar->getMaxDistForLODLevel(ob_model_lod_level);
 
 
-	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
-	if(avatar->graphics.skinned_gl_ob.nonNull() && /*&& !ob->using_placeholder_model && */(avatar->graphics.loaded_lod_level == ob_lod_level))
+	// If we have a model loaded, and it has the correct LOD level, we don't need to do anything.
+	if(avatar->graphics.skinned_gl_ob && (avatar->graphics.loaded_lod_level == ob_lod_level))
 		return;
 
 	Timer timer;
@@ -3321,8 +3315,6 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 
 			WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
 			const URLString lod_model_url = WorldObject::getLODModelURLForLevel(gear_item->model_url, ob_model_lod_level, options);
-
-		//TEMP	avatar->graphics.loaded_lod_level = ob_lod_level;
 
 			Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
 			if(mesh_data.nonNull())
