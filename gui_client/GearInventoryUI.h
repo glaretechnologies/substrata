@@ -58,6 +58,7 @@ public:
 
 	void updateWidgetPositions();
 
+	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex);
 private:
 	void rebuildEquippedGrid();
 	void rebuildAllGearGrid();
@@ -66,7 +67,7 @@ private:
 	// (Re-)creates avatar_preview_tex, avatar_preview_depth_rb, and avatar_preview_fbo sized for the
 	// given physical viewport dimensions, and refreshes the avatar_preview_widget display size.
 	// Call from the constructor and from viewportResized().
-	void recreateAvatarPreviewFBO(int viewport_w, int viewport_h);
+	void recreateAvatarPreviewFBO();
 
 	GUIClient* gui_client;
 	GLUIRef gl_ui;
@@ -88,10 +89,6 @@ private:
 	GLUIGridContainerRef outer_grid;    // 3-column container: [avatar | equipped | all gear]
 	GLUIGridContainerRef equipped_grid; // Inner grid of equipped item thumbnails
 	GLUIGridContainerRef all_gear_grid; // Inner grid of all item thumbnails
-
-	// Avatar preview rendering — dimensions are computed from viewport size in recreateAvatarPreviewFBO().
-	int avatar_preview_w; // Physical pixels
-	int avatar_preview_h; // Physical pixels
 
 	OpenGLSceneRef          avatar_preview_scene;
 	Reference<FrameBuffer>  avatar_preview_fbo;         // MSAA FBO rendered into

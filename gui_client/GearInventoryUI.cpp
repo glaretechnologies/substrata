@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "GearInventoryUI.h"
 
 
+#include <opengl/ui/GLUIInertWidget.h>
 #include "GUIClient.h"
 #include "../shared/ResourceManager.h"
 #include <opengl/OpenGLEngine.h>
@@ -17,8 +18,11 @@ Copyright Glare Technologies Limited 2026 -
 #include <maths/GeometrySampling.h>
 
 
-static const float THUMBNAIL_SIZE_PX = 64.f;
+static const float THUMBNAIL_SIZE_PX = 100.f;
 static const int   GEAR_GRID_COLS    = 4;
+static const int   GEAR_GRID_ROWS    = 6;
+	
+static const float INTERIOR_GRID_PADDING_PX = 6;
 
 
 /*=====================================================================
@@ -49,8 +53,12 @@ public:
 		overlay_ob = new OverlayObject();
 		overlay_ob->mesh_data = opengl_engine->getUnitQuadMeshData();
 		overlay_ob->ob_to_world_matrix = Matrix4f::translationMatrix(1000.f, 1000.f, 0.f); // offscreen until positioned
+
 		rect = Rect2f(Vec2f(0.f), Vec2f(0.1f));
+
 		opengl_engine->addOverlayObject(overlay_ob);
+
+		setFixedDimsPx(Vec2f(200, 400), glui_);
 	}
 
 	~InventoryAvatarPreviewWidget()
@@ -76,25 +84,25 @@ public:
 			overlay_ob->clip_region = glui->OpenGLRectCoordsForUICoords(clip_rect);
 	}
 
+	// Called when e.g. the viewport changes size
 	virtual void updateGLTransform() override
 	{
-		Vec2f dims = getDims();
-		if(sizing_type_x == SizingType_FixedSizePx)
-			dims.x = glui->getUIWidthForDevIndepPixelWidth(fixed_size.x);
-		if(sizing_type_y == SizingType_FixedSizePx)
-			dims.y = glui->getUIWidthForDevIndepPixelWidth(fixed_size.y);
-		rect = Rect2f(getRect().getMin(), getRect().getMin() + dims);
+		const Vec2f dims = computeDims(/*old dims=*/this->getDims(), *glui);
+		const Vec2f bot_left = getRect().getMin();
+		rect = Rect2f::fromMinAndSpan(bot_left, dims);
+
 		updateOverlayTransform();
 	}
 
 	virtual void setVisible(bool visible) override
 	{
-		if(overlay_ob) overlay_ob->draw = visible;
+		if(overlay_ob) 
+			overlay_ob->draw = visible;
 	}
 
 	virtual bool isVisible() override
 	{
-		return overlay_ob.nonNull() && overlay_ob->draw;
+		return overlay_ob && overlay_ob->draw;
 	}
 
 	virtual void handleMousePress(MouseEvent& e) override
@@ -129,7 +137,7 @@ public:
 		if(drag_active)
 		{
 			const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
-			// One full revolution (2π) per 1.0 UI-coord of horizontal drag.
+			// One full revolution (2pi) per 1.0 UI-coord of horizontal drag.
 			cam_phi = drag_start_phi + (ui_coords.x - drag_start_x) * Maths::get2Pi<float>();
 		}
 
@@ -162,12 +170,13 @@ public:
 private:
 	void updateOverlayTransform()
 	{
-		if(!overlay_ob) return;
-		const Vec2f botleft = getRect().getMin();
+		if(!overlay_ob) 
+			return;
+		const Vec2f bot_left = getRect().getMin();
 		const Vec2f dims    = getDims();
 		const float y_scale = opengl_engine->getViewPortAspectRatio();
 		overlay_ob->ob_to_world_matrix =
-			Matrix4f::translationMatrix(botleft.x, botleft.y * y_scale, m_z) *
+			Matrix4f::translationMatrix(bot_left.x, bot_left.y * y_scale, m_z) *
 			Matrix4f::scaleMatrix(dims.x, dims.y * y_scale, 1.f);
 	}
 
@@ -195,16 +204,17 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	cam_theta      = 1.4f;
 	cam_target_pos = Vec4f(0, 0, 1.0f, 1.f);
 
-	// Outer 3-column grid: [avatar | equipped | all gear], each column has a header at row 0 and content at row 1.
+	// Outer 3-column grid: [avatar preview | equipped | all gear], each column has a header at row 0 and content at row 1.
 	{
 		GLUIGridContainer::CreateArgs args;
 		args.background_alpha = 0.f;
-		args.cell_x_padding_px = 12;
-		args.cell_y_padding_px = 14;
+		args.interior_cell_x_padding_px = INTERIOR_GRID_PADDING_PX * 4; // So there is effectively a gap of INTERIOR_GRID_PADDING_PX * 8 between outer columns.
+		args.interior_cell_y_padding_px = INTERIOR_GRID_PADDING_PX * 4;
+		args.exterior_cell_x_padding_px = INTERIOR_GRID_PADDING_PX * 8;
+		args.exterior_cell_y_padding_px = INTERIOR_GRID_PADDING_PX * 8;
 		outer_grid = new GLUIGridContainer(*gl_ui, args);
 		outer_grid->setPosAndDims(Vec2f(0.f), Vec2f(0.01f));
 		outer_grid->debug_name = "GearInventoryUI outer grid";
-		gl_ui->addWidget(outer_grid);
 	}
 
 	// Create avatar preview scene.
@@ -226,7 +236,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 			engine->setEnvMat(env_mat);
 			engine->setSunDir(normalise(Vec4f(1,-1,1,0)));
 
-			// Load a ground plane into the GL engine
+			// Load a ground plane into the GL engine 
 			{
 				const float W = 200;
 
@@ -256,24 +266,22 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		}
 	}
 
-	avatar_preview_w = 0;
-	avatar_preview_h = 0;
-
 	// Column 0: avatar header + avatar preview widget
 	{
-		// GLUITextView::CreateArgs args;
-		// args.background_alpha = 0;
-		// GLUITextViewRef avatar_header_text = new GLUITextView(*gl_ui, "Avatar", Vec2f(0.f), args);
-		// outer_grid->setCellWidget(/*x=*/0, /*y=*/0, avatar_header_text);
+		GLUITextView::CreateArgs args;
+		args.background_alpha = 0;
+		GLUITextViewRef avatar_header_text = new GLUITextView(*gl_ui, "Preview", Vec2f(0.f), args);
+		outer_grid->setCellWidget(/*x=*/0, /*y=*/0, avatar_header_text);
 	}
 	{
 		// Texture is assigned in recreateAvatarPreviewFBO(), called below.
 		// cam_phi is stored in GearInventoryUI and the widget holds a reference to it.
 		avatar_preview_widget = new InventoryAvatarPreviewWidget(*gl_ui, cam_phi, cam_dist, cam_theta, cam_target_pos);
 		avatar_preview_widget->overlay_ob->material.tex_matrix = Matrix2f(1, 0, 0, 1); // No V-flip: FBO texture is already in GL convention
-		gl_ui->addWidget(avatar_preview_widget);
 		outer_grid->setCellWidget(/*x=*/0, /*y=*/1, avatar_preview_widget);
 	}
+
+	const float GEAR_GRID_BACKGROUND_ALPHA = 0;
 
 	// Column 1: equipped gear header + inner grid
 	{
@@ -285,16 +293,13 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	{
 		// 'Equipped gear' grid
 		GLUIGridContainer::CreateArgs args;
-		//args.background_alpha = 0.15f;
-		//args.background_colour = Colour3f(0.1f);
-		args.background_alpha = 0.45f;
-		args.background_colour =  Colour3f(0.0f); // Colour3f(0.1f, 0.1f, 0.1f); // Colour3f(0.1f);
-		args.cell_x_padding_px = 4;
-		args.cell_y_padding_px = 4;
+		args.background_alpha = GEAR_GRID_BACKGROUND_ALPHA;
+		args.background_colour =  Colour3f(0.0f);
+		args.interior_cell_x_padding_px = INTERIOR_GRID_PADDING_PX;
+		args.interior_cell_y_padding_px = INTERIOR_GRID_PADDING_PX;
 		equipped_grid = new GLUIGridContainer(*gl_ui, args);
 		equipped_grid->setPosAndDims(Vec2f(0.f), Vec2f(0.01f));
 		equipped_grid->debug_name = "GearInventoryUI equipped_grid";
-		gl_ui->addWidget(equipped_grid);
 		outer_grid->setCellWidget(/*x=*/1, /*y=*/1, equipped_grid);
 	}
 
@@ -308,14 +313,13 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	{
 		// 'All Gear' grid
 		GLUIGridContainer::CreateArgs args;
-		args.background_alpha = 0.45f;
-		args.background_colour =  Colour3f(0.0f); // Colour3f(0.1f, 0.1f, 0.1f); // Colour3f(0.1f);
-		args.cell_x_padding_px = 4;
-		args.cell_y_padding_px = 4;
+		args.background_alpha = GEAR_GRID_BACKGROUND_ALPHA;
+		args.background_colour =  Colour3f(0.0f);
+		args.interior_cell_x_padding_px = INTERIOR_GRID_PADDING_PX;
+		args.interior_cell_y_padding_px = INTERIOR_GRID_PADDING_PX;
 		all_gear_grid = new GLUIGridContainer(*gl_ui, args);
 		all_gear_grid->setPosAndDims(Vec2f(0.f), Vec2f(0.01f));
 		all_gear_grid->debug_name = "GearInventoryUI all_gear_grid";
-		gl_ui->addWidget(all_gear_grid);
 		outer_grid->setCellWidget(/*x=*/2, /*y=*/1, all_gear_grid);
 	}
 
@@ -323,8 +327,9 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	{
 		GLUIWindow::CreateArgs args;
 		args.title = "Gear Inventory";
-		args.background_alpha = 0.6f;
+		args.background_alpha = 0.9f;
 		args.background_colour = Colour3f(0.1f);
+		args.padding_px = 0;
 		args.z = -0.2f;
 		window = new GLUIWindow(*gl_ui, args);
 		window->setBodyWidget(outer_grid);
@@ -333,19 +338,14 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	}
 
 	// Create FBO/texture sized for the current viewport. Also sets avatar_preview_widget display size.
-	{
-		OpenGLEngine* engine = gui_client->opengl_engine.ptr();
-		recreateAvatarPreviewFBO(engine->getViewPortWidth(), engine->getViewPortHeight());
-	}
+	recreateAvatarPreviewFBO();
 }
 
 
 GearInventoryUI::~GearInventoryUI()
 {
-	conPrint("GearInventoryUI::~GearInventoryUI");
-
 	// Clean up the avatar preview scene and its objects
-	if(avatar_preview_scene.nonNull())
+	if(avatar_preview_scene)
 	{
 		OpenGLEngine* engine = gui_client->opengl_engine.ptr();
 		OpenGLSceneRef old_scene = engine->getCurrentScene();
@@ -355,38 +355,32 @@ GearInventoryUI::~GearInventoryUI()
 
 		// Remove old gear preview objects
 		for(auto& graphics : equipped_gear_graphics)
-			engine->removeObject(graphics.gear_gl_ob);
+			checkRemoveObAndSetRefToNull(engine, graphics.gear_gl_ob);
 		equipped_gear_graphics.clear();
 
 		engine->setCurrentScene(old_scene);
 		engine->removeScene(avatar_preview_scene);
-		avatar_preview_scene = nullptr;
 	}
-
-	checkRemoveAndDeleteWidget(gl_ui, avatar_preview_widget);
 
 	for(auto& ui : equipped_gear_ui)
 		checkRemoveAndDeleteWidget(gl_ui, ui.thumbnail);
 	for(auto& ui : all_gear_ui)
 		checkRemoveAndDeleteWidget(gl_ui, ui.thumbnail);
 
-	checkRemoveAndDeleteWidget(gl_ui, equipped_grid);
-	checkRemoveAndDeleteWidget(gl_ui, all_gear_grid);
-	checkRemoveAndDeleteWidget(gl_ui, outer_grid);
 	checkRemoveAndDeleteWidget(gl_ui, window);
 }
 
 
-void GearInventoryUI::recreateAvatarPreviewFBO(int viewport_w, int viewport_h)
+void GearInventoryUI::recreateAvatarPreviewFBO()
 {
-	avatar_preview_w = myMax(16, viewport_w / 4);
-	avatar_preview_h = avatar_preview_w * 2;
+	const float w_dev_ind_px = THUMBNAIL_SIZE_PX * GEAR_GRID_COLS + INTERIOR_GRID_PADDING_PX*2 * (GEAR_GRID_COLS - 1);
+	const float h_dev_ind_px = THUMBNAIL_SIZE_PX * GEAR_GRID_ROWS + INTERIOR_GRID_PADDING_PX*2 * (GEAR_GRID_ROWS - 1);
 
-	OpenGLEngine* engine = gui_client->opengl_engine.ptr();
-
-	const int msaa_samples = engine->settings.msaa_samples;
+	const int avatar_preview_w = myMax(16, (int)(gl_ui->getDevicePixelRatio() * w_dev_ind_px));
+	const int avatar_preview_h = myMax(16, (int)(gl_ui->getDevicePixelRatio() * h_dev_ind_px));
 
 	// MSAA colour renderbuffer and depth renderbuffer
+	const int msaa_samples = gui_client->opengl_engine->settings.msaa_samples;
 	avatar_preview_color_rb = new RenderBuffer(avatar_preview_w, avatar_preview_h, msaa_samples, Format_RGBA_Linear_Uint8);
 	avatar_preview_depth_rb = new RenderBuffer(avatar_preview_w, avatar_preview_h, msaa_samples, Format_Depth_Float);
 
@@ -397,7 +391,7 @@ void GearInventoryUI::recreateAvatarPreviewFBO(int viewport_w, int viewport_h)
 	assert(avatar_preview_fbo->isComplete());
 
 	// Resolve texture — regular (non-MSAA) texture shown in the widget
-	avatar_preview_tex = new OpenGLTexture(avatar_preview_w, avatar_preview_h, engine,
+	avatar_preview_tex = new OpenGLTexture(avatar_preview_w, avatar_preview_h, gui_client->opengl_engine.ptr(),
 		ArrayRef<uint8>(),
 		Format_SRGBA_Uint8,
 		OpenGLTexture::Filtering_Bilinear,
@@ -411,26 +405,39 @@ void GearInventoryUI::recreateAvatarPreviewFBO(int viewport_w, int viewport_h)
 	assert(avatar_preview_resolve_fbo->isComplete());
 
 	// Wire updated texture into avatar_preview_widget and resize it to match.
-	// Display size: 25% of viewport width (= 0.5 UI coords), 2:1 portrait.
-	if(avatar_preview_widget.nonNull())
+	if(avatar_preview_widget)
 	{
 		avatar_preview_widget->overlay_ob->material.albedo_texture = avatar_preview_tex;
 
-		const float w_dev_indep = gl_ui->getDevIndepPixelWidthForUIWidth(0.5f);
-		const float h_dev_indep = w_dev_indep * 2.f;
-		avatar_preview_widget->setFixedDimsPx(Vec2f(w_dev_indep, h_dev_indep), *gl_ui);
+		avatar_preview_widget->setFixedDimsPx(Vec2f(w_dev_ind_px, h_dev_ind_px), *gl_ui);
 	}
-
-	updateWidgetPositions();
 }
 
 
 static std::string thumbnailPathForGearItem(GUIClient* gui_client, const GearItem& item)
 {
-	//if(!item.preview_image_URL.empty() && gui_client->resource_manager->isFileForURLPresent(item.preview_image_URL))
-	//	return gui_client->resource_manager->pathForURL(item.preview_image_URL);
+	if(!item.preview_image_URL.empty())
+	{
+		if(gui_client->resource_manager->isFileForURLPresent(item.preview_image_URL))
+			return gui_client->resource_manager->pathForURL(item.preview_image_URL);
+		else
+		{
+			// Start downloading it
+			DownloadingResourceInfo info;
+			info.pos = gui_client->cam_controller.getFirstPersonPosition();
+			info.size_factor = 1.f;
+			info.used_by_other = true;
+			gui_client->startDownloadingResource(item.preview_image_URL, gui_client->cam_controller.getFirstPersonPosition().toVec4fPoint(),
+				1.f, info);
+		}
+	}
+
 	return gui_client->resources_dir_path + "/dot.png"; // Placeholder until resource is downloaded
 }
+
+
+static const float    DUMMY_ITEM_ALPHA = 0.5;
+static const Colour3f DUMMY_ITEM_COLOUR = Colour3f(0.3f);
 
 
 void GearInventoryUI::rebuildEquippedGrid()
@@ -446,19 +453,31 @@ void GearInventoryUI::rebuildEquippedGrid()
 		const GearItemRef& item = equipped_gear.items[i];
 
 		GLUIButton::CreateArgs args;
-		args.tooltip = item->name;
+		args.tooltip = "Unequip " + item->name;
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
 		GLUIButtonRef thumbnail = new GLUIButton(*gl_ui, thumbnailPathForGearItem(gui_client, *item), args);
 		thumbnail->handler = this;
-		gl_ui->addWidget(thumbnail);
 		equipped_grid->setCellWidget(/*x=*/(int)(i % GEAR_GRID_COLS), /*y=*/(int)(i / GEAR_GRID_COLS), thumbnail);
 
 		GearItemUI ui;
 		ui.thumbnail = thumbnail;
 		ui.gear_item = item;
 		equipped_gear_ui.push_back(ui);
+	}
+
+	// Add dummy widgets to make grid obvious
+	for(size_t i=equipped_gear.items.size(); i<GEAR_GRID_COLS * GEAR_GRID_ROWS; ++i)
+	{
+		GLUIInertWidget::CreateArgs args;
+		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
+		args.background_alpha  = DUMMY_ITEM_ALPHA;
+		args.background_colour = DUMMY_ITEM_COLOUR;
+		GLUIInertWidgetRef dummy_button = new GLUIInertWidget(*gl_ui, args);
+		equipped_grid->setCellWidget(/*x=*/(int)(i % GEAR_GRID_COLS), /*y=*/(int)(i / GEAR_GRID_COLS), dummy_button);
 	}
 
 	updateWidgetPositions();
@@ -478,19 +497,31 @@ void GearInventoryUI::rebuildAllGearGrid()
 		const GearItemRef& item = all_gear.items[i];
 
 		GLUIButton::CreateArgs args;
-		args.tooltip = item->name;
+		args.tooltip = "Equip " + item->name;
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
 		GLUIButtonRef thumbnail = new GLUIButton(*gl_ui, thumbnailPathForGearItem(gui_client, *item), args);
 		thumbnail->handler = this;
-		gl_ui->addWidget(thumbnail);
 		all_gear_grid->setCellWidget(/*x=*/(int)(i % GEAR_GRID_COLS), /*y=*/(int)(i / GEAR_GRID_COLS), thumbnail);
 
 		GearItemUI ui;
 		ui.thumbnail = thumbnail;
 		ui.gear_item = item;
 		all_gear_ui.push_back(ui);
+	}
+
+	// Add dummy widgets to make grid obvious
+	for(size_t i=all_gear.items.size(); i<GEAR_GRID_COLS * GEAR_GRID_ROWS; ++i)
+	{
+		GLUIInertWidget::CreateArgs args;
+		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
+		args.background_alpha  = DUMMY_ITEM_ALPHA;
+		args.background_colour = DUMMY_ITEM_COLOUR;
+		GLUIInertWidgetRef dummy_button = new GLUIInertWidget(*gl_ui, args);
+		all_gear_grid->setCellWidget(/*x=*/(int)(i % GEAR_GRID_COLS), /*y=*/(int)(i / GEAR_GRID_COLS), dummy_button);
 	}
 
 	updateWidgetPositions();
@@ -538,11 +569,10 @@ void GearInventoryUI::renderAvatarPreview()
 
 	// Save current state
 	OpenGLSceneRef old_scene = engine->getCurrentScene();
-	Reference<FrameBuffer> old_fbo = engine->getTargetFrameBuffer();
+	FrameBufferRef old_fbo = engine->getTargetFrameBuffer();
 
 	engine->setCurrentScene(avatar_preview_scene);
-	engine->setTargetFrameBuffer(avatar_preview_fbo);
-	engine->setViewportDims(avatar_preview_w, avatar_preview_h);
+	engine->setTargetFrameBufferAndViewport(avatar_preview_fbo);
 	engine->setNearDrawDistance(0.1f);
 	engine->setMaxDrawDistance(100.f);
 
@@ -570,10 +600,10 @@ void GearInventoryUI::renderAvatarPreview()
 	const Matrix4f x_rot = Matrix4f::rotationAroundXAxis(-(cam_theta - Maths::pi_2<float>()));
 	const Matrix4f world_to_cam = T * x_rot * z_rot * Matrix4f::translationMatrix(-cam_target_pos);
 
-	const float sensor_width     = 0.035f;
-	const float lens_sensor_dist = 0.05f;
-	const float render_aspect    = (float)avatar_preview_w / (float)avatar_preview_h;
-	engine->setPerspectiveCameraTransform(world_to_cam, sensor_width, lens_sensor_dist, render_aspect, 0.f, 0.f);
+	const float sensor_width        = 0.035f;
+	const float lens_sensor_dist    = 0.05f;
+	const float render_aspect_ratio = (float)avatar_preview_fbo->xRes() / (float)avatar_preview_fbo->yRes();
+	engine->setPerspectiveCameraTransform(world_to_cam, sensor_width, lens_sensor_dist, render_aspect_ratio, 0.f, 0.f);
 
 	engine->draw();
 
@@ -615,20 +645,23 @@ void GearInventoryUI::setAvatarGLObject(const AvatarGraphics& av_graphics, const
 
 		// Remove old gear preview objects
 		for(auto& graphics : equipped_gear_graphics)
-			engine->removeObject(graphics.gear_gl_ob);
+			checkRemoveObAndSetRefToNull(engine, graphics.gear_gl_ob);
 		equipped_gear_graphics.clear();
 
 		// Add gear GL objects
 		for(size_t i=0; i<av_graphics.equipped_gear_graphics.size(); ++i)
 		{
 			const GLObject* gear_gl_ob = av_graphics.equipped_gear_graphics[i].gear_gl_ob.ptr();
+			GLObjectRef preview_ob;
+			if(gear_gl_ob)
+			{
+				preview_ob = engine->allocateObject();
+				preview_ob->mesh_data = gear_gl_ob->mesh_data;
+				preview_ob->materials = gear_gl_ob->materials;
+				preview_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, AvatarGraphics::getEyeHeight()) * gear_gl_ob->ob_to_world_matrix;
 
-			GLObjectRef preview_ob = engine->allocateObject();
-			preview_ob->mesh_data = gear_gl_ob->mesh_data;
-			preview_ob->materials = gear_gl_ob->materials;
-			preview_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, AvatarGraphics::getEyeHeight()) * gear_gl_ob->ob_to_world_matrix;
-
-			engine->addObject(preview_ob);
+				engine->addObject(preview_ob);
+			}
 
 			EquippedGearGraphics gear_graphics = av_graphics.equipped_gear_graphics[i];
 			gear_graphics.gear_gl_ob = preview_ob;
@@ -641,22 +674,35 @@ void GearInventoryUI::setAvatarGLObject(const AvatarGraphics& av_graphics, const
 }
 
 
+void GearInventoryUI::handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex)
+{
+	conPrint("GearInventoryUI::handleUploadedTexture: " + toStdString(path));
+
+	for(auto& ui : equipped_gear_ui)
+		if(ui.gear_item->model_url == URL)
+			ui.thumbnail->setTexture(opengl_tex);
+
+	for(auto& ui : all_gear_ui)
+		if(ui.gear_item->model_url == URL)
+			ui.thumbnail->setTexture(opengl_tex);
+}
+
+
 void GearInventoryUI::updateWidgetPositions()
 {
-	const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(60);
-
-	window->setPosAndDims(
-		Vec2f(-1.f + margin, -gl_ui->getViewportMinMaxY() + margin),
-		Vec2f(myMax(0.01f, 2.f - 2 * margin), myMax(0.01f, 2 * gl_ui->getViewportMinMaxY() - 2 * margin))
-	);
-
 	window->recomputeLayout();
+
+	// Centre window win viewport
+	const float left_margin = myMax(0.f, (2.f - window->getDims().x) / 2);
+	const float bot_margin  = myMax(0.f, (gl_ui->getViewportMinMaxY()*2 - window->getDims().y) / 2);
+	
+	window->setPos(Vec2f(-1.f + left_margin, -gl_ui->getViewportMinMaxY() + bot_margin));
 }
 
 
 void GearInventoryUI::viewportResized(int w, int h)
 {
-	recreateAvatarPreviewFBO(w, h);
+	recreateAvatarPreviewFBO();
 
 	updateWidgetPositions();
 }

@@ -3149,6 +3149,10 @@ void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics*
 
 	opengl_engine->addObject(gl_ob);
 
+	if(avatar->our_avatar && gear_inventory_ui)
+		gear_inventory_ui->setAvatarGLObject(avatar->graphics, avatar->graphics.skinned_gl_ob, avatar->avatar_settings.pre_ob_to_world_matrix);
+
+
 	conPrint("GUIClient::loadPresentGearModel done");
 }
 
@@ -4657,6 +4661,9 @@ void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLStr
 	// Assign to minimap tiles
 	if(minimap)
 		minimap->handleUploadedTexture(path, URL, opengl_tex);
+
+	if(gear_inventory_ui)
+		gear_inventory_ui->handleUploadedTexture(path, URL, opengl_tex);
 
 	// Look up any LODChunks, objects or avatars using this texture, and assign the newly loaded texture to them.
 	{

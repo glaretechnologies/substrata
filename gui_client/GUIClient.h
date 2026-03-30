@@ -123,7 +123,7 @@ struct DownloadingResourceInfo
 	//SmallVector<UID, 4> using_avatar_uids; // UIDs of avatars that use the resource.
 
 	bool used_by_terrain;
-	bool used_by_other; // avatar or minimap or LOD chunk
+	bool used_by_other; // avatar or minimap or LOD chunk or Gear thumbnail
 };
 
 

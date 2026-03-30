@@ -77,8 +77,8 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 
 	{
 		GLUIGridContainer::CreateArgs args;
-		args.cell_x_padding_px = 5;
-		args.cell_y_padding_px = 5;
+		args.interior_cell_x_padding_px = 5;
+		args.interior_cell_y_padding_px = 5;
 		args.background_alpha = 0;
 		grid_container = new GLUIGridContainer(*gl_ui_, args);
 		grid_container->debug_name = "photo mode grid container";
@@ -99,8 +99,8 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 
 	{
 		GLUIGridContainer::CreateArgs args;
-		args.cell_x_padding_px = 5;
-		args.cell_y_padding_px = 5;
+		args.interior_cell_x_padding_px = 5;
+		args.interior_cell_y_padding_px = 5;
 		//args.background_colour = Colour3f(0.5f, 0.2f, 0.2f);
 		args.background_alpha = 0.0;
 		camera_grid_container = new GLUIGridContainer(*gl_ui_, args);
@@ -154,7 +154,7 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 		GLUIGridContainer::CreateArgs grid_args;
 		grid_args.background_alpha = 0.2f;
 		grid_args.background_colour = Colour3f(0.2f);
-		grid_args.cell_y_padding_px = 2;
+		grid_args.interior_cell_y_padding_px = 2;
 		GLUIGridContainerRef autofocus_grid = new GLUIGridContainer(*gl_ui_, grid_args);
 		autofocus_grid->debug_name = "autofocus grid";
 		autofocus_grid->setColumnMinXPx(/*col=*/1, COL_1_ALIGNMENT_PX);
@@ -230,8 +230,8 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 
 	{
 		GLUIGridContainer::CreateArgs args;
-		args.cell_x_padding_px = 5;
-		args.cell_y_padding_px = 5;
+		args.interior_cell_x_padding_px = 5;
+		args.interior_cell_y_padding_px = 5;
 		//args.background_colour = Colour3f(0.5f, 0.2f, 0.2f);
 		args.background_alpha = 0.0;
 		env_grid_container = new GLUIGridContainer(*gl_ui_, args);
@@ -309,7 +309,7 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	GLUIGridContainer::CreateArgs grid_args;
 	grid_args.background_alpha = 0.2f;
 	grid_args.background_colour = Colour3f(0.2f);
-	grid_args.cell_y_padding_px = 2;
+	grid_args.interior_cell_y_padding_px = 2;
 	GLUIGridContainerRef slider_grid = new GLUIGridContainer(*gl_ui, grid_args);
 	slider_grid->debug_name = "photo slider grid for " + label;
 	slider_grid->setColumnMinXPx(/*col=*/1, COL_1_ALIGNMENT_PX);

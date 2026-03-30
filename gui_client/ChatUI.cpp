@@ -51,8 +51,10 @@ void ChatUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 			GLUIGridContainer::CreateArgs container_args;
 			container_args.background_colour = chat_background_col;
 			container_args.background_alpha = 0.0f;
-			container_args.cell_x_padding_px = 12;
-			container_args.cell_y_padding_px = 12;
+			container_args.interior_cell_x_padding_px = 12;
+			container_args.interior_cell_y_padding_px = 12;
+			container_args.exterior_cell_x_padding_px = 12;
+			container_args.exterior_cell_y_padding_px = 12;
 			grid_container = new GLUIGridContainer(*gl_ui, container_args);
 			grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
 			gl_ui->addWidget(grid_container);
