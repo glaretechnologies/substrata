@@ -63,8 +63,8 @@ public:
 	std::string name;
 	std::string description;
 
-	//URLString preview_image_URL;
 	uint64 preview_image_screenshot_id;
+	URLString preview_image_URL; // Resource URL of preview screenshot.  Denormalised data, should be the same as screenshot[preview_image_screenshot_id]->URL
 
 	DatabaseKey database_key;
 };

@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <TimeStamp.h>
 #include "../shared/UserID.h"
 #include "../shared/ParcelID.h"
+#include "../shared/UID.h"
 #include "../maths/vec3.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
@@ -35,8 +36,16 @@ public:
 	int width_px;
 	int highlight_parcel_id;
 	
-	bool is_map_tile;
+	enum ScreenshotType
+	{
+		ScreenshotType_Default = 0,
+		ScreenshotType_MapTile = 1,
+		ScreenshotType_Gear    = 2
+	};
+
+	ScreenshotType screenshot_type;
 	int tile_x, tile_y, tile_z;
+	UID gear_item_id; // Valid when screenshot_type == ScreenshotType_Gear
 	
 	TimeStamp created_time;
 

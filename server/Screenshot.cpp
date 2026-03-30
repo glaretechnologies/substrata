@@ -14,7 +14,7 @@ Screenshot::Screenshot()
 {
 	width_px = 800;
 	highlight_parcel_id = -1;
-	is_map_tile = false;
+	screenshot_type = ScreenshotType_Default;
 	tile_x = tile_y = tile_z = 0;
 }
 
@@ -23,11 +23,12 @@ Screenshot::~Screenshot()
 {}
 
 
-static const uint32 SCREENSHOT_SERIALISATION_VERSION = 5;
+static const uint32 SCREENSHOT_SERIALISATION_VERSION = 6;
 // v2: added width_px
 // v3: added highlight_parcel_id
-// v4: Added is_map_tile, tile_x etc.
+// v4: Added is_map_tile (now screenshot_type), tile_x etc.
 // v5: Added URL
+// v6: Added gear_item_id
 
 void writeScreenshotToStream(const Screenshot& shot, OutStream& stream)
 {
@@ -42,7 +43,7 @@ void writeScreenshotToStream(const Screenshot& shot, OutStream& stream)
 	stream.writeInt32(shot.width_px);
 	stream.writeInt32(shot.highlight_parcel_id);
 
-	stream.writeInt32(shot.is_map_tile ? 1 : 0);
+	stream.writeUInt32((uint32)shot.screenshot_type);
 	stream.writeInt32(shot.tile_x);
 	stream.writeInt32(shot.tile_y);
 	stream.writeInt32(shot.tile_z);
@@ -54,6 +55,8 @@ void writeScreenshotToStream(const Screenshot& shot, OutStream& stream)
 	stream.writeUInt32((uint32)shot.state);
 
 	stream.writeStringLengthFirst(shot.URL);
+
+	writeToStream(shot.gear_item_id, stream);
 }
 
 
@@ -76,7 +79,10 @@ void readScreenshotFromStream(InStream& stream, Screenshot& shot)
 
 	if(v >= 4)
 	{
-		shot.is_map_tile = stream.readInt32() != 0;
+		const uint32 screenshot_type = stream.readUInt32();
+		if(screenshot_type > (uint32)Screenshot::ScreenshotType_Gear)
+			throw glare::Exception("Invalid screenshot_type " + toString(screenshot_type));
+		shot.screenshot_type = (Screenshot::ScreenshotType)screenshot_type;
 		shot.tile_x = stream.readInt32();
 		shot.tile_y = stream.readInt32();
 		shot.tile_z = stream.readInt32();
@@ -94,4 +100,7 @@ void readScreenshotFromStream(InStream& stream, Screenshot& shot)
 
 	if(v >= 5)
 		shot.URL = stream.readStringLengthFirst(10000);
+
+	if(v >= 6)
+		shot.gear_item_id = readUIDFromStream(stream);
 }

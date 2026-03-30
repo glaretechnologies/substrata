@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
 					if(socket->readable(/*timeout_s=*/5.0))
 					{
 						const uint32 request_type = socket->readUInt32();
-						if(request_type == Protocol::ScreenShotRequest || request_type == Protocol::TileScreenShotRequest)
+						if(request_type == Protocol::ScreenShotRequest || request_type == Protocol::TileScreenShotRequest || request_type == Protocol::GearScreenShotRequest)
 						{
 							// Get screenshot request
 							if(request_type == Protocol::ScreenShotRequest)
@@ -211,6 +211,32 @@ int main(int argc, char* argv[])
 								packet.writeInt32(tile_x);
 								packet.writeInt32(tile_y);
 								packet.writeInt32(tile_z);
+								packet.writeStringLengthFirst(screenshot_path);
+							}
+							else if(request_type == Protocol::GearScreenShotRequest)
+							{
+								conPrint("Received gear screenshot request from server.");
+
+								const int32 screenshot_width_px = socket->readInt32();
+
+								// Read GearItem: first two fields are version (uint32) and buffer_size (uint32).
+								// buffer_size covers the entire serialised blob including those two fields.
+								const uint32 version     = socket->readUInt32();
+								const uint32 buffer_size = socket->readUInt32();
+								if(buffer_size < 8 || buffer_size > 1000000)
+									throw glare::Exception("Invalid GearItem buffer_size: " + toString(buffer_size));
+
+								std::vector<uint8> gear_buf(buffer_size);
+								std::memcpy(gear_buf.data(),     &version,     sizeof(uint32));
+								std::memcpy(gear_buf.data() + 4, &buffer_size, sizeof(uint32));
+								socket->readData(gear_buf.data() + 8, buffer_size - 8);
+
+								const std::string screenshot_filename = "gear_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
+								screenshot_path = PlatformUtils::getTempDirPath() + "/" + screenshot_filename;
+
+								packet.writeStringLengthFirst("takegearsscreenshot");
+								packet.writeData(gear_buf.data(), gear_buf.size());
+								packet.writeInt32(screenshot_width_px);
 								packet.writeStringLengthFirst(screenshot_path);
 							}
 							else

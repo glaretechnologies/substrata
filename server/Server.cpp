@@ -112,7 +112,7 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 					info.cur_tile_screenshot->id = next_shot_id++;
 					info.cur_tile_screenshot->created_time = TimeStamp::currentTime();
 					info.cur_tile_screenshot->state = Screenshot::ScreenshotState_notdone;
-					info.cur_tile_screenshot->is_map_tile = true;
+					info.cur_tile_screenshot->screenshot_type = Screenshot::ScreenshotType_MapTile;
 					info.cur_tile_screenshot->tile_x = x;
 					info.cur_tile_screenshot->tile_y = y;
 					info.cur_tile_screenshot->tile_z = z;
