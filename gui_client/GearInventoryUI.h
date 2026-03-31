@@ -18,7 +18,7 @@ Copyright Glare Technologies Limited 2026 -
 
 class GUIClient;
 struct GLObject;
-class InventoryAvatarPreviewWidget;
+class AvatarPreviewGLUIWidget;
 class FrameBuffer;
 class RenderBuffer;
 
@@ -84,25 +84,15 @@ private:
 	std::vector<GearItemUI> equipped_gear_ui;
 	std::vector<GearItemUI> all_gear_ui;
 
-	Reference<InventoryAvatarPreviewWidget> avatar_preview_widget; // Avatar panel: displays FBO texture, handles drag-to-rotate.
+	Reference<AvatarPreviewGLUIWidget> avatar_preview_widget; // Avatar panel: displays FBO texture, handles drag-to-rotate.
 
 	GLUIGridContainerRef outer_grid;    // 3-column container: [avatar | equipped | all gear]
 	GLUIGridContainerRef equipped_grid; // Inner grid of equipped item thumbnails
 	GLUIGridContainerRef all_gear_grid; // Inner grid of all item thumbnails
 
 	OpenGLSceneRef          avatar_preview_scene;
-	Reference<FrameBuffer>  avatar_preview_fbo;         // MSAA FBO rendered into
-	Reference<FrameBuffer>  avatar_preview_resolve_fbo; // Resolve FBO backed by avatar_preview_tex
-	OpenGLTextureRef        avatar_preview_tex;          // Regular (non-MSAA) texture shown in the widget
-	Reference<RenderBuffer> avatar_preview_color_rb;    // MSAA colour renderbuffer
-	Reference<RenderBuffer> avatar_preview_depth_rb;    // MSAA depth renderbuffer
 	GLObjectRef             avatar_preview_gl_ob;
 	std::vector<EquippedGearGraphics> equipped_gear_graphics;
-
-	float cam_phi;        // Camera orbit angle around the Z axis (radians).
-	float cam_dist;       // Camera distance from target.
-	float cam_theta;      // Camera polar angle (elevation).
-	Vec4f cam_target_pos; // World-space point the camera orbits around.
 
 public:
 	GLUIWindowRef window;

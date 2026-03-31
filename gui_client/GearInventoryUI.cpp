@@ -6,9 +6,10 @@ Copyright Glare Technologies Limited 2026 -
 #include "GearInventoryUI.h"
 
 
-#include <opengl/ui/GLUIInertWidget.h>
+#include "AvatarPreviewGLUIWidget.h"
 #include "GUIClient.h"
 #include "../shared/ResourceManager.h"
+#include <opengl/ui/GLUIInertWidget.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/FrameBuffer.h>
 #include <opengl/RenderBuffer.h>
@@ -25,173 +26,6 @@ static const int   GEAR_GRID_ROWS    = 6;
 static const float INTERIOR_GRID_PADDING_PX = 6;
 
 
-/*=====================================================================
-InventoryAvatarPreviewWidget
-----------------------------
-Displays the avatar FBO texture and handles drag-to-rotate and scroll-to-zoom.
-Drag left/right to orbit the camera (updates cam_phi).
-Scroll wheel to zoom in/out (updates cam_dist).
-=====================================================================*/
-class InventoryAvatarPreviewWidget final : public GLUIWidget
-{
-public:
-	InventoryAvatarPreviewWidget(GLUI& glui_, float& cam_phi_ref, float& cam_dist_ref, float& cam_theta_ref, Vec4f& cam_target_pos_ref)
-	:	cam_phi(cam_phi_ref),
-		cam_dist(cam_dist_ref),
-		cam_theta(cam_theta_ref),
-		cam_target_pos(cam_target_pos_ref),
-		drag_active(false),
-		drag_start_x(0.f),
-		drag_start_phi(0.f),
-		middle_drag_active(false),
-		middle_drag_last_cursor_pos(0, 0)
-	{
-		glui = &glui_;
-		opengl_engine = glui_.opengl_engine.ptr();
-		m_z = -0.9f;
-
-		overlay_ob = new OverlayObject();
-		overlay_ob->mesh_data = opengl_engine->getUnitQuadMeshData();
-		overlay_ob->ob_to_world_matrix = Matrix4f::translationMatrix(1000.f, 1000.f, 0.f); // offscreen until positioned
-
-		rect = Rect2f(Vec2f(0.f), Vec2f(0.1f));
-
-		opengl_engine->addOverlayObject(overlay_ob);
-
-		setFixedDimsPx(Vec2f(200, 400), glui_);
-	}
-
-	~InventoryAvatarPreviewWidget()
-	{
-		checkRemoveOverlayObAndSetRefToNull(opengl_engine, overlay_ob);
-	}
-
-	virtual void setPos(const Vec2f& botleft) override
-	{
-		rect = Rect2f(botleft, botleft + getDims());
-		updateOverlayTransform();
-	}
-
-	virtual void setPosAndDims(const Vec2f& botleft, const Vec2f& dims) override
-	{
-		rect = Rect2f(botleft, botleft + dims);
-		updateOverlayTransform();
-	}
-
-	virtual void setClipRegion(const Rect2f& clip_rect) override
-	{
-		if(overlay_ob)
-			overlay_ob->clip_region = glui->OpenGLRectCoordsForUICoords(clip_rect);
-	}
-
-	// Called when e.g. the viewport changes size
-	virtual void updateGLTransform() override
-	{
-		const Vec2f dims = computeDims(/*old dims=*/this->getDims(), *glui);
-		const Vec2f bot_left = getRect().getMin();
-		rect = Rect2f::fromMinAndSpan(bot_left, dims);
-
-		updateOverlayTransform();
-	}
-
-	virtual void setVisible(bool visible) override
-	{
-		if(overlay_ob) 
-			overlay_ob->draw = visible;
-	}
-
-	virtual bool isVisible() override
-	{
-		return overlay_ob && overlay_ob->draw;
-	}
-
-	virtual void handleMousePress(MouseEvent& e) override
-	{
-		const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
-		if(rect.inClosedRectangle(ui_coords))
-		{
-			if(e.button == MouseButton::Left)
-			{
-				drag_active    = true;
-				drag_start_x   = ui_coords.x;
-				drag_start_phi = cam_phi;
-				e.accepted     = true;
-			}
-			else if(e.button == MouseButton::Middle)
-			{
-				middle_drag_active          = true;
-				middle_drag_last_cursor_pos = e.cursor_pos;
-				e.accepted                  = true;
-			}
-		}
-	}
-
-	virtual void handleMouseRelease(MouseEvent& e) override
-	{
-		if(e.button == MouseButton::Left)   drag_active        = false;
-		if(e.button == MouseButton::Middle) middle_drag_active = false;
-	}
-
-	virtual void doHandleMouseMoved(MouseEvent& e) override
-	{
-		if(drag_active)
-		{
-			const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
-			// One full revolution (2pi) per 1.0 UI-coord of horizontal drag.
-			cam_phi = drag_start_phi + (ui_coords.x - drag_start_x) * Maths::get2Pi<float>();
-		}
-
-		if(middle_drag_active)
-		{
-			const Vec2i delta               = e.cursor_pos - middle_drag_last_cursor_pos;
-			middle_drag_last_cursor_pos     = e.cursor_pos;
-
-			const float move_scale = 0.005f;
-			const Vec4f forwards = GeometrySampling::dirForSphericalCoords(-cam_phi + Maths::pi_2<float>(), Maths::pi<float>() - cam_theta);
-			const Vec4f right    = normalise(crossProduct(forwards, Vec4f(0, 0, 1, 0)));
-			const Vec4f up       = crossProduct(right, forwards);
-			cam_target_pos += right * -(float)delta.x * move_scale + up * (float)delta.y * move_scale;
-		}
-	}
-
-	virtual void doHandleMouseWheelEvent(MouseWheelEvent& e) override
-	{
-		const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
-		if(rect.inClosedRectangle(ui_coords))
-		{
-			// angle_delta.y is in degrees (Qt angleDelta / 8); scale matches AvatarPreviewWidget::wheelEvent.
-			cam_dist = myClamp(cam_dist - cam_dist * e.angle_delta.y * 0.016f, 0.01f, 20.f);
-			e.accepted = true;
-		}
-	}
-
-	OverlayObjectRef overlay_ob;
-
-private:
-	void updateOverlayTransform()
-	{
-		if(!overlay_ob) 
-			return;
-		const Vec2f bot_left = getRect().getMin();
-		const Vec2f dims    = getDims();
-		const float y_scale = opengl_engine->getViewPortAspectRatio();
-		overlay_ob->ob_to_world_matrix =
-			Matrix4f::translationMatrix(bot_left.x, bot_left.y * y_scale, m_z) *
-			Matrix4f::scaleMatrix(dims.x, dims.y * y_scale, 1.f);
-	}
-
-	float&  cam_phi;        // Reference into GearInventoryUI::cam_phi
-	float&  cam_dist;       // Reference into GearInventoryUI::cam_dist
-	float&  cam_theta;      // Reference into GearInventoryUI::cam_theta
-	Vec4f&  cam_target_pos; // Reference into GearInventoryUI::cam_target_pos
-	bool    drag_active;
-	float   drag_start_x;
-	float   drag_start_phi;
-	bool    middle_drag_active;
-	Vec2i   middle_drag_last_cursor_pos;
-};
-
-
 GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 {
 	gui_client = gui_client_;
@@ -199,10 +33,6 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	need_rebuild_equipped = false;
 	need_rebuild_all_gear = false;
 	close_soon = false;
-	cam_phi        = 0;
-	cam_dist       = 2.0f;
-	cam_theta      = 1.4f;
-	cam_target_pos = Vec4f(0, 0, 1.0f, 1.f);
 
 	// Outer 3-column grid: [avatar preview | equipped | all gear], each column has a header at row 0 and content at row 1.
 	{
@@ -274,10 +104,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		outer_grid->setCellWidget(/*x=*/0, /*y=*/0, avatar_header_text);
 	}
 	{
-		// Texture is assigned in recreateAvatarPreviewFBO(), called below.
-		// cam_phi is stored in GearInventoryUI and the widget holds a reference to it.
-		avatar_preview_widget = new InventoryAvatarPreviewWidget(*gl_ui, cam_phi, cam_dist, cam_theta, cam_target_pos);
-		avatar_preview_widget->overlay_ob->material.tex_matrix = Matrix2f(1, 0, 0, 1); // No V-flip: FBO texture is already in GL convention
+		avatar_preview_widget = new AvatarPreviewGLUIWidget(*gl_ui);
 		outer_grid->setCellWidget(/*x=*/0, /*y=*/1, avatar_preview_widget);
 	}
 
@@ -379,35 +206,9 @@ void GearInventoryUI::recreateAvatarPreviewFBO()
 	const int avatar_preview_w = myMax(16, (int)(gl_ui->getDevicePixelRatio() * w_dev_ind_px));
 	const int avatar_preview_h = myMax(16, (int)(gl_ui->getDevicePixelRatio() * h_dev_ind_px));
 
-	// MSAA colour renderbuffer and depth renderbuffer
-	const int msaa_samples = gui_client->opengl_engine->settings.msaa_samples;
-	avatar_preview_color_rb = new RenderBuffer(avatar_preview_w, avatar_preview_h, msaa_samples, Format_RGBA_Linear_Uint8);
-	avatar_preview_depth_rb = new RenderBuffer(avatar_preview_w, avatar_preview_h, msaa_samples, Format_Depth_Float);
-
-	// MSAA FBO — rendered into each frame
-	avatar_preview_fbo = new FrameBuffer();
-	avatar_preview_fbo->attachRenderBuffer(*avatar_preview_color_rb, GL_COLOR_ATTACHMENT0);
-	avatar_preview_fbo->attachRenderBuffer(*avatar_preview_depth_rb, GL_DEPTH_ATTACHMENT);
-	assert(avatar_preview_fbo->isComplete());
-
-	// Resolve texture — regular (non-MSAA) texture shown in the widget
-	avatar_preview_tex = new OpenGLTexture(avatar_preview_w, avatar_preview_h, gui_client->opengl_engine.ptr(),
-		ArrayRef<uint8>(),
-		Format_SRGBA_Uint8,
-		OpenGLTexture::Filtering_Bilinear,
-		OpenGLTexture::Wrapping_Clamp,
-		/*has_mipmaps=*/false
-	);
-
-	// Resolve FBO — target of the MSAA blit, backed by avatar_preview_tex
-	avatar_preview_resolve_fbo = new FrameBuffer();
-	avatar_preview_resolve_fbo->attachTexture(*avatar_preview_tex, GL_COLOR_ATTACHMENT0);
-	assert(avatar_preview_resolve_fbo->isComplete());
-
-	// Wire updated texture into avatar_preview_widget and resize it to match.
 	if(avatar_preview_widget)
 	{
-		avatar_preview_widget->overlay_ob->material.albedo_texture = avatar_preview_tex;
+		avatar_preview_widget->recreateFBO(avatar_preview_w, avatar_preview_h);
 
 		avatar_preview_widget->setFixedDimsPx(Vec2f(w_dev_ind_px, h_dev_ind_px), *gl_ui);
 	}
@@ -562,7 +363,7 @@ void GearInventoryUI::think()
 
 void GearInventoryUI::renderAvatarPreview()
 {
-	if(avatar_preview_scene.isNull() || avatar_preview_fbo.isNull())
+	if(avatar_preview_scene.isNull())// || avatar_preview_widget->avatar_preview_fbo.isNull())
 		return;
 
 	OpenGLEngine* engine = gui_client->opengl_engine.ptr();
@@ -570,12 +371,10 @@ void GearInventoryUI::renderAvatarPreview()
 	// Save current state
 	OpenGLSceneRef old_scene = engine->getCurrentScene();
 	FrameBufferRef old_fbo = engine->getTargetFrameBuffer();
+	
 
 	engine->setCurrentScene(avatar_preview_scene);
-	engine->setTargetFrameBufferAndViewport(avatar_preview_fbo);
-	engine->setNearDrawDistance(0.1f);
-	engine->setMaxDrawDistance(100.f);
-
+	
 	// Set equipped gear transforms
 	if(avatar_preview_gl_ob)
 	{
@@ -594,21 +393,8 @@ void GearInventoryUI::renderAvatarPreview()
 		}
 	}
 
-	// Camera orbits around cam_target_pos. All params are member variables updated by widget events.
-	const Matrix4f T     = Matrix4f::translationMatrix(0.f, cam_dist, 0.f);
-	const Matrix4f z_rot = Matrix4f::rotationAroundZAxis(cam_phi);
-	const Matrix4f x_rot = Matrix4f::rotationAroundXAxis(-(cam_theta - Maths::pi_2<float>()));
-	const Matrix4f world_to_cam = T * x_rot * z_rot * Matrix4f::translationMatrix(-cam_target_pos);
+	avatar_preview_widget->renderAvatarPreview();
 
-	const float sensor_width        = 0.035f;
-	const float lens_sensor_dist    = 0.05f;
-	const float render_aspect_ratio = (float)avatar_preview_fbo->xRes() / (float)avatar_preview_fbo->yRes();
-	engine->setPerspectiveCameraTransform(world_to_cam, sensor_width, lens_sensor_dist, render_aspect_ratio, 0.f, 0.f);
-
-	engine->draw();
-
-	// Resolve MSAA: blit the MSAA FBO into the regular resolve texture.
-	blitFrameBuffer(*avatar_preview_fbo, *avatar_preview_resolve_fbo, /*num_buffers_to_copy=*/1, /*copy_buf0_colour=*/true, /*copy_buf0_depth=*/false);
 
 	// Restore previous state (viewport will be reset by the main render call)
 	engine->setCurrentScene(old_scene);
