@@ -45,6 +45,18 @@ static bool paletteLooksDark(const QPalette& palette)
 }
 
 
+static bool systemPrefersDarkTheme()
+{
+#if defined(_WIN32)
+	QSettings personalize_settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
+	if(personalize_settings.contains("AppsUseLightTheme"))
+		return personalize_settings.value("AppsUseLightTheme").toInt() == 0;
+#endif
+
+	return paletteLooksDark(QApplication::palette());
+}
+
+
 static std::vector<std::string> getAudioInputDeviceNames()
 {
 	std::vector<std::string> names;
@@ -160,7 +172,7 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_i
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->SSAOCheckBox,					settings->value(SSAOKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->bloomCheckBox,					settings->value(BloomKey(),					/*default val=*/true).toBool());
-	const bool dark_mode_default = paletteLooksDark(QApplication::palette());
+	const bool dark_mode_default = systemPrefersDarkTheme();
 	SignalBlocker::setChecked(this->darkModeCheckBox,					settings->value(darkModeKey(), dark_mode_default).toBool());
 	
 	const bool limit_FPS = settings->value(limitFPSKey(), /*default val=*/false).toBool();

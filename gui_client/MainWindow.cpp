@@ -54,6 +54,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
+#include <QtWidgets/QStyle>
 #include <QtGamepad/QGamepadManager>
 #include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
@@ -122,11 +123,24 @@ static std::vector<std::string> qt_debug_msgs;
 static FileOutStream* log_file = nullptr;
 
 static QPalette s_system_palette;
+static QString s_default_style_name;
 
 
 static bool systemPaletteLooksDark(const QPalette& palette)
 {
 	return palette.color(QPalette::Window).lightness() < 128;
+}
+
+
+static bool systemPrefersDarkTheme()
+{
+#if defined(_WIN32)
+	QSettings personalize_settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
+	if(personalize_settings.contains("AppsUseLightTheme"))
+		return personalize_settings.value("AppsUseLightTheme").toInt() == 0;
+#endif
+
+	return systemPaletteLooksDark(s_system_palette);
 }
 
 
@@ -154,8 +168,19 @@ static QPalette makeDarkPalette()
 
 static void applyThemeFromSettings(const QSettings& settings)
 {
-	const bool use_dark_mode = settings.value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
-	QApplication::setPalette(use_dark_mode ? makeDarkPalette() : s_system_palette);
+	const bool use_dark_mode = settings.value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
+
+	if(use_dark_mode)
+	{
+		QApplication::setStyle("Fusion");
+		QApplication::setPalette(makeDarkPalette());
+	}
+	else
+	{
+		if(!s_default_style_name.isEmpty())
+			QApplication::setStyle(s_default_style_name);
+		QApplication::setPalette(s_system_palette);
+	}
 }
 
 
@@ -3168,7 +3193,7 @@ void MainWindow::on_actionAbout_Substrata_triggered()
 void MainWindow::on_actionOptions_triggered()
 {
 	const std::string prev_audio_input_dev_name = QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
-	const bool prev_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
+	const bool prev_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
 
 	MainOptionsDialog d(this->settings, gui_client.onlyLoadMostImportantObjectsDefaultValue());
 	const int code = d.exec();
@@ -3184,7 +3209,7 @@ void MainWindow::on_actionOptions_triggered()
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
 
-		const bool new_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
+		const bool new_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
 		if(new_dark_mode != prev_dark_mode)
 			applyThemeFromSettings(*settings);
 	}
@@ -4776,6 +4801,7 @@ int main(int argc, char *argv[])
 	// GuiClientApplication has been destroyed. (stupid qt).
 	GuiClientApplication app(argc, argv);
 	s_system_palette = app.palette();
+	s_default_style_name = QApplication::style()->objectName();
 
 	{
 		QSettings startup_settings("Glare Technologies", "Cyberspace");
