@@ -227,14 +227,16 @@ static void applyThemeFromSettings(const QSettings& settings)
 		if(!s_default_style_name.isEmpty())
 			QApplication::setStyle(s_default_style_name);
 		QApplication::setPalette(makeDarkPalette());
-		QApplication::setStyleSheet(darkMenuStyleSheet());
+		if(QApplication::instance())
+			QApplication::instance()->setStyleSheet(darkMenuStyleSheet());
 	}
 	else
 	{
 		if(!s_default_style_name.isEmpty())
 			QApplication::setStyle(s_default_style_name);
 		QApplication::setPalette(s_system_palette);
-		QApplication::setStyleSheet("");
+		if(QApplication::instance())
+			QApplication::instance()->setStyleSheet("");
 	}
 
 #if defined(_WIN32)
