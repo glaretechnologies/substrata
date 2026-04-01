@@ -10,7 +10,9 @@ Copyright Glare Technologies Limited 2021 -
 #include "../qt/SignalBlocker.h"
 #include "GUIClient.h"
 #include <QtWidgets/QMessageBox>
+#include <QtWidgets/QApplication>
 #include <QtCore/QSettings>
+#include <QtGui/QPalette>
 #include <utils/ComObHandle.h>
 #include <utils/PlatformUtils.h>
 #include <utils/Exception.h>
@@ -35,6 +37,12 @@ static inline void throwOnError(HRESULT hres)
 		throw glare::Exception("Error: " + PlatformUtils::COMErrorString(hres));
 }
 #endif
+
+
+static bool paletteLooksDark(const QPalette& palette)
+{
+	return palette.color(QPalette::Window).lightness() < 128;
+}
 
 
 static std::vector<std::string> getAudioInputDeviceNames()
@@ -152,6 +160,8 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_i
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->SSAOCheckBox,					settings->value(SSAOKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->bloomCheckBox,					settings->value(BloomKey(),					/*default val=*/true).toBool());
+	const bool dark_mode_default = paletteLooksDark(QApplication::palette());
+	SignalBlocker::setChecked(this->darkModeCheckBox,					settings->value(darkModeKey(), dark_mode_default).toBool());
 	
 	const bool limit_FPS = settings->value(limitFPSKey(), /*default val=*/false).toBool();
 	SignalBlocker::setChecked(this->limitFPSCheckBox,				limit_FPS);
@@ -194,6 +204,7 @@ void MainOptionsDialog::accepted()
 	settings->setValue(MSAAKey(),									this->MSAACheckBox->isChecked());
 	settings->setValue(SSAOKey(),									this->SSAOCheckBox->isChecked());
 	settings->setValue(BloomKey(),									this->bloomCheckBox->isChecked());
+	settings->setValue(darkModeKey(),									this->darkModeCheckBox->isChecked());
 	settings->setValue(limitFPSKey(),								this->limitFPSCheckBox->isChecked());
 	settings->setValue(FPSLimitKey(),								this->FPSLimitSpinBox->value());
 	settings->setValue(useCustomCacheDirKey(),						this->useCustomCacheDirCheckBox->isChecked());

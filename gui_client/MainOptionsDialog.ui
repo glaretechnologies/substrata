@@ -140,6 +140,22 @@
      </layout>
     </widget>
    </item>
+    <item>
+     <widget class="QGroupBox" name="groupBox_6">
+      <property name="title">
+        <string>Appearance</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+        <item>
+         <widget class="QCheckBox" name="darkModeCheckBox">
+          <property name="text">
+            <string>Use dark mode</string>
+          </property>
+         </widget>
+        </item>
+      </layout>
+     </widget>
+    </item>
    <item>
     <widget class="QGroupBox" name="groupBox_3">
      <property name="title">

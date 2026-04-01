@@ -46,6 +46,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
 #include <QtCore/QLoggingCategory>
+#include <QtGui/QPalette>
+#include <QtGui/QColor>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QClipboard>
 #include <QtGui/QDesktopServices>
@@ -118,6 +120,43 @@ static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f0
 static std::vector<std::string> qt_debug_msgs;
 
 static FileOutStream* log_file = nullptr;
+
+static QPalette s_system_palette;
+
+
+static bool systemPaletteLooksDark(const QPalette& palette)
+{
+	return palette.color(QPalette::Window).lightness() < 128;
+}
+
+
+static QPalette makeDarkPalette()
+{
+	QPalette palette;
+	palette.setColor(QPalette::Window, QColor(53, 53, 53));
+	palette.setColor(QPalette::WindowText, Qt::white);
+	palette.setColor(QPalette::Base, QColor(35, 35, 35));
+	palette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
+	palette.setColor(QPalette::ToolTipBase, Qt::white);
+	palette.setColor(QPalette::ToolTipText, Qt::white);
+	palette.setColor(QPalette::Text, Qt::white);
+	palette.setColor(QPalette::Button, QColor(53, 53, 53));
+	palette.setColor(QPalette::ButtonText, Qt::white);
+	palette.setColor(QPalette::BrightText, Qt::red);
+	palette.setColor(QPalette::Link, QColor(42, 130, 218));
+	palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+	palette.setColor(QPalette::HighlightedText, Qt::black);
+	palette.setColor(QPalette::Disabled, QPalette::Text, QColor(127, 127, 127));
+	palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(127, 127, 127));
+	return palette;
+}
+
+
+static void applyThemeFromSettings(QApplication& app, const QSettings& settings)
+{
+	const bool use_dark_mode = settings.value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
+	app.setPalette(use_dark_mode ? makeDarkPalette() : s_system_palette);
+}
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget* parent)
@@ -3129,6 +3168,7 @@ void MainWindow::on_actionAbout_Substrata_triggered()
 void MainWindow::on_actionOptions_triggered()
 {
 	const std::string prev_audio_input_dev_name = QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
+	const bool prev_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
 
 	MainOptionsDialog d(this->settings, gui_client.onlyLoadMostImportantObjectsDefaultValue());
 	const int code = d.exec();
@@ -3143,6 +3183,10 @@ void MainWindow::on_actionOptions_triggered()
 		gui_client.opengl_engine->setSSAOEnabled(settings->value(MainOptionsDialog::SSAOKey(), /*default val=*/false).toBool());
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
+
+		const bool new_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
+		if(new_dark_mode != prev_dark_mode)
+			applyThemeFromSettings(*QApplication::instance(), *settings);
 	}
 
 	gui_client.mic_read_thread_manager.enqueueMessage(new InputVolumeScaleChangedMessage(
@@ -4731,6 +4775,12 @@ int main(int argc, char *argv[])
 	// Note that this is deliberately constructed outside of the try..catch block below, because QErrorMessage crashes when displayed if
 	// GuiClientApplication has been destroyed. (stupid qt).
 	GuiClientApplication app(argc, argv);
+	s_system_palette = app.palette();
+
+	{
+		QSettings startup_settings("Glare Technologies", "Cyberspace");
+		applyThemeFromSettings(app, startup_settings);
+	}
 
 	try
 	{
