@@ -182,14 +182,6 @@ static QString darkAppStyleSheet()
 		"QMenu { background-color: #2f2f2f; color: #f0f0f0; border: 1px solid #4a4a4a; }"
 		"QMenu::item:selected { background-color: #3f6fb5; color: #ffffff; }"
 		"QMenu::separator { height: 1px; background: #4a4a4a; margin: 4px 8px; }"
-		"QPushButton { background-color: #3a3a3a; color: #f0f0f0; border: 1px solid #5f5f5f; }"
-		"QPushButton:hover { background-color: #444444; }"
-		"QPushButton:pressed { background-color: #323232; }"
-		"QPushButton:disabled { background-color: #2a2a2a; color: #7f7f7f; border: 1px solid #4a4a4a; }"
-		"QToolButton { color: #f0f0f0; border: none; background: transparent; padding: 0 2px; }"
-		"QToolButton:hover { background: #3a3a3a; }"
-		"QToolButton:pressed { background: #323232; }"
-		"QToolButton:disabled { color: #7f7f7f; }"
 		"QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox {"
 		"  background-color: #2c2c2c; color: #f0f0f0; border: 1px solid #565656; selection-background-color: #3f6fb5; selection-color: #ffffff;"
 		"}"
@@ -265,8 +257,12 @@ static void applyThemeFromSettings(const QSettings& settings)
 
 	if(use_dark_mode)
 	{
+		#if defined(_WIN32)
+		QApplication::setStyle("Windows");
+		#else
 		if(!s_default_style_name.isEmpty())
 			QApplication::setStyle(s_default_style_name);
+		#endif
 		QApplication::setPalette(makeDarkPalette());
 		if(QApplication* app = qobject_cast<QApplication*>(QCoreApplication::instance()))
 			app->setStyleSheet(darkAppStyleSheet());
