@@ -257,12 +257,8 @@ static void applyThemeFromSettings(const QSettings& settings)
 
 	if(use_dark_mode)
 	{
-		#if defined(_WIN32)
-		QApplication::setStyle("Windows");
-		#else
 		if(!s_default_style_name.isEmpty())
 			QApplication::setStyle(s_default_style_name);
-		#endif
 		QApplication::setPalette(makeDarkPalette());
 		if(QApplication* app = qobject_cast<QApplication*>(QCoreApplication::instance()))
 			app->setStyleSheet(darkAppStyleSheet());
