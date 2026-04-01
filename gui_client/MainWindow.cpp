@@ -186,12 +186,30 @@ static QString darkAppStyleSheet()
 		"QCheckBox::indicator { width: 14px; height: 14px; }"
 		"QCheckBox::indicator:unchecked { background-color: #2c2c2c; border: 1px solid #6a6a6a; border-radius: 2px; }"
 		"QCheckBox::indicator:unchecked:hover { background-color: #363636; }"
-		"QCheckBox::indicator:checked { background-color: #3f6fb5; border: 1px solid #6f96d1; border-radius: 2px; }"
+		"QCheckBox::indicator:checked { border: 1px solid #6f96d1; border-radius: 2px; }"
 		"QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox {"
 		"  background-color: #2c2c2c; color: #f0f0f0; border: 1px solid #565656; selection-background-color: #3f6fb5; selection-color: #ffffff;"
 		"}"
 		"QComboBox QAbstractItemView { background-color: #2c2c2c; color: #f0f0f0; selection-background-color: #3f6fb5; selection-color: #ffffff; }"
-		"QListView, QTreeView, QTableView { background-color: #2c2c2c; color: #f0f0f0; }";
+		"QListView, QTreeView, QTableView { background-color: #2c2c2c; color: #f0f0f0; }"
+		"QSlider::groove:horizontal { height: 6px; background: #3a3a3a; border: 1px solid #565656; border-radius: 3px; }"
+		"QSlider::handle:horizontal { width: 12px; margin: -5px 0; background: #b8b8b8; border: 1px solid #6f6f6f; border-radius: 3px; }"
+		"QSlider::sub-page:horizontal { background: #6b6b6b; border-radius: 3px; }"
+		"QSlider::add-page:horizontal { background: #3a3a3a; border-radius: 3px; }"
+		"QSlider::groove:vertical { width: 6px; background: #3a3a3a; border: 1px solid #565656; border-radius: 3px; }"
+		"QSlider::handle:vertical { height: 12px; margin: 0 -5px; background: #b8b8b8; border: 1px solid #6f6f6f; border-radius: 3px; }"
+		"QSlider::sub-page:vertical { background: #6b6b6b; border-radius: 3px; }"
+		"QSlider::add-page:vertical { background: #3a3a3a; border-radius: 3px; }"
+		"QScrollBar:vertical { background: #2d2d2d; width: 14px; margin: 0; border: 1px solid #4d4d4d; }"
+		"QScrollBar::handle:vertical { background: #7a7a7a; min-height: 24px; border: 1px solid #8d8d8d; border-radius: 3px; }"
+		"QScrollBar::handle:vertical:hover { background: #8b8b8b; }"
+		"QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+		"QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: #2d2d2d; }"
+		"QScrollBar:horizontal { background: #2d2d2d; height: 14px; margin: 0; border: 1px solid #4d4d4d; }"
+		"QScrollBar::handle:horizontal { background: #7a7a7a; min-width: 24px; border: 1px solid #8d8d8d; border-radius: 3px; }"
+		"QScrollBar::handle:horizontal:hover { background: #8b8b8b; }"
+		"QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }"
+		"QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: #2d2d2d; }";
 }
 
 
