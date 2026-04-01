@@ -99,6 +99,7 @@ Copyright Glare Technologies Limited 2024 -
 #ifdef _WIN32
 #include <d3d11.h>
 #include <d3d11_4.h>
+#include <windows.h>
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -166,21 +167,79 @@ static QPalette makeDarkPalette()
 }
 
 
+static QString darkMenuStyleSheet()
+{
+	return
+		"QMenuBar { background-color: #2f2f2f; color: #f0f0f0; }"
+		"QMenuBar::item { background: transparent; padding: 4px 8px; }"
+		"QMenuBar::item:selected { background: #3c3c3c; }"
+		"QMenu { background-color: #2f2f2f; color: #f0f0f0; border: 1px solid #4a4a4a; }"
+		"QMenu::item:selected { background-color: #3f6fb5; color: #ffffff; }"
+		"QMenu::separator { height: 1px; background: #4a4a4a; margin: 4px 8px; }";
+}
+
+
+#if defined(_WIN32)
+static void setNativeWindowsDarkTitleBar(QWidget* widget, bool enable_dark)
+{
+	if(widget == NULL)
+		return;
+
+	const HWND hwnd = (HWND)widget->winId();
+	if(hwnd == NULL)
+		return;
+
+	typedef HRESULT (WINAPI* DwmSetWindowAttributeFn)(HWND, DWORD, LPCVOID, DWORD);
+	const HMODULE dwm = LoadLibraryA("dwmapi.dll");
+	if(dwm == NULL)
+		return;
+
+	DwmSetWindowAttributeFn fn = (DwmSetWindowAttributeFn)GetProcAddress(dwm, "DwmSetWindowAttribute");
+	if(fn)
+	{
+		BOOL use_dark = enable_dark ? TRUE : FALSE;
+		const DWORD DWMWA_USE_IMMERSIVE_DARK_MODE_NEW = 20;
+		const DWORD DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19;
+
+		fn(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_NEW, &use_dark, sizeof(use_dark));
+		fn(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, &use_dark, sizeof(use_dark));
+	}
+
+	FreeLibrary(dwm);
+}
+
+
+static void applyNativeWindowsTitleBarTheme(bool use_dark_mode)
+{
+	const QWidgetList top_level_widgets = QApplication::topLevelWidgets();
+	for(int i=0; i<top_level_widgets.size(); ++i)
+		setNativeWindowsDarkTitleBar(top_level_widgets[i], use_dark_mode);
+}
+#endif
+
+
 static void applyThemeFromSettings(const QSettings& settings)
 {
 	const bool use_dark_mode = settings.value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
 
 	if(use_dark_mode)
 	{
-		QApplication::setStyle("Fusion");
+		if(!s_default_style_name.isEmpty())
+			QApplication::setStyle(s_default_style_name);
 		QApplication::setPalette(makeDarkPalette());
+		QApplication::setStyleSheet(darkMenuStyleSheet());
 	}
 	else
 	{
 		if(!s_default_style_name.isEmpty())
 			QApplication::setStyle(s_default_style_name);
 		QApplication::setPalette(s_system_palette);
+		QApplication::setStyleSheet("");
 	}
+
+#if defined(_WIN32)
+	applyNativeWindowsTitleBarTheme(use_dark_mode);
+#endif
 }
 
 
@@ -5024,6 +5083,7 @@ int main(int argc, char *argv[])
 			}
 
 			mw.show(); // Calls glWidget->initializeGL() which initialises OpenGLEngine.
+			applyThemeFromSettings(*mw.settings); // Re-apply now that native windows exist, so title bar color updates on Windows.
 
 			mw.raise();
 
