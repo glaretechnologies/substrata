@@ -161,7 +161,7 @@ static QPalette makeDarkPalette()
 	palette.setColor(QPalette::BrightText, Qt::red);
 	palette.setColor(QPalette::Link, QColor(42, 130, 218));
 	palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
-	palette.setColor(QPalette::HighlightedText, Qt::black);
+	palette.setColor(QPalette::HighlightedText, Qt::white);
 	palette.setColor(QPalette::Disabled, QPalette::Text, QColor(127, 127, 127));
 	palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(127, 127, 127));
 	return palette;
@@ -171,6 +171,9 @@ static QPalette makeDarkPalette()
 static QString darkAppStyleSheet()
 {
 	return
+		"QWidget, QDialog, QLabel, QGroupBox, QCheckBox, QRadioButton { color: #f0f0f0; }"
+		"QGroupBox { border: 1px solid #5a5a5a; margin-top: 1ex; }"
+		"QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 3px; }"
 		"QMenuBar { background-color: #2f2f2f; color: #f0f0f0; }"
 		"QMenuBar::item { background: transparent; padding: 4px 8px; }"
 		"QMenuBar::item:selected { background: #3c3c3c; }"
@@ -180,9 +183,14 @@ static QString darkAppStyleSheet()
 		"QPushButton { background-color: #3a3a3a; color: #f0f0f0; border: 1px solid #565656; padding: 4px 8px; }"
 		"QPushButton:hover { background-color: #454545; }"
 		"QPushButton:pressed { background-color: #2f2f2f; }"
+		"QCheckBox::indicator { width: 14px; height: 14px; }"
+		"QCheckBox::indicator:unchecked { background-color: #2c2c2c; border: 1px solid #6a6a6a; border-radius: 2px; }"
+		"QCheckBox::indicator:unchecked:hover { background-color: #363636; }"
+		"QCheckBox::indicator:checked { background-color: #3f6fb5; border: 1px solid #6f96d1; border-radius: 2px; }"
 		"QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox {"
-		"  background-color: #2c2c2c; color: #f0f0f0; border: 1px solid #565656; selection-background-color: #3f6fb5;"
+		"  background-color: #2c2c2c; color: #f0f0f0; border: 1px solid #565656; selection-background-color: #3f6fb5; selection-color: #ffffff;"
 		"}"
+		"QComboBox QAbstractItemView { background-color: #2c2c2c; color: #f0f0f0; selection-background-color: #3f6fb5; selection-color: #ffffff; }"
 		"QListView, QTreeView, QTableView { background-color: #2c2c2c; color: #f0f0f0; }";
 }
 
