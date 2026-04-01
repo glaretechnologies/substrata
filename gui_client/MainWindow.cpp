@@ -125,6 +125,7 @@ static FileOutStream* log_file = nullptr;
 
 static QPalette s_system_palette;
 static QString s_default_style_name;
+static bool s_dark_mode_enabled = false;
 
 
 static bool systemPaletteLooksDark(const QPalette& palette)
@@ -167,7 +168,7 @@ static QPalette makeDarkPalette()
 }
 
 
-static QString darkMenuStyleSheet()
+static QString darkAppStyleSheet()
 {
 	return
 		"QMenuBar { background-color: #2f2f2f; color: #f0f0f0; }"
@@ -175,7 +176,14 @@ static QString darkMenuStyleSheet()
 		"QMenuBar::item:selected { background: #3c3c3c; }"
 		"QMenu { background-color: #2f2f2f; color: #f0f0f0; border: 1px solid #4a4a4a; }"
 		"QMenu::item:selected { background-color: #3f6fb5; color: #ffffff; }"
-		"QMenu::separator { height: 1px; background: #4a4a4a; margin: 4px 8px; }";
+		"QMenu::separator { height: 1px; background: #4a4a4a; margin: 4px 8px; }"
+		"QPushButton { background-color: #3a3a3a; color: #f0f0f0; border: 1px solid #565656; padding: 4px 8px; }"
+		"QPushButton:hover { background-color: #454545; }"
+		"QPushButton:pressed { background-color: #2f2f2f; }"
+		"QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox {"
+		"  background-color: #2c2c2c; color: #f0f0f0; border: 1px solid #565656; selection-background-color: #3f6fb5;"
+		"}"
+		"QListView, QTreeView, QTableView { background-color: #2c2c2c; color: #f0f0f0; }";
 }
 
 
@@ -221,6 +229,7 @@ static void applyNativeWindowsTitleBarTheme(bool use_dark_mode)
 static void applyThemeFromSettings(const QSettings& settings)
 {
 	const bool use_dark_mode = settings.value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
+	s_dark_mode_enabled = use_dark_mode;
 
 	if(use_dark_mode)
 	{
@@ -228,7 +237,7 @@ static void applyThemeFromSettings(const QSettings& settings)
 			QApplication::setStyle(s_default_style_name);
 		QApplication::setPalette(makeDarkPalette());
 		if(QApplication* app = qobject_cast<QApplication*>(QCoreApplication::instance()))
-			app->setStyleSheet(darkMenuStyleSheet());
+			app->setStyleSheet(darkAppStyleSheet());
 	}
 	else
 	{
@@ -4758,6 +4767,25 @@ public:
 };
 
 
+class ThemeEventFilter : public QObject
+{
+public:
+	virtual bool eventFilter(QObject* obj, QEvent* event)
+	{
+#if defined(_WIN32)
+		if(event->type() == QEvent::Show && obj->isWidgetType())
+		{
+			QWidget* widget = static_cast<QWidget*>(obj);
+			if(widget->isWindow())
+				setNativeWindowsDarkTitleBar(widget, s_dark_mode_enabled);
+		}
+#endif
+
+		return QObject::eventFilter(obj, event);
+	}
+};
+
+
 // Enable bugsplat unless the DISABLE_BUGSPLAT env var is set to a non-zero value.
 #ifdef BUGSPLAT_SUPPORT
 static bool shouldEnableBugSplat()
@@ -4873,6 +4901,9 @@ int main(int argc, char *argv[])
 	{
 		OpenEventFilter* open_even_filter = new OpenEventFilter();
 		app.installEventFilter(open_even_filter);
+
+		ThemeEventFilter* theme_event_filter = new ThemeEventFilter();
+		app.installEventFilter(theme_event_filter);
 
 #if defined(_WIN32)
 		const bool com_init_success = WMFVideoReader::initialiseCOM();
