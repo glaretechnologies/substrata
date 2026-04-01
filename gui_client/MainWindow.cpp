@@ -152,10 +152,10 @@ static QPalette makeDarkPalette()
 }
 
 
-static void applyThemeFromSettings(QApplication& app, const QSettings& settings)
+static void applyThemeFromSettings(const QSettings& settings)
 {
 	const bool use_dark_mode = settings.value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
-	app.setPalette(use_dark_mode ? makeDarkPalette() : s_system_palette);
+	QApplication::setPalette(use_dark_mode ? makeDarkPalette() : s_system_palette);
 }
 
 
@@ -3186,7 +3186,7 @@ void MainWindow::on_actionOptions_triggered()
 
 		const bool new_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPaletteLooksDark(s_system_palette)).toBool();
 		if(new_dark_mode != prev_dark_mode)
-			applyThemeFromSettings(*QApplication::instance(), *settings);
+			applyThemeFromSettings(*settings);
 	}
 
 	gui_client.mic_read_thread_manager.enqueueMessage(new InputVolumeScaleChangedMessage(
@@ -4779,7 +4779,7 @@ int main(int argc, char *argv[])
 
 	{
 		QSettings startup_settings("Glare Technologies", "Cyberspace");
-		applyThemeFromSettings(app, startup_settings);
+		applyThemeFromSettings(startup_settings);
 	}
 
 	try
