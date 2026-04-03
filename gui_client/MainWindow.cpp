@@ -46,12 +46,15 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
 #include <QtCore/QLoggingCategory>
+#include <QtGui/QPalette>
+#include <QtGui/QColor>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QClipboard>
 #include <QtGui/QDesktopServices>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
+#include <QtWidgets/QStyle>
 #include <QtGamepad/QGamepadManager>
 #include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
@@ -96,6 +99,7 @@ Copyright Glare Technologies Limited 2024 -
 #ifdef _WIN32
 #include <d3d11.h>
 #include <d3d11_4.h>
+#include <windows.h>
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -118,6 +122,180 @@ static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f0
 static std::vector<std::string> qt_debug_msgs;
 
 static FileOutStream* log_file = nullptr;
+
+static QPalette s_system_palette;
+static QString s_default_style_name;
+static bool s_dark_mode_enabled = false;
+
+
+static bool systemPaletteLooksDark(const QPalette& palette)
+{
+	return palette.color(QPalette::Window).lightness() < 128;
+}
+
+
+static bool systemPrefersDarkTheme()
+{
+#if defined(_WIN32)
+	QSettings personalize_settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
+	if(personalize_settings.contains("AppsUseLightTheme"))
+		return personalize_settings.value("AppsUseLightTheme").toInt() == 0;
+#endif
+
+	return systemPaletteLooksDark(s_system_palette);
+}
+
+
+static QPalette makeDarkPalette()
+{
+	QPalette palette;
+	palette.setColor(QPalette::Window, QColor(53, 53, 53));
+	palette.setColor(QPalette::WindowText, Qt::white);
+	palette.setColor(QPalette::Base, QColor(35, 35, 35));
+	palette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
+	palette.setColor(QPalette::ToolTipBase, Qt::white);
+	palette.setColor(QPalette::ToolTipText, Qt::white);
+	palette.setColor(QPalette::Text, Qt::white);
+	palette.setColor(QPalette::Button, QColor(53, 53, 53));
+	palette.setColor(QPalette::ButtonText, Qt::white);
+	palette.setColor(QPalette::BrightText, Qt::red);
+	palette.setColor(QPalette::Link, QColor(42, 130, 218));
+	palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+	palette.setColor(QPalette::HighlightedText, Qt::white);
+	palette.setColor(QPalette::Disabled, QPalette::Text, QColor(127, 127, 127));
+	palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(127, 127, 127));
+	return palette;
+}
+
+
+static QString darkAppStyleSheet()
+{
+	return
+		"QWidget, QDialog, QLabel, QGroupBox, QCheckBox, QRadioButton { color: #f0f0f0; }"
+		"QWidget:disabled, QLabel:disabled, QGroupBox:disabled, QCheckBox:disabled, QRadioButton:disabled { color: #7f7f7f; }"
+		"QGroupBox { border: 1px solid #5a5a5a; margin-top: 1ex; }"
+		"QGroupBox:disabled { border: 1px solid #4a4a4a; }"
+		"QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 3px; }"
+		"QDockWidget::title { padding-left: 6px; }"
+		"QDockWidget::close-button, QDockWidget::float-button {"
+		"  background-color: #5a5a5a; border: 1px solid #7a7a7a; border-radius: 2px;"
+		"}"
+		"QDockWidget::close-button:hover, QDockWidget::float-button:hover { background-color: #6a6a6a; }"
+		"QDockWidget::close-button:pressed, QDockWidget::float-button:pressed { background-color: #4a4a4a; }"
+		"QTabWidget::pane { border: 1px solid #4a4a4a; top: -1px; }"
+		"QTabBar::tab { background: #3a3a3a; color: #f0f0f0; border: 1px solid #5a5a5a; padding: 4px 12px; }"
+		"QTabBar::tab:selected { background: #2f2f2f; color: #ffffff; border-bottom-color: #2f2f2f; }"
+		"QTabBar::tab:!selected { margin-top: 2px; }"
+		"QTabBar::tab:hover { background: #454545; }"
+		"QTabBar::tab:disabled { background: #2a2a2a; color: #7f7f7f; border-color: #464646; }"
+		"QToolButton { color: #f0f0f0; background: transparent; border: 1px solid transparent; padding: 2px 6px; }"
+		"QToolButton:hover { color: #ffffff; background: #3d3d3d; border: 1px solid #5f5f5f; border-radius: 3px; }"
+		"QToolButton:pressed { color: #ffffff; background: #2f2f2f; border: 1px solid #5f5f5f; border-radius: 3px; }"
+		"QToolButton:disabled { color: #7f7f7f; }"
+		"QMenuBar { background-color: #2f2f2f; color: #f0f0f0; }"
+		"QMenuBar::item { background: transparent; padding: 4px 8px; }"
+		"QMenuBar::item:selected { background: #3c3c3c; }"
+		"QMenu { background-color: #2f2f2f; color: #f0f0f0; border: 1px solid #4a4a4a; }"
+		"QMenu::item:selected { background-color: #3f6fb5; color: #ffffff; }"
+		"QMenu::separator { height: 1px; background: #4a4a4a; margin: 4px 8px; }"
+		"QPushButton { background-color: #3a3a3a; color: #f0f0f0; border: 1px solid #626262; border-radius: 4px; padding: 2px 10px; min-height: 20px; }"
+		"QPushButton:hover { background-color: #464646; }"
+		"QPushButton:pressed { background-color: #2f2f2f; }"
+		"QPushButton:disabled { background-color: #2a2a2a; color: #8a8a8a; border: 1px solid #4c4c4c; border-radius: 4px; }"
+		"QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox {"
+		"  background-color: #2c2c2c; color: #f0f0f0; border: 1px solid #565656; selection-background-color: #3f6fb5; selection-color: #ffffff;"
+		"}"
+		"QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled, QAbstractSpinBox:disabled, QComboBox:disabled {"
+		"  background-color: #252525; color: #7f7f7f; border: 1px solid #464646;"
+		"}"
+		"QComboBox QAbstractItemView { background-color: #2c2c2c; color: #f0f0f0; selection-background-color: #3f6fb5; selection-color: #ffffff; }"
+		"QListView, QTreeView, QTableView { background-color: #2c2c2c; color: #f0f0f0; }"
+		"QSlider::groove:horizontal { height: 4px; background: #4a4a4a; border-radius: 2px; }"
+		"QSlider::sub-page:horizontal { background: #7a7a7a; border-radius: 2px; }"
+		"QSlider::add-page:horizontal { background: #4a4a4a; border-radius: 2px; }"
+		"QSlider::handle:horizontal { width: 10px; margin: -6px 0; background: #2f87de; border: 1px solid #58a8f0; border-radius: 1px; }"
+		"QSlider::groove:vertical { width: 4px; background: #4a4a4a; border-radius: 2px; }"
+		"QSlider::sub-page:vertical { background: #7a7a7a; border-radius: 2px; }"
+		"QSlider::add-page:vertical { background: #4a4a4a; border-radius: 2px; }"
+		"QSlider::handle:vertical { height: 10px; margin: 0 -6px; background: #2f87de; border: 1px solid #58a8f0; border-radius: 1px; }"
+		"QScrollBar:vertical { background: #2f2f2f; width: 14px; margin: 0; border: 1px solid #4a4a4a; }"
+		"QScrollBar::handle:vertical { background: #6c6c6c; min-height: 24px; border: 1px solid #838383; border-radius: 2px; }"
+		"QScrollBar::handle:vertical:hover { background: #7a7a7a; }"
+		"QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+		"QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: #2f2f2f; }"
+		"QScrollBar:horizontal { background: #2f2f2f; height: 14px; margin: 0; border: 1px solid #4a4a4a; }"
+		"QScrollBar::handle:horizontal { background: #6c6c6c; min-width: 24px; border: 1px solid #838383; border-radius: 2px; }"
+		"QScrollBar::handle:horizontal:hover { background: #7a7a7a; }"
+		"QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }"
+		"QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: #2f2f2f; }";
+}
+
+
+#if defined(_WIN32)
+static void setNativeWindowsDarkTitleBar(QWidget* widget, bool enable_dark)
+{
+	if(widget == NULL)
+		return;
+
+	const HWND hwnd = (HWND)widget->winId();
+	if(hwnd == NULL)
+		return;
+
+	typedef HRESULT (WINAPI* DwmSetWindowAttributeFn)(HWND, DWORD, LPCVOID, DWORD);
+	const HMODULE dwm = LoadLibraryA("dwmapi.dll");
+	if(dwm == NULL)
+		return;
+
+	DwmSetWindowAttributeFn fn = (DwmSetWindowAttributeFn)GetProcAddress(dwm, "DwmSetWindowAttribute");
+	if(fn)
+	{
+		BOOL use_dark = enable_dark ? TRUE : FALSE;
+		const DWORD DWMWA_USE_IMMERSIVE_DARK_MODE_NEW = 20;
+		const DWORD DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19;
+
+		fn(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_NEW, &use_dark, sizeof(use_dark));
+		fn(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, &use_dark, sizeof(use_dark));
+	}
+
+	FreeLibrary(dwm);
+}
+
+
+static void applyNativeWindowsTitleBarTheme(bool use_dark_mode)
+{
+	const QWidgetList top_level_widgets = QApplication::topLevelWidgets();
+	for(int i=0; i<top_level_widgets.size(); ++i)
+		setNativeWindowsDarkTitleBar(top_level_widgets[i], use_dark_mode);
+}
+#endif
+
+
+static void applyThemeFromSettings(const QSettings& settings)
+{
+	const bool use_dark_mode = settings.value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
+	s_dark_mode_enabled = use_dark_mode;
+
+	if(use_dark_mode)
+	{
+		if(!s_default_style_name.isEmpty())
+			QApplication::setStyle(s_default_style_name);
+		QApplication::setPalette(makeDarkPalette());
+		if(QApplication* app = qobject_cast<QApplication*>(QCoreApplication::instance()))
+			app->setStyleSheet(darkAppStyleSheet());
+	}
+	else
+	{
+		if(!s_default_style_name.isEmpty())
+			QApplication::setStyle(s_default_style_name);
+		QApplication::setPalette(s_system_palette);
+		if(QApplication* app = qobject_cast<QApplication*>(QCoreApplication::instance()))
+			app->setStyleSheet("");
+	}
+
+#if defined(_WIN32)
+	applyNativeWindowsTitleBarTheme(use_dark_mode);
+#endif
+}
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget* parent)
@@ -3129,6 +3307,7 @@ void MainWindow::on_actionAbout_Substrata_triggered()
 void MainWindow::on_actionOptions_triggered()
 {
 	const std::string prev_audio_input_dev_name = QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
+	const bool prev_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
 
 	MainOptionsDialog d(this->settings, gui_client.onlyLoadMostImportantObjectsDefaultValue());
 	const int code = d.exec();
@@ -3143,6 +3322,10 @@ void MainWindow::on_actionOptions_triggered()
 		gui_client.opengl_engine->setSSAOEnabled(settings->value(MainOptionsDialog::SSAOKey(), /*default val=*/false).toBool());
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
+
+		const bool new_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
+		if(new_dark_mode != prev_dark_mode)
+			applyThemeFromSettings(*settings);
 	}
 
 	gui_client.mic_read_thread_manager.enqueueMessage(new InputVolumeScaleChangedMessage(
@@ -4628,6 +4811,25 @@ public:
 };
 
 
+class ThemeEventFilter : public QObject
+{
+public:
+	virtual bool eventFilter(QObject* obj, QEvent* event)
+	{
+#if defined(_WIN32)
+		if(event->type() == QEvent::Show && obj->isWidgetType())
+		{
+			QWidget* widget = static_cast<QWidget*>(obj);
+			if(widget->isWindow())
+				setNativeWindowsDarkTitleBar(widget, s_dark_mode_enabled);
+		}
+#endif
+
+		return QObject::eventFilter(obj, event);
+	}
+};
+
+
 // Enable bugsplat unless the DISABLE_BUGSPLAT env var is set to a non-zero value.
 #ifdef BUGSPLAT_SUPPORT
 static bool shouldEnableBugSplat()
@@ -4731,11 +4933,21 @@ int main(int argc, char *argv[])
 	// Note that this is deliberately constructed outside of the try..catch block below, because QErrorMessage crashes when displayed if
 	// GuiClientApplication has been destroyed. (stupid qt).
 	GuiClientApplication app(argc, argv);
+	s_system_palette = app.palette();
+	s_default_style_name = QApplication::style()->objectName();
+
+	{
+		QSettings startup_settings("Glare Technologies", "Cyberspace");
+		applyThemeFromSettings(startup_settings);
+	}
 
 	try
 	{
 		OpenEventFilter* open_even_filter = new OpenEventFilter();
 		app.installEventFilter(open_even_filter);
+
+		ThemeEventFilter* theme_event_filter = new ThemeEventFilter();
+		app.installEventFilter(theme_event_filter);
 
 #if defined(_WIN32)
 		const bool com_init_success = WMFVideoReader::initialiseCOM();
@@ -4948,6 +5160,7 @@ int main(int argc, char *argv[])
 			}
 
 			mw.show(); // Calls glWidget->initializeGL() which initialises OpenGLEngine.
+			applyThemeFromSettings(*mw.settings); // Re-apply now that native windows exist, so title bar color updates on Windows.
 
 			mw.raise();
 

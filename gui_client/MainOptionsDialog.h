@@ -51,6 +51,8 @@ public:
 
 	static const QString showMinimapKey() { return "setting/show_minimap"; }
 
+	static const QString darkModeKey() { return "setting/dark_mode"; }
+
 	static std::string getInputDeviceName(const QSettings* settings);
 	static float getInputScaleFactor(const QSettings* settings);
 
