@@ -39,7 +39,7 @@ AvatarPreviewGLUIWidget::AvatarPreviewGLUIWidget(GLUI& glui_)
 
 	opengl_engine->addOverlayObject(overlay_ob);
 
-	setFixedDimsPx(Vec2f(200, 400), glui_);
+	setFixedDimsPx(Vec2f(200, 400));
 }
 
 
@@ -71,9 +71,9 @@ void AvatarPreviewGLUIWidget::setClipRegion(const Rect2f& clip_rect)
 
 
 // Called when e.g. the viewport changes size
-void AvatarPreviewGLUIWidget::updateGLTransform()
+void AvatarPreviewGLUIWidget::viewportResized()
 {
-	const Vec2f dims = computeDims(/*old dims=*/this->getDims(), *glui);
+	const Vec2f dims = computeDims(/*old dims=*/this->getDims());
 	const Vec2f bot_left = getRect().getMin();
 	rect = Rect2f::fromMinAndSpan(bot_left, dims);
 

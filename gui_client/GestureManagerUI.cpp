@@ -29,8 +29,6 @@ GestureManagerUI::GestureManagerUI(GUIClient* gui_client_, GLUIRef gl_ui_, const
 		container_args.exterior_cell_x_padding_px = 4;
 		container_args.exterior_cell_y_padding_px = 4;
 		grid_container = new GLUIGridContainer(*gl_ui, container_args);
-		grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
-		gl_ui->addWidget(grid_container);
 	}
 
 	// Create window
@@ -102,7 +100,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 		const std::string tex_name = GestureSettings::isDefaultGestureName(setting.friendly_name) ? setting.friendly_name : "Waving 1";
 
 		GLUIImageRef gesture_image = new GLUIImage(*gl_ui, /*tex path=*/gui_client->resources_dir_path + "/buttons/" + tex_name + ".png", "");
-		gesture_image->setFixedDimsPx(Vec2f(BUTTON_W_PIXELS), *gl_ui);
+		gesture_image->setFixedDimsPx(Vec2f(BUTTON_W_PIXELS));
 
 		grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, gesture_image);
 
@@ -196,9 +194,10 @@ void GestureManagerUI::updateWidgetPositions()
 {
 	if(gl_ui)
 	{
-		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(100);
+		const float x_margin = (2.f - window->getDims().x) / 2.f;//   gl_ui->getUIWidthForDevIndepPixelWidth(100);
+		const float y_margin = (gl_ui->getViewportMinMaxY()*2.f - window->getDims().y) / 2.f;//   gl_ui->getUIWidthForDevIndepPixelWidth(100);
 
-		window->setPosAndDims(Vec2f(-1.f + margin, -gl_ui->getViewportMinMaxY() + margin), Vec2f(myMax(0.01f, 2.f - 2*margin), myMax(0.01f, 2*gl_ui->getViewportMinMaxY() - 2*margin)));
+		window->setPos(Vec2f(-1.f + x_margin, -gl_ui->getViewportMinMaxY() + y_margin));
 
 		window->recomputeLayout();
 	}

@@ -459,9 +459,9 @@ void ObjectEditor::setTransformFromObject(const WorldObject& ob)
 
 	const Vec3f angles = rot_mat.getAngles();
 
-	SignalBlocker::setValue(this->rotAxisXDoubleSpinBox, angles.x * 360 / Maths::get2Pi<float>());
-	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, angles.y * 360 / Maths::get2Pi<float>());
-	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, angles.z * 360 / Maths::get2Pi<float>());
+	SignalBlocker::setValue(this->rotAxisXDoubleSpinBox, ::radToDegree(angles.x));
+	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, ::radToDegree(angles.y));
+	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, ::radToDegree(angles.z));
 
 	updateInfoLabel(ob); // Update info label, which includes last-modified time.
 }

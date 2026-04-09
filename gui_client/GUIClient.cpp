@@ -3151,27 +3151,59 @@ void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics*
 }
 
 
-static Matrix4f gearObToWorldMatrix(const GearItem& item)
+Avatar* GUIClient::getOurAvatar(WorldStateLock&)
 {
-	const Vec4f pos((float)item.translation.x, (float)item.translation.y, (float)item.translation.z, 1.f);
+	for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+	{
+		Avatar* avatar = it->second.getPointer();
+		if(avatar->isOurAvatar())
+			return avatar;
+	}
+	return nullptr;
+}
 
-	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
-	Vec3f use_scale = item.scale;
-	if(std::fabs(use_scale.x) < 1.0e-6f) use_scale.x = 1.0e-6f;
-	if(std::fabs(use_scale.y) < 1.0e-6f) use_scale.y = 1.0e-6f;
-	if(std::fabs(use_scale.z) < 1.0e-6f) use_scale.z = 1.0e-6f;
 
-	// Equivalent to
-	//return Matrix4f::translationMatrix(pos + ob.translation) *
-	//	Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), ob.angle) *
-	//	Matrix4f::scaleMatrix(use_scale.x, use_scale.y, use_scale.z));
+void GUIClient::gearItemChangedOnOurAvatar(GearItem* updated_item)
+{
+	//----------- Update equipped_gear_graphics vector -------------
+	{
+		WorldStateLock lock(this->world_state->mutex);
+		Avatar* avatar = getOurAvatar(lock);
+		if(avatar)
+		{
+			if(avatar->equipped_gear.items.size() != avatar->graphics.equipped_gear_graphics.size())
+				avatar->graphics.equipped_gear_graphics.resize(avatar->equipped_gear.items.size());
 
-	Matrix4f rot = Matrix4f::rotationMatrix(normalise(item.axis.toVec4fVector()), item.angle);
-	rot.setColumn(0, rot.getColumn(0) * use_scale.x);
-	rot.setColumn(1, rot.getColumn(1) * use_scale.y);
-	rot.setColumn(2, rot.getColumn(2) * use_scale.z);
-	rot.setColumn(3, pos);
-	return rot;
+			for(size_t i=0; i<avatar->graphics.equipped_gear_graphics.size(); ++i)
+			{
+				if(avatar->equipped_gear.items[i]->id == updated_item->id)
+				{
+					avatar->equipped_gear.items[i] = updated_item;
+
+					// Copy state.  NOTE: why is this needed?
+					//avatar->equipped_gear.items[i]->bone_name   = item->bone_name;
+					//avatar->equipped_gear.items[i]->translation = item->translation;
+					//avatar->equipped_gear.items[i]->scale       = item->scale;
+					//avatar->equipped_gear.items[i]->axis        = item->axis;
+					//avatar->equipped_gear.items[i]->angle       = item->angle;
+					// etc...
+
+
+					avatar->graphics.equipped_gear_graphics[i].gear_id   = updated_item->id;
+					avatar->graphics.equipped_gear_graphics[i].bone_name = updated_item->bone_name;
+					avatar->graphics.equipped_gear_graphics[i].bone_node_i = -1; // Clear bone binding
+					avatar->graphics.equipped_gear_graphics[i].transform = updated_item->gearObToBoneSpaceMatrix();
+				}
+			}
+
+			avatar->graphics.updateGearBones();
+		}
+	}
+
+	// Make GearItemUpdate packet and enqueue to send to server
+	MessageUtils::initPacket(scratch_packet, Protocol::GearItemUpdate);
+	updated_item->writeToStream(scratch_packet);
+	enqueueMessageToSend(*this->client_thread, scratch_packet);
 }
 
 
@@ -3300,8 +3332,9 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			avatar->graphics.equipped_gear_graphics.resize(avatar->equipped_gear.items.size());
 			for(size_t i=0; i<avatar->graphics.equipped_gear_graphics.size(); ++i)
 			{
+				avatar->graphics.equipped_gear_graphics[i].gear_id   = avatar->equipped_gear.items[i]->id;
 				avatar->graphics.equipped_gear_graphics[i].bone_name = avatar->equipped_gear.items[i]->bone_name;
-				avatar->graphics.equipped_gear_graphics[i].transform = gearObToWorldMatrix(*avatar->equipped_gear.items[i]);
+				avatar->graphics.equipped_gear_graphics[i].transform = avatar->equipped_gear.items[i]->gearObToBoneSpaceMatrix();
 			}
 		}
 
@@ -5465,7 +5498,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 			}
 			else
 			{
-				ob->diagnostic_text_view->setText(*this->gl_ui, diag_text);
+				ob->diagnostic_text_view->setText(diag_text);
 
 				Vec2f normed_coords;
 				const bool visible = getGLUICoordsForPoint((aabb_min_ws + aabb_max_ws) * 0.5f, normed_coords);
@@ -16132,6 +16165,68 @@ void GUIClient::gestureSettingsChanged(const GestureSettings& new_gesture_settin
 	gesture_ui.setCurrentGestureSettings(new_gesture_settings);
 }
 
+void GUIClient::openGearInventory()
+{
+	if(gear_inventory_ui)
+	{
+		gear_inventory_ui = nullptr; // Close
+	}
+	else
+	{
+		gear_inventory_ui = new GearInventoryUI(this, gl_ui);
+
+		// If our avatar model is already loaded, pass it to the inventory for preview.
+		if(world_state)
+		{
+			Lock lock(world_state->mutex);
+			auto it = world_state->avatars.find(client_avatar_uid);
+			if(it != world_state->avatars.end())
+			{
+				Avatar* av = it->second.ptr();
+				if(av->graphics.skinned_gl_ob)
+					gear_inventory_ui->setAvatarGLObject(av->graphics, av->graphics.skinned_gl_ob, av->avatar_settings.pre_ob_to_world_matrix);
+			}
+		}
+
+		// Populate equipped panel
+		gear_inventory_ui->setEquippedGear(this->logged_in_equipped_gear);
+
+		// Ask the server for the full owned-gear list (response populates the All Gear panel).
+		conPrint("Gear inventory opened, sending QueryUserGear.");
+		MessageUtils::initPacket(scratch_packet, Protocol::QueryUserGear);
+		enqueueMessageToSend(*client_thread, scratch_packet);
+	}
+}
+
+
+void GUIClient::convertSelectedObjectToGearItem()
+{
+	if(selected_ob)
+	{
+		GearItemRef item = new GearItem();
+
+		// Id will be set by server.
+		item->creator_id = logged_in_user_id;
+		item->owner_id = logged_in_user_id;
+		item->model_url = selected_ob->model_url;
+		item->materials = selected_ob->materials;
+		item->bone_name = "LeftHand";
+		item->translation = Vec3f(0.f);
+		item->axis = Vec3f(0,0,1);
+		item->angle = 0.f;
+		item->scale = selected_ob->scale;
+		item->name = "New gear item";
+
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateGearItem);
+		item->writeToStream(scratch_packet);
+		enqueueMessageToSend(*client_thread, scratch_packet);
+	}
+	else
+	{
+		showErrorNotification("Please select an object first");
+	}
+}
+
 
 static Avatar buildOurCurrentAvatar(const GUIClient& gc)
 {
@@ -16358,6 +16453,13 @@ void GUIClient::keyPressed(KeyEvent& e)
 		gl_ui->handleKeyPressedEvent(e);
 	if(e.accepted)
 		return;
+
+	if(gear_inventory_ui)
+	{
+		gear_inventory_ui->keyPressed(e);
+		if(e.accepted)
+			return;
+	}
 
 	// Update our key-state variables, jump if space was pressed.
 	{
@@ -16601,35 +16703,7 @@ void GUIClient::keyPressed(KeyEvent& e)
 	}
 	else if(e.key == Key::Key_I)
 	{
-		if(gear_inventory_ui)
-		{
-			gear_inventory_ui = nullptr; // Close
-		}
-		else
-		{
-			gear_inventory_ui = new GearInventoryUI(this, gl_ui);
-
-			// If our avatar model is already loaded, pass it to the inventory for preview.
-			if(world_state)
-			{
-				Lock lock(world_state->mutex);
-				auto it = world_state->avatars.find(client_avatar_uid);
-				if(it != world_state->avatars.end())
-				{
-					Avatar* av = it->second.ptr();
-					if(av->graphics.skinned_gl_ob)
-						gear_inventory_ui->setAvatarGLObject(av->graphics, av->graphics.skinned_gl_ob, av->avatar_settings.pre_ob_to_world_matrix);
-				}
-			}
-
-			// Populate equipped panel
-			gear_inventory_ui->setEquippedGear(this->logged_in_equipped_gear);
-
-			// Ask the server for the full owned-gear list (response populates the All Gear panel).
-			conPrint("Gear inventory opened, sending QueryUserGear.");
-			MessageUtils::initPacket(scratch_packet, Protocol::QueryUserGear);
-			enqueueMessageToSend(*client_thread, scratch_packet);
-		}
+		openGearInventory();
 	}
 	if(this->selected_ob.nonNull())
 	{

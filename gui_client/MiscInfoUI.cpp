@@ -173,7 +173,7 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 			gl_ui->addWidget(admin_msg_text_view);
 		}
 
-		admin_msg_text_view->setText(*gl_ui, msg);
+		admin_msg_text_view->setText(msg);
 
 		updateWidgetPositions();
 	}

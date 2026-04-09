@@ -784,6 +784,7 @@ static inline Key getKeyForSDLKey(SDL_Keycode sym)
 		case SDLK_RIGHT: return Key_Right;
 		case SDLK_UP: return Key_Up;
 		case SDLK_DOWN: return Key_Down;
+		case SDLK_KP_ENTER: return Key_Enter;
 		default: break;
 	};
 		
@@ -1121,7 +1122,7 @@ static void doOneMainLoopIter()
 
 				// conPrint("SDL_MOUSEBUTTONUP, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
 
-				if(e.button.clicks == 1) // Single click:
+				if(e.button.clicks != 1) // If not the release from the second click in a double-click (already implicitly handled in mouseDoubleClicked above)
 				{
 					SDL_SetRelativeMouseMode(SDL_FALSE);
 					doing_cam_rotate_mouse_drag = false;

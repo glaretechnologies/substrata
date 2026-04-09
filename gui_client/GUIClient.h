@@ -252,6 +252,8 @@ public:
 	std::string getCurrentURL() const;
 	void goBack();
 	void gestureSettingsChanged(const GestureSettings& new_gesture_settings);
+	void openGearInventory();
+	void convertSelectedObjectToGearItem();
 	void gearItemClicked(const GearItemRef& item);         // Called when a gear item thumbnail is clicked in the All Gear panel.
 	void equippedGearItemClicked(const GearItemRef& item); // Called when a gear item thumbnail is clicked in the Equipped panel.
 	void worldSettingsChangedFromUI(const WorldSettings& new_world_settings);
@@ -267,10 +269,12 @@ public:
 	GLObjectRef makeSpeakerGLObject();
 public:
 	void makeShaders();
+	Avatar* getOurAvatar(WorldStateLock& world_state_lock);
 	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock) REQUIRES(world_state->mutex);
 	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, int voxel_subsample_factor, WorldStateLock& world_state_lock);
 	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
 	void loadPresentGearModel(const GearItem* item, EquippedGearGraphics* equipped_gear_graphics, Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);
+	void gearItemChangedOnOurAvatar(GearItem* item);
 	void loadModelForAvatar(Avatar* avatar);
 	void loadScriptForObject(WorldObject* ob, WorldStateLock& world_state_lock);
 	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);

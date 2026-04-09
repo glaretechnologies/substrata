@@ -44,13 +44,14 @@ CyberspaceProtocolVersion
 48: Added ping+pong messages.
 49: Added AvatarSatOnSeat, AvatarGotUpFromSeat messages.
 50: Added QueryUserGear and UserGearList messages.
+51: Added GearItemUpdate and CreateGearItem messages.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 49;
+const uint32 CyberspaceProtocolVersion = 51;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -96,7 +97,8 @@ const uint32 UserGestureSettingsChanged = 1300;
 
 const uint32 QueryUserGear			= 1400; // Client requests the full list of gear items owned by the logged-in user.
 const uint32 UserGearList			= 1401; // Server sends back GearItems for all gear owned by the user.
-
+const uint32 GearItemUpdate			= 1402; // A client has modified a GearItem (e.g. in the gear editor).
+const uint32 CreateGearItem			= 1403; // A client wants to create a new GearItem.
 
 const uint32 ChatMessageID			= 2000;
 

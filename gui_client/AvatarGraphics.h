@@ -95,6 +95,8 @@ struct EquippedGearGraphics
 	std::string bone_name; // NOTE: have this in here? or just keep in GearItem?
 	int bone_node_i;
 
+	UID gear_id; // GearItem id.
+
 	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 };
 

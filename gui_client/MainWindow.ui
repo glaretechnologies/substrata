@@ -146,9 +146,18 @@
     <addaction name="actionSummon_Jet_Ski"/>
     <addaction name="actionSummon_Car"/>
    </widget>
+   <widget class="QMenu" name="menuGear">
+    <property name="title">
+     <string>Gear</string>
+    </property>
+    <addaction name="actionOpen_Gear_Inventory"/>
+    <addaction name="separator"/>
+    <addaction name="actionConvert_Selected_Object_To_Gear_Item"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuMovement"/>
    <addaction name="menuAvatar"/>
+   <addaction name="menuGear"/>
    <addaction name="menuVehicles"/>
    <addaction name="menuView"/>
    <addaction name="menuGo"/>
@@ -770,6 +779,16 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+J</string>
+   </property>
+  </action>
+  <action name="actionOpen_Gear_Inventory">
+   <property name="text">
+    <string>Open Gear Inventory</string>
+   </property>
+  </action>
+  <action name="actionConvert_Selected_Object_To_Gear_Item">
+   <property name="text">
+    <string>Convert Selected Object To Gear Item</string>
    </property>
   </action>
  </widget>

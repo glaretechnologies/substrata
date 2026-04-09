@@ -105,6 +105,24 @@ void GearItem::writeToStream(RandomAccessOutStream& stream) const
 }
 
 
+void GearItem::copyUserSettableFieldsFromOther(const GearItem& other)
+{
+	model_url = other.model_url;
+	materials = other.materials;
+	bone_name = other.bone_name;
+
+	translation = other.translation;
+	axis = other.axis;
+	angle = other.angle;
+	scale = other.scale;
+
+	flags = other.flags;
+
+	name = other.name;
+	description = other.description;
+}
+
+
 void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item)
 {
 	const size_t initial_read_index = stream.getReadIndex();

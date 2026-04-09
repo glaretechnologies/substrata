@@ -388,7 +388,7 @@ void PhotoModeUI::updateWidgetPositions()
 		const float bot_margin = gl_ui->getUIWidthForDevIndepPixelWidth(60);
 
 		const float width = gl_ui->getUIWidthForDevIndepPixelWidth(435); // 0.5;
-		window->setPosAndDims(/*botleft=*/Vec2f(1 - margin - width, -gl_ui->getViewportMinMaxY() + bot_margin), /*dims=*/Vec2f(width, myMax(0.01f, 2 * gl_ui->getViewportMinMaxY() - (top_margin + bot_margin))));
+		window->setPos(/*botleft=*/Vec2f(1 - margin - width, -gl_ui->getViewportMinMaxY() + bot_margin));
 		window->recomputeLayout();
 
 		if(upload_image_widget)
@@ -420,7 +420,7 @@ void PhotoModeUI::updateWidgetPositions()
 			upload_dialog_y -= caption_line_edit->rect.getWidths().y + margin;
 			caption_label->setPos(Vec2f(upload_dialog_x, upload_dialog_y + gl_ui->getUIWidthForDevIndepPixelWidth(10)));
 			caption_line_edit->setPos(Vec2f(caption_label->rect.getMax().x + margin, upload_dialog_y));
-			caption_line_edit->setWidth(dialog_content_w/2 - (caption_label->rect.getMax().x + margin));
+			caption_line_edit->setFixedWidthPx(gl_ui->getDevIndepPixelWidthForUIWidth(dialog_content_w/2 - (caption_label->rect.getMax().x + margin)));
 
 			upload_dialog_y -= ok_button->rect.getWidths().y + margin;
 			ok_button->setPos(Vec2f(dialog_content_w/2 - (ok_button->rect.getWidths().x + cancel_button->rect.getWidths().x + margin), upload_dialog_y));
@@ -600,7 +600,7 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 {
 	if(event.widget == dof_blur_slider.slider.ptr())
 	{
-		dof_blur_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
+		dof_blur_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
 
 		opengl_engine->getCurrentScene()->dof_blur_strength = (float)event.value;
 	}
@@ -622,13 +622,13 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 	}
 	else if(event.widget == ev_adjust_slider.slider.ptr())
 	{
-		ev_adjust_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
+		ev_adjust_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
 
 		opengl_engine->getCurrentScene()->exposure_factor = (float)std::exp2(event.value);
 	}
 	else if(event.widget == saturation_slider.slider.ptr())
 	{
-		saturation_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
+		saturation_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
 
 		opengl_engine->getCurrentScene()->saturation_multiplier = (float)event.value;
 	}
@@ -640,7 +640,7 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 	}
 	else if(event.widget == roll_slider.slider.ptr())
 	{
-		roll_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
+		roll_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
 
 		Vec3d angles = gui_client->cam_controller.getAngles();
 		angles.z = ::degreeToRad(event.value);
@@ -648,7 +648,7 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 	}
 	else if(event.widget == sun_theta_slider.slider.ptr())
 	{
-		sun_theta_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
+		sun_theta_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
 
 		const float sun_phi   = (float)::degreeToRad(sun_phi_slider  .slider->getValue());
 		const float sun_theta = (float)::degreeToRad(sun_theta_slider.slider->getValue());
@@ -658,7 +658,7 @@ void PhotoModeUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 	}
 	else if(event.widget == sun_phi_slider.slider.ptr())
 	{
-		sun_phi_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
+		sun_phi_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(event.value, 2)); // Update value text view
 
 		const float sun_phi   = (float)::degreeToRad(sun_phi_slider  .slider->getValue());
 		const float sun_theta = (float)::degreeToRad(sun_theta_slider.slider->getValue());
@@ -680,13 +680,13 @@ void PhotoModeUI::closeWindowEventOccurred(GLUICallbackEvent& event)
 void PhotoModeUI::updateFocusDistValueString()
 {
 	const double focus_dist = focusDistForSliderVal(dof_focus_distance_slider.slider->getValue());
-	dof_focus_distance_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(focus_dist, 2) + " m"); // Update value text view
+	dof_focus_distance_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(focus_dist, 2) + " m"); // Update value text view
 }
 
 
 void PhotoModeUI::updateFocalLengthValueString()
 {
-	focal_length_slider.value_view->setText(*gl_ui, doubleToStringMaxNDecimalPlaces(focal_length_slider.slider->getValue() * 1000, 0) + " mm"); // Update value text view
+	focal_length_slider.value_view->setText(doubleToStringMaxNDecimalPlaces(focal_length_slider.slider->getValue() * 1000, 0) + " mm"); // Update value text view
 }
 
 
@@ -799,7 +799,9 @@ void PhotoModeUI::showUploadPhotoWidget()
 
 	{
 		GLUILineEdit::CreateArgs args;
-		args.width = 1.4f;
+		//args.width = 1.4f;
+		args.fixed_size.x = 700;
+		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.z = -0.5f;
 		args.text_colour = toLinearSRGB(Colour3f(0.1f));
 		args.background_colour = Colour3f(0.7f);

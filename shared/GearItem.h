@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <utils/TimeStamp.h>
 #include <utils/DatabaseKey.h>
 #include <maths/vec3.h>
+#include <maths/Matrix4f.h>
 #include <string>
 class RandomAccessInStream;
 class RandomAccessOutStream;
@@ -28,6 +29,11 @@ public:
 
 	bool operator == (const GearItem& other) const;
 	void writeToStream(RandomAccessOutStream& stream) const;
+
+	void copyUserSettableFieldsFromOther(const GearItem& other);
+
+	inline Matrix4f gearObToBoneSpaceMatrix() const;
+
 
 	static const size_t MAX_NAME_SIZE               = 1000;
 	static const size_t MAX_MODEL_URL_SIZE          = 512;
@@ -73,6 +79,30 @@ public:
 typedef Reference<GearItem> GearItemRef;
 
 
+Matrix4f GearItem::gearObToBoneSpaceMatrix() const
+{
+	const Vec4f pos(translation.x, translation.y, translation.z, 1.f);
+
+	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
+	// TODO: use branchless SSE for this.
+	Vec3f use_scale = scale;
+	if(std::fabs(use_scale.x) < 1.0e-6f) use_scale.x = 1.0e-6f;
+	if(std::fabs(use_scale.y) < 1.0e-6f) use_scale.y = 1.0e-6f;
+	if(std::fabs(use_scale.z) < 1.0e-6f) use_scale.z = 1.0e-6f;
+
+	// Equivalent to
+	//return Matrix4f::translationMatrix(pos + ob.translation) *
+	//	Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), ob.angle) *
+	//	Matrix4f::scaleMatrix(use_scale.x, use_scale.y, use_scale.z));
+
+	Matrix4f rot = Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
+	rot.setColumn(0, rot.getColumn(0) * use_scale.x);
+	rot.setColumn(1, rot.getColumn(1) * use_scale.y);
+	rot.setColumn(2, rot.getColumn(2) * use_scale.z);
+	rot.setColumn(3, pos);
+	return rot;
+}
+
 
 struct GearItemRefHash
 {
@@ -99,3 +129,5 @@ struct GearItems
 };
 
 void readGearItemsFromStream(RandomAccessInStream& stream, GearItems& settings);
+
+

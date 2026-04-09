@@ -3441,6 +3441,48 @@ void WorkerThread::doRun()
 
 							break;
 						}
+					case Protocol::GearItemUpdate: // Client wants to modify a gear item
+						{
+							conPrintIfNotFuzzing("GearItemUpdate");
+
+							GearItemRef updated_item = new GearItem();
+							::readGearItemFromStream(msg_buffer, *updated_item);
+
+							
+							if(client_user_id.valid())
+							{
+								// Look up the client user
+								WorldStateLock lock(world_state->mutex);
+								auto user_it = world_state->user_id_to_users.find(client_user_id);
+								if(user_it != world_state->user_id_to_users.end())
+								{
+									const User* user = user_it->second.ptr();
+
+									// Check the user does indeed have this gear item in their all gear list
+									if(user->gear_ids.count(updated_item->id))
+									{
+										// Look up gear item
+										auto gear_it = world_state->gear_items.find(updated_item->id);
+										if(gear_it != world_state->gear_items.end())
+										{
+											GearItem* item = gear_it->second.ptr();
+
+											// Check gear item owner is the user
+											if(item->owner_id == client_user_id)
+											{
+												// Finally update the item
+												item->copyUserSettableFieldsFromOther(*updated_item);
+												world_state->addGearItemAsDBDirty(item);
+											}
+											else
+												conPrint("Error: gear item owner_id != user id when gear item is in user's items.");
+										}
+									}
+								}
+							}
+
+							break;
+						}
 					case Protocol::PingMessage:
 						{
 							// Send pong message back

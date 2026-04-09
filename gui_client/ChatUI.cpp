@@ -56,14 +56,15 @@ void ChatUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 			container_args.exterior_cell_x_padding_px = 12;
 			container_args.exterior_cell_y_padding_px = 12;
 			grid_container = new GLUIGridContainer(*gl_ui, container_args);
-			grid_container->setPosAndDims(Vec2f(0.0f, 0.0f), Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(300), gl_ui->getUIWidthForDevIndepPixelWidth(200)));
+			grid_container->setPos(Vec2f(0.0f, 0.0f));
 			gl_ui->addWidget(grid_container);
 		}
 
 
 		{
 			GLUILineEdit::CreateArgs create_args;
-			create_args.width = computeWidgetWidth();
+			create_args.sizing_type_x = GLUILineEdit::SizingType_FixedSizePx;
+			create_args.fixed_size.x = gl_ui->getDevIndepPixelWidthForUIWidth(computeWidgetWidth());
 			create_args.background_colour = chat_background_col;
 			create_args.background_alpha = 0.8f;
 			create_args.font_size_px = font_size_px;
@@ -348,7 +349,7 @@ void ChatUI::updateWidgetTransforms()
 
 	//---------------------------- Update chat_line_edit ----------------------------
 	const float chat_widget_width = myMax(0.2f, 1.f - gl_ui->getUIWidthForDevIndepPixelWidth(140.f)); // leave room for icons   //myClamp(gl_ui->getUIWidthForDevIndepPixelWidth(600.f), /*lower bound=*/0.4f, /*upper bound=*/1.6f);
-	chat_line_edit->setWidth(chat_widget_width);
+	chat_line_edit->setFixedWidthPx(gl_ui->getDevIndepPixelWidthForUIWidth(chat_widget_width));
 	float chat_line_edit_y = /*-gl_ui->getViewportMinMaxY()*/draw_area_bottom_left_y + /*0.15f*/gl_ui->getUIWidthForDevIndepPixelWidth(20);
 
 	//if(-1.f + widget_width >= -0.4f) // gl_ui->getUIWidthForDevIndepPixelWidth(800) > 2.f)
@@ -364,8 +365,8 @@ void ChatUI::updateWidgetTransforms()
 	const float msgs_background_ob_y = chat_line_edit_y + gl_ui->getUIWidthForDevIndepPixelWidth(50);
 	const Vec2f background_pos(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20), msgs_background_ob_y);
 	
-	this->grid_container->setPosAndDims(background_pos, Vec2f(background_w, background_h));
-	this->grid_container->updateGLTransform();
+	this->grid_container->setPos(background_pos);
+	this->grid_container->setFixedDimsUICoords(Vec2f(background_w, background_h));
 	
 	//---------------------------- Update collapse_button ----------------------------
 	const float button_w = gl_ui->getUIWidthForDevIndepPixelWidth(50);
