@@ -543,6 +543,11 @@ void GearInventoryUI::keyPressed(KeyEvent& e)
 				return;
 			}
 		}
+
+		// If the mouse is over the inventory window (but not a thumbnail), still consume the key
+		// so the 'E' world-use action doesn't fire while the inventory is open.
+		if(window->getRect().inOpenRectangle(mouse_pos))
+			e.accepted = true;
 	}
 }
 
