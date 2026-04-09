@@ -110,6 +110,18 @@ void WorkerThread::sendGetFileMessageIfNeeded(const URLString& resource_URL)
 }
 
 
+static void writeInfoMessageToClient(SocketInterfaceRef& socket, const std::string& msg)
+{
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	MessageUtils::initPacket(packet, Protocol::InfoMessageID);
+	packet.writeStringLengthFirst(msg);
+	MessageUtils::updatePacketLengthField(packet);
+
+	socket->writeData(packet.buf.data(), packet.buf.size());
+	socket->flush();
+}
+
+
 static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::string& msg)
 {
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -3480,6 +3492,65 @@ void WorkerThread::doRun()
 									}
 								}
 							}
+
+							break;
+						}
+					case Protocol::CreateGearItem: // Client wants to create a new gear item
+						{
+							conPrintIfNotFuzzing("CreateGearItem");
+
+							GearItemRef new_item = new GearItem();
+							::readGearItemFromStream(msg_buffer, *new_item);
+							new_item->flags = 0;
+							new_item->max_supply = 1;
+							new_item->preview_image_URL.clear(); // Don't accept the user-supplied preview_image_URL.  Will be set when screenshot is captured and uploaded.
+
+							
+							bool success = false;
+							if(client_user_id.valid())
+							{
+								// Look up the client user
+								WorldStateLock lock(world_state->mutex);
+								auto user_it = world_state->user_id_to_users.find(client_user_id);
+								if(user_it != world_state->user_id_to_users.end())
+								{
+									User* user = user_it->second.ptr();
+
+									new_item->id = world_state->getNextGearItemUID();
+									new_item->created_time = TimeStamp::currentTime();
+									new_item->creator_id = client_user_id;
+									new_item->owner_id = client_user_id;
+
+									//--------- Create screenshot for it -----------
+									ScreenshotRef gear_shot = new Screenshot();
+									gear_shot->id = world_state->getNextScreenshotUID();
+									gear_shot->screenshot_type = Screenshot::ScreenshotType_Gear;
+									gear_shot->gear_item_id = new_item->id;
+									gear_shot->width_px = 256;
+									gear_shot->state = Screenshot::ScreenshotState_notdone;
+									gear_shot->created_time = TimeStamp::currentTime();
+									world_state->screenshots[gear_shot->id] = gear_shot;
+									world_state->addScreenshotAsDBDirty(gear_shot);
+									//-------------------------------------------
+
+									new_item->preview_image_screenshot_id = gear_shot->id;
+
+									world_state->gear_items[new_item->id] = new_item;
+									world_state->addGearItemAsDBDirty(new_item);
+
+									// Add to user's gear_ids
+									user->gear_ids.insert(new_item->id);
+									world_state->addUserAsDBDirty(user);
+
+									conPrint("Created new gear item for user.");
+									success = true;
+								}
+							}
+
+							if(success)
+								writeInfoMessageToClient(socket, "Gear item created!  Gear item has been added to inventory.");
+							else
+								writeErrorMessageToClient(socket, "Failed to create gear item.");
 
 							break;
 						}

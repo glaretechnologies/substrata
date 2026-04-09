@@ -107,7 +107,7 @@ private slots:;
 	void on_actionEnter_Fullscreen_triggered();
 	void on_actionGo_Back_triggered();
 	void on_actionOpen_Gear_Inventory_triggered();
-	void on_actionConvert_Selected_Object_To_Gear_Item();
+	void on_actionConvert_Selected_Object_To_Gear_Item_triggered();
 
 	void diagnosticsWidgetChanged();
 	void diagnosticsReloadTerrain();
