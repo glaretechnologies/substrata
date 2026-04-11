@@ -274,6 +274,10 @@ URLString Avatar::getLODModelURLForLevel(const URLString& base_model_url, int lo
 	if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
 		return base_model_url;
 
+	// .subvox files don't have the _opt3 suffix.  (They are not optimised by meshoptimizer etc.)
+	if(hasExtension(base_model_url, "subvox"))
+		return base_model_url;
+
 	return URLUtils::makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, /*allocator=*/nullptr);
 }
 

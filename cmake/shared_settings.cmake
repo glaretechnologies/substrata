@@ -36,6 +36,8 @@ ${GRAPHICS_DIR}/FormatDecoderSTL.cpp
 ${GRAPHICS_DIR}/FormatDecoderSTL.h
 ${GRAPHICS_DIR}/FormatDecoderVox.cpp
 ${GRAPHICS_DIR}/FormatDecoderVox.h
+${GRAPHICS_DIR}/FormatDecoderSubVox.cpp
+${GRAPHICS_DIR}/FormatDecoderSubVox.h
 ${GRAPHICS_DIR}/GaussianFilterFunction.cpp
 ${GRAPHICS_DIR}/GaussianFilterFunction.h
 ${GRAPHICS_DIR}/GaussianImageFilter.cpp

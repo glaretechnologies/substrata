@@ -3552,6 +3552,32 @@ void WorkerThread::doRun()
 							else
 								writeErrorMessageToClient(socket, "Failed to create gear item.");
 
+
+							// Process resources.
+							// Get dependency URLS (while holding lock)
+							DependencyURLSet URLs;
+							{
+								WorldStateLock lock(world_state->mutex);
+								
+								const bool use_basis = false; // Get non-basis resources, convert to basis on server.
+
+								const WorldMaterial::GetURLOptions mat_options(use_basis, /*area allocator=*/nullptr);
+
+								DependencyURLVector mat_urls;
+								for(size_t i=0; i<new_item->materials.size(); ++i)
+									new_item->materials[i]->appendDependencyURLsAllLODLevels(mat_options, mat_urls);
+								URLs = DependencyURLSet(mat_urls.begin(), mat_urls.end());
+
+								URLs.insert(DependencyURL(new_item->model_url));
+							}
+
+							for(auto it = URLs.begin(); it != URLs.end(); ++it)
+							{
+								sendGetFileMessageIfNeeded(it->URL);
+
+								server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(it->URL));
+							}
+
 							break;
 						}
 					case Protocol::PingMessage:

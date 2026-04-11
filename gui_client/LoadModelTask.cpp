@@ -18,13 +18,15 @@ Copyright Glare Technologies Limited 2025 -
 #include <utils/FileUtils.h>
 #include <utils/UniqueRef.h>
 #include <utils/MemMappedFile.h>
+#include <graphics/FormatDecoderSubVox.h>
 #include <tracy/Tracy.hpp>
 
 
 LoadModelTask::LoadModelTask()
 :	build_physics_ob(true),
 	build_dynamic_physics_ob(false),
-	model_lod_level(-1)
+	model_lod_level(-1),
+	need_lightmap_uvs(false)
 {}
 
 
@@ -102,17 +104,37 @@ void LoadModelTask::run(size_t thread_index)
 				model_buffer = ArrayRef<uint8>((const uint8*)file->fileData(), file->fileSize());
 #endif
 
-				js::Vector<bool> create_tris_for_mat;
+				if(hasExtension(lod_model_path, "subvox"))
+				{
+					// TODO: lod level stuff
 
-				gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(lod_model_path,
-					model_buffer,
-					/*vert_buf_allocator=*/NULL, 
-					true, // skip_opengl_calls - we need to do these on the main thread.
-					build_physics_ob,
-					build_dynamic_physics_ob,
-					create_tris_for_mat,
-					worker_allocator.ptr(),
-					/*physics shape out=*/physics_shape);
+					SubVoxFileContents contents;
+					FormatDecoderSubVox::readSubVoxFileFromData(model_buffer.data(), model_buffer.size(), contents);
+
+					// Copy SubVoxVoxelGroup group to VoxelGroup.  Just use memcpy.
+					VoxelGroup voxel_group;
+					voxel_group.voxels.resize(contents.group.voxels.size());
+					static_assert(sizeof(SubVoxVoxel) == sizeof(Voxel));
+					std::memcpy(voxel_group.voxels.data(), contents.group.voxels.data(), contents.group.voxels.dataSizeBytes());
+
+
+					gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
+						need_lightmap_uvs, mat_transparent, build_dynamic_physics_ob, worker_allocator.ptr(), /*physics shape out=*/physics_shape);
+				}
+				else
+				{
+					js::Vector<bool> create_tris_for_mat;
+
+					gl_meshdata = ModelLoading::makeGLMeshDataAndPhysicsShape(lod_model_path,
+						model_buffer,
+						/*vert_buf_allocator=*/NULL, 
+						true, // skip_opengl_calls - we need to do these on the main thread.
+						build_physics_ob,
+						build_dynamic_physics_ob,
+						create_tris_for_mat,
+						worker_allocator.ptr(),
+						/*physics shape out=*/physics_shape);
+				}
 			}
 
 

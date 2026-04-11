@@ -90,6 +90,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../graphics/ImageMap.h"
 #include "../graphics/SRGBUtils.h"
 #include "../graphics/BasisDecoder.h"
+#include "../graphics/FormatDecoderSubVox.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include <video/VideoReader.h>
@@ -2836,6 +2837,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
 							load_model_task->worker_allocator = worker_allocator;
 							load_model_task->upload_thread = opengl_upload_thread;
+							load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
 
 							load_item_queue.enqueueItem(/*key=*/lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
@@ -3253,7 +3255,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 		const bool avatar_is_default_model = avatar->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL;
 
 		// Start downloading any resources we don't have that the object uses.
-		if(!avatar_is_default_model) // Avoid downloading optimised version of default avatar; is already optimised.
+		//if(!avatar_is_default_model) // Avoid downloading optimised version of default avatar; is already optimised.  NEW: needed for gear now.
 			startDownloadingResourcesForAvatar(avatar, ob_lod_level);
 
 		startLoadingTexturesForAvatar(*avatar, ob_lod_level, max_dist_for_ob_lod_level);
@@ -3308,6 +3310,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 						load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
 						load_model_task->worker_allocator = worker_allocator;
 						load_model_task->upload_thread = opengl_upload_thread;
+						load_model_task->ob_to_world_matrix = obToWorldMatrix(*avatar);
 
 						load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
 					}
@@ -3366,6 +3369,10 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this mesh.
 					if(just_added)
 					{
+						js::Vector<bool, 16> mat_transparent(gear_item->materials.size());
+						for(size_t z=0; z<gear_item->materials.size(); ++z)
+							mat_transparent[z] = gear_item->materials[z]->opacity.val < 1.f;
+
 						// Do the model loading in a different thread
 						Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
@@ -3378,6 +3385,8 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 						load_model_task->build_physics_ob = false; // Don't build physics object for avatar mesh, as it isn't used, and can be slow to build.
 						load_model_task->worker_allocator = worker_allocator;
 						load_model_task->upload_thread = opengl_upload_thread;
+						load_model_task->ob_to_world_matrix = obToWorldMatrix(*avatar);
+						load_model_task->mat_transparent = mat_transparent;
 
 						load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
 					}
@@ -9755,6 +9764,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									load_model_task->loaded_buffer = m->loaded_buffer;
 									load_model_task->worker_allocator = worker_allocator;
 									load_model_task->upload_thread = opengl_upload_thread;
+									load_model_task->ob_to_world_matrix = Matrix4f::identity();
 
 									// conPrint("handling ResourceDownloadedMessage: making LoadModelTask for " + URL);
 
@@ -16203,12 +16213,43 @@ void GUIClient::convertSelectedObjectToGearItem()
 {
 	if(selected_ob)
 	{
+		URLString use_model_url = selected_ob->model_url;
+
+		// If selected ob is a voxels object, convert the voxels to a .subvox file and add the .subvox file to resource system first.
+		if(selected_ob->getCompressedVoxels())
+		{
+			SubVoxVoxelGroup group;
+			selected_ob->decompressVoxels();
+			const VoxelGroup& src_group = selected_ob->getDecompressedVoxelGroup();
+			group.voxels.resize(src_group.voxels.size());
+			for(size_t i=0; i<src_group.voxels.size(); ++i)
+				group.voxels[i] = SubVoxVoxel(src_group.voxels[i].pos, src_group.voxels[i].mat_index);
+
+
+			const std::string subvox_path = PlatformUtils::getTempDirPath() + "/temp.subvox";
+
+			FormatDecoderSubVox::writeSubVoxFile(subvox_path, group);
+
+			// Compute hash over model
+			const uint64 model_hash = FileChecksum::fileChecksum(subvox_path);
+
+			const std::string original_filename = "voxels";//FileUtils::getFilename(local_model_path); // Use the original filename, not 'temp.igmesh'.
+			const URLString subvox_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, "subvox", model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
+
+			// Copy model to local resources dir.  UploadResourceThread will read from here.
+			resource_manager->copyLocalFileToResourceDir(subvox_path, subvox_URL);
+
+			use_model_url = subvox_URL;
+		}
+
+
+
 		GearItemRef item = new GearItem();
 
 		// Id will be set by server.
 		item->creator_id = logged_in_user_id;
 		item->owner_id = logged_in_user_id;
-		item->model_url = selected_ob->model_url;
+		item->model_url = use_model_url;
 		item->materials = selected_ob->materials;
 		item->bone_name = "LeftHand";
 		item->translation = Vec3f(0.f);

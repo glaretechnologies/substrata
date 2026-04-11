@@ -89,7 +89,7 @@ public:
 
 
 	// Build OpenGLMeshRenderData and Physics shape from a mesh on disk identified by lod_model_path.
-	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndBatchedMeshForModelPath(const std::string& lod_model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, 
+	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndPhysicsShape(const std::string& lod_model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, 
 		const js::Vector<bool>& create_physics_tris_for_mat,
 		glare::Allocator* mem_allocator,
 		PhysicsShape& physics_shape_out);
@@ -117,7 +117,8 @@ bool ModelLoading::isSupportedModelExtension(string_view extension)
 		StringUtils::equalCaseInsensitive(extension, "gltf") ||
 		StringUtils::equalCaseInsensitive(extension, "glb") ||
 		StringUtils::equalCaseInsensitive(extension, "vrm") ||
-		StringUtils::equalCaseInsensitive(extension, "igmesh");
+		StringUtils::equalCaseInsensitive(extension, "igmesh") ||
+		StringUtils::equalCaseInsensitive(extension, "subvox");
 }
 
 

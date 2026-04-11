@@ -18,6 +18,7 @@ Code By Nicholas Chapman.
 #include "../graphics/FormatDecoderSTL.h"
 #include "../graphics/FormatDecoderGLTF.h"
 #include "../graphics/FormatDecoderVox.h"
+#include "../graphics/FormatDecoderSubVox.h"
 #include "../graphics/SRGBUtils.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
@@ -549,6 +550,65 @@ void ModelLoading::makeGLObjectForModelFile(
 		results_out.scale.set(use_scale, use_scale, use_scale);
 		results_out.gl_ob = ob;
 	}
+	else if(hasExtension(model_path, "subvox"))
+	{
+		SubVoxFileContents contents;
+		FormatDecoderSubVox::readSubVoxFile(model_path, contents);
+
+		// Convert voxels
+		if(contents.group.voxels.empty())
+			throw glare::Exception("No voxels in subvox file.");
+
+		//const VoxModel& model = vox_contents.models[0];
+
+		// We will offset the voxel positions so that the origin is in the middle at the bottom of the voxel AABB.
+		//const int x_offset = (int)-model.aabb.centroid()[0];
+		//const int y_offset = (int)-model.aabb.centroid()[1];
+
+		results_out.voxels.voxels.resize(contents.group.voxels.size());
+		for(size_t i=0; i<contents.group.voxels.size(); ++i)
+		{
+			results_out.voxels.voxels[i].pos       = contents.group.voxels[i].pos;
+			results_out.voxels.voxels[i].mat_index = contents.group.voxels[i].mat_index;
+		}
+
+		// Make materials array
+		results_out.materials.resize(contents.materials_size);
+		for(size_t i=0; i<results_out.materials.size(); ++i)
+			results_out.materials[i] = new WorldMaterial();
+
+		js::Vector<bool, 16> mat_transparent(results_out.materials.size(), false);
+
+		// Scale down voxels so model isn't too large.
+		const float use_scale = 1.f;//getScaleForVoxModel(model.aabb);
+		const Matrix4f ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
+
+		const int subsample_factor = 1;
+		PhysicsShape physics_shape;
+		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/do_opengl_stuff, 
+			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, allocator, physics_shape);
+
+		results_out.ob_to_world = ob_to_world_matrix;
+
+		GLObjectRef ob;
+		if(do_opengl_stuff)
+		{
+			// Make opengl object
+			ob = gl_engine.allocateObject();
+			ob->ob_to_world_matrix = ob_to_world_matrix;
+
+			ob->mesh_data = mesh_data;
+
+			ob->materials.resize(results_out.materials.size());
+			for(size_t i=0; i<results_out.materials.size(); ++i)
+			{
+				setGLMaterialFromWorldMaterialWithLocalPaths(*results_out.materials[i], ob->materials[i]);
+			}
+		}
+
+		results_out.scale.set(use_scale, use_scale, use_scale);
+		results_out.gl_ob = ob;
+	}
 	else if(hasExtension(model_path, "obj"))
 	{
 		MLTLibMaterials mats;
@@ -1014,7 +1074,7 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelPath(const std::string& model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, 
+Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndPhysicsShape(const std::string& model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, 
 	bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, const js::Vector<bool>& create_physics_tris_for_mat,
 	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
