@@ -101,6 +101,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <opengl/VBOPool.h>
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/SSAODebugging.h>
+#include <opengl/TransformGizmo.h>
 #include "../audio/AudioFileReader.h"
 #include <Escaping.h>
 #if !defined(EMSCRIPTEN)
@@ -125,9 +126,6 @@ Copyright Glare Technologies Limited 2024 -
 static const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
 static const Colour4f PICKED_UP_OUTLINE_COLOUR = Colour4f::fromHTMLHexString("69fa2d"); // light green
 static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f09a13"); // orange
-
-static const Colour3f axis_arrows_default_cols[]   = { Colour3f(0.6f,0.2f,0.2f), Colour3f(0.2f,0.6f,0.2f), Colour3f(0.2f,0.2f,0.6f) };
-static const Colour3f axis_arrows_mouseover_cols[] = { Colour3f(1,0.45f,0.3f),   Colour3f(0.3f,1,0.3f),    Colour3f(0.3f,0.45f,1) };
 
 static const float DECAL_EDGE_AABB_WIDTH = 0.02f;
 
@@ -166,8 +164,6 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	last_foostep_side(0),
 	last_animated_tex_time(0),
 	last_model_and_tex_loading_time(0),
-	grabbed_axis(-1),
-	grabbed_angle(0),
 	force_new_undo_edit(false),
 #if EMSCRIPTEN
 	model_and_texture_loader_task_manager("model and texture loader task manager", /*num threads=*/myClamp<uint32>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)),
@@ -182,7 +178,6 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	frame_num(0),
 	next_lod_changes_begin_i(0),
-	axis_and_rot_obs_enabled(false),
 	last_vehicle_renewal_msg_time(-1),
 	stack_allocator(/*size (B)=*/22 * 1024 * 1024), // Used for the Jolt physics temp allocator also.
 	arena_allocator(/*size (B)=*/4 * 1024 * 1024), // Used for WorldObject::appendDependencyURLs() etc.
@@ -260,9 +255,6 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	}
 
 	biome_manager = new BiomeManager();
-
-	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-		axis_arrow_segments[i] = LineSegment4f(Vec4f(0, 0, 0, 1), Vec4f(1, 0, 0, 1));
 
 	this->animated_texture_manager = new AnimatedTextureManager();
 
@@ -464,9 +456,6 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 static void assignLoadedOpenGLTexturesToGearItemMats(GearItem* item, EquippedGearGraphics* equipped_gear, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator);
 
 
-static const float arc_handle_half_angle = 1.5f;
-
-
 void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine_, 
 	const TextRendererFontFaceSizeSetRef& fonts, const TextRendererFontFaceSizeSetRef& emoji_fonts)
 {
@@ -555,33 +544,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		opengl_engine->addObject(arrow);
 	}
 #endif
-
-	// For ob placement:
-	axis_arrow_objects[0] = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(1, 0, 0, 1), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
-	axis_arrow_objects[1] = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0, 1, 0, 1), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
-	axis_arrow_objects[2] = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0, 0, 1, 1), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
-
-	//axis_arrow_objects[3] = opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
-	//axis_arrow_objects[4] = opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
-	//axis_arrow_objects[5] = opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
-
-	for(int i=0; i<3; ++i)
-	{
-		axis_arrow_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i]);
-		axis_arrow_objects[i]->always_visible = true;
-	}
-
-
-	for(int i=0; i<3; ++i)
-	{
-		GLObjectRef ob = opengl_engine->allocateObject();
-		ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)i * 3, 0, 2);
-		ob->mesh_data = MeshBuilding::makeRotationArcHandleMeshData(*opengl_engine->vert_buf_allocator, arc_handle_half_angle * 2);
-		ob->materials.resize(1);
-		ob->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i]);
-		ob->always_visible = true;
-		rot_handle_arc_objects[i] = ob;
-	}
 
 
 	// Build ground plane graphics and physics data
@@ -1075,10 +1037,7 @@ void GUIClient::shutdown()
 	aabb_os_vis_gl_ob = NULL;
 	aabb_ws_vis_gl_ob = NULL;
 	selected_ob_vis_gl_obs.clear();
-	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-		axis_arrow_objects[i] = NULL;
-	for(int i=0; i<3; ++i)
-		rot_handle_arc_objects[i] = NULL;
+	transform_gizmo = NULL;
 	player_phys_debug_spheres.clear();
 	wheel_gl_objects.clear();
 	car_body_gl_object = NULL;
@@ -3900,21 +3859,6 @@ void GUIClient::printStr(const std::string& s) // Print a message without a newl
 }
 
 
-// Avoids NaNs
-static float safeATan2(float y, float x)
-{
-	const float a = std::atan2(y, x);
-	if(!isFinite(a))
-		return 0.f;
-	else
-		return a;
-}
-
-
-// For each direction x, y, z, the two other basis vectors. 
-static const Vec4f basis_vectors[6] = { Vec4f(0,1,0,0), Vec4f(0,0,1,0), Vec4f(0,0,1,0), Vec4f(1,0,0,0), Vec4f(1,0,0,0), Vec4f(0,1,0,0) };
-
-
 // Update object placement beam - a beam that goes from the object to what's below it.
 // Also updates axis arrows and rotation arc handles.
 // Also updates preview AABB for decal objects.
@@ -3960,77 +3904,9 @@ void GUIClient::updateSelectedObjectPlacementBeamAndGizmos()
 		if(opengl_engine->isObjectAdded(ob_placement_marker))
 			opengl_engine->updateObjectTransformData(*ob_placement_marker);
 
-		//----------------------- Place x, y, z axis arrows. -----------------------
-		if(axis_and_rot_obs_enabled)
-		{
-			const Vec4f use_ob_origin = opengl_ob->ob_to_world_matrix.getColumn(3);
-			const Vec4f cam_to_ob = use_ob_origin - cam_controller.getPosition().toVec4fPoint();
-			const float control_scale = cam_to_ob.length() * 0.2f;
-
-			const Vec4f arrow_origin = use_ob_origin;
-			const float arrow_len = control_scale;
-
-			axis_arrow_segments[0] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(cam_to_ob[0] > 0 ? -arrow_len : arrow_len, 0, 0, 0)); // Put arrows on + or - x axis, facing towards camera.
-			axis_arrow_segments[1] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, cam_to_ob[1] > 0 ? -arrow_len : arrow_len, 0, 0));
-			axis_arrow_segments[2] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, 0, cam_to_ob[2] > 0 ? -arrow_len : arrow_len, 0));
-
-			//axis_arrow_segments[3] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(arrow_len, 0, 0, 0)); // Put arrows on + or - x axis, facing towards camera.
-			//axis_arrow_segments[4] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, arrow_len, 0, 0));
-			//axis_arrow_segments[5] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, 0, arrow_len, 0));
-
-			for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-			{
-				axis_arrow_objects[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(axis_arrow_segments[i].a, axis_arrow_segments[i].b, arrow_len);
-				if(opengl_engine->isObjectAdded(axis_arrow_objects[i]))
-					opengl_engine->updateObjectTransformData(*axis_arrow_objects[i]);
-			}
-
-			//----------------------- Update rotation control handle arcs -----------------------
-			const Vec4f arc_centre = use_ob_origin;
-			const float arc_radius = control_scale * 0.7f; // Make the arcs not stick out so far from the centre as the arrows.
-
-			for(int i=0; i<3; ++i)
-			{
-				const Vec4f basis_a = basis_vectors[i*2];
-				const Vec4f basis_b = basis_vectors[i*2 + 1];
-
-				const Vec4f to_cam = cam_controller.getPosition().toVec4fPoint() - arc_centre;
-				const float to_cam_angle = safeATan2(dot(basis_b, to_cam), dot(basis_a, to_cam)); // angle in basis_a-basis_b plane
-
-				// Position the rotation arc so its oriented towards the camera, unless the user is currently holding and dragging the arc.
-				float angle = to_cam_angle;
-				if(grabbed_axis >= NUM_AXIS_ARROWS)
-				{
-					int grabbed_rot_axis = grabbed_axis - NUM_AXIS_ARROWS;
-					if(i == grabbed_rot_axis)
-						angle = grabbed_angle + grabbed_arc_angle_offset;
-				}
-
-				// Position the arc line segments used for mouse picking.
-				const float start_angle = angle - arc_handle_half_angle - 0.1f; // Extend a little so the arrow heads can be selected
-				const float end_angle   = angle + arc_handle_half_angle + 0.1f;
-
-				const size_t N = 32;
-				rot_handle_lines[i].resize(N);
-				for(size_t z=0; z<N; ++z)
-				{
-					const float theta_0 = start_angle + (end_angle - start_angle) * z       / N;
-					const float theta_1 = start_angle + (end_angle - start_angle) * (z + 1) / N;
-
-					const Vec4f p0 = arc_centre + basis_a * cos(theta_0) * arc_radius + basis_b * sin(theta_0) * arc_radius;
-					const Vec4f p1 = arc_centre + basis_a * cos(theta_1) * arc_radius + basis_b * sin(theta_1) * arc_radius;
-
-					(rot_handle_lines[i])[z] = LineSegment4f(p0, p1);
-				}
-
-				rot_handle_arc_objects[i]->ob_to_world_matrix = Matrix4f::translationMatrix(arc_centre) *
-					Matrix4f::rotationMatrix(crossProduct(basis_a, basis_b), angle - arc_handle_half_angle) * Matrix4f(basis_a, basis_b, crossProduct(basis_a, basis_b), Vec4f(0, 0, 0, 1))
-					* Matrix4f::uniformScaleMatrix(arc_radius);
-
-				if(opengl_engine->isObjectAdded(rot_handle_arc_objects[i]))
-					opengl_engine->updateObjectTransformData(*rot_handle_arc_objects[i]);
-			}
-		}
+		//----------------------- Update x, y, z axis arrows and rotation arcs. -----------------------
+		if(transform_gizmo)
+			transform_gizmo->update(opengl_ob->ob_to_world_matrix.getColumn(3));
 	}
 
 	if(selected_ob && selected_ob->edit_aabb)
@@ -12719,32 +12595,18 @@ void GUIClient::posAndRot3DControlsToggled(bool enabled)
 {
 	if(enabled)
 	{
-		if(selected_ob.nonNull())
+		if(selected_ob)
 		{
 			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
 
 			// Add an object placement beam
 			if(have_edit_permissions)
-			{
-				for(int i = 0; i < NUM_AXIS_ARROWS; ++i)
-					opengl_engine->addObject(axis_arrow_objects[i]);
-
-				for(int i = 0; i < 3; ++i)
-					opengl_engine->addObject(rot_handle_arc_objects[i]);
-
-				axis_and_rot_obs_enabled = true;
-			}
+				transform_gizmo = new TransformGizmo(opengl_engine.ptr());
 		}
 	}
 	else
 	{
-		for(int i = 0; i < NUM_AXIS_ARROWS; ++i)
-			opengl_engine->removeObject(this->axis_arrow_objects[i]);
-
-		for(int i = 0; i < 3; ++i)
-			opengl_engine->removeObject(this->rot_handle_arc_objects[i]);
-
-		axis_and_rot_obs_enabled = false;
+		transform_gizmo = nullptr;
 	}
 }
 
@@ -13456,200 +13318,15 @@ void GUIClient::checkCreateManagersAndMinimap()
 }
 
 
-static float sensorWidth() { return 0.035f; }
-static float lensSensorDist() { return 0.025f; }
-
-
 Vec4f GUIClient::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y) const
 {
-	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
-
-	const float sensor_width = ::sensorWidth();
-	const float sensor_height = sensor_width / opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
-	const float lens_sensor_dist = ::lensSensorDist();
-
-	const float gl_w = (float)opengl_engine->getViewPortWidth();
-	const float gl_h = (float)opengl_engine->getViewPortHeight();
-
-	const float s_x = sensor_width  * (float)(pixel_pos_x - gl_w/2) / gl_w;  // dist right on sensor from centre of sensor
-	const float s_y = sensor_height * (float)(pixel_pos_y - gl_h/2) / gl_h; // dist down on sensor from centre of sensor
-
-	const float r_x = s_x / lens_sensor_dist;
-	const float r_y = s_y / lens_sensor_dist;
-
-	const Vec4f dir = normalise(forwards + right * r_x - up * r_y);
-	return dir;
+	return opengl_engine->pixelToRayDirWS(Vec2f((float) pixel_pos_x, (float)pixel_pos_y));
 }
 
 
-/*
-Let line coords in ws be p_ws(t) = a + b * t
-
-pixel coords for a point p_ws are
-
-cam_to_p = p_ws - cam_origin
-
-r_x =  dot(cam_to_p, cam_right) / dot(cam_to_p, cam_forw)
-r_y = -dot(cam_to_p, cam_up)    / dot(cam_to_p, cam_forw)
-
-and
-
-pixel_x = gl_w * (lens_sensor_dist / sensor_width  * r_x + 1/2)
-pixel_y = gl_h * (lens_sensor_dist / sensor_height * r_y + 1/2)
-
-let R = lens_sensor_dist / sensor_width
-
-so 
-
-pixel_x = gl_w * (R *  dot(p_ws - cam_origin, cam_right) / dot(p_ws - cam_origin, cam_forw) + 1/2)
-pixel_y = gl_h * (R * -dot(p_ws - cam_origin, cam_up)    / dot(p_ws - cam_origin, cam_forw) + 1/2)
-
-pixel_x = gl_w * (R *  dot(a + b * t - cam_origin, cam_right) / dot(a + b * t - cam_origin, cam_forw) + 1/2)
-pixel_y = gl_h * (R * -dot(a + b * t - cam_origin, cam_up)    / dot(a + b * t - cam_origin, cam_forw) + 1/2)
-
-We know pixel_x and pixel_y, want to solve for t.
-
-pixel_x = gl_w * (R * dot(a + b * t - cam_origin, cam_right) / dot(a + b * t - cam_origin, cam_forw) + 1/2)
-pixel_x/gl_w = R * dot(a + b * t - cam_origin, cam_right) / dot(a + b * t - cam_origin, cam_forw) + 1/2
-pixel_x/gl_w = R * [dot(a - cam_origin, cam_right) + dot(b * t, cam_right)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)] + 1/2
-pixel_x/gl_w - 1/2 = R  * [dot(a - cam_origin, cam_right) + dot(b * t, cam_right)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)]
-(pixel_x/gl_w - 1/2) / R = [dot(a - cam_origin, cam_right) + dot(b * t, cam_right)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)]
-
-let A = dot(a - cam_origin, cam_forw)
-let B = dot(b, cam_forw)
-let C = (pixel_x/gl_w - 1/2) / R
-let D = dot(a - cam_origin, cam_right)
-let E = dot(b, cam_right)
-
-so we get
-
-C = [D + dot(b * t, cam_right)] / [A + dot(b * t, cam_forw)]
-C = [D + dot(b, cam_right) * t] / [A + dot(b, cam_forw) * t]
-C = [D + E * t] / [A + B * t]
-[A + B * t] C = D + E * t
-AC + BCt = D + Et
-BCt - Et = D - AC
-t(BC - E) = D - AC
-t = (D - AC) / (BC - E)
-
-
-For y (used when all x coordinates are ~ the same)
-pixel_y = gl_h * (R * -dot(a + b * t - cam_origin, cam_up) / dot(a + b * t - cam_origin, cam_forw) + 1/2)
-pixel_y/gl_h = R * -dot(a + b * t - cam_origin, cam_up) / dot(a + b * t - cam_origin, cam_forw) + 1/2
-pixel_y/gl_h = R * -[dot(a - cam_origin, cam_up) + dot(b * t, cam_up)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)] + 1/2
-pixel_x/gl_w - 1/2 = R  * -[dot(a - cam_origin, cam_up) + dot(b * t, cam_up)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)]
-(pixel_x/gl_w - 1/2) / R = -[dot(a - cam_origin, cam_right) + dot(b * t, cam_right)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)]
-
-let A = dot(a - cam_origin, cam_forw)
-let B = dot(b, cam_forw)
-let C = (pixel_y/gl_h - 1/2) / R
-let D = dot(a - cam_origin, cam_up)
-let E = dot(b, cam_up)
-
-C = -[D + dot(b * t, cam_up)] / [A + dot(b * t, cam_forw)]
-C = -[D + dot(b, cam_right) * t] / [A + dot(b, cam_forw) * t]
-C = -[D + E * t] / [A + B * t]
-[A + B * t] C = -[D + E * t]
-AC + BCt = -D - Et
-BCt + Et = -D - AC
-t(BC + E) = -D - AC
-t = (-D - AC) / (BC + E)
-
-*/
-
-Vec4f GUIClient::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords) const
+bool GUIClient::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const // Returns true if point is visible from camera.
 {
-	const Vec4f cam_origin = cam_controller.getPosition().toVec4fPoint();
-	const Vec4f cam_forw   = cam_controller.getForwardsVec().toVec4fVector();
-	const Vec4f cam_right  = cam_controller.getRightVec().toVec4fVector();
-	const Vec4f cam_up     = cam_controller.getUpVec().toVec4fVector();
-
-	const float sensor_width  = ::sensorWidth();
-	const float sensor_height = sensor_width / opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
-	const float lens_sensor_dist = ::lensSensorDist();
-
-	const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
-	const float gl_h = (float)opengl_engine->getViewPortHeight(); // ui->glWidget->geometry().height();
-
-	const Vec4f a = p_a_ws;
-	const Vec4f b = normalise(p_b_ws - p_a_ws);
-
-	float A = dot(a - cam_origin, cam_forw);
-	float B = dot(b, cam_forw);
-	float C = (pixel_coords.x/gl_w - 0.5f) * sensor_width / lens_sensor_dist;
-	float D = dot(a - cam_origin, cam_right);
-	float E = dot(b, cam_right);
-
-	const float denom = B*C - E;
-	float t;
-	if(fabs(denom) > 1.0e-4f)
-	{
-		t = (D - A*C) / denom;
-	}
-	else
-	{
-		// Work with y instead
-
-		A = dot(a - cam_origin, cam_forw);
-		B = dot(b, cam_forw);
-		C = (pixel_coords.y/gl_h - 0.5f) * sensor_height / lens_sensor_dist;
-		D = dot(a - cam_origin, cam_up);
-		E = dot(b, cam_up);
-
-		t = (-D - A*C) / (B*C + E);
-	}
-
-	return a + b * t;
-}
-
-
-/*
-s_x is distance left on sensor:
-s_x = sensor_width * (pixel_x - gl_w/2) / gl_w
-
-Let r_x = (cam_to_point, forw) / (cam_to_point, right)
-From similar triangles,
-r_x = s_x / lens_sensor_dist, where s_x is distance left on sensor.
-
-so
-r_x = sensor_width * (pixel_x - gl_w/2) / (gl_w * lens_sensor_dist)
-
-(gl_w * lens_sensor_dist) * r_x = sensor_width * (pixel_x - gl_w/2)
-gl_w * lens_sensor_dist * r_x = sensor_width * pixel_x - sensor_width * gl_w/2
-gl_w * lens_sensor_dist * r_x + sensor_width * gl_w/2 = sensor_width * pixel_x
-
-pixel_x = (gl_w * lens_sensor_dist * r_x + sensor_width * gl_w/2) / sensor_width
-pixel_x = gl_w * (lens_sensor_dist * r_x + sensor_width / 2) / sensor_width;
-pixel_x = gl_w * (lens_sensor_dist * r_x / sensor_width + 1/2);
-pixel_x = gl_w * (lens_sensor_dist / sensor_width * r_x + 1/2);
-*/
-bool GUIClient::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const// Returns true if point is visible from camera.
-{
-	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
-
-	const float sensor_width  = ::sensorWidth();
-	const float sensor_height = sensor_width / opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
-	const float lens_sensor_dist = ::lensSensorDist();
-
-	const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
-	const float gl_h = (float)opengl_engine->getViewPortHeight(); // ui->glWidget->geometry().height();
-
-	const Vec4f cam_to_point = point_ws - this->cam_controller.getPosition().toVec4fPoint();
-	if(dot(cam_to_point, forwards) < 0.001)
-		return false; // point behind camera.
-
-	const float r_x =  dot(cam_to_point, right) / dot(cam_to_point, forwards);
-	const float r_y = -dot(cam_to_point, up)    / dot(cam_to_point, forwards);
-
-	const float pixel_x = (gl_w * lens_sensor_dist * r_x + sensor_width  * gl_w/2) / sensor_width;
-	const float pixel_y = (gl_h * lens_sensor_dist * r_y + sensor_height * gl_h/2) / sensor_height;
-
-	pixel_coords_out = Vec2f(pixel_x, pixel_y);
-	return true;
+	return opengl_engine->worldSpacePosToPixel(point_ws, pixel_coords_out);
 }
 
 
@@ -13668,11 +13345,11 @@ so n_x = (r_x lens_sensor_dist) / (sensor_width/2) = 2 r_x lens_sensor_dist / se
 bool GUIClient::getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) const// Returns true if point is visible from camera.
 {
 	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+	const Vec4f right    = cam_controller.getRightVec().toVec4fVector();
+	const Vec4f up       = cam_controller.getUpVec().toVec4fVector();
 
-	const float sensor_width  = ::sensorWidth();
-	const float lens_sensor_dist = ::lensSensorDist();
+	const float sensor_width     = opengl_engine->getCurrentScene()->use_sensor_width;
+	const float lens_sensor_dist = opengl_engine->getCurrentScene()->lens_sensor_dist;
 
 	const Vec4f cam_to_point = point_ws - this->cam_controller.getPosition().toVec4fPoint();
 	if(dot(cam_to_point, forwards) < 0.001)
@@ -13689,146 +13366,38 @@ bool GUIClient::getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) 
 }
 
 
-// See https://math.stackexchange.com/questions/1036959/midpoint-of-the-shortest-distance-between-2-rays-in-3d
-// In particular this answer: https://math.stackexchange.com/a/2371053
-static inline Vec4f closestPointOnLineToRay(const LineSegment4f& line, const Vec4f& origin, const Vec4f& unitdir)
+// Delegate that connects TransformGizmo events to GUIClient's object editing.
+struct GUIClientGizmoDelegate : public GizmoDelegateInterface
 {
-	const Vec4f a = line.a;
-	const Vec4f b = normalise(line.b - line.a);
+	GUIClientGizmoDelegate(GUIClient* c) : client(c) {}
 
-	const Vec4f c = origin;
-	const Vec4f d = unitdir;
-
-	const float t = (dot(c - a, b) + dot(a - c, d) * dot(b, d)) / (1 - Maths::square(dot(b, d)));
-
-	return a + b * t;
-}
-
-
-static LineSegment4f clipLineSegmentToCameraFrontHalfSpace(const LineSegment4f& segment, const Planef& cam_front_plane)
-{
-	const float d_a = cam_front_plane.signedDistToPoint(segment.a);
-	const float d_b = cam_front_plane.signedDistToPoint(segment.b);
-
-	// If both endpoints are in front half-space, no clipping is required.  If both points are in back half-space, line segment is completely clipped.
-	// In this case just return the unclipped line segment.
-	if((d_a < 0 && d_b < 0) || (d_a > 0 && d_b > 0))
-		return segment;
-
-	/*
-	
-	a                  /         b
-	------------------/----------
-	d_a              /   d_b
-
-	*/
-	if(d_a > 0)
+	void onTranslationDrag(const Vec4f& desired_new_ob_pos) override
 	{
-		assert(d_b < 0);
-		const float frac = d_a / (d_a - d_b); // = d_a / (d_a + |d_b|)
-		return LineSegment4f(segment.a, Maths::lerp(segment.a, segment.b, frac));
-	}
-	else
-	{
-		assert(d_a < 0);
-		assert(d_b >= 0);
-		const float frac = -d_a / (-d_a + d_b); // = |d_a| / (|d_a| + d_b)
-		return LineSegment4f(segment.b, Maths::lerp(segment.a, segment.b, frac));
-	}
-}
-
-
-// Returns the axis index (integer in [0, 3)) of the closest axis arrow, or the axis index of the closest rotation arc handle (integer in [3, 6))
-// or -1 if no arrow or rotation arc close to pixel coords.
-// Also returns world space coords of the closest point.
-int GUIClient::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out) 
-{
-	if(!axis_and_rot_obs_enabled)
-		return -1;
-
-	const Vec2f clickpos = pixel_coords;
-
-	float closest_dist = 10000;
-	int closest_axis = -1;
-	const float max_selection_dist = 12;
-
-	// Test against axis arrows
-	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-	{
-		const LineSegment4f unclipped_segment = axis_arrow_segments[i];
-
-		// Clip line segment to camera front half-space, otherwise projection of segment endpoints to screenspace will fail.
-		const Planef cam_front_plane(/*point=*/this->cam_controller.getPosition().toVec4fPoint() + cam_controller.getForwardsVec().toVec4fVector() * 0.01f, /*normal=*/cam_controller.getForwardsVec().toVec4fVector());
-		const LineSegment4f segment = clipLineSegmentToCameraFrontHalfSpace(unclipped_segment, cam_front_plane);
-
-		Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
-		bool start_visible = getPixelForPoint(segment.a, start_pixelpos);
-		bool end_visible   = getPixelForPoint(segment.b, end_pixelpos);
-
-		if(start_visible && end_visible)
-		{
-			const float d = pointLineSegmentDist(clickpos, start_pixelpos, end_pixelpos);
-
-			const Vec4f dir = getDirForPixelTrace((int)pixel_coords.x, (int)pixel_coords.y);
-			const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
-
-			const Vec4f closest_line_pt = closestPointOnLineToRay(segment, origin, dir);
-
-			// As the axis arrow gets closer to the camera, it will appear larger.  Increase the selection distance (from arrow centre line to mouse point) accordingly.
-			const float cam_dist = closest_line_pt.getDist(origin);
-
-			const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
-			const float approx_radius_px = 0.03f * gl_w / cam_dist;
-			const float use_max_select_dist = myMax(max_selection_dist, approx_radius_px);
-
-			if(d <= closest_dist && d < use_max_select_dist)
-			{
-				closest_seg_point_ws_out = closest_line_pt;
-				closest_dist = d;
-				closest_axis = i;
-			}
-		}
+		if(client->selected_ob)
+			client->tryToMoveObject(client->selected_ob, desired_new_ob_pos);
 	}
 
-	// Test against rotation arc handles
-	for(int i=0; i<3; ++i)
+	void onRotationDrag(const Vec4f& axis, float delta_angle) override
 	{
-		for(size_t z=0; z<rot_handle_lines[i].size(); ++z)
-		{
-			const LineSegment4f segment = (rot_handle_lines[i])[z];
-
-			Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
-			bool start_visible = getPixelForPoint(segment.a, start_pixelpos);
-			bool end_visible   = getPixelForPoint(segment.b, end_pixelpos);
-
-			if(start_visible && end_visible)
-			{
-				const float d = pointLineSegmentDist(clickpos, start_pixelpos, end_pixelpos);
-
-				const Vec4f dir = getDirForPixelTrace((int)pixel_coords.x, (int)pixel_coords.y);
-				const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
-
-				const Vec4f closest_line_pt = closestPointOnLineToRay(segment, origin, dir);
-
-				// As the line segment gets closer to the camera, it will appear larger.  Increase the selection distance (from line to mouse point) accordingly.
-				const float cam_dist = closest_line_pt.getDist(origin);
-
-				const float gl_w = (float)opengl_engine->getViewPortWidth(); // ui->glWidget->geometry().width();
-				const float approx_radius_px = 0.02f * gl_w / cam_dist;
-				const float use_max_select_dist = myMax(max_selection_dist, approx_radius_px);
-
-				if(d <= closest_dist && d < use_max_select_dist)
-				{
-					closest_seg_point_ws_out = closest_line_pt;
-					closest_dist = d;
-					closest_axis = NUM_AXIS_ARROWS + i;
-				}
-			}
-		}
+		if(client->selected_ob)
+			client->rotateObject(client->selected_ob, axis, delta_angle);
 	}
 
-	return closest_axis;
-}
+	void onGrabStart(bool /*is_rotation*/) override
+	{
+		client->ui_interface->setCamRotationOnMouseDragEnabled(false);
+		if(client->selected_ob)
+			client->undo_buffer.startWorldObjectEdit(*client->selected_ob);
+	}
+
+	void onGrabEnd() override
+	{
+		if(client->selected_ob)
+			client->undo_buffer.finishWorldObjectEdit(*client->selected_ob);
+	}
+
+	GUIClient* client;
+};
 
 
 void GUIClient::mousePressed(MouseEvent& e)
@@ -13895,48 +13464,11 @@ void GUIClient::mousePressed(MouseEvent& e)
 		const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
 
 		//if(!mouse_trace_hit_selected_ob)
-		if(have_edit_permissions) // The axis arrows and rotation arcs are only visible if we have object modification permissions.
+		if(have_edit_permissions && transform_gizmo) // The axis arrows and rotation arcs are only visible if we have object modification permissions.
 		{
-			grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e.cursor_pos.x, (float)e.cursor_pos.y), /*closest_seg_point_ws_out=*/this->grabbed_point_ws);
-
-			if(grabbed_axis >= 0) // If we grabbed an arrow or rotation arc:
-			{
-				this->ob_origin_at_grab = this->selected_ob->pos.toVec4fPoint();
-
-				// Usually when the mouse button is held down, moving the mouse rotates the camera.
-				// But when we have grabbed an arrow or rotation arc, it moves the object instead.  So don't rotate the camera.
-				ui_interface->setCamRotationOnMouseDragEnabled(false);
-
-				undo_buffer.startWorldObjectEdit(*this->selected_ob);
-			}
-
-			if(grabbed_axis >= NUM_AXIS_ARROWS) // If we grabbed a rotation arc:
-			{
-				const Vec4f arc_centre = this->selected_ob->opengl_engine_ob->ob_to_world_matrix.getColumn(3);
-
-				const int rot_axis = grabbed_axis - NUM_AXIS_ARROWS;
-				const Vec4f basis_a = basis_vectors[rot_axis*2];
-				const Vec4f basis_b = basis_vectors[rot_axis*2 + 1];
-
-				// Intersect ray from current mouse position with plane formed by rotation basis vectors
-				const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
-				const Vec4f dir = getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y);
-
-				Planef plane(arc_centre, crossProduct(basis_a, basis_b));
-
-				const float t = plane.rayIntersect(origin, dir);
-				const Vec4f plane_p = origin + dir * t;
-
-				const float angle = safeATan2(dot(plane_p - arc_centre, basis_b), dot(plane_p - arc_centre, basis_a));
-
-				const Vec4f to_cam = cam_controller.getPosition().toVec4fPoint() - arc_centre;
-				const float to_cam_angle = safeATan2(dot(basis_b, to_cam), dot(basis_a, to_cam)); // angle in basis_a-basis_b plane
-
-				this->grabbed_angle = this->original_grabbed_angle = angle;
-				this->grabbed_arc_angle_offset = to_cam_angle - this->original_grabbed_angle;
-
-				//opengl_engine->addObject(opengl_engine->makeAABBObject(plane_p, plane_p + Vec4f(0.05f, 0.05f, 0.05f, 0), Colour4f(1, 0, 1, 1)));
-			}
+			GUIClientGizmoDelegate delegate(this);
+			const Vec4f ob_pos = this->selected_ob->pos.toVec4fPoint();
+			transform_gizmo->mousePressed(Vec2f((float)e.cursor_pos.x, (float)e.cursor_pos.y), ob_pos, &delegate);
 		}
 	}
 
@@ -14037,7 +13569,7 @@ void GUIClient::mousePressed(MouseEvent& e)
 	}
 
 	// If we didn't grab any control, we will be in camera-rotate mode, so hide the mouse cursor.
-	if(grabbed_axis < 0)
+	if(!(transform_gizmo && transform_gizmo->isGrabbed()))
 	{
 		ui_interface->hideCursor();
 	}
@@ -14053,11 +13585,11 @@ void GUIClient::mouseReleased(MouseEvent& e)
 			return;
 	}
 
-	// If we were dragging an object along a movement axis, we have released the mouse button and hence finished the movement.  un-grab the axis.
-	if(grabbed_axis != -1 && selected_ob.nonNull())
+	// If we were dragging an object along a movement axis/arc, finish the undo edit.
+	if(transform_gizmo)
 	{
-		undo_buffer.finishWorldObjectEdit(*selected_ob);
-		grabbed_axis = -1;
+		GUIClientGizmoDelegate delegate(this);
+		transform_gizmo->mouseReleased(&delegate);
 	}
 
 	// Trace through scene to see if we are clicking on a web-view.  Send mouseReleased events to the web view if so.
@@ -14346,35 +13878,6 @@ void GUIClient::doObjectSelectionTraceForMouseEvent(MouseEvent& e)
 }
 
 
-inline static bool clipLineToPlaneBackHalfSpace(const Planef& plane, Vec4f& a, Vec4f& b)
-{
-	const float ad = plane.signedDistToPoint(a);
-	const float bd = plane.signedDistToPoint(b);
-	if(ad > 0 && bd > 0) // If both endpoints not in back half space:
-		return false;
-
-	if(ad <= 0 && bd <= 0) // If both endpoints in back half space:
-		return true;
-
-	// Else line straddles plane
-	// ad + (bd - ad) * t = 0
-	// t = -ad / (bd - ad)
-	// t = ad / -(bd - ad)
-	// t = ad / (-bd + ad)
-	// t = ad / (ad - bd)
-
-	const float t = ad / (ad - bd);
-	const Vec4f on_plane_p = a + (b - a) * t;
-	//assert(epsEqual(plane.signedDistToPoint(on_plane_p), 0.f));
-
-	if(ad <= 0) // If point a lies in back half space:
-		b = on_plane_p; // update point b
-	else
-		a = on_plane_p; // else point b lies in back half space, so update point a
-	return true;
-}
-
-
 // cursor_pos is in glWidget local coordinates.
 // mouse_event is non-null if this is called from a mouse-move event
 // If cursor_is_mouse_cursor is false, the cursor is the crosshair.
@@ -14531,157 +14034,26 @@ void GUIClient::mouseMoved(MouseEvent& mouse_event)
 		updateInfoUIForMousePosition(mouse_event.cursor_pos, mouse_event.gl_coords, &mouse_event, /*cursor_is_mouse_cursor=*/true);
 
 
-	if(selected_ob.nonNull() && grabbed_axis >= 0 && grabbed_axis < NUM_AXIS_ARROWS)
+	if(selected_ob.nonNull())
 	{
-		// If we have have grabbed an axis and are moving it:
-		//conPrint("Grabbed axis " + toString(grabbed_axis));
-
-		const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
-		//const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
-
-		Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
-
-		// Get line segment in world space along the grabbed axis, extended out in each direction for some distance.
-		const float MAX_MOVE_DIST = 100;
-		const Vec4f line_dir = normalise(axis_arrow_segments[grabbed_axis].b - axis_arrow_segments[grabbed_axis].a);
-		Vec4f use_line_start = axis_arrow_segments[grabbed_axis].a - line_dir * MAX_MOVE_DIST;
-		Vec4f use_line_end   = axis_arrow_segments[grabbed_axis].a + line_dir * MAX_MOVE_DIST;
-
-		// Clip line in 3d world space to the half-space in front of camera.
-		// We do this so we can get a valid projection of the line into 2d pixel space.
-		const Vec4f camforw_ws = cam_controller.getForwardsVec().toVec4fVector();
-		Planef plane(origin + camforw_ws * 0.1f, -camforw_ws);
-		const bool visible = clipLineToPlaneBackHalfSpace(plane, use_line_start, use_line_end);
-		assertOrDeclareUsed(visible);
-
-		// Project 3d world space line segment into 2d pixel space.
-		bool start_visible = getPixelForPoint(use_line_start, start_pixelpos);
-		bool end_visible   = getPixelForPoint(use_line_end,   end_pixelpos);
-
-		assert(start_visible && end_visible);
-		if(start_visible && end_visible)
+		GUIClientGizmoDelegate delegate(this);
+		const Vec4f ob_pos = selected_ob->pos.toVec4fPoint();
+		const float grid_spacing = ui_interface->snapToGridCheckBoxChecked() ? (float)ui_interface->gridSpacing() : 0.f;
+		if(transform_gizmo && transform_gizmo->mouseMoved(Vec2f((float)mouse_event.cursor_pos.x, (float)mouse_event.cursor_pos.y), ob_pos, &delegate, grid_spacing))
 		{
-			const Vec2f mousepos((float)mouse_event.cursor_pos.x, (float)mouse_event.cursor_pos.y);
-
-			const Vec2f closest_pixel = closestPointOnLineSegment(mousepos, start_pixelpos, end_pixelpos); // Closest pixel coords of point on 2d line to mouse pointer.
-
-			// Project point on 2d line into 3d space along the line
-			Vec4f new_p = pointOnLineWorldSpace(axis_arrow_segments[grabbed_axis].a, axis_arrow_segments[grabbed_axis].b, closest_pixel);
-
-			// opengl_engine->addObject(opengl_engine->makeAABBObject(new_p, new_p + Vec4f(0.1f,0.1f,0.1f,0), Colour4f(0.9, 0.2, 0.5, 1.f)));
-
-			Vec4f delta_p = new_p - grabbed_point_ws; // Desired change in position from when we grabbed the object
-
-			assert(new_p.isFinite());
-
-			Vec4f tentative_new_ob_p = ob_origin_at_grab + delta_p;
-
-			if(tentative_new_ob_p.getDist(ob_origin_at_grab) > MAX_MOVE_DIST)
-				tentative_new_ob_p = ob_origin_at_grab + (tentative_new_ob_p - ob_origin_at_grab) * MAX_MOVE_DIST / (tentative_new_ob_p - ob_origin_at_grab).length();
-
-			assert(tentative_new_ob_p.isFinite());
-
-			// Snap to grid
-			if(ui_interface->snapToGridCheckBoxChecked())
-			{
-				const double grid_spacing = ui_interface->gridSpacing();
-				if(grid_spacing > 1.0e-5)
-					tentative_new_ob_p[grabbed_axis] = (float)Maths::roundToMultipleFloating((double)tentative_new_ob_p[grabbed_axis], grid_spacing);
-			}
-
-			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
-			//tentative_new_to_world.setColumn(3, tentative_new_ob_p);
-			//tryToMoveObject(tentative_new_to_world);
-			tryToMoveObject(this->selected_ob, tentative_new_ob_p);
-
-			if(this->selected_ob_picked_up)
+			if(selected_ob_picked_up)
 			{
 				// Update selection_vec_cs if we have picked up this object.
-				const Vec4f selection_point_ws = obToWorldMatrix(*this->selected_ob) * this->selection_point_os;
-
+				const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
+				const Vec4f selection_point_ws = obToWorldMatrix(*selected_ob) * selection_point_os;
 				const Vec4f selection_vec_ws = selection_point_ws - origin;
-				this->selection_vec_cs = cam_controller.vectorToCamSpace(selection_vec_ws);
+				selection_vec_cs = cam_controller.vectorToCamSpace(selection_vec_ws);
 			}
 		}
-	}
-	else if(selected_ob.nonNull() && grabbed_axis >= NUM_AXIS_ARROWS && grabbed_axis < (NUM_AXIS_ARROWS + 3)) // If we have grabbed a rotation arc and are moving it:
-	{
-		const Vec4f arc_centre = ob_origin_at_grab;// this->selected_ob->opengl_engine_ob->ob_to_world_matrix.getColumn(3);
-
-		const int rot_axis = grabbed_axis - NUM_AXIS_ARROWS;
-		const Vec4f basis_a = basis_vectors[rot_axis*2];
-		const Vec4f basis_b = basis_vectors[rot_axis*2 + 1];
-
-		// Intersect ray from current mouse position with plane formed by rotation basis vectors
-		const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
-		const Vec4f dir = getDirForPixelTrace(mouse_event.cursor_pos.x, mouse_event.cursor_pos.y);
-
-		Planef plane(arc_centre, crossProduct(basis_a, basis_b));
-
-		const float t = plane.rayIntersect(origin, dir);
-		const Vec4f plane_p = origin + dir * t;
-
-		//opengl_engine->addObject(opengl_engine->makeAABBObject(plane_p, plane_p + Vec4f(0.05f, 0.05f, 0.05f, 0), Colour4f(1, 0, 1, 1)));
-
-		const float angle = safeATan2(dot(plane_p - arc_centre, basis_b), dot(plane_p - arc_centre, basis_a));
-
-		const float delta = angle - grabbed_angle;
-
-		//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
-		//tentative_new_to_world = Matrix4f::rotationMatrix(crossProduct(basis_a, basis_b), delta) * tentative_new_to_world;
-		//tryToMoveObject(tentative_new_to_world);
-
-		rotateObject(this->selected_ob, crossProduct(basis_a, basis_b), delta);
-
-		grabbed_angle = angle;
-	}
-	else
-	{
-		// Set mouseover colour if we have moused over a grabbable axis.
-		if(axis_and_rot_obs_enabled)
+		else
 		{
-			// Don't try and grab an axis etc.. when we are clicking on a voxel group to add/remove voxels.
-			//bool mouse_trace_hit_selected_ob = false;
-			//if(areEditingVoxels())
-			//{
-			//	RayTraceResult results;
-			//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, results);
-			//
-			//	mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
-			//		static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
-			//}
-
-			// Set grab controls to default colours
-			for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-			{
-				axis_arrow_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i % 3]);
-				opengl_engine->objectMaterialsUpdated(*axis_arrow_objects[i]);
-			}
-
-			for(int i=0; i<3; ++i)
-			{
-				rot_handle_arc_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i]);
-				opengl_engine->objectMaterialsUpdated(*rot_handle_arc_objects[i]);
-			}
-
-			//if(!mouse_trace_hit_selected_ob)
-			{
-				Vec4f dummy_grabbed_point_ws;
-				const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)mouse_event.cursor_pos.x, (float)mouse_event.cursor_pos.y), dummy_grabbed_point_ws);
-		
-				if(axis >= 0 && axis < NUM_AXIS_ARROWS)
-				{
-					axis_arrow_objects[axis]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_mouseover_cols[axis % 3]);
-					opengl_engine->objectMaterialsUpdated(*axis_arrow_objects[axis]);
-				}
-
-				if(axis >= NUM_AXIS_ARROWS && axis < NUM_AXIS_ARROWS + 3)
-				{
-					const int grabbed_rot_axis = axis - NUM_AXIS_ARROWS;
-					rot_handle_arc_objects[grabbed_rot_axis]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_mouseover_cols[grabbed_rot_axis]);
-					opengl_engine->objectMaterialsUpdated(*rot_handle_arc_objects[grabbed_rot_axis]);
-				}
-			}
+			if(transform_gizmo)
+				transform_gizmo->updateMouseoverHighlight(Vec2f((float)mouse_event.cursor_pos.x, (float)mouse_event.cursor_pos.y));
 		}
 	}
 }
@@ -14973,15 +14345,7 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 		opengl_engine->addObject(ob_placement_marker);
 
 		if(ui_interface->posAndRot3DControlsEnabled())
-		{
-			for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-				opengl_engine->addObject(axis_arrow_objects[i]);
-
-			for(int i=0; i<3; ++i)
-				opengl_engine->addObject(rot_handle_arc_objects[i]);
-
-			axis_and_rot_obs_enabled = true;
-		}
+			transform_gizmo = new TransformGizmo(opengl_engine.ptr());
 	}
 
 	if(isObjectDecal(ob))
@@ -15041,13 +14405,7 @@ void GUIClient::deselectObject()
 		opengl_engine->removeObject(this->ob_placement_beam);
 		opengl_engine->removeObject(this->ob_placement_marker);
 
-		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-			opengl_engine->removeObject(this->axis_arrow_objects[i]);
-
-		for(int i=0; i<3; ++i)
-			opengl_engine->removeObject(this->rot_handle_arc_objects[i]);
-
-		axis_and_rot_obs_enabled = false;
+		transform_gizmo = nullptr;
 
 		// Remove any edge markers
 		while(ob_denied_move_markers.size() > 0)
@@ -15088,8 +14446,6 @@ void GUIClient::deselectObject()
 		ui_interface->setObjectEditorEnabled(false);
 
 		this->selected_ob = NULL;
-
-		grabbed_axis = -1;
 
 		this->shown_object_modification_error_msg = false;
 
@@ -16435,9 +15791,9 @@ class MySSAODebuggingDepthQuerier : public SSAODebugging::DepthQuerier
 public:
 	virtual float depthForPosSS(const Vec2f& pos_ss) // returns positive depth
 	{
-		const float sensor_width = ::sensorWidth();
-		const float sensor_height = sensor_width / gui_client->opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
-		const float lens_sensor_dist = ::lensSensorDist();
+		const float sensor_width     = gui_client->opengl_engine->getCurrentScene()->use_sensor_width;
+		const float sensor_height    = gui_client->opengl_engine->getCurrentScene()->use_sensor_height;
+		const float lens_sensor_dist = gui_client->opengl_engine->getCurrentScene()->lens_sensor_dist;
 
 		const Vec4f forwards = gui_client->cam_controller.getForwardsVec().toVec4fVector();
 		const Vec4f right = gui_client->cam_controller.getRightVec().toVec4fVector();
@@ -16462,9 +15818,9 @@ public:
 	// Return normal in camera space
 	virtual Vec3f normalCSForPosSS(const Vec2f& pos_ss)
 	{
-		const float sensor_width = ::sensorWidth();
-		const float sensor_height = sensor_width / gui_client->opengl_engine->getViewPortAspectRatio();//ui->glWidget->viewport_aspect_ratio;
-		const float lens_sensor_dist = ::lensSensorDist();
+		const float sensor_width     = gui_client->opengl_engine->getCurrentScene()->use_sensor_width;
+		const float sensor_height    = gui_client->opengl_engine->getCurrentScene()->use_sensor_height;
+		const float lens_sensor_dist = gui_client->opengl_engine->getCurrentScene()->lens_sensor_dist;
 
 		const Vec4f forwards = gui_client->cam_controller.getForwardsVec().toVec4fVector();
 		const Vec4f right = gui_client->cam_controller.getRightVec().toVec4fVector();

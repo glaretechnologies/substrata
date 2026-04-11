@@ -51,6 +51,4 @@ public:
 	static Reference<Indigo::Mesh> makeUnitCubeIndigoMesh();
 
 	static PhysicsShape makeUnitCubePhysicsShape(VertexBufferAllocator& allocator);
-
-	static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(VertexBufferAllocator& allocator, float arc_end_angle);
 };

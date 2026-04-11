@@ -34,6 +34,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../opengl/TextureLoading.h"
 #include "../opengl/PBOAsyncTextureUploader.h"
 #include "../opengl/AsyncGeometryUploader.h"
+//#include "../opengl/TransformGizmo.h"
 #include "../shared/WorldObject.h"
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/TimerQueue.h"
@@ -98,6 +99,7 @@ class PBO;
 class GestureSettings;
 class PhotoModeUI;
 class GearInventoryUI;
+class TransformGizmo;
 namespace Scripting { class ObjectScriptsEvaluator; }
 
 
@@ -323,7 +325,6 @@ public:
 public:
 	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) const; // Get screen-space coordinates for a world-space point.  Returns true if point is visible from camera.
 	bool getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) const; // Returns true if point is visible from camera.
-	Vec4f pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords) const;
 
 	void pickUpSelectedObject();
 	void dropSelectedObject();
@@ -331,7 +332,6 @@ public:
 	void checkForLODChanges(Timer& timer_event_timer);
 	void checkForAudioRangeChanges();
 
-	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
 	void sendChatMessage(const std::string& message);
 
 	// If the object was not in a parcel with write permissions at all, returns false.
@@ -573,22 +573,7 @@ public:
 	GLObjectRef aabb_ws_vis_gl_ob; // Used for visualising the world-space AABB of the selected object.
 	std::vector<GLObjectRef> selected_ob_vis_gl_obs; // Used for visualising paths for path-controlled objects.
 
-	static const int NUM_AXIS_ARROWS = 3;
-	LineSegment4f axis_arrow_segments[NUM_AXIS_ARROWS];
-	GLObjectRef axis_arrow_objects[NUM_AXIS_ARROWS]; // For ob placement
-
-	std::vector<LineSegment4f> rot_handle_lines[3];
-	GLObjectRef rot_handle_arc_objects[3];
-
-	bool axis_and_rot_obs_enabled; // Are the axis arrow objects and rotation arcs inserted into the opengl engine? (and grabbable)
-
-	int grabbed_axis; // -1 if no axis grabbed, [0, 3) if grabbed a translation arrow, [3, 6) if grabbed a rotation arc.
-	Vec4f grabbed_point_ws; // Approximate point on arrow line we grabbed, in world space.
-	Vec4f ob_origin_at_grab;
-
-	float grabbed_angle;
-	float original_grabbed_angle;
-	float grabbed_arc_angle_offset;
+	Reference<TransformGizmo> transform_gizmo;
 
 	OpenGLTextureRef default_array_tex;
 
