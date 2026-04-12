@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2026 -
 
 #include "AvatarPreviewGLUIWidget.h"
 #include "GUIClient.h"
+#include <opengl/TransformGizmo.h>
 #include "../shared/ResourceManager.h"
 #include <opengl/ui/GLUIInertWidget.h>
 #include <opengl/ui/GLUISpinBox.h>
@@ -98,12 +99,93 @@ static const char* RPM_bone_names[] = {
 };
 
 
+struct GearGizmoDelegate : public GizmoDelegateInterface
+{
+	GearGizmoDelegate(GearEditorUI* ui_) : ui(ui_) {}
+
+	/*
+	The gizmo gives us some transform M in world space 
+
+	we want some updated gear_transform, gear_transform' such that
+
+	bone_to_ws * gear_transform' = M * bone_to_ws * gear_transform
+
+	so
+
+	gear_transform' = bone_to_ws^-1 * M * bone_to_ws * gear_transform
+	*/
+	void onTranslationDrag(const Vec4f& total_translation, const Vec4f& new_pos_ws) override
+	{
+		GLObject* av = ui->avatar_preview_gl_ob.ptr();
+		const int bone_i = ui->equipped_gear_graphics.bone_node_i;
+		if(!av || bone_i < 0 || bone_i >= (int)av->anim_node_data.size())
+			return;
+
+		const Matrix4f bone_to_ws = av->ob_to_world_matrix * av->anim_node_data[bone_i].node_hierarchical_to_object;
+		Matrix4f bone_to_ws_inverse;
+		bone_to_ws.getInverseForAffine3Matrix(bone_to_ws_inverse);
+
+		const Matrix4f new_gear_transform = bone_to_ws_inverse * Matrix4f::translationMatrix(total_translation) * bone_to_ws * ui->on_grab_gear_transform;
+
+		ui->gear_item->translation = toVec3f(new_gear_transform.getColumn(3));
+
+		ui->equipped_gear_graphics.transform = ui->gear_item->gearObToBoneSpaceMatrix();
+		ui->gui_client->gearItemChangedOnOurAvatar(ui->gear_item.ptr());
+
+		ui->set_ui_from_gear_item_soon = true;
+	}
+
+	void onRotationDrag(const Vec4f& axis, float total_angle_change, float delta_angle) override
+	{
+		printVar(total_angle_change);
+
+		GLObject* av = ui->avatar_preview_gl_ob.ptr();
+		const int bone_i = ui->equipped_gear_graphics.bone_node_i;
+		if(!av || bone_i < 0 || bone_i >= (int)av->anim_node_data.size())
+			return;
+
+		const Matrix4f bone_to_ws = av->ob_to_world_matrix * av->anim_node_data[bone_i].node_hierarchical_to_object;
+		Matrix4f bone_to_ws_inverse;
+		bone_to_ws.getInverseForAffine3Matrix(bone_to_ws_inverse);
+
+		Matrix4f new_gear_transform = bone_to_ws_inverse * Matrix4f::rotationMatrix(axis, total_angle_change) * bone_to_ws * ui->on_grab_gear_transform;
+		new_gear_transform.setColumn(3, Vec4f(0,0,0,1));
+
+		Matrix4f new_rot, rest;
+		new_gear_transform.polarDecomposition(new_rot, rest);
+		const Quatf new_rot_q = Quatf::fromMatrix(new_rot);
+
+		Vec4f new_axis;
+		float new_angle;
+		new_rot_q.toAxisAndAngle(new_axis, new_angle);
+		ui->gear_item->axis = toVec3f(new_axis);
+		ui->gear_item->angle = new_angle;
+
+		ui->equipped_gear_graphics.transform = ui->gear_item->gearObToBoneSpaceMatrix();
+		ui->gui_client->gearItemChangedOnOurAvatar(ui->gear_item.ptr());
+
+		ui->set_ui_from_gear_item_soon = true;
+	}
+
+	void onGrabStart(bool) override
+	{
+		ui->on_grab_gear_transform = ui->gear_item->gearObToBoneSpaceMatrix();
+	}
+
+	void onGrabEnd() override
+	{}
+
+	GearEditorUI* ui;
+};
+
+
 GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef gear_item_)
 {
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 	gear_item = gear_item_;
 	close_soon = false;
+	set_ui_from_gear_item_soon = false;
 
 	// Outer 3-column grid: [avatar preview | equipped | all gear], each column has a header at row 0 and content at row 1.
 	{
@@ -162,6 +244,9 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 				engine->addObject(ob);
 			}
 
+			// Create the TransformGizmo while the preview scene is current so its objects land in the right scene.
+			transform_gizmo = new TransformGizmo(engine);
+
 			engine->setCurrentScene(old_scene); // Restore old scene
 		}
 	}
@@ -176,6 +261,58 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 	{
 		avatar_preview_widget = new AvatarPreviewGLUIWidget(*gl_ui);
 		outer_grid->setCellWidget(/*x=*/0, /*y=*/0, avatar_preview_widget);
+
+		// Wire up gizmo callbacks.
+		avatar_preview_widget->pre_draw_func = [this]()
+		{
+			if(transform_gizmo && equipped_gear_graphics.gear_gl_ob)
+				transform_gizmo->update(equipped_gear_graphics.gear_gl_ob->ob_to_world_matrix.getColumn(3));
+		};
+
+		avatar_preview_widget->press_interceptor = [this](MouseEvent& e) -> bool
+		{
+			Vec2f fbo_px;
+			if(!gizmoFBOPixelsForMouseEvent(e.gl_coords, fbo_px))
+				return false;
+			const Vec4f ob_pos = equipped_gear_graphics.gear_gl_ob ? equipped_gear_graphics.gear_gl_ob->ob_to_world_matrix.getColumn(3) : Vec4f(0,0,1,1);
+			GearGizmoDelegate delegate(this);
+			OpenGLEngine* engine = gui_client->opengl_engine.ptr();
+			OpenGLSceneRef old_scene = engine->getCurrentScene();
+			engine->setCurrentScene(avatar_preview_scene);
+			const bool consumed = transform_gizmo->mousePressed(fbo_px, ob_pos, &delegate);
+			engine->setCurrentScene(old_scene);
+			return consumed;
+		};
+
+		avatar_preview_widget->move_interceptor = [this](MouseEvent& e) -> bool
+		{
+			Vec2f fbo_px;
+			if(!gizmoFBOPixelsForMouseEvent(e.gl_coords, fbo_px))
+				return false;
+			const Vec4f ob_pos = equipped_gear_graphics.gear_gl_ob ? equipped_gear_graphics.gear_gl_ob->ob_to_world_matrix.getColumn(3) : Vec4f(0,0,1,1);
+			GearGizmoDelegate delegate(this);
+			OpenGLEngine* engine = gui_client->opengl_engine.ptr();
+			OpenGLSceneRef old_scene = engine->getCurrentScene();
+			engine->setCurrentScene(avatar_preview_scene);
+			const bool consumed = transform_gizmo->mouseMoved(fbo_px, ob_pos, &delegate);
+			if(!consumed)
+				transform_gizmo->updateMouseoverHighlight(fbo_px);
+			engine->setCurrentScene(old_scene);
+			return consumed;
+		};
+
+		avatar_preview_widget->release_interceptor = [this](MouseEvent& e)
+		{
+			conPrint("release_interceptor: Mouse released");
+			if(!transform_gizmo)
+				return;
+			GearGizmoDelegate delegate(this);
+			OpenGLEngine* engine = gui_client->opengl_engine.ptr();
+			OpenGLSceneRef old_scene = engine->getCurrentScene();
+			engine->setCurrentScene(avatar_preview_scene);
+			transform_gizmo->mouseReleased(&delegate);
+			engine->setCurrentScene(old_scene);
+		};
 	}
 
 	const float GEAR_GRID_BACKGROUND_ALPHA = 0;
@@ -454,6 +591,8 @@ GearEditorUI::~GearEditorUI()
 		OpenGLSceneRef old_scene = engine->getCurrentScene();
 		engine->setCurrentScene(avatar_preview_scene);
 
+		transform_gizmo = nullptr; // Destructor removes its GL objects from the current scene.
+
 		checkRemoveObAndSetRefToNull(*engine, avatar_preview_gl_ob);
 
 		// Remove old gear preview objects
@@ -521,6 +660,21 @@ void GearEditorUI::gearItemChanged()
 void GearEditorUI::think()
 {
 	renderAvatarPreview();
+
+	if(set_ui_from_gear_item_soon)
+	{
+		pos_x_spinbox->setValueNoEvent(gear_item->translation.x);
+		pos_y_spinbox->setValueNoEvent(gear_item->translation.y);
+		pos_z_spinbox->setValueNoEvent(gear_item->translation.z);
+		
+		const Matrix3f rot_mat = Matrix3f::rotationMatrix(normalise(gear_item->axis), gear_item->angle);
+		const Vec3f angles = rot_mat.getAngles();
+		rot_z_spinbox->setValueNoEvent(::radToDegree(angles.z));
+		rot_y_spinbox->setValueNoEvent(::radToDegree(angles.y));
+		rot_x_spinbox->setValueNoEvent(::radToDegree(angles.x));
+
+		set_ui_from_gear_item_soon = false;
+	}
 }
 
 
@@ -645,6 +799,23 @@ void GearEditorUI::setAvatarGLObject(/*const AvatarGraphics& av_graphics, */cons
 void GearEditorUI::handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex)
 {
 	conPrint("GearEditorUI::handleUploadedTexture: " + toStdString(path));
+}
+
+
+bool GearEditorUI::gizmoFBOPixelsForMouseEvent(const Vec2f& gl_coords, Vec2f& fbo_px_out) const
+{
+	if(!transform_gizmo)
+		return false;
+	const Rect2f& rect = avatar_preview_widget->getRect();
+	const Vec2f ui_coords = gl_ui->UICoordsForOpenGLCoords(gl_coords);
+	if(!rect.inClosedRectangle(ui_coords))
+		return false;
+	const float norm_x = (ui_coords.x - rect.getMin().x) / rect.getWidths().x;
+	const float norm_y = (ui_coords.y - rect.getMin().y) / rect.getWidths().y; // 0=bottom, 1=top
+	// FBO pixel coords: Y=0 is top (screen convention), so flip Y.
+	fbo_px_out = Vec2f(norm_x * avatar_preview_scene->viewport_w,
+	                   (1.f - norm_y) * avatar_preview_scene->viewport_h);
+	return true;
 }
 
 

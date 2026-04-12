@@ -99,6 +99,12 @@ void AvatarPreviewGLUIWidget::handleMousePress(MouseEvent& e)
 	const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
 	if(rect.inClosedRectangle(ui_coords))
 	{
+		if(press_interceptor && press_interceptor(e))
+		{
+			e.accepted = true;
+			return;
+		}
+
 		if(e.button == MouseButton::Left)
 		{
 			drag_active    = true;
@@ -118,6 +124,7 @@ void AvatarPreviewGLUIWidget::handleMousePress(MouseEvent& e)
 
 void AvatarPreviewGLUIWidget::handleMouseRelease(MouseEvent& e)
 {
+	if(release_interceptor) release_interceptor(e);
 	if(e.button == MouseButton::Left)   drag_active        = false;
 	if(e.button == MouseButton::Middle) middle_drag_active = false;
 }
@@ -125,6 +132,9 @@ void AvatarPreviewGLUIWidget::handleMouseRelease(MouseEvent& e)
 
 void AvatarPreviewGLUIWidget::doHandleMouseMoved(MouseEvent& e)
 {
+	if(move_interceptor && move_interceptor(e))
+		return;
+
 	if(drag_active)
 	{
 		const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
@@ -222,6 +232,9 @@ void AvatarPreviewGLUIWidget::renderAvatarPreview()
 	const float lens_sensor_dist    = 0.05f;
 	const float render_aspect_ratio = (float)avatar_preview_fbo->xRes() / (float)avatar_preview_fbo->yRes();
 	opengl_engine->setPerspectiveCameraTransform(world_to_cam, sensor_width, lens_sensor_dist, render_aspect_ratio, 0.f, 0.f);
+
+	if(pre_draw_func)
+		pre_draw_func();
 
 	opengl_engine->draw();
 

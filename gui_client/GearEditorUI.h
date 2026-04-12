@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <opengl/ui/GLUIWindow.h>
 #include <opengl/ui/GLUISpinBox.h>
 #include <opengl/ui/GLUIDropDownList.h>
+#include <opengl/TransformGizmo.h>
 
 
 class GUIClient;
@@ -57,13 +58,17 @@ public:
 private:
 	void renderAvatarPreview(); // Renders avatar_preview_scene to avatar_preview_fbo. Requires active GL context.
 
+	// Converts gl_coords to FBO pixel coords for the avatar preview widget.
+	// Returns false if transform_gizmo is null or the point is outside the widget bounds.
+	bool gizmoFBOPixelsForMouseEvent(const Vec2f& gl_coords, Vec2f& fbo_px_out) const;
+
 	// (Re-)creates avatar_preview_tex, avatar_preview_depth_rb, and avatar_preview_fbo sized for the
 	// given physical viewport dimensions, and refreshes the avatar_preview_widget display size.
 	// Call from the constructor and from viewportResized().
 	void recreateAvatarPreviewFBO();
 
 	void gearItemChanged();
-
+public:
 	GUIClient* gui_client;
 	GLUIRef gl_ui;
 
@@ -76,7 +81,9 @@ private:
 
 	OpenGLSceneRef          avatar_preview_scene;
 	GLObjectRef             avatar_preview_gl_ob;
-	EquippedGearGraphics equipped_gear_graphics;
+	EquippedGearGraphics    equipped_gear_graphics;
+
+	Reference<TransformGizmo> transform_gizmo;
 
 
 	GLUIDropDownListRef bone_list;
@@ -96,4 +103,9 @@ private:
 public:
 	GLUIWindowRef window;
 	bool close_soon; // Set in closeWindowEventOccurred; If true, gui_client should destroy this UI asap.
+
+	bool set_ui_from_gear_item_soon; // Set transform spinboxes from gear_item next think().  Can't do it immediately because there is a scene clash in gl engine
+	// between UI and transform gizmo.
+
+	Matrix4f on_grab_gear_transform;
 };

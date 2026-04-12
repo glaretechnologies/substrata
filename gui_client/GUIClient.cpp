@@ -13371,13 +13371,13 @@ struct GUIClientGizmoDelegate : public GizmoDelegateInterface
 {
 	GUIClientGizmoDelegate(GUIClient* c) : client(c) {}
 
-	void onTranslationDrag(const Vec4f& desired_new_ob_pos) override
+	void onTranslationDrag(const Vec4f& total_translation, const Vec4f& desired_new_ob_pos) override
 	{
 		if(client->selected_ob)
 			client->tryToMoveObject(client->selected_ob, desired_new_ob_pos);
 	}
 
-	void onRotationDrag(const Vec4f& axis, float delta_angle) override
+	void onRotationDrag(const Vec4f& axis, float total_angle_change, float delta_angle) override
 	{
 		if(client->selected_ob)
 			client->rotateObject(client->selected_ob, axis, delta_angle);
