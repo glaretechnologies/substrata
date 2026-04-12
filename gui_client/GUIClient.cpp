@@ -3124,6 +3124,7 @@ Avatar* GUIClient::getOurAvatar(WorldStateLock&)
 }
 
 
+// A gear item has been edited in the GearEditorUI.
 void GUIClient::gearItemChangedOnOurAvatar(GearItem* updated_item)
 {
 	//----------- Update equipped_gear_graphics vector -------------
@@ -3164,7 +3165,11 @@ void GUIClient::gearItemChangedOnOurAvatar(GearItem* updated_item)
 	// Make GearItemUpdate packet and enqueue to send to server
 	MessageUtils::initPacket(scratch_packet, Protocol::GearItemUpdate);
 	updated_item->writeToStream(scratch_packet);
-	enqueueMessageToSend(*this->client_thread, scratch_packet);
+	MessageUtils::updatePacketLengthField(scratch_packet);
+
+	// Instead of sending immediately, add to latest_gear_item_update_msg to send later so as not to spam server.
+	latest_gear_item_update_msg[updated_item->id] = scratch_packet;
+	gear_item_local_change_timer.reset();
 }
 
 
@@ -7353,6 +7358,18 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		enqueueMessageToSend(*client_thread, scratch_packet);
 
 		world_settings_locally_dirty = false;
+	}
+
+
+	// Send GearItemUpdate messages to server if we made a local change to the gear item(s) in the UI.
+	if(!latest_gear_item_update_msg.empty() && (gear_item_local_change_timer.elapsed() >= 1.0) && client_thread)
+	{
+		for(auto it = latest_gear_item_update_msg.begin(); it != latest_gear_item_update_msg.end(); ++it)
+		{
+			SocketBufferOutStream& packet = it->second;
+			enqueueMessageToSend(*this->client_thread, packet);
+		}
+		latest_gear_item_update_msg.clear();
 	}
 
 

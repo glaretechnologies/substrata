@@ -535,8 +535,12 @@ public:
 
 	WorldDetails connected_world_details;
 	WorldSettings connected_world_settings; // Settings for the world we are connected to, if any.
-	bool world_settings_locally_dirty;
+
+	bool world_settings_locally_dirty; // World settings have been changed locally.  Send update to server after a brief period to avoid spamming changes to server.
 	Timer world_settings_local_change_timer;
+
+	Timer gear_item_local_change_timer;
+	std::map<UID, SocketBufferOutStream> latest_gear_item_update_msg; // Updates for gear items that have bee chaged locally.  Send updates to server after a brief period to avoid spamming changes to server.
 	
 
 	Reference<Indigo::Mesh> ground_quad_mesh;
