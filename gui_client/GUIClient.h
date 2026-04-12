@@ -37,7 +37,7 @@ Copyright Glare Technologies Limited 2024 -
 //#include "../opengl/TransformGizmo.h"
 #include "../shared/WorldObject.h"
 #include "../shared/LuaScriptEvaluator.h"
-#include "../shared/TimerQueue.h"
+#include "../shared/ScriptTimerQueue.h"
 #include "../settings/SettingsStore.h"
 #include <ui/UIEvents.h>
 #include <utils/ArgumentParser.h>
@@ -842,8 +842,8 @@ public:
 
 	Reference<SubstrataLuaVM> lua_vm;
 
-	TimerQueue timer_queue;
-	std::vector<TimerQueueTimer> temp_triggered_timers;
+	ScriptTimerQueue timer_queue;
+	std::vector<ScriptTimerQueueTimer> temp_triggered_timers;
 
 	struct ContactAddedEvent
 	{

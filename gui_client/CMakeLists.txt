@@ -515,8 +515,8 @@ SET(shared_files
 ../shared/LuaScriptEvaluator.h
 ../shared/SubstrataLuaVM.cpp
 ../shared/SubstrataLuaVM.h
-../shared/TimerQueue.cpp
-../shared/TimerQueue.h
+../shared/ScriptTimerQueue.cpp
+../shared/ScriptTimerQueue.h
 ../shared/ObjectEventHandlers.cpp
 ../shared/ObjectEventHandlers.h
 ../shared/LODChunk.cpp

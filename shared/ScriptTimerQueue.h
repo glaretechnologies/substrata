@@ -1,6 +1,6 @@
 /*=====================================================================
-TimerQueue.h
-------------
+ScriptTimerQueue.h
+------------------
 Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
 #pragma once
@@ -19,11 +19,11 @@ class LuaScript;
 class LuaScriptEvaluator;
 
 
-class TimerQueueTimer
+class ScriptTimerQueueTimer
 {
 public:
-	TimerQueueTimer();
-	TimerQueueTimer(double tigger_time_);
+	ScriptTimerQueueTimer();
+	ScriptTimerQueueTimer(double tigger_time_);
 
 	double tigger_time;
 	//bool valid;
@@ -40,26 +40,26 @@ public:
 class TimerQueueBucket
 {
 public:
-	std::vector<TimerQueueTimer> timers;
+	std::vector<ScriptTimerQueueTimer> timers;
 	std::vector<int> freelist;
 };
 
 
 /*=====================================================================
-TimerQueue
-----------
+ScriptTimerQueue
+----------------
 Handles timer events for Lua scripts.
 Currently using priority_queue.
 There is also some commented-out and unfinished code for a bucket-based solution
 that may be more efficient.
 =====================================================================*/
-class TimerQueue
+class ScriptTimerQueue
 {
 public:
-	TimerQueue();
-	~TimerQueue();
+	ScriptTimerQueue();
+	~ScriptTimerQueue();
 
-	void addTimer(double cur_time, const TimerQueueTimer& timer);
+	void addTimer(double cur_time, const ScriptTimerQueueTimer& timer);
 	/*
 	segment 0: time to trigger < 0.03125
 	0.125
@@ -71,7 +71,7 @@ public:
 	inf
 	*/
 
-	void update(double cur_time, std::vector<TimerQueueTimer>& triggered_timers_out);
+	void update(double cur_time, std::vector<ScriptTimerQueueTimer>& triggered_timers_out);
 
 	void clear(); // Just used for testing
 
@@ -86,10 +86,10 @@ private:
 	//double bucket_min_ttt[8];
 	//double bucket_max_ttt[8];
 
-	struct TimerComparator
+	struct ScriptTimerComparator
 	{
-		bool operator() (const TimerQueueTimer& a, const TimerQueueTimer& b) const { return a.tigger_time > b.tigger_time; }
+		bool operator() (const ScriptTimerQueueTimer& a, const ScriptTimerQueueTimer& b) const { return a.tigger_time > b.tigger_time; }
 	};
 
-	std::priority_queue<TimerQueueTimer, std::vector<TimerQueueTimer>, TimerComparator> queue;
+	std::priority_queue<ScriptTimerQueueTimer, std::vector<ScriptTimerQueueTimer>, ScriptTimerComparator> queue;
 };

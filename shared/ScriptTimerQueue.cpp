@@ -1,19 +1,19 @@
 /*=====================================================================
-TimerQueue.cpp
---------------
+ScriptTimerQueue.cpp
+--------------------
 Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
-#include "TimerQueue.h"
+#include "ScriptTimerQueue.h"
 
 
-TimerQueueTimer::TimerQueueTimer()
+ScriptTimerQueueTimer::ScriptTimerQueueTimer()
 {}
 
 
-TimerQueueTimer::TimerQueueTimer(double tigger_time_) : tigger_time(tigger_time_)/*, valid(true)*/ {}
+ScriptTimerQueueTimer::ScriptTimerQueueTimer(double tigger_time_) : tigger_time(tigger_time_)/*, valid(true)*/ {}
 
 
-TimerQueue::TimerQueue()
+ScriptTimerQueue::ScriptTimerQueue()
 {
 #if 0
 	bucket_max_ttt[0] = 0.03125;
@@ -53,12 +53,12 @@ TimerQueue::TimerQueue()
 }
 
 
-TimerQueue::~TimerQueue()
+ScriptTimerQueue::~ScriptTimerQueue()
 {
 }
 
 
-void TimerQueue::addTimer(double cur_time, const TimerQueueTimer& timer)
+void ScriptTimerQueue::addTimer(double cur_time, const ScriptTimerQueueTimer& timer)
 {
 	// const double ttt = timer.tigger_time - cur_time; // time-to-trigger
 	// const size_t new_bucket_i = getBucketForTimeToTrigger(ttt);
@@ -68,7 +68,7 @@ void TimerQueue::addTimer(double cur_time, const TimerQueueTimer& timer)
 }
 
 
-void TimerQueue::update(double cur_time, std::vector<TimerQueueTimer>& triggered_timers_out)
+void ScriptTimerQueue::update(double cur_time, std::vector<ScriptTimerQueueTimer>& triggered_timers_out)
 {
 	triggered_timers_out.resize(0);
 
@@ -127,7 +127,7 @@ void TimerQueue::update(double cur_time, std::vector<TimerQueueTimer>& triggered
 #endif
 }
 
-void TimerQueue::clear()
+void ScriptTimerQueue::clear()
 {
 	while(!queue.empty())
 		queue.pop();
@@ -236,24 +236,24 @@ void TimerQueue::addTimerToBucket(const TimerQueueTimer& timer, size_t new_bucke
 #include <Timer.h>
 
 
-void TimerQueue::test()
+void ScriptTimerQueue::test()
 {
-	conPrint("TimerQueue::test()");
+	conPrint("ScriptTimerQueue::test()");
 
 #if 1
 	{
-		TimerQueue timer_queue;
+		ScriptTimerQueue timer_queue;
 
 		
-		TimerQueueTimer timer_a(1.0);
+		ScriptTimerQueueTimer timer_a(1.0);
 		timer_a.timer_id = 0;
 		timer_queue.addTimer(/*cur time=*/0.0, timer_a);
 
-		TimerQueueTimer timer_b(2.0);
+		ScriptTimerQueueTimer timer_b(2.0);
 		timer_b.timer_id = 1;
 		timer_queue.addTimer(/*cur time=*/0.0, timer_b);
 		
-		std::vector<TimerQueueTimer> triggered_timers;
+		std::vector<ScriptTimerQueueTimer> triggered_timers;
 		timer_queue.update(/*cur_time=*/0.5, triggered_timers);
 		testAssert(triggered_timers.empty());
 
@@ -268,16 +268,16 @@ void TimerQueue::test()
 	}
 
 	{
-		TimerQueue timer_queue;
+		ScriptTimerQueue timer_queue;
 
 		PCG32 rng(1);
 		for(int i=0; i<1000; ++i)
 		{
-			TimerQueueTimer timer_a(rng.unitRandom() * 1000.0);
+			ScriptTimerQueueTimer timer_a(rng.unitRandom() * 1000.0);
 			timer_queue.addTimer(/*cur time=*/0.0, timer_a);
 		}
 
-		std::vector<TimerQueueTimer> triggered_timers;
+		std::vector<ScriptTimerQueueTimer> triggered_timers;
 		for(int t=0; t<1000; ++t)
 		{
 			timer_queue.update(/*cur_time=*/(double)t, triggered_timers);
@@ -294,7 +294,7 @@ void TimerQueue::test()
 		const int NUM_TIMERS = 1000;
 		for(int i=0; i<NUM_TIMERS; ++i)
 		{
-			TimerQueueTimer timer_a(rng.unitRandom() * 1000.0);
+			ScriptTimerQueueTimer timer_a(rng.unitRandom() * 1000.0);
 			timer_queue.addTimer(/*cur time=*/0.0, timer_a);
 		}
 
@@ -312,7 +312,7 @@ void TimerQueue::test()
 
 #else
 	{
-		TimerQueue timer_queue;
+		ScriptTimerQueue timer_queue;
 
 		
 		timer_queue.addTimer(/*cur time=*/0.0, TimerQueueTimer(1.0)); // Should insert in bucket 3.
@@ -328,7 +328,7 @@ void TimerQueue::test()
 	}
 #endif
 
-	conPrint("TimerQueue::test() done");
+	conPrint("ScriptTimerQueue::test() done");
 }
 
 

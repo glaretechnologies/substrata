@@ -965,10 +965,10 @@ static int createTimer(lua_State* state)
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 #if GUI_CLIENT
 	const double cur_time = sub_lua_vm->gui_client->total_timer.elapsed();
-	TimerQueue& timer_queue = sub_lua_vm->gui_client->timer_queue;
+	ScriptTimerQueue& timer_queue = sub_lua_vm->gui_client->timer_queue;
 #elif SERVER
 	const double cur_time = sub_lua_vm->server->total_timer.elapsed();
-	TimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
+	ScriptTimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
 #endif
 
 	// Find free timer slot
@@ -982,7 +982,7 @@ static int createTimer(lua_State* state)
 			script_evaluator->timers[i].id = timer_id;
 			script_evaluator->timers[i].onTimerEvent_ref = onTimerEvent_ref;
 
-			TimerQueueTimer timer;
+			ScriptTimerQueueTimer timer;
 			timer.onTimerEvent_ref = onTimerEvent_ref;
 			timer.tigger_time = cur_time + interval_time;
 			timer.repeating = repeating;

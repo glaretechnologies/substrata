@@ -341,7 +341,7 @@ void ServerLuaScriptTests::test()
 			testAssert(temp_world_ob->lua_script_evaluator->timers[0].id == temp_world_ob->lua_script_evaluator->next_timer_id - 1);
 			
 			// The timer event should have got added to the server timer queue.  Dequeue it.
-			std::vector<TimerQueueTimer> triggered_timers;
+			std::vector<ScriptTimerQueueTimer> triggered_timers;
 			server.timer_queue.update(/*cur time=*/server.total_timer.elapsed() + 1.0, triggered_timers);
 			testAssert(triggered_timers.size() == 1);
 

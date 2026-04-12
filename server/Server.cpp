@@ -661,7 +661,7 @@ int main(int argc, char *argv[])
 
 					for(size_t i=0; i<server.temp_triggered_timers.size(); ++i)
 					{
-						TimerQueueTimer& timer = server.temp_triggered_timers[i];
+						ScriptTimerQueueTimer& timer = server.temp_triggered_timers[i];
 			
 						LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
 						if(script_evaluator)
