@@ -350,6 +350,18 @@ void GearInventoryUI::think()
 	{
 		gear_editor_ui->think();
 
+		// Sync transform changes made in the editor back to our equipped_gear_graphics,
+		// so the inventory avatar preview reflects edits when the editor closes.
+		for(auto& graphics : equipped_gear_graphics)
+		{
+			if(graphics.gear_id == gear_editor_ui->equipped_gear_graphics.gear_id)
+			{
+				graphics.transform   = gear_editor_ui->equipped_gear_graphics.transform;
+				graphics.bone_node_i = gear_editor_ui->equipped_gear_graphics.bone_node_i;
+				break;
+			}
+		}
+
 		if(gear_editor_ui->close_soon)
 			gear_editor_ui = nullptr;
 	}
@@ -518,6 +530,16 @@ void GearInventoryUI::viewportResized(int w, int h)
 
 void GearInventoryUI::keyPressed(KeyEvent& e)
 {
+	if(e.key == Key::Key_Escape)
+	{
+		if(gear_editor_ui)
+			gear_editor_ui->close_soon = true;
+		else
+			close_soon = true;
+		e.accepted = true;
+		return;
+	}
+
 	if(e.key == Key::Key_E)
 	{
 		const Vec2f mouse_pos = gl_ui->getLastMouseUICoords();
