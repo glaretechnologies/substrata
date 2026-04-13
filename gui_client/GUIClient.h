@@ -273,7 +273,7 @@ public:
 	GLObjectRef makeSpeakerGLObject();
 public:
 	void makeShaders();
-	Avatar* getOurAvatar(WorldStateLock& world_state_lock);
+	Avatar* getOurAvatar(WorldStateLock& world_state_lock) REQUIRES(world_state->mutex);
 	void loadModelForObject(WorldObject* ob, WorldStateLock& world_state_lock) REQUIRES(world_state->mutex);
 	void loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, int voxel_subsample_factor, WorldStateLock& world_state_lock);
 	void loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data);

@@ -1275,7 +1275,7 @@ void WorkerThread::doRun()
 			// If the client connected via a websocket, they can be logged in with a session cookie.
 			// Note that this may only work if the websocket connects over TLS.
 			{
-				Lock lock(world_state->mutex);
+				WorldStateLock lock(world_state->mutex);
 				User* cookie_logged_in_user = LoginHandlers::getLoggedInUser(*world_state, this->websocket_request_info);
 	
 				if(cookie_logged_in_user != NULL)
@@ -1283,7 +1283,7 @@ void WorkerThread::doRun()
 					client_user_id = cookie_logged_in_user->id;
 					client_user_name = cookie_logged_in_user->name;
 					client_user_avatar_settings = cookie_logged_in_user->avatar_settings; // TODO: clone materials?
-					cookie_logged_in_user->getEquippedGear(world_state, /*gear items out=*/client_equipped_gear);
+					cookie_logged_in_user->getEquippedGear(world_state, lock, /*gear items out=*/client_equipped_gear);
 					client_user_flags = cookie_logged_in_user->flags;
 					client_gesture_settings = cookie_logged_in_user->gesture_settings;
 				}
@@ -1640,7 +1640,7 @@ void WorkerThread::doRun()
 												Reference<User> client_user = res2->second;
 												client_user->avatar_settings = avatar->avatar_settings;
 												client_user->updateEquippedGearIDs(avatar->equipped_gear);
-												client_user->getEquippedGear(world_state, avatar->equipped_gear); // Update avatar->equipped_gear with authoritative data from the server.
+												client_user->getEquippedGear(world_state, lock, avatar->equipped_gear); // Update avatar->equipped_gear with authoritative data from the server.
 												world_state->addUserAsDBDirty(client_user);
 
 												conPrintIfNotFuzzing("Updated user avatar settings and equipped gear settings.  model_url: " + toStdString(client_user->avatar_settings.model_url));
@@ -3043,7 +3043,7 @@ void WorkerThread::doRun()
 						
 							bool logged_in = false;
 							{
-								Lock lock(world_state->mutex);
+								WorldStateLock lock(world_state->mutex);
 								auto res = world_state->name_to_users.find(username);
 								if(res != world_state->name_to_users.end())
 								{
@@ -3058,7 +3058,7 @@ void WorkerThread::doRun()
 										client_user_avatar_settings = user->avatar_settings;
 										client_user_flags = user->flags;
 										client_gesture_settings = user->gesture_settings;
-										user->getEquippedGear(world_state, /*gear items out=*/client_equipped_gear);
+										user->getEquippedGear(world_state, lock, /*gear items out=*/client_equipped_gear);
 
 										logged_in = true;
 									}
@@ -3168,7 +3168,7 @@ void WorkerThread::doRun()
 												client_user_id = new_user->id; // Log user in as well.
 												client_user_name = new_user->name;
 												client_user_avatar_settings = new_user->avatar_settings;
-												new_user->getEquippedGear(world_state, /*gear items out=*/client_equipped_gear);
+												new_user->getEquippedGear(world_state, lock, /*gear items out=*/client_equipped_gear);
 												client_user_flags = new_user->flags;
 
 												world_state->addPersonalWorldForUser(new_user, lock);
@@ -3409,6 +3409,7 @@ void WorkerThread::doRun()
 							{
 								if(!world_state->isInReadOnlyMode())
 								{
+									WorldStateLock lock(world_state->mutex);
 									auto res2 = world_state->user_id_to_users.find(client_user_id);
 									if(res2 != world_state->user_id_to_users.end())
 									{

@@ -143,7 +143,7 @@ void User::setNewPasswordAndSalt(const std::string& new_password)
 }
 
 
-void User::getEquippedGear(ServerAllWorldsState* world_state, GearItems& gear_items_out) const
+void User::getEquippedGear(ServerAllWorldsState* world_state, WorldStateLock&, GearItems& gear_items_out) const
 {
 	gear_items_out.items.resize(0);
 	gear_items_out.items.reserve(equipped_gear_ids.size());
