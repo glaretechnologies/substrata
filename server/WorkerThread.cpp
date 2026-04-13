@@ -3449,13 +3449,16 @@ void WorkerThread::doRun()
 						{
 							conPrintIfNotFuzzing("QueryUserGear");
 
-							GearItems all_gear;
+							MessageUtils::initPacket(scratch_packet, Protocol::UserGearList);
+							bool wrote_all_gear = false;
+
 							if(client_user_id.valid())
 							{
 								WorldStateLock lock(world_state->mutex);
 								auto user_it = world_state->user_id_to_users.find(client_user_id);
 								if(user_it != world_state->user_id_to_users.end())
 								{
+									GearItems all_gear;
 									const User* user = user_it->second.ptr();
 									for(const UID& gear_id : user->gear_ids)
 									{
@@ -3463,11 +3466,18 @@ void WorkerThread::doRun()
 										if(gear_it != world_state->gear_items.end())
 											all_gear.items.push_back(gear_it->second);
 									}
+									all_gear.writeToStream(scratch_packet); // Serialise while holding lock, but don't send
+									wrote_all_gear = true;
 								}
 							}
+							
+							if(!wrote_all_gear)
+							{
+								// User not found - user may not be logged in.  Just send back an empty gear list.
+								GearItems all_gear;
+								all_gear.writeToStream(scratch_packet);
+							}
 
-							MessageUtils::initPacket(scratch_packet, Protocol::UserGearList);
-							all_gear.writeToStream(scratch_packet);
 							MessageUtils::updatePacketLengthField(scratch_packet);
 
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -3482,34 +3492,40 @@ void WorkerThread::doRun()
 							GearItemRef updated_item = new GearItem();
 							::readGearItemFromStream(msg_buffer, *updated_item);
 
-							
-							if(client_user_id.valid())
+							if(world_state->isInReadOnlyMode())
 							{
-								// Look up the client user
-								WorldStateLock lock(world_state->mutex);
-								auto user_it = world_state->user_id_to_users.find(client_user_id);
-								if(user_it != world_state->user_id_to_users.end())
+								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't modify a gear item right now.");
+							}
+							else
+							{
+								if(client_user_id.valid())
 								{
-									const User* user = user_it->second.ptr();
-
-									// Check the user does indeed have this gear item in their all gear list
-									if(user->gear_ids.count(updated_item->id))
+									// Look up the client user
+									WorldStateLock lock(world_state->mutex);
+									auto user_it = world_state->user_id_to_users.find(client_user_id);
+									if(user_it != world_state->user_id_to_users.end())
 									{
-										// Look up gear item
-										auto gear_it = world_state->gear_items.find(updated_item->id);
-										if(gear_it != world_state->gear_items.end())
-										{
-											GearItem* item = gear_it->second.ptr();
+										const User* user = user_it->second.ptr();
 
-											// Check gear item owner is the user
-											if(item->owner_id == client_user_id)
+										// Check the user does indeed have this gear item in their all gear list
+										if(user->gear_ids.count(updated_item->id))
+										{
+											// Look up gear item
+											auto gear_it = world_state->gear_items.find(updated_item->id);
+											if(gear_it != world_state->gear_items.end())
 											{
-												// Finally update the item
-												item->copyUserSettableFieldsFromOther(*updated_item);
-												world_state->addGearItemAsDBDirty(item);
+												GearItem* item = gear_it->second.ptr();
+
+												// Check gear item owner is the user
+												if(item->owner_id == client_user_id)
+												{
+													// Finally update the item
+													item->copyUserSettableFieldsFromOther(*updated_item);
+													world_state->addGearItemAsDBDirty(item);
+												}
+												else
+													conPrint("Error: gear item owner_id != user id when gear item is in user's items.");
 											}
-											else
-												conPrint("Error: gear item owner_id != user id when gear item is in user's items.");
 										}
 									}
 								}
@@ -3527,77 +3543,83 @@ void WorkerThread::doRun()
 							new_item->max_supply = 1;
 							new_item->preview_image_URL.clear(); // Don't accept the user-supplied preview_image_URL.  Will be set when screenshot is captured and uploaded.
 
-							
-							bool success = false;
-							if(client_user_id.valid())
+							if(world_state->isInReadOnlyMode())
 							{
-								// Look up the client user
-								WorldStateLock lock(world_state->mutex);
-								auto user_it = world_state->user_id_to_users.find(client_user_id);
-								if(user_it != world_state->user_id_to_users.end())
-								{
-									User* user = user_it->second.ptr();
-
-									new_item->id = world_state->getNextGearItemUID();
-									new_item->created_time = TimeStamp::currentTime();
-									new_item->creator_id = client_user_id;
-									new_item->owner_id = client_user_id;
-
-									//--------- Create screenshot for it -----------
-									ScreenshotRef gear_shot = new Screenshot();
-									gear_shot->id = world_state->getNextScreenshotUID();
-									gear_shot->screenshot_type = Screenshot::ScreenshotType_Gear;
-									gear_shot->gear_item_id = new_item->id;
-									gear_shot->width_px = 256;
-									gear_shot->state = Screenshot::ScreenshotState_notdone;
-									gear_shot->created_time = TimeStamp::currentTime();
-									world_state->screenshots[gear_shot->id] = gear_shot;
-									world_state->addScreenshotAsDBDirty(gear_shot);
-									//-------------------------------------------
-
-									new_item->preview_image_screenshot_id = gear_shot->id;
-
-									world_state->gear_items[new_item->id] = new_item;
-									world_state->addGearItemAsDBDirty(new_item);
-
-									// Add to user's gear_ids
-									user->gear_ids.insert(new_item->id);
-									world_state->addUserAsDBDirty(user);
-
-									conPrint("Created new gear item for user.");
-									success = true;
-								}
+								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't create a gear item right now.");
 							}
-
-							if(success)
-								writeInfoMessageToClient(socket, "Gear item created!  Gear item has been added to inventory.");
 							else
-								writeErrorMessageToClient(socket, "Failed to create gear item.");
-
-
-							// Process resources.
-							// Get dependency URLS (while holding lock)
-							DependencyURLSet URLs;
 							{
-								WorldStateLock lock(world_state->mutex);
+								bool success = false;
+								if(client_user_id.valid())
+								{
+									// Look up the client user
+									WorldStateLock lock(world_state->mutex);
+									auto user_it = world_state->user_id_to_users.find(client_user_id);
+									if(user_it != world_state->user_id_to_users.end())
+									{
+										User* user = user_it->second.ptr();
+
+										new_item->id = world_state->getNextGearItemUID();
+										new_item->created_time = TimeStamp::currentTime();
+										new_item->creator_id = client_user_id;
+										new_item->owner_id = client_user_id;
+
+										//--------- Create screenshot for it -----------
+										ScreenshotRef gear_shot = new Screenshot();
+										gear_shot->id = world_state->getNextScreenshotUID();
+										gear_shot->screenshot_type = Screenshot::ScreenshotType_Gear;
+										gear_shot->gear_item_id = new_item->id;
+										gear_shot->width_px = 256;
+										gear_shot->state = Screenshot::ScreenshotState_notdone;
+										gear_shot->created_time = TimeStamp::currentTime();
+										world_state->screenshots[gear_shot->id] = gear_shot;
+										world_state->addScreenshotAsDBDirty(gear_shot);
+										//-------------------------------------------
+
+										new_item->preview_image_screenshot_id = gear_shot->id;
+
+										world_state->gear_items[new_item->id] = new_item;
+										world_state->addGearItemAsDBDirty(new_item);
+
+										// Add to user's gear_ids
+										user->gear_ids.insert(new_item->id);
+										world_state->addUserAsDBDirty(user);
+
+										conPrint("Created new gear item for user.");
+										success = true;
+									}
+								}
+
+								if(success)
+									writeInfoMessageToClient(socket, "Gear item created!  Gear item has been added to inventory.");
+								else
+									writeErrorMessageToClient(socket, "Failed to create gear item.");
+
+
+								// Process resources.
+								// Get dependency URLS (while holding lock)
+								DependencyURLSet URLs;
+								{
+									WorldStateLock lock(world_state->mutex);
 								
-								const bool use_basis = false; // Get non-basis resources, convert to basis on server.
+									const bool use_basis = false; // Get non-basis resources, convert to basis on server.
 
-								const WorldMaterial::GetURLOptions mat_options(use_basis, /*area allocator=*/nullptr);
+									const WorldMaterial::GetURLOptions mat_options(use_basis, /*area allocator=*/nullptr);
 
-								DependencyURLVector mat_urls;
-								for(size_t i=0; i<new_item->materials.size(); ++i)
-									new_item->materials[i]->appendDependencyURLsAllLODLevels(mat_options, mat_urls);
-								URLs = DependencyURLSet(mat_urls.begin(), mat_urls.end());
+									DependencyURLVector mat_urls;
+									for(size_t i=0; i<new_item->materials.size(); ++i)
+										new_item->materials[i]->appendDependencyURLsAllLODLevels(mat_options, mat_urls);
+									URLs = DependencyURLSet(mat_urls.begin(), mat_urls.end());
 
-								URLs.insert(DependencyURL(new_item->model_url));
-							}
+									URLs.insert(DependencyURL(new_item->model_url));
+								}
 
-							for(auto it = URLs.begin(); it != URLs.end(); ++it)
-							{
-								sendGetFileMessageIfNeeded(it->URL);
+								for(auto it = URLs.begin(); it != URLs.end(); ++it)
+								{
+									sendGetFileMessageIfNeeded(it->URL);
 
-								server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(it->URL));
+									server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(it->URL));
+								}
 							}
 
 							break;
