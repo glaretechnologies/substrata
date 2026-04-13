@@ -8508,19 +8508,15 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 		Vec4f head_pos;
 		Vec4f left_eye_pos, right_eye_pos;
 		head_pos = cam_controller.getFirstPersonPosition().toVec4fPoint(); // default
-		if(world_state.nonNull())
+		if(world_state)
 		{
-			Lock lock(this->world_state->mutex);
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+			WorldStateLock lock(this->world_state->mutex);
+			const Avatar* avatar = getOurAvatar(lock);
+			if(avatar)
 			{
-				const Avatar* avatar = it->second.getPointer();
-				if(avatar->isOurAvatar())
-				{
-
-					head_pos = avatar->graphics.getLastHeadPosition();
-					left_eye_pos = avatar->graphics.getLastLeftEyePosition();
-					right_eye_pos = avatar->graphics.getLastRightEyePosition();
-				}
+				head_pos = avatar->graphics.getLastHeadPosition();
+				left_eye_pos = avatar->graphics.getLastLeftEyePosition();
+				right_eye_pos = avatar->graphics.getLastRightEyePosition();
 			}
 		}
 		
@@ -11044,23 +11040,18 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 		this->setThirdPersonCameraPosition(/*dt=*/1/60.f); // Update cam_controller->third_person_cam_position etc.
 
 		// Add our avatar model. Do this by marking it as dirty.
-		Lock lock(this->world_state->mutex);
-		auto res = this->world_state->avatars.find(this->client_avatar_uid);
-		if(res != this->world_state->avatars.end())
-		{
-			Avatar* avatar = res->second.getPointer();
+		WorldStateLock lock(this->world_state->mutex);
+		Avatar* avatar = getOurAvatar(lock);
+		if(avatar)
 			avatar->other_dirty = true;
-		}
 	}
 	else
 	{
 		// Remove our avatar model
-		Lock lock(this->world_state->mutex);
-		auto res = this->world_state->avatars.find(this->client_avatar_uid);
-		if(res != this->world_state->avatars.end())
+		WorldStateLock lock(this->world_state->mutex);
+		Avatar* avatar = getOurAvatar(lock);
+		if(avatar)
 		{
-			Avatar* avatar = res->second.getPointer();
-
 			avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/true);
 
 			// Remove nametag OpenGL object
@@ -12794,19 +12785,16 @@ void GUIClient::visitSubURL(const std::string& URL, bool push_prev_URL_on_nav_st
 	// Enable materialise effect on our avatar
 	{
 		WorldStateLock lock(this->world_state->mutex);
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		Avatar* avatar = getOurAvatar(lock);
+		if(avatar && avatar->graphics.skinned_gl_ob)
 		{
-			Avatar* avatar = it->second.getPointer();
-			if(avatar->isOurAvatar() && avatar->graphics.skinned_gl_ob)
+			const float current_time = (float)Clock::getTimeSinceInit();
+			for(size_t z=0; z<avatar->graphics.skinned_gl_ob->materials.size(); ++z)
 			{
-				const float current_time = (float)Clock::getTimeSinceInit();
-				for(size_t z=0; z<avatar->graphics.skinned_gl_ob->materials.size(); ++z)
-				{
-					avatar->graphics.skinned_gl_ob->materials[z].materialise_effect = true;
-					avatar->graphics.skinned_gl_ob->materials[z].materialise_start_time = current_time;
-				}
-				opengl_engine->objectMaterialsUpdated(*avatar->graphics.skinned_gl_ob);
+				avatar->graphics.skinned_gl_ob->materials[z].materialise_effect = true;
+				avatar->graphics.skinned_gl_ob->materials[z].materialise_start_time = current_time;
 			}
+			opengl_engine->objectMaterialsUpdated(*avatar->graphics.skinned_gl_ob);
 		}
 	}
 }
@@ -14915,14 +14903,10 @@ void GUIClient::stopGesture()
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
 	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-		{
-			Avatar* av = it->second.getPointer();
-			if(av->isOurAvatar())
-				av->graphics.stopGesture(cur_time/*, gesture_name*/);
-		}
+		WorldStateLock lock(this->world_state->mutex);
+		Avatar* av = getOurAvatar(lock);
+		if(av)
+			av->graphics.stopGesture(cur_time/*, gesture_name*/);
 	}
 
 	// Send AvatarStopGesture message
@@ -14955,23 +14939,19 @@ void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const
 
 	if(resource_manager->isFileForURLPresent(anim_resource_URL))
 	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		WorldStateLock lock(this->world_state->mutex);
+		Avatar* av = getOurAvatar(lock);
+		if(av)
 		{
-			Avatar* av = it->second.getPointer();
-			if(av->isOurAvatar())
-			{
-				// Sync playback.
-				// Consider at some time t, 10 seconds from now:
-				// t = cur_time + 10
-				// and global_start_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
-				// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - global_start_time))
-				// = 10 + (105 - 100) = 10 + 5 = 15
-				const double time_offset = cur_global_time - global_start_time;
+			// Sync playback.
+			// Consider at some time t, 10 seconds from now:
+			// t = cur_time + 10
+			// and global_start_time = 100, cur_global_time = 105 (e.g. anim was started 5 secs ago by another user)
+			// then time_in_anim = t + use_time_offset = (cur_time + 10) + (-cur_time + (cur_global_time - global_start_time))
+			// = 10 + (105 - 100) = 10 + 5 = 15
+			const double time_offset = cur_global_time - global_start_time;
 
-				av->performGesture(cur_time, gesture_name, anim_resource_URL, gesture_flags, global_start_time, time_offset, animation_manager, *resource_manager);
-			}
+			av->performGesture(cur_time, gesture_name, anim_resource_URL, gesture_flags, global_start_time, time_offset, animation_manager, *resource_manager);
 		}
 	}
 	else
@@ -14987,13 +14967,10 @@ void GUIClient::performGestureOnOurAvatar(const std::string& gesture_name, const
 
 		// Set a variable on the avatar so we know to start playing the gesture when the animation file is downloaded.
 		{
-			Lock lock(this->world_state->mutex);
-			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-			{
-				Avatar* av = it->second.getPointer();
-				if(av->isOurAvatar())
-					av->setPendingGesture(gesture_name, anim_resource_URL, gesture_flags, cur_global_time);
-			}
+			WorldStateLock lock(this->world_state->mutex);
+			Avatar* av = getOurAvatar(lock);
+			if(av)
+				av->setPendingGesture(gesture_name, anim_resource_URL, gesture_flags, cur_global_time);
 		}
 	}
 
@@ -15565,14 +15542,10 @@ void GUIClient::openGearInventory()
 		// If our avatar model is already loaded, pass it to the inventory for preview.
 		if(world_state)
 		{
-			Lock lock(world_state->mutex);
-			auto it = world_state->avatars.find(client_avatar_uid);
-			if(it != world_state->avatars.end())
-			{
-				Avatar* av = it->second.ptr();
-				if(av->graphics.skinned_gl_ob)
-					gear_inventory_ui->setAvatarGLObject(av->graphics, av->graphics.skinned_gl_ob, av->avatar_settings.pre_ob_to_world_matrix);
-			}
+			WorldStateLock lock(world_state->mutex);
+			Avatar* av = getOurAvatar(lock);
+			if(av && av->graphics.skinned_gl_ob)
+				gear_inventory_ui->setAvatarGLObject(av->graphics, av->graphics.skinned_gl_ob, av->avatar_settings.pre_ob_to_world_matrix);
 		}
 
 		// Populate equipped panel
