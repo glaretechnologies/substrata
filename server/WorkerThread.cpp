@@ -1167,6 +1167,27 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 }
 
 
+static void getEquippedGearForUser(const User& user, ServerAllWorldsState* world_state, WorldStateLock& /*lock*/, GearItems& gear_items_out) REQUIRES(world_state->lock)
+{
+	gear_items_out.items.resize(0);
+	gear_items_out.items.reserve(user.equipped_gear_ids.size());
+
+	for(size_t i=0; i<user.equipped_gear_ids.size(); ++i)
+	{
+		const UID item_id = user.equipped_gear_ids[i];
+		if(user.gear_ids.count(item_id) != 0)
+		{
+			// Lookup GearItem object in world_state by id
+			auto res = world_state->gear_items.find(item_id);
+			if(res != world_state->gear_items.end())
+				gear_items_out.items.push_back(res->second);
+		}
+		else
+			conPrint("Warning: user had id " + toString(item_id.value()) + " in equipped_gear_ids, which was not in user->gear");
+	}
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -1283,7 +1304,7 @@ void WorkerThread::doRun()
 					client_user_id = cookie_logged_in_user->id;
 					client_user_name = cookie_logged_in_user->name;
 					client_user_avatar_settings = cookie_logged_in_user->avatar_settings; // TODO: clone materials?
-					cookie_logged_in_user->getEquippedGear(world_state, lock, /*gear items out=*/client_equipped_gear);
+					getEquippedGearForUser(*cookie_logged_in_user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
 					client_user_flags = cookie_logged_in_user->flags;
 					client_gesture_settings = cookie_logged_in_user->gesture_settings;
 				}
@@ -1640,7 +1661,7 @@ void WorkerThread::doRun()
 												Reference<User> client_user = res2->second;
 												client_user->avatar_settings = avatar->avatar_settings;
 												client_user->updateEquippedGearIDs(avatar->equipped_gear);
-												client_user->getEquippedGear(world_state, lock, avatar->equipped_gear); // Update avatar->equipped_gear with authoritative data from the server.
+												getEquippedGearForUser(*client_user, world_state, lock, /*gear items out=*/avatar->equipped_gear);  // Update avatar->equipped_gear with authoritative data from the server.
 												world_state->addUserAsDBDirty(client_user);
 
 												conPrintIfNotFuzzing("Updated user avatar settings and equipped gear settings.  model_url: " + toStdString(client_user->avatar_settings.model_url));
@@ -3058,7 +3079,7 @@ void WorkerThread::doRun()
 										client_user_avatar_settings = user->avatar_settings;
 										client_user_flags = user->flags;
 										client_gesture_settings = user->gesture_settings;
-										user->getEquippedGear(world_state, lock, /*gear items out=*/client_equipped_gear);
+										getEquippedGearForUser(*user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
 
 										logged_in = true;
 									}
@@ -3168,7 +3189,7 @@ void WorkerThread::doRun()
 												client_user_id = new_user->id; // Log user in as well.
 												client_user_name = new_user->name;
 												client_user_avatar_settings = new_user->avatar_settings;
-												new_user->getEquippedGear(world_state, lock, /*gear items out=*/client_equipped_gear);
+												getEquippedGearForUser(*new_user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
 												client_user_flags = new_user->flags;
 
 												world_state->addPersonalWorldForUser(new_user, lock);

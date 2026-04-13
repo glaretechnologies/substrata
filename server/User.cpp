@@ -143,27 +143,6 @@ void User::setNewPasswordAndSalt(const std::string& new_password)
 }
 
 
-void User::getEquippedGear(ServerAllWorldsState* world_state, WorldStateLock&, GearItems& gear_items_out) const
-{
-	gear_items_out.items.resize(0);
-	gear_items_out.items.reserve(equipped_gear_ids.size());
-
-	for(size_t i=0; i<equipped_gear_ids.size(); ++i)
-	{
-		const UID item_id = equipped_gear_ids[i];
-		if(gear_ids.count(item_id) != 0)
-		{
-			// Lookup GearItem object in world_state by id
-			auto res = world_state->gear_items.find(item_id);
-			if(res != world_state->gear_items.end())
-				gear_items_out.items.push_back(res->second);
-		}
-		else
-			conPrint("Warning: user had id " + toString(item_id.value()) + " in equipped_gear_ids, which was not in user->gear");
-	}
-}
-
-
 void User::updateEquippedGearIDs(const GearItems& equipped_gear_items)
 {
 	equipped_gear_ids.resize(0);

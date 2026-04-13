@@ -18,7 +18,6 @@ Copyright Glare Technologies Limited 2017 -
 #include <OutStream.h>
 #include <InStream.h>
 #include <DatabaseKey.h>
-#include <ThreadSafetyAnalysis.h>
 
 
 class RandomAccessInStream;
@@ -64,7 +63,6 @@ public:
 
 	void setNewPasswordAndSalt(const std::string& new_password);
 
-	void getEquippedGear(ServerAllWorldsState* world_state, WorldStateLock&, GearItems& gear_items_out) const REQUIRES(world_state->lock);
 	void updateEquippedGearIDs(const GearItems& equipped_gear_items);
 
 	UserID id;
