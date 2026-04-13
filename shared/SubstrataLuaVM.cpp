@@ -965,7 +965,7 @@ static int createTimer(lua_State* state)
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 #if GUI_CLIENT
 	const double cur_time = sub_lua_vm->gui_client->total_timer.elapsed();
-	ScriptTimerQueue& timer_queue = sub_lua_vm->gui_client->timer_queue;
+	ScriptTimerQueue& timer_queue = sub_lua_vm->gui_client->script_timer_queue;
 #elif SERVER
 	const double cur_time = sub_lua_vm->server->total_timer.elapsed();
 	ScriptTimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
