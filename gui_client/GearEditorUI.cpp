@@ -241,9 +241,6 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 				engine->addObject(ob);
 			}
 
-			// Create the TransformGizmo while the preview scene is current so its objects land in the right scene.
-			transform_gizmo = new TransformGizmo(engine);
-
 			engine->setCurrentScene(old_scene); // Restore old scene
 		}
 	}
@@ -268,6 +265,9 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 
 		avatar_preview_widget->press_interceptor = [this](MouseEvent& e) -> bool
 		{
+			if(!transform_gizmo)
+				return false;
+
 			Vec2f fbo_px;
 			if(!gizmoFBOPixelsForMouseEvent(e.gl_coords, fbo_px))
 				return false;
@@ -282,6 +282,9 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 
 		avatar_preview_widget->move_interceptor = [this](MouseEvent& e) -> bool
 		{
+			if(!transform_gizmo)
+				return false;
+
 			Vec2f fbo_px;
 			if(!gizmoFBOPixelsForMouseEvent(e.gl_coords, fbo_px))
 				return false;
@@ -300,6 +303,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 		{
 			if(!transform_gizmo)
 				return;
+
 			GearGizmoDelegate delegate(this);
 			OpenGLSceneRef old_scene = engine->getCurrentScene();
 			engine->setCurrentScene(avatar_preview_scene);
@@ -520,8 +524,9 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 			args.fixed_size.x = 600;
 			//args.background_alpha = 0;
-			GLUILineEditRef name_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
+			name_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
 			name_line_edit->setText(gear_item->name);
+			name_line_edit->on_text_changed = [this] () { this->gearItemChanged(); };
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y + 1, name_line_edit);
 		}
 	}
@@ -543,8 +548,9 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 			args.fixed_size.x = 600;
 			//args.background_alpha = 0;
-			GLUILineEditRef desc_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
+			desc_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
 			desc_line_edit->setText(gear_item->description);
+			desc_line_edit->on_text_changed = [this] () { this->gearItemChanged(); };
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y + 1, desc_line_edit);
 		}
 	}
@@ -638,6 +644,10 @@ void GearEditorUI::gearItemChanged()
 		gear_item->axis = Vec3f(0,0,1);
 		gear_item->angle = 0;
 	}
+
+	gear_item->name        = this->name_line_edit->getText();
+	gear_item->description = this->desc_line_edit->getText();
+
 
 	this->equipped_gear_graphics.transform = gear_item->gearObToBoneSpaceMatrix();
 
@@ -753,6 +763,9 @@ void GearEditorUI::setAvatarGLObject(/*const AvatarGraphics& av_graphics, */cons
 
 					this->equipped_gear_graphics = all_equipped_gear_graphics[i];
 					this->equipped_gear_graphics.gear_gl_ob = preview_ob;
+
+					// Create gizmo
+					transform_gizmo = new TransformGizmo(engine, preview_ob->ob_to_world_matrix.getColumn(3));
 				}
 			}
 		}

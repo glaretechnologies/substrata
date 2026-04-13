@@ -19,7 +19,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <maths/GeometrySampling.h>
 
 
-static const float THUMBNAIL_SIZE_PX = 100.f;
+static const float THUMBNAIL_SIZE_PX = 80.f;
 static const int   GEAR_GRID_COLS    = 4;
 static const int   GEAR_GRID_ROWS    = 6;
 	
@@ -96,10 +96,13 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		}
 	}
 
+	const int SECTION_HEADER_TEXT_FONT_SIZE_PX = 16;
+
 	// Column 0: avatar header + avatar preview widget
 	{
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
+		args.font_size_px = SECTION_HEADER_TEXT_FONT_SIZE_PX;
 		GLUITextViewRef avatar_header_text = new GLUITextView(*gl_ui, "Preview", Vec2f(0.f), args);
 		outer_grid->setCellWidget(/*x=*/0, /*y=*/0, avatar_header_text);
 	}
@@ -114,6 +117,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	{
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
+		args.font_size_px = SECTION_HEADER_TEXT_FONT_SIZE_PX;
 		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Equipped Gear", Vec2f(0.f), args);
 		outer_grid->setCellWidget(/*x=*/1, /*y=*/0, equipped_header_text);
 	}
@@ -133,6 +137,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	{
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
+		args.font_size_px = SECTION_HEADER_TEXT_FONT_SIZE_PX;
 		GLUITextViewRef all_gear_header_text = new GLUITextView(*gl_ui, "All Gear", Vec2f(0.f), args);
 		outer_grid->setCellWidget(/*x=*/2, /*y=*/0, all_gear_header_text);
 	}

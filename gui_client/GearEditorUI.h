@@ -33,9 +33,15 @@ Editing controls for a single gear item.
 
 Calls gui_client->gearItemChangedOnOurAvatar(item) when an item is changed.
 =====================================================================*/
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable:4324) // Disable 'structure was padded due to __declspec(align())' warning.
+#endif
 class GearEditorUI : public GLUICallbackHandler, public ThreadSafeRefCounted
 {
 public:
+	GLARE_ALIGNED_16_NEW_DELETE
+
 	GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef gear_item);
 	~GearEditorUI();
 
@@ -86,6 +92,8 @@ public:
 
 	Reference<TransformGizmo> transform_gizmo;
 
+	GLUILineEditRef name_line_edit;
+	GLUILineEditRef desc_line_edit;
 
 	GLUIDropDownListRef bone_list;
 
@@ -110,3 +118,6 @@ public:
 
 	Matrix4f on_grab_gear_transform;
 };
+#ifdef _WIN32
+#pragma warning(pop)
+#endif

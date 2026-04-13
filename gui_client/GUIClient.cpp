@@ -2993,7 +2993,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 
 // The meshdata for the avatar model is loaded into the opengl engine.
-// Create gl_ob and physics objects for avatar.  
+// Create gl_ob for avatar.
 // Assign any loaded textures.
 void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
 {
@@ -3004,7 +3004,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
 
-	// Create gl and physics object now
+	// Create graphics ob
 	glare::ArenaFrame frame(arena_allocator);
 	avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/URLString(), 
 		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
@@ -3049,7 +3049,8 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
 
-	if(avatar->our_avatar && gear_inventory_ui)
+	// If the inventory UI is open, set the avatar preview in it.
+	if(avatar->isOurAvatar() && gear_inventory_ui)
 		gear_inventory_ui->setAvatarGLObject(avatar->graphics, avatar->graphics.skinned_gl_ob, avatar->avatar_settings.pre_ob_to_world_matrix);
 
 	// See if there is a gesture animation we should be playing, and if so, play it.
@@ -12623,7 +12624,7 @@ void GUIClient::posAndRot3DControlsToggled(bool enabled)
 
 			// Add an object placement beam
 			if(have_edit_permissions)
-				transform_gizmo = new TransformGizmo(opengl_engine.ptr());
+				transform_gizmo = new TransformGizmo(opengl_engine.ptr(), this->selected_ob->pos.toVec4fPoint());
 		}
 	}
 	else
@@ -14367,7 +14368,7 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 		opengl_engine->addObject(ob_placement_marker);
 
 		if(ui_interface->posAndRot3DControlsEnabled())
-			transform_gizmo = new TransformGizmo(opengl_engine.ptr());
+			transform_gizmo = new TransformGizmo(opengl_engine.ptr(), this->selected_ob->pos.toVec4fPoint());
 	}
 
 	if(isObjectDecal(ob))
