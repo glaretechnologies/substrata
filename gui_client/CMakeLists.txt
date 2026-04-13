@@ -280,6 +280,16 @@ ${CMAKE_SOURCE_DIR}/gui_client/AvatarPreviewGLUIWidget.h
 )
 
 
+# Add some utils classes that only the gui_client uses, not server etc.
+SET(utils 
+	${utils}
+	${UTILS_DIR}/TimerQueue.cpp
+	${UTILS_DIR}/TimerQueue.h
+	${UTILS_DIR}/RateLimitedSender.cpp
+	${UTILS_DIR}/RateLimitedSender.h
+)
+
+
 if(USE_SDL)
 	SET(gui_client ${gui_client}
 		${CMAKE_SOURCE_DIR}/gui_client/SDLClient.cpp

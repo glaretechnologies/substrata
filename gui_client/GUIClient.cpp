@@ -197,7 +197,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	obs_with_scripts(/*empty val=*/WorldObjectRef()),
 	ui_hidden(false),
 	only_load_most_important_obs(false),
-	last_ping_send_time(-1000)
+	last_ping_send_time(-1000),
+	gear_item_update_sender(/*send period=*/2.0)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -3169,7 +3170,18 @@ void GUIClient::gearItemChangedOnOurAvatar(GearItem* updated_item)
 
 	// Instead of sending immediately, add to latest_gear_item_update_msg to send later so as not to spam server.
 	latest_gear_item_update_msg[updated_item->id] = scratch_packet;
-	gear_item_local_change_timer.reset();
+
+	gear_item_update_sender.checkSend(timer_queue, /*send_func=*/[this]()
+		{
+			// conPrint("    send_func lambda at " + doubleToStringMaxNDecimalPlaces(Clock::getTimeSinceInit(), 3));
+			for(auto it = latest_gear_item_update_msg.begin(); it != latest_gear_item_update_msg.end(); ++it)
+			{
+				SocketBufferOutStream& packet = it->second;
+				enqueueMessageToSend(*this->client_thread, packet);
+			}
+			latest_gear_item_update_msg.clear();
+		}
+	);
 }
 
 
@@ -5652,13 +5664,17 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		scripted_ob_proximity_checker.think(cam_controller.getPosition().toVec4fPoint(), lock);
 	}
 
+
+	timer_queue.think();
+
+
 	// Do Lua timer callbacks
 	if(false) // TEMP 
 	{
 		WorldStateLock lock(this->world_state->mutex);
 
 		const double cur_time = total_timer.elapsed();
-		timer_queue.update(cur_time, /*triggered_timers_out=*/temp_triggered_timers);
+		script_timer_queue.update(cur_time, /*triggered_timers_out=*/temp_triggered_timers);
 
 		for(size_t i=0; i<temp_triggered_timers.size(); ++i)
 		{
@@ -5677,7 +5693,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					{
 						// Re-insert timer with updated trigger time
 						timer.tigger_time = cur_time + timer.period;
-						timer_queue.addTimer(cur_time, timer);
+						script_timer_queue.addTimer(cur_time, timer);
 					}
 					else // Else if timer was a one-shot timer, 'destroy' it.
 					{
@@ -7360,17 +7376,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		world_settings_locally_dirty = false;
 	}
 
-
-	// Send GearItemUpdate messages to server if we made a local change to the gear item(s) in the UI.
-	if(!latest_gear_item_update_msg.empty() && (gear_item_local_change_timer.elapsed() >= 1.0) && client_thread)
-	{
-		for(auto it = latest_gear_item_update_msg.begin(); it != latest_gear_item_update_msg.end(); ++it)
-		{
-			SocketBufferOutStream& packet = it->second;
-			enqueueMessageToSend(*this->client_thread, packet);
-		}
-		latest_gear_item_update_msg.clear();
-	}
 
 
 	{

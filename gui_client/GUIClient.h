@@ -49,6 +49,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/GenerationalArray.h>
 #include <utils/UniqueRef.h>
 #include <utils/ArenaAllocator.h>
+#include <utils/TimerQueue.h>
+#include <utils/RateLimitedSender.h>
 #include <maths/PCG32.h>
 #include <maths/LineSegment4f.h>
 #include <networking/IPAddress.h>
@@ -539,9 +541,9 @@ public:
 	bool world_settings_locally_dirty; // World settings have been changed locally.  Send update to server after a brief period to avoid spamming changes to server.
 	Timer world_settings_local_change_timer;
 
-	Timer gear_item_local_change_timer;
-	std::map<UID, SocketBufferOutStream> latest_gear_item_update_msg; // Updates for gear items that have bee chaged locally.  Send updates to server after a brief period to avoid spamming changes to server.
-	
+	std::map<UID, SocketBufferOutStream> latest_gear_item_update_msg; // Updates for gear items that have been changed locally.  Send updates to server after a brief period to avoid spamming changes to server.
+	RateLimitedSender gear_item_update_sender;
+
 
 	Reference<Indigo::Mesh> ground_quad_mesh;
 	Reference<OpenGLMeshRenderData> ground_quad_mesh_opengl_data;
@@ -842,7 +844,7 @@ public:
 
 	Reference<SubstrataLuaVM> lua_vm;
 
-	ScriptTimerQueue timer_queue;
+	ScriptTimerQueue script_timer_queue;
 	std::vector<ScriptTimerQueueTimer> temp_triggered_timers;
 
 	struct ContactAddedEvent
@@ -915,4 +917,6 @@ public:
 	bool only_load_most_important_obs;
 
 	double last_ping_send_time;
+
+	TimerQueue timer_queue;
 };
