@@ -1167,7 +1167,7 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 }
 
 
-static void getEquippedGearForUser(const User& user, ServerAllWorldsState* world_state, WorldStateLock& /*lock*/, GearItems& gear_items_out) REQUIRES(world_state->lock)
+static void getEquippedGearForUser(const User& user, ServerAllWorldsState* world_state, WorldStateLock& /*lock*/, GearItems& gear_items_out) REQUIRES(world_state->mutex)
 {
 	gear_items_out.items.resize(0);
 	gear_items_out.items.reserve(user.equipped_gear_ids.size());
