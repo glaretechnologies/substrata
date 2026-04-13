@@ -3116,13 +3116,11 @@ void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics*
 
 Avatar* GUIClient::getOurAvatar(WorldStateLock&)
 {
-	for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-	{
-		Avatar* avatar = it->second.getPointer();
-		if(avatar->isOurAvatar())
-			return avatar;
-	}
-	return nullptr;
+	auto res = this->world_state->avatars.find(this->client_avatar_uid);
+	if(res != this->world_state->avatars.end())
+		return res->second.ptr();
+	else
+		return nullptr;
 }
 
 
@@ -15648,20 +15646,6 @@ void GUIClient::convertSelectedObjectToGearItem()
 }
 
 
-static Avatar buildOurCurrentAvatar(const GUIClient& gc)
-{
-	const Vec3d cam_angles = gc.cam_controller.getAvatarAngles();
-	Avatar av;
-	av.uid             = gc.client_avatar_uid;
-	av.pos             = Vec3d(gc.cam_controller.getFirstPersonPosition());
-	av.rotation        = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-	av.name            = gc.logged_in_user_name;
-	av.avatar_settings = gc.logged_in_avatar_settings;
-	av.equipped_gear   = gc.logged_in_equipped_gear;
-	return av;
-}
-
-
 // The user clicked on an unequipped gear item, so equip it.
 void GUIClient::gearItemClicked(const GearItemRef& item)
 {
@@ -15678,26 +15662,25 @@ void GUIClient::gearItemClicked(const GearItemRef& item)
 	// Update avatar in world state and trigger graphics reload
 	{
 		WorldStateLock lock(world_state->mutex);
-		auto it = world_state->avatars.find(client_avatar_uid);
-		if(it != world_state->avatars.end())
+		Avatar* avatar = getOurAvatar(lock);
+		if(avatar)
 		{
-			Avatar* av = it->second.ptr();
-			av->equipped_gear.items.push_back(item);
-			av->graphics.loaded_lod_level = -1; // Force loadModelForAvatar to re-run and load the new gear model
-			loadModelForAvatar(av);
+			avatar->equipped_gear.items.push_back(item);
+			avatar->graphics.loaded_lod_level = -1; // Force loadModelForAvatar to re-run and load the new gear model
+			loadModelForAvatar(avatar);
+
+			// Notify server
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+			writeAvatarToNetworkStream(*avatar, scratch_packet);
+			enqueueMessageToSend(*client_thread, scratch_packet);
 		}
 	}
-
-	// Notify server
-	const Avatar av = buildOurCurrentAvatar(*this);
-	MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-	writeAvatarToNetworkStream(av, scratch_packet);
-	enqueueMessageToSend(*client_thread, scratch_packet);
 
 	// Refresh inventory UI
 	if(gear_inventory_ui)
 		gear_inventory_ui->setEquippedGear(logged_in_equipped_gear);
 }
+
 
 // The user clicked on an equipped gear item, so unequip it.
 void GUIClient::equippedGearItemClicked(const GearItemRef& item)
@@ -15710,10 +15693,9 @@ void GUIClient::equippedGearItemClicked(const GearItemRef& item)
 	// Remove from avatar in world state and clean up GL object
 	{
 		WorldStateLock lock(world_state->mutex);
-		auto it = world_state->avatars.find(client_avatar_uid);
-		if(it != world_state->avatars.end())
+		Avatar* av = getOurAvatar(lock);
+		if(av)
 		{
-			Avatar* av = it->second.ptr();
 			for(size_t i = 0; i < av->equipped_gear.items.size(); ++i)
 			{
 				if(av->equipped_gear.items[i]->id == item->id)
@@ -15732,14 +15714,13 @@ void GUIClient::equippedGearItemClicked(const GearItemRef& item)
 
 			av->graphics.loaded_lod_level = -1; // Force loadModelForAvatar to re-run and load the new gear model
 			loadModelForAvatar(av);
+
+			// Notify server
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+			writeAvatarToNetworkStream(*av, scratch_packet);
+			enqueueMessageToSend(*client_thread, scratch_packet);
 		}
 	}
-
-	// Notify server
-	const Avatar av = buildOurCurrentAvatar(*this);
-	MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
-	writeAvatarToNetworkStream(av, scratch_packet);
-	enqueueMessageToSend(*client_thread, scratch_packet);
 
 	// Refresh inventory UI
 	if(gear_inventory_ui)

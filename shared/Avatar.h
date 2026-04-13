@@ -157,7 +157,7 @@ public:
 
 	//Reference<GLObject> opengl_engine_ob;
 #if GUI_CLIENT
-	bool our_avatar;
+	bool our_avatar; // Set to true just after creation if uid == client_avatar_uid
 
 	bool in_proximity; // Is the avatar currently in proximity to camera?  For UserMovedNearToAvatar and UserMovedAwayFromAvatar messages.
 
