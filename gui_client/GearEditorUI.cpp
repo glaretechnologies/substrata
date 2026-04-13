@@ -137,8 +137,6 @@ struct GearGizmoDelegate : public GizmoDelegateInterface
 
 	void onRotationDrag(const Vec4f& axis, float total_angle_change, float delta_angle) override
 	{
-		printVar(total_angle_change);
-
 		GLObject* av = ui->avatar_preview_gl_ob.ptr();
 		const int bone_i = ui->equipped_gear_graphics.bone_node_i;
 		if(!av || bone_i < 0 || bone_i >= (int)av->anim_node_data.size())
@@ -182,6 +180,7 @@ struct GearGizmoDelegate : public GizmoDelegateInterface
 GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef gear_item_)
 {
 	gui_client = gui_client_;
+	engine = gui_client_->opengl_engine.ptr();
 	gl_ui = gl_ui_;
 	gear_item = gear_item_;
 	close_soon = false;
@@ -201,8 +200,6 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 
 	// Create avatar preview scene.
 	{
-		OpenGLEngine* engine = gui_client->opengl_engine.ptr();
-
 		avatar_preview_scene = new OpenGLScene(*engine);
 		avatar_preview_scene->draw_water = false;
 		avatar_preview_scene->water_level_z = -10000.0;
@@ -276,7 +273,6 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 				return false;
 			const Vec4f ob_pos = equipped_gear_graphics.gear_gl_ob ? equipped_gear_graphics.gear_gl_ob->ob_to_world_matrix.getColumn(3) : Vec4f(0,0,1,1);
 			GearGizmoDelegate delegate(this);
-			OpenGLEngine* engine = gui_client->opengl_engine.ptr();
 			OpenGLSceneRef old_scene = engine->getCurrentScene();
 			engine->setCurrentScene(avatar_preview_scene);
 			const bool consumed = transform_gizmo->mousePressed(fbo_px, ob_pos, &delegate);
@@ -291,7 +287,6 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 				return false;
 			const Vec4f ob_pos = equipped_gear_graphics.gear_gl_ob ? equipped_gear_graphics.gear_gl_ob->ob_to_world_matrix.getColumn(3) : Vec4f(0,0,1,1);
 			GearGizmoDelegate delegate(this);
-			OpenGLEngine* engine = gui_client->opengl_engine.ptr();
 			OpenGLSceneRef old_scene = engine->getCurrentScene();
 			engine->setCurrentScene(avatar_preview_scene);
 			const bool consumed = transform_gizmo->mouseMoved(fbo_px, ob_pos, &delegate);
@@ -303,11 +298,9 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 
 		avatar_preview_widget->release_interceptor = [this](MouseEvent& e)
 		{
-			conPrint("release_interceptor: Mouse released");
 			if(!transform_gizmo)
 				return;
 			GearGizmoDelegate delegate(this);
-			OpenGLEngine* engine = gui_client->opengl_engine.ptr();
 			OpenGLSceneRef old_scene = engine->getCurrentScene();
 			engine->setCurrentScene(avatar_preview_scene);
 			transform_gizmo->mouseReleased(&delegate);
@@ -587,7 +580,6 @@ GearEditorUI::~GearEditorUI()
 	// Clean up the avatar preview scene and its objects
 	if(avatar_preview_scene)
 	{
-		OpenGLEngine* engine = gui_client->opengl_engine.ptr();
 		OpenGLSceneRef old_scene = engine->getCurrentScene();
 		engine->setCurrentScene(avatar_preview_scene);
 
@@ -625,8 +617,6 @@ void GearEditorUI::recreateAvatarPreviewFBO()
 
 void GearEditorUI::gearItemChanged()
 {
-	conPrint("gearItemChanged");
-
 	// Read values from controls
 	gear_item->bone_name = bone_list->getCurrentValue();
 
@@ -683,8 +673,6 @@ void GearEditorUI::renderAvatarPreview()
 	if(avatar_preview_scene.isNull())// || avatar_preview_widget->avatar_preview_fbo.isNull())
 		return;
 
-	OpenGLEngine* engine = gui_client->opengl_engine.ptr();
-
 	// Save current state
 	OpenGLSceneRef old_scene = engine->getCurrentScene();
 	FrameBufferRef old_fbo = engine->getTargetFrameBuffer();
@@ -722,7 +710,6 @@ void GearEditorUI::setAvatarGLObject(/*const AvatarGraphics& av_graphics, */cons
 	if(avatar_preview_scene.isNull())
 		return;
 
-	OpenGLEngine* engine = gui_client->opengl_engine.ptr();
 	OpenGLSceneRef old_scene = engine->getCurrentScene();
 	engine->setCurrentScene(avatar_preview_scene);
 

@@ -70,6 +70,7 @@ private:
 	void gearItemChanged();
 public:
 	GUIClient* gui_client;
+	OpenGLEngine* engine;
 	GLUIRef gl_ui;
 
 	GearItemRef gear_item;
