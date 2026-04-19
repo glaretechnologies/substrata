@@ -2726,10 +2726,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				}
 			}
 		}
-		else if(ob->object_type == WorldObject::ObjectType_Generic)
+		else if(ob->object_type == WorldObject::ObjectType_Generic || ob->object_type == WorldObject::ObjectType_GearItem)
 		{
-			assert(ob->object_type == WorldObject::ObjectType_Generic);
-
 			
 			//if(::hasPrefix(ob->content, "biome:")) // If we want to scatter on this object:
 			//{
@@ -13926,7 +13924,7 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 				}
 				else 
 				{
-					if(!ob->target_url.empty() && (ob->web_view_data.isNull() && ob->browser_vid_player.isNull())) // If the object has a target URL (and is not a web-view and not a video object):
+					if(!ob->target_url.empty() && !ob->isGearItem() && (ob->web_view_data.isNull() && ob->browser_vid_player.isNull())) // If the object has a target URL (and is not a web-view and not a video object):
 					{
 						// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
 						const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
@@ -13950,6 +13948,12 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() && !isAvatarSittingOnSeat(*ob))
 					{
 						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to sit" : "Press [A] on gamepad to sit", cursor_gl_coords);
+						show_mouseover_info_ui = true;
+					}
+
+					if(ob->object_type == WorldObject::ObjectType_GearItem)
+					{
+						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to pick up gear item" : "Press [A] on gamepad to pick up gear item", cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
@@ -15279,6 +15283,19 @@ void GUIClient::useActionTriggered(bool use_mouse_cursor)
 			{
 				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
+				// Handle gear item pickup
+				if(ob->object_type == WorldObject::ObjectType_GearItem)
+				{
+					MessageUtils::initPacket(scratch_packet, Protocol::PickUpGearItem);
+					writeToStream(ob->uid, scratch_packet);
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+					// Get updated gear list
+					MessageUtils::initPacket(scratch_packet, Protocol::QueryUserGear);
+					enqueueMessageToSend(*client_thread, scratch_packet);
+					return;
+				}
+
 				// Handle seat interaction
 				if(ob->object_type == WorldObject::ObjectType_Seat)
 				{
@@ -15607,6 +15624,8 @@ void GUIClient::convertSelectedObjectToGearItem()
 		item->angle = 0.f;
 		item->scale = selected_ob->scale;
 		item->name = "New gear item";
+		item->aabb_os_min = Vec3f(selected_ob->getAABBOS().min_);
+		item->aabb_os_max = Vec3f(selected_ob->getAABBOS().max_);
 
 		MessageUtils::initPacket(scratch_packet, Protocol::CreateGearItem);
 		item->writeToStream(scratch_packet);
@@ -15620,7 +15639,7 @@ void GUIClient::convertSelectedObjectToGearItem()
 
 
 // The user clicked on an unequipped gear item, so equip it.
-void GUIClient::gearItemClicked(const GearItemRef& item)
+void GUIClient::equipGearItem(const GearItemRef& item)
 {
 	conPrint("Equipping gear item: id=" + item->id.toString() + " name='" + item->name + "'");
 
@@ -15656,7 +15675,7 @@ void GUIClient::gearItemClicked(const GearItemRef& item)
 
 
 // The user clicked on an equipped gear item, so unequip it.
-void GUIClient::equippedGearItemClicked(const GearItemRef& item)
+void GUIClient::unequipGearItem(const GearItemRef& item)
 {
 	conPrint("Unequipping gear item: id=" + item->id.toString() + " name='" + item->name + "'");
 
@@ -15698,6 +15717,43 @@ void GUIClient::equippedGearItemClicked(const GearItemRef& item)
 	// Refresh inventory UI
 	if(gear_inventory_ui)
 		gear_inventory_ui->setEquippedGear(logged_in_equipped_gear);
+}
+
+
+void GUIClient::dropGearItem(const GearItemRef& item)
+{
+	// If currently equipped, unequip first (mirrors equippedGearItemClicked so avatar state stays consistent).
+	bool was_equipped = false;
+	for(const GearItemRef& g : logged_in_equipped_gear.items)
+		if(g->id == item->id) { was_equipped = true; break; }
+
+	if(was_equipped)
+		unequipGearItem(item);
+
+	// Drop in front of the camera so the item can fall to the ground under gravity.
+	const Vec3d drop_pos = cam_controller.getFirstPersonPosition() + cam_controller.getForwardsVec() * 1.0;
+
+	MessageUtils::initPacket(scratch_packet, Protocol::DropGearItem);
+	writeToStream(item->id, scratch_packet);
+	writeToStream<double>(drop_pos, scratch_packet);
+	enqueueMessageToSend(*client_thread, scratch_packet);
+
+	// Get updated gear list
+	MessageUtils::initPacket(scratch_packet, Protocol::QueryUserGear);
+	enqueueMessageToSend(*client_thread, scratch_packet);
+}
+
+
+void GUIClient::tryCloneGearItem(const GearItemRef& item)
+{
+	// Send CloneGearItemInInventory message to server
+	MessageUtils::initPacket(scratch_packet, Protocol::CloneGearItemInInventory);
+	writeToStream(item->id, scratch_packet);
+	enqueueMessageToSend(*client_thread, scratch_packet);
+
+	// Get updated gear list
+	MessageUtils::initPacket(scratch_packet, Protocol::QueryUserGear);
+	enqueueMessageToSend(*client_thread, scratch_packet);
 }
 
 

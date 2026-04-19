@@ -276,14 +276,17 @@ public:
 		ObjectType_Video = 5, // A YouTube or Twitch video, or mp4 video, with video-specific UI.
 		ObjectType_Text = 6, // Text displayed on a quad
 		ObjectType_Portal = 7, // A portal to another Substrata world or another location in the current world.
-		ObjectType_Seat = 8 // A seat that users can sit on
+		ObjectType_Seat = 8, // A seat that users can sit on
+		ObjectType_GearItem = 9 // An in-world pickup representing a GearItem (NFT) that can be picked up into a user's gear inventory.
+		// For ObjectType_GearItem, target_url holds the gear item name, content holds the description, and type_data.gear_item_data.gear_item_id holds the GearItem UID.
 	};
-	static const uint64 NUM_OBJECT_TYPES = 9;
+	static const uint64 NUM_OBJECT_TYPES = 10;
 
 	static std::string objectTypeString(ObjectType t);
 	static ObjectType objectTypeForString(const std::string& ob_type_string);
 
-	bool isPortal() const { return object_type == ObjectType_Portal; }
+	bool isPortal() const   { return object_type == ObjectType_Portal; }
+	bool isGearItem() const { return object_type == ObjectType_GearItem; }
 
 	static void test();
 
@@ -371,10 +374,16 @@ public:
 		float lower_arm_angle; // Lower arm angle in radians
 	};
 
+	struct GearItemTypeData
+	{
+		uint64 gear_item_id; // UID of the backing GearItem record.
+	};
+
 	union TypeData
 	{
 		SpotLightTypeData spotlight_data;
 		SeatTypeData seat_data;
+		GearItemTypeData gear_item_data;
 
 		TypeData() noexcept : spotlight_data() {}  // Explicitly initialize the trivial member to allow union default construction
 	} type_data;

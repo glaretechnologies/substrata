@@ -555,6 +555,31 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 		}
 	}
 
+	// Add 'allow cloning' checkbox
+	{
+		const int controls_grid_y = (int)controls_grid->cell_widgets.getHeight();
+
+		const bool can_change = gui_client->logged_in_user_id == gear_item_->creator_id; // Only the gear item creator can change the 'enable cloning' property
+		// Label
+		{
+			GLUITextView::CreateArgs args;
+			args.background_alpha = 0;
+			GLUITextViewRef text = new GLUITextView(*gl_ui, can_change ? "Allow cloning" : "Allow cloning (can only be changed by gear item creator)", Vec2f(0.f), args);
+			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y, text);
+		}
+
+		// Checkbox
+		{
+			GLUICheckBox::CreateArgs args;
+			args.checked = BitUtils::isBitSet(gear_item_->flags, GearItem::ALLOW_CLONING_FLAG);
+			args.enabled = can_change;
+			args.tooltip = "Allow cloning (can only be changed by gear item creator)";
+			allow_cloning_checkbox = new GLUICheckBox(*gl_ui, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
+			allow_cloning_checkbox->on_checked_changed = [this] () { this->gearItemChanged(); };
+			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y + 1, allow_cloning_checkbox);
+		}
+	}
+
 	// Window containing the outer grid
 	{
 		GLUIWindow::CreateArgs args;
@@ -648,6 +673,7 @@ void GearEditorUI::gearItemChanged()
 	gear_item->name        = this->name_line_edit->getText();
 	gear_item->description = this->desc_line_edit->getText();
 
+	gear_item->flags = this->allow_cloning_checkbox->isChecked() ? GearItem::ALLOW_CLONING_FLAG : 0;
 
 	this->equipped_gear_graphics.transform = gear_item->gearObToBoneSpaceMatrix();
 

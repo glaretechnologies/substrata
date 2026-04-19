@@ -258,8 +258,10 @@ public:
 	void gestureSettingsChanged(const GestureSettings& new_gesture_settings);
 	void openGearInventory();
 	void convertSelectedObjectToGearItem();
-	void gearItemClicked(const GearItemRef& item);         // Called when a gear item thumbnail is clicked in the All Gear panel.
-	void equippedGearItemClicked(const GearItemRef& item); // Called when a gear item thumbnail is clicked in the Equipped panel.
+	void equipGearItem(const GearItemRef& item);    // Called when a gear item thumbnail is clicked in the All Gear panel.
+	void unequipGearItem(const GearItemRef& item);  // Called when a gear item thumbnail is clicked in the Equipped panel.
+	void dropGearItem(const GearItemRef& item);     // Called when the user presses D while hovering a gear thumbnail.  Unequips if equipped, then asks the server to drop the item into the world.
+	void tryCloneGearItem(const GearItemRef& item); // Called when the user presses C while hovering a gear thumbnail.  Sends a message to server to try to clone the gear item.
 	void worldSettingsChangedFromUI(const WorldSettings& new_world_settings);
 	void applyWorldSettingsToOpenGLEngine();
 public:

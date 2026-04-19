@@ -529,6 +529,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Text: return "text";
 	case ObjectType_Portal: return "portal";
 	case ObjectType_Seat: return "seat";
+	case ObjectType_GearItem: return "gear item";
 	default: return "Unknown";
 	}
 }
@@ -544,6 +545,7 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 	if(ob_type_string == "text") return ObjectType_Text;
 	if(ob_type_string == "portal") return ObjectType_Portal;
 	if(ob_type_string == "seat") return ObjectType_Seat;
+	if(ob_type_string == "gear item") return ObjectType_GearItem;
 	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
 }
 
@@ -591,6 +593,14 @@ static void writeWorldObjectPerTypeData(RandomAccessOutStream& stream, const Wor
 			stream.writeData(&ob.type_data.seat_data, sizeof(WorldObject::SeatTypeData));
 			break;
 		}
+		case WorldObject::ObjectType_GearItem:
+		{
+			// Write length of per-type data
+			stream.writeUInt32(sizeof(WorldObject::GearItemTypeData));
+
+			stream.writeData(&ob.type_data.gear_item_data, sizeof(WorldObject::GearItemTypeData));
+			break;
+		}
 		default:
 		{
 			// Write length of per-type data
@@ -615,6 +625,11 @@ static void readWorldObjectPerTypeData(RandomAccessInStream& stream, WorldObject
 		case WorldObject::ObjectType_Seat:
 		{
 			stream.readData(&ob.type_data.seat_data, sizeof(WorldObject::SeatTypeData));
+			break;
+		}
+		case WorldObject::ObjectType_GearItem:
+		{
+			stream.readData(&ob.type_data.gear_item_data, sizeof(WorldObject::GearItemTypeData));
 			break;
 		}
 		default:
@@ -642,6 +657,9 @@ static void setWorldObjectPerTypeDataDefaults(WorldObject& ob)
 		ob.type_data.seat_data.lower_leg_angle = 1.57f; // ~90 degrees, bent at knees (negated in code)
 		ob.type_data.seat_data.upper_arm_angle = 2.65f; // ~152 degrees from overhead, arms down and slightly out
 		ob.type_data.seat_data.lower_arm_angle = 0.1f; // ~6 degrees, very slight elbow bend
+		break;
+	case WorldObject::ObjectType_GearItem:
+		ob.type_data.gear_item_data.gear_item_id = UID::invalidUID().value();
 		break;
 	default:
 		break;

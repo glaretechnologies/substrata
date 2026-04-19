@@ -169,6 +169,7 @@ void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 	case WorldObject::ObjectType_Text: ob_type = "Text"; break;
 	case WorldObject::ObjectType_Portal: ob_type = "Portal"; break;
 	case WorldObject::ObjectType_Seat: ob_type = "Seat"; break;
+	case WorldObject::ObjectType_GearItem: ob_type = "Gear Item"; break;
 	}
 
 	std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();

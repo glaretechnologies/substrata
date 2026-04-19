@@ -11,7 +11,8 @@ Copyright Glare Technologies Limited 2026 -
 #include <utils/RuntimeCheck.h>
 
 
-static const uint32 GEAR_ITEM_SERIALISATION_VERSION = 1;
+// Version 2: Added aabb_os_min, aabb_os_max
+static const uint32 GEAR_ITEM_SERIALISATION_VERSION = 2;
 
 
 GearItem::GearItem()
@@ -20,7 +21,9 @@ GearItem::GearItem()
 	angle(0),
 	scale(1.f),
 	flags(0),
-	max_supply(0)
+	max_supply(0),
+	aabb_os_min(-1.f),
+	aabb_os_max(1.f)
 {
 }
 
@@ -56,7 +59,10 @@ bool GearItem::operator==(const GearItem& other) const
 		description == other.description &&
 
 		preview_image_screenshot_id == other.preview_image_screenshot_id &&
-		preview_image_URL == other.preview_image_URL;
+		preview_image_URL == other.preview_image_URL &&
+
+		aabb_os_min == other.aabb_os_min &&
+		aabb_os_max == other.aabb_os_max;
 }
 
 
@@ -98,6 +104,9 @@ void GearItem::writeToStream(RandomAccessOutStream& stream) const
 	stream.writeUInt64(preview_image_screenshot_id);
 	stream.writeStringLengthFirst(preview_image_URL);
 
+	stream.writeData(&aabb_os_min, sizeof(Vec3f));
+	stream.writeData(&aabb_os_max, sizeof(Vec3f));
+
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
 
@@ -120,6 +129,9 @@ void GearItem::copyUserSettableFieldsFromOther(const GearItem& other)
 
 	name = other.name;
 	description = other.description;
+
+	aabb_os_min = other.aabb_os_min;
+	aabb_os_max = other.aabb_os_max;
 }
 
 
@@ -127,7 +139,7 @@ void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item)
 {
 	const size_t initial_read_index = stream.getReadIndex();
 
-	/*const uint32 version =*/ stream.readUInt32();
+	const uint32 version = stream.readUInt32();
 	const size_t buffer_size = stream.readUInt32();
 
 	checkProperty(buffer_size >= 8ul, "readGearItemFromNetworkStream: buffer_size was too small");
@@ -167,6 +179,12 @@ void readGearItemFromStream(RandomAccessInStream& stream, GearItem& item)
 
 	item.preview_image_screenshot_id = stream.readUInt64();
 	item.preview_image_URL = stream.readStringLengthFirst(GearItem::MAX_PREVIEW_URL_SIZE);
+
+	if(version >= 2)
+	{
+		stream.readData(&item.aabb_os_min, sizeof(Vec3f));
+		stream.readData(&item.aabb_os_max, sizeof(Vec3f));
+	}
 
 	// Discard any remaining unread data
 	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far

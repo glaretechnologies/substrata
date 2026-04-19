@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <opengl/ui/GLUIWindow.h>
 #include <opengl/ui/GLUISpinBox.h>
 #include <opengl/ui/GLUIDropDownList.h>
+#include <opengl/ui/GLUICheckBox.h>
 #include <opengl/TransformGizmo.h>
 
 
@@ -108,6 +109,8 @@ public:
 	GLUISpinBoxRef scale_x_spinbox;
 	GLUISpinBoxRef scale_y_spinbox;
 	GLUISpinBoxRef scale_z_spinbox;
+
+	GLUICheckBoxRef allow_cloning_checkbox;
 
 public:
 	GLUIWindowRef window;

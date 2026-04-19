@@ -63,6 +63,8 @@ public:
 	float angle;
 	Vec3f scale;
 
+	static const uint32 ALLOW_CLONING_FLAG                         = 1; // Can this gear object be cloned (e.g. via CloneGearItemInInventory protocol message)
+
 	uint32 flags;
 	uint32 max_supply;
 
@@ -71,6 +73,9 @@ public:
 
 	uint64 preview_image_screenshot_id;
 	URLString preview_image_URL; // Resource URL of preview screenshot.  Denormalised data, should be the same as screenshot[preview_image_screenshot_id]->URL
+
+	Vec3f aabb_os_min;
+	Vec3f aabb_os_max;
 
 	DatabaseKey database_key;
 };

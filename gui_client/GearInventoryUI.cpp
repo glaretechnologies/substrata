@@ -259,7 +259,7 @@ void GearInventoryUI::rebuildEquippedGrid()
 		const GearItemRef& item = equipped_gear.items[i];
 
 		GLUIButton::CreateArgs args;
-		args.tooltip = "Click to unequip " + item->name + ". Press [E] to edit item";
+		args.tooltip = "Click to unequip " + item->name + ". Press [E] to edit item, [D] to drop into world, [C] to clone.";
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
@@ -303,7 +303,7 @@ void GearInventoryUI::rebuildAllGearGrid()
 		const GearItemRef& item = all_gear.items[i];
 
 		GLUIButton::CreateArgs args;
-		args.tooltip = "Click to equip " + item->name + ". Press [E] to edit item";
+		args.tooltip = "Click to equip " + item->name + ". Press [E] to edit item, [D] to drop into world, [C] to clone.";
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
@@ -576,6 +576,56 @@ void GearInventoryUI::keyPressed(KeyEvent& e)
 		if(window->getRect().inOpenRectangle(mouse_pos))
 			e.accepted = true;
 	}
+
+	if(e.key == Key::Key_D)
+	{
+		const Vec2f mouse_pos = gl_ui->getLastMouseUICoords();
+
+		for(size_t i=0; i<equipped_gear_ui.size(); ++i)
+		{
+			if(equipped_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
+			{
+				gui_client->dropGearItem(equipped_gear_ui[i].gear_item);
+				e.accepted = true;
+				return;
+			}
+		}
+
+		for(size_t i=0; i<all_gear_ui.size(); ++i)
+		{
+			if(all_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
+			{
+				gui_client->dropGearItem(all_gear_ui[i].gear_item);
+				e.accepted = true;
+				return;
+			}
+		}
+	}
+
+	if(e.key == Key::Key_C)
+	{
+		const Vec2f mouse_pos = gl_ui->getLastMouseUICoords();
+
+		for(size_t i=0; i<equipped_gear_ui.size(); ++i)
+		{
+			if(equipped_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
+			{
+				gui_client->tryCloneGearItem(equipped_gear_ui[i].gear_item);
+				e.accepted = true;
+				return;
+			}
+		}
+
+		for(size_t i=0; i<all_gear_ui.size(); ++i)
+		{
+			if(all_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
+			{
+				gui_client->tryCloneGearItem(all_gear_ui[i].gear_item);
+				e.accepted = true;
+				return;
+			}
+		}
+	}
 }
 
 
@@ -591,7 +641,7 @@ void GearInventoryUI::eventOccurred(GLUICallbackEvent& event)
 		{
 			if(equipped_gear_ui[i].thumbnail.ptr() == button)
 			{
-				gui_client->equippedGearItemClicked(equipped_gear_ui[i].gear_item);
+				gui_client->unequipGearItem(equipped_gear_ui[i].gear_item);
 				event.accepted = true;
 				return;
 			}
@@ -601,7 +651,7 @@ void GearInventoryUI::eventOccurred(GLUICallbackEvent& event)
 		{
 			if(all_gear_ui[i].thumbnail.ptr() == button)
 			{
-				gui_client->gearItemClicked(all_gear_ui[i].gear_item);
+				gui_client->equipGearItem(all_gear_ui[i].gear_item);
 				event.accepted = true;
 				return;
 			}
