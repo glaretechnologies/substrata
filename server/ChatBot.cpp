@@ -30,8 +30,11 @@ ChatBot::ChatBot()
 	world(nullptr),
 	pos(Vec3d(0.0)),
 	heading(0),
-	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
+	response_has_speak_prefix(false),
+	processed_first_response_data(false)
 {
+	body_start_index = 0;
 	next_sentence_search_pos = 0;
 	next_sentence_start_index = 0;
 	sentences_received_timer.pause();
@@ -184,6 +187,20 @@ ChatBot::EventHandlerResults ChatBot::processHeardChatMessage(const std::string&
 }
 
 
+/*
+Example streamed response from LLM server:
+
+[SPEAK] Hi there user, how's it going? What's on your mind?
+       ^                                                   ^
+       |                                                   |
+   body_start_index                                  next_sentence_start_index
+
+*/
+
+
+static constexpr string_view SPEAK_PREFIX = "[SPEAK]";
+
+
 // Handle some (partial, streaming) chat data coming back from an LLM cloud server.
 void ChatBot::handleLLMChatResponse(const std::string& msg, Server* server, WorldStateLock& world_lock)
 {
@@ -196,6 +213,19 @@ void ChatBot::handleLLMChatResponse(const std::string& msg, Server* server, Worl
 	{
 		conPrint("Warning: Truncating oversized LLM response");
 		total_llm_response.resize(MAX_TOTAL_RESPONSE_SIZE);
+	}
+
+	// Search for [SPEAK] prefix.  We don't need to explicitly search for [SILENT] prefix, just don't speak anything that doesn't have a [SPEAK] prefix.
+	// Only check if this is the start of the response, we don't want to check subsequent streamed chunks.
+	// We also don't want to set processed_first_response_data until we have received enough chars for [SPEAK], e.g. we don't want to stop looking after just "[SP" has been received.
+	if(!processed_first_response_data && (total_llm_response.size() >= SPEAK_PREFIX.size())) 
+	{
+		if(hasPrefix(total_llm_response, SPEAK_PREFIX))
+		{
+			response_has_speak_prefix = true;
+			body_start_index = SPEAK_PREFIX.size(); // Consider the sentence body to start after the [SPEAK] prefix.
+		}
+		processed_first_response_data = true;
 	}
 
 	// Scan through total response, if we have accumulated a sentence, queue it to send to server main thread.
@@ -236,12 +266,19 @@ void ChatBot::handleLLMChatResponseDone(Server* server, WorldStateLock& world_lo
 
 	if(!total_llm_response.empty()) // total_llm_response may be empty when doing tool calls.
 	{
-		sendChatMessage(total_llm_response, server, world_lock);
+		if(response_has_speak_prefix)
+		{
+			runtimeCheck(body_start_index <= total_llm_response.size());
+			sendChatMessageToClients(string_view(total_llm_response.data() + body_start_index, total_llm_response.size() - body_start_index), server, world_lock);
+		}
 	}
 
 	total_llm_response.clear();
+	body_start_index = 0;
 	next_sentence_search_pos = 0;
 	next_sentence_start_index = 0;
+	response_has_speak_prefix = false;
+	processed_first_response_data = false;
 
 	sentences_received_timer.pause();
 
@@ -332,9 +369,12 @@ void ChatBot::handleLLMToolFunctionCall(const std::vector<Reference<ToolFunction
 }
 
 
-void ChatBot::sendChatMessage(const string_view message, Server* server, WorldStateLock& world_lock)
+void ChatBot::sendChatMessageToClients(const string_view message, Server* server, WorldStateLock& world_lock)
 {
-	// Send total_llm_response as a chat message
+	if(message.empty())
+		return;
+
+	// Send message as a chat message
 	MessageUtils::initPacket(scratch_packet, Protocol::ChatMessageID);
 	scratch_packet.writeStringLengthFirst(name); // Write sender name
 	scratch_packet.writeStringLengthFirst(message); // Write message 
@@ -388,8 +428,16 @@ ChatBot::ThinkResults ChatBot::think(Server* server, WorldStateLock& world_lock)
 	if(sentences_received_timer.isRunning() && (sentences_received_timer.elapsed() > 0.3))
 	{
 		// Send all complete sentences as a chat message
-		runtimeCheck(next_sentence_start_index <= total_llm_response.size());
-		sendChatMessage(string_view(total_llm_response.data(), next_sentence_start_index), server, world_lock);
+		runtimeCheck(body_start_index <= total_llm_response.size());
+		runtimeCheck(body_start_index <= next_sentence_start_index);
+		runtimeCheck(next_sentence_start_index     <= total_llm_response.size());
+
+		if(response_has_speak_prefix)
+		{
+			const size_t sentence_body_size = next_sentence_start_index - body_start_index;
+			runtimeCheck(body_start_index + sentence_body_size <= total_llm_response.size()); // Redundant, but check again to be sure in-bounds
+			sendChatMessageToClients(string_view(total_llm_response.data() + body_start_index, sentence_body_size), server, world_lock);
+		}
 
 		// Remove the prefix of total_llm_response that we sent.
 		total_llm_response.erase(/*offset=*/0, /*count=*/next_sentence_start_index);
@@ -397,6 +445,7 @@ ChatBot::ThinkResults ChatBot::think(Server* server, WorldStateLock& world_lock)
 		// Adjust next_sentence_search_pos to take account of the prefix we just removed.
 		runtimeCheck(next_sentence_search_pos >= next_sentence_start_index);
 		next_sentence_search_pos -= next_sentence_start_index;
+		body_start_index = 0;
 		next_sentence_start_index = 0;
 
 		sentences_received_timer.pause();

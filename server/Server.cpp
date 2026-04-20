@@ -202,7 +202,11 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.AI_model_id							= XMLParseUtils::parseStringWithDefault(root_elem, "AI_model_id", /*default val=*/"xai/grok-4-1-fast-non-reasoning");
 	config.shared_LLM_prompt_part				= XMLParseUtils::parseStringWithDefault(root_elem, "shared_LLM_prompt_part", /*default val=*/
 		std::string("You are a helpful bot in the Substrata Metaverse.\n") + 
-		"When a user first talks to you, wave hello to them using the perform_wave_gesture tool function, or bow to them using the perform_bow_gesture tool function.\n"
+		std::string("When a user first talks to you, wave hello to them using the perform_wave_gesture tool function, or bow to them using the perform_bow_gesture tool function.\n") + 
+		std::string("Bear in mind that other users may chat to each other while standing near you, in which case you don't need to say anything.\n") + 
+		std::string("You MUST start each response with either [SPEAK] or [SILENT].  After the [SPEAK] prefix the chat message should follow, for example: '[SPEAK] Hello there user, how are you?'.\n") + 
+		std::string("After the [SILENT] prefix, write your reasoning for staying silent, for example: '[SILENT] The user is speaking to another user, I don't need to join in this conversation.'\n") + 
+		std::string("Messages that do not begin with a [SPEAK] or [SILENT] prefix will be ignored.\n") 
 	);
 	return config;
 }
