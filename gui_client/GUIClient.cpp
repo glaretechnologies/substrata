@@ -82,6 +82,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/FastPoolAllocator.h"
 #include "../utils/RuntimeCheck.h"
 #include "../utils/IndigoXMLDoc.h"
+#include "../utils/StackStringBuilder.h"
 #include <utils/IncludeHalf.h>
 #include "../utils/MemAlloc.h"
 #include "../utils/UTF8Utils.h"
@@ -13903,6 +13904,8 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 		bool show_mouseover_info_ui = false;
 		if(results.hit_object)
 		{
+			const string_view use_action_button = cursor_is_mouse_cursor ? "[E]" : "[A} on gamepad";
+
 			if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
 			{
 				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
@@ -13939,7 +13942,14 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 							if(ob->isPortal())
 								ob_info_ui.showMessage("Walk through to visit " + trimmed_URL, cursor_gl_coords);
 							else
-								ob_info_ui.showMessage("Press [E] to open " + trimmed_URL, cursor_gl_coords);
+							{
+								StackStringBuilder builder(this->stack_allocator);
+								builder.append("Press ");
+								builder.append(use_action_button);
+								builder.append(" to open ");
+								builder.append(trimmed_URL);
+								ob_info_ui.showMessage(builder.getStringView(), cursor_gl_coords);
+							}
 
 							show_mouseover_info_ui = true;
 						}
@@ -13947,13 +13957,23 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 
 					if((ob->object_type == WorldObject::ObjectType_Seat) && seat_sitting_on.isNull() && vehicle_controller_inside.isNull() && !isAvatarSittingOnSeat(*ob))
 					{
-						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to sit" : "Press [A] on gamepad to sit", cursor_gl_coords);
+						StackStringBuilder builder(this->stack_allocator);
+						builder.append("Press ");
+						builder.append(use_action_button);
+						builder.append(" to sit");
+						ob_info_ui.showMessage(builder.getStringView(), cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
 					if(ob->object_type == WorldObject::ObjectType_GearItem)
 					{
-						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to pick up gear item" : "Press [A] on gamepad to pick up gear item", cursor_gl_coords);
+						StackStringBuilder builder(this->stack_allocator);
+						builder.append("Press ");
+						builder.append(use_action_button);
+						builder.append(" to pick up gear item '");
+						builder.append(ob->getGearItemName());
+						builder.append("'");
+						ob_info_ui.showMessage(builder.getStringView(), cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
@@ -13965,16 +13985,23 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 						const Vec4f vehicle_up_ws = normalise(obToWorldMatrix(*ob) * vehicle_up_os);
 						const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
 
-						if(upright || !ob->vehicle_script->isRightable())
-							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to enter vehicle" : "Press [A] on gamepad to enter vehicle", cursor_gl_coords);
-						else
-							ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to right vehicle" : "Press [A] on gamepad to right vehicle", cursor_gl_coords);
+						StackStringBuilder builder(this->stack_allocator);
+						builder.append("Press ");
+						builder.append(use_action_button);
+						builder.append(" to ");
+						builder.append((upright || !ob->vehicle_script->isRightable()) ? "enter" : "right");
+						builder.append(" vehicle.");
+						ob_info_ui.showMessage(builder.getStringView(), cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
 					if(ob->event_handlers && ob->event_handlers->onUserUsedObject_handlers.nonEmpty())
 					{
-						ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to use" : "Press [A] on gamepad to use", cursor_gl_coords);
+						StackStringBuilder builder(this->stack_allocator);
+						builder.append("Press ");
+						builder.append(use_action_button);
+						builder.append(" to use");
+						ob_info_ui.showMessage(builder.getStringView(), cursor_gl_coords);
 						show_mouseover_info_ui = true;
 					}
 
@@ -14002,7 +14029,11 @@ void GUIClient::updateInfoUIForMousePosition(const Vec2i& cursor_pos, const Vec2
 				const Avatar* avatar = (const Avatar*)results.hit_object->userdata;
 				if(avatar && !avatar->current_gesture_name.empty())
 				{
-					ob_info_ui.showMessage(cursor_is_mouse_cursor ? "Press [E] to join gesture" : "Press [A] to join gesture", cursor_gl_coords);
+					StackStringBuilder builder(this->stack_allocator);
+					builder.append("Press ");
+					builder.append(use_action_button);
+					builder.append(" to join gesture");
+					ob_info_ui.showMessage(builder.getStringView(), cursor_gl_coords);
 					show_mouseover_info_ui = true;
 				}
 			}

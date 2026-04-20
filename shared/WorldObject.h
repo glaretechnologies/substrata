@@ -288,6 +288,8 @@ public:
 	bool isPortal() const   { return object_type == ObjectType_Portal; }
 	bool isGearItem() const { return object_type == ObjectType_GearItem; }
 
+	const std::string& getGearItemName() const { return target_url; }
+
 	static void test();
 
 public:

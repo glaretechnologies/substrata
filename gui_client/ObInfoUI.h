@@ -31,7 +31,7 @@ public:
 
 	void think();
 
-	void showMessage(const std::string& message, const Vec2f& gl_coords);
+	void showMessage(const string_view message, const Vec2f& gl_coords);
 
 	void hideMessage();
 

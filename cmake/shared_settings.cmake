@@ -323,6 +323,8 @@ ${UTILS_DIR}/SharedStringTable.cpp
 ${UTILS_DIR}/SharedStringTable.h
 ${UTILS_DIR}/STLArenaAllocator.cpp
 ${UTILS_DIR}/STLArenaAllocator.h
+${UTILS_DIR}/StackStringBuilder.cpp
+${UTILS_DIR}/StackStringBuilder.h
 )
 
 
