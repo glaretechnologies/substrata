@@ -51,10 +51,10 @@ void ChatUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 			GLUIGridContainer::CreateArgs container_args;
 			container_args.background_colour = chat_background_col;
 			container_args.background_alpha = 0.0f;
-			container_args.interior_cell_x_padding_px = 12;
-			container_args.interior_cell_y_padding_px = 12;
-			container_args.exterior_cell_x_padding_px = 12;
-			container_args.exterior_cell_y_padding_px = 12;
+			container_args.interior_cell_x_padding_px = 4;
+			container_args.interior_cell_y_padding_px = 4;
+			container_args.exterior_cell_x_padding_px = 4;
+			container_args.exterior_cell_y_padding_px = 4;
 			grid_container = new GLUIGridContainer(*gl_ui, container_args);
 			grid_container->setPos(Vec2f(0.0f, 0.0f));
 			gl_ui->addWidget(grid_container);
@@ -241,7 +241,7 @@ void ChatUI::appendMessage(const std::string& avatar_name, const Colour3f& avata
 	if(!isInitialisedFully())
 		return;
 
-	const size_t MAX_NUM_MESSAGES = 30;
+	const size_t MAX_NUM_MESSAGES = 18;
 
 	// Add
 	{
@@ -359,14 +359,14 @@ void ChatUI::updateWidgetTransforms()
 
 
 	//---------------------------- Update background_overlay_ob ----------------------------
-	const float background_w = widget_width;
-	const float background_h = widget_height;
+	//const float background_w = widget_width;
+	//const float background_h = widget_height;
 
 	const float msgs_background_ob_y = chat_line_edit_y + gl_ui->getUIWidthForDevIndepPixelWidth(50);
 	const Vec2f background_pos(-1.f + gl_ui->getUIWidthForDevIndepPixelWidth(20), msgs_background_ob_y);
 	
 	this->grid_container->setPos(background_pos);
-	this->grid_container->setFixedDimsUICoords(Vec2f(background_w, background_h));
+	//this->grid_container->setFixedDimsUICoords(Vec2f(background_w, background_h));
 	
 	//---------------------------- Update collapse_button ----------------------------
 	const float button_w = gl_ui->getUIWidthForDevIndepPixelWidth(50);
