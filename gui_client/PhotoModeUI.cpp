@@ -60,18 +60,21 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 	gui_client = gui_client_;
 	gl_ui = gl_ui_;
 	settings = settings_;
+	in_update_widget_positions = false;
 
 	// Create window
 	{
 		GLUIWindow::CreateArgs args;
 		args.title = "Photo Mode Settings";
 		args.background_colour = Colour3f(0.1f);
-		args.background_alpha = 0.6f;
+		args.background_alpha = 0.9f;
+		args.z = -0.2f;
 		window = new GLUIWindow(*gl_ui_, args);
 		window->debug_name = "photo mode window";
 		window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
 		
 		window->handler = this;
+		window->on_contained_widget_changed_size = [this](){ this->windowChangedSize(); };
 		gl_ui->addWidget(window);
 	}
 
@@ -380,16 +383,22 @@ void PhotoModeUI::think()
 
 void PhotoModeUI::updateWidgetPositions()
 {
+	in_update_widget_positions = true;
+
 	if(gl_ui && standard_cam_button)
 	{
 		const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(12);
 
-		const float top_margin = gl_ui->getUIWidthForDevIndepPixelWidth(60);
-		const float bot_margin = gl_ui->getUIWidthForDevIndepPixelWidth(60);
+		const float top_margin = gl_ui->getUIWidthForDevIndepPixelWidth(30);
 
-		const float width = gl_ui->getUIWidthForDevIndepPixelWidth(435); // 0.5;
-		window->setPos(/*botleft=*/Vec2f(1 - margin - width, -gl_ui->getViewportMinMaxY() + bot_margin));
+		const float width  = gl_ui->getUIWidthForDevIndepPixelWidth(435);
+
 		window->recomputeLayout();
+
+		const float height = window->getDims().y;
+
+		window->setPos(/*botleft=*/Vec2f(1 - margin - width, gl_ui->getViewportMinMaxY() - top_margin - height/*-gl_ui->getViewportMinMaxY() + bot_margin*/));
+
 
 		if(upload_image_widget)
 		{
@@ -437,6 +446,8 @@ void PhotoModeUI::updateWidgetPositions()
 			upload_background_ob->setPosAndDims(Vec2f(upload_dialog_x - margin, upload_dialog_y - margin), Vec2f(background_w, background_h));
 		}
 	}
+
+	in_update_widget_positions = false;
 }
 
 
@@ -458,6 +469,13 @@ void PhotoModeUI::viewportResized(int w, int h)
 
 		updateWidgetPositions();
 	}
+}
+
+
+void PhotoModeUI::windowChangedSize()
+{
+	if(!in_update_widget_positions) // Avoid infinite recursion
+		updateWidgetPositions();
 }
 
 

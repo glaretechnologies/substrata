@@ -66,6 +66,7 @@ public:
 	virtual void closeWindowEventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 
 private:
+	void windowChangedSize();
 	void untoggleAllCamModeButtons();
 	void updateWidgetPositions();
 	void makePhotoModeSlider(PhotoModeSlider& slider, const std::string& label, const std::string& tooltip, double min_val, double max_val, double initial_value, double scroll_speed, GLUIGridContainerRef parent_grid_container);
@@ -134,4 +135,6 @@ private:
 	ThreadManager upload_thread_manager;
 
 	std::string last_caption;
+
+	bool in_update_widget_positions;
 };
