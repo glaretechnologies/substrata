@@ -526,7 +526,6 @@ int main(int argc, char** argv)
 		if(!opengl_engine->initSucceeded())
 			throw glare::Exception("OpenGL init failed: " + opengl_engine->getInitialisationErrorMsg());
 		opengl_engine->setViewportDims(primary_W, primary_H);
-		opengl_engine->setMainViewportDims(primary_W, primary_H);
 
 
 		sun_phi = 1.f;
@@ -784,7 +783,6 @@ static inline Key getKeyForSDLKey(SDL_Keycode sym)
 		case SDLK_RIGHT: return Key_Right;
 		case SDLK_UP: return Key_Up;
 		case SDLK_DOWN: return Key_Down;
-		case SDLK_KP_ENTER: return Key_Enter;
 		default: break;
 	};
 		
@@ -905,7 +903,7 @@ static void doOneMainLoopIter()
 	}
 #endif
 
-	double canvas_drawable_pixels_per_css_pixels = (double)opengl_engine->getMainViewPortWidth() / cur_canvas_css_W;
+	double canvas_drawable_pixels_per_css_pixels = (double)opengl_engine->getViewPortWidth() / cur_canvas_css_W;
 
 	// Handle any events
 	SDL_Event e;
@@ -935,7 +933,6 @@ static void doOneMainLoopIter()
 				conPrint("Got size changed event, SDL drawable size is " + toString(w) + " x " + toString(h));
 						
 				opengl_engine->setViewportDims(w, h);
-				opengl_engine->setMainViewportDims(w, h);
 
 #if EMSCRIPTEN
 				emscripten_get_element_css_size("canvas", &cur_canvas_css_W, &cur_canvas_css_H);
@@ -945,7 +942,7 @@ static void doOneMainLoopIter()
 				cur_canvas_css_H = h;
 #endif
 
-				canvas_drawable_pixels_per_css_pixels = (double)opengl_engine->getMainViewPortWidth() / cur_canvas_css_W;
+				canvas_drawable_pixels_per_css_pixels = (double)opengl_engine->getViewPortWidth() / cur_canvas_css_W;
 
 				gui_client->gl_ui->setCurrentDevicePixelRatio((float)canvas_drawable_pixels_per_css_pixels); // Use the actual computed device pixel ratio for the canvas element.
 
@@ -1098,7 +1095,7 @@ static void doOneMainLoopIter()
 					gui_client->mousePressed(mouse_event);
 					if(!mouse_event.accepted)
 					{
-						//conPrint("Entering relative mouse mode...");
+						//conPrint("Entering relative mouse mode to true...");
 						SDL_SetRelativeMouseMode(SDL_TRUE); // Hide mouse cursor and constrain to window and report relative mouse motion.
 						doing_cam_rotate_mouse_drag = true;
 					}
@@ -1122,7 +1119,7 @@ static void doOneMainLoopIter()
 
 				// conPrint("SDL_MOUSEBUTTONUP, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
 
-				if(e.button.clicks != 1) // If not the release from the second click in a double-click (already implicitly handled in mouseDoubleClicked above)
+				if(e.button.clicks != 2) // If not the release from the second click in a double-click (already implicitly handled in mouseDoubleClicked above)
 				{
 					SDL_SetRelativeMouseMode(SDL_FALSE);
 					doing_cam_rotate_mouse_drag = false;

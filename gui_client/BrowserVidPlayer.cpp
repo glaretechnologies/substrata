@@ -673,8 +673,8 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 	{
 		if(using_iframe)
 		{
-			const float vw = (float)opengl_engine->getMainViewPortWidth();
-			const float vh = (float)opengl_engine->getMainViewPortHeight();
+			const float vw = (float)opengl_engine->getViewPortWidth();
+			const float vh = (float)opengl_engine->getViewPortHeight();
 			const float cam_dist = (opengl_engine->getCurrentScene()->lens_sensor_dist / opengl_engine->getCurrentScene()->use_sensor_width) * vw;
 
 			const float elem_w_px = 1024;
