@@ -204,6 +204,9 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 		avatar_preview_scene->draw_water = false;
 		avatar_preview_scene->water_level_z = -10000.0;
 		avatar_preview_scene->background_colour = Colour3f(0.2f);
+		avatar_preview_scene->collect_stats = false;
+		avatar_preview_scene->cloud_shadows = false;
+		avatar_preview_scene->exposure_factor = 0.4f; // TEMP
 		engine->addScene(avatar_preview_scene);
 
 		{

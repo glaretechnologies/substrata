@@ -172,7 +172,7 @@ void AvatarPreviewGLUIWidget::recreateFBO(int avatar_preview_w, int avatar_previ
 {
 	// MSAA colour renderbuffer and depth renderbuffer
 	const int msaa_samples = opengl_engine->settings.msaa_samples;
-	avatar_preview_color_rb = new RenderBuffer(avatar_preview_w, avatar_preview_h, msaa_samples, Format_RGBA_Linear_Uint8);
+	avatar_preview_color_rb = new RenderBuffer(avatar_preview_w, avatar_preview_h, msaa_samples, Format_RGBA_Linear_Half);
 	avatar_preview_depth_rb = new RenderBuffer(avatar_preview_w, avatar_preview_h, msaa_samples, Format_Depth_Float);
 
 	// MSAA FBO — rendered into each frame
@@ -184,7 +184,7 @@ void AvatarPreviewGLUIWidget::recreateFBO(int avatar_preview_w, int avatar_previ
 	// Resolve texture — regular (non-MSAA) texture shown in the widget
 	avatar_preview_tex = new OpenGLTexture(avatar_preview_w, avatar_preview_h, opengl_engine,
 		ArrayRef<uint8>(),
-		Format_SRGBA_Uint8,
+		Format_RGBA_Linear_Half,
 		OpenGLTexture::Filtering_Bilinear,
 		OpenGLTexture::Wrapping_Clamp,
 		/*has_mipmaps=*/false
