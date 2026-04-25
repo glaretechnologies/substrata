@@ -165,6 +165,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleRegenerateMultipleParcelScreenshots(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_regenerate_multiple_gear_screenshots")
+		{
+			AdminHandlers::handleRegenerateMultipleGearScreenshots(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_create_parcel")
 		{
 			AdminHandlers::handleCreateParcelPost(*this->world_state, request, reply_info);
@@ -503,6 +507,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/admin_worlds")
 		{
 			AdminHandlers::renderAdminWorldsPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_gear")
+		{
+			AdminHandlers::renderAdminGearPage(*this->world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/admin_sub_eth_transaction/"))
 		{

@@ -32,7 +32,7 @@ std::string sharedAdminHeader(ServerAllWorldsState& world_state, const web::Requ
 
 	page_out += "<p><a href=\"/admin\">Main admin page</a> | <a href=\"/admin_users\">Users</a> | <a href=\"/admin_parcels\">Parcels</a> | ";
 	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a> | <a href=\"/admin_map\">Map</a> | ";
-	page_out += "<a href=\"/admin_news_posts\">News Posts</a> | <a href=\"/admin_lod_chunks\">LOD Chunks</a> | <a href=\"/admin_worlds\">Worlds</a> </p>";
+	page_out += "<a href=\"/admin_news_posts\">News Posts</a> | <a href=\"/admin_lod_chunks\">LOD Chunks</a> | <a href=\"/admin_worlds\">Worlds</a> | <a href=\"/admin_gear\">Gear</a> </p>";
 
 	return page_out;
 }
@@ -940,6 +940,75 @@ void renderAdminWorldsPage(ServerAllWorldsState& all_worlds_state, const web::Re
 			if(!world_state->details.description.empty())
 				page_out += " &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  description: <i>" + web::Escaping::HTMLEscape(world_state->details.description.substr(0, 200)) + "</i>";
 			page_out += "</div>\n";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminGearPage(ServerAllWorldsState& all_worlds_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(all_worlds_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(all_worlds_state, request);
+
+	{ // Lock scope
+		WorldStateLock lock(all_worlds_state.mutex);
+
+		page_out += "<h2>Gear Items</h2>\n";
+
+		//-----------------------
+		page_out += "<hr/>";
+		page_out += "<form action=\"/admin_regenerate_multiple_gear_screenshots\" method=\"post\">";
+		page_out += "start gear item id: <input type=\"number\" name=\"start_gear_id\" value=\"" + toString(0) + "\"><br/>";
+		page_out += "end gear item id: <input type=\"number\" name=\"end_gear_id\" value=\"" + toString(10) + "\"><br/>";
+		page_out += "<input type=\"submit\" value=\"Regenerate/recreate gear item screenshots\" onclick=\"return confirm('Are you sure you want to recreate gear item screenshots?');\" >";
+		page_out += "</form>";
+		page_out += "<hr/>";
+		//-----------------------
+
+		for(auto it = all_worlds_state.gear_items.begin(); it != all_worlds_state.gear_items.end(); ++it)
+		{
+			const GearItem* item = it->second.ptr();
+
+			// Lookup creator
+			
+			std::string creator_name;
+			{
+				auto creator_res = all_worlds_state.user_id_to_users.find(item->creator_id);
+				if(creator_res != all_worlds_state.user_id_to_users.end())
+					creator_name = creator_res->second->name;
+				else
+					creator_name = "[unknown]";
+			}
+
+			std::string owner_name;
+			{
+				auto owner_res = all_worlds_state.user_id_to_users.find(item->owner_id);
+				if(owner_res != all_worlds_state.user_id_to_users.end())
+					owner_name = owner_res->second->name;
+				else
+					owner_name = "[no owner]";
+			}
+
+			//page_out += "<div><a href=\"/world/" + WorldHandlers::URLEscapeWorldName(world_state->details.name) + "\">" + web::Escaping::HTMLEscape(world_state->details.name) + "</a>";
+			page_out += "<div>";
+			page_out += "<div>Item " + item->id.toString() + "</div>";
+			page_out += "<div>Name: " + web::Escaping::HTMLEscape(item->name) + "</div>";
+			page_out += "<div>Creator: " + web::Escaping::HTMLEscape(creator_name) + "</div>";
+			page_out += "<div>Owner: " + web::Escaping::HTMLEscape(owner_name) + "</div>";
+			page_out += "<div>Description: " + web::Escaping::HTMLEscape(item->description) + "</div>";
+			page_out += "<div>model_url: " + web::Escaping::HTMLEscape(toString(item->model_url)) + "</div>";
+			page_out += "<div>Created: " + item->created_time.dayAndTimeStringUTC() + "</div>";
+			page_out += "<div>preview image screenshot id: " + toString(item->preview_image_screenshot_id) + "</div>";
+			page_out += "<div>preview_image_URL: <a href=\"/resource/" + web::Escaping::HTMLEscape(toString(item->preview_image_URL)) + "\">" + web::Escaping::HTMLEscape(toString(item->preview_image_URL)) + "</a></div>";
+			page_out += "</div>";
+			page_out += "<br/><br/>";
 		}
 	} // End Lock scope
 
@@ -1981,6 +2050,57 @@ void handleRegenerateMultipleParcelScreenshots(ServerAllWorldsState& world_state
 	{
 		if(!request.fuzzing)
 			conPrint("handleRegenerateMultipleParcelScreenshots error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRegenerateMultipleGearScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int start_gear_id = request.getPostIntField("start_gear_id");
+		const int end_gear_id   = request.getPostIntField("end_gear_id");
+
+		{ // Lock scope
+
+			WorldStateLock lock(world_state.mutex);
+
+			for(auto it = world_state.gear_items.begin(); it != world_state.gear_items.end(); ++it)
+			{
+				const GearItem* gear_item = it->second.ptr();
+
+				if((int)gear_item->id.value() >= start_gear_id && (int)gear_item->id.value() <= end_gear_id)
+				{
+					const uint64 screenshot_id = gear_item->preview_image_screenshot_id;
+
+					auto shot_res = world_state.screenshots.find(screenshot_id);
+					if(shot_res != world_state.screenshots.end())
+					{
+						Screenshot* shot = shot_res->second.ptr();
+
+						// NOTE: We may process the same screenshot multiple times here, but that is fine and will have no extra effect.
+						shot->state = Screenshot::ScreenshotState_notdone;
+						world_state.addScreenshotAsDBDirty(shot);
+					}
+
+					conPrint("Regenerated screenshot " + toString(screenshot_id) + " (set to not-done) for gear item " + gear_item->id.toString());
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_gear");
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleRegenerateMultipleGearScreenshots error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

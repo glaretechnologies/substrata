@@ -1412,6 +1412,11 @@ void MainWindow::runScreenshotCode()
 			{
 				if(test_screenshot_taking || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
 				{
+					taking_map_screenshot  = false;
+					taking_gear_screenshot = false;
+					screenshot_highlight_parcel_id = -1;
+					screenshot_gear_item = nullptr;
+
 					conPrint("Reading command from screenshot_command_socket etc...");
 					const std::string command = test_screenshot_taking ? "takegearsscreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
 					conPrint("Read screenshot command: " + command);
@@ -1419,14 +1424,14 @@ void MainWindow::runScreenshotCode()
 					{
 						if(test_screenshot_taking)
 						{
-							screenshot_campos = Vec3d(0, -1, 100);
-							screenshot_camangles = Vec3d(0, 2.5f, 0); // (heading, pitch, roll).
-							screenshot_width_px = 1024;
-							screenshot_highlight_parcel_id = 10;
-							screenshot_output_path = "test_screenshot.jpg";
+							//screenshot_campos = Vec3d(0, -1, 100);
+							//screenshot_camangles = Vec3d(0, 2.5f, 0); // (heading, pitch, roll).
+							//screenshot_width_px = 1024;
+							//screenshot_highlight_parcel_id = 10;
+							//screenshot_output_path = "test_screenshot.jpg";
 
-							screenshot_ortho_sensor_width_m = 100;
-							taking_map_screenshot = true;
+							//screenshot_ortho_sensor_width_m = 100;
+							//taking_map_screenshot = true;
 						}
 						else
 						{
@@ -1439,7 +1444,6 @@ void MainWindow::runScreenshotCode()
 							screenshot_width_px = screenshot_command_socket->readInt32();
 							screenshot_highlight_parcel_id = screenshot_command_socket->readInt32();
 							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
-							taking_map_screenshot = false;
 						}
 					}
 					else if(command == "takemapscreenshot")
@@ -1474,7 +1478,6 @@ void MainWindow::runScreenshotCode()
 						);
 						screenshot_ortho_sensor_width_m = TILE_WIDTH_M;
 						screenshot_width_px = TILE_WIDTH_PX;
-						screenshot_highlight_parcel_id = -1;
 						taking_map_screenshot = true;
 					}
 					else if(command == "takegearsscreenshot")
@@ -1517,38 +1520,47 @@ void MainWindow::runScreenshotCode()
 							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
 						}
 
-						
-						taking_map_screenshot = false;
 						taking_gear_screenshot = true;
-						screenshot_highlight_parcel_id = -1;
 					}
 					else if(command == "quit")
 					{
 						conPrint("Received quit command, exiting...");
-						exit(1);
+						close();
 					}
 					else
 						throw glare::Exception("received invalid screenshot command.");
+
+					screenshot_loading_timer.reset();
+					time_since_last_waiting_msg.reset();
 				}
 			}
 			catch(glare::Exception& e)
 			{
 				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what() + ", exiting!");
-				//QMessageBox msgBox;
-				//msgBox.setWindowTitle("Error");
-				//msgBox.setText(QtUtils::toQString("Excep while reading screenshot command from screenshot_command_socket: " + e.what()));
-				//msgBox.exec();
-				exit(1);
+				close();
 			}
 		}
 	}
-	if(!screenshot_output_path.empty() && gui_client.world_state.nonNull())
+	if(!screenshot_output_path.empty() && gui_client.world_state)
 	{
 		if(taking_gear_screenshot)
 		{
+			// Start loading the model and all materials for the gear item
+		//	Avatar::GetLODModelURLOptions model_options(gui_client.server_has_optimised_meshes, gui_client.server_opt_mesh_version);
+		//	DependencyURLVector URL_vec;
+		//	URL_vec.push_back(DependencyURL( Avatar::getLODModelURLForLevel(screenshot_gear_item->model_url, /*level=*/0, model_options)));
+		//
+		//	// Process gear materials
+		//	const WorldMaterial::GetURLOptions mat_options(gui_client.server_has_basis_textures, /*area allocator=*/nullptr);
+		//	for(size_t z=0; z<screenshot_gear_item->materials.size(); ++z)
+		//		screenshot_gear_item->materials[z]->appendDependencyURLsBaseLevel(mat_options, URL_vec);
+		//	
+		//	const DependencyURLSet URLs(URL_vec.begin(), URL_vec.end());
+
+			
 			// --- Gear screenshot path ---
 			// On the first call, create a temp WorldObject for the gear model and trigger loading.
-			if(!screenshot_gear_model_load_started && screenshot_gear_item.nonNull())
+			if(!screenshot_gear_model_load_started && screenshot_gear_item)
 			{
 				screenshot_gear_model_load_started = true;
 
@@ -1557,14 +1569,14 @@ void MainWindow::runScreenshotCode()
 				screenshot_gear_world_ob->object_type = WorldObject::ObjectType_Generic;
 				screenshot_gear_world_ob->model_url = screenshot_gear_item->model_url;
 				screenshot_gear_world_ob->materials = screenshot_gear_item->materials;
-				screenshot_gear_world_ob->pos = Vec3d(0, 0, 0);
-				screenshot_gear_world_ob->scale = Vec3f(1.f);
+				screenshot_gear_world_ob->pos = gui_client.cam_controller.getPosition(); // To make in-proximity
+				screenshot_gear_world_ob->scale = screenshot_gear_item->scale;
 				screenshot_gear_world_ob->angle = 0;
 				screenshot_gear_world_ob->axis = Vec3f(0, 0, 1);
-				screenshot_gear_world_ob->in_proximity = true;
+				screenshot_gear_world_ob->in_proximity = true; // Needed to load model
 				screenshot_gear_world_ob->current_lod_level = 0;
 				screenshot_gear_world_ob->max_model_lod_level = 0;
-				screenshot_gear_world_ob->setAABBOS(js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1))); // TEMP
+				screenshot_gear_world_ob->setAABBOS(js::AABBox(screenshot_gear_item->aabb_os_min.toVec4fPoint(), screenshot_gear_item->aabb_os_max.toVec4fPoint()));
 				screenshot_gear_world_ob->transformChanged();
 
 				WorldStateLock lock(gui_client.world_state->mutex);
@@ -1576,11 +1588,40 @@ void MainWindow::runScreenshotCode()
 
 			if(time_since_last_waiting_msg.elapsed() > 1.0)
 			{
-				conPrint("Waiting for gear model to load for screenshot...");
+				conPrint("Waiting for gear model to load for screenshot (loading time: " + screenshot_loading_timer.elapsedStringNSigFigs(3) + ")...");
 				printVar(num_model_and_tex_tasks);
 				printVar(gui_client.num_non_net_resources_downloading);
 				printVar(gui_client.num_net_resources_downloading);
 				time_since_last_waiting_msg.reset();
+			}
+
+			if(screenshot_loading_timer.elapsed() > 20.0)
+			{
+				conPrint("=================== Error: Took too long while trying to take gear screenshot, returning failure on command socket ===================");
+				screenshot_output_path.clear();
+				time_since_last_screenshot.reset();
+
+				if(screenshot_command_socket)
+				{
+					screenshot_command_socket->writeInt32(1);
+					screenshot_command_socket->writeStringLengthFirst("Took too long while trying to take gear screenshot");
+				}
+
+				// Remove temp WorldObject's GL and physics objects from the main scene, if created.
+				if(screenshot_gear_world_ob)
+				{
+					gui_client.removeAndDeleteGLAndPhysicsObjectsForOb(*screenshot_gear_world_ob);
+
+					{
+						Lock lock(gui_client.world_state->mutex);
+						gui_client.world_state->objects.erase(screenshot_gear_world_ob->uid);
+					}
+				}
+
+				screenshot_gear_world_ob = nullptr;
+				screenshot_gear_item = nullptr;
+				taking_gear_screenshot = false;
+				screenshot_gear_model_load_started = false;
 			}
 
 			const bool gear_loaded =
@@ -1610,7 +1651,7 @@ void MainWindow::runScreenshotCode()
 				GLObjectRef gear_gl_ob = opengl_engine->allocateObject();
 				gear_gl_ob->mesh_data = screenshot_gear_world_ob->opengl_engine_ob->mesh_data;
 				gear_gl_ob->materials = screenshot_gear_world_ob->opengl_engine_ob->materials;
-				gear_gl_ob->ob_to_world_matrix = Matrix4f::identity();
+				gear_gl_ob->ob_to_world_matrix = Matrix4f::scaleMatrix(screenshot_gear_item->scale.x, screenshot_gear_item->scale.y, screenshot_gear_item->scale.z); //  screenshot_gear_world_ob->opengl_engine_ob->ob_to_world_matrix;
 				opengl_engine->addObject(gear_gl_ob);
 
 				// Compute camera position to frame the bounding box.
@@ -1683,18 +1724,15 @@ void MainWindow::runScreenshotCode()
 		}
 		else // Normal world/map screenshot path
 		{
-			if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
-			{
-				gui_client.cam_controller.setAngles(screenshot_camangles);
-				gui_client.cam_controller.setFirstAndThirdPersonPositions(screenshot_campos);
-				gui_client.player_physics.setEyePosition(screenshot_campos);
+			gui_client.cam_controller.setAngles(screenshot_camangles);
+			gui_client.cam_controller.setFirstAndThirdPersonPositions(screenshot_campos);
+			gui_client.player_physics.setEyePosition(screenshot_campos);
 
-				// Enable fly mode so we don't just fall to the ground
-				ui->actionFly_Mode->setChecked(true);
-				gui_client.player_physics.setFlyModeEnabled(true);
-				gui_client.cam_controller.setThirdPersonEnabled(false);
-				ui->actionThird_Person_Camera->setChecked(false);
-			}
+			// Enable fly mode so we don't just fall to the ground
+			ui->actionFly_Mode->setChecked(true);
+			gui_client.player_physics.setFlyModeEnabled(true);
+			gui_client.thirdPersonCameraToggled(false); // Make sure in first-person view and remove our avatar model if it exists.
+			ui->actionThird_Person_Camera->setChecked(false);
 
 			size_t num_obs;
 			{
@@ -1702,9 +1740,7 @@ void MainWindow::runScreenshotCode()
 				num_obs = gui_client.world_state->objects.size();
 			}
 
-			const bool map_screenshot = taking_map_screenshot;//parsed_args.isArgPresent("--takemapscreenshot");
-
-			ui->glWidget->take_map_screenshot = map_screenshot;
+			ui->glWidget->take_map_screenshot = taking_map_screenshot;
 			ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
 
 			const size_t num_model_and_tex_tasks = gui_client.load_item_queue.size() + gui_client.model_and_texture_loader_task_manager.getNumUnfinishedTasks() + gui_client.model_loaded_messages_to_process.size();
@@ -1737,8 +1773,8 @@ void MainWindow::runScreenshotCode()
 				ui->chatDockWidget->hide();
 				ui->diagnosticsDockWidget->hide();
 
-				const int target_viewport_w = map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
-				const int target_viewport_h = map_screenshot ? (screenshot_width_px * 2) : (437 * 2);
+				const int target_viewport_w = taking_map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
+				const int target_viewport_h = taking_map_screenshot ? (screenshot_width_px * 2) : (437 * 2);
 
 				conPrint("Setting geometry size...");
 

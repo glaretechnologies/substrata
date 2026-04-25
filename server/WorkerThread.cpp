@@ -667,7 +667,7 @@ void WorkerThread::handleScreenshotBotConnection()
 						{
 							Lock lock(server->world_state->mutex);
 
-							{
+							/*{
 								auto res = server->world_state->gear_items.find(screenshot->gear_item_id);
 								if(res != server->world_state->gear_items.end())
 								{
@@ -675,9 +675,19 @@ void WorkerThread::handleScreenshotBotConnection()
 									gear_item->preview_image_URL = URL;
 									server->world_state->addGearItemAsDBDirty(gear_item);
 								}
+							}*/
+
+							// Do linear scan over gear items, update the preview_image_URL for any gear item using this screenshot (there may be more than 1 such gear item due to gear cloning)
+							const uint64 screenshot_id = screenshot->id;
+							for(auto it = server->world_state->gear_items.begin(); it != server->world_state->gear_items.end(); ++it)
+							{
+								GearItem* gear_item = it->second.ptr();
+								if(gear_item->preview_image_screenshot_id == screenshot_id)
+								{
+									gear_item->preview_image_URL = URL;
+									server->world_state->addGearItemAsDBDirty(gear_item);
+								}
 							}
-
-
 						}
 					}
 

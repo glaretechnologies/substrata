@@ -266,7 +266,7 @@ float Avatar::getMaxDistForLODLevel(int level) const
 }
 
 
-URLString Avatar::getLODModelURLForLevel(const URLString& base_model_url, int lod_level, const GetLODModelURLOptions& options) const
+URLString Avatar::getLODModelURLForLevel(const URLString& base_model_url, int lod_level, const GetLODModelURLOptions& options)
 {
 	if((lod_level == 0) && !options.get_optimised_mesh)
 		return base_model_url;

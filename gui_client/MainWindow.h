@@ -332,6 +332,7 @@ public:
 	
 	Timer time_since_last_screenshot;
 	Timer time_since_last_waiting_msg;
+	Timer screenshot_loading_timer;
 
 	
 	QSettings* settings;

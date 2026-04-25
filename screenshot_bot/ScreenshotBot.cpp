@@ -139,9 +139,14 @@ int main(int argc, char* argv[])
 						{
 							// Get screenshot request
 							if(request_type == Protocol::ScreenShotRequest)
-								conPrint("Received screenshot request from server.");
+								conPrint("========================= Received screenshot request from server. =========================");
+							else if(request_type == Protocol::TileScreenShotRequest)
+								conPrint("========================= Received map tile screenshot request from server. =========================");
 							else
-								conPrint("Received map tile screenshot request from server.");
+							{
+								assert(request_type == Protocol::GearScreenShotRequest);
+								conPrint("========================= Received gear item screenshot request from server. =========================");
+							}
 
 							// Generate some random bytes for the screenshot path
 							const int NUM_BYTES = 16;

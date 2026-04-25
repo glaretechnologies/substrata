@@ -11034,7 +11034,7 @@ void GUIClient::thirdPersonCameraToggled(bool enabled)
 	this->cam_controller.setThirdPersonEnabled(enabled);
 
 	// Add or remove our avatar opengl model.
-	if(this->cam_controller.thirdPersonEnabled()) // If we just enabled third person camera:
+	if(enabled)
 	{
 		this->setThirdPersonCameraPosition(/*dt=*/1/60.f); // Update cam_controller->third_person_cam_position etc.
 
