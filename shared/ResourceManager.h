@@ -32,7 +32,8 @@ ResourceManager
 class ResourceManager : public ThreadSafeRefCounted
 {
 public:
-	ResourceManager(const std::string& base_resource_dir);
+	// resources_db_path is only used on the client
+	ResourceManager(const std::string& base_resource_dir, const std::string& resources_db_path);
 	~ResourceManager();
 
 	// Used for importing resources into the cyberspace resource system.
@@ -97,12 +98,14 @@ public:
 	Mutex& getMutex() RETURN_CAPABILITY(mutex) { return mutex; }
 
 	// Just used on client:
-	void loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk);
-	void saveToDisk(const std::string& path);
+	void loadFromDisk(bool force_check_if_resources_exist_on_disk);
+	void saveToDisk();
+	const std::string& getResourcesDBPath() const { return resources_db_path; }
 
 	std::string getDiagnostics() const;
 private:
 	std::string base_resource_dir;
+	std::string resources_db_path; // Just used on client
 
 	mutable Mutex mutex;
 	std::unordered_map<URLString, ResourceRef, URLStringHasher> resource_for_url			GUARDED_BY(mutex); // Use unordered_map for now instead of HashMap so we don't need to specify an empty key.

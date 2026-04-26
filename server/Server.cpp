@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
 		const std::string server_resource_dir = server_state_dir + "/server_resources";
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
 
-		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
+		server.world_state->resource_manager = new ResourceManager(server_resource_dir, /*resources_db_path (not used on server)=*/"dummy");
 
 
 		// Add all files from base_dir_path + "/resources" into the resource manager (files from server_dist_resources in Substrata repo).

@@ -1638,6 +1638,7 @@ void MainWindow::runScreenshotCode()
 				OpenGLSceneRef gear_scene = new OpenGLScene(*opengl_engine);
 				gear_scene->draw_water = false;
 				gear_scene->background_colour = Colour3f(0.2f);
+				gear_scene->bloom_strength = 0.3f;
 				opengl_engine->addScene(gear_scene);
 
 				OpenGLSceneRef old_scene = opengl_engine->getCurrentScene();
@@ -5048,6 +5049,7 @@ int main(int argc, char *argv[])
 		syntax["--testscreenshot"] = std::vector<ArgumentParser::ArgumentType>(); // Test screenshot taking
 		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
 		syntax["--no_bindless"] = std::vector<ArgumentParser::ArgumentType>(); // Disable bindless textures in graphics engine
+		syntax["--use_temp_resources_db"] = std::vector<ArgumentParser::ArgumentType>(); // Use a temporary, fresh resource database.  For testing.
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it

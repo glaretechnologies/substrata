@@ -354,7 +354,6 @@ void GUIClient::postConnectInitialise()
 	FileUtils::createDirIfDoesNotExist(resources_dir);
 
 	print("resources_dir: " + resources_dir);
-	resource_manager = new ResourceManager(resources_dir);
 
 	// The user may have changed the resources dir (by changing the custom cache directory) since last time we ran.
 	// In this case, we want to check if each resource is actually present on disk in the current resources dir.
@@ -363,11 +362,23 @@ void GUIClient::postConnectInitialise()
 	if(resources_dir_changed)
 		settings->setStringValue("last_resources_dir", resources_dir);
 
-	const std::string resources_db_path = appdata_path + "/resources_db";
+	// --use_temp_resources_db is an option to use an empty, fresh resources database for testing.  Use a different filename for such a database.
+	const bool use_temp_resources = parsed_args.isArgPresent("--use_temp_resources_db");
+
+	const std::string resource_db_filename = use_temp_resources ? "resources_db_temp" : "resources_db";
+
+	const std::string resources_db_path = appdata_path + "/" + resource_db_filename;
+
+	// Start from an empty resource database if using --use_temp_resources_db
+	if(use_temp_resources && FileUtils::fileExists(resources_db_path))
+		FileUtils::deleteFile(resources_db_path);
+
+	resource_manager = new ResourceManager(resources_dir, resources_db_path);
+
 	try
 	{
 		if(FileUtils::fileExists(resources_db_path))
-			resource_manager->loadFromDisk(resources_db_path, /*check_if_resources_exist_on_disk=*/resources_dir_changed);
+			resource_manager->loadFromDisk(/*check_if_resources_exist_on_disk=*/resources_dir_changed);
 	}
 	catch(glare::Exception& e)
 	{
@@ -857,15 +868,14 @@ GUIClient::~GUIClient()
 	player_physics.shutdown();
 
 	// Save resources DB to disk if it has un-saved changes.
-	const std::string resources_db_path = appdata_path + "/resources_db";
 	try
 	{
 		if(resource_manager->hasChanged())
-			resource_manager->saveToDisk(resources_db_path);
+			resource_manager->saveToDisk();
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("WARNING: failed to save resources database to '" + resources_db_path + "': " + e.what());
+		conPrint("WARNING: failed to save resources database to '" + resource_manager->getResourcesDBPath() + "': " + e.what());
 	}
 
 #if !defined(EMSCRIPTEN)
@@ -9284,9 +9294,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		case Msg_UserGearListMessage:
 		{
 			const UserGearListMessage* m = checkedDowncastPtr<const UserGearListMessage>(msg);
-			conPrint("Received UserGearList: " + toString(m->all_gear.items.size()) + " item(s).");
-			for(size_t i = 0; i < m->all_gear.items.size(); ++i)
-				conPrint("  [" + toString(i) + "] id=" + m->all_gear.items[i]->id.toString() + " name='" + m->all_gear.items[i]->name + "'");
+			// conPrint("Received UserGearList: " + toString(m->all_gear.items.size()) + " item(s).");
+			// for(size_t i = 0; i < m->all_gear.items.size(); ++i)
+			//	conPrint("  [" + toString(i) + "] id=" + m->all_gear.items[i]->id.toString() + " name='" + m->all_gear.items[i]->name + "'");
 			if(gear_inventory_ui)
 				gear_inventory_ui->setAllGear(m->all_gear);
 		}

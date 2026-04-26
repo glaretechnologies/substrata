@@ -36,7 +36,7 @@ void SaveResourcesDBThread::doRun()
 
 				try
 				{
-					resource_manager->saveToDisk(path);
+					resource_manager->saveToDisk();
 				}
 				catch(glare::Exception& e)
 				{

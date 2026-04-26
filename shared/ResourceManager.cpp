@@ -20,8 +20,8 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <tracy/Tracy.hpp>
 
 
-ResourceManager::ResourceManager(const std::string& base_resource_dir_)
-:	base_resource_dir(base_resource_dir_), changed(0)
+ResourceManager::ResourceManager(const std::string& base_resource_dir_, const std::string& resources_db_path_)
+:	base_resource_dir(base_resource_dir_), resources_db_path(resources_db_path_), changed(0)
 {
 }
 
@@ -361,16 +361,16 @@ Version history:
 2: Serialising resource state
 */
 
-void ResourceManager::loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk)
+void ResourceManager::loadFromDisk(bool force_check_if_resources_exist_on_disk)
 {
 	ZoneScoped; // Tracy profiler
-	conPrint("Reading resource info from '" + path + "'...");
+	conPrint("Reading resource info from '" + resources_db_path + "'...");
 
 	Lock lock(mutex);
 
 	Timer timer;
 
-	FileInStream stream(path);
+	FileInStream stream(resources_db_path);
 
 	// Read magic number
 	const uint32 m = stream.readUInt32();
@@ -449,7 +449,7 @@ void ResourceManager::loadFromDisk(const std::string& path, bool force_check_if_
 }
 
 
-void ResourceManager::saveToDisk(const std::string& path)
+void ResourceManager::saveToDisk()
 {
 	//conPrint("Saving resources to disk...");
 	Timer timer;
@@ -458,7 +458,7 @@ void ResourceManager::saveToDisk(const std::string& path)
 
 	try
 	{
-		const std::string temp_path = path + "_temp";
+		const std::string temp_path = resources_db_path + "_temp";
 
 		{
 			FileOutStream stream(temp_path);
@@ -485,7 +485,7 @@ void ResourceManager::saveToDisk(const std::string& path)
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
 
-		FileUtils::moveFile(temp_path, path);
+		FileUtils::moveFile(temp_path, resources_db_path);
 
 		//conPrint("\tDone saving resources to disk.  (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
 	}

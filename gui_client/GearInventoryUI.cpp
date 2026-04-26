@@ -501,14 +501,14 @@ void GearInventoryUI::setAvatarGLObject(const AvatarGraphics& av_graphics, const
 
 void GearInventoryUI::handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex)
 {
-	conPrint("GearInventoryUI::handleUploadedTexture: " + toStdString(path));
+	// conPrint("GearInventoryUI::handleUploadedTexture: " + toStdString(path));
 
 	for(auto& ui : equipped_gear_ui)
-		if(ui.gear_item->model_url == URL)
+		if(ui.gear_item->preview_image_URL == URL)
 			ui.thumbnail->setTexture(opengl_tex);
 
 	for(auto& ui : all_gear_ui)
-		if(ui.gear_item->model_url == URL)
+		if(ui.gear_item->preview_image_URL == URL)
 			ui.thumbnail->setTexture(opengl_tex);
 }
 
