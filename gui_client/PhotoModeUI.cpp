@@ -752,7 +752,7 @@ void PhotoModeUI::resetControlsToNonPhotoModeDefaults()
 
 	opengl_engine->getCurrentScene()->dof_blur_strength = 0.0f; // Should already be set to zero but make sure.
 
-	gui_client->worldSettingsChangedFromUI(gui_client->connected_world_settings);
+	gui_client->applyWorldSettingsToOpenGLEngine(); // Update the sun direction in gl engine.
 }
 
 
