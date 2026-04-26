@@ -344,8 +344,8 @@ void ChatUI::updateWidgetTransforms()
 	if(!isInitialisedFully())
 		return;
 
-	const float widget_width  = computeWidgetWidth();
-	const float widget_height = computeWidgetHeight();
+	//const float widget_width  = computeWidgetWidth();
+	//const float widget_height = computeWidgetHeight();
 
 	//---------------------------- Update chat_line_edit ----------------------------
 	const float chat_widget_width = myMax(0.2f, 1.f - gl_ui->getUIWidthForDevIndepPixelWidth(140.f)); // leave room for icons   //myClamp(gl_ui->getUIWidthForDevIndepPixelWidth(600.f), /*lower bound=*/0.4f, /*upper bound=*/1.6f);
