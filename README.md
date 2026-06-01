@@ -1,99 +1,37 @@
+﻿# ❄️ Metasiberia - metaverse from Siberia ❄️
 
-Substrata is an open-source metaverse, developed by Glare Technologies Limited, see https://substrata.info/.
+[![C++](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](https://isocpp.org/)
+[![Build](https://img.shields.io/badge/build-CMake-064F8C?logo=cmake&logoColor=white)](https://cmake.org/)
+[![UI](https://img.shields.io/badge/UI-Qt%205%20%7C%20Qt%206%20%7C%20SDL-41CD52)](https://www.qt.io/)
+[![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-1F6FEB)](https://github.com/shipilovden/sub-metasiberia)
+[![Windows CI](https://img.shields.io/github/actions/workflow/status/shipilovden/sub-metasiberia/windows-main-ci.yml?branch=master&label=Windows%20CI)](https://github.com/shipilovden/sub-metasiberia/actions/workflows/windows-main-ci.yml)
+[![Linux Configure](https://img.shields.io/github/actions/workflow/status/shipilovden/sub-metasiberia/cmake-configure-linux.yml?branch=master&label=Linux%20Configure)](https://github.com/shipilovden/sub-metasiberia/actions/workflows/cmake-configure-linux.yml)
+[![License](https://img.shields.io/github/license/shipilovden/sub-metasiberia)](LICENCE)
+[![Stars](https://img.shields.io/github/stars/shipilovden/sub-metasiberia?style=social)](https://github.com/shipilovden/sub-metasiberia/stargazers)
+[![Admin](https://img.shields.io/website?url=https%3A%2F%2Fvr.metasiberia.com%2F&up_message=online&down_message=offline&label=admin&logo=googlechrome)](https://vr.metasiberia.com/)
+[![Signup](https://img.shields.io/website?url=https%3A%2F%2Fvr.metasiberia.com%2Fsignup&up_message=online&down_message=offline&label=signup&logo=googlechrome)](https://vr.metasiberia.com/signup)
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fmetasiberia.com%2F&up_message=online&down_message=offline&label=website&logo=googlechrome)](https://metasiberia.com/)
 
-The Substrata client and server are native apps written in C++, that support Windows, Mac and Linux.
-There is also an in-development web-client.
+Metasiberia is a virtual world project inspired by and based on the open-source Substrata software.
 
-You can build the Substrata client or Substrata server from this repository.
+## Quick Access
 
-![main screenshot](https://github.com/glaretechnologies/substrata/assets/30285/38a6db93-e729-4f15-8561-5c848eb5391c)
+- **🛠 Admin**: [https://vr.metasiberia.com/](https://vr.metasiberia.com/)
+- **📝 Signup**: [https://vr.metasiberia.com/signup](https://vr.metasiberia.com/signup)
+- **🌐 Web Client**: [https://vr.metasiberia.com/webclient](https://vr.metasiberia.com/webclient)
+- **🏠 Website**: [https://metasiberia.com/](https://metasiberia.com/)
 
+![](docs/images/metasiberia.png)
 
-## Usage examples
+## Community and Support
 
-You can always visit the main Substrata world at substrata.info - this is the server that we run, and the main gathering point for Substrata users.  However you are also welcome to run your own server!  You can do this using by building the server from this repository, or using one of the prebuilt binaries.
+[![VK](https://img.shields.io/badge/VK-metasiberia__official-0077FF?logo=vk&logoColor=white)](https://vk.com/metasiberia_official)
+[![Telegram](https://img.shields.io/badge/Telegram-metasiberia__channel-26A5E4?logo=telegram&logoColor=white)](https://t.me/metasiberia_channel)
 
-### 3D model Visualisation
+## Credits
 
-Substrata is perfect for multi-user visualisation of 3d models.  Walk around a digital twin model with your team, hosted on an on-premises server!
+**Metasiberia** is inspired and based on **Substrata**.
 
-### Education
-
-Because Substrata is open source, you can build and run your own world for students without paying any licensing fees.
-
-## Get Involved
-
-We welcome contributions from people!
-
-Chat about Substrata on the Substrata discord here: https://discord.gg/3Ds9cxyEnZ
-
-Feel free to drop a message on the discord if you are having trouble building Substrata, or have any questions about it.
-
-
-
-## Building
-
-See [docs/building.txt](docs/building.txt) for build instructions.
-
-## Features
-
-### High performance, physically-based rendering engine
-
-Substrata uses the Glare engine (https://github.com/glaretechnologies/glare-core), which produces realistic graphics while rendering the entire Substrata world - e.g. over 12000 objects with user-generated content at 200 fps.
-
-* The Glare engine is designed for metaverses, in particular large numbers of varied objects.
-* Automatic level of detail generation
-* Streaming loading and unloading of objects without hitches as the player moves around
-* Physically-based rendering
-* Highly realistic sun/sky/daylight system derived from a multiple scattering ray-tracing atmospheric simulation in https://www.indigorenderer.com/
-* Skeletal animation system with procedural animations and animation retargetting for sharing animation data amongst avatars with varied sizes
-* Runtime texture compression for making best use of GPU memory
-* GLTF, OBJ import, plus supports many image formats
-* Terrain and water rendering
-* Particle system for rendering dust, water splashes, smoke etc.
-
-![boat](https://github.com/glaretechnologies/substrata/assets/30285/0dde612a-ea95-49af-bc64-07f1a7114c7f)
-
-
-### Networked physics simulation
-
-We have integrated the Jolt physics engine (https://github.com/jrouwe/JoltPhysics), and have implemented a networked physics simulation on top of it. 
-What that means is that multiple players can interact with objects in a world, drive vehicles, push objects etc. in a realistic way.
-
-Physics-based vehicles: (Image links are to videos on YouTube)
-
-<a href="https://youtu.be/-E3J8kaqolQ"><img src="https://github.com/glaretechnologies/substrata/assets/30285/18703540-58ae-4e18-bf28-635784cd6c9a" width="600"></a>
-
-Networked physics:
-
-<a href="https://youtu.be/_rECxiwVteY"><img src="https://github.com/glaretechnologies/substrata/assets/30285/37eaacef-0f1b-48af-a820-1dcc9c17466e" width="600"></a>
-
-
-Handling lots of interactive objects:
-
-<a href="https://youtu.be/CzGz6voUE_8?t=8"><img src="https://github.com/glaretechnologies/substrata/assets/30285/6956d5a7-33f4-4c79-947c-951a2fe3cb18" width="600"></a>
-
-
-### Spatial Audio and Voice Chat
-
-Substrata has built-in spatial audio and voice chat, without using any third-party services or servers.
-
-
-### In-world building
-
-The substrata client has controls for creating and editing objects, as well as for editing voxels
-
-<img src="https://github.com/glaretechnologies/substrata/assets/30285/1680739d-b7ae-4e8f-9ba8-48769643e27b" width="600">
-
-
-<img src="https://github.com/glaretechnologies/substrata/assets/30285/3e3fb2f5-de3a-4132-9b86-b275b89c5dbd" width="600">
-
-You can add objects to the world from your local machine, and they will be automatically uploaded to the server and be visible to other users.
-
-## Get help
-
-Chat about Substrata on the Substrata discord here: https://discord.gg/3Ds9cxyEnZ
-
-Feel free to drop a message on the discord if you are having trouble building Substrata, or have any questions about it.
-
-Alternatively, feel free to create a github issue.
+[![Original Substrata](https://img.shields.io/badge/GitHub-glaretechnologies%2Fsubstrata-181717?logo=github&logoColor=white)](https://github.com/glaretechnologies/substrata)
+[![Substrata Creator](https://img.shields.io/badge/X-%40NickChapmn-000000?logo=x&logoColor=white)](https://x.com/NickChapmn)
+[![Metasiberia Author](https://img.shields.io/badge/X-%40denshipilovart-000000?logo=x&logoColor=white)](https://x.com/denshipilovart)
