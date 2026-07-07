@@ -55,6 +55,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/SocketBufferOutStream.h>
 #include <utils/OpenSSL.h>
 #include <utils/KeyPairGen.h>
+#include <utils/SimpleCredentials.h>
 #include <tls.h>
 #if !defined(_WIN32)
 #include <signal.h>
@@ -149,37 +150,6 @@ static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std:
 		broadcast_packets.resize(write_i + packet_buffer.buf.size());
 		std::memcpy(&broadcast_packets[write_i], packet_buffer.buf.data(), packet_buffer.buf.size());
 	}
-}
-
-
-// Throws glare::Exception on failure.
-static ServerCredentials parseServerCredentials(const std::string& server_state_dir)
-{
-	const std::string path = server_state_dir + "/substrata_server_credentials.txt";
-
-	const std::string contents = FileUtils::readEntireFileTextMode(path);
-
-	ServerCredentials creds;
-
-	Parser parser(contents);
-
-	while(!parser.eof())
-	{
-		string_view key, value;
-		parser.parseToCharOrEOF(':', key);
-		if(parser.eof())
-			break;
-
-		if(!parser.parseChar(':'))
-			throw glare::Exception("Error parsing ':' from '" + path + "'.");
-
-		parser.parseWhiteSpace();
-		parser.parseLine(value);
-
-		creds.creds[::stripHeadAndTailWhitespace(toString(key))] = ::stripHeadAndTailWhitespace(toString(value));
-	}
-
-	return creds;
 }
 
 
@@ -317,7 +287,8 @@ int main(int argc, char *argv[])
 		// Parse server credentials
 		try
 		{
-			const ServerCredentials server_credentials = parseServerCredentials(server_state_dir);
+			const std::string credentials_path = server_state_dir + "/substrata_server_credentials.txt";
+			const SimpleCredentials server_credentials = SimpleCredentials::parseCredentials(credentials_path);
 			server.world_state->server_credentials = server_credentials;
 		}
 		catch(glare::Exception& e)
@@ -879,7 +850,7 @@ int main(int argc, char *argv[])
 						if(chatbot)
 						{
 							WorldStateLock world_lock(server.world_state->mutex);
-							chatbot->handleLLMToolFunctionCall(tool_msg->calls, &server, world_lock);
+							chatbot->handleLLMToolFunctionCall(tool_msg->calls->calls, &server, world_lock);
 						}
 					}
 				}

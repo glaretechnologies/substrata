@@ -74,8 +74,14 @@ set(utils
 ${utils}
 ${GLARE_CORE_TRUNK_DIR_ENV}/utils/KeyPairGen.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/utils/KeyPairGen.h
+${GLARE_CORE_TRUNK_DIR_ENV}/utils/SimpleCredentials.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/utils/SimpleCredentials.h
 )
 
+set(ai
+${GLARE_CORE_TRUNK_DIR_ENV}/ai/LLMClient.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/ai/LLMClient.h
+)
 
 #============== Tracy profiler ==============
 
@@ -234,6 +240,7 @@ SOURCE_GROUP(ethereum FILES ${ethereum_files})
 SOURCE_GROUP(basis_universal/encoder FILES ${basisu_encoder_files})
 SOURCE_GROUP(basis_universal/transcoder FILES ${basisu_transcoder_files})
 SOURCE_GROUP(tracy FILES ${tracy_files})
+SOURCE_GROUP(ai FILES ${ai})
 
 
 # From secp256k1-master\configure.ac:
@@ -290,6 +297,7 @@ ${luau_compiler}
 ${lua}
 ${natvis_files}
 ${tracy_files}
+${ai}
 )
 
 

@@ -309,9 +309,9 @@ void ChatBot::handleLLMToolFunctionCall(const std::vector<Reference<ToolFunction
 
 				// Send response to LLM thread to send to LLM cloud server.
 				Reference<SendAIChatToolCallResult> result_msg = new SendAIChatToolCallResult();
-				result_msg->tool_call_id = call->call_id;
-				result_msg->tool_call_name = call->function_name;
-				result_msg->content = "Gesture performed successfully.";
+				result_msg->tool_call_result.tool_call_id = call->call_id;
+				result_msg->tool_call_result.tool_call_name = call->function_name;
+				result_msg->tool_call_result.content = "Gesture performed successfully.";
 				result_msg->should_send_to_server_immediately = false;
 				llm_thread->getMessageQueue().enqueue(result_msg);
 
@@ -330,9 +330,9 @@ void ChatBot::handleLLMToolFunctionCall(const std::vector<Reference<ToolFunction
 
 				// Send response to LLM thread to send to LLM cloud server.
 				Reference<SendAIChatToolCallResult> result_msg = new SendAIChatToolCallResult();
-				result_msg->tool_call_id = call->call_id;
-				result_msg->tool_call_name = call->function_name;
-				result_msg->content = "Gesture performed successfully.";
+				result_msg->tool_call_result.tool_call_id = call->call_id;
+				result_msg->tool_call_result.tool_call_name = call->function_name;
+				result_msg->tool_call_result.content = "Gesture performed successfully.";
 				result_msg->should_send_to_server_immediately = false;
 				llm_thread->getMessageQueue().enqueue(result_msg);
 			}
@@ -345,9 +345,9 @@ void ChatBot::handleLLMToolFunctionCall(const std::vector<Reference<ToolFunction
 
 					// Send response to LLM thread to send to LLM cloud server.
 					Reference<SendAIChatToolCallResult> result_msg = new SendAIChatToolCallResult();
-					result_msg->tool_call_id = call->call_id;
-					result_msg->tool_call_name = call->function_name;
-					result_msg->content = func->result_content;
+					result_msg->tool_call_result.tool_call_id = call->call_id;
+					result_msg->tool_call_result.tool_call_name = call->function_name;
+					result_msg->tool_call_result.content = func->result_content;
 
 					llm_thread->getMessageQueue().enqueue(result_msg);
 				}
@@ -355,9 +355,9 @@ void ChatBot::handleLLMToolFunctionCall(const std::vector<Reference<ToolFunction
 				{
 					// Send response to LLM thread to send to LLM cloud server.
 					Reference<SendAIChatToolCallResult> result_msg = new SendAIChatToolCallResult();
-					result_msg->tool_call_id = call->call_id;
-					result_msg->tool_call_name = call->function_name;
-					result_msg->content = "Unknown tool function '" + call->function_name + "'.";
+					result_msg->tool_call_result.tool_call_id = call->call_id;
+					result_msg->tool_call_result.tool_call_name = call->function_name;
+					result_msg->tool_call_result.content = "Unknown tool function '" + call->function_name + "'.";
 
 					llm_thread->getMessageQueue().enqueue(result_msg);
 				}
@@ -577,11 +577,6 @@ Reference<LLMThread> ChatBot::createLLMThread(Server* server)
 
 	time_since_last_LLM_activity.reset();
 
-	// Make tools_json
-	std::string tools_json = 
-		"\"tools\": [         \n";
-
-
 	std::vector<Reference<ChatBotToolFunction>> built_in_tool_functions;
 	{
 		Reference<ChatBotToolFunction> func = new ChatBotToolFunction();
@@ -601,36 +596,19 @@ Reference<LLMThread> ChatBot::createLLMThread(Server* server)
 	for(int i=0; i<built_in_tool_functions.size(); ++i)
 		all_tool_functions[built_in_tool_functions[i]->function_name] = built_in_tool_functions[i];
 
-	int index = 0;
+	ToolFunctionsSpec functions_spec;
 	for(auto it = all_tool_functions.begin(); it != all_tool_functions.end(); ++it)
 	{
 		Reference<ChatBotToolFunction> func = it->second;
-		tools_json +=
-		"	{																			\n"
-		"	  \"type\": \"function\",													\n"
-		"	  \"function\": {															\n"
-		"		\"name\": \"" + web::Escaping::JSONEscape(func->function_name) + "\",		\n"
-		"		\"description\": \"" + web::Escaping::JSONEscape(func->description) + "\",	\n"
-		"		\"parameters\": {														\n"
-		"		  \"type\": \"object\",													\n" // TEMP: just assuming all functions take zero parameters for now.
-		"		  \"properties\": {},													\n"
-		"		  \"required\": []														\n"
-		"		}																		\n"
-		"	  }																			\n"
-		"	}" + (((index + 1) < all_tool_functions.size()) ? "," : "") + "\n";
-
-		index++;
+		ToolFunctionSpec spec;
+		spec.name = func->function_name;
+		spec.description = func->description;
+		functions_spec.funcs.push_back(spec);
 	}
 
-	tools_json += 
-		"],																				\n";
-	tools_json += 
-		"\"tool_choice\": \"auto\",														\n";
+	const std::string base_prompt = server->config.shared_LLM_prompt_part + this->custom_prompt_part;
 
-	
-	Reference<LLMThread> new_llm_thread = new LLMThread(server->config.AI_model_id);
-	new_llm_thread->base_prompt_json_escaped = web::Escaping::JSONEscape(server->config.shared_LLM_prompt_part + this->custom_prompt_part);
-	new_llm_thread->tools_json = tools_json;
+	Reference<LLMThread> new_llm_thread = new LLMThread(server->config.AI_model_id, functions_spec, base_prompt);
 	new_llm_thread->chatbot = this;
 
 	new_llm_thread->out_msg_queue = &server->message_queue;

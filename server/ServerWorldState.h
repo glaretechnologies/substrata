@@ -32,6 +32,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <Mutex.h>
 #include <Database.h>
 #include <CircularBuffer.h>
+#include <SimpleCredentials.h>
 #include <HashMap.h>
 #include <map>
 #include <unordered_set>
@@ -448,7 +449,7 @@ public:
 
 	WebDataStore* web_data_store; // Since we pass around ServerAllWorldsState for all the web request handlers, just store a pointer to web_data_store so we can access it.
 
-	ServerCredentials server_credentials;
+	SimpleCredentials server_credentials;
 	ServerConfig server_config;
 
 	mutable ::WorldStateMutex mutex;
