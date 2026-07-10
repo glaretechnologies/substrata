@@ -12,7 +12,6 @@ Copyright Glare Technologies Limited 2018 -
 #include "SubEthTransaction.h"
 #include "MeshLODGenThread.h"
 #include "WorkerThreadUploadPhotoHandling.h"
-#include "LLMThread.h"
 #include "../webserver/LoginHandlers.h"
 #include "../shared/Protocol.h"
 #include "../shared/ProtocolStructs.h"
@@ -22,6 +21,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../shared/FileTypes.h"
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/ObjectEventHandlers.h"
+#include <ai/LLMThread.h>
 #include <vec3.h>
 #include <ConPrint.h>
 #include <Clock.h>

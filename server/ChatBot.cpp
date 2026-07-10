@@ -8,9 +8,9 @@ Copyright Glare Technologies Limited 2026 -
 
 #include "Server.h"
 #include "ServerWorldState.h"
-#include "LLMThread.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/Protocol.h"
+#include <ai/LLMThread.h>
 #include <webserver/Escaping.h>
 #include <Exception.h>
 #include <StringUtils.h>

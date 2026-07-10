@@ -17,7 +17,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "WorldCreation.h"
 #include "LuaHTTPRequestManager.h"
 #include "WorldMaintenance.h"
-#include "LLMThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/MessageUtils.h"
@@ -33,6 +32,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <webserver/OpenSeaPollerThread.h>
 #include <server/AuctionManagement.h>
 #endif
+#include <ai/LLMThread.h>
 #include <webserver/WebListenerThread.h>
 #include <networking/Networking.h>
 #include <networking/TLSSocket.h>

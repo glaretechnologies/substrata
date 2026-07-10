@@ -81,6 +81,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/utils/SimpleCredentials.h
 set(ai
 ${GLARE_CORE_TRUNK_DIR_ENV}/ai/LLMClient.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/ai/LLMClient.h
+${GLARE_CORE_TRUNK_DIR_ENV}/ai/LLMThread.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/ai/LLMThread.h
 )
 
 #============== Tracy profiler ==============
