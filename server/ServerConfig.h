@@ -31,8 +31,8 @@ public:
 
 	bool enable_registration; // Should we allow new users to register?
 
-	std::string AI_model_id; // Default value = "xai/grok-4-1-fast-non-reasoning"
-	std::string shared_LLM_prompt_part; // Default value = "You are a helpful bot in the Substrata Metaverse." etc..
+	std::string AI_model_id; // Default value = "xai/grok-4.5"
+	std::string shared_LLM_prompt_part; // Default value = "You are a helpful bot in the Substrata Metaverse." etc..  See parseServerConfig in server.cpp for the default.
 };
 
 

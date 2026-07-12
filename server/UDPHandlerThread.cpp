@@ -83,7 +83,7 @@ void UDPHandlerThread::doRun()
 						udp_socket->sendPacket(packet_buf.data(), packet_len, connected_clients[i].ip_addr, connected_clients[i].client_UDP_port);
 					}
 				}
-				else if(type == 2)
+				else if(type == 2) // If packet is a discorvery UDP packet:
 				{
 					if(packet_len >= sizeof(uint32) + sizeof(UID))
 					{

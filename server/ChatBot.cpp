@@ -312,7 +312,7 @@ void ChatBot::handleLLMToolFunctionCall(const std::vector<Reference<ToolFunction
 				result_msg->tool_call_result.tool_call_id = call->call_id;
 				result_msg->tool_call_result.tool_call_name = call->function_name;
 				result_msg->tool_call_result.content = "Gesture performed successfully.";
-				result_msg->should_send_to_server_immediately = false;
+				result_msg->should_send_to_server_immediately = true; // Grok 4.5 seems to wait on this being completed before continuing.
 				llm_thread->getMessageQueue().enqueue(result_msg);
 
 				repeating_gesture_timer.resetAndUnpause();
@@ -333,7 +333,7 @@ void ChatBot::handleLLMToolFunctionCall(const std::vector<Reference<ToolFunction
 				result_msg->tool_call_result.tool_call_id = call->call_id;
 				result_msg->tool_call_result.tool_call_name = call->function_name;
 				result_msg->tool_call_result.content = "Gesture performed successfully.";
-				result_msg->should_send_to_server_immediately = false;
+				result_msg->should_send_to_server_immediately = true;
 				llm_thread->getMessageQueue().enqueue(result_msg);
 			}
 			else
@@ -596,19 +596,19 @@ Reference<LLMThread> ChatBot::createLLMThread(Server* server)
 	for(int i=0; i<built_in_tool_functions.size(); ++i)
 		all_tool_functions[built_in_tool_functions[i]->function_name] = built_in_tool_functions[i];
 
-	ToolFunctionsSpec functions_spec;
+	LLMThread::Settings llm_thread_settings;
+
 	for(auto it = all_tool_functions.begin(); it != all_tool_functions.end(); ++it)
 	{
 		Reference<ChatBotToolFunction> func = it->second;
 		ToolFunctionSpec spec;
 		spec.name = func->function_name;
 		spec.description = func->description;
-		functions_spec.funcs.push_back(spec);
+		llm_thread_settings.tool_functions.funcs.push_back(spec);
 	}
 
-	const std::string base_prompt = server->config.shared_LLM_prompt_part + this->custom_prompt_part;
-
-	Reference<LLMThread> new_llm_thread = new LLMThread(server->config.AI_model_id, functions_spec, base_prompt);
+	llm_thread_settings.base_prompt = "Your name is '" + this->name + "'. " + server->config.shared_LLM_prompt_part + this->custom_prompt_part;
+	Reference<LLMThread> new_llm_thread = new LLMThread(server->config.AI_model_id, llm_thread_settings);
 	new_llm_thread->chatbot = this;
 
 	new_llm_thread->out_msg_queue = &server->message_queue;

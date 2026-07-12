@@ -169,7 +169,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.do_lua_http_request_rate_limiting	= XMLParseUtils::parseBoolWithDefault(root_elem, "do_lua_http_request_rate_limiting", /*default val=*/true);
 	config.enable_LOD_chunking					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_LOD_chunking", /*default val=*/true);
 	config.enable_registration					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_registration", /*default val=*/true);
-	config.AI_model_id							= XMLParseUtils::parseStringWithDefault(root_elem, "AI_model_id", /*default val=*/"xai/grok-4-1-fast-non-reasoning");
+	config.AI_model_id							= XMLParseUtils::parseStringWithDefault(root_elem, "AI_model_id", /*default val=*/"xai/grok-4.5");
 	config.shared_LLM_prompt_part				= XMLParseUtils::parseStringWithDefault(root_elem, "shared_LLM_prompt_part", /*default val=*/
 		std::string("You are a helpful bot in the Substrata Metaverse.\n") + 
 		std::string("When a user first talks to you, wave hello to them using the perform_wave_gesture tool function, or bow to them using the perform_bow_gesture tool function.\n") + 
