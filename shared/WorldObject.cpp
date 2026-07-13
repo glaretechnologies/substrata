@@ -35,6 +35,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <utils/Base64.h>
 #include <utils/RandomAccessOutStream.h>
 #include <utils/XMLWriteUtils.h>
+#include <utils/JSONWriteUtils.h>
 #include <utils/XMLParseUtils.h>
 #include <utils/IncludeXXHash.h>
 #include <utils/STLArenaAllocator.h>
@@ -1124,6 +1125,76 @@ std::string WorldObject::serialiseToXML(int tab_depth) const
 	XMLWriteUtils::writeUInt32ToXML(s, "chunk_batch1_end", chunk_batch1_end, tab_depth + 1);
 
 	s += std::string(tab_depth, '\t') + "</object>\n";
+	return s;
+}
+
+
+std::string WorldObject::serialiseToJSON() const
+{
+	std::string s;
+	s.reserve(2048);
+	s += "{";
+
+	JSONWriteUtils::writeUInt64ToJSON(s, "uid", uid.value());
+	JSONWriteUtils::writeStringToJSON(s, "object_type", objectTypeString(object_type));
+	JSONWriteUtils::writeStringToJSON(s, "model_url", model_url);
+
+	// Write materials as a JSON array.
+	s += "\"materials\":[";
+	for(size_t i=0; i<materials.size(); ++i)
+	{
+		s += materials[i]->serialiseToJSON();
+		s += ',';
+	}
+	if(s.back() == ',') s.back() = ']'; else s += ']'; // Replace trailing comma (or append ']' for an empty array).
+	s += ',';
+
+	JSONWriteUtils::writeStringToJSON(s, "lightmap_url", lightmap_url);
+
+	JSONWriteUtils::writeStringToJSON(s, "script", script);
+	JSONWriteUtils::writeStringToJSON(s, "content", content);
+	JSONWriteUtils::writeStringToJSON(s, "target_url", target_url);
+	JSONWriteUtils::writeStringToJSON(s, "audio_source_url", audio_source_url);
+
+	JSONWriteUtils::writeFloatToJSON(s, "audio_volume", audio_volume);
+
+	JSONWriteUtils::writeVec3ToJSON(s, "pos", pos);
+	JSONWriteUtils::writeVec3ToJSON(s, "axis", axis);
+	JSONWriteUtils::writeFloatToJSON(s, "angle", angle);
+	JSONWriteUtils::writeVec3ToJSON(s, "scale", scale);
+
+	JSONWriteUtils::writeUInt64ToJSON(s, "created_time", created_time.time);
+	JSONWriteUtils::writeUInt64ToJSON(s, "last_modified_time", last_modified_time.time);
+	JSONWriteUtils::writeUInt32ToJSON(s, "creator_id", creator_id.value());
+
+	JSONWriteUtils::writeUInt32ToJSON(s, "flags", flags);
+
+	JSONWriteUtils::writeVec3ToJSON(s, "aabb_os_min", Vec3f(aabb_os.min_));
+	JSONWriteUtils::writeVec3ToJSON(s, "aabb_os_max", Vec3f(aabb_os.max_));
+
+	JSONWriteUtils::writeInt32ToJSON(s, "max_model_lod_level", max_model_lod_level);
+
+	if(object_type == WorldObject::ObjectType_VoxelGroup)
+	{
+		std::string encoded;
+		if(compressed_voxels)
+			Base64::encode(compressed_voxels->data(), compressed_voxels->size(), encoded);
+
+		JSONWriteUtils::writeStringToJSON(s, "compressed_voxels_base64", encoded);
+	}
+
+	JSONWriteUtils::writeFloatToJSON(s, "mass", mass);
+	JSONWriteUtils::writeFloatToJSON(s, "friction", friction);
+	JSONWriteUtils::writeFloatToJSON(s, "restitution", restitution);
+
+	JSONWriteUtils::writeVec3ToJSON(s, "centre_of_mass_offset_os", centre_of_mass_offset_os);
+
+	JSONWriteUtils::writeUInt32ToJSON(s, "chunk_batch0_start", chunk_batch0_start);
+	JSONWriteUtils::writeUInt32ToJSON(s, "chunk_batch0_end", chunk_batch0_end);
+	JSONWriteUtils::writeUInt32ToJSON(s, "chunk_batch1_start", chunk_batch1_start);
+	JSONWriteUtils::writeUInt32ToJSON(s, "chunk_batch1_end", chunk_batch1_end);
+
+	if(s.back() == ',') s.back() = '}'; else s += '}';
 	return s;
 }
 

@@ -313,6 +313,8 @@ ${UTILS_DIR}/TestExceptionUtils.h
 ${UTILS_DIR}/Hasher.h
 ${UTILS_DIR}/XMLWriteUtils.cpp
 ${UTILS_DIR}/XMLWriteUtils.h
+${UTILS_DIR}/JSONWriteUtils.cpp
+${UTILS_DIR}/JSONWriteUtils.h
 ${UTILS_DIR}/LRUCache.cpp
 ${UTILS_DIR}/LRUCache.h
 ${UTILS_DIR}/LimitedAllocator.cpp

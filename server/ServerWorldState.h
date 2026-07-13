@@ -22,11 +22,13 @@ Copyright Glare Technologies Limited 2024 -
 #include "User.h"
 #include "Order.h"
 #include "UserWebSession.h"
+#include "APIKey.h"
 #include "ParcelAuction.h"
 #include "Screenshot.h"
 #include "Photo.h"
 #include "ChatBot.h"
 #include "SubEthTransaction.h"
+#include "../shared/RateLimiter.h"
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
 #include <Mutex.h>
@@ -381,6 +383,8 @@ public:
 
 	std::map<UserSecretKey, UserSecretRef> user_secrets GUARDED_BY(mutex);
 
+	std::map<std::string, APIKeyRef> api_keys GUARDED_BY(mutex); // Map from API key hash (see APIKey::hashAPIKey()) to APIKey.
+
 	std::map<uint64, SubEventRef> events GUARDED_BY(mutex); // SubEvent id to SubEvent
 
 	std::map<UID, GearItemRef> gear_items GUARDED_BY(mutex);
@@ -430,6 +434,9 @@ public:
 
 	std::map<UserID, std::string> user_web_messages GUARDED_BY(mutex); // For displaying an informational or error message on the next webpage served to a user.
 
+	// Ephemeral state: per-user (API-key owner) rate limiters for the MCP endpoint.  Created lazily.  See MCPHandlers.
+	std::unordered_map<UserID, Reference<RateLimiter>, UserIDHasher> mcp_rate_limiters GUARDED_BY(mutex);
+
 	// Sets of objects that should be written to (updated) in the database.
 	std::unordered_set<ResourceRef, ResourceRefHash>					db_dirty_resources				GUARDED_BY(mutex);
 	std::unordered_set<SubEthTransactionRef, SubEthTransactionRefHash>	db_dirty_sub_eth_transactions	GUARDED_BY(mutex);
@@ -442,6 +449,7 @@ public:
 	std::unordered_set<UserRef, UserRefHash>							db_dirty_users					GUARDED_BY(mutex);
 	std::unordered_set<ObjectStorageItemRef, ObjectStorageItemRefHash>	db_dirty_object_storage_items	GUARDED_BY(mutex);
 	std::unordered_set<UserSecretRef, UserSecretRefHash>				db_dirty_user_secrets			GUARDED_BY(mutex);
+	std::unordered_set<APIKeyRef, APIKeyRefHash>						db_dirty_api_keys				GUARDED_BY(mutex);
 	std::unordered_set<SubEventRef, SubEventRefHash>					db_dirty_events					GUARDED_BY(mutex);
 	std::unordered_set<GearItemRef, GearItemRefHash>					db_dirty_gear_items				GUARDED_BY(mutex);
 

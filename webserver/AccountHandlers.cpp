@@ -180,6 +180,8 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		page += "<p><a href=\"/script_log\">Show script log</a></p>";
 
 		page += "<p><a href=\"/secrets\">Show secrets (for Lua scripting)</a></p>";
+
+		page += "<p><a href=\"/api_keys\">Manage API keys (for the MCP endpoint)</a></p>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
@@ -968,6 +970,194 @@ void handleDeleteSecretPost(ServerAllWorldsState& world_state, const web::Reques
 	}
 
 	web::ResponseUtils::writeRedirectTo(reply_info, "/secrets");
+	return;
+}
+
+
+//===================== API keys =====================
+
+
+void renderAPIKeysPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+		if(logged_in_user == NULL)
+		{
+			page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"API Keys");
+			page += "You must be logged in to view this page.";
+			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+			return;
+		}
+
+		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"API Keys");
+		page += "<div class=\"main\">   \n";
+
+		// Display any messages for the user.  A newly-created key is shown here (once only - see handleCreateAPIKeyPost).
+		const std::string msg_for_user = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+		if(!msg_for_user.empty())
+			page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg_for_user) + "</div>  \n";
+
+		page += "<p>API keys authenticate requests to the MCP endpoint (<span class=\"code\">/mcp</span>), which lets AI agents query and modify worlds on the server.</p>";
+		page += "<p>Pass the key in the HTTP Authorization header: <span class=\"code\">Authorization: Bearer &lt;key&gt;</span></p>";
+		page += "<p>A key acts as your user, and is subject to your object and parcel permissions.  Keep it secret.  The full key is shown only once, when it is created - "
+			"only a hash of the key is stored, so it cannot be recovered later.</p>";
+
+		int num_keys_displayed = 0;
+		for(auto it = world_state.api_keys.begin(); it != world_state.api_keys.end(); ++it)
+		{
+			const APIKey* key = it->second.ptr();
+			if(key->user_id == logged_in_user->id)
+			{
+				page += "<p>" + web::Escaping::HTMLEscape(key->name) + " (created " + key->created_time.RFC822FormatedString() + ")";
+
+				page +=
+				"	<form action=\"/delete_api_key_post\" method=\"post\">									\n"
+				"		<input type=\"hidden\" name=\"key_hash\" value=\"" + web::Escaping::HTMLEscape(key->key_hash) + "\" />			\n"
+				"		<button type=\"submit\" class=\"button-link\">Delete Key</button>			\n"
+				"	</form>																					\n"
+				"	</p>";
+
+				num_keys_displayed++;
+			}
+		}
+
+		if(num_keys_displayed == 0)
+			page += "<p>[No API keys]</p>";
+
+		page +=
+			"	<br/><br/>		\n"
+			"	<form action=\"/create_api_key_post\" method=\"post\">								\n"
+			"		<label for=\"key_name-id\">Key name:</label><br/>								\n"
+			"		<input id=\"key_name-id\" type=\"string\" name=\"key_name\" /><br/>				\n"
+			"		<button type=\"submit\" class=\"button-link\">Create API Key</button>			\n"
+			"	</form>";
+
+		page += "</div>   \n"; // End main div
+	}
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void handleCreateAPIKeyPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{ // lock scope
+
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const web::UnsafeString key_name = request_info.getPostField("key_name");
+
+		WorldStateLock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+		if(logged_in_user == NULL)
+		{
+			web::ResponseUtils::writeRedirectTo(reply_info, "/account");
+			return;
+		}
+
+		if(key_name.str().size() > APIKey::MAX_NAME_SIZE)
+		{
+			world_state.setUserWebMessage(logged_in_user->id, "Key name too long");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/api_keys");
+			return;
+		}
+
+		// Generate a new random key.  We store only a hash of it, and show the raw key to the user once (below).
+		const std::string raw_key = APIKey::generateRawAPIKey(); // throws glare::Exception on failure
+
+		APIKeyRef key = new APIKey();
+		key->key_hash = APIKey::hashAPIKey(raw_key);
+		key->name = key_name.str();
+		key->user_id = logged_in_user->id;
+		key->created_time = TimeStamp::currentTime();
+
+		world_state.api_keys[key->key_hash] = key;
+		world_state.db_dirty_api_keys.insert(key);
+
+		world_state.markAsChanged();
+
+		world_state.setUserWebMessage(logged_in_user->id, "New API key created.  Copy it now - it will not be shown again: " + raw_key);
+
+	} // End lock scope
+	catch(web::WebsiteExcep&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/api_keys");
+		return;
+	}
+	catch(glare::Exception&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/api_keys");
+		return;
+	}
+
+	web::ResponseUtils::writeRedirectTo(reply_info, "/api_keys");
+	return;
+}
+
+
+void handleDeleteAPIKeyPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{ // lock scope
+
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const web::UnsafeString key_hash = request_info.getPostField("key_hash");
+
+		WorldStateLock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+		if(logged_in_user == NULL)
+		{
+			web::ResponseUtils::writeRedirectTo(reply_info, "/account");
+			return;
+		}
+
+		auto res = world_state.api_keys.find(key_hash.str());
+		if(res == world_state.api_keys.end())
+			throw glare::Exception("No API key with the given hash exists.");
+
+		APIKeyRef key = res->second;
+
+		// Check the key belongs to the logged-in user, so a user can't delete another user's keys.
+		if(key->user_id != logged_in_user->id)
+			throw glare::Exception("API key does not belong to you.");
+
+		world_state.db_dirty_api_keys.erase(key); // Remove from dirty-set, so it's not updated in DB.
+
+		if(key->database_key.valid())
+			world_state.db_records_to_delete.insert(key->database_key);
+
+		world_state.api_keys.erase(res);
+
+		world_state.markAsChanged();
+
+		world_state.setUserWebMessage(logged_in_user->id, "API key deleted.");
+
+	} // End lock scope
+	catch(web::WebsiteExcep&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/api_keys");
+		return;
+	}
+	catch(glare::Exception&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/api_keys");
+		return;
+	}
+
+	web::ResponseUtils::writeRedirectTo(reply_info, "/api_keys");
 	return;
 }
 

@@ -165,6 +165,7 @@ static const uint32 MIGRATION_VERSION_CHUNK = 118;
 static const uint32 PHOTO_CHUNK = 119;
 static const uint32 CHATBOT_CHUNK = 120;
 static const uint32 GEAR_ITEM_CHUNK = 121;
+static const uint32 API_KEY_CHUNK = 122;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -197,6 +198,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_news_posts = 0;
 	size_t num_object_storage_items = 0;
 	size_t num_user_secrets = 0;
+	size_t num_api_keys = 0;
 	size_t num_lod_chunks = 0;
 	size_t num_events = 0;
 	size_t num_gear_items = 0;
@@ -485,6 +487,16 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					secret->database_key = database_key;
 					user_secrets[secret->key] = secret;
 					num_user_secrets++;
+				}
+				else if(chunk == API_KEY_CHUNK)
+				{
+					// Deserialise APIKey
+					APIKeyRef key = new APIKey();
+					readFromStream(stream, *key);
+
+					key->database_key = database_key;
+					api_keys[key->key_hash] = key; // Add to API key map
+					num_api_keys++;
 				}
 				else if(chunk == ETH_INFO_CHUNK)
 				{
@@ -830,7 +842,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles, " + toString(num_world_settings) + " world settings, " + 
-		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " + 
+		toString(num_news_posts) + " news posts, " + toString(num_object_storage_items) + " object storage item(s), " + toString(num_user_secrets) + " user secret(s), " +
+		toString(num_api_keys) + " API key(s), " +
 		toString(num_lod_chunks) + " lod chunk(s), " + toString(num_events) + " event(s), " + toString(num_photos) + " photo(s), " + toString(num_worlds) + " world(s), " + 
 		toString(num_chatbots) + " chatbot(s), " + toString(num_gear_items) + " gear item(s) in " + timer.elapsedStringNSigFigs(4));
 }
@@ -865,6 +878,9 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 
 	for(auto it = user_web_sessions.begin(); it != user_web_sessions.end(); ++it)
 		db_dirty_userwebsessions.insert(it->second);
+
+	for(auto it = api_keys.begin(); it != api_keys.end(); ++it)
+		db_dirty_api_keys.insert(it->second);
 
 	for(auto it = parcel_auctions.begin(); it != parcel_auctions.end(); ++it)
 		db_dirty_parcel_auctions.insert(it->second);
@@ -1274,6 +1290,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		size_t num_news_posts = 0;
 		size_t num_object_storage_items = 0;
 		size_t num_user_secrets = 0;
+		size_t num_api_keys = 0;
 		size_t num_lod_chunks = 0;
 		size_t num_events = 0;
 		size_t num_gear_items = 0;
@@ -1653,6 +1670,26 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 			db_dirty_user_secrets.clear();
 		}
 
+		// Write APIKeys
+		{
+			for(auto it=db_dirty_api_keys.begin(); it != db_dirty_api_keys.end(); ++it)
+			{
+				APIKey* key = it->ptr();
+				temp_buf.clear();
+				temp_buf.writeUInt32(API_KEY_CHUNK);
+				writeToStream(*key, temp_buf);
+
+				if(!key->database_key.valid())
+					key->database_key = database.allocUnusedKey(); // Get a new key
+
+				database.updateRecord(key->database_key, temp_buf.buf);
+
+				num_api_keys++;
+			}
+
+			db_dirty_api_keys.clear();
+		}
+
 		// Write SubEvents
 		{
 			for(auto it = db_dirty_events.begin(); it != db_dirty_events.end(); ++it)
@@ -1814,6 +1851,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		if(num_news_posts > 0)            msg += toString(num_news_posts) + " news post(s), ";
 		if(num_object_storage_items > 0)  msg += toString(num_object_storage_items) + " object storage item(s), ";
 		if(num_user_secrets > 0)          msg += toString(num_user_secrets) + " user secret(s), ";
+		if(num_api_keys > 0)              msg += toString(num_api_keys) + " API key(s), ";
 		if(num_lod_chunks > 0)            msg += toString(num_lod_chunks) + " LOD chunk(s), ";
 		if(num_events > 0)                msg += toString(num_events) + " event(s), ";
 		if(num_gear_items > 0)            msg += toString(num_gear_items) + " gear item(s), ";

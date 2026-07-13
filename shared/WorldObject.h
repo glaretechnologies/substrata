@@ -244,6 +244,8 @@ public:
 	std::string serialiseToXML(int tab_depth) const;
 	static Reference<WorldObject> loadFromXMLElem(const std::string& object_file_path, bool convert_rel_paths_to_abs_disk_paths, pugi::xml_node elem); // object_file_path is used for converting relative paths to absolute.
 
+	std::string serialiseToJSON() const; // Serialise to a compact JSON object (mirrors serialiseToXML).
+
 	void setAABBOS(const js::AABBox& aabb_os); // Sets object-space AABB, also calls transformChanged().
 	void zeroAABBOS();
 	inline const js::AABBox& getAABBOS() const { return aabb_os; }

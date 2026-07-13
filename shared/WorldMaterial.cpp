@@ -14,6 +14,8 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/IndigoXMLDoc.h>
 #include <utils/XMLParseUtils.h>
 #include <utils/XMLWriteUtils.h>
+#include <utils/JSONWriteUtils.h>
+#include <utils/JSONParser.h>
 #include <utils/Parser.h>
 #include <utils/BufferInStream.h>
 #include <utils/BufferOutStream.h>
@@ -412,6 +414,111 @@ void WorldMaterial::writeToXMLOnDisk(const std::string& path) const
 	const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" + serialiseToXML(/*tab_depth=*/0);
 
 	FileUtils::writeEntireFileTextMode(path, xml);
+}
+
+
+// Appends `"name":{"val":..[,"texture_url":".."]},` to s.
+static void writeScalarValToJSON(std::string& s, const string_view name, const ScalarVal& scalar_val)
+{
+	s += "\"" + toString(name) + "\":{";
+	JSONWriteUtils::writeFloatToJSON(s, "val", scalar_val.val);
+	if(!scalar_val.texture_url.empty())
+		JSONWriteUtils::writeStringToJSON(s, "texture_url", scalar_val.texture_url);
+	if(s.back() == ',') s.back() = '}'; else s += '}';
+	s += ',';
+}
+
+
+std::string WorldMaterial::serialiseToJSON() const
+{
+	std::string s;
+	s.reserve(512);
+	s += "{";
+
+	JSONWriteUtils::writeStringToJSON(s, "name", name);
+
+	JSONWriteUtils::writeColour3fToJSON(s, "colour_rgb", colour_rgb);
+	JSONWriteUtils::writeStringToJSON(s, "colour_texture_url", colour_texture_url);
+
+	JSONWriteUtils::writeColour3fToJSON(s, "emission_rgb", emission_rgb);
+	JSONWriteUtils::writeStringToJSON(s, "emission_texture_url", emission_texture_url);
+
+	JSONWriteUtils::writeStringToJSON(s, "normal_map_url", normal_map_url);
+
+	writeScalarValToJSON(s, "roughness", roughness);
+	writeScalarValToJSON(s, "metallic_fraction", metallic_fraction);
+	writeScalarValToJSON(s, "opacity", opacity);
+
+	s += "\"tex_matrix\":[" + toString(tex_matrix.e[0]) + "," + toString(tex_matrix.e[1]) + "," + toString(tex_matrix.e[2]) + "," + toString(tex_matrix.e[3]) + "],";
+
+	JSONWriteUtils::writeFloatToJSON(s, "emission_lum_flux_or_lum", emission_lum_flux_or_lum);
+	JSONWriteUtils::writeUInt64ToJSON(s, "flags", flags);
+
+	if(s.back() == ',') s.back() = '}'; else s += '}';
+	return s;
+}
+
+
+static Colour3f parseColour3fFromJSON(const JSONParser& parser, const JSONNode& parent, const char* name, const Colour3f& default_val)
+{
+	if(parent.hasChild(name))
+	{
+		const JSONNode& node = parent.getChildObject(parser, name);
+		return Colour3f(
+			(float)node.getChildDoubleValueWithDefaultVal(parser, "r", default_val.r),
+			(float)node.getChildDoubleValueWithDefaultVal(parser, "g", default_val.g),
+			(float)node.getChildDoubleValueWithDefaultVal(parser, "b", default_val.b));
+	}
+	else
+		return default_val;
+}
+
+
+static ScalarVal parseScalarValFromJSON(const JSONParser& parser, const JSONNode& parent, const char* name, const ScalarVal& default_val)
+{
+	if(parent.hasChild(name))
+	{
+		const JSONNode& node = parent.getChildObject(parser, name);
+		ScalarVal scalar_val;
+		scalar_val.val = (float)node.getChildDoubleValueWithDefaultVal(parser, "val", 0.0);
+		scalar_val.texture_url = toURLString(node.getChildStringValueWithDefaultVal(parser, "texture_url", ""));
+		return scalar_val;
+	}
+	else
+		return default_val;
+}
+
+
+Reference<WorldMaterial> WorldMaterial::fromJSON(const JSONParser& parser, const JSONNode& node)
+{
+	WorldMaterialRef mat = new WorldMaterial();
+
+	mat->name = node.getChildStringValueWithDefaultVal(parser, "name", "");
+
+	mat->colour_rgb           = parseColour3fFromJSON(parser, node, "colour_rgb", Colour3f(0.85f));
+	mat->colour_texture_url   = toURLString(node.getChildStringValueWithDefaultVal(parser, "colour_texture_url", ""));
+
+	mat->emission_rgb         = parseColour3fFromJSON(parser, node, "emission_rgb", Colour3f(0.f));
+	mat->emission_texture_url = toURLString(node.getChildStringValueWithDefaultVal(parser, "emission_texture_url", ""));
+
+	mat->normal_map_url       = toURLString(node.getChildStringValueWithDefaultVal(parser, "normal_map_url", ""));
+
+	mat->roughness         = parseScalarValFromJSON(parser, node, "roughness",         ScalarVal(0.5f));
+	mat->metallic_fraction = parseScalarValFromJSON(parser, node, "metallic_fraction", ScalarVal(0.0f));
+	mat->opacity           = parseScalarValFromJSON(parser, node, "opacity",           ScalarVal(1.0f));
+
+	if(node.hasChild("tex_matrix"))
+	{
+		double values[4];
+		node.getChildArray(parser, "tex_matrix").parseDoubleArrayValues(parser, /*expected_num_elems=*/4, values);
+		for(int i=0; i<4; ++i)
+			mat->tex_matrix.e[i] = (float)values[i];
+	}
+
+	mat->emission_lum_flux_or_lum = (float)node.getChildDoubleValueWithDefaultVal(parser, "emission_lum_flux_or_lum", 0.0);
+	mat->flags = (uint32)node.getChildUIntValueWithDefaultVal(parser, "flags", 0);
+
+	return mat;
 }
 
 
@@ -892,6 +999,43 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 void WorldMaterial::test()
 {
 	conPrint("WorldMaterial::test()");
+
+	// Test serialiseToJSON / fromJSON round-trip.  Use exactly-representable float values to avoid precision ambiguity.
+	{
+		WorldMaterial mat;
+		mat.name = "test material";
+		mat.colour_rgb = Colour3f(0.25f, 0.5f, 0.75f);
+		mat.colour_texture_url = "colour.png";
+		mat.emission_rgb = Colour3f(0.125f, 0.375f, 0.625f);
+		mat.emission_texture_url = "emission.png";
+		mat.normal_map_url = "normal.png";
+		mat.roughness = ScalarVal(0.25f);
+		mat.roughness.texture_url = "roughness.png";
+		mat.metallic_fraction = ScalarVal(0.75f);
+		mat.opacity = ScalarVal(0.5f);
+		mat.emission_lum_flux_or_lum = 128.0f;
+		mat.flags = 3;
+
+		const std::string json = mat.serialiseToJSON();
+
+		JSONParser parser;
+		parser.parseBuffer(json.data(), json.size());
+		Reference<WorldMaterial> mat2 = WorldMaterial::fromJSON(parser, parser.nodes[0]);
+
+		testAssert(*mat2 == mat);
+	}
+
+	// A near-empty material JSON should parse to a default material (all fields defaulted).
+	{
+		JSONParser parser;
+		const std::string json = "{\"colour_rgb\":{\"r\":0.1,\"g\":0.2,\"b\":0.3}}";
+		parser.parseBuffer(json.data(), json.size());
+		Reference<WorldMaterial> mat = WorldMaterial::fromJSON(parser, parser.nodes[0]);
+		testAssert(mat->colour_rgb == Colour3f(0.1f, 0.2f, 0.3f));
+		testAssert(mat->roughness.val == 0.5f); // Default
+		testAssert(mat->opacity.val == 1.0f);   // Default
+		testAssert(mat->colour_texture_url.empty());
+	}
 
 
 	{

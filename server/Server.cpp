@@ -169,6 +169,8 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.do_lua_http_request_rate_limiting	= XMLParseUtils::parseBoolWithDefault(root_elem, "do_lua_http_request_rate_limiting", /*default val=*/true);
 	config.enable_LOD_chunking					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_LOD_chunking", /*default val=*/true);
 	config.enable_registration					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_registration", /*default val=*/true);
+	config.enable_mcp_server					= XMLParseUtils::parseBoolWithDefault(root_elem, "enable_mcp_server", /*default val=*/true);
+	config.do_mcp_rate_limiting					= XMLParseUtils::parseBoolWithDefault(root_elem, "do_mcp_rate_limiting", /*default val=*/true);
 	config.AI_model_id							= XMLParseUtils::parseStringWithDefault(root_elem, "AI_model_id", /*default val=*/"xai/grok-4.5");
 	config.shared_LLM_prompt_part				= XMLParseUtils::parseStringWithDefault(root_elem, "shared_LLM_prompt_part", /*default val=*/
 		std::string("You are a helpful bot in the Substrata Metaverse.\n") + 

@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ResourceHandlers.h"
 #include "PhotoHandlers.h"
 #include "ChatBotHandlers.h"
+#include "MCPHandlers.h"
 #include "SubEventHandlers.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include <webserver/PayPalHandlers.h>
@@ -305,6 +306,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::handleDeleteSecretPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/create_api_key_post")
+		{
+			AccountHandlers::handleCreateAPIKeyPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/delete_api_key_post")
+		{
+			AccountHandlers::handleDeleteAPIKeyPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/edit_news_post_post")
 		{
 			NewsPostHandlers::handleEditNewsPostPost(*this->world_state, request, reply_info);
@@ -368,6 +377,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/delete_chatbot_post")
 		{
 			ChatBotHandlers::handleDeleteChatBotPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/mcp")
+		{
+			MCPHandlers::handleMCPRequest(*this->world_state, request, reply_info);
 		}
 		else
 		{
@@ -595,6 +608,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/secrets")
 		{
 			AccountHandlers::renderSecretsPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/api_keys")
+		{
+			AccountHandlers::renderAPIKeysPage(*this->world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/p/")) // URL for parcel ERC 721 metadata JSON
 		{
