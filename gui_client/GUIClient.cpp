@@ -5726,7 +5726,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			// conPrint("Sending discovery UDP packet to server");
 			{
 				scratch_packet.clear();
-				scratch_packet.writeUInt32(2); // Packet type
+				scratch_packet.writeUInt32(2); // Packet type (discovery UDP packet)
 				writeToStream(this->client_avatar_uid, scratch_packet);
 
 				try

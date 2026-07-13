@@ -252,4 +252,4 @@ void readAvatarSettingsFromStream(RandomAccessInStream& stream, AvatarSettings& 
 
 
 void writeAvatarToNetworkStream(const Avatar& world_ob, RandomAccessOutStream& stream); // Write without version.  Writes UID.
-void readAvatarFromNetworkStream(RandomAccessInStream& stream, Avatar& ob);
+void readAvatarFromNetworkStream(RandomAccessInStream& stream, Avatar& avatar);
