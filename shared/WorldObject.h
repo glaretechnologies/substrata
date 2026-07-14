@@ -340,6 +340,7 @@ public:
 	static const uint32 EXCLUDE_FROM_LOD_CHUNK_MESH             = 512; // Should this object be excluded from LOD Chunk meshes? (for e.g. moving objects)
 	static const uint32 AUDIO_AUTOPLAY                          = 1024; // For objects that play audio, should the audio auto-play?
 	static const uint32 AUDIO_LOOP                              = 2048; // For objects that play audio, should the audio loop?
+	static const uint32 CREATED_VIA_MCP                         = 4096; // Was this object created via the Model Context Protocol (MCP) API?
 	uint32 flags;
 
 	TimeStamp created_time;

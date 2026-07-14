@@ -357,6 +357,7 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	WorldObjectRef ob = new WorldObject();
+	ob->flags |= WorldObject::CREATED_VIA_MCP;
 	ob->object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal(parser, "object_type", /*default=*/"generic"));
 	ob->model_url = toURLString(args.getChildStringValueWithDefaultVal(parser, "model_url", /*default=*/""));
 	ob->content = args.getChildStringValueWithDefaultVal(parser, "content", /*default=*/"");
@@ -410,6 +411,7 @@ static const Vec3d getPrimitiveCentre(const JSONParser& parser, const JSONNode& 
 static WorldObjectRef makePrimitiveObject(const char* mesh_url, const Vec3d& centre, const Vec3f& scale, const JSONParser& parser, const JSONNode& args)
 {
 	WorldObjectRef ob = new WorldObject();
+	ob->flags |= WorldObject::CREATED_VIA_MCP;
 	ob->object_type = WorldObject::ObjectType_Generic;
 	ob->model_url = toURLString(mesh_url);
 	ob->pos = centre;
