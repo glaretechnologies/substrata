@@ -35,6 +35,11 @@ public:
 
 	virtual void logMessage(const std::string& msg) = 0;
 
+	// Called on the main thread when the client has connected to a server, and when it is disconnecting from it.
+	// (Used to start/stop the local MCP endpoint in the Qt client, so it always forwards to the connected server.)
+	virtual void clientConnectedToServer() {}
+	virtual void clientDisconnectingFromServer() {}
+
 	// Lua scripting:
 	// A lua script created by the logged in user printed something
 	virtual void printFromLuaScript(const std::string& msg, UID object_uid) {}

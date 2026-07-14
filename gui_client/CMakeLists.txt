@@ -356,6 +356,9 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.h
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindow.ui
 		${CMAKE_SOURCE_DIR}/gui_client/MainWindowTestCode.txt
+		${CMAKE_SOURCE_DIR}/gui_client/MCPClientHandler.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/MCPClientHandler.h
+		${CMAKE_SOURCE_DIR}/gui_client/MCPRenderRequest.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.ui
@@ -554,6 +557,18 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.h
+# Files needed to run the local MCP HTTP endpoint (see MCPClientHandler):
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebListenerThread.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebListenerThread.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestInfo.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestInfo.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThread.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThread.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/UnsafeString.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/UnsafeString.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebsiteExcep.h
 )
 
 SET(direct3d

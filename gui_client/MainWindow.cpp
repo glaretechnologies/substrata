@@ -38,6 +38,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "MeshBuilding.h"
 #include "MiniMap.h"
 #include "PlayerPhysics.h"
+#include "MCPRenderRequest.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -76,6 +77,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
 #include "../utils/IndigoXMLDoc.h"
+#include "MCPClientHandler.h"
+#include <webserver/WebListenerThread.h>
 #include "../utils/LimitedAllocator.h"
 #include "../networking/MySocket.h"
 #include "../graphics/ImageMap.h"
@@ -829,6 +832,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	settings->setValue("mainwindow/windowState", saveState());
 
 
+	stopMCPClientServer();
+
 	gui_client.shutdown();
 
 	CPU_render_stats_widget = nullptr;
@@ -1301,7 +1306,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	updateStatusBar();
 
 	runScreenshotCode();
-	
+
+	processMCPRenderRequests();
+
 	// Update URL Bar
 	if(this->url_widget->shouldBeUpdated())
 	{
@@ -3316,6 +3323,223 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 }
 
 
+ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int viewport_h)
+{
+	ui->glWidget->makeCurrent();
+
+	OpenGLScene* scene = opengl_engine->getCurrentScene();
+
+	// Save the state we modify below, so a subsequent live frame is unaffected.
+	const int   saved_viewport_w    = scene->viewport_w;
+	const int   saved_viewport_h    = scene->viewport_h;
+	const bool  saved_draw_overlays = scene->draw_overlay_objects;
+
+	ImageMapUInt8Ref map;
+	try
+	{
+		// Set the camera transform from the current camera controller, the same way GlWidget::paintGL does.
+		Matrix4f world_to_camera;
+		gui_client.cam_controller.getWorldToCameraMatrix(world_to_camera);
+
+		const float sensor_width     = GlWidget::defaultSensorWidth();
+		const float lens_sensor_dist = (float)gui_client.cam_controller.lens_sensor_dist;
+		const float render_aspect    = (float)viewport_w / (float)viewport_h;
+
+		scene->draw_overlay_objects = false; // Don't draw the player's UI overlays into the render.
+
+		opengl_engine->setViewportDims(viewport_w, viewport_h);
+		opengl_engine->setPerspectiveCameraTransform(world_to_camera, sensor_width, lens_sensor_dist, render_aspect, /*lens_shift_up=*/0.f, /*lens_shift_right=*/0.f);
+
+		opengl_engine->waitForAllBuildingProgramsToBuild();
+
+		map = opengl_engine->drawToBufferAndReturnImageMap();
+		if(map->hasAlphaChannel())
+			map = map->extract3ChannelImage();
+	}
+	catch(...)
+	{
+		scene->draw_overlay_objects = saved_draw_overlays;
+		opengl_engine->setViewportDims(saved_viewport_w, saved_viewport_h);
+		throw;
+	}
+
+	scene->draw_overlay_objects = saved_draw_overlays;
+	opengl_engine->setViewportDims(saved_viewport_w, saved_viewport_h);
+
+	return map;
+}
+
+
+void MainWindow::enqueueMCPRenderRequest(const MCPRenderRequestRef& req)
+{
+	Lock lock(mcp_render_queue_mutex);
+	mcp_render_queue.push_back(req);
+}
+
+
+void MainWindow::processMCPRenderRequests()
+{
+	// How long to wait after the scene first finishes loading before capturing, to let shadow maps etc. settle.
+	const double SHADOW_SETTLE_S = 1.0;
+	// Minimum time to wait after positioning the camera, to allow the initial object-query response to arrive (matches the
+	// screenshot code's hack).
+	const double MIN_WAIT_S = 4.0;
+	// Overall safety timeout: render anyway after this long even if loading hasn't settled (e.g. a resource is unavailable).
+	const double TIMEOUT_S = 30.0;
+
+	// Pick up the next request if none is active.
+	if(!mcp_active_render_request)
+	{
+		Lock lock(mcp_render_queue_mutex);
+		if(mcp_render_queue.empty())
+			return;
+		mcp_active_render_request = mcp_render_queue.front();
+		mcp_render_queue.pop_front();
+	}
+
+	MCPRenderRequest* req = mcp_active_render_request.ptr();
+
+	// On the first tick for this request, move the streaming camera to the target position.  Objects stream in based on the
+	// camera position, so this must happen before we wait for loading to settle.
+	if(!req->started)
+	{
+		gui_client.cam_controller.setAngles(req->cam_angles);
+		gui_client.cam_controller.setFirstAndThirdPersonPositions(req->cam_pos);
+		gui_client.player_physics.setEyePosition(req->cam_pos);
+		gui_client.player_physics.setFlyModeEnabled(true); // Don't fall to the ground while we wait.
+
+		req->started = true;
+		req->became_loaded = false;
+		req->total_timer.reset();
+		return; // Let streaming happen over subsequent frames.
+	}
+
+	// Wait for the scene to finish loading for this camera position.
+	const bool loaded = gui_client.isSceneFullyLoaded();
+	if(loaded && !req->became_loaded)
+	{
+		req->became_loaded = true;
+		req->settle_timer.reset();
+	}
+	else if(!loaded)
+		req->became_loaded = false; // Regressed - more streaming was triggered; wait again.
+
+	const bool ready =
+		(req->became_loaded && (req->settle_timer.elapsed() >= SHADOW_SETTLE_S) && (req->total_timer.elapsed() >= MIN_WAIT_S)) ||
+		(req->total_timer.elapsed() >= TIMEOUT_S);
+
+	if(!ready)
+		return; // Keep waiting; we'll be called again next frame.
+
+	// The scene is ready (or we timed out): render and hand the result back to the waiting thread.
+	ImageMapUInt8Ref image;
+	std::string error_msg;
+	try
+	{
+		image = renderCurrentViewToImageMap(req->width, req->height);
+	}
+	catch(glare::Exception& e)
+	{
+		error_msg = e.what();
+	}
+
+	{
+		Lock lock(req->mutex);
+		req->result_image = image;
+		req->success = error_msg.empty();
+		req->error_msg = error_msg;
+		req->done = true;
+		req->condition.notifyAll();
+	}
+
+	mcp_active_render_request = NULL; // Done; ready for the next request.
+}
+
+
+void MainWindow::startMCPClientServerIfEnabled()
+{
+	if(!settings->value(MainOptionsDialog::MCPEnabledKey(), /*default=*/false).toBool())
+		return;
+
+	// Only run the local MCP endpoint while connected to a server, so MCP calls are always forwarded to the correct server.
+	if(gui_client.connection_state != GUIClient::ServerConnectionState_Connected)
+		return;
+
+	const int port                = settings->value(MainOptionsDialog::MCPPortKey(), /*default=*/MainOptionsDialog::defaultMCPPort()).toInt();
+
+	// The API key is a per-server credential.  Since this function is called each time we connect to a server, the key
+	// used always corresponds to the connected server.
+	const std::string api_key     = credential_manager.getDecryptedMCPAPIKeyForDomain(gui_client.server_hostname);
+
+	if(api_key.empty())
+	{
+		showErrorNotification("MCP server is enabled but no API key is configured for server '" + gui_client.server_hostname + "'; not starting the local MCP endpoint.  Set the API key in the Options dialog.");
+		return;
+	}
+
+	try
+	{
+		Reference<MCPClientSharedRequestHandler> shared_handler = new MCPClientSharedRequestHandler(this, api_key);
+		mcp_web_thread_manager.addThread(new web::WebListenerThread(port, shared_handler.getPointer(), /*tls_configuration=*/NULL));
+
+		conPrint("Started local MCP endpoint on port " + toString(port) + ", forwarding non-render calls to the connected server.");
+		showInfoNotification("Started local MCP endpoint on port " + toString(port) + ".");
+	}
+	catch(glare::Exception& e)
+	{
+		showErrorNotification("Failed to start local MCP endpoint: " + e.what());
+	}
+}
+
+
+void MainWindow::cancelMCPRenderRequests()
+{
+	std::deque<MCPRenderRequestRef> reqs;
+	{
+		Lock lock(mcp_render_queue_mutex);
+		reqs.swap(mcp_render_queue);
+	}
+	if(mcp_active_render_request)
+	{
+		reqs.push_back(mcp_active_render_request);
+		mcp_active_render_request = NULL;
+	}
+
+	for(size_t i=0; i<reqs.size(); ++i)
+	{
+		MCPRenderRequest* req = reqs[i].ptr();
+		Lock lock(req->mutex);
+		req->success = false;
+		req->error_msg = "Render request was cancelled.";
+		req->done = true;
+		req->condition.notifyAll();
+	}
+}
+
+
+void MainWindow::stopMCPClientServer()
+{
+	// Fail any outstanding render requests first: an MCP worker thread blocked in handleRenderView() waiting on a render request
+	// can't be joined until the request completes, and the GUI thread can't service render requests while blocked in killThreadsBlocking() below.
+	cancelMCPRenderRequests();
+
+	mcp_web_thread_manager.killThreadsBlocking();
+}
+
+
+void MainWindow::clientConnectedToServer()
+{
+	stopMCPClientServer(); // In case it was already running (e.g. when reconnecting to a different server).
+	startMCPClientServerIfEnabled();
+}
+
+
+void MainWindow::clientDisconnectingFromServer()
+{
+	stopMCPClientServer();
+}
+
+
 void MainWindow::on_actionShow_Screenshot_Folder_triggered()
 {
 	try
@@ -3346,7 +3570,11 @@ void MainWindow::on_actionOptions_triggered()
 	const std::string prev_audio_input_dev_name = QtUtils::toStdString(settings->value(MainOptionsDialog::inputDeviceNameKey(), "Default").toString());
 	const bool prev_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
 
-	MainOptionsDialog d(this->settings, gui_client.onlyLoadMostImportantObjectsDefaultValue());
+	const bool prev_mcp_enabled          = settings->value(MainOptionsDialog::MCPEnabledKey(), /*default val=*/false).toBool();
+	const int prev_mcp_port              = settings->value(MainOptionsDialog::MCPPortKey(), /*default val=*/MainOptionsDialog::defaultMCPPort()).toInt();
+	const std::string prev_mcp_api_key   = credential_manager.getDecryptedMCPAPIKeyForDomain(gui_client.server_hostname);
+
+	MainOptionsDialog d(this->settings, credential_manager, gui_client.server_hostname, gui_client.onlyLoadMostImportantObjectsDefaultValue());
 	const int code = d.exec();
 	if(code == QDialog::Accepted)
 	{
@@ -3363,6 +3591,17 @@ void MainWindow::on_actionOptions_triggered()
 		const bool new_dark_mode = settings->value(MainOptionsDialog::darkModeKey(), /*default val=*/systemPrefersDarkTheme()).toBool();
 		if(new_dark_mode != prev_dark_mode)
 			applyThemeFromSettings(*settings);
+
+		// Restart the local MCP endpoint if any MCP settings changed.
+		const bool mcp_settings_changed =
+			(settings->value(MainOptionsDialog::MCPEnabledKey(), /*default val=*/false).toBool() != prev_mcp_enabled) ||
+			(settings->value(MainOptionsDialog::MCPPortKey(), /*default val=*/MainOptionsDialog::defaultMCPPort()).toInt() != prev_mcp_port) ||
+			(credential_manager.getDecryptedMCPAPIKeyForDomain(gui_client.server_hostname) != prev_mcp_api_key);
+		if(mcp_settings_changed)
+		{
+			stopMCPClientServer();
+			startMCPClientServerIfEnabled(); // Note: only starts the endpoint if we are currently connected to a server.
+		}
 	}
 
 	gui_client.mic_read_thread_manager.enqueueMessage(new InputVolumeScaleChangedMessage(

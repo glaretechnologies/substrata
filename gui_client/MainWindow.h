@@ -9,7 +9,10 @@ Copyright Glare Technologies Limited 2024 -
 #include "UIInterface.h"
 #include "GUIClient.h"
 #include "CredentialManager.h"
+#include <graphics/ImageMap.h>
 #include <utils/ArgumentParser.h>
+#include <utils/ThreadManager.h>
+#include <deque>
 #include <utils/Timer.h>
 #include <utils/ComObHandle.h>
 #include <utils/SocketBufferOutStream.h>
@@ -29,6 +32,7 @@ struct IMFDXGIDeviceManager;
 struct _SDL_GameController;
 class RenderStatsWidget;
 class MiniDmpSender;
+class MCPRenderRequest;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -151,6 +155,16 @@ private slots:;
 public:
 	bool connectedToUsersWorldOrGodUser();
 	void webViewMouseDoubleClicked(QMouseEvent* e);
+
+	// Render the current world scene (from the current camera) to an offscreen buffer at the given resolution, and return the
+	// image (3-channel RGB).  The caller is responsible for having positioned the camera and waited for the scene to finish
+	// loading for that position (see GUIClient::isSceneFullyLoaded), since objects stream in based on camera position.
+	// NOTE: MUST be called on the GUI (GL) thread, as it makes the GL context current and issues draw calls.
+	ImageMapUInt8Ref renderCurrentViewToImageMap(int viewport_w, int viewport_h);
+
+	// Enqueue a render request from another thread (e.g. an MCP handler thread).  Thread-safe.  The request is processed on
+	// the GUI thread by processMCPRenderRequests(); the caller waits on req->condition for req->done.
+	void enqueueMCPRenderRequest(const Reference<MCPRenderRequest>& req);
 private:
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result);
@@ -167,6 +181,15 @@ private:
 	void updateStatusBar();
 	void updateDiagnostics();
 	void runScreenshotCode();
+	void processMCPRenderRequests(); // Called each frame from timerEvent (GUI thread) to service queued MCP render requests.
+	void startMCPClientServerIfEnabled(); // Starts the local MCP HTTP endpoint if enabled in settings.
+	void stopMCPClientServer(); // Fails any outstanding MCP render requests and stops the local MCP endpoint listener, if running.
+	void cancelMCPRenderRequests(); // Fail any queued or in-progress MCP render requests, waking up MCP worker threads blocked waiting on them.
+
+	Mutex mcp_render_queue_mutex;
+	std::deque<Reference<MCPRenderRequest>> mcp_render_queue; // Requests waiting to be processed.  Guarded by mcp_render_queue_mutex.
+	Reference<MCPRenderRequest> mcp_active_render_request; // The request currently being processed (GUI-thread only).  Null if none.
+	ThreadManager mcp_web_thread_manager; // Runs the WebListenerThread for the local MCP endpoint, if enabled.
 
 	virtual void dragEnterEvent(QDragEnterEvent* event) override;
 	virtual void dropEvent(QDropEvent* event) override;
@@ -186,6 +209,9 @@ public:
 	virtual void showPlainTextMessageBox(const std::string& title, const std::string& msg) override;
 
 	virtual void logMessage(const std::string& msg) override; // Appends to LogWindow log display.
+
+	virtual void clientConnectedToServer() override; // (Re)starts the local MCP endpoint, so it forwards to the server we just connected to.
+	virtual void clientDisconnectingFromServer() override; // Stops the local MCP endpoint.
 
 	// Lua scripting:
 	// A lua script created by the logged in user printed something

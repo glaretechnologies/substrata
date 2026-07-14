@@ -45,6 +45,7 @@ void CredentialManager::loadFromSettings(QSettings& settings)
 		cred.domain = QtUtils::toStdString(settings.value("domain").toString());
 		cred.username = QtUtils::toStdString(settings.value("username").toString());
 		cred.encrypted_password = QtUtils::toStdString(settings.value("encrypted_password").toString());
+		cred.encrypted_mcp_api_key = QtUtils::toStdString(settings.value("encrypted_mcp_api_key").toString());
 
 		credentials[cred.domain] = cred;
 	}
@@ -66,6 +67,7 @@ void CredentialManager::saveToSettings(QSettings& settings)
 		settings.setValue("domain", QtUtils::toQString(cred.domain));
 		settings.setValue("username", QtUtils::toQString(cred.username));
 		settings.setValue("encrypted_password", QtUtils::toQString(cred.encrypted_password));
+		settings.setValue("encrypted_mcp_api_key", QtUtils::toQString(cred.encrypted_mcp_api_key));
 
 		i++;
 	}
@@ -96,12 +98,30 @@ std::string CredentialManager::getDecryptedPasswordForDomain(const std::string& 
 
 void CredentialManager::setDomainCredentials(const std::string& domain, const std::string& username, const std::string& plaintext_password)
 {
-	DomainCredentials cred;
+	// Update fields in-place, to preserve any other credentials stored for this domain (such as the MCP API key).
+	DomainCredentials& cred = credentials[domain];
 	cred.domain = domain;
 	cred.username = username;
 	cred.encrypted_password = encryptPassword(plaintext_password);
+}
 
-	credentials[cred.domain] = cred;
+
+std::string CredentialManager::getDecryptedMCPAPIKeyForDomain(const std::string& domain)
+{
+	auto res = credentials.find(domain);
+	if(res != credentials.end())
+		return decryptPassword(res->second.encrypted_mcp_api_key);
+	else
+		return std::string();
+}
+
+
+void CredentialManager::setDomainMCPAPIKey(const std::string& domain, const std::string& plaintext_api_key)
+{
+	// Update fields in-place, to preserve any other credentials stored for this domain (username and password).
+	DomainCredentials& cred = credentials[domain];
+	cred.domain = domain;
+	cred.encrypted_mcp_api_key = plaintext_api_key.empty() ? std::string() : encryptPassword(plaintext_api_key);
 }
 
 

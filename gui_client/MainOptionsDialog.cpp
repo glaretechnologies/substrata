@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "../qt/QtUtils.h"
 #include "../qt/SignalBlocker.h"
+#include "CredentialManager.h"
 #include "GUIClient.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QApplication>
@@ -151,14 +152,16 @@ static std::vector<std::string> getAudioInputDeviceNames()
 }
 
 
-MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_important_obs_default)
-:	settings(settings_)
+MainOptionsDialog::MainOptionsDialog(QSettings* settings_, CredentialManager& credential_manager_, const std::string& server_hostname_, bool only_load_most_important_obs_default)
+:	settings(settings_), credential_manager(credential_manager_), server_hostname(server_hostname_)
 {
 	setupUi(this);
 
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
 
 	connect(this->useCustomCacheDirCheckBox, SIGNAL(toggled(bool)), this, SLOT(customCacheDirCheckBoxChanged(bool)));
+
+	connect(this->enableMCPCheckBox, SIGNAL(toggled(bool)), this, SLOT(MCPCheckBoxChanged(bool)));
 
 	this->customCacheDirFileSelectWidget->setSettingsKey("options/lastCacheDirFileSelectDir");
 	this->customCacheDirFileSelectWidget->setType(FileSelectWidget::Type_Directory);
@@ -197,6 +200,24 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_i
 
 	inputVolumeScaleHorizontalSlider->setValue(						settings->value(inputScaleFactorNameKey(), 100).toInt());
 
+	const bool MCP_enabled = settings->value(MCPEnabledKey(), /*default val=*/false).toBool();
+	SignalBlocker::setChecked(this->enableMCPCheckBox,				MCP_enabled);
+	SignalBlocker::setValue(this->MCPPortSpinBox,					settings->value(MCPPortKey(), /*default val=*/defaultMCPPort()).toInt());
+
+	// The API key is a per-server credential, so the field edits the key for the currently-connected server.
+	if(server_hostname.empty())
+	{
+		this->MCPAPIKeyLineEdit->setEnabled(false);
+		this->MCPAPIKeyLineEdit->setPlaceholderText("Connect to a server to set its API key");
+	}
+	else
+	{
+		this->MCPAPIKeyLabel->setText(QtUtils::toQString("API key for " + server_hostname));
+		this->MCPAPIKeyLineEdit->setText(QtUtils::toQString(credential_manager.getDecryptedMCPAPIKeyForDomain(server_hostname)));
+	}
+
+	this->MCPSettingsContainer->setEnabled(MCP_enabled);
+
 #ifdef OSX
 	// Force SSAO to false for now on Mac, as when it's enabled, the number of texture units exceeds the max (16) for the terrain shader.
 	this->SSAOCheckBox->hide();
@@ -227,12 +248,27 @@ void MainOptionsDialog::accepted()
 
 	settings->setValue(inputDeviceNameKey(),						this->inputDeviceComboBox->currentText());
 	settings->setValue(inputScaleFactorNameKey(),					this->inputVolumeScaleHorizontalSlider->value());
+
+	settings->setValue(MCPEnabledKey(),								this->enableMCPCheckBox->isChecked());
+	settings->setValue(MCPPortKey(),								this->MCPPortSpinBox->value());
+
+	if(!server_hostname.empty())
+	{
+		credential_manager.setDomainMCPAPIKey(server_hostname, QtUtils::toStdString(this->MCPAPIKeyLineEdit->text()));
+		credential_manager.saveToSettings(*settings);
+	}
 }
 
 
 void MainOptionsDialog::customCacheDirCheckBoxChanged(bool checked)
 {
 	this->customCacheDirFileSelectWidget->setEnabled(checked);
+}
+
+
+void MainOptionsDialog::MCPCheckBoxChanged(bool checked)
+{
+	this->MCPSettingsContainer->setEnabled(checked);
 }
 
 

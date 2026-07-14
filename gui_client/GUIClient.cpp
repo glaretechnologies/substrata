@@ -3991,6 +3991,19 @@ bool GUIClient::connectedToUsersWorldOrGodUser()
 }
 
 
+bool GUIClient::isSceneFullyLoaded()
+{
+	// Number of outstanding model/texture load or build tasks.  Same expression used by the screenshot code in MainWindow.
+	const size_t num_model_and_tex_tasks = load_item_queue.size() + model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
+
+	return
+		(num_model_and_tex_tasks == 0) &&
+		(num_non_net_resources_downloading == 0) &&
+		(num_net_resources_downloading == 0) &&
+		(terrain_system.nonNull() && terrain_system->isTerrainFullyBuilt());
+}
+
+
 // Similar to objectModificationAllowed() above, but also shows error notifications if modification is not allowed
 bool GUIClient::objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action)
 {
@@ -8862,6 +8875,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			this->server_has_basisu_terrain_detail_maps = BitUtils::isBitSet(this->server_capabilities, Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT);
 			this->server_has_optimised_meshes           = BitUtils::isBitSet(this->server_capabilities, Protocol::OPTIMISED_MESH_SUPPORT);
 
+			ui_interface->clientConnectedToServer();
+
 			// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
 			if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
 			{
@@ -12811,6 +12826,8 @@ void GUIClient::visitSubURL(const std::string& URL, bool push_prev_URL_on_nav_st
 
 void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObjectRefs held by GUIClient.
 {
+	ui_interface->clientDisconnectingFromServer();
+
 	udp_socket = NULL;
 
 	load_item_queue.clear();
