@@ -13,7 +13,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <webserver/Escaping.h>
 #include <networking/HTTPClient.h>
 #include <networking/IPAddress.h>
-#include <graphics/JPEGDecoder.h>
+#include <graphics/jpegdecoder.h>
 #include <maths/vec3.h>
 #include <utils/JSONParser.h>
 #include <utils/Base64.h>
