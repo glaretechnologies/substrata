@@ -24,6 +24,9 @@ public:
 	// Returns true if event allowed
 	bool checkAddEvent(double cur_time);
 
+	// Returns true if the number of events in the last 'period' seconds has reached max_num_in_period.  Does not add an event.
+	bool isAtLimit(double cur_time);
+
 	static void test();
 
 private:

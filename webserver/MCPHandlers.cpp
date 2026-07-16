@@ -103,9 +103,42 @@ static void writeHTTP429Response(web::ReplyInfo& reply_info, const std::string& 
 }
 
 
-// Rate-limiting parameters for the MCP endpoint, applied per API-key owner (see handleMCPRequest).
+// Rate-limiting parameters for the MCP endpoint, applied per authenticated user (see handleMCPRequest).
 static const double MCP_RATE_LIMIT_PERIOD_S        = 60.0; // Sliding-window length, in seconds.
 static const size_t MCP_RATE_LIMIT_MAX_IN_PERIOD   = 120;  // Max requests allowed per user within the window.
+
+// Rate-limiting parameters for failed authentication attempts on the MCP endpoint, applied per client IP address, so the
+// endpoint can't be used as a password or API-key guessing oracle (see handleMCPRequest).  A legitimate client should produce
+// almost no auth failures, so the budget is much smaller than the per-user request budget above.
+static const double MCP_FAILED_AUTH_RATE_LIMIT_PERIOD_S        = 60.0; // Sliding-window length, in seconds.
+static const size_t MCP_FAILED_AUTH_RATE_LIMIT_MAX_IN_PERIOD   = 10;   // Max failed auth attempts allowed per IP within the window.
+
+// Cap on the number of per-IP failed-auth rate limiters, to bound memory use when an attacker connects from many IPs.
+static const size_t MAX_NUM_FAILED_AUTH_RATE_LIMITERS          = 10000;
+
+
+// Record a failed authentication attempt from the given client IP, creating the rate limiter for the IP lazily.
+static void recordFailedAuthAttempt(ServerAllWorldsState& world_state, const std::string& client_ip, WorldStateLock& /*lock*/)
+{
+	if(!world_state.server_config.do_mcp_rate_limiting)
+		return;
+
+	RateLimiter* rate_limiter;
+	const auto res = world_state.mcp_failed_auth_rate_limiters.find(client_ip);
+	if(res == world_state.mcp_failed_auth_rate_limiters.end())
+	{
+		// Bound the number of per-IP rate limiters.  Clearing forgets recent failures, but bounds memory use.
+		if(world_state.mcp_failed_auth_rate_limiters.size() >= MAX_NUM_FAILED_AUTH_RATE_LIMITERS)
+			world_state.mcp_failed_auth_rate_limiters.clear();
+
+		rate_limiter = new RateLimiter(MCP_FAILED_AUTH_RATE_LIMIT_PERIOD_S, MCP_FAILED_AUTH_RATE_LIMIT_MAX_IN_PERIOD);
+		world_state.mcp_failed_auth_rate_limiters.insert(std::make_pair(client_ip, Reference<RateLimiter>(rate_limiter)));
+	}
+	else
+		rate_limiter = res->second.ptr();
+
+	rate_limiter->checkAddEvent(Clock::getCurTimeRealSec());
+}
 
 
 // Build the result object for a tools/call response (an MCP CallToolResult).
@@ -771,46 +804,117 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 	// Get API key from the Authorization header.  NOTE: HTTP header names are case-insensitive, and clients (e.g. any using
 	// HTTP/2) may send them lower-cased, so match case-insensitively.
 	std::string api_key;
+	std::string username, password;
 	for(size_t i=0; i<request.headers.size(); ++i)
 	{
 		if(StringUtils::equalCaseInsensitive(request.headers[i].key, "authorization"))
 		{
-			api_key = ::stripHeadAndTailWhitespace(toString(request.headers[i].value));
+			const std::string header_val_str = toString(request.headers[i].value);
 
-			// Strip the "Bearer " scheme prefix if present.  The scheme name is case-insensitive.
-			if(hasPrefix(::toLowerCase(api_key), "bearer"))
-				api_key = ::stripHeadAndTailWhitespace(api_key.substr(6));
+			if(hasPrefix(::toLowerCase(header_val_str), "substrata-login"))
+			{
+				try
+				{
+					const std::string username_and_password = ::stripHeadAndTailWhitespace(header_val_str.substr(std::strlen("Substrata-Login"))); // Get rest of value
+					const std::vector<std::string> components = ::split(username_and_password, '.');
+					if(components.size() != 2)
+						throw glare::Exception("Invalid Substrata-Login header.");
+
+					const std::vector<unsigned char> username_bytes = StringUtils::convertHexToBinary(components[0]);
+					username = std::string((const char*)username_bytes.data(), username_bytes.size());
+
+					const std::vector<unsigned char> password_bytes = StringUtils::convertHexToBinary(components[1]);
+					password = std::string((const char*)password_bytes.data(), password_bytes.size());
+				}
+				catch(glare::Exception&)
+				{
+					web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid Substrata-Login credentials.");
+					return;
+				}
+			}
+			else
+			{
+				api_key = ::stripHeadAndTailWhitespace(header_val_str);
+
+				// Strip the "Bearer " scheme prefix if present.  The scheme name is case-insensitive.
+				if(hasPrefix(::toLowerCase(api_key), "bearer"))
+					api_key = ::stripHeadAndTailWhitespace(api_key.substr(6));
+			}
+
+			break; // Once we have found an 'authorization' header, stop scanning subsequent headers.  We don't want to process more 'authorization' headers.
 		}
 	}
+
 	// Authentication failures are reported as HTTP 401 Unauthorized (rather than a JSON-RPC error), which is the
 	// conventional response for the HTTP transport and lets clients trigger their credential/auth flow.
-	if(api_key.empty())
+	if(api_key.empty() && (username.empty() || password.empty()))
 	{
-		web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Missing Authorization header.  Supply an API key as 'Authorization: Bearer <key>'.");
+		web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Missing Authorization header.  Supply an API key as 'Authorization: Bearer <key>' or use Substrata-Login");
 		return;
 	}
 
-	// Check API key exists, and lookup user from API key.
+	// Check API key exists, and lookup user from API key, or use username and password passed with Substrata-Login auth scheme.
+	const std::string client_ip = request.client_ip_address.toString();
 	UserID user_id;
 	std::string user_name;
 	{
 		WorldStateLock lock(world_state.mutex);
 
-		const std::string key_hash = APIKey::hashAPIKey(api_key);
-		const auto res = world_state.api_keys.find(key_hash);
-		if(res == world_state.api_keys.end())
+		// If this client IP has had too many recent failed authentication attempts, reject the request before doing any credential checking.
+		if(world_state.server_config.do_mcp_rate_limiting)
 		{
-			web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid API key.");
-			return;
+			const auto res = world_state.mcp_failed_auth_rate_limiters.find(client_ip);
+			if((res != world_state.mcp_failed_auth_rate_limiters.end()) && res->second->isAtLimit(Clock::getCurTimeRealSec()))
+			{
+				conPrint("MCP: failed-auth rate limit exceeded for IP " + client_ip);
+				writeHTTP429Response(reply_info, "Too many failed authentication attempts.  Try again later.", /*retry_after_s=*/(int)MCP_FAILED_AUTH_RATE_LIMIT_PERIOD_S);
+				return;
+			}
 		}
-		const APIKey* key = res->second.ptr();
 
-		user_id = key->user_id;
+		//---------------- Get User ID based on API key or username and password -------------------
+		if(!api_key.empty())
+		{
+			const std::string key_hash = APIKey::hashAPIKey(api_key);
+			const auto res = world_state.api_keys.find(key_hash);
+			if(res == world_state.api_keys.end())
+			{
+				recordFailedAuthAttempt(world_state, client_ip, lock);
+				web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid API key.");
+				return;
+			}
+			const APIKey* key = res->second.ptr();
+
+			user_id = key->user_id;
+		}
+		else // Else use username and password:
+		{
+			const auto user_res = world_state.name_to_users.find(username);
+			if(user_res == world_state.name_to_users.end())
+			{
+				recordFailedAuthAttempt(world_state, client_ip, lock);
+				web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid username or password");
+				return;
+			}
+			const User* user = user_res->second.ptr();
+
+			// Check password
+			if(!user->isPasswordValid(password))
+			{
+				recordFailedAuthAttempt(world_state, client_ip, lock);
+				web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid username or password");
+				return;
+			}
+
+			user_id = user->id;
+		}
+		//----------------------------------------------------------------------------------------------
 
 		// Lookup the user that owns the key.  If the user no longer exists (e.g. was deleted), treat the key as invalid.
 		auto user_res = world_state.user_id_to_users.find(user_id);
 		if(user_res == world_state.user_id_to_users.end())
 		{
+			recordFailedAuthAttempt(world_state, client_ip, lock);
 			web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid API key (owning user not found).");
 			return;
 		}
@@ -818,7 +922,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 		user_name = user->name;
 
-		// Rate-limit per API-key owner.  We hold the world state lock here already, which guards mcp_rate_limiters.
+		// Rate-limit per user.  We hold the world state lock here already, which guards mcp_rate_limiters.
 		if(world_state.server_config.do_mcp_rate_limiting)
 		{
 			auto rl_res = world_state.mcp_rate_limiters.find(user_id);

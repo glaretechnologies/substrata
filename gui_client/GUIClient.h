@@ -606,7 +606,7 @@ public:
 
 	AnimationManager animation_manager;
 
-	std::string server_hostname; // e.g. "substrata.info" or "localhost"
+	std::string server_hostname; // Hostname of the server the client is connected to.  e.g. "substrata.info" or "localhost"
 	std::string server_worldname; // e.g. "" or "ono-sendai"
 
 	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is. 

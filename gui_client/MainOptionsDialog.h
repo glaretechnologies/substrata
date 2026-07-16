@@ -10,7 +10,6 @@ Copyright Glare Technologies Limited 2021 -
 #include <QtCore/QString>
 #include <string>
 class QSettings;
-class CredentialManager;
 
 
 /*=====================================================================
@@ -22,9 +21,7 @@ class MainOptionsDialog : public QDialog, private Ui_MainOptionsDialog
 {
 	Q_OBJECT
 public:
-	// server_hostname is the hostname of the currently-connected server (empty string if not connected), used for
-	// editing the MCP API key for that server.
-	MainOptionsDialog(QSettings* settings_, CredentialManager& credential_manager_, const std::string& server_hostname_, bool only_load_most_important_obs_default);
+	MainOptionsDialog(QSettings* settings_, bool only_load_most_important_obs_default);
 
 	~MainOptionsDialog();
 
@@ -58,7 +55,6 @@ public:
 	static const QString darkModeKey() { return "setting/dark_mode"; }
 
 	// NOTE: these MCP keys are also read in MainWindow::startMCPClientServerIfEnabled().
-	// The MCP API key is stored per-server-domain in CredentialManager, not in a settings key.
 	static const QString MCPEnabledKey()	{ return "mcp_client/enabled"; }
 	static const QString MCPPortKey()		{ return "mcp_client/port"; }
 
@@ -79,6 +75,4 @@ private slots:;
 
 private:
 	QSettings* settings;
-	CredentialManager& credential_manager;
-	std::string server_hostname; // Hostname of the currently-connected server, or empty string if not connected.
 };

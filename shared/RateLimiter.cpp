@@ -36,6 +36,20 @@ bool RateLimiter::checkAddEvent(double cur_time)
 }
 
 
+bool RateLimiter::isAtLimit(double cur_time)
+{
+	// Remove any events that are now out of the period
+	const double start_time = cur_time - period;
+
+	while(events.nonEmpty() && (events.front().time < start_time))
+	{
+		events.pop_front();
+	}
+
+	return events.size() >= max_num_in_period;
+}
+
+
 #if BUILD_TESTS
 
 
@@ -68,6 +82,24 @@ void RateLimiter::test()
 
 		testAssert(r.checkAddEvent(1.0999) == false);
 		testAssert(r.checkAddEvent(1.1001) == true); // This should remove event at 0.1
+	}
+
+	{
+		RateLimiter r(/*period=*/1.0, /*max_num_in_period=*/2);
+
+		testAssert(r.isAtLimit(0.0) == false); // No events yet.
+
+		testAssert(r.checkAddEvent(0.0) == true);
+		testAssert(r.isAtLimit(0.1) == false); // 1 event in period, not at limit yet.
+
+		testAssert(r.checkAddEvent(0.2) == true);
+		testAssert(r.isAtLimit(0.3) == true); // 2 events in period, at limit.
+
+		testAssert(r.isAtLimit(0.3) == true); // isAtLimit should not add events, so still just 2 events.
+
+		testAssert(r.isAtLimit(1.1) == false); // Event at 0.0 is now out of the period.
+		testAssert(r.checkAddEvent(1.1) == true);
+		testAssert(r.isAtLimit(1.15) == true); // Events at 0.2 and 1.1 are in the period.
 	}
 
 	conPrint("RateLimiter::test() done");

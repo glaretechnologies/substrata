@@ -8,7 +8,6 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "../qt/QtUtils.h"
 #include "../qt/SignalBlocker.h"
-#include "CredentialManager.h"
 #include "GUIClient.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QApplication>
@@ -152,8 +151,8 @@ static std::vector<std::string> getAudioInputDeviceNames()
 }
 
 
-MainOptionsDialog::MainOptionsDialog(QSettings* settings_, CredentialManager& credential_manager_, const std::string& server_hostname_, bool only_load_most_important_obs_default)
-:	settings(settings_), credential_manager(credential_manager_), server_hostname(server_hostname_)
+MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_important_obs_default)
+:	settings(settings_)
 {
 	setupUi(this);
 
@@ -204,18 +203,6 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_, CredentialManager& cr
 	SignalBlocker::setChecked(this->enableMCPCheckBox,				MCP_enabled);
 	SignalBlocker::setValue(this->MCPPortSpinBox,					settings->value(MCPPortKey(), /*default val=*/defaultMCPPort()).toInt());
 
-	// The API key is a per-server credential, so the field edits the key for the currently-connected server.
-	if(server_hostname.empty())
-	{
-		this->MCPAPIKeyLineEdit->setEnabled(false);
-		this->MCPAPIKeyLineEdit->setPlaceholderText("Connect to a server to set its API key");
-	}
-	else
-	{
-		this->MCPAPIKeyLabel->setText(QtUtils::toQString("API key for " + server_hostname));
-		this->MCPAPIKeyLineEdit->setText(QtUtils::toQString(credential_manager.getDecryptedMCPAPIKeyForDomain(server_hostname)));
-	}
-
 	this->MCPSettingsContainer->setEnabled(MCP_enabled);
 
 #ifdef OSX
@@ -251,12 +238,6 @@ void MainOptionsDialog::accepted()
 
 	settings->setValue(MCPEnabledKey(),								this->enableMCPCheckBox->isChecked());
 	settings->setValue(MCPPortKey(),								this->MCPPortSpinBox->value());
-
-	if(!server_hostname.empty())
-	{
-		credential_manager.setDomainMCPAPIKey(server_hostname, QtUtils::toStdString(this->MCPAPIKeyLineEdit->text()));
-		credential_manager.saveToSettings(*settings);
-	}
 }
 
 

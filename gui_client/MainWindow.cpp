@@ -3467,19 +3467,18 @@ void MainWindow::startMCPClientServerIfEnabled()
 
 	const int port                = settings->value(MainOptionsDialog::MCPPortKey(), /*default=*/MainOptionsDialog::defaultMCPPort()).toInt();
 
-	// The API key is a per-server credential.  Since this function is called each time we connect to a server, the key
-	// used always corresponds to the connected server.
-	const std::string api_key     = credential_manager.getDecryptedMCPAPIKeyForDomain(gui_client.server_hostname);
+	const std::string username = credential_manager.getUsernameForDomain         (gui_client.server_hostname);
+	const std::string password = credential_manager.getDecryptedPasswordForDomain(gui_client.server_hostname);
 
-	if(api_key.empty())
+	if(username.empty() || password.empty())
 	{
-		showErrorNotification("MCP server is enabled but no API key is configured for server '" + gui_client.server_hostname + "'; not starting the local MCP endpoint.  Set the API key in the Options dialog.");
+		showErrorNotification("MCP server is enabled but there is no saved login for server '" + gui_client.server_hostname + "'; not starting the local MCP endpoint.  Log in with 'remember me' enabled first.");
 		return;
 	}
 
 	try
 	{
-		Reference<MCPClientSharedRequestHandler> shared_handler = new MCPClientSharedRequestHandler(this, api_key);
+		Reference<MCPClientSharedRequestHandler> shared_handler = new MCPClientSharedRequestHandler(this, username, password);
 		mcp_web_thread_manager.addThread(new web::WebListenerThread(port, shared_handler.getPointer(), /*tls_configuration=*/NULL));
 
 		conPrint("Started local MCP endpoint on port " + toString(port) + ", forwarding non-render calls to the connected server.");
@@ -3572,9 +3571,8 @@ void MainWindow::on_actionOptions_triggered()
 
 	const bool prev_mcp_enabled          = settings->value(MainOptionsDialog::MCPEnabledKey(), /*default val=*/false).toBool();
 	const int prev_mcp_port              = settings->value(MainOptionsDialog::MCPPortKey(), /*default val=*/MainOptionsDialog::defaultMCPPort()).toInt();
-	const std::string prev_mcp_api_key   = credential_manager.getDecryptedMCPAPIKeyForDomain(gui_client.server_hostname);
 
-	MainOptionsDialog d(this->settings, credential_manager, gui_client.server_hostname, gui_client.onlyLoadMostImportantObjectsDefaultValue());
+	MainOptionsDialog d(this->settings, gui_client.onlyLoadMostImportantObjectsDefaultValue());
 	const int code = d.exec();
 	if(code == QDialog::Accepted)
 	{
@@ -3595,8 +3593,7 @@ void MainWindow::on_actionOptions_triggered()
 		// Restart the local MCP endpoint if any MCP settings changed.
 		const bool mcp_settings_changed =
 			(settings->value(MainOptionsDialog::MCPEnabledKey(), /*default val=*/false).toBool() != prev_mcp_enabled) ||
-			(settings->value(MainOptionsDialog::MCPPortKey(), /*default val=*/MainOptionsDialog::defaultMCPPort()).toInt() != prev_mcp_port) ||
-			(credential_manager.getDecryptedMCPAPIKeyForDomain(gui_client.server_hostname) != prev_mcp_api_key);
+			(settings->value(MainOptionsDialog::MCPPortKey(), /*default val=*/MainOptionsDialog::defaultMCPPort()).toInt() != prev_mcp_port);
 		if(mcp_settings_changed)
 		{
 			stopMCPClientServer();

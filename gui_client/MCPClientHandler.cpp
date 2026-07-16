@@ -40,12 +40,16 @@ static const char* RENDER_VIEW_TOOL_JSON =
 	"}";
 
 
-MCPClientRequestHandler::MCPClientRequestHandler(MainWindow* main_window_, const std::string& api_key_)
-:	main_window(main_window_), api_key(api_key_)
+MCPClientRequestHandler::MCPClientRequestHandler(MainWindow* main_window_, const std::string& username, const std::string& password)
+:	main_window(main_window_)
 {
 	http_client = new HTTPClient();
 	http_client->setKeepAlive(true); // Reuse the TCP (and TLS) connection to the server across forwarded calls.
-	http_client->additional_headers.push_back("Authorization: Bearer " + api_key_);
+
+	http_client->additional_headers.push_back("Authorization: Substrata-Login " + 
+		StringUtils::convertByteArrayToHexString((const unsigned char*)username.data(), username.size()) + "." + 
+		StringUtils::convertByteArrayToHexString((const unsigned char*)password.data(), password.size())
+	);
 }
 
 
