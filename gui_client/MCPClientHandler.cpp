@@ -115,11 +115,10 @@ static const std::string spliceRenderViewIntoToolsList(const std::string& respon
 std::string MCPClientRequestHandler::forwardToServer(const std::string& request_body)
 {
 	// Forward to the /mcp endpoint of the server the client is currently connected to.
-	// Use https for remote servers: the server webserver 301-redirects non-localhost http requests to https, and HTTPClient doesn't follow redirects for POST requests.
 	const std::string hostname = main_window->gui_client.server_hostname;
 	if(hostname.empty())
 		throw glare::Exception("Not connected to a server.");
-	const std::string server_mcp_url = ((hostname == "localhost") ? "http://" : "https://") + hostname + "/mcp";
+	const std::string server_mcp_url = "https://" + hostname + "/mcp";
 
 	// sendPost() connects on first use, reuses the connection on subsequent calls (keep-alive), and reconnects if the
 	// hostname has changed since the last call (e.g. the user teleported to a different server).
