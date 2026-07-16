@@ -25,6 +25,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <TimeStamp.h>
 #include <BitUtils.h>
 #include <Clock.h>
+#include <Parser.h>
 #include <cmath>
 
 
@@ -809,14 +810,19 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 	{
 		if(StringUtils::equalCaseInsensitive(request.headers[i].key, "authorization"))
 		{
-			const std::string header_val_str = toString(request.headers[i].value);
-
-			if(hasPrefix(::toLowerCase(header_val_str), "substrata-login"))
+			try
 			{
-				try
+				Parser parser(request.headers[i].value.data(), request.headers[i].value.size());
+				string_view auth_type, auth_val;
+				if(!parser.parseNonWSToken(auth_type))
+					throw glare::Exception("Invalid authorization header.");
+				parser.parseWhiteSpace();
+				if(!parser.parseNonWSToken(auth_val))
+					throw glare::Exception("Invalid authorization header.");
+
+				if(StringUtils::equalCaseInsensitive(auth_type, "substrata-login"))
 				{
-					const std::string username_and_password = ::stripHeadAndTailWhitespace(header_val_str.substr(std::strlen("Substrata-Login"))); // Get rest of value
-					const std::vector<std::string> components = ::split(username_and_password, '.');
+					const std::vector<std::string> components = ::split(toString(auth_val), '.');
 					if(components.size() != 2)
 						throw glare::Exception("Invalid Substrata-Login header.");
 
@@ -826,19 +832,17 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 					const std::vector<unsigned char> password_bytes = StringUtils::convertHexToBinary(components[1]);
 					password = std::string((const char*)password_bytes.data(), password_bytes.size());
 				}
-				catch(glare::Exception&)
+				else if(StringUtils::equalCaseInsensitive(auth_type, "bearer"))
 				{
-					web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid Substrata-Login credentials.");
-					return;
+					api_key = toString(auth_val);
 				}
+				else
+					throw glare::Exception("Unsupported authorization type");
 			}
-			else
+			catch(glare::Exception&)
 			{
-				api_key = ::stripHeadAndTailWhitespace(header_val_str);
-
-				// Strip the "Bearer " scheme prefix if present.  The scheme name is case-insensitive.
-				if(hasPrefix(::toLowerCase(api_key), "bearer"))
-					api_key = ::stripHeadAndTailWhitespace(api_key.substr(6));
+				web::ResponseUtils::writeHTTPUnauthorizedHeaderAndData(reply_info, "Invalid authorization header.");
+				return;
 			}
 
 			break; // Once we have found an 'authorization' header, stop scanning subsequent headers.  We don't want to process more 'authorization' headers.
