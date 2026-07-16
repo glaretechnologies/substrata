@@ -33,4 +33,9 @@
 		<fragment_path>about_chatbots.htmlfrag</fragment_path>
 		<page_title>Chatbots</page_title>
 	</page>
+	<page>
+		<url_path>/about_MCP</url_path>
+		<fragment_path>about_mcp.htmlfrag</fragment_path>
+		<page_title>MCP support</page_title>
+	</page>
 </pages>

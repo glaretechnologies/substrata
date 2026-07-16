@@ -1,0 +1,146 @@
+
+<p>
+Substrata has support for <a href="https://modelcontextprotocol.io/">MCP</a> (Model Context Protocol), which allows AI agents such as Claude Code and Claude Desktop to inspect and build in Substrata worlds.
+</p>
+<p>
+An agent connected over MCP can list worlds and the objects and avatars in them, create objects (including simple primitives like cubes, cylinders and spheres with materials), edit object transforms, delete objects,
+and render images of the world to see what it has built.
+</p>
+
+<h2>Quickstart</h2>
+<p>
+Open up the Substrata native client, version 1.8.0 or newer.
+</p>
+<p>
+Open the options dialog (<b>Tools &gt; Options</b>).  In the <b>MCP server</b> section near the bottom of the Options dialog, check <b>Enable local MCP server</b>, and click OK.
+</p>
+<p>
+While keeping your Substrata native client open, run Claude Code, or ChatGPT Codex, or Grok Build, and tell it something like the following:
+</p>
+<pre class="code-block">Hi, build a Roman temple in Substrata, using the local
+MCP server at localhost:8095, in the substrata world
+"YOUR_SUBSTRATA_USERNAME", around coordinates x=100 and y=100</pre>
+<p>
+Replace YOUR_SUBSTRATA_USERNAME with your Substrata username - this tells the bot to build in your personal world, instead of the main world.
+</p>
+
+<h2>The two MCP endpoints</h2>
+<p>
+There are two ways to connect an agent to Substrata:
+</p>
+<p>
+<b>The server MCP endpoint</b>: Substrata servers with MCP support enabled serve an MCP endpoint at <span class="code">/mcp</span>, e.g. <span class="code">https://substrata.info/mcp</span>.
+This uses the MCP streamable HTTP transport: the client sends JSON-RPC 2.0 requests over HTTP POST.  Requests must be authenticated - see below.
+</p>
+<p>
+<b>The local client MCP endpoint</b>: The native Substrata client (gui_client) can serve an MCP endpoint on your own machine, at <span class="code">http://localhost:8095/mcp</span> by default.
+This endpoint provides an additional <span class="code">render_view</span> tool, which renders an image of the currently-connected world from a given camera position, so the agent can actually see what it is building.
+All other requests are forwarded to the <span class="code">/mcp</span> endpoint of the server the client is connected to, authenticated with your saved login credentials, so no API key setup is needed.
+</p>
+<p>
+To enable the local endpoint, check <b>Enable local MCP server</b> in the options dialog, as described in the quickstart above.  The port can also be changed there (default 8095).
+For security, the local endpoint only accepts connections from the same machine (loopback/localhost connections).
+</p>
+
+<h2>Authentication</h2>
+<p>
+Requests to the server <span class="code">/mcp</span> endpoint must be authenticated, so that world edits are made as your user, with your permissions.
+</p>
+<p>
+The recommended method is an <b>API key</b>, passed with an <span class="code">Authorization: Bearer</span> header:
+</p>
+<pre class="code-block">Authorization: Bearer YOUR_API_KEY</pre>
+<p>
+To create an API key, log in to the Substrata website, go to your <a href="/account">account page</a>, and follow the <a href="/api_keys">Manage API keys</a> link.
+The key is shown once, when it is created - copy it then.  You can delete keys from the same page at any time, for example if a key has been leaked, which will immediately stop the key from working.
+</p>
+<p>
+API keys are the recommended method for connecting third-party MCP clients, since a key can be revoked without changing your password, and your password stays out of client configuration files.
+(There is also a username/password authentication scheme, <span class="code">Substrata-Login</span>, which is used internally by the Substrata client for the local endpoint.)
+</p>
+<p>
+The local client endpoint (<span class="code">localhost:8095</span>) does not require an Authorization header, since it only accepts connections from your own machine, and forwards requests using your saved login credentials.
+</p>
+
+<h2>Connecting MCP clients</h2>
+<p>
+Agents that can run shell commands (such as Claude Code) don't strictly need any MCP configuration: as in the quickstart above, you can just tell the agent the endpoint URL in your prompt,
+and it will make HTTP requests to the endpoint itself, e.g. with curl.
+</p>
+<p>
+Registering the endpoint with your MCP client is still worthwhile for regular use: the Substrata tools then appear as first-class tools that the agent discovers automatically,
+and images from the <span class="code">render_view</span> tool are returned to the agent as actual images, rather than as base64 text it has to decode first.
+For MCP clients that can't run shell commands (e.g. Claude Desktop), registering the endpoint is the only option.
+</p>
+<p>
+To connect Claude Code to the local client endpoint (recommended, since it includes the <span class="code">render_view</span> tool):
+</p>
+<pre class="code-block">claude mcp add --transport http substrata http://localhost:8095/mcp</pre>
+<p>
+To connect Claude Code directly to a Substrata server, using an API key:
+</p>
+<pre class="code-block">claude mcp add --transport http substrata https://substrata.info/mcp --header "Authorization: Bearer YOUR_API_KEY"</pre>
+<p>
+Other MCP clients (e.g. Claude Desktop) can be connected in a similar way: use the streamable HTTP transport with the endpoint URL, plus the Authorization header when connecting directly to a server.
+</p>
+<p>
+You can test an endpoint with curl:
+</p>
+<pre class="code-block">curl https://substrata.info/mcp -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</pre>
+
+<h2>Available tools</h2>
+
+<h3>Inspecting worlds</h3>
+<p>
+<b>list_worlds</b>: List all worlds on the server, with object, avatar and parcel counts.  (The main world has the empty-string name.)
+</p>
+<p>
+<b>get_world_info</b>: Get information about a single world.
+</p>
+<p>
+<b>list_avatars</b>: List the avatars (users) currently present in a world, with their positions.
+</p>
+<p>
+<b>list_objects_near</b>: List world objects within a given radius of a point.
+</p>
+<p>
+<b>get_object</b>: Get the details of a single object by its UID.
+</p>
+
+<h3>Building</h3>
+<p>
+<b>create_cube</b>, <b>create_cylinder</b>, <b>create_sphere</b>: Create simple primitive objects, with optional materials (colour, roughness, metallic fraction, opacity, emission, and colour texture).
+These are useful for blocking out structures like walls, floors and columns.
+</p>
+<p>
+<b>create_object</b>: Create an object with an arbitrary existing model resource on the server, or special object types like hypercards and text objects.
+</p>
+<p>
+<b>edit_object</b>: Change the position, scale or rotation of an existing object.
+</p>
+<p>
+<b>delete_object</b>: Delete an object.
+</p>
+
+<h3>Seeing the world (local client endpoint only)</h3>
+<p>
+<b>render_view</b>: Render an image of the currently-connected world from a given camera position and orientation, and return it to the agent as an image.
+Rendering moves the streaming camera and waits for the world to finish loading around it, so this can take a few seconds.
+</p>
+
+<h2>Permissions and limits</h2>
+<p>
+Tools that modify a world act as the user that owns the API key (or the logged-in user, for the local client endpoint), and are subject to the normal Substrata object and parcel permissions:
+in the main world you can only build in parcels you own or have write permission for, and you can only edit or delete objects you are allowed to modify.
+</p>
+<p>
+There are also some MCP-specific limits, to stop a misbehaving agent from filling up a world: a maximum number of MCP-created objects per parcel, and per (non-main) world.
+Requests are rate-limited per user.
+</p>
+
+<h2>Running your own server</h2>
+<p>
+If you are <a href="/running_your_own_server">running your own Substrata server</a>, the MCP endpoint is enabled by default, and can be disabled with the <span class="code">enable_mcp_server</span> setting in the server config file.
+</p>
+
+<a href="/">&lt; Home</a>
