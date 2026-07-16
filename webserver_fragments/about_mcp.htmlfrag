@@ -1,6 +1,6 @@
 
 <p>
-Substrata has support for <a href="https://modelcontextprotocol.io/">MCP</a> (Model Context Protocol), which allows AI agents such as Claude Code and Claude Desktop to inspect and build in Substrata worlds.
+Substrata has support for <a href="https://modelcontextprotocol.io/">MCP</a> (Model Context Protocol), which allows AI agents such as Claude Code, ChatGPT Codex, and Grok Build to inspect and build in Substrata worlds.
 </p>
 <p>
 An agent connected over MCP can list worlds and the objects and avatars in them, create objects (including simple primitives like cubes, cylinders and spheres with materials), edit object transforms, delete objects,
@@ -9,11 +9,12 @@ and render images of the world to see what it has built.
 
 <h2>Quickstart</h2>
 <p>
-Open up the Substrata native client, version 1.8.0 or newer.
+Open up the Substrata native client, version 1.8.0 or newer.  Make sure you have created a Substrata account and are logged in in the client.
 </p>
 <p>
 Open the options dialog (<b>Tools &gt; Options</b>).  In the <b>MCP server</b> section near the bottom of the Options dialog, check <b>Enable local MCP server</b>, and click OK.
 </p>
+Go to your personal world in Substrata with the menu command <b>Go &gt; Go to Personal World</b>.
 <p>
 While keeping your Substrata native client open, run Claude Code, or ChatGPT Codex, or Grok Build, and tell it something like the following:
 </p>
@@ -23,6 +24,7 @@ MCP server at localhost:8095, in the substrata world
 <p>
 Replace YOUR_SUBSTRATA_USERNAME with your Substrata username - this tells the bot to build in your personal world, instead of the main world.
 </p>
+
 
 <h2>The two MCP endpoints</h2>
 <p>
