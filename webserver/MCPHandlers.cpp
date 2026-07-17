@@ -357,7 +357,7 @@ static void checkObjectCountLimits(const WorldObject& ob, const std::string& wor
 static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, const std::string& world_name, WorldObjectRef ob,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
-	// TODO: need to set object-space AABB
+	checkTransformOK(ob.ptr()); // Throw glare::Exception on invalid transform.
 
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode; cannot create objects.");
