@@ -482,6 +482,8 @@ static ScalarVal parseScalarValFromJSON(const JSONParser& parser, const JSONNode
 		ScalarVal scalar_val;
 		scalar_val.val = (float)node.getChildDoubleValueWithDefaultVal(parser, "val", 0.0);
 		scalar_val.texture_url = toURLString(node.getChildStringValueWithDefaultVal(parser, "texture_url", ""));
+		if(scalar_val.texture_url.size() > WorldObject::MAX_URL_SIZE)
+			throw glare::Exception("texture_url too long.");
 		return scalar_val;
 	}
 	else
@@ -497,11 +499,17 @@ Reference<WorldMaterial> WorldMaterial::fromJSON(const JSONParser& parser, const
 
 	mat->colour_rgb           = parseColour3fFromJSON(parser, node, "colour_rgb", Colour3f(0.85f));
 	mat->colour_texture_url   = toURLString(node.getChildStringValueWithDefaultVal(parser, "colour_texture_url", ""));
+	if(mat->colour_texture_url.size() > WorldObject::MAX_URL_SIZE)
+		throw glare::Exception("colour_texture_url too long.");
 
 	mat->emission_rgb         = parseColour3fFromJSON(parser, node, "emission_rgb", Colour3f(0.f));
 	mat->emission_texture_url = toURLString(node.getChildStringValueWithDefaultVal(parser, "emission_texture_url", ""));
+	if(mat->emission_texture_url.size() > WorldObject::MAX_URL_SIZE)
+		throw glare::Exception("emission_texture_url too long.");
 
 	mat->normal_map_url       = toURLString(node.getChildStringValueWithDefaultVal(parser, "normal_map_url", ""));
+	if(mat->normal_map_url.size() > WorldObject::MAX_URL_SIZE)
+		throw glare::Exception("normal_map_url too long.");
 
 	mat->roughness         = parseScalarValFromJSON(parser, node, "roughness",         ScalarVal(0.5f));
 	mat->metallic_fraction = parseScalarValFromJSON(parser, node, "metallic_fraction", ScalarVal(0.0f));

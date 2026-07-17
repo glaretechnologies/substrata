@@ -392,6 +392,9 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	const URLString model_URL = toURLString(args.getChildStringValueWithDefaultVal(parser, "model_url", /*default=*/""));
+	if(model_URL.size() > WorldObject::MAX_URL_SIZE)
+		throw glare::Exception("model_url too long.");
+
 	// We need to load the mesh to get the object-space AABB.
 	// Try and load mesh, get AABB from it.
 	js::AABBox aabb_os = js::AABBox::emptyAABBox();
@@ -432,6 +435,8 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	ob->object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal(parser, "object_type", /*default=*/"generic"));
 	ob->model_url = model_URL;
 	ob->content = args.getChildStringValueWithDefaultVal(parser, "content", /*default=*/"");
+	if(ob->content.size() > WorldObject::MAX_CONTENT_SIZE)
+		throw glare::Exception("content too long.");
 	ob->pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
 	ob->axis = Vec3f(
 		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_x", 0.0),

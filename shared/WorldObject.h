@@ -317,12 +317,12 @@ public:
 	static const size_t MAX_CONTENT_SIZE                  = 10000;
 	
 
-	URLString model_url;
+	URLString model_url;           // Max length MAX_URL_SIZE
 	std::vector<WorldMaterialRef> materials;
-	URLString lightmap_url;
-	std::string script;
-	std::string content; // For ObjectType_Hypercard, ObjectType_Text
-	std::string target_url;
+	URLString lightmap_url;       // Max length MAX_URL_SIZE
+	std::string script;           // Max length MAX_SCRIPT_SIZE
+	std::string content;          // For ObjectType_Hypercard, ObjectType_Text.  Max length MAX_CONTENT_SIZE
+	std::string target_url;       // Max length MAX_URL_SIZE
 	Vec3d pos;
 	Vec3f axis;
 	float angle;
@@ -400,7 +400,7 @@ public:
 #if GUI_CLIENT
 	Reference<glare::AudioSource> audio_source;
 #endif
-	URLString audio_source_url;
+	URLString audio_source_url;      // Max length MAX_URL_SIZE
 	float audio_volume;
 
 	enum State
