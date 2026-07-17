@@ -433,8 +433,11 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	ob->model_url = model_URL;
 	ob->content = args.getChildStringValueWithDefaultVal(parser, "content", /*default=*/"");
 	ob->pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
-	ob->axis = Vec3f(0, 0, 1);
-	ob->angle = 0;
+	ob->axis = Vec3f(
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_x", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_y", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_z", 1.0));
+	ob->angle = (float)args.getChildDoubleValueWithDefaultVal(parser, "angle", 0.0);
 	ob->scale = Vec3f((float)args.getChildDoubleValueWithDefaultVal(parser, "scale_x", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_y", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_z", 1.0));
 	ob->setAABBOS(aabb_os);
 
@@ -686,7 +689,11 @@ static const char* TOOLS_LIST_JSON = R"TOOLS([
 				"content": { "type": "string", "description": "Text content, for Hypercard/Text objects (optional)." },
 				"scale_x": { "type": "number", "description": "Default 1." },
 				"scale_y": { "type": "number", "description": "Default 1." },
-				"scale_z": { "type": "number", "description": "Default 1." }
+				"scale_z": { "type": "number", "description": "Default 1." },
+				"axis_x": { "type": "number" },
+				"axis_y": { "type": "number" },
+				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." }
 			},
 			"required": ["x", "y", "z"]
 		}
