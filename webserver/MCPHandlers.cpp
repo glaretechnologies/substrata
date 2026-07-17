@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "../shared/WorldStateLock.h"
 #include "../shared/LODChunk.h"
 #include "../shared/RateLimiter.h"
+#include "../shared/LODGeneration.h"
 #include <JSONParser.h>
 #include <ConPrint.h>
 #include <Exception.h>
@@ -390,15 +391,52 @@ static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, c
 static const std::string tool_createObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
+	const URLString model_URL = toURLString(args.getChildStringValueWithDefaultVal(parser, "model_url", /*default=*/""));
+	// We need to load the mesh to get the object-space AABB.
+	// Try and load mesh, get AABB from it.
+	js::AABBox aabb_os = js::AABBox::emptyAABBox();
+	try
+	{
+		// Look up our AABB cache first:
+		{
+			WorldStateLock lock(all_worlds.mutex);
+
+			auto res = all_worlds.mesh_URL_to_aabb_os.find(model_URL);
+			if(res != all_worlds.mesh_URL_to_aabb_os.end())
+				aabb_os = res->second;
+		}
+
+		if(aabb_os == js::AABBox::emptyAABBox()) // If it wasn't in cache:
+		{
+			const std::string model_abs_path = all_worlds.resource_manager->pathForURLForPresentResource(model_URL);
+
+			BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_abs_path);
+					
+			aabb_os = batched_mesh->aabb_os;
+
+			// Insert into AABB cache:
+			{
+				WorldStateLock lock(all_worlds.mutex);
+				all_worlds.mesh_URL_to_aabb_os.insert(std::make_pair(model_URL, aabb_os));
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		throw glare::Exception("Failed to load model with URL '" + toStdString(model_URL) + "'.  It must be already uploaded to server and be valid: " + e.what());
+	}
+
+
 	WorldObjectRef ob = new WorldObject();
 	ob->flags |= WorldObject::CREATED_VIA_MCP;
 	ob->object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal(parser, "object_type", /*default=*/"generic"));
-	ob->model_url = toURLString(args.getChildStringValueWithDefaultVal(parser, "model_url", /*default=*/""));
+	ob->model_url = model_URL;
 	ob->content = args.getChildStringValueWithDefaultVal(parser, "content", /*default=*/"");
 	ob->pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
 	ob->axis = Vec3f(0, 0, 1);
 	ob->angle = 0;
 	ob->scale = Vec3f((float)args.getChildDoubleValueWithDefaultVal(parser, "scale_x", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_y", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_z", 1.0));
+	ob->setAABBOS(aabb_os);
 
 	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
@@ -411,9 +449,13 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 // Cylinder:   xy in [-0.25, 0.25], z in [-0.5, 0.5]  (radius 0.25, height 1, z-aligned)
 // Icosahedron:[-0.5, 0.5]^3           (used for spheres; radius 0.5)
 static const char* MCP_CUBE_MESH_URL     = "Cube_obj_12971581758459554602.bmesh";
-static const char* MCP_CYLINDER_MESH_URL = "Cylinder_obj_8542616007088785005.bmesh";
-static const char* MCP_SPHERE_MESH_URL   = "Icosahedron_obj_17649497764207890525.bmesh";
+static js::AABBox MCP_CUBE_AABB          = js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1.f), Vec4f(0.5f, 0.5f, 0.5f, 1.f));
 
+static const char* MCP_CYLINDER_MESH_URL = "Cylinder_obj_8542616007088785005.bmesh";
+static js::AABBox MCP_CYLINDER_AABB      = js::AABBox(Vec4f(-0.25f, -0.25f, -0.5f, 1.f), Vec4f(0.25f, 0.25f, 0.5f, 1.f));
+
+static const char* MCP_SPHERE_MESH_URL   = "Icosahedron_obj_17649497764207890525.bmesh";
+static js::AABBox MCP_SPHERE_AABB        = js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1.f), Vec4f(0.5f, 0.5f, 0.5f, 1.f));
 
 static const Vec3d readVec3(const JSONParser& parser, const JSONNode& v)
 {
@@ -442,7 +484,7 @@ static const Vec3d getPrimitiveCentre(const JSONParser& parser, const JSONNode& 
 
 
 // Builds a primitive object with the given mesh, centre and scale, reading axis/angle and an optional single material from args.
-static WorldObjectRef makePrimitiveObject(const char* mesh_url, const Vec3d& centre, const Vec3f& scale, const JSONParser& parser, const JSONNode& args)
+static WorldObjectRef makePrimitiveObject(const char* mesh_url, const js::AABBox& aabb_os, const Vec3d& centre, const Vec3f& scale, const JSONParser& parser, const JSONNode& args)
 {
 	WorldObjectRef ob = new WorldObject();
 	ob->flags |= WorldObject::CREATED_VIA_MCP;
@@ -455,6 +497,7 @@ static WorldObjectRef makePrimitiveObject(const char* mesh_url, const Vec3d& cen
 		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_y", 0.0),
 		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_z", 1.0));
 	ob->angle = (float)args.getChildDoubleValueWithDefaultVal(parser, "angle", 0.0);
+	ob->setAABBOS(aabb_os);
 
 	if(args.hasChild("material"))
 		ob->materials.push_back(WorldMaterial::fromJSON(parser, args.getChildObject(parser, "material")));
@@ -473,7 +516,7 @@ static const std::string tool_createCube(ServerAllWorldsState& all_worlds, const
 		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_y", 1.0),
 		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_z", 1.0));
 	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/scale.z * 0.5);
-	WorldObjectRef ob = makePrimitiveObject(MCP_CUBE_MESH_URL, centre, scale, parser, args);
+	WorldObjectRef ob = makePrimitiveObject(MCP_CUBE_MESH_URL, MCP_CUBE_AABB, centre, scale, parser, args);
 	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
@@ -485,7 +528,7 @@ static const std::string tool_createCylinder(ServerAllWorldsState& all_worlds, c
 	const double height = args.getChildDoubleValueWithDefaultVal(parser, "height", 1.0);
 	const Vec3f scale((float)(4.0 * radius), (float)(4.0 * radius), (float)height); // Cylinder mesh has radius 0.25 and height 1.
 	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/height * 0.5);
-	WorldObjectRef ob = makePrimitiveObject(MCP_CYLINDER_MESH_URL, centre, scale, parser, args);
+	WorldObjectRef ob = makePrimitiveObject(MCP_CYLINDER_MESH_URL, MCP_CYLINDER_AABB, centre, scale, parser, args);
 	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
@@ -496,7 +539,7 @@ static const std::string tool_createSphere(ServerAllWorldsState& all_worlds, con
 	const double radius = args.getChildDoubleValueWithDefaultVal(parser, "radius", 0.5);
 	const Vec3f scale((float)(2.0 * radius), (float)(2.0 * radius), (float)(2.0 * radius)); // Icosahedron mesh has radius 0.5.
 	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/radius);
-	WorldObjectRef ob = makePrimitiveObject(MCP_SPHERE_MESH_URL, centre, scale, parser, args);
+	WorldObjectRef ob = makePrimitiveObject(MCP_SPHERE_MESH_URL, MCP_SPHERE_AABB, centre, scale, parser, args);
 	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 

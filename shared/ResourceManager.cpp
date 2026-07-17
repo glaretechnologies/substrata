@@ -253,6 +253,22 @@ const std::string ResourceManager::pathForURL(const URLString& URL)
 }
 
 
+const std::string ResourceManager::pathForURLForPresentResource(const URLString& URL) const
+{
+	Lock lock(mutex);
+
+	auto res = resource_for_url.find(URL);
+	if(res == resource_for_url.end())
+		throw glare::Exception("No resource with URL '" + toStdString(URL) + "'.");
+
+	const Resource* resource = res->second.ptr();
+	if(!resource->isPresent())
+		throw glare::Exception("Resource with URL '" + toStdString(URL) + "' is not present (on disk).");
+
+	return resource->getLocalAbsPath(this->base_resource_dir);
+}
+
+
 #if GUI_CLIENT
 void ResourceManager::getTexPathForURL(const URLString& URL, OpenGLTextureKey& path_out)
 {

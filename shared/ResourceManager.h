@@ -68,7 +68,12 @@ public:
 
 	// Get local, absolute path for the URL.
 	// NOTE: currently has the side-effect of adding a resource to the resource map if it was not already present.
+	// Use pathForURLForPresentResource() to avoid this side-effect.
 	const std::string pathForURL(const URLString& URL); // Throws glare::Exception if URL is invalid.
+
+	// Get local, absolute path for the URL.  If no resource is inserted that has the given URL, or if the resource is not present on disk, throws glare::Exception.
+	const std::string pathForURLForPresentResource(const URLString& URL) const;
+
 #if GUI_CLIENT
 	void getTexPathForURL(const URLString& URL, OpenGLTextureKey& path_out);
 #endif

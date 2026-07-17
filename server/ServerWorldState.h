@@ -440,6 +440,9 @@ public:
 	// Ephemeral state: per-client-IP rate limiters for failed authentication attempts on the MCP endpoint.  Created lazily.  See MCPHandlers.
 	std::map<std::string, Reference<RateLimiter>> mcp_failed_auth_rate_limiters GUARDED_BY(mutex);
 
+	// Ephemeral state: A cache of object-space AABBs for models, used by the MCP endpoint for object creation.
+	std::map<URLString, js::AABBox> mesh_URL_to_aabb_os GUARDED_BY(mutex);
+
 	// Sets of objects that should be written to (updated) in the database.
 	std::unordered_set<ResourceRef, ResourceRefHash>					db_dirty_resources				GUARDED_BY(mutex);
 	std::unordered_set<SubEthTransactionRef, SubEthTransactionRefHash>	db_dirty_sub_eth_transactions	GUARDED_BY(mutex);
