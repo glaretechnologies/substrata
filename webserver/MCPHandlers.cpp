@@ -586,6 +586,12 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 
 	checkTransformOK(pos, axis, angle, scale);
 
+	// If the position is being changed, check the user has permission to place objects at the new position.
+	// Otherwise an object could be moved to an arbitrary position in the world (e.g. into someone else's parcel)
+	// by creating it in a parcel the user can build in, then moving it.
+	if((pos != ob->pos) && !userHasObjectCreationPermissionsAtPos(pos, acting_user_id, *world, lock))
+		throw glare::Exception("Permission denied: cannot move object " + toString(uid.value()) + " to this position.");
+
 	// Apply transform to object if valid
 	ob->pos   = pos;
 	ob->axis  = axis;

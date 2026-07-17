@@ -12,21 +12,27 @@ Copyright Glare Technologies Limited 2026 -
 #include <BitUtils.h>
 
 
-bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock)
+bool posIsInParcelForWhichLoggedInUserHasWritePerms(const Vec3d& pos, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock)
 {
 	assert(user_id.valid());
 
-	const Vec4f ob_pos = ob.pos.toVec4fPoint();
+	const Vec4f pos_vec4f = pos.toVec4fPoint();
 
 	ServerWorldState::ParcelMapType& parcels = world_state.getParcels(lock);
 	for(ServerWorldState::ParcelMapType::iterator it = parcels.begin(); it != parcels.end(); ++it)
 	{
 		const Parcel* parcel = it->second.ptr();
-		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(user_id))
+		if(parcel->pointInParcel(pos_vec4f) && parcel->userHasWritePerms(user_id))
 			return true;
 	}
 
 	return false;
+}
+
+
+bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock)
+{
+	return posIsInParcelForWhichLoggedInUserHasWritePerms(ob.pos, user_id, world_state, lock);
 }
 
 
@@ -86,6 +92,21 @@ bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID& user_
 			connectedToUsersWorld(user_id, world_state) || // or if this is the user's world
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state, lock) || // Or this object is in a parcel we have write permissions for.
 			userCanCreateSummonedObject(ob, user_id);
+	}
+	else
+		return false;
+}
+
+
+// Does the user have permission to create an object at, or move an object to, the given position?
+// NOTE: world state mutex should be locked before calling this method.
+bool userHasObjectCreationPermissionsAtPos(const Vec3d& pos, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock)
+{
+	if(user_id.valid())
+	{
+		return isGodUser(user_id) || // if the user is the god user
+			connectedToUsersWorld(user_id, world_state) || // or if this is the user's world
+			posIsInParcelForWhichLoggedInUserHasWritePerms(pos, user_id, world_state, lock); // Or the position is in a parcel we have write permissions for.
 	}
 	else
 		return false;
