@@ -567,16 +567,31 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 	if(!userHasObjectWritePermissions(*ob, acting_user_id, acting_user_name, *world, /*allow_light_mapper_bot_full_perms=*/false, lock))
 		throw glare::Exception("Permission denied: cannot modify object " + toString(uid.value()) + ".");
 
+	// Get a copy of the transform vars, update these - don't want to apply an invalid transform to the object.
+	Vec3d pos   = ob->pos;
+	Vec3f axis  = ob->axis;
+	float angle = ob->angle;
+	Vec3f scale = ob->scale;
+
 	// Apply any provided transform fields, leaving others unchanged.
 	if(args.hasChild("x") && args.hasChild("y") && args.hasChild("z"))
-		ob->pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
+		pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
 	if(args.hasChild("scale_x") && args.hasChild("scale_y") && args.hasChild("scale_z"))
-		ob->scale = Vec3f((float)args.getChildDoubleValue(parser, "scale_x"), (float)args.getChildDoubleValue(parser, "scale_y"), (float)args.getChildDoubleValue(parser, "scale_z"));
+		scale = Vec3f((float)args.getChildDoubleValue(parser, "scale_x"), (float)args.getChildDoubleValue(parser, "scale_y"), (float)args.getChildDoubleValue(parser, "scale_z"));
 	if(args.hasChild("axis_x") && args.hasChild("axis_y") && args.hasChild("axis_z") && args.hasChild("angle"))
 	{
-		ob->axis = Vec3f((float)args.getChildDoubleValue(parser, "axis_x"), (float)args.getChildDoubleValue(parser, "axis_y"), (float)args.getChildDoubleValue(parser, "axis_z"));
-		ob->angle = (float)args.getChildDoubleValue(parser, "angle");
+		axis = Vec3f((float)args.getChildDoubleValue(parser, "axis_x"), (float)args.getChildDoubleValue(parser, "axis_y"), (float)args.getChildDoubleValue(parser, "axis_z"));
+		angle = (float)args.getChildDoubleValue(parser, "angle");
 	}
+
+	checkTransformOK(pos, axis, angle, scale);
+
+	// Apply transform to object if valid
+	ob->pos   = pos;
+	ob->axis  = axis;
+	ob->angle = angle;
+	ob->scale = scale;
+
 
 	ob->last_modified_time = TimeStamp::currentTime();
 	ob->from_remote_transform_dirty = true;

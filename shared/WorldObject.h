@@ -619,11 +619,13 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 
 
 const Matrix4f obToWorldMatrix(const WorldObject& ob);
+const Matrix4f obToWorldMatrix(const Vec3d& pos, const Vec3f& axis, float angle, const Vec3f& scale);
 const Matrix4f worldToObMatrix(const WorldObject& ob);
 const Vec3f useScaleForWorldOb(const Vec3f& scale); // Don't use a zero scale component, because it makes the ob-to-world matrix uninvertible, which breaks various things, including picking and normals.
 
 // Throws glare::Exception if transform not OK, for example if any components are infinite or NaN. 
 void checkTransformOK(const WorldObject* ob);
+void checkTransformOK(const Vec3d& pos, const Vec3f& axis, float angle, const Vec3f& scale);
 
 
 const Matrix4f WorldObject::obToWorldMatrix() const { return ::obToWorldMatrix(*this); }

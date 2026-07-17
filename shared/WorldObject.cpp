@@ -1452,6 +1452,25 @@ const Matrix4f obToWorldMatrix(const WorldObject& ob)
 }
 
 
+const Matrix4f obToWorldMatrix(const Vec3d& pos_, const Vec3f& axis, float angle, const Vec3f& scale)
+{
+	const Vec4f pos((float)pos_.x, (float)pos_.y, (float)pos_.z, 1.f);
+
+	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
+	Vec3f use_scale = scale;
+	if(std::fabs(use_scale.x) < 1.0e-6f) use_scale.x = 1.0e-6f;
+	if(std::fabs(use_scale.y) < 1.0e-6f) use_scale.y = 1.0e-6f;
+	if(std::fabs(use_scale.z) < 1.0e-6f) use_scale.z = 1.0e-6f;
+
+	Matrix4f rot = Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
+	rot.setColumn(0, rot.getColumn(0) * use_scale.x);
+	rot.setColumn(1, rot.getColumn(1) * use_scale.y);
+	rot.setColumn(2, rot.getColumn(2) * use_scale.z);
+	rot.setColumn(3, pos /*+ translation*/);
+	return rot;
+}
+
+
 const Matrix4f worldToObMatrix(const WorldObject& ob)
 {
 	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
@@ -1747,6 +1766,35 @@ void checkTransformOK(const WorldObject* ob)
 		throw glare::Exception("angle was non-finite.");
 
 	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+
+	// Sanity check ob_to_world_matrix matrix
+	for(int i=0; i<16; ++i)
+		if(!::isFinite(ob_to_world_matrix.e[i]))
+			throw glare::Exception("ob_to_world_matrix had non-finite component.");
+
+	Matrix4f world_to_ob;
+	const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
+	if(!ob_to_world_invertible)
+		throw glare::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
+
+	// Check world_to_ob matrix
+	for(int i=0; i<16; ++i)
+		if(!::isFinite(world_to_ob.e[i]))
+			throw glare::Exception("world_to_ob had non-finite component.");
+}
+
+
+void checkTransformOK(const Vec3d& pos, const Vec3f& axis, float angle, const Vec3f& scale)
+{
+	// Sanity check position, axis, angle
+	if(!pos.isFinite())
+		throw glare::Exception("Position had non-finite component.");
+	if(!axis.isFinite())
+		throw glare::Exception("axis had non-finite component.");
+	if(!::isFinite(angle))
+		throw glare::Exception("angle was non-finite.");
+
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(pos, axis, angle, scale);
 
 	// Sanity check ob_to_world_matrix matrix
 	for(int i=0; i<16; ++i)
