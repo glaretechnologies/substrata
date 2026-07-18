@@ -36,6 +36,12 @@ curl.exe --insecure -v -s https://localhost/mcp -H "Authorization: Bearer YOUR_A
 or testing Substrata-Login auth type:
 
 curl.exe --insecure -v -s https://localhost/mcp -H "Authorization: Substrata-Login aaaa.bbbb" -H "Content-Type: application/json" -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}'
+
+Creating an object:
+
+curl.exe -k -X POST https://localhost/mcp -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" `
+    -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"create_object\",\"arguments\":{\"x\":0,\"y\":0,\"z\":1,\"model_url\":\"Platonic_Solid_obj_5373640347617450145.bmesh\"}}}'
+
 =====================================================================*/
 namespace MCPHandlers
 {

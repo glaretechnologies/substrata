@@ -467,6 +467,13 @@ static js::AABBox MCP_CYLINDER_AABB      = js::AABBox(Vec4f(-0.25f, -0.25f, -0.5
 static const char* MCP_SPHERE_MESH_URL   = "Icosahedron_obj_17649497764207890525.bmesh";
 static js::AABBox MCP_SPHERE_AABB        = js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1.f), Vec4f(0.5f, 0.5f, 0.5f, 1.f));
 
+static const char* MCP_CONE_MESH_URL     = "cone_igmesh_9525996822499707335.bmesh";
+static js::AABBox MCP_CONE_AABB          = js::AABBox(Vec4f(-0.5f, -0.5f, 0.f, 1.f), Vec4f(0.5f, 0.5f, 1.f, 1.f));
+
+static const char* MCP_WEDGE_MESH_URL    = "wedge_igmesh_4446548145440212638.bmesh";
+static js::AABBox MCP_WEDGE_AABB         = js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1.f), Vec4f(0.5f, 0.5f, 0.5f, 1.f));
+
+
 static const Vec3d readVec3(const JSONParser& parser, const JSONNode& v)
 {
 	return Vec3d(v.getChildDoubleValue(parser, "x"), v.getChildDoubleValue(parser, "y"), v.getChildDoubleValue(parser, "z"));
@@ -550,6 +557,123 @@ static const std::string tool_createSphere(ServerAllWorldsState& all_worlds, con
 	const Vec3f scale((float)(2.0 * radius), (float)(2.0 * radius), (float)(2.0 * radius)); // Icosahedron mesh has radius 0.5.
 	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/radius);
 	WorldObjectRef ob = makePrimitiveObject(MCP_SPHERE_MESH_URL, MCP_SPHERE_AABB, centre, scale, parser, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+}
+
+
+static const std::string tool_createCone(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+	const UserID acting_user_id, const std::string& acting_user_name)
+{
+	const double radius = args.getChildDoubleValueWithDefaultVal(parser, "radius", 0.5);
+	const double height = args.getChildDoubleValueWithDefaultVal(parser, "height", 1.0);
+	const Vec3f scale((float)(2.0 * radius), (float)(2.0 * radius), (float)(height));
+	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/0);
+	WorldObjectRef ob = makePrimitiveObject(MCP_CONE_MESH_URL, MCP_CONE_AABB, centre, scale, parser, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+}
+
+
+static const std::string tool_createWedge(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+	const UserID acting_user_id, const std::string& acting_user_name)
+{
+	const Vec3f scale(
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_x", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_y", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_z", 1.0));
+	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/scale.z * 0.5);
+	WorldObjectRef ob = makePrimitiveObject(MCP_WEDGE_MESH_URL, MCP_WEDGE_AABB, centre, scale, parser, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+}
+
+
+//===================== Voxel-object creation =====================
+
+// Limits on MCP-created voxel objects:
+static const size_t MCP_MAX_NUM_VOXELS             = 100000;  // Max number of voxels per voxel object.
+static const size_t MCP_MAX_NUM_VOXEL_MATERIALS    = 255;     // Mat index 255 = no voxel, so max valid mat index is 254.  See doMakeIndigoMeshForVoxelGroupWith3dArray() in VoxelMeshBuilding.cpp.
+static const size_t MAX_COMPRESSED_VOXEL_DATA_SIZE = 1000000; // Must match the limit enforced in WorldObject::readFromStream() etc., or the object will fail to deserialise.
+
+// Restrictions from doMakeIndigoMeshForVoxelGroupWith3dArray() in VoxelMeshBuilding.cpp, so that a mesh can be built from the voxels:
+static const int   MCP_MIN_VOXEL_COORD      = -32768;    // Voxel coords are limited to 16-bit values.
+static const int   MCP_MAX_VOXEL_COORD      =  32766;    // Max voxel coord is 32766, resulting in max vert coord of 32767.
+static const int64 MCP_MAX_VOXEL_ARRAY_SIZE = (1 << 26); // Max number of cells in the 3d array the voxels are splatted into (64 MB of uint8 material indices).
+
+
+static const std::string tool_createVoxelObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+	const UserID acting_user_id, const std::string& acting_user_name)
+{
+	WorldObjectRef ob = new WorldObject();
+	ob->flags |= WorldObject::CREATED_VIA_MCP;
+	ob->object_type = WorldObject::ObjectType_VoxelGroup;
+	ob->pos = readVec3(parser, args.getChildObject(parser, "pos"));
+
+	ob->scale = Vec3f(
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "scale_x", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "scale_y", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "scale_z", 1.0));
+
+	ob->axis = Vec3f(
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_x", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_y", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_z", 1.0));
+	ob->angle = (float)args.getChildDoubleValueWithDefaultVal(parser, "angle", 0.0);
+
+	// Read materials array, if present.
+	if(args.hasChild("materials"))
+	{
+		const JSONNode& mats_array = args.getChildArray(parser, "materials");
+		if(mats_array.child_indices.size() > MCP_MAX_NUM_VOXEL_MATERIALS)
+			throw glare::Exception("Too many materials (max " + toString(MCP_MAX_NUM_VOXEL_MATERIALS) + ").");
+		for(size_t i=0; i<mats_array.child_indices.size(); ++i)
+			ob->materials.push_back(WorldMaterial::fromJSON(parser, parser.nodes[mats_array.child_indices[i]]));
+	}
+	if(ob->materials.empty())
+		ob->materials.push_back(new WorldMaterial()); // Default material.
+
+	// Read voxels array.
+	const JSONNode& voxels_array = args.getChildArray(parser, "voxels");
+	if(voxels_array.child_indices.empty())
+		throw glare::Exception("voxels must be a non-empty array.");
+	if(voxels_array.child_indices.size() > MCP_MAX_NUM_VOXELS)
+		throw glare::Exception("Too many voxels (max " + toString(MCP_MAX_NUM_VOXELS) + ").");
+
+	VoxelGroup voxel_group;
+	voxel_group.voxels.reserve(voxels_array.child_indices.size());
+	Vec3<int> minpos( 1000000000);
+	Vec3<int> maxpos(-1000000000);
+	for(size_t i=0; i<voxels_array.child_indices.size(); ++i)
+	{
+		const JSONNode& v = parser.nodes[voxels_array.child_indices[i]];
+		const Vec3<int> vpos(v.getChildIntValue(parser, "x"), v.getChildIntValue(parser, "y"), v.getChildIntValue(parser, "z"));
+		const int mat_index = v.getChildIntValueWithDefaultVal(parser, "mat", 0);
+		if(mat_index < 0 || mat_index >= (int)ob->materials.size())
+			throw glare::Exception("Voxel mat index out of range (materials array has " + toString(ob->materials.size()) + " elements).");
+		minpos = minpos.min(vpos);
+		maxpos = maxpos.max(vpos);
+		voxel_group.voxels.push_back(Voxel(vpos, mat_index));
+	}
+
+	// Check the restrictions from doMakeIndigoMeshForVoxelGroupWith3dArray() in VoxelMeshBuilding.cpp, so that clients will
+	// be able to build a mesh from the voxels:
+	if( minpos.x < MCP_MIN_VOXEL_COORD || minpos.y < MCP_MIN_VOXEL_COORD || minpos.z < MCP_MIN_VOXEL_COORD ||
+		maxpos.x > MCP_MAX_VOXEL_COORD || maxpos.y > MCP_MAX_VOXEL_COORD || maxpos.z > MCP_MAX_VOXEL_COORD)
+		throw glare::Exception("Voxel coords must be in range [" + toString(MCP_MIN_VOXEL_COORD) + ", " + toString(MCP_MAX_VOXEL_COORD) + "].");
+
+	const int64 res_x = (int64)maxpos.x - (int64)minpos.x + 1; // Voxel array resolution
+	const int64 res_y = (int64)maxpos.y - (int64)minpos.y + 1;
+	const int64 res_z = (int64)maxpos.z - (int64)minpos.z + 1;
+	if(res_x * res_y * res_z > MCP_MAX_VOXEL_ARRAY_SIZE)
+		throw glare::Exception("Voxel bounding volume is too large (" + toString(res_x * res_y * res_z) + " cells, max " + toString(MCP_MAX_VOXEL_ARRAY_SIZE) + ").");
+
+	Reference<glare::SharedImmutableArray<uint8> > compressed_voxels = WorldObject::compressVoxelGroup(voxel_group);
+	if(compressed_voxels->size() > MAX_COMPRESSED_VOXEL_DATA_SIZE)
+		throw glare::Exception("Compressed voxel data too large.");
+	ob->setCompressedVoxels(compressed_voxels);
+
+	ob->max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0; // Consistent with voxel creation in GUIClient.cpp.
+
+	ob->setAABBOS(voxel_group.getAABB());
+
 	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
@@ -829,6 +953,67 @@ static const char* TOOLS_LIST_JSON = R"TOOLS([
 			},
 			"required": []
 		}
+	},
+	{
+		"name": "create_cone",
+		"description": "Create a cone. Axis is along z.  z is up; metres. Rotation uses axis + angle (radians).",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+				"pos": { "type": "object", "description": "Centre of the base of the cone as {x,y,z}." },
+				"radius": { "type": "number", "description": "Radius of the base in metres. Default 0.5." },
+				"height": { "type": "number", "description": "Height in metres. Default 1." },
+				"axis_x": { "type": "number" },
+				"axis_y": { "type": "number" },
+				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
+				"material": { "type": "object", "description": "Optional material (see create_cube)." }
+			},
+			"required": []
+		}
+	},
+	{
+		"name": "create_wedge",
+		"description": "Create a wedge. The thin edge of the wedge is in the negative x direction.  The thick edge is in the positive x direction.  So height (z) increases as x increases.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+				"pos": { "type": "object", "description": "Wedge centre as {x,y,z}. Provide exactly one of pos or base_pos." },
+				"base_pos": { "type": "object", "description": "Centre of the bottom face as {x,y,z}; the wedge rests on this z. Provide exactly one of pos or base_pos." },
+				"size_x": { "type": "number", "description": "Width (x) in metres. Default 1." },
+				"size_y": { "type": "number", "description": "Depth (y) in metres. Default 1." },
+				"size_z": { "type": "number", "description": "Height (z) in metres. Default 1." },
+				"axis_x": { "type": "number" },
+				"axis_y": { "type": "number" },
+				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
+				"material": { "type": "object", "description": "Optional material (see create_cube)." }
+			},
+			"required": []
+		}
+	},
+	{
+		"name": "create_voxel_object",
+		"description": "Create a voxel object from an array of voxels on an integer grid. Each voxel is a 1m cube in object space; the object scale (default 1) then maps to world space, so scale is the voxel width in metres. z is up. Rotation uses axis + angle (radians).",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+				"pos": { "type": "object", "description": "Object origin as {x,y,z}. The voxel at grid coords (0,0,0) has its minimal corner here." },
+				"voxels": { "type": "array", "description": "Array of voxels, each {\"x\":int,\"y\":int,\"z\":int,\"mat\":int}. mat is an index into materials, default 0. Max 100000 voxels; coords must be in [-32768, 32766] and the voxel bounding volume is limited to 2^26 cells." },
+				"materials": { "type": "array", "description": "Optional array of materials (see create_cube material for the format). Voxel mat indices index into this array. Max 255 materials." },
+				"scale_x": { "type": "number", "description": "Default 1." },
+				"scale_y": { "type": "number", "description": "Default 1." },
+				"scale_z": { "type": "number", "description": "Default 1." },
+				"axis_x": { "type": "number" },
+				"axis_y": { "type": "number" },
+				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." }
+			},
+			"required": ["pos", "voxels"]
+		}
 	}
 ])TOOLS";
 
@@ -871,6 +1056,12 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 			return makeToolResult(tool_createCylinder(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
 		else if(tool_name == "create_sphere")
 			return makeToolResult(tool_createSphere(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
+		else if(tool_name == "create_cone")
+			return makeToolResult(tool_createCone(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
+		else if(tool_name == "create_wedge")
+			return makeToolResult(tool_createWedge(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
+		else if(tool_name == "create_voxel_object")
+			return makeToolResult(tool_createVoxelObject(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
 		else
 			return makeToolResult("Unknown tool '" + tool_name + "'", /*is_error=*/true);
 	}
