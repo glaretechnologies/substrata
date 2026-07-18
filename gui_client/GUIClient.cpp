@@ -2875,6 +2875,23 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 }
 
 
+// Is the model_url what we get from converting resources/models/Cube.obj to bmesh?
+// The original URL was 
+// Cube_obj_11907297875084081315.bmesh
+// But due to new mesh compression, checksum has changed.  So just check prefix.
+static bool isModelURLBuiltInCube(const string_view url)
+{
+	return hasPrefix(url, "Cube_obj_");
+}
+
+
+// Icosahedron_obj_136334556484365507.bmesh
+static bool isModelURLBuiltInIcosahedron(const string_view url)
+{
+	return hasPrefix(url, "Icosahedron_obj_");
+}
+
+
 // Create OpenGL and Physics objects for the WorldObject, given that the OpenGL and physics meshes are present in memory.
 void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const Reference<MeshData>& mesh_data, const Reference<PhysicsShapeData>& physics_shape_data, int ob_lod_level, int ob_model_lod_level, 
 	int voxel_subsample_factor, WorldStateLock& world_state_lock)
@@ -2946,8 +2963,8 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 		// TEMP HACK
 		ob->physics_object->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
-		ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
-		ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
+		ob->physics_object->is_sphere = isModelURLBuiltInIcosahedron(ob->model_url);
+		ob->physics_object->is_cube   = isModelURLBuiltInCube(       ob->model_url);
 
 		ob->physics_object->mass = ob->mass;
 		ob->physics_object->friction = ob->friction;
@@ -12232,8 +12249,8 @@ void GUIClient::objectEdited()
 			
 				selected_ob->physics_object->motion_type = selected_ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!selected_ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
 
-				selected_ob->physics_object->is_sphere = FileUtils::getFilenameStringView(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
-				selected_ob->physics_object->is_cube = FileUtils::getFilenameStringView(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
+				selected_ob->physics_object->is_sphere = isModelURLBuiltInIcosahedron(FileUtils::getFilenameStringView(selected_ob->model_url));
+				selected_ob->physics_object->is_cube   = isModelURLBuiltInCube(       FileUtils::getFilenameStringView(selected_ob->model_url));
 
 				selected_ob->physics_object->mass = selected_ob->mass;
 				selected_ob->physics_object->friction = selected_ob->friction;
