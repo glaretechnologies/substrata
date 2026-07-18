@@ -48,7 +48,14 @@ public:
 
 	static MeshBuildingResults makePortalMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator);
 
+	static MeshBuildingResults makeConeMesh(const std::string& base_dir_path, VertexBufferAllocator& allocator);
+
+	static MeshBuildingResults makeWedgeMesh(const std::string& base_dir_path, VertexBufferAllocator& allocator);
+
 	static Reference<Indigo::Mesh> makeUnitCubeIndigoMesh();
 
 	static PhysicsShape makeUnitCubePhysicsShape(VertexBufferAllocator& allocator);
+
+
+	static void test();
 };

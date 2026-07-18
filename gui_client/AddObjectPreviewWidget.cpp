@@ -276,10 +276,10 @@ void AddObjectPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 
 		cam_target_pos += right * -(float)delta.x() * move_scale + up * (float)delta.y() * move_scale;
 		
-		conPrint("forwards: " + forwards.toStringNSigFigs(3));
+		/*conPrint("forwards: " + forwards.toStringNSigFigs(3));
 		conPrint("right: " + right.toStringNSigFigs(3));
 		conPrint("up: " + up.toStringNSigFigs(3));
-		conPrint("cam_target_pos: " + cam_target_pos.toStringNSigFigs(3));
+		conPrint("cam_target_pos: " + cam_target_pos.toStringNSigFigs(3));*/
 
 		//target_marker_ob->ob_to_world_matrix.setColumn(3, cam_target_pos);
 		//opengl_engine->updateObjectTransformData(*target_marker_ob);

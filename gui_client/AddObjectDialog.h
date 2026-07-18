@@ -35,6 +35,8 @@ public:
 	static void tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, std::vector<WorldMaterialRef>& world_materials, OpenGLEngine* opengl_engine, 
 		TextureServer& texture_server, QWidget* parent_widget);
 
+
+	void renderThumbnails(Reference<OpenGLEngine> opengl_engine);
 private slots:;
 	void accepted();
 	void dialogFinished();
@@ -80,6 +82,7 @@ private:
 
 	std::string base_dir_path;
 	std::vector<std::string> models;
+	std::vector<std::string> model_filenames;
 
 	URLString last_url;
 

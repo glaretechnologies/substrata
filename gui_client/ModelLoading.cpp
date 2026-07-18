@@ -882,7 +882,7 @@ void ModelLoading::makeGLObjectForModelFile(
 				if(do_opengl_stuff)
 				{
 					ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-					ob->materials[i].tex_path = "data/resources/obstacle.png";
+					//ob->materials[i].tex_path = "data/resources/obstacle.png";
 					ob->materials[i].roughness = 0.5f;
 					ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 				}

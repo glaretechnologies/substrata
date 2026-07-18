@@ -22,6 +22,8 @@ Copyright Glare Technologies Limited 2022 -
 #include "../utils/ConPrint.h"
 #include "../utils/FileChecksum.h"
 #include "../utils/TaskManager.h"
+#include <graphics/SRGBUtils.h>
+#include <graphics/PNGDecoder.h>
 #include "../indigo/TextureServer.h"
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
@@ -74,7 +76,8 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 	listWidget->setIconSize(QSize(200, 200));
 	listWidget->setResizeMode(QListWidget::Adjust);
 	listWidget->setSelectionMode(QAbstractItemView::NoSelection);
-	 
+
+
 	models.push_back("Quad");
 	models.push_back("Cube");
 	models.push_back("Capsule");
@@ -82,12 +85,26 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 	models.push_back("Icosahedron");
 	models.push_back("Platonic_Solid");
 	models.push_back("Torus");
+	models.push_back("Cone");
+	models.push_back("Wedge");
+
+	model_filenames.push_back("Quad.obj");
+	model_filenames.push_back("Cube.obj");
+	model_filenames.push_back("Capsule.obj");
+	model_filenames.push_back("Cylinder.obj");
+	model_filenames.push_back("Icosahedron.obj");
+	model_filenames.push_back("Platonic_Solid.obj");
+	model_filenames.push_back("Torus.obj");
+	model_filenames.push_back("cone.igmesh");
+	model_filenames.push_back("wedge.igmesh");
+
+
 
 	for(size_t i=0; i<models.size(); ++i)
 	{
 		const std::string image_path = base_dir_path + "/data/resources/models/" + models[i] + ".png";
 
-		listWidget->addItem(new QListWidgetItem(QIcon(QtUtils::toQString(image_path)), QtUtils::toQString(models[i])));
+		listWidget->addItem(new QListWidgetItem(QIcon(QtUtils::toQString(image_path)), /*text=*/QtUtils::toQString(models[i])));
 	}
 }
 
@@ -127,15 +144,20 @@ void AddObjectDialog::modelSelected(QListWidgetItem* selected_item)
 {
 	if(this->listWidget->currentItem())
 	{
-		const std::string model = QtUtils::toStdString(this->listWidget->currentItem()->text());
+		const int index = this->listWidget->currentRow();
 
-		this->listWidget->setCurrentItem(NULL);
+		if(index >= 0 && index < model_filenames.size())
+		{
+			const std::string model_filename = model_filenames[index];
 
-		const std::string model_path = base_dir_path + "/data/resources/models/" + model + ".obj";
+			this->listWidget->setCurrentItem(NULL);
 
-		this->result_path = model_path;
+			const std::string model_path = base_dir_path + "/data/resources/models/" + model_filename;
 
-		loadModelIntoPreview(model_path);
+			this->result_path = model_path;
+
+			loadModelIntoPreview(model_path);
+		}
 	}
 }
 
@@ -177,6 +199,8 @@ void AddObjectDialog::makeMeshForWidthAndHeight(const std::string& local_image_o
 void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 {
 	this->objectPreviewGLWidget->makeCurrent();
+
+	// renderThumbnails(this->objectPreviewGLWidget->opengl_engine);
 
 	this->loaded_mesh_is_image_cube = false;
 
@@ -422,4 +446,102 @@ void AddObjectDialog::timerEvent(QTimerEvent* event)
 			}
 		}
 	}
+}
+
+
+
+// To run this code, uncomment the renderThumbnails() call in AddObjectDialog::loadModelIntoPreview().
+void AddObjectDialog::renderThumbnails(Reference<OpenGLEngine> opengl_engine)
+{
+	conPrint("====================== AddObjectDialog::renderThumbnails ===========================");
+
+	OpenGLSceneRef old_scene = opengl_engine->getCurrentScene();
+
+	try
+	{
+		const std::string models_dir = "C:/code/substrata/resources/models";
+
+		for(size_t i=0; i<models.size(); ++i)
+		{
+			const std::string model_path = models_dir + "/" + model_filenames[i];
+			const std::string thumb_png_path = models_dir + "/" + models[i] + ".PNG";
+
+
+			OpenGLSceneRef scene = new OpenGLScene(*opengl_engine);
+			opengl_engine->addScene(scene);
+			opengl_engine->setCurrentScene(scene);
+
+			// Add cube object with the material applied
+			{
+				ModelLoading::MakeGLObjectResults results;
+				ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, /*allocator=*/nullptr, model_path, /*do_opengl_stuff=*/true,
+					results
+				);
+
+				results.gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.6f));
+
+				// Offset object vertically so it rests on the ground plane.
+				const js::AABBox cur_aabb_ws = results.gl_ob->mesh_data->aabb_os.transformedAABBFast(results.gl_ob->ob_to_world_matrix);
+				const float z_trans = -cur_aabb_ws.min_[2];
+				results.gl_ob->ob_to_world_matrix = ::leftTranslateAffine3(Vec4f(0, 0, z_trans, 0), results.gl_ob->ob_to_world_matrix);
+
+				opengl_engine->addObject(results.gl_ob);
+			}
+
+			// Add env mat
+			{
+				OpenGLMaterial env_mat;
+				opengl_engine->setEnvMat(env_mat);
+				opengl_engine->setSunDir(normalise(Vec4f(0.7f, -0.5f, 1.f, 0)));
+			}
+
+			// Add a ground plane
+			{
+				const float W = 200;
+			
+				GLObjectRef ob = opengl_engine->allocateObject();
+				ob->materials.resize(1);
+				ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9f));
+				ob->materials[0].albedo_texture = opengl_engine->getTexture(base_dir_path + "/data/resources/obstacle.png");
+				ob->materials[0].roughness = 0.8f;
+				ob->materials[0].fresnel_scale = 0.5f;
+				ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
+			
+				ob->ob_to_world_matrix = Matrix4f::scaleMatrix(W, W, 1) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
+				ob->mesh_data = opengl_engine->getUnitQuadMeshData();
+			
+				opengl_engine->addObject(ob);
+			}
+
+			const Matrix4f world_to_camera_space_matrix = Matrix4f::rotationAroundXAxis(0.3f) * Matrix4f::translationMatrix(0, 2.0, -1.1) * Matrix4f::rotationAroundZAxis(0);
+
+			const float sensor_width = 0.035f;
+			const float lens_sensor_dist = 0.035f;
+			const float render_aspect_ratio = 1.0;
+
+			const int PREVIEW_SIZE = 200;
+			opengl_engine->setViewportDims(PREVIEW_SIZE, PREVIEW_SIZE);
+			opengl_engine->setNearDrawDistance(0.1f);
+			opengl_engine->setMaxDrawDistance(100.f);
+			opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
+
+
+			opengl_engine->waitForAllBuildingProgramsToBuild();
+
+			ImageMapUInt8Ref im = opengl_engine->drawToBufferAndReturnImageMap();
+			
+			PNGDecoder::write(*im, thumb_png_path);
+
+			conPrint("Wrote to " + thumb_png_path);
+
+			opengl_engine->removeScene(scene);
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint(e.what());
+	}
+	
+	// Restore old scene
+	opengl_engine->setCurrentScene(old_scene);
 }
