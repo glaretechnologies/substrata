@@ -357,7 +357,7 @@ static void checkObjectCountLimits(const WorldObject& ob, const std::string& wor
 static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, const std::string& world_name, WorldObjectRef ob,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
-	checkTransformOK(ob.ptr()); // Throw glare::Exception on invalid transform.
+	checkTransformOK(ob.ptr()); // Check transform is valid (e.g. not inf or NaN). Throw glare::Exception on invalid transform.
 
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode; cannot create objects.");
@@ -365,8 +365,10 @@ static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, c
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
 
-	if(!userHasObjectCreationPermissions(*ob, acting_user_id, *world, lock))
-		throw glare::Exception("Permission denied: cannot create an object at this position.");
+	// Check creation permissions using the object's world-space AABB, not just its position, so that objects can't be
+	// created that extend out of the user's parcel into other parcels or public space.
+	if(!userHasObjectCreationPermissionsForAABB(ob->getAABBWS(), acting_user_id, *world, lock))
+		throw glare::Exception("Permission denied: cannot create an object here.  The object bounds must be entirely inside a parcel you have write permissions for.");
 
 	checkObjectCountLimits(*ob, world_name, *world, acting_user_id, lock);
 
@@ -591,11 +593,21 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 
 	checkTransformOK(pos, axis, angle, scale);
 
-	// If the position is being changed, check the user has permission to place objects at the new position.
-	// Otherwise an object could be moved to an arbitrary position in the world (e.g. into someone else's parcel)
-	// by creating it in a parcel the user can build in, then moving it.
-	if((pos != ob->pos) && !userHasObjectCreationPermissionsAtPos(pos, acting_user_id, *world, lock))
-		throw glare::Exception("Permission denied: cannot move object " + toString(uid.value()) + " to this position.");
+	// If the transform is being changed, check the user has permission to place objects with the resulting world-space
+	// AABB.  Otherwise an object could be moved, scaled or rotated so that it extends into other parcels or public
+	// space, by first creating it in a parcel the user can build in.
+	if((pos != ob->pos) || (axis != ob->axis) || (angle != ob->angle) || (scale != ob->scale))
+	{
+		const js::AABBox new_aabb_ws = ob->getAABBOS().transformedAABBFast(obToWorldMatrix(pos, axis, angle, scale));
+		if(!userHasObjectCreationPermissionsForAABB(new_aabb_ws, acting_user_id, *world, lock))
+			throw glare::Exception("Permission denied: cannot move object " + toString(uid.value()) + " here.  The object bounds must be entirely inside a parcel you have write permissions for.");
+	}
+
+	// If the object is moving, mark the LOD chunk containing the old position as needing a rebuild as well, so the
+	// object's old geometry is removed from that chunk's merged mesh.  (ob->pos is still the old position here; the
+	// chunk for the new position is marked below.)
+	if(pos != ob->pos)
+		markLODChunkNeedsRebuild(world, ob, lock);
 
 	// Apply transform to object if valid
 	ob->pos   = pos;

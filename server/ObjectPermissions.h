@@ -8,10 +8,10 @@ Copyright Glare Technologies Limited 2026 -
 
 #include "../shared/UserID.h"
 #include "../shared/WorldStateLock.h"
-#include <vec3.h>
 #include <string>
 class WorldObject;
 class ServerWorldState;
+namespace js { class AABBox; }
 
 
 /*=====================================================================
@@ -31,8 +31,8 @@ bool connectedToUsersWorld(const UserID& user_id, ServerWorldState& connected_wo
 // Is the object located in a parcel that the user has write permissions for?
 bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock);
 
-// Is the given position in a parcel that the user has write permissions for?
-bool posIsInParcelForWhichLoggedInUserHasWritePerms(const Vec3d& pos, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock);
+// Is the given world-space AABB entirely inside a parcel that the user has write permissions for?
+bool aabbIsInParcelForWhichLoggedInUserHasWritePerms(const js::AABBox& aabb_ws, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock);
 
 // Does the user have permission to create a summoned object (e.g. summoned vehicle)?
 bool userCanCreateSummonedObject(const WorldObject& ob, const UserID& user_id);
@@ -44,5 +44,7 @@ bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id,
 // Does the user have permission to create the given object with its current transformation?
 bool userHasObjectCreationPermissions(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock);
 
-// Does the user have permission to create an object at, or move an object to, the given position?
-bool userHasObjectCreationPermissionsAtPos(const Vec3d& pos, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock);
+// Does the user have permission to create an object with the given world-space AABB, or change an object's transform so
+// that it has the given world-space AABB?  Requires the whole AABB to be in a writable parcel, so that objects can't
+// extend into other parcels.
+bool userHasObjectCreationPermissionsForAABB(const js::AABBox& aabb_ws, const UserID& user_id, ServerWorldState& world_state, WorldStateLock& lock);
