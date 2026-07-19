@@ -436,9 +436,19 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	ob->flags |= WorldObject::CREATED_VIA_MCP;
 	ob->object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal(parser, "object_type", /*default=*/"generic"));
 	ob->model_url = model_URL;
+
+	ob->script = args.getChildStringValueWithDefaultVal(parser, "script", /*default=*/"");
+	if(ob->script.size() > WorldObject::MAX_SCRIPT_SIZE)
+		throw glare::Exception("script too long.");
+
 	ob->content = args.getChildStringValueWithDefaultVal(parser, "content", /*default=*/"");
 	if(ob->content.size() > WorldObject::MAX_CONTENT_SIZE)
 		throw glare::Exception("content too long.");
+
+	ob->target_url = args.getChildStringValueWithDefaultVal(parser, "target_url", /*default=*/"");
+	if(ob->target_url.size() > WorldObject::MAX_URL_SIZE)
+		throw glare::Exception("target_url too long.");
+
 	ob->pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
 	ob->axis = Vec3f(
 		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_x", 0.0),
@@ -848,7 +858,9 @@ static const char* TOOLS_LIST_JSON = R"TOOLS([
 				"z": { "type": "number" },
 				"model_url": { "type": "string", "description": "URL of an existing model resource on the server (optional)." },
 				"object_type": { "type": "string", "description": "One of: generic, hypercard, voxel group, spotlight, web view, video, text, portal, seat, gear item. Default generic." },
+				"script": { "type": "string", "description": "Script content, for scripting object behaviour (optional)." },
 				"content": { "type": "string", "description": "Text content, for Hypercard/Text objects (optional)." },
+				"target_url": { "type": "string", "description": "Makes the object usable to visit a web page or substrata URL. (optional)." },
 				"scale_x": { "type": "number", "description": "Default 1." },
 				"scale_y": { "type": "number", "description": "Default 1." },
 				"scale_z": { "type": "number", "description": "Default 1." },

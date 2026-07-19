@@ -276,7 +276,7 @@ public:
 		ObjectType_Spotlight = 3,
 		ObjectType_WebView = 4,
 		ObjectType_Video = 5, // A YouTube or Twitch video, or mp4 video, with video-specific UI.
-		ObjectType_Text = 6, // Text displayed on a quad
+		ObjectType_Text = 6, // Text displayed on a quad.  Displays the text in the content member variable.
 		ObjectType_Portal = 7, // A portal to another Substrata world or another location in the current world.
 		ObjectType_Seat = 8, // A seat that users can sit on
 		ObjectType_GearItem = 9 // An in-world pickup representing a GearItem (NFT) that can be picked up into a user's gear inventory.
@@ -317,12 +317,14 @@ public:
 	static const size_t MAX_CONTENT_SIZE                  = 10000;
 	
 
-	URLString model_url;           // Max length MAX_URL_SIZE
+	URLString model_url;          // Max length MAX_URL_SIZE
 	std::vector<WorldMaterialRef> materials;
 	URLString lightmap_url;       // Max length MAX_URL_SIZE
-	std::string script;           // Max length MAX_SCRIPT_SIZE
+	std::string script;           // Winter or Luau or XML script.  Max length MAX_SCRIPT_SIZE
 	std::string content;          // For ObjectType_Hypercard, ObjectType_Text.  Max length MAX_CONTENT_SIZE
-	std::string target_url;       // Max length MAX_URL_SIZE
+	std::string target_url;       // For ObjectType_Portal, determines portal destination.  For ObjectType_WebView, determines the URL being viewed.  
+	// For other object types, makes them open a web-page or teleport to a substrata URL when used.  Max length MAX_URL_SIZE
+
 	Vec3d pos;
 	Vec3f axis;
 	float angle;
