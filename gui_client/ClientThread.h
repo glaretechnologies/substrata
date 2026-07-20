@@ -41,6 +41,25 @@ public:
 };
 
 
+// Sent from ClientThread to the main thread when an ObjectMoveTo or ObjectRotateTo message is received from the server.
+// The main thread creates/updates an ObjectMoveToController for the object.  A message carries a single track (position or rotation).
+class ScriptedObMoveToMessage : public ThreadMessage
+{
+public:
+	ScriptedObMoveToMessage() : ThreadMessage(Msg_ScriptedObMoveToMessage) {}
+	UID ob_uid;
+	bool is_rotation; // false: position track (moveTo), true: rotation track (rotateTo).
+	double start_time; // Global time at which the move started.
+	float duration;
+	uint32 easing;
+	// Position track:
+	Vec3d start_pos, target_pos;
+	// Rotation track:
+	Vec3f start_axis, target_axis;
+	float start_angle, target_angle;
+};
+
+
 class AvatarPerformGestureMessage : public ThreadMessage
 {
 public:

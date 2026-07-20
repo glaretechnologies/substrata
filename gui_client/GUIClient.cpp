@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "DownloadResourcesThread.h"
 #include "NetDownloadResourcesThread.h"
 #include "ObjectPathController.h"
+#include "ObjectMoveToController.h"
 #include "AvatarGraphics.h"
 #include "WinterShaderEvaluator.h"
 #include "ClientUDPHandlerThread.h"
@@ -199,7 +200,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	ui_hidden(false),
 	only_load_most_important_obs(false),
 	last_ping_send_time(-1000),
-	gear_item_update_sender(/*send period=*/2.0)
+	gear_item_update_sender(/*send period=*/2.0),
+	active_move_to_controllers(/*empty val=*/nullptr)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -6158,6 +6160,24 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					Lock lock(this->world_state->mutex);
 					for(size_t z=0; z<path_controllers.size(); ++z)
 						path_controllers[z]->update(*world_state, *physics_world, opengl_engine.ptr(), (float)substep_dt);
+
+					// Run active scripted moveTo/rotateTo controllers, removing any that have finished from the active set.
+					for(auto it = active_move_to_controllers.begin(); it != active_move_to_controllers.end(); ++it)
+					{
+						ObjectMoveToController* controller = it->ptr();
+						const bool still_active = controller->update(*physics_world, opengl_engine.ptr(), (float)substep_dt);
+						if(!still_active)
+							temp_move_to_controllers.push_back(controller);
+						// Leave the ObjectMoveToController alive and referenced from ob->move_to_controller, it can be reused for subsequent move messages.
+					}
+
+					// Remove any inactive controllers from active_move_to_controllers (now that we have finished iterating over active controller set)
+					if(!temp_move_to_controllers.empty())
+					{
+						for(size_t z=0; z<temp_move_to_controllers.size(); ++z)
+							active_move_to_controllers.erase(temp_move_to_controllers[z]);
+						temp_move_to_controllers.clear();
+					}
 				}
 
 				// Process player physics
@@ -6353,7 +6373,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
 					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
 					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
-					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine.
+					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine with the code below.
 					if(physics_ob->isDynamic() || (physics_ob->isKinematic() && ob->is_path_controlled))
 					{
 						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
@@ -6936,6 +6956,13 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						audio_obs.erase(ob);
 						obs_with_scripts.erase(ob);
 						obs_with_diagnostic_vis.erase(ob);
+
+						// Remove any scripted moveTo/rotateTo controller for this object.
+						if(ob->move_to_controller)
+						{
+							this->active_move_to_controllers.erase(ob->move_to_controller);
+							ob->move_to_controller = nullptr; // Break reference cycle (the ObjectMoveToController has a ref to the object)
+						}
 
 						scripted_ob_proximity_checker.removeObject(ob);
 					}
@@ -9191,6 +9218,54 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			}
 		}
 		break;
+		case Msg_ScriptedObMoveToMessage:
+		{
+			const ScriptedObMoveToMessage* m = checkedDowncastPtr<const ScriptedObMoveToMessage>(msg);
+
+			if(world_state)
+			{
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->objects.find(m->ob_uid);
+				if(res != this->world_state->objects.end())
+				{
+					WorldObject* ob = res.getValue().ptr();
+					if(!ob->is_selected) // Don't override an object the local user is currently editing.
+					{
+						// Work out how far into the move we already are, based on the shared global clock.  This handles
+						// message delay and clients that join or receive the message part-way through the move.
+						const float cur_elapsed = (float)myMax(0.0, world_state->getCurrentGlobalTime() - m->start_time);
+
+						//ObjectMoveToController* controller = getMoveToControllerForOb(*ob);
+						Reference<ObjectMoveToController> controller = ob->move_to_controller;
+						if(controller)
+						{
+							if(!controller->isActive()) // If controller was inactive
+								this->active_move_to_controllers.insert(controller); // Add back to active controller set.
+						}
+						else
+						{
+							ob->move_to_controller = new ObjectMoveToController(ob);
+							this->active_move_to_controllers.insert(ob->move_to_controller);
+							controller = ob->move_to_controller;
+						}
+
+						if(m->is_rotation)
+						{
+							const Quatf start_rot  = Quatf::fromAxisAndAngle(normalise(m->start_axis),  m->start_angle);
+							const Quatf target_rot = Quatf::fromAxisAndAngle(normalise(m->target_axis), m->target_angle);
+							controller->setRotationTrack(start_rot, target_rot, m->duration, m->easing, cur_elapsed);
+						}
+						else
+							controller->setPositionTrack(m->start_pos.toVec4fPoint(), m->target_pos.toVec4fPoint(), m->duration, m->easing, cur_elapsed);
+
+						// The controller is now authoritative for this object's transform, so remove it from the snapshot-interpolation set.
+						active_objects.erase(ob);
+					}
+				}
+			}
+			break;
+		}
 		case Msg_ChatMessage:
 		{
 			const ChatMessage* m = checkedDowncastPtr<const ChatMessage>(msg);
@@ -13013,6 +13088,8 @@ void GUIClient::clearAllObjects()
 			}
 
 			removeInstancesOfObject(ob);
+
+			ob->move_to_controller = nullptr; // Break reference cycle (the ObjectMoveToController has a ref to the object)
 		}
 
 		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
@@ -13068,6 +13145,7 @@ void GUIClient::clearAllObjects()
 	scripted_ob_proximity_checker.clear();
 
 	path_controllers.clear();
+	active_move_to_controllers.clear();
 
 	objs_with_lightmap_rebuild_needed.clear();
 

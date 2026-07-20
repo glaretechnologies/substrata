@@ -672,6 +672,34 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			}
 			break;
 		}
+		case Protocol::ObjectMoveTo:
+		{
+			Reference<ScriptedObMoveToMessage> m = new ScriptedObMoveToMessage();
+			m->ob_uid      = readUIDFromStream(msg_buffer);
+			m->start_time  = msg_buffer.readDouble();
+			m->duration    = msg_buffer.readFloat();
+			m->easing      = msg_buffer.readUInt32();
+			m->start_pos   = readVec3FromStream<double>(msg_buffer);
+			m->target_pos  = readVec3FromStream<double>(msg_buffer);
+			m->is_rotation = false;
+			out_msg_queue->enqueue(m); // Inform MainWindow
+			break;
+		}
+		case Protocol::ObjectRotateTo:
+		{
+			Reference<ScriptedObMoveToMessage> m = new ScriptedObMoveToMessage();
+			m->ob_uid       = readUIDFromStream(msg_buffer);
+			m->start_time   = msg_buffer.readDouble();
+			m->duration     = msg_buffer.readFloat();
+			m->easing       = msg_buffer.readUInt32();
+			m->start_axis   = readVec3FromStream<float>(msg_buffer);
+			m->start_angle  = msg_buffer.readFloat();
+			m->target_axis  = readVec3FromStream<float>(msg_buffer);
+			m->target_angle = msg_buffer.readFloat();
+			m->is_rotation  = true;
+			out_msg_queue->enqueue(m); // Inform MainWindow
+			break;
+		}
 		case Protocol::SummonObject:
 		{
 			// conPrint("ClientThread: received SummonObject message.");

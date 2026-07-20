@@ -29,6 +29,7 @@ enum GuiClientThreadMessages
 	Msg_AvatarPerformGestureMessage,
 	Msg_AvatarStopGestureMessage,
 	Msg_ChatMessage,
+	Msg_ScriptedObMoveToMessage,
 	Msg_InfoMessage,
 	Msg_ErrorMessage,
 	Msg_LogMessage,

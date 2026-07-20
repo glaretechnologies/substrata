@@ -26,6 +26,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/StringUtils.h>
 #include <utils/RuntimeCheck.h>
 #include <utils/JSONParser.h>
+#include <maths/mathstypes.h>
 #include <lualib.h>
 #include <Luau/Common.h>
 #include <BufferViewInStream.h>
@@ -73,6 +74,8 @@ enum StringAtomEnum
 	Atom_isPlayingAudio,
 	Atom_startPlayingAnimation,
 	Atom_getAnimationIndex,
+	Atom_moveTo,
+	Atom_rotateTo,
 
 	// WorldMaterial
 	Atom_colour,
@@ -141,6 +144,8 @@ static StringAtom string_atoms[] =
 	StringAtom({"isPlayingAudio",			Atom_isPlayingAudio,			}),
 	StringAtom({"startPlayingAnimation",	Atom_startPlayingAnimation,		}),
 	StringAtom({"getAnimationIndex",		Atom_getAnimationIndex,			}),
+	StringAtom({"moveTo",					Atom_moveTo,					}),
+	StringAtom({"rotateTo",					Atom_rotateTo,					}),
 
 	// WorldMaterial
 	StringAtom({"colour",					Atom_colour,					}),
@@ -999,6 +1004,7 @@ static int createTimer(lua_State* state)
 	}
 
 	// If got here, there are no free timer slots
+	lua_unref(state, onTimerEvent_ref); // Free the callback reference so we don't leak it
 	throw glare::Exception("createTimer(): Could not create timer, 4 timers already created." + errorContextString(state));
 //#else
 //	throw glare::Exception("createTimer(): todo on server.");
@@ -1208,6 +1214,220 @@ static int getAnimationIndex(lua_State* state)
 }
 
 
+#if SERVER
+// Look up the object referred to by the WorldObject table at the given stack index, and check that the calling script has
+// permission to modify it.  Throws glare::Exception on failure.  Must be called with the world state lock held.
+static WorldObject* getObjectForScriptedMove(lua_State* state, int table_index)
+{
+	const UID uid((uint64)LuaUtils::getTableNumberField(state, table_index, "uid"));
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	if(script_evaluator->cur_world_state_lock == nullptr)
+	{
+		assert(0);
+		throw glare::Exception("Internal error: cur_world_state_lock was null");
+	}
+
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
+
+	// A script has permission to modify an object if and only if the creator of the script is also the creator of the object.
+	if(ob->creator_id != script_evaluator->world_object->creator_id)
+		throw glare::Exception("Script does not have permissions to modify object (ob UID: " + uid.toString() + ")" + errorContextString(state));
+
+	return ob;
+}
+
+
+// Parse the trailing optional arguments common to moveTo()/rotateTo(): an easing value at easing_index and an onCompleted
+// callback at callback_index (fixed positions; pass nil to skip an earlier optional arg).  easing_out is left unchanged if
+// no easing arg is given; callback_ref_out is set to a Lua reference to the callback function, or left as LUA_NOREF if none.
+static void parseMoveOptionalArgs(lua_State* state, int easing_index, int callback_index, uint32& easing_out, int& callback_ref_out)
+{
+	const int num_args = lua_gettop(state);
+
+	// Optional easing value (number).
+	if((num_args >= easing_index) && (lua_type(state, easing_index) != LUA_TNIL))
+		easing_out = (uint32)LuaUtils::getDoubleArg(state, easing_index);
+
+	// Optional onCompleted callback (function).
+	if((num_args >= callback_index) && (lua_type(state, callback_index) != LUA_TNIL))
+	{
+		if(lua_type(state, callback_index) != LUA_TFUNCTION)
+			throw glare::Exception("onCompleted argument must be a function." + errorContextString(state));
+		callback_ref_out = lua_ref(state, callback_index); // NOTE: Luau lua_ref references the value at the given index without popping it.
+	}
+}
+
+
+// Schedule a one-shot Lua callback to fire 'delay' seconds from now, reusing the script timer machinery.  callback_ref must
+// already have been obtained via lua_ref.  When the timer fires the callback is invoked (with the script's object as its
+// argument, as for timer callbacks) and its slot + reference are freed automatically (see the timer loop in Server.cpp).
+static void scheduleOneShotServerCallback(SubstrataLuaVM* sub_lua_vm, LuaScriptEvaluator* script_evaluator, int callback_ref, double delay)
+{
+	const double cur_time = sub_lua_vm->server->total_timer.elapsed();
+	ScriptTimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
+
+	for(int i=0; i<LuaScriptEvaluator::MAX_NUM_TIMERS; ++i)
+	{
+		if(script_evaluator->timers[i].id == -1) // If timer slot is free:
+		{
+			const int timer_id = script_evaluator->next_timer_id++; // Make new unique timer id (to avoid ABA problem)
+
+			script_evaluator->timers[i].id = timer_id;
+			script_evaluator->timers[i].onTimerEvent_ref = callback_ref;
+
+			ScriptTimerQueueTimer timer;
+			timer.onTimerEvent_ref = callback_ref;
+			timer.tigger_time = cur_time + delay;
+			timer.repeating = false; // One-shot.
+			timer.period = delay;
+			timer.timer_index = i;
+			timer.timer_id = timer_id;
+			timer.lua_script_evaluator = script_evaluator;
+			timer_queue.addTimer(cur_time, timer);
+			return;
+		}
+	}
+
+	// No free timer slot.  Free the callback reference so we don't leak it, then report the error.
+	lua_unref(script_evaluator->lua_script->thread_state, callback_ref);
+	throw glare::Exception("Could not register onCompleted callback: too many active timers/callbacks (max " + toString(LuaScriptEvaluator::MAX_NUM_TIMERS) + ").");
+}
+#endif // SERVER
+
+
+// object:moveTo(target_pos, duration, [easing], [onCompleted]): smoothly move the object from its current position to target_pos over
+// 'duration' seconds.  Executes on the server, which broadcasts an ObjectMoveTo message; clients interpolate based on
+// the shared global clock.
+static int luaMoveTo(lua_State* state)
+{
+	// arg 1: ob : WorldObject
+	// arg 2: target_pos : Vec3d
+	// arg 3: duration : Number (seconds)
+	// arg 4: easing : Number (optional; pass nil for the default if supplying arg 5)
+	// arg 5: onCompleted : function (optional; called on the server when the move finishes)
+
+#if SERVER
+	if(lua_gettop(state) < 3)
+		throw glare::Exception("moveTo() requires at least 3 arguments (object, target position, duration)" + errorContextString(state));
+
+	const Vec3d target_pos = LuaUtils::getVec3d(state, /*index=*/2);
+	const float duration   = (float)LuaUtils::getDoubleArg(state, /*index=*/3);
+
+	if(!(duration > 0.f) || !isFinite(duration))
+		throw glare::Exception("moveTo() duration must be > 0" + errorContextString(state));
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	WorldObject* ob = getObjectForScriptedMove(state, /*table index=*/1); // Looks up the object and checks modify permission.
+
+	// Optional args: easing (index 4), onCompleted callback (index 5).
+	uint32 easing = Protocol::MoveTo_EasingSmoothstep;
+	int callback_ref = LUA_NOREF;
+	parseMoveOptionalArgs(state, /*easing_index=*/4, /*callback_index=*/5, easing, callback_ref);
+
+	const Vec3d start_pos = ob->pos;
+	const double start_time = sub_lua_vm->server->getCurrentGlobalTime();
+
+	// Build and broadcast the ObjectMoveTo message.
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	MessageUtils::initPacket(packet, Protocol::ObjectMoveTo);
+	writeToStream(ob->uid, packet);
+	packet.writeDouble(start_time);
+	packet.writeFloat(duration);
+	packet.writeUInt32(easing);
+	writeToStream(start_pos,  packet);
+	writeToStream(target_pos, packet);
+	MessageUtils::updatePacketLengthField(packet);
+
+	sub_lua_vm->server->enqueuePacketToBroadcastForWorld(packet, script_evaluator->world_state);
+
+	// Update the object's canonical position to the target, so it persists and late-joining clients see the final position.
+	// Note: we deliberately do not set from_remote_transform_dirty, as that would broadcast an ObjectTransformUpdate that snaps clients to the target.
+	ob->pos = target_pos;
+	script_evaluator->world_state->addWorldObjectAsDBDirty(ob, *script_evaluator->cur_world_state_lock);
+	sub_lua_vm->server->world_state->markAsChanged();
+
+	// If an onCompleted callback was provided, schedule it to fire when the move finishes.
+	if(callback_ref != LUA_NOREF)
+		scheduleOneShotServerCallback(sub_lua_vm, script_evaluator, callback_ref, duration);
+#endif // SERVER
+
+	return 0; // Count of returned values
+}
+
+
+// object:rotateTo(target_axis, target_angle, duration, [easing], [onCompleted]): smoothly rotate the object from its current orientation
+// to the given axis-angle orientation over 'duration' seconds.  Executes on the server (see luaMoveTo).
+static int luaRotateTo(lua_State* state)
+{
+	// arg 1: ob : WorldObject
+	// arg 2: target_axis : Vec3f
+	// arg 3: target_angle : Number (radians)
+	// arg 4: duration : Number (seconds)
+	// arg 5: easing : Number (optional; pass nil for the default if supplying arg 6)
+	// arg 6: onCompleted : function (optional; called on the server when the rotation finishes)
+
+#if SERVER
+	if(lua_gettop(state) < 4)
+		throw glare::Exception("rotateTo() requires at least 4 arguments (object, target axis, target angle, duration)" + errorContextString(state));
+
+	const Vec3f target_axis  = LuaUtils::getVec3f(state, /*index=*/2);
+	const float target_angle = (float)LuaUtils::getDoubleArg(state, /*index=*/3);
+	const float duration     = (float)LuaUtils::getDoubleArg(state, /*index=*/4);
+
+	if(!(duration > 0.f) || !isFinite(duration))
+		throw glare::Exception("rotateTo() duration must be > 0" + errorContextString(state));
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	WorldObject* ob = getObjectForScriptedMove(state, /*table index=*/1); // Looks up the object and checks modify permission.
+
+	// Optional args: easing (index 5), onCompleted callback (index 6).
+	uint32 easing = Protocol::MoveTo_EasingSmoothstep;
+	int callback_ref = LUA_NOREF;
+	parseMoveOptionalArgs(state, /*easing_index=*/5, /*callback_index=*/6, easing, callback_ref);
+
+	const Vec3f start_axis = ob->axis;
+	const float start_angle = ob->angle;
+	const double start_time = sub_lua_vm->server->getCurrentGlobalTime();
+
+	// Build and broadcast the ObjectRotateTo message.
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	MessageUtils::initPacket(packet, Protocol::ObjectRotateTo);
+	writeToStream(ob->uid, packet);
+	packet.writeDouble(start_time);
+	packet.writeFloat(duration);
+	packet.writeUInt32(easing);
+	writeToStream(start_axis, packet);
+	packet.writeFloat(start_angle);
+	writeToStream(target_axis, packet);
+	packet.writeFloat(target_angle);
+	MessageUtils::updatePacketLengthField(packet);
+
+	sub_lua_vm->server->enqueuePacketToBroadcastForWorld(packet, script_evaluator->world_state);
+
+	// Update the object's canonical orientation to the target (see note in luaMoveTo).
+	ob->axis = target_axis;
+	ob->angle = target_angle;
+	script_evaluator->world_state->addWorldObjectAsDBDirty(ob, *script_evaluator->cur_world_state_lock);
+	sub_lua_vm->server->world_state->markAsChanged();
+
+	// If an onCompleted callback was provided, schedule it to fire when the rotation finishes.
+	if(callback_ref != LUA_NOREF)
+		scheduleOneShotServerCallback(sub_lua_vm, script_evaluator, callback_ref, duration);
+#endif // SERVER
+
+	return 0; // Count of returned values
+}
+
+
 // C++ implementation of __index for WorldObject class. Used when a WorldObject table field is read from.
 static int worldObjectClassIndexMetaMethod(lua_State* state)
 {
@@ -1328,6 +1548,14 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 	case Atom_getAnimationIndex:
 		assert(stringEqual(key_str, "getAnimationIndex"));
 		lua_pushcfunction(state, getAnimationIndex, "getAnimationIndex");
+		break;
+	case Atom_moveTo:
+		assert(stringEqual(key_str, "moveTo"));
+		lua_pushcfunction(state, luaMoveTo, "moveTo");
+		break;
+	case Atom_rotateTo:
+		assert(stringEqual(key_str, "rotateTo"));
+		lua_pushcfunction(state, luaRotateTo, "rotateTo");
 		break;
 	case Atom_audio_loop:
 		assert(stringEqual(key_str, "audio_loop"));

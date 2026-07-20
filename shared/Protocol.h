@@ -46,13 +46,14 @@ CyberspaceProtocolVersion
 50: Added QueryUserGear and UserGearList messages.
 51: Added GearItemUpdate and CreateGearItem messages.
 52: Added PickUpGearItem, DropGearItem and CloneGearItemInInventory messages.
+53: Added ObjectMoveTo and ObjectRotateTo messages (for scripted moveTo/rotateTo).
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 52;
+const uint32 CyberspaceProtocolVersion = 53;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -116,7 +117,13 @@ const uint32 ObjectModelURLChanged	= 3012;
 const uint32 ObjectPhysicsOwnershipTaken	= 3013;
 const uint32 ObjectPhysicsTransformUpdate	= 3016;
 const uint32 ObjectContentChanged	= 3017;
+const uint32 ObjectMoveTo			= 3018; // Server tells clients to smoothly move an object to a target position over some duration (scripted moveTo).
+const uint32 ObjectRotateTo			= 3019; // Server tells clients to smoothly rotate an object to a target orientation over some duration (scripted rotateTo).
 const uint32 SummonObject			= 3030;
+
+// Easing values used in ObjectMoveTo and ObjectRotateTo messages.
+const uint32 MoveTo_EasingLinear		= 0;
+const uint32 MoveTo_EasingSmoothstep	= 1; // Ease in and out.
 
 const uint32 CreateObject			= 3004; // Client wants to create an object.
 const uint32 DestroyObject			= 3005; // Client wants to destroy an object.

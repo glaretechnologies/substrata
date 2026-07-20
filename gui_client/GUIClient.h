@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "EmscriptenResourceDownloader.h"
 #include "UploadResourceThread.h"
 #include "ScriptedObjectProximityChecker.h"
+#include "ObjectMoveToController.h"
 #include "../shared/WorldSettings.h"
 #include "../shared/WorldDetails.h"
 #include "../audio/AudioEngine.h"
@@ -51,6 +52,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ArenaAllocator.h>
 #include <utils/TimerQueue.h>
 #include <utils/RateLimitedSender.h>
+#include <utils/LinearIterSet.h>
 #include <maths/PCG32.h>
 #include <maths/LineSegment4f.h>
 #include <networking/IPAddress.h>
@@ -71,6 +73,7 @@ struct CreateVidReaderTask;
 class BiomeManager;
 class ScriptLoadedThreadMessage;
 class ObjectPathController;
+class ObjectMoveToController;
 namespace glare { class FastPoolAllocator; }
 class VehiclePhysics;
 class TerrainSystem;
@@ -763,7 +766,10 @@ public:
 
 	Reference<glare::FastPoolAllocator> world_ob_pool_allocator;
 
-	std::vector<Reference<ObjectPathController>> path_controllers;
+	std::vector<Reference<ObjectPathController>> path_controllers; // Topologically sorted.
+
+	glare::LinearIterSet<Reference<ObjectMoveToController>, ObjectMoveToControllerRefHash> active_move_to_controllers; // Controllers for scripted moveTo()/rotateTo() moves.
+	std::vector<Reference<ObjectMoveToController>> temp_move_to_controllers; // temp vector
 
 	UID client_avatar_uid; // When we connect to a server, the server assigns a UID to the client/avatar.
 	uint32 server_protocol_version;

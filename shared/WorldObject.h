@@ -43,6 +43,7 @@ namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
 class LuaScriptEvaluator;
+class ObjectMoveToController;
 class ObjectEventHandlers;
 class Matrix4f;
 class RayMesh;
@@ -550,6 +551,10 @@ public:
 	Reference<LuaScriptEvaluator> lua_script_evaluator;
 
 	Reference<ObjectEventHandlers> event_handlers;
+
+#if GUI_CLIENT
+	Reference<ObjectMoveToController> move_to_controller;
+#endif
 
 private:
 	VoxelGroup voxel_group;

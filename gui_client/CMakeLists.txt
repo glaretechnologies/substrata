@@ -213,6 +213,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/ObInfoUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ObInfoUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/ObjectPathController.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ObjectPathController.h
+${CMAKE_SOURCE_DIR}/gui_client/ObjectMoveToController.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ObjectMoveToController.h
 ${CMAKE_SOURCE_DIR}/gui_client/ParticleManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ParticleManager.h
 ${CMAKE_SOURCE_DIR}/gui_client/PhysicsObject.cpp
