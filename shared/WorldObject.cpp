@@ -1418,13 +1418,29 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 }
 
 
+static const float MIN_SCALE_VAL = 1.0e-6f;
+
+
+static inline Vec4f getUseScale(const Vec3f& scale3)
+{
+	const Vec4f scale = scale3.toVec4fVector();
+
+	// If mask element has higher bit set, return a element, else return b element.
+	return select(
+		Vec4f(MIN_SCALE_VAL), // a
+		scale, // b
+		parallelLessThan(abs(scale), Vec4f(MIN_SCALE_VAL)) // mask
+	);
+}
+
+
 const Vec3f useScaleForWorldOb(const Vec3f& scale)
 {
 	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
 	Vec3f use_scale = scale;
-	if(std::fabs(use_scale.x) < 1.0e-6f) use_scale.x = 1.0e-6f;
-	if(std::fabs(use_scale.y) < 1.0e-6f) use_scale.y = 1.0e-6f;
-	if(std::fabs(use_scale.z) < 1.0e-6f) use_scale.z = 1.0e-6f;
+	if(std::fabs(use_scale.x) < MIN_SCALE_VAL) use_scale.x = MIN_SCALE_VAL;
+	if(std::fabs(use_scale.y) < MIN_SCALE_VAL) use_scale.y = MIN_SCALE_VAL;
+	if(std::fabs(use_scale.z) < MIN_SCALE_VAL) use_scale.z = MIN_SCALE_VAL;
 	return use_scale;
 }
 
@@ -1434,10 +1450,7 @@ const Matrix4f obToWorldMatrix(const WorldObject& ob)
 	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
 
 	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
-	Vec3f use_scale = ob.scale;
-	if(std::fabs(use_scale.x) < 1.0e-6f) use_scale.x = 1.0e-6f;
-	if(std::fabs(use_scale.y) < 1.0e-6f) use_scale.y = 1.0e-6f;
-	if(std::fabs(use_scale.z) < 1.0e-6f) use_scale.z = 1.0e-6f;
+	const Vec4f use_scale = getUseScale(ob.scale);
 
 	// Equivalent to
 	//return Matrix4f::translationMatrix(pos + ob.translation) *
@@ -1445,9 +1458,9 @@ const Matrix4f obToWorldMatrix(const WorldObject& ob)
 	//	Matrix4f::scaleMatrix(use_scale.x, use_scale.y, use_scale.z));
 
 	Matrix4f rot = Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), ob.angle);
-	rot.setColumn(0, rot.getColumn(0) * use_scale.x);
-	rot.setColumn(1, rot.getColumn(1) * use_scale.y);
-	rot.setColumn(2, rot.getColumn(2) * use_scale.z);
+	rot.setColumn(0, rot.getColumn(0) * copyToAll<0>(use_scale));
+	rot.setColumn(1, rot.getColumn(1) * copyToAll<1>(use_scale));
+	rot.setColumn(2, rot.getColumn(2) * copyToAll<2>(use_scale));
 	rot.setColumn(3, pos + ob.translation);
 	return rot;
 }
@@ -1458,15 +1471,12 @@ const Matrix4f obToWorldMatrix(const Vec3d& pos_, const Vec3f& axis, float angle
 	const Vec4f pos((float)pos_.x, (float)pos_.y, (float)pos_.z, 1.f);
 
 	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
-	Vec3f use_scale = scale;
-	if(std::fabs(use_scale.x) < 1.0e-6f) use_scale.x = 1.0e-6f;
-	if(std::fabs(use_scale.y) < 1.0e-6f) use_scale.y = 1.0e-6f;
-	if(std::fabs(use_scale.z) < 1.0e-6f) use_scale.z = 1.0e-6f;
+	const Vec4f use_scale = getUseScale(scale);
 
 	Matrix4f rot = Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
-	rot.setColumn(0, rot.getColumn(0) * use_scale.x);
-	rot.setColumn(1, rot.getColumn(1) * use_scale.y);
-	rot.setColumn(2, rot.getColumn(2) * use_scale.z);
+	rot.setColumn(0, rot.getColumn(0) * copyToAll<0>(use_scale));
+	rot.setColumn(1, rot.getColumn(1) * copyToAll<1>(use_scale));
+	rot.setColumn(2, rot.getColumn(2) * copyToAll<2>(use_scale));
 	rot.setColumn(3, pos /*+ translation*/);
 	return rot;
 }
@@ -1474,6 +1484,8 @@ const Matrix4f obToWorldMatrix(const Vec3d& pos_, const Vec3f& axis, float angle
 
 const Matrix4f worldToObMatrix(const WorldObject& ob)
 {
+	// TODO: optimise (though this is not used in any inner loops)
+
 	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
 
 	return Matrix4f::scaleMatrix(1/ob.scale.x, 1/ob.scale.y, 1/ob.scale.z) *
@@ -1912,6 +1924,31 @@ static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 void WorldObject::test()
 {
 	conPrint("WorldObject::test()");
+
+
+
+
+	//----------------------------- Test obToWorldMatrix ------------------------------
+	{
+		const int N = 10000000;
+
+		{
+			Timer timer;
+			float sum = 0;
+			for(int i=0; i<N; ++i)
+			{
+				Vec3d pos(i, i+1, i+2);
+				Vec3f axis(1, 0, 0);
+				float angle = i * 1.0e-5f;
+				Vec3f scale(i * 0.0001f, i * 0.00001f, 1);
+				Matrix4f mat = ::obToWorldMatrix(pos, axis, angle, scale);
+				sum += mat.e[6];
+			}
+			const double elapsed = timer.elapsed() / N;
+			conPrint("obToWorldMatrix took    " + doubleToStringNDecimalPlaces(elapsed * 1.0e9) + " ns");
+			printVar(sum);
+		}
+	}
 
 
 	//----------------------------- Test makeOptimisedMeshURL ----------------------------
