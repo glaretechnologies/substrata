@@ -618,6 +618,63 @@ Resets the current playback position to the start of the audio (as determined by
 <div class="code-attr"><span class="code-attr-code">isPlayingAudio()</span><span class="code-attr-descrip">
 Returns if the object is currently playing audio or not.</span></div>
 
+
+<div class="code-func-definition" id="moveTo">object:moveTo(target_pos : Vec3d, duration : number, [easing : number], [onCompleted : function])</div>
+
+<div class="code-arg"><span class="code-arg-code">target_pos : Vec3d</span><span class="code-arg-descrip">The position to move the object to.</span></div>
+<div class="code-arg"><span class="code-arg-code">duration : number</span><span class="code-arg-descrip">The time, in seconds, that the move takes.  Must be greater than 0.</span></div>
+<div class="code-arg"><span class="code-arg-code">easing : number</span><span class="code-arg-descrip">Optional.  How the movement speed is eased over the duration: 0 = linear (constant speed), 1 = smoothstep (ease in and out).  Defaults to smoothstep (1).</span></div>
+<div class="code-arg"><span class="code-arg-code">onCompleted : function</span><span class="code-arg-descrip">Optional.  A function that is called on the server when the move finishes.  It is called with the script's object as its single argument, i.e. onCompleted(object : Object).</span></div>
+
+<div class="code-func-description">
+<p>
+Smoothly moves the object from its current position to target_pos over duration seconds.
+</p>
+<p>
+moveTo executes on the server, which broadcasts the move to all connected clients.  Clients interpolate the object's position.  All clients will see the same movement.
+</p>
+<p>
+An object can have an active moveTo (position) and rotateTo (rotation) at the same time.  Calling moveTo again while a move is in progress replaces the current move.
+</p>
+<p>
+The onCompleted callback uses a timer slot, and so is subject to the same limit as createTimer (an exception is thrown if more than 4 timers/callbacks are active at once).
+</p>
+<p>For example, to move an object 2 metres upwards over 3 seconds:</p>
+<pre class="code-block">
+this_object:moveTo(this_object.pos + Vec3d(0, 0, 2), 3.0)
+</pre>
+</div>
+
+
+
+<div class="code-func-definition" id="rotateTo">object:rotateTo(target_axis : Vec3f, target_angle : number, duration : number, [easing : number], [onCompleted : function])</div>
+
+<div class="code-arg"><span class="code-arg-code">target_axis : Vec3f</span><span class="code-arg-descrip">The axis to rotate the object around.</span></div>
+<div class="code-arg"><span class="code-arg-code">target_angle : number</span><span class="code-arg-descrip">The counter-clockwise angle of rotation around target_axis, in radians.</span></div>
+<div class="code-arg"><span class="code-arg-code">duration : number</span><span class="code-arg-descrip">The time, in seconds, that the rotation takes.  Must be greater than 0.</span></div>
+<div class="code-arg"><span class="code-arg-code">easing : number</span><span class="code-arg-descrip">Optional.  How the rotation speed is eased over the duration: 0 = linear (constant speed), 1 = smoothstep (ease in and out).  Defaults to smoothstep (1).</span></div>
+<div class="code-arg"><span class="code-arg-code">onCompleted : function</span><span class="code-arg-descrip">Optional.  A function that is called on the server when the rotation finishes.  It is called with the script's object as its single argument, i.e. onCompleted(object : Object).</span></div>
+
+<div class="code-func-description">
+<p>
+Smoothly rotates the object from its current orientation to the given axis-angle orientation over duration seconds.
+</p>
+<p>
+Like moveTo, rotateTo executes on the server and is broadcast to all clients, which see the same rotation.
+</p>
+<p>
+An object can have an active rotateTo and moveTo at the same time.  Calling rotateTo again while a rotation is in progress replaces the current rotation.  The same easing values, nil-easing rule, and timer/callback limit described for moveTo apply here.
+</p>
+<p>
+Note that target_angle is the absolute target orientation, not an amount to rotate by.  To rotate the object by a given amount, add to its current angle (this_object.angle).
+</p>
+<p>For example, to rotate an object (already oriented around the z-axis) a further 90 degrees around the z-axis over 2 seconds:</p>
+<pre class="code-block">
+this_object:rotateTo(Vec3f(0, 0, 1), this_object.angle + 3.14159265 / 2, 2.0)
+</pre>
+</div>
+
+
 <div class="code-func-definition">Material</div>
 
 <p>
