@@ -36,7 +36,7 @@ class ObjectMoveToController : public RefCounted
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	ObjectMoveToController(/*WorldObjectRef controlled_ob*/uint32 controlled_ob_index);
+	ObjectMoveToController(WorldObjectRef controlled_ob);
 	~ObjectMoveToController();
 
 	// Start or replace the position track.  cur_elapsed is (current global time - move start time), clamped to >= 0, so
@@ -48,13 +48,11 @@ public:
 
 	// Advance the active tracks by dtime and update the object's physics/render transform.
 	// Returns true if a track is still active, false if the move has finished (in which case the caller should remove this controller).
-	bool update(WorldObject* controlled_ob, PhysicsWorld& physics_world, OpenGLEngine* opengl_engine, float dtime);
+	bool update(PhysicsWorld& physics_world, OpenGLEngine* opengl_engine, float dtime);
 
 	bool isActive() const { return pos_active || rot_active; }
 
-	//WorldObjectRef controlled_ob;
-	uint32 controlled_ob_index;
-
+	WorldObjectRef controlled_ob;
 private:
 	bool pos_active;
 	Vec4f pos_start, pos_target;

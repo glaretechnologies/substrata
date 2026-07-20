@@ -13,8 +13,8 @@ Copyright Glare Technologies Limited 2026 -
 #include <maths/mathstypes.h>
 
 
-ObjectMoveToController::ObjectMoveToController(uint32 controlled_ob_index_)
-:	controlled_ob_index(controlled_ob_index_),
+ObjectMoveToController::ObjectMoveToController(WorldObjectRef controlled_ob_)
+:	controlled_ob(controlled_ob_),
 	pos_active(false), pos_start(0.f), pos_target(0.f), pos_duration(1.f), pos_easing(Protocol::MoveTo_EasingLinear), pos_elapsed(0.f),
 	rot_active(false), rot_start(Quatf::identity()), rot_target(Quatf::identity()), rot_duration(1.f), rot_easing(Protocol::MoveTo_EasingLinear), rot_elapsed(0.f)
 {}
@@ -55,7 +55,7 @@ void ObjectMoveToController::setRotationTrack(const Quatf& start_rot, const Quat
 }
 
 
-bool ObjectMoveToController::update(WorldObject* controlled_ob, PhysicsWorld& physics_world, OpenGLEngine* opengl_engine, float dtime)
+bool ObjectMoveToController::update(PhysicsWorld& physics_world, OpenGLEngine* opengl_engine, float dtime)
 {
 	// Determine current position.  For an inactive position track, hold the object's current position.
 	Vec4f new_pos;
