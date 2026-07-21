@@ -608,11 +608,8 @@ Reference<LLMThread> ChatBot::createLLMThread(Server* server)
 	}
 
 	llm_thread_settings.base_prompt = "Your name is '" + this->name + "'. " + server->config.shared_LLM_prompt_part + this->custom_prompt_part;
-	Reference<LLMThread> new_llm_thread = new LLMThread(server->config.AI_model_id, llm_thread_settings);
+	Reference<LLMThread> new_llm_thread = new LLMThread(server->config.AI_model_id, llm_thread_settings, &server->world_state->server_credentials, &server->message_queue);
 	new_llm_thread->chatbot = this;
-
-	new_llm_thread->out_msg_queue = &server->message_queue;
-	new_llm_thread->credentials = &server->world_state->server_credentials;
 
 	return new_llm_thread;
 }
