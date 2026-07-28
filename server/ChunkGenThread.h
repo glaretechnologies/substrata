@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include <MessageableThread.h>
+class Server;
 class ServerAllWorldsState;
 
 
@@ -19,12 +20,13 @@ textures into an array texture.  Simplifies meshes.
 class ChunkGenThread : public MessageableThread
 {
 public:
-	ChunkGenThread(ServerAllWorldsState* all_worlds_state);
+	ChunkGenThread(Server* server, ServerAllWorldsState* all_worlds_state);
 
 	virtual ~ChunkGenThread();
 
 	virtual void doRun();
 
 private:
+	Server* server;
 	ServerAllWorldsState* all_worlds_state;
 };

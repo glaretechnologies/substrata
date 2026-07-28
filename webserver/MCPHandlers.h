@@ -6,6 +6,11 @@ Copyright Glare Technologies Limited 2026 -
 #pragma once
 
 
+#include "../shared/UserID.h"
+#include <string>
+#include <vector>
+
+
 class ServerAllWorldsState;
 namespace web
 {
@@ -52,4 +57,30 @@ namespace MCPHandlers
 {
 	// Handles a POST request to /mcp.
 	void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+
+
+	struct ToolResult
+	{
+		ToolResult() : is_error(false) {}
+		std::string text;
+		bool is_error;
+	};
+
+	// Call a tool directly, in-process, without going via HTTP or JSON-RPC.  Used by the in-world Builder AI.
+	// The caller is responsible for authenticating the user; the tools act as acting_user_id and are subject to that user's permissions.
+	// args_json is the raw JSON object of tool arguments, e.g. {"pos":{"x":0,"y":0,"z":1}}.  May be empty for a tool taking no arguments.
+	// Does not throw: tool failures are returned with is_error set.
+	// NOTE: the caller must NOT hold the world state lock, as the tools take it themselves.
+	ToolResult callTool(ServerAllWorldsState& world_state, const std::string& tool_name, const std::string& args_json, const UserID acting_user_id, const std::string& acting_user_name);
+
+	struct ToolSpec
+	{
+		std::string name;
+		std::string description;
+		std::string input_schema_json; // The JSON schema for the tool's arguments, as raw JSON text.
+	};
+
+	// Get the list of tools in a form suitable for passing to an LLM API.
+	// This is the same list served by tools/list, so that the in-world Builder AI and external MCP agents always see the same tools.
+	void getToolSpecs(std::vector<ToolSpec>& specs_out);
 }

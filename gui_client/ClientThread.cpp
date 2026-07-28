@@ -1164,6 +1164,26 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			out_msg_queue->enqueue(new ChatMessage(name, msg, sender_avatar_uid));
 			break;
 		}
+	case Protocol::BuilderAITextDelta:
+		{
+			out_msg_queue->enqueue(new BuilderAITextDeltaMessage(msg_buffer.readStringLengthFirst(MAX_STRING_LEN)));
+			break;
+		}
+	case Protocol::BuilderAIToolActivity:
+		{
+			out_msg_queue->enqueue(new BuilderAIToolActivityMessage(msg_buffer.readStringLengthFirst(MAX_STRING_LEN)));
+			break;
+		}
+	case Protocol::BuilderAITurnComplete:
+		{
+			out_msg_queue->enqueue(new BuilderAITurnCompleteMessage());
+			break;
+		}
+	case Protocol::BuilderAIError:
+		{
+			out_msg_queue->enqueue(new BuilderAIErrorMessage(msg_buffer.readStringLengthFirst(MAX_STRING_LEN)));
+			break;
+		}
 	case Protocol::UserSelectedObject:
 		{
 			//conPrint("Received UserSelectedObject msg.");
@@ -1300,6 +1320,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			break;
 		}
 	case Protocol::LODChunkInitialSend:
+	case Protocol::LODChunkUpdatedMessage: // Sent when the server has finished rebuilding a chunk.  Same payload as LODChunkInitialSend.
 		{
 			ZoneScopedN("ClientThread: handling LODChunkInitialSend"); // Tracy profiler
 

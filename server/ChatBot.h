@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "../shared/WorldMaterial.h"
 #include "../shared/Avatar.h"
 #include "../shared/WorldStateLock.h"
+#include <ai/LLMThreadUser.h>
 #include <TimeStamp.h>
 #include <ThreadSafeRefCounted.h>
 #include <WeakRefCounted.h>
@@ -52,7 +53,7 @@ ChatBot
 -------
 A chatbot that uses LLMs for thinking.
 =====================================================================*/
-class ChatBot : public WeakRefCounted
+class ChatBot : public LLMThreadUser
 {
 public:
 	ChatBot();

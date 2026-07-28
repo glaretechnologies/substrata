@@ -397,44 +397,65 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	if(model_URL.size() > WorldObject::MAX_URL_SIZE)
 		throw glare::Exception("model_url too long.");
 
-	// We need to load the mesh to get the object-space AABB.
-	// Try and load mesh, get AABB from it.
+	const WorldObject::ObjectType object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal(parser, "object_type", /*default=*/"generic"));
+
+
 	js::AABBox aabb_os = js::AABBox::emptyAABBox();
-	try
+	if(object_type == WorldObject::ObjectType_Generic || object_type == WorldObject::ObjectType_GearItem)
 	{
-		// Look up our AABB cache first:
+		// We need to load the mesh to get the object-space AABB.
+		// Try and load mesh, get AABB from it.
+		try
 		{
-			WorldStateLock lock(all_worlds.mutex);
-
-			auto res = all_worlds.mesh_URL_to_aabb_os.find(model_URL);
-			if(res != all_worlds.mesh_URL_to_aabb_os.end())
-				aabb_os = res->second;
-		}
-
-		if(aabb_os == js::AABBox::emptyAABBox()) // If it wasn't in cache:
-		{
-			const std::string model_abs_path = all_worlds.resource_manager->pathForURLForPresentResource(model_URL);
-
-			BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_abs_path);
-					
-			aabb_os = batched_mesh->aabb_os;
-
-			// Insert into AABB cache:
+			// Look up our AABB cache first:
 			{
 				WorldStateLock lock(all_worlds.mutex);
-				all_worlds.mesh_URL_to_aabb_os.insert(std::make_pair(model_URL, aabb_os));
+
+				auto res = all_worlds.mesh_URL_to_aabb_os.find(model_URL);
+				if(res != all_worlds.mesh_URL_to_aabb_os.end())
+					aabb_os = res->second;
+			}
+
+			if(aabb_os == js::AABBox::emptyAABBox()) // If it wasn't in cache:
+			{
+				const std::string model_abs_path = all_worlds.resource_manager->pathForURLForPresentResource(model_URL);
+
+				BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_abs_path);
+					
+				aabb_os = batched_mesh->aabb_os;
+
+				// Insert into AABB cache:
+				{
+					WorldStateLock lock(all_worlds.mutex);
+					all_worlds.mesh_URL_to_aabb_os.insert(std::make_pair(model_URL, aabb_os));
+				}
 			}
 		}
+		catch(glare::Exception& e)
+		{
+			throw glare::Exception("Failed to load model with URL '" + toStdString(model_URL) + "'.  It must be already uploaded to server and be valid: " + e.what());
+		}
 	}
-	catch(glare::Exception& e)
-	{
-		throw glare::Exception("Failed to load model with URL '" + toStdString(model_URL) + "'.  It must be already uploaded to server and be valid: " + e.what());
-	}
-
+	else if(object_type == WorldObject::ObjectType_Hypercard)
+		aabb_os = WorldObject::getHypercardAABBos();
+	else if(object_type == WorldObject::ObjectType_VoxelGroup)
+		throw glare::Exception("Use create_voxel_object to create a voxel object.");
+	else if(object_type == WorldObject::ObjectType_Spotlight)
+		aabb_os = WorldObject::getSpotlightAABBos();
+	else if(object_type == WorldObject::ObjectType_WebView)
+		aabb_os = WorldObject::getWebViewAABBos();
+	else if(object_type == WorldObject::ObjectType_Video)
+		aabb_os = WorldObject::getVideoAABBos();
+	else if(object_type == WorldObject::ObjectType_Text)
+		aabb_os = WorldObject::getTextAABBos();
+	else if(object_type == WorldObject::ObjectType_Portal)
+		aabb_os = WorldObject::getPortalAABBos();
+	else if(object_type == WorldObject::ObjectType_Seat)
+		aabb_os = WorldObject::getSeatAABBos();
 
 	WorldObjectRef ob = new WorldObject();
 	ob->flags |= WorldObject::CREATED_VIA_MCP;
-	ob->object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal(parser, "object_type", /*default=*/"generic"));
+	ob->object_type = object_type;
 	ob->model_url = model_URL;
 
 	ob->script = args.getChildStringValueWithDefaultVal(parser, "script", /*default=*/"");
@@ -457,6 +478,12 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	ob->angle = (float)args.getChildDoubleValueWithDefaultVal(parser, "angle", 0.0);
 	ob->scale = Vec3f((float)args.getChildDoubleValueWithDefaultVal(parser, "scale_x", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_y", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_z", 1.0));
 	ob->setAABBOS(aabb_os);
+
+	if(object_type == WorldObject::ObjectType_Spotlight)
+	{
+		ob->type_data.spotlight_data.cone_start_angle = 0.317560429291521f; // = std::acos(0.95f); (old fixed value)
+		ob->type_data.spotlight_data.cone_end_angle   = 0.451026811796262f; // = std::acos(0.9f);  (old fixed value)
+	}
 
 	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
@@ -793,241 +820,308 @@ static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, con
 }
 
 
-// The static list of tools, in the format expected by an MCP tools/list response.
-static const char* TOOLS_LIST_JSON = R"TOOLS([
+// The static list of tools.
+// Each tool's argument schema is stored separately, as JSON text, so that it can be served both as part of an MCP
+// tools/list response (see makeToolsListJSON()) and to an LLM API for tool calling (see getToolSpecs()).
+struct ToolDef
+{
+	const char* name;
+	const char* description; // Plain text, JSON-escaped when written out.
+	const char* input_schema_json;
+};
+
+
+static const ToolDef TOOL_DEFS[] =
+{
+{
+	"list_worlds",
+	"List all worlds on this Substrata server, with object, avatar and parcel counts. The main world has the empty-string name.",
+	R"SCHEMA({ "type": "object", "properties": {}, "required": [] })SCHEMA"
+},
+{
+	"get_world_info",
+	"Get information about a single world: description and object/avatar/parcel counts.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": { "world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." } },
+		"required": []
+	})SCHEMA"
+},
+{
+	"list_avatars",
+	"List the avatars (users) currently present in a world, with their positions.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": { "world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." } },
+		"required": []
+	})SCHEMA"
+},
+{
+	"list_objects_near",
+	"List world objects within a given radius of a point.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"x": { "type": "number" },
+			"y": { "type": "number" },
+			"z": { "type": "number" },
+			"radius": { "type": "number", "description": "Search radius in metres." },
+			"limit": { "type": "number", "description": "Maximum number of objects to return (default 50)." }
+		},
+		"required": ["x", "y", "z", "radius"]
+	})SCHEMA"
+},
+{
+	"get_object",
+	"Get the details of a single world object by its UID.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"uid": { "type": "number", "description": "The UID of the object." }
+		},
+		"required": ["uid"]
+	})SCHEMA"
+},
+{
+	"create_object",
+	"Create a new object in a world. Acts as the user that owns the API key, subject to that user's permissions. NOTE: any referenced model_url resource must already exist on the server.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"x": { "type": "number" },
+			"y": { "type": "number" },
+			"z": { "type": "number" },
+			"model_url": { "type": "string", "description": "URL of an existing model resource on the server (optional)." },
+			"object_type": { "type": "string", "description": "One of: generic, hypercard, voxel group, spotlight, web view, video, text, portal, seat, gear item. Default generic." },
+			"script": { "type": "string", "description": "Script content, for scripting object behaviour (optional)." },
+			"content": { "type": "string", "description": "Text content, for Hypercard/Text objects (optional)." },
+			"target_url": { "type": "string", "description": "Makes the object usable to visit a web page or substrata URL. (optional)." },
+			"scale_x": { "type": "number", "description": "Default 1." },
+			"scale_y": { "type": "number", "description": "Default 1." },
+			"scale_z": { "type": "number", "description": "Default 1." },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." }
+		},
+		"required": ["x", "y", "z"]
+	})SCHEMA"
+},
+{
+	"edit_object",
+	"Edit the transform of an existing object. Only the provided fields are changed. Position requires x, y and z together; scale requires scale_x/y/z together; rotation requires axis_x/y/z and angle together.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"uid": { "type": "number", "description": "The UID of the object to edit." },
+			"x": { "type": "number" },
+			"y": { "type": "number" },
+			"z": { "type": "number" },
+			"scale_x": { "type": "number" },
+			"scale_y": { "type": "number" },
+			"scale_z": { "type": "number" },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number" },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis." }
+		},
+		"required": ["uid"]
+	})SCHEMA"
+},
+{
+	"delete_object",
+	"Delete an object from a world.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"uid": { "type": "number", "description": "The UID of the object to delete." }
+		},
+		"required": ["uid"]
+	})SCHEMA"
+},
+{
+	"create_cube",
+	"Create an axis-aligned box from the unit-cube primitive, useful for blocking out walls, floors and buildings. z is up; metres. Rotation uses axis + angle (radians), same as objects.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"pos": { "type": "object", "description": "Box centre as {x,y,z}. Provide exactly one of pos or base_pos." },
+			"base_pos": { "type": "object", "description": "Centre of the bottom face as {x,y,z}; the box rests on this z. Provide exactly one of pos or base_pos." },
+			"size_x": { "type": "number", "description": "Width (x) in metres. Default 1." },
+			"size_y": { "type": "number", "description": "Depth (y) in metres. Default 1." },
+			"size_z": { "type": "number", "description": "Height (z) in metres. Default 1." },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
+			"material": { "type": "object", "description": "Optional material, e.g. {\"colour_rgb\":{\"r\":1,\"g\":1,\"b\":1}}. Supported fields: colour_rgb {r,g,b}, roughness {val}, metallic_fraction {val}, opacity {val}, emission_rgb {r,g,b}, colour_texture_url. Omitted fields use defaults." }
+		},
+		"required": []
+	})SCHEMA"
+},
+{
+	"create_cylinder",
+	"Create a cylinder (extending along z by default, so vertical - good for columns and pillars). z is up; metres. Rotation uses axis + angle (radians).",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"pos": { "type": "object", "description": "Centre as {x,y,z}. Provide exactly one of pos or base_pos." },
+			"base_pos": { "type": "object", "description": "Centre of the bottom face as {x,y,z}; the cylinder rests on this z. Provide exactly one of pos or base_pos." },
+			"radius": { "type": "number", "description": "Radius in metres. Default 0.5." },
+			"height": { "type": "number", "description": "Height in metres. Default 1." },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
+			"material": { "type": "object", "description": "Optional material (see create_cube)." }
+		},
+		"required": []
+	})SCHEMA"
+},
+{
+	"create_sphere",
+	"Create a sphere (from the icosahedron primitive). z is up; metres.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"pos": { "type": "object", "description": "Centre as {x,y,z}. Provide exactly one of pos or base_pos." },
+			"base_pos": { "type": "object", "description": "Point the sphere rests on as {x,y,z} (centre is one radius above it). Provide exactly one of pos or base_pos." },
+			"radius": { "type": "number", "description": "Radius in metres. Default 0.5." },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
+			"material": { "type": "object", "description": "Optional material (see create_cube)." }
+		},
+		"required": []
+	})SCHEMA"
+},
+{
+	"create_cone",
+	"Create a cone. Axis is along z.  z is up; metres. Rotation uses axis + angle (radians).",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"pos": { "type": "object", "description": "Centre of the base of the cone as {x,y,z}." },
+			"radius": { "type": "number", "description": "Radius of the base in metres. Default 0.5." },
+			"height": { "type": "number", "description": "Height in metres. Default 1." },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
+			"material": { "type": "object", "description": "Optional material (see create_cube)." }
+		},
+		"required": []
+	})SCHEMA"
+},
+{
+	"create_wedge",
+	"Create a wedge. The thin edge of the wedge is in the negative x direction.  The thick edge is in the positive x direction.  So height (z) increases as x increases.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"pos": { "type": "object", "description": "Wedge centre as {x,y,z}. Provide exactly one of pos or base_pos." },
+			"base_pos": { "type": "object", "description": "Centre of the bottom face as {x,y,z}; the wedge rests on this z. Provide exactly one of pos or base_pos." },
+			"size_x": { "type": "number", "description": "Width (x) in metres. Default 1." },
+			"size_y": { "type": "number", "description": "Depth (y) in metres. Default 1." },
+			"size_z": { "type": "number", "description": "Height (z) in metres. Default 1." },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
+			"material": { "type": "object", "description": "Optional material (see create_cube)." }
+		},
+		"required": []
+	})SCHEMA"
+},
+{
+	"create_voxel_object",
+	"Create a voxel object from an array of voxels on an integer grid. Each voxel is a 1m cube in object space; the object scale (default 1) then maps to world space, so scale is the voxel width in metres. z is up. Rotation uses axis + angle (radians).",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
+			"pos": { "type": "object", "description": "Object origin as {x,y,z}. The voxel at grid coords (0,0,0) has its minimal corner here." },
+			"voxels": { "type": "array", "description": "Array of voxels, each {\"x\":int,\"y\":int,\"z\":int,\"mat\":int}. mat is an index into materials, default 0. Max 100000 voxels; coords must be in [-32768, 32766] and the voxel bounding volume is limited to 2^26 cells." },
+			"materials": { "type": "array", "description": "Optional array of materials (see create_cube material for the format). Voxel mat indices index into this array. Max 255 materials." },
+			"scale_x": { "type": "number", "description": "Default 1." },
+			"scale_y": { "type": "number", "description": "Default 1." },
+			"scale_z": { "type": "number", "description": "Default 1." },
+			"axis_x": { "type": "number" },
+			"axis_y": { "type": "number" },
+			"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." }
+		},
+		"required": ["pos", "voxels"]
+	})SCHEMA"
+}
+};
+
+static const size_t NUM_TOOL_DEFS = sizeof(TOOL_DEFS) / sizeof(TOOL_DEFS[0]);
+
+
+// Build the tools array in the format expected by an MCP tools/list response.
+static const std::string makeToolsListJSON()
+{
+	std::string s = "[";
+	for(size_t i=0; i<NUM_TOOL_DEFS; ++i)
 	{
-		"name": "list_worlds",
-		"description": "List all worlds on this Substrata server, with object, avatar and parcel counts. The main world has the empty-string name.",
-		"inputSchema": { "type": "object", "properties": {}, "required": [] }
-	},
-	{
-		"name": "get_world_info",
-		"description": "Get information about a single world: description and object/avatar/parcel counts.",
-		"inputSchema": {
-			"type": "object",
-			"properties": { "world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." } },
-			"required": []
-		}
-	},
-	{
-		"name": "list_avatars",
-		"description": "List the avatars (users) currently present in a world, with their positions.",
-		"inputSchema": {
-			"type": "object",
-			"properties": { "world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." } },
-			"required": []
-		}
-	},
-	{
-		"name": "list_objects_near",
-		"description": "List world objects within a given radius of a point.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"x": { "type": "number" },
-				"y": { "type": "number" },
-				"z": { "type": "number" },
-				"radius": { "type": "number", "description": "Search radius in metres." },
-				"limit": { "type": "number", "description": "Maximum number of objects to return (default 50)." }
-			},
-			"required": ["x", "y", "z", "radius"]
-		}
-	},
-	{
-		"name": "get_object",
-		"description": "Get the details of a single world object by its UID.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"uid": { "type": "number", "description": "The UID of the object." }
-			},
-			"required": ["uid"]
-		}
-	},
-	{
-		"name": "create_object",
-		"description": "Create a new object in a world. Acts as the user that owns the API key, subject to that user's permissions. NOTE: any referenced model_url resource must already exist on the server.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"x": { "type": "number" },
-				"y": { "type": "number" },
-				"z": { "type": "number" },
-				"model_url": { "type": "string", "description": "URL of an existing model resource on the server (optional)." },
-				"object_type": { "type": "string", "description": "One of: generic, hypercard, voxel group, spotlight, web view, video, text, portal, seat, gear item. Default generic." },
-				"script": { "type": "string", "description": "Script content, for scripting object behaviour (optional)." },
-				"content": { "type": "string", "description": "Text content, for Hypercard/Text objects (optional)." },
-				"target_url": { "type": "string", "description": "Makes the object usable to visit a web page or substrata URL. (optional)." },
-				"scale_x": { "type": "number", "description": "Default 1." },
-				"scale_y": { "type": "number", "description": "Default 1." },
-				"scale_z": { "type": "number", "description": "Default 1." },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." }
-			},
-			"required": ["x", "y", "z"]
-		}
-	},
-	{
-		"name": "edit_object",
-		"description": "Edit the transform of an existing object. Only the provided fields are changed. Position requires x, y and z together; scale requires scale_x/y/z together; rotation requires axis_x/y/z and angle together.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"uid": { "type": "number", "description": "The UID of the object to edit." },
-				"x": { "type": "number" },
-				"y": { "type": "number" },
-				"z": { "type": "number" },
-				"scale_x": { "type": "number" },
-				"scale_y": { "type": "number" },
-				"scale_z": { "type": "number" },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number" },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis." }
-			},
-			"required": ["uid"]
-		}
-	},
-	{
-		"name": "delete_object",
-		"description": "Delete an object from a world.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"uid": { "type": "number", "description": "The UID of the object to delete." }
-			},
-			"required": ["uid"]
-		}
-	},
-	{
-		"name": "create_cube",
-		"description": "Create an axis-aligned box from the unit-cube primitive, useful for blocking out walls, floors and buildings. z is up; metres. Rotation uses axis + angle (radians), same as objects.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"pos": { "type": "object", "description": "Box centre as {x,y,z}. Provide exactly one of pos or base_pos." },
-				"base_pos": { "type": "object", "description": "Centre of the bottom face as {x,y,z}; the box rests on this z. Provide exactly one of pos or base_pos." },
-				"size_x": { "type": "number", "description": "Width (x) in metres. Default 1." },
-				"size_y": { "type": "number", "description": "Depth (y) in metres. Default 1." },
-				"size_z": { "type": "number", "description": "Height (z) in metres. Default 1." },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
-				"material": { "type": "object", "description": "Optional material, e.g. {\"colour_rgb\":{\"r\":1,\"g\":1,\"b\":1}}. Supported fields: colour_rgb {r,g,b}, roughness {val}, metallic_fraction {val}, opacity {val}, emission_rgb {r,g,b}, colour_texture_url. Omitted fields use defaults." }
-			},
-			"required": []
-		}
-	},
-	{
-		"name": "create_cylinder",
-		"description": "Create a cylinder (extending along z by default, so vertical - good for columns and pillars). z is up; metres. Rotation uses axis + angle (radians).",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"pos": { "type": "object", "description": "Centre as {x,y,z}. Provide exactly one of pos or base_pos." },
-				"base_pos": { "type": "object", "description": "Centre of the bottom face as {x,y,z}; the cylinder rests on this z. Provide exactly one of pos or base_pos." },
-				"radius": { "type": "number", "description": "Radius in metres. Default 0.5." },
-				"height": { "type": "number", "description": "Height in metres. Default 1." },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
-				"material": { "type": "object", "description": "Optional material (see create_cube)." }
-			},
-			"required": []
-		}
-	},
-	{
-		"name": "create_sphere",
-		"description": "Create a sphere (from the icosahedron primitive). z is up; metres.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"pos": { "type": "object", "description": "Centre as {x,y,z}. Provide exactly one of pos or base_pos." },
-				"base_pos": { "type": "object", "description": "Point the sphere rests on as {x,y,z} (centre is one radius above it). Provide exactly one of pos or base_pos." },
-				"radius": { "type": "number", "description": "Radius in metres. Default 0.5." },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
-				"material": { "type": "object", "description": "Optional material (see create_cube)." }
-			},
-			"required": []
-		}
-	},
-	{
-		"name": "create_cone",
-		"description": "Create a cone. Axis is along z.  z is up; metres. Rotation uses axis + angle (radians).",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"pos": { "type": "object", "description": "Centre of the base of the cone as {x,y,z}." },
-				"radius": { "type": "number", "description": "Radius of the base in metres. Default 0.5." },
-				"height": { "type": "number", "description": "Height in metres. Default 1." },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
-				"material": { "type": "object", "description": "Optional material (see create_cube)." }
-			},
-			"required": []
-		}
-	},
-	{
-		"name": "create_wedge",
-		"description": "Create a wedge. The thin edge of the wedge is in the negative x direction.  The thick edge is in the positive x direction.  So height (z) increases as x increases.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"pos": { "type": "object", "description": "Wedge centre as {x,y,z}. Provide exactly one of pos or base_pos." },
-				"base_pos": { "type": "object", "description": "Centre of the bottom face as {x,y,z}; the wedge rests on this z. Provide exactly one of pos or base_pos." },
-				"size_x": { "type": "number", "description": "Width (x) in metres. Default 1." },
-				"size_y": { "type": "number", "description": "Depth (y) in metres. Default 1." },
-				"size_z": { "type": "number", "description": "Height (z) in metres. Default 1." },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." },
-				"material": { "type": "object", "description": "Optional material (see create_cube)." }
-			},
-			"required": []
-		}
-	},
-	{
-		"name": "create_voxel_object",
-		"description": "Create a voxel object from an array of voxels on an integer grid. Each voxel is a 1m cube in object space; the object scale (default 1) then maps to world space, so scale is the voxel width in metres. z is up. Rotation uses axis + angle (radians).",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"world_name": { "type": "string", "description": "Name of the world. Use the empty string for the main world." },
-				"pos": { "type": "object", "description": "Object origin as {x,y,z}. The voxel at grid coords (0,0,0) has its minimal corner here." },
-				"voxels": { "type": "array", "description": "Array of voxels, each {\"x\":int,\"y\":int,\"z\":int,\"mat\":int}. mat is an index into materials, default 0. Max 100000 voxels; coords must be in [-32768, 32766] and the voxel bounding volume is limited to 2^26 cells." },
-				"materials": { "type": "array", "description": "Optional array of materials (see create_cube material for the format). Voxel mat indices index into this array. Max 255 materials." },
-				"scale_x": { "type": "number", "description": "Default 1." },
-				"scale_y": { "type": "number", "description": "Default 1." },
-				"scale_z": { "type": "number", "description": "Default 1." },
-				"axis_x": { "type": "number" },
-				"axis_y": { "type": "number" },
-				"axis_z": { "type": "number", "description": "Rotation axis, default (0,0,1)." },
-				"angle": { "type": "number", "description": "Rotation angle in radians about the axis. Default 0." }
-			},
-			"required": ["pos", "voxels"]
-		}
+		s += std::string(i > 0 ? "," : "") + "{\"name\":\"" + web::Escaping::JSONEscape(TOOL_DEFS[i].name) + "\","
+			"\"description\":\"" + web::Escaping::JSONEscape(TOOL_DEFS[i].description) + "\","
+			"\"inputSchema\":" + TOOL_DEFS[i].input_schema_json + "}";
 	}
-])TOOLS";
+	s += "]";
+	return s;
+}
+
+
+// Dispatch a tool call to the tool implementation.  Returns the result text.
+// Throws glare::Exception if the tool is unknown or fails.
+// 'args' should be the (possibly empty) object of arguments for the tool.
+static const std::string dispatchTool(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const std::string& tool_name,
+	const UserID acting_user_id, const std::string& acting_user_name)
+{
+	if(tool_name == "list_worlds")
+		return tool_listWorlds(all_worlds);
+	else if(tool_name == "get_world_info")
+		return tool_getWorldInfo(all_worlds, parser, args);
+	else if(tool_name == "list_avatars")
+		return tool_listAvatars(all_worlds, parser, args);
+	else if(tool_name == "list_objects_near")
+		return tool_listObjectsNear(all_worlds, parser, args);
+	else if(tool_name == "get_object")
+		return tool_getObject(all_worlds, parser, args);
+	else if(tool_name == "create_object")
+		return tool_createObject(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else if(tool_name == "edit_object")
+		return tool_editObject(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else if(tool_name == "delete_object")
+		return tool_deleteObject(all_worlds, parser, args, acting_user_id);
+	else if(tool_name == "create_cube")
+		return tool_createCube(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else if(tool_name == "create_cylinder")
+		return tool_createCylinder(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else if(tool_name == "create_sphere")
+		return tool_createSphere(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else if(tool_name == "create_cone")
+		return tool_createCone(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else if(tool_name == "create_wedge")
+		return tool_createWedge(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else if(tool_name == "create_voxel_object")
+		return tool_createVoxelObject(all_worlds, parser, args, acting_user_id, acting_user_name);
+	else
+		throw glare::Exception("Unknown tool '" + tool_name + "'");
+}
 
 
 // Dispatch a tools/call request.  Returns the CallToolResult JSON.  Tool-level errors are returned as an error result (isError=true), not thrown.
@@ -1046,41 +1140,52 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 
 	try
 	{
-		if(tool_name == "list_worlds")
-			return makeToolResult(tool_listWorlds(all_worlds), /*is_error=*/false);
-		else if(tool_name == "get_world_info")
-			return makeToolResult(tool_getWorldInfo(all_worlds, parser, args), /*is_error=*/false);
-		else if(tool_name == "list_avatars")
-			return makeToolResult(tool_listAvatars(all_worlds, parser, args), /*is_error=*/false);
-		else if(tool_name == "list_objects_near")
-			return makeToolResult(tool_listObjectsNear(all_worlds, parser, args), /*is_error=*/false);
-		else if(tool_name == "get_object")
-			return makeToolResult(tool_getObject(all_worlds, parser, args), /*is_error=*/false);
-		else if(tool_name == "create_object")
-			return makeToolResult(tool_createObject(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else if(tool_name == "edit_object")
-			return makeToolResult(tool_editObject(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else if(tool_name == "delete_object")
-			return makeToolResult(tool_deleteObject(all_worlds, parser, args, acting_user_id), /*is_error=*/false);
-		else if(tool_name == "create_cube")
-			return makeToolResult(tool_createCube(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else if(tool_name == "create_cylinder")
-			return makeToolResult(tool_createCylinder(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else if(tool_name == "create_sphere")
-			return makeToolResult(tool_createSphere(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else if(tool_name == "create_cone")
-			return makeToolResult(tool_createCone(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else if(tool_name == "create_wedge")
-			return makeToolResult(tool_createWedge(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else if(tool_name == "create_voxel_object")
-			return makeToolResult(tool_createVoxelObject(all_worlds, parser, args, acting_user_id, acting_user_name), /*is_error=*/false);
-		else
-			return makeToolResult("Unknown tool '" + tool_name + "'", /*is_error=*/true);
+		return makeToolResult(dispatchTool(all_worlds, parser, args, tool_name, acting_user_id, acting_user_name), /*is_error=*/false);
 	}
 	catch(glare::Exception& e)
 	{
 		conPrint("MCP: tool '" + tool_name + "' failed: " + e.what());
 		return makeToolResult(e.what(), /*is_error=*/true);
+	}
+}
+
+
+// The in-process entry point used by the in-world Builder AI (see server/BuilderAISession).
+// Unlike handleMCPRequest, this does no HTTP, no JSON-RPC and no API key auth: the caller has already authenticated
+// the user, and passes the acting user in directly, so the tools are subject to that user's permissions as usual.
+ToolResult callTool(ServerAllWorldsState& world_state, const std::string& tool_name, const std::string& args_json, const UserID acting_user_id, const std::string& acting_user_name)
+{
+	ToolResult result;
+	try
+	{
+		// The args come from an LLM, so are not trusted to be valid JSON, let alone to match the tool's schema.
+		const std::string args_buf = args_json.empty() ? "{}" : args_json;
+		JSONParser parser;
+		parser.parseBuffer(args_buf.data(), args_buf.size());
+
+		checkNodeType(parser.nodes[0], JSONNode::Type_Object);
+
+		result.text = dispatchTool(world_state, parser, parser.nodes[0], tool_name, acting_user_id, acting_user_name);
+		result.is_error = false;
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("BuilderAI: tool '" + tool_name + "' failed: " + e.what());
+		result.text = e.what();
+		result.is_error = true;
+	}
+	return result;
+}
+
+
+void getToolSpecs(std::vector<ToolSpec>& specs_out)
+{
+	specs_out.resize(NUM_TOOL_DEFS);
+	for(size_t i=0; i<NUM_TOOL_DEFS; ++i)
+	{
+		specs_out[i].name              = TOOL_DEFS[i].name;
+		specs_out[i].description       = TOOL_DEFS[i].description;
+		specs_out[i].input_schema_json = TOOL_DEFS[i].input_schema_json;
 	}
 }
 
@@ -1301,7 +1406,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 		}
 		else if(method == "tools/list")
 		{
-			writeResult(reply_info, id, "{\"tools\":" + std::string(TOOLS_LIST_JSON) + "}");
+			writeResult(reply_info, id, "{\"tools\":" + makeToolsListJSON() + "}");
 		}
 		else if(method == "tools/call")
 		{

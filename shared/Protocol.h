@@ -8,6 +8,8 @@ Copyright Glare Technologies Limited 2023 -
 
 #include "utils/Platform.h"
 
+// See also ProtocolStructs.h
+
 /*
 CyberspaceProtocolVersion
 20: Added lightmap_url to WorldObject.
@@ -47,13 +49,14 @@ CyberspaceProtocolVersion
 51: Added GearItemUpdate and CreateGearItem messages.
 52: Added PickUpGearItem, DropGearItem and CloneGearItemInInventory messages.
 53: Added ObjectMoveTo and ObjectRotateTo messages (for scripted moveTo/rotateTo).
+54: Added the Builder AI messages.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 53;
+const uint32 CyberspaceProtocolVersion = 54;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -219,6 +222,23 @@ const uint32 PongMessage			= 13101; // Sent by the server, used for calculating 
 
 const uint32 PhotoUploadSucceeded	= 14000;
 const uint32 PhotoUploadFailed		= 14001;
+
+
+//------------------ Builder AI messages ------------------
+// Sent over the normal updates connection.  Handled on the server by WorkerThread, which drives a per-connection
+// BuilderAISession (see server/BuilderAISession).
+// The conversation with the LLM lasts for the lifetime of the connection: each BuilderAIUserMessage is one
+// turn in it, and the message history is held server-side, so the client does not resend it.
+
+// Client to server:
+const uint32 BuilderAIUserMessage	= 15000; // One user turn: some text, plus the spatial context it was sent in.
+const uint32 BuilderAICancel		= 15001; // User wants to stop the build currently in progress.
+
+// Server to client:
+const uint32 BuilderAITextDelta		= 15010; // A chunk of assistant text, for streaming into the Builder AI panel.
+const uint32 BuilderAIToolActivity	= 15011; // Progress line describing a tool call, e.g. "Creating cube".
+const uint32 BuilderAITurnComplete	= 15012; // The assistant has finished the turn.
+const uint32 BuilderAIError			= 15013; // Something went wrong; the message is shown to the user.
 
 
 

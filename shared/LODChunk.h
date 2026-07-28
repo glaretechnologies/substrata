@@ -59,6 +59,14 @@ public:
 	bool graphics_ob_in_engine;
 	OpenGLTextureKey combined_array_texture_path;
 
+	// When the server rebuilds a chunk it sends us new mesh and texture URLs.  We keep displaying the existing graphics_ob while the new mesh and texture load,
+	// building the replacement graphics object here, then swap it into graphics_ob once both are ready.
+	Reference<GLObject> loading_graphics_ob;
+	Reference<MeshData> loading_mesh_manager_data;
+	OpenGLTextureKey loading_combined_array_texture_path;
+	Reference<OpenGLTexture> loading_combined_array_texture; // Set when the new combined array texture has loaded, which may be before or after the new mesh has loaded.
+	                                                        // Holding a reference also stops the texture being evicted from the OpenGL engine texture cache while we wait for the mesh.
+
 	Reference<GLObject> diagnostics_gl_ob; // For diagnostics visualisation
 
 	Reference<MeshData> mesh_manager_data; // Hang on to a reference to the mesh data, so when chunk-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().

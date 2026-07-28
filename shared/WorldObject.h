@@ -293,6 +293,15 @@ public:
 
 	const std::string& getGearItemName() const { return target_url; }
 
+
+	static js::AABBox getHypercardAABBos();
+	static js::AABBox getSpotlightAABBos();
+	static js::AABBox getWebViewAABBos();
+	static js::AABBox getVideoAABBos();
+	static js::AABBox getTextAABBos();
+	static js::AABBox getPortalAABBos();
+	static js::AABBox getSeatAABBos();
+
 	static void test();
 
 public:

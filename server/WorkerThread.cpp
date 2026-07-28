@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "SubEthTransaction.h"
 #include "MeshLODGenThread.h"
 #include "WorkerThreadUploadPhotoHandling.h"
+#include "BuilderAISession.h"
 #include "../webserver/LoginHandlers.h"
 #include "../shared/Protocol.h"
 #include "../shared/ProtocolStructs.h"
@@ -3815,6 +3816,17 @@ void WorkerThread::doRun()
 
 							break;
 						}
+					case Protocol::BuilderAIUserMessage:
+						{
+							handleBuilderAIUserMessage(client_user_id, client_user_name);
+							break;
+						}
+					case Protocol::BuilderAICancel:
+						{
+							if(builder_ai_session)
+								builder_ai_session->handleCancel();
+							break;
+						}
 					default:
 						{
 							//conPrint("Unknown message id: " + toString(msg_type));
@@ -3828,12 +3840,21 @@ void WorkerThread::doRun()
 #else
 					if(VERBOSE) conPrint("WorkerThread: event FD was signalled.");
 
-					// The event FD was signalled, which means there is some data to send on the socket.
+					// The event FD was signalled, which means there is some data to send on the socket, or the Builder AI's
+					// LLMThread has posted a response for us (see below).
 					// Reset the event fd by reading from it.
 					event_fd.read();
 
 					if(VERBOSE) conPrint("WorkerThread: event FD has been reset.");
 #endif
+				}
+
+				// Handle any responses posted by the Builder AI's LLMThread.  This is done every iteration (not just when the
+				// socket is readable) because the LLMThread wakes us via event_fd, which may fire with no socket data pending.
+				if(builder_ai_session)
+				{
+					builder_ai_session->processLLMMessages();
+					builder_ai_session->checkForTurnTimeout();
 				}
 			} // End write to / read from socket loop
 		} // End if(connection_type == Protocol::ConnectionTypeUpdates)
@@ -3915,6 +3936,35 @@ void WorkerThread::enqueueDataToSend(const ArrayRef<uint8> data) // threadsafe
 	}
 
 	event_fd.notify();
+}
+
+
+void WorkerThread::handleBuilderAIUserMessage(UserID client_user_id, const std::string& client_user_name)
+{
+	static const size_t MAX_USER_MESSAGE_LEN = 4000;
+
+	const std::string user_text = msg_buffer.readStringLengthFirst(MAX_USER_MESSAGE_LEN);
+
+	BuilderAIContext context;
+	msg_buffer.readData(&context, sizeof(context));
+
+	// The Builder AI acts as the connected user, so the user must be logged in.
+	if(!client_user_id.valid())
+	{
+		SocketBufferOutStream packet;
+		MessageUtils::initPacket(packet, Protocol::BuilderAIError);
+		packet.writeStringLengthFirst("You must be logged in to use the Builder AI.");
+		MessageUtils::updatePacketLengthField(packet);
+		socket->writeData(packet.buf.data(), packet.buf.size());
+		socket->flush();
+		return;
+	}
+
+	// Create the session lazily on the first message.
+	if(builder_ai_session.isNull())
+		builder_ai_session = new BuilderAISession(server, client_user_id, client_user_name, cur_world_state->details.name, socket.ptr(), &this->event_fd);
+
+	builder_ai_session->handleUserMessage(user_text, context);
 }
 
 

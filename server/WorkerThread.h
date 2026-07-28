@@ -15,12 +15,14 @@ Copyright Glare Technologies Limited 2018 -
 #include <MySocket.h>
 #include <SocketBufferOutStream.h>
 #include <Vector.h>
+#include "../shared/UserID.h"
 #include <BufferInStream.h>
 #include <AtomicInt.h>
 #include <string>
 class Server;
 class ServerAllWorldsState;
 class ServerWorldState;
+class BuilderAISession;
 
 
 /*=====================================================================
@@ -55,6 +57,7 @@ private:
 	void conPrintIfNotFuzzing(const std::string& msg);
 	void sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state, uint32 client_protocol_version);
 	void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer);
+	void handleBuilderAIUserMessage(UserID client_user_id, const std::string& client_user_name);
 
 	Reference<SocketInterface> socket;
 	Server* server;
@@ -77,4 +80,6 @@ private:
 	glare::AtomicInt should_quit;
 
 	bool is_websocket_connection;
+
+	Reference<BuilderAISession> builder_ai_session; // The in-world Builder AI session for this connection.  Created lazily on the first Builder AI message.
 };

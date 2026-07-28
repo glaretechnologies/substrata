@@ -48,6 +48,10 @@ enum GuiClientThreadMessages
 	Msg_TerrainChunkGeneratedMsg,
 	Msg_WindNoiseLoaded,
 	Msg_UserGearListMessage,
+	Msg_BuilderAITextDeltaMessage,
+	Msg_BuilderAIToolActivityMessage,
+	Msg_BuilderAITurnCompleteMessage,
+	Msg_BuilderAIErrorMessage,
 	Msg_TextureUploadedMessage = 1000, // Should match the values from <opengl/OpenGLUploadThread.h>
 	Msg_AnimatedTextureUpdated = 1001,
 	Msg_GeometryUploadedMessage = 1002,
@@ -75,5 +79,38 @@ class ErrorMessage : public ThreadMessage
 {
 public:
 	ErrorMessage(const std::string& msg_) : ThreadMessage(Msg_ErrorMessage), msg(msg_) {}
+	std::string msg;
+};
+
+
+//---------------- Builder AI messages, posted by ClientThread to the GUIClient ----------------
+
+class BuilderAITextDeltaMessage : public ThreadMessage
+{
+public:
+	BuilderAITextDeltaMessage(const std::string& text_) : ThreadMessage(Msg_BuilderAITextDeltaMessage), text(text_) {}
+	std::string text;
+};
+
+
+class BuilderAIToolActivityMessage : public ThreadMessage
+{
+public:
+	BuilderAIToolActivityMessage(const std::string& tool_name_) : ThreadMessage(Msg_BuilderAIToolActivityMessage), tool_name(tool_name_) {}
+	std::string tool_name;
+};
+
+
+class BuilderAITurnCompleteMessage : public ThreadMessage
+{
+public:
+	BuilderAITurnCompleteMessage() : ThreadMessage(Msg_BuilderAITurnCompleteMessage) {}
+};
+
+
+class BuilderAIErrorMessage : public ThreadMessage
+{
+public:
+	BuilderAIErrorMessage(const std::string& msg_) : ThreadMessage(Msg_BuilderAIErrorMessage), msg(msg_) {}
 	std::string msg;
 };

@@ -6,8 +6,10 @@ Copyright Glare Technologies Limited 2024 -
 #include "ChunkGenThread.h"
 
 
+#include "Server.h"
 #include "ServerWorldState.h"
 #include "../shared/LODGeneration.h"
+#include "../shared/MessageUtils.h"
 #include "../shared/VoxelMeshBuilding.h"
 #include "../shared/ImageDecoding.h"
 #include "../shared/Protocol.h"
@@ -34,6 +36,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/FileUtils.h>
 #include <utils/LRUCache.h>
 #include <maths/matrix3.h>
+#include <SocketBufferOutStream.h>
 #if !GUI_CLIENT
 #include <encoder/basisu_comp.h>
 #endif
@@ -44,8 +47,8 @@ Copyright Glare Technologies Limited 2024 -
 static const float chunk_w = 128;
 
 
-ChunkGenThread::ChunkGenThread(ServerAllWorldsState* all_worlds_state_)
-:	all_worlds_state(all_worlds_state_)
+ChunkGenThread::ChunkGenThread(Server* server_, ServerAllWorldsState* all_worlds_state_)
+:	server(server_), all_worlds_state(all_worlds_state_)
 {
 }
 
@@ -1439,10 +1442,17 @@ void ChunkGenThread::doRun()
 					}
 
 					all_worlds_state->markAsChanged();
-				}
-				
 
-				// TODO: Send out a chunk-updated message to clients
+
+					// Send out a chunk-updated message to clients connected to this world, so they load the newly built chunk mesh and texture.
+					// conPrint("============== Sending LODChunkUpdatedMessage to clients ==================");
+					SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					MessageUtils::initPacket(scratch_packet, Protocol::LODChunkUpdatedMessage);
+					chunk->writeToStream(scratch_packet);
+					MessageUtils::updatePacketLengthField(scratch_packet);
+
+					server->enqueuePacketToBroadcastForWorld(scratch_packet, dirty_chunks[i].world_state.ptr());
+				}
 			}
 
 			if(!dirty_chunks.empty())

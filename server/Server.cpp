@@ -527,7 +527,7 @@ int main(int argc, char *argv[])
 		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(&server, server.world_state.ptr()));
 
 		if(server_config.enable_LOD_chunking)
-			thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
+			thread_manager.addThread(new ChunkGenThread(&server, server.world_state.ptr()));
 
 		server.udp_handler_thread_manager.addThread(new UDPHandlerThread(&server));
 
@@ -823,8 +823,10 @@ int main(int argc, char *argv[])
 
 						// These messages come from LLMThreads and are sent when some streaming data is received from a LLM cloud server.
 						// Pass on to the relevant chatbot.
+						Reference<LLMThreadUser> user = chat_msg->user.upgradeToStrongRef();
+						if(user.isType<ChatBot>())
 						{
-							ChatBotRef chatbot = chat_msg->chatbot.upgradeToStrongRef();
+							ChatBotRef chatbot = user.downcast<ChatBot>();
 							if(chatbot)
 							{
 								WorldStateLock world_lock(server.world_state->mutex);
@@ -836,8 +838,10 @@ int main(int argc, char *argv[])
 					{
 						AIChatResponseDoneMessage* done_msg = static_cast<AIChatResponseDoneMessage*>(msg.ptr());
 
+						Reference<LLMThreadUser> user = done_msg->user.upgradeToStrongRef();
+						if(user.isType<ChatBot>())
 						{
-							ChatBotRef chatbot = done_msg->chatbot.upgradeToStrongRef();
+							ChatBotRef chatbot = user.downcast<ChatBot>();
 							if(chatbot)
 							{
 								WorldStateLock world_lock(server.world_state->mutex);
@@ -848,11 +852,16 @@ int main(int argc, char *argv[])
 					else if(dynamic_cast<AIToolFunctionCallMessage*>(msg.ptr()))
 					{
 						AIToolFunctionCallMessage* tool_msg = static_cast<AIToolFunctionCallMessage*>(msg.ptr());
-						ChatBotRef chatbot = tool_msg->chatbot.upgradeToStrongRef();
-						if(chatbot)
+
+						Reference<LLMThreadUser> user = tool_msg->user.upgradeToStrongRef();
+						if(user.isType<ChatBot>())
 						{
-							WorldStateLock world_lock(server.world_state->mutex);
-							chatbot->handleLLMToolFunctionCall(tool_msg->calls->calls, &server, world_lock);
+							ChatBotRef chatbot = user.downcast<ChatBot>();
+							if(chatbot)
+							{
+								WorldStateLock world_lock(server.world_state->mutex);
+								chatbot->handleLLMToolFunctionCall(tool_msg->calls->calls, &server, world_lock);
+							}
 						}
 					}
 				}
@@ -1434,7 +1443,7 @@ void Server::clientUDPPortBecameKnown(UID client_avatar_uid, const IPAddress& ip
 }
 
 
-// Enqueues packet to all WorkerThreads connected to the same world.
+// Enqueues packet to all WorkerThreads connected to the given world.
 void Server::enqueuePacketToBroadcastForWorld(const SocketBufferOutStream& packet_buffer, ServerWorldState* world)
 {
 	Lock lock(worker_thread_manager.getMutex());

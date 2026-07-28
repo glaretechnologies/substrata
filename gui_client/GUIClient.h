@@ -103,6 +103,7 @@ class VBO;
 class PBO;
 class GestureSettings;
 class PhotoModeUI;
+class BuilderAIUI;
 class GearInventoryUI;
 class TransformGizmo;
 namespace Scripting { class ObjectScriptsEvaluator; }
@@ -302,6 +303,11 @@ public:
 	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
 	void setThirdPersonCameraPosition(double dt);
 	void handleMessages(double global_time, double cur_time);
+
+	// Builder AI panel:
+	void toggleBuilderAIPanel(); // Show/hide the panel.
+	void sendBuilderAIMessage(const std::string& text); // Called when the user submits a message in the panel.
+	void cancelBuilderAI(); // Called when the user presses the stop button.
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
 	void addParcelObjects();
@@ -434,6 +440,7 @@ public:
 	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
 	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
 
+	void swapInLoadedLODChunkGraphics(LODChunk* chunk) REQUIRES(world_state->mutex);
 	void handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<MeshData> mesh_data, WorldStateLock& lock) REQUIRES(world_state->mutex);
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
@@ -713,6 +720,7 @@ public:
 	MiscInfoUI misc_info_ui; // For showing messages from the server, vehicle speed etc.
 	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
+	Reference<BuilderAIUI> builder_ai_ui; // The "Builder AI" panel: chat interface for asking the AI to build things.
 	Reference<PhotoModeUI> photo_mode_ui;
 	Reference<GearInventoryUI> gear_inventory_ui;
 	Reference<MiniMap> minimap;
