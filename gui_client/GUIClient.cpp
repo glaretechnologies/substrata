@@ -13628,7 +13628,7 @@ void GUIClient::checkCreateManagersAndMinimapAndBuilderAIUI()
 		if(!builder_ai_ui)
 		{
 			builder_ai_ui = new BuilderAIUI(/*gui_client_=*/this, gl_ui);
-			if(true) // Testing:
+			if(false) // Testing:
 			{
 				builder_ai_ui->on_send_message = [this](const std::string& text)
 				{
