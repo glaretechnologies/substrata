@@ -514,25 +514,6 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
 	chat_ui.setDrawAreaBottomLeftY(bottom_left_y);
 
-	builder_ai_ui = new BuilderAIUI(/*gui_client_=*/this, gl_ui);
-	{
-		GUIClient* this_ptr = this;
-		if(false)
-		{
-			// Testing:
-			builder_ai_ui->on_send_message = [this_ptr](const std::string& text)
-			{
-				this_ptr->builder_ai_ui->appendAssistantTextDelta("Hello\nWhat's up?");
-				//this_ptr->builder_ai_ui->turnComplete();
-			};
-		}
-		else
-		{
-			builder_ai_ui->on_send_message = [this_ptr](const std::string& text) { this_ptr->sendBuilderAIMessage(text); };
-			builder_ai_ui->on_cancel       = [this_ptr]() { this_ptr->cancelBuilderAI(); };
-		}
-	}
-
 
 	// For non-Emscripten, init this stuff now.  For Emscripten, since this data is loaded from the webserver, wait until we are connecting and hence know the server hostname.
 #if !EMSCRIPTEN
@@ -868,7 +849,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 #endif
 	}
 
-	checkCreateManagersAndMinimap();
+	checkCreateManagersAndMinimapAndBuilderAIUI();
 }
 
 
@@ -13214,6 +13195,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	minimap = nullptr;
 
+	builder_ai_ui = nullptr; // We want to reset the Builder AI UI state (turn in progress etc.) so just close the builder AI UI on disconnect from server.
+
 	clearAllObjects();
 	world_state = nullptr;
 
@@ -13451,7 +13434,8 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 #endif
 
 	minimap = nullptr;
-	checkCreateManagersAndMinimap();
+	builder_ai_ui = nullptr;
+	checkCreateManagersAndMinimapAndBuilderAIUI();
 
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
@@ -13556,7 +13540,8 @@ void GUIClient::changeToDifferentWorld(const URLParseResults& parse_res)
 
 
 	minimap = nullptr;
-	checkCreateManagersAndMinimap();
+	builder_ai_ui = nullptr;
+	checkCreateManagersAndMinimapAndBuilderAIUI();
 
 
 	// Send CreateAvatar packet for this client's avatar
@@ -13626,7 +13611,8 @@ void GUIClient::checkCreateResourceDownloadThreads()
 }
 
 
-void GUIClient::checkCreateManagersAndMinimap()
+// These objects are created once we are connecting to a server, but they also require the OpenGL engine to be initialised.
+void GUIClient::checkCreateManagersAndMinimapAndBuilderAIUI()
 {
 	if(opengl_engine && async_texture_loader && gl_ui)
 	{
@@ -13638,6 +13624,25 @@ void GUIClient::checkCreateManagersAndMinimap()
 
 		if(!minimap)
 			minimap = new MiniMap(opengl_engine, /*gui_client_=*/this, gl_ui);
+
+		if(!builder_ai_ui)
+		{
+			builder_ai_ui = new BuilderAIUI(/*gui_client_=*/this, gl_ui);
+			if(true) // Testing:
+			{
+				builder_ai_ui->on_send_message = [this](const std::string& text)
+				{
+					this->builder_ai_ui->appendAssistantTextDelta("Hello\nWhat's up?");
+					this->builder_ai_ui->turnComplete();
+				};
+				builder_ai_ui->on_cancel       = [this]() { this->cancelBuilderAI(); };
+			}
+			else
+			{
+				builder_ai_ui->on_send_message = [this](const std::string& text) { this->sendBuilderAIMessage(text); };
+				builder_ai_ui->on_cancel       = [this]() { this->cancelBuilderAI(); };
+			}
+		}
 	}
 }
 

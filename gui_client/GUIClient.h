@@ -406,7 +406,7 @@ public:
 	void changeToDifferentWorld(const URLParseResults& url_results);
 
 	void checkCreateResourceDownloadThreads(); // Create DownloadResourcesThread etc. if not created already and resource_manager is non-null.
-	void checkCreateManagersAndMinimap();
+	void checkCreateManagersAndMinimapAndBuilderAIUI();
 
 	void processLoading(Timer& timer_event_timer);
 	void sendGeometryDataToGarbageDeleterThread(const Reference<OpenGLMeshRenderData>& gl_meshdata);

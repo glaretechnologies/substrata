@@ -33,8 +33,7 @@ the world, e.g. "build me a house here".
 This is a separate conversation from the main world chat, and is shown in its
 own panel on the right hand side of the screen.
 
-The conversation is held on the server, over a dedicated connection that is
-opened when this panel is shown, so this class just displays messages and
+The conversation is held on the server, so this class just displays messages and
 sends the user's text (see on_send_message).
 =====================================================================*/
 class BuilderAIUI : public GLUICallbackHandler, public ThreadSafeRefCounted
@@ -88,8 +87,6 @@ private:
 	};
 
 	bool isInitialisedFully();
-	float computeWidgetWidth();
-
 	void setWidgetVisibilityForExpanded();
 	void updateWidgetTransforms();
 	void recreateMessageTextViews();

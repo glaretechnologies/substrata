@@ -16,12 +16,12 @@ static const float corner_radius_px = 8;
 static const int font_size_px = 12;
 static const int msgs_padding_w_px = 8;
 
-static const size_t MAX_NUM_MESSAGES = 40;
+static const size_t MAX_NUM_MESSAGES = 16;
 
 static const Colour3f panel_background_col(0.08f);
-static const Colour3f user_text_col(0.7f, 0.85f, 1.0f);
-static const Colour3f assistant_text_col(0.9f, 0.9f, 0.9f);
-static const Colour3f error_text_col(1.0f, 0.5f, 0.4f);
+static const Colour3f user_text_col      = toLinearSRGB(Colour3f(0.9f, 0.9f, 0.9f));
+static const Colour3f assistant_text_col = toLinearSRGB(Colour3f(0.7f, 0.85f, 1.0f));
+static const Colour3f error_text_col     = toLinearSRGB(Colour3f(1.0f, 0.5f, 0.4f));
 
 
 BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
@@ -63,7 +63,7 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 			args.z = -0.2f;
 			window = new GLUIWindow(*gl_ui_, args);
 			window->debug_name = "builder AI window";
-			window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
+			//window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
 		
 			window->handler = this;
 			//window->on_contained_widget_changed_size = [this](){ this->windowChangedSize(); };
@@ -131,28 +131,29 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 
 		{
 			GLUILineEdit::CreateArgs create_args;
-			create_args.sizing_type_x = GLUILineEdit::SizingType_Expanding;
+			//create_args.sizing_type_x = GLUILineEdit::SizingType_Expanding;
+			create_args.sizing_type_x = GLUILineEdit::SizingType_FixedSizePx;
+			create_args.fixed_size.x = 500;
 			create_args.background_colour = panel_background_col;
 			create_args.background_alpha = 0.8f;
 			create_args.font_size_px = font_size_px;
 			msg_line_edit = new GLUILineEdit(*gl_ui, /*dummy botleft=*/Vec2f(0.f), create_args);
 			msg_line_edit->debug_name = "msg_line_edit";
 
-			BuilderAIUI* this_ptr = this;
 			GLUILineEdit* line_edit_ptr = msg_line_edit.ptr();
-			msg_line_edit->on_enter_pressed = [this_ptr, line_edit_ptr]()
+			msg_line_edit->on_enter_pressed = [this, line_edit_ptr]()
 				{
-					if(this_ptr->turn_in_progress) // Don't allow sending another message while the AI is still working.
+					if(this->turn_in_progress) // Don't allow sending another message while the AI is still working.
 						return;
 
 					const std::string text = line_edit_ptr->getText();
 					if(!text.empty())
 					{
 						line_edit_ptr->clear();
-						this_ptr->appendUserMessage(text);
-						this_ptr->setTurnInProgress(true);
-						if(this_ptr->on_send_message)
-							this_ptr->on_send_message(text);
+						this->appendUserMessage(text);
+						this->setTurnInProgress(true);
+						if(this->on_send_message)
+							this->on_send_message(text);
 					}
 				};
 
@@ -234,12 +235,6 @@ bool BuilderAIUI::isInitialisedFully()
 }
 
 
-float BuilderAIUI::computeWidgetWidth()
-{
-	return myClamp(gl_ui->getUIWidthForDevIndepPixelWidth(400.f), /*lower bound=*/0.4f, /*upper bound=*/1.2f);
-}
-
-
 //===================== Messages =====================
 
 
@@ -249,14 +244,14 @@ void BuilderAIUI::recreateTextViewsForMessage(BuilderAIMessage& msg, int row_ind
 		gl_ui->removeWidget(msg.msg_text);
 	msg.msg_text = NULL;
 
-	const float text_area_w = computeWidgetWidth() - gl_ui->getUIWidthForDevIndepPixelWidth(msgs_padding_w_px) * 2;
+	const float text_area_max_width = gl_ui->getUIWidthForDevIndepPixelWidth(500.f);
 
 	GLUITextView::CreateArgs msg_args;
 	msg_args.font_size_px = font_size_px;
 	msg_args.padding_px = 9;
 	msg_args.background_alpha = 0.3f;
 	msg_args.background_corner_radius_px = corner_radius_px;
-	msg_args.max_width = text_area_w;
+	msg_args.max_width = text_area_max_width;
 	msg_args.text_colour = msg.is_error ? error_text_col : (msg.from_user ? user_text_col : assistant_text_col);
 
 	msg.msg_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(msg.text), Vec2f(0.f), msg_args);
@@ -405,23 +400,16 @@ void BuilderAIUI::updateWidgetTransforms()
 	if(!isInitialisedFully())
 		return;
 
-	const float panel_w = computeWidgetWidth();
-
 	// Anchor the panel to the right hand side of the screen.
-	//const float right_edge_x = 1.f - gl_ui->getUIWidthForDevIndepPixelWidth(20);
-	//const float left_x = right_edge_x - panel_w;
-
-	const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(12);
-
-	const float top_margin = gl_ui->getUIWidthForDevIndepPixelWidth(30);
-
-	const float width  = gl_ui->getUIWidthForDevIndepPixelWidth(435);
+	const float side_margin = gl_ui->getUIWidthForDevIndepPixelWidth(30);
+	const float top_margin  = gl_ui->getUIWidthForDevIndepPixelWidth(30);
 
 	window->recomputeLayout();
 
+	const float width = window->getDims().x;
 	const float height = window->getDims().y;
 
-	window->setPos(/*botleft=*/Vec2f(1 - margin - width, gl_ui->getViewportMinMaxY() - top_margin - height));
+	window->setPos(/*botleft=*/Vec2f(1 - side_margin - width, gl_ui->getViewportMinMaxY() - top_margin - height));
 
 	//---------------------------- expand_button ----------------------------
 	const float expand_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(40);
