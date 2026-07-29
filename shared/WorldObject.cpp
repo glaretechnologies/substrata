@@ -1834,6 +1834,43 @@ Reference<ObjectEventHandlers> WorldObject::getOrCreateEventHandlers()
 }
 
 
+js::AABBox WorldObject::getHypercardAABBos()
+{
+	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
+}
+
+js::AABBox WorldObject::getSpotlightAABBos()
+{
+	const float fixture_w = 0.1f;
+	return js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
+}
+
+js::AABBox WorldObject::getWebViewAABBos()
+{
+	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1));
+}
+
+js::AABBox WorldObject::getVideoAABBos()
+{
+	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1));
+}
+
+js::AABBox WorldObject::getTextAABBos()
+{
+	return js::AABBox(Vec4f(0,0,0,1), Vec4f(10,1,0,1)); // NOTE: actually depends on text content.
+}
+
+js::AABBox WorldObject::getPortalAABBos()
+{
+	return js::AABBox(Vec4f(-0.056f, -0.056f, -0.043f, 1), Vec4f(0.056f, 0.056f, 0.083f, 1)); // From inspecting in diagnostics widget.
+}
+
+js::AABBox WorldObject::getSeatAABBos()
+{
+	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1)); // TEMP
+}
+
+
 void doDestroyOb(WorldObject* ob)
 {
 	if(ob->allocator)
@@ -1920,42 +1957,6 @@ static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 	}
 }
 
-
-js::AABBox WorldObject::getHypercardAABBos()
-{
-	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
-}
-
-js::AABBox WorldObject::getSpotlightAABBos()
-{
-	const float fixture_w = 0.1f;
-	return js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
-}
-
-js::AABBox WorldObject::getWebViewAABBos()
-{
-	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1));
-}
-
-js::AABBox WorldObject::getVideoAABBos()
-{
-	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1));
-}
-
-js::AABBox WorldObject::getTextAABBos()
-{
-	return js::AABBox(Vec4f(0,0,0,1), Vec4f(10,1,0,1)); // NOTE: actually depends on text content.
-}
-
-js::AABBox WorldObject::getPortalAABBos()
-{
-	return js::AABBox(Vec4f(-0.056f, -0.056f, -0.043f, 1), Vec4f(0.056f, 0.056f, 0.083f, 1)); // From inspecting in diagnostics widget.
-}
-
-js::AABBox WorldObject::getSeatAABBos()
-{
-	return js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1)); // TEMP
-}
 
 void WorldObject::test()
 {
