@@ -116,7 +116,6 @@ private:
 	GLUIGridContainerRef line_edit_row_container;
 	GLUILineEditRef msg_line_edit;
 	GLUIButtonRef stop_button;
-	//GLUIButtonRef collapse_button;
 	GLUIButtonRef expand_button;
 
 	GUIClient* gui_client;

@@ -35,7 +35,6 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	try
 	{
 		/*
-
 		---------------------------------------|  window
 		|             Builder AI              X|
 		|--------------------------------------|
@@ -53,8 +52,8 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		|| Line edit                     |Stop|| line_edit_row_container
 		||------------------------------------||
 		---------------------------------------
-
 		*/
+
 		// Create window
 		{
 			GLUIWindow::CreateArgs args;
@@ -133,7 +132,6 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		{
 			GLUILineEdit::CreateArgs create_args;
 			create_args.sizing_type_x = GLUILineEdit::SizingType_Expanding;
-			//create_args.fixed_size.x = gl_ui->getDevIndepPixelWidthForUIWidth(computeWidgetWidth());
 			create_args.background_colour = panel_background_col;
 			create_args.background_alpha = 0.8f;
 			create_args.font_size_px = font_size_px;
@@ -174,24 +172,14 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 			line_edit_row_container->setCellWidget(1, 0, stop_button); // Position to right of line edit
 		}
 
-	/*	{
-			GLUIButton::CreateArgs args;
-			args.tooltip = "Hide Builder AI";
-			collapse_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/down_tab.png", args);
-			collapse_button->handler = this;
-			gl_ui->addWidget(collapse_button);
-		}*/
-
 		{
 			GLUIButton::CreateArgs args;
 			args.tooltip = "Show Builder AI";
-			expand_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/expand_chat_icon.png", args);
+			expand_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/builder_ai.png", args);
 			expand_button->handler = this;
-			//expand_button->setVisible(visible);
 			gl_ui->addWidget(expand_button);
 		}
 
-		
 
 		setWidgetVisibilityForExpanded();
 		updateWidgetTransforms();
@@ -214,13 +202,6 @@ BuilderAIUI::~BuilderAIUI()
 	messages.clear();
 
 	checkRemoveAndDeleteWidget(gl_ui, window);
-	//checkRemoveAndDeleteWidget(gl_ui, main_grid_container);
-	//checkRemoveAndDeleteWidget(gl_ui, chat_grid_container);
-	//checkRemoveAndDeleteWidget(gl_ui, status_text);
-	//checkRemoveAndDeleteWidget(gl_ui, line_edit_row_container);
-	//checkRemoveAndDeleteWidget(gl_ui, msg_line_edit);
-	//checkRemoveAndDeleteWidget(gl_ui, stop_button);
-	//checkRemoveAndDeleteWidget(gl_ui, collapse_button);
 	checkRemoveAndDeleteWidget(gl_ui, expand_button);
 
 	gl_ui = NULL;
@@ -249,7 +230,6 @@ bool BuilderAIUI::isInitialisedFully()
 		line_edit_row_container.nonNull() &&
 		msg_line_edit.nonNull() &&
 		stop_button.nonNull() &&
-		//collapse_button.nonNull() &&
 		expand_button.nonNull();
 }
 
@@ -415,10 +395,6 @@ void BuilderAIUI::viewportResized(int w, int h)
 }
 
 
-static const float button_spacing_px = 10;
-static const float button_w_px = 20;
-
-
 void BuilderAIUI::handleMouseMoved(MouseEvent& mouse_event)
 {
 }
@@ -432,8 +408,8 @@ void BuilderAIUI::updateWidgetTransforms()
 	const float panel_w = computeWidgetWidth();
 
 	// Anchor the panel to the right hand side of the screen.
-	const float right_edge_x = 1.f - gl_ui->getUIWidthForDevIndepPixelWidth(20);
-	const float left_x = right_edge_x - panel_w;
+	//const float right_edge_x = 1.f - gl_ui->getUIWidthForDevIndepPixelWidth(20);
+	//const float left_x = right_edge_x - panel_w;
 
 	const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(12);
 
@@ -445,40 +421,12 @@ void BuilderAIUI::updateWidgetTransforms()
 
 	const float height = window->getDims().y;
 
-	window->setPos(/*botleft=*/Vec2f(1 - margin - width, gl_ui->getViewportMinMaxY() - top_margin - height/*-gl_ui->getViewportMinMaxY() + bot_margin*/));
-
-
-	//window->setPos(Vec2f(-0.4f, -0.4f));
-	//window->recomputeLayout();
-
-	//---------------------------- msg_line_edit ----------------------------
-//	msg_line_edit->setFixedWidthPx(gl_ui->getDevIndepPixelWidthForUIWidth(panel_w - gl_ui->getUIWidthForDevIndepPixelWidth(40)));
-//	const float line_edit_y = -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(20);
-//	msg_line_edit->setPos(Vec2f(left_x, line_edit_y));
-//
-//	//---------------------------- stop_button ----------------------------
-//	const float button_h = gl_ui->getUIWidthForDevIndepPixelWidth(button_w_px);
-//	stop_button->setPosAndDims(Vec2f(right_edge_x - button_h, line_edit_y), Vec2f(button_h, button_h));
-//
-//	//---------------------------- status_text ----------------------------
-//	const float status_y = line_edit_y + gl_ui->getUIWidthForDevIndepPixelWidth(30);
-//	status_text->setPos(Vec2f(left_x, status_y));
-
-	//---------------------------- grid_container ----------------------------
-	//grid_container->setFixedWidthUICoords(panel_w);
-	//grid_container->viewportResized(); //TEMP
-	//const float grid_y = status_y + gl_ui->getUIWidthForDevIndepPixelWidth(24);
-	//grid_container->setPos(Vec2f(left_x, grid_y));
-
-	//---------------------------- collapse_button ----------------------------
-	//const float button_w = gl_ui->getUIWidthForDevIndepPixelWidth(50);
-	//const float text_top_y = grid_container->getClippedContentRect().getMax().y;
-	//collapse_button->setPosAndDims(Vec2f(left_x, text_top_y + gl_ui->getUIWidthForDevIndepPixelWidth(button_spacing_px + 8)), Vec2f(button_w, button_h));
+	window->setPos(/*botleft=*/Vec2f(1 - margin - width, gl_ui->getViewportMinMaxY() - top_margin - height));
 
 	//---------------------------- expand_button ----------------------------
-	const float expand_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(36);
-	expand_button->setPosAndDims(Vec2f(left_x, -gl_ui->getViewportMinMaxY() + gl_ui->getUIWidthForDevIndepPixelWidth(20 - 6)),
-		Vec2f(expand_button_w, expand_button_w));
+	const float expand_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(40);
+	expand_button->setPosAndDims(Vec2f(1.f - expand_button_w - gl_ui->getUIWidthForDevIndepPixelWidth(10), -expand_button_w/2),
+		Vec2f(expand_button_w));
 }
 
 
@@ -490,15 +438,7 @@ void BuilderAIUI::setWidgetVisibilityForExpanded()
 	stop_button->setVisible(show && turn_in_progress);
 	status_text->setVisible(show && turn_in_progress);
 
-	//grid_container->setVisible(show);
-	//msg_line_edit->setVisible(show);
-	//collapse_button->setVisible(show);
-	//stop_button->setVisible(show && turn_in_progress);
-	//status_text->setVisible(show && turn_in_progress);
 	expand_button->setVisible(!expanded && visible);
-
-	for(auto it = messages.begin(); it != messages.end(); ++it)
-		it->msg_text->setVisible(show);
 }
 
 
@@ -507,12 +447,7 @@ void BuilderAIUI::eventOccurred(GLUICallbackEvent& event)
 	if(!isInitialisedFully())
 		return;
 
-	/*if(event.widget == this->collapse_button.ptr())
-	{
-		expanded = false;
-		setWidgetVisibilityForExpanded();
-	}
-	else */if(event.widget == this->expand_button.ptr())
+	if(event.widget == this->expand_button.ptr())
 	{
 		expanded = true;
 		setWidgetVisibilityForExpanded();
