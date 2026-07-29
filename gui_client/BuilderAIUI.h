@@ -86,7 +86,6 @@ private:
 		GLUITextViewRef msg_text;
 	};
 
-	bool isInitialisedFully();
 	void setWidgetVisibilityForExpanded();
 	void updateWidgetTransforms();
 	void recreateMessageTextViews();

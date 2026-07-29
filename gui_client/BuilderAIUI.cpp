@@ -32,164 +32,156 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 	expanded(false),
 	visible(true) // Hidden until the user opens the panel.
 {
-	try
+	/*
+	---------------------------------------|  window
+	|             Builder AI              X|
+	|--------------------------------------|
+	||------------------------------------||  main_grid_container
+	||------------------------------------||  
+	||| -------------                    |||
+	||||Build a cube |                   |||
+	||| -------------                    |||
+	||| -----------------                |||  chat_grid_container
+	||||Ok I built a cube |              |||
+	||| __________________               |||
+	|||----------------------------------|||
+	|| Status text                        ||
+	||------------------------------------||
+	|| Line edit                     |Stop|| line_edit_row_container
+	||------------------------------------||
+	---------------------------------------
+	*/
+
+	// Create window
 	{
-		/*
-		---------------------------------------|  window
-		|             Builder AI              X|
-		|--------------------------------------|
-		||------------------------------------||  main_grid_container
-		||------------------------------------||  
-		||| -------------                    |||
-		||||Build a cube |                   |||
-		||| -------------                    |||
-		||| -----------------                |||  chat_grid_container
-		||||Ok I built a cube |              |||
-		||| __________________               |||
-		|||----------------------------------|||
-		|| Status text                        ||
-		||------------------------------------||
-		|| Line edit                     |Stop|| line_edit_row_container
-		||------------------------------------||
-		---------------------------------------
-		*/
-
-		// Create window
-		{
-			GLUIWindow::CreateArgs args;
-			args.title = "Builder AI";
-			args.background_colour = Colour3f(0.1f);
-			args.background_alpha = 0.9f;
-			args.z = -0.2f;
-			window = new GLUIWindow(*gl_ui_, args);
-			window->debug_name = "builder AI window";
-			//window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
+		GLUIWindow::CreateArgs args;
+		args.title = "Builder AI";
+		args.background_colour = Colour3f(0.1f);
+		args.background_alpha = 0.9f;
+		args.z = -0.2f;
+		window = new GLUIWindow(*gl_ui_, args);
+		window->debug_name = "builder AI window";
+		//window->setFixedDimsUICoords(Vec2f(0.5f, gl_ui->getViewportMinMaxY() * 1.6f));
 		
-			window->handler = this;
-			//window->on_contained_widget_changed_size = [this](){ this->windowChangedSize(); };
-			window->on_close_window = [this](){ 
-				this->expanded = false;
-				this->setWidgetVisibilityForExpanded(); 
-			};
-			gl_ui->addWidget(window);
-		}
+		window->handler = this;
+		//window->on_contained_widget_changed_size = [this](){ this->windowChangedSize(); };
+		window->on_close_window = [this](){ 
+			this->expanded = false;
+			this->setWidgetVisibilityForExpanded(); 
+		};
+		gl_ui->addWidget(window);
+	}
 
-		{
-			GLUIGridContainer::CreateArgs args;
-			args.interior_cell_x_padding_px = 5;
-			args.interior_cell_y_padding_px = 5;
-			args.background_alpha = 0;
-			//args.background_colour = Colour3f(0.1f, 0.5f, 0.1f);
-			//args.background_alpha = 0.9f;
-			main_grid_container = new GLUIGridContainer(*gl_ui_, args);
-			main_grid_container->debug_name = "builder AI main_grid_container";
+	{
+		GLUIGridContainer::CreateArgs args;
+		args.interior_cell_x_padding_px = 5;
+		args.interior_cell_y_padding_px = 5;
+		args.background_alpha = 0;
+		//args.background_colour = Colour3f(0.1f, 0.5f, 0.1f);
+		//args.background_alpha = 0.9f;
+		main_grid_container = new GLUIGridContainer(*gl_ui_, args);
+		main_grid_container->debug_name = "builder AI main_grid_container";
 
-			window->setBodyWidget(main_grid_container);
-		}
+		window->setBodyWidget(main_grid_container);
+	}
 
-		{
-			GLUIGridContainer::CreateArgs container_args;
-			//container_args.background_colour = panel_background_col;
-			//container_args.background_alpha = 0.4f;
-			container_args.background_alpha = 0.0f;
-			container_args.interior_cell_x_padding_px = 4;
-			container_args.interior_cell_y_padding_px = 4;
-			container_args.exterior_cell_x_padding_px = 4;
-			container_args.exterior_cell_y_padding_px = 4;
-			//container_args.background_colour = Colour3f(0.4f, 0.1f, 0.1f);
-			//container_args.background_alpha = 0.9f;
-			chat_grid_container = new GLUIGridContainer(*gl_ui, container_args);
-			chat_grid_container->debug_name = "builder AI chat_grid_container";
+	{
+		GLUIGridContainer::CreateArgs container_args;
+		//container_args.background_colour = panel_background_col;
+		//container_args.background_alpha = 0.4f;
+		container_args.background_alpha = 0.0f;
+		container_args.interior_cell_x_padding_px = 4;
+		container_args.interior_cell_y_padding_px = 4;
+		container_args.exterior_cell_x_padding_px = 4;
+		container_args.exterior_cell_y_padding_px = 4;
+		//container_args.background_colour = Colour3f(0.4f, 0.1f, 0.1f);
+		//container_args.background_alpha = 0.9f;
+		chat_grid_container = new GLUIGridContainer(*gl_ui, container_args);
+		chat_grid_container->debug_name = "builder AI chat_grid_container";
 
-			main_grid_container->addWidgetOnNewRow(chat_grid_container);
-		}
+		main_grid_container->addWidgetOnNewRow(chat_grid_container);
+	}
 
 		
 
-		{
-			GLUITextView::CreateArgs args;
-			args.font_size_px = font_size_px;
-			args.text_colour = Colour3f(0.6f);
-			args.background_alpha = 0.0f;
-			status_text = new GLUITextView(*gl_ui, "", Vec2f(0.f), args);
-			status_text->debug_name = "status_text";
+	{
+		GLUITextView::CreateArgs args;
+		args.font_size_px = font_size_px;
+		args.text_colour = Colour3f(0.6f);
+		args.background_alpha = 0.0f;
+		status_text = new GLUITextView(*gl_ui, "", Vec2f(0.f), args);
+		status_text->debug_name = "status_text";
 			
-			main_grid_container->addWidgetOnNewRow(status_text);
-		}
-
-		{
-			GLUIGridContainer::CreateArgs args;
-			args.interior_cell_x_padding_px = 5;
-			args.interior_cell_y_padding_px = 5;
-			args.background_alpha = 0;
-			line_edit_row_container = new GLUIGridContainer(*gl_ui_, args);
-			line_edit_row_container->debug_name = "line_edit_row_container";
-			line_edit_row_container->setColumnMinXPx(/*column index=*/1, 200);
-
-			main_grid_container->addWidgetOnNewRow(line_edit_row_container);
-		}
-
-		{
-			GLUILineEdit::CreateArgs create_args;
-			//create_args.sizing_type_x = GLUILineEdit::SizingType_Expanding;
-			create_args.sizing_type_x = GLUILineEdit::SizingType_FixedSizePx;
-			create_args.fixed_size.x = 500;
-			create_args.background_colour = panel_background_col;
-			create_args.background_alpha = 0.8f;
-			create_args.font_size_px = font_size_px;
-			msg_line_edit = new GLUILineEdit(*gl_ui, /*dummy botleft=*/Vec2f(0.f), create_args);
-			msg_line_edit->debug_name = "msg_line_edit";
-
-			GLUILineEdit* line_edit_ptr = msg_line_edit.ptr();
-			msg_line_edit->on_enter_pressed = [this, line_edit_ptr]()
-				{
-					if(this->turn_in_progress) // Don't allow sending another message while the AI is still working.
-						return;
-
-					const std::string text = line_edit_ptr->getText();
-					if(!text.empty())
-					{
-						line_edit_ptr->clear();
-						this->appendUserMessage(text);
-						this->setTurnInProgress(true);
-						if(this->on_send_message)
-							this->on_send_message(text);
-					}
-				};
-
-			line_edit_row_container->setCellWidget(0, 0, msg_line_edit);
-		}
-
-		{
-			GLUIButton::CreateArgs args;
-			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
-			args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
-			args.fixed_size = Vec2f(30.f);
-			args.tooltip = "Stop";
-			stop_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + /*"/buttons/delete.png"*/"/buttons/white_x.png", args);
-			stop_button->debug_name = "stop_button";
-			stop_button->handler = this;
-
-			line_edit_row_container->setCellWidget(1, 0, stop_button); // Position to right of line edit
-		}
-
-		{
-			GLUIButton::CreateArgs args;
-			args.tooltip = "Show Builder AI";
-			expand_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/builder_ai.png", args);
-			expand_button->handler = this;
-			gl_ui->addWidget(expand_button);
-		}
-
-
-		setWidgetVisibilityForExpanded();
-		updateWidgetTransforms();
+		main_grid_container->addWidgetOnNewRow(status_text);
 	}
-	catch(glare::Exception& e)
+
 	{
-		assert(0);
-		conPrint("Warning: Excep while creating BuilderAIUI: " + e.what());
+		GLUIGridContainer::CreateArgs args;
+		args.interior_cell_x_padding_px = 5;
+		args.interior_cell_y_padding_px = 5;
+		args.background_alpha = 0;
+		line_edit_row_container = new GLUIGridContainer(*gl_ui_, args);
+		line_edit_row_container->debug_name = "line_edit_row_container";
+		line_edit_row_container->setColumnMinXPx(/*column index=*/1, 200);
+
+		main_grid_container->addWidgetOnNewRow(line_edit_row_container);
 	}
+
+	{
+		GLUILineEdit::CreateArgs create_args;
+		//create_args.sizing_type_x = GLUILineEdit::SizingType_Expanding;
+		create_args.sizing_type_x = GLUILineEdit::SizingType_FixedSizePx;
+		create_args.fixed_size.x = 500;
+		create_args.background_colour = panel_background_col;
+		create_args.background_alpha = 0.8f;
+		create_args.font_size_px = font_size_px;
+		msg_line_edit = new GLUILineEdit(*gl_ui, /*dummy botleft=*/Vec2f(0.f), create_args);
+		msg_line_edit->debug_name = "msg_line_edit";
+
+		GLUILineEdit* line_edit_ptr = msg_line_edit.ptr();
+		msg_line_edit->on_enter_pressed = [this, line_edit_ptr]()
+			{
+				if(this->turn_in_progress) // Don't allow sending another message while the AI is still working.
+					return;
+
+				const std::string text = line_edit_ptr->getText();
+				if(!text.empty())
+				{
+					line_edit_ptr->clear();
+					this->appendUserMessage(text);
+					this->setTurnInProgress(true);
+					if(this->on_send_message)
+						this->on_send_message(text);
+				}
+			};
+
+		line_edit_row_container->setCellWidget(0, 0, msg_line_edit);
+	}
+
+	{
+		GLUIButton::CreateArgs args;
+		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+		args.fixed_size = Vec2f(30.f);
+		args.tooltip = "Stop";
+		stop_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + /*"/buttons/delete.png"*/"/buttons/white_x.png", args);
+		stop_button->debug_name = "stop_button";
+		stop_button->handler = this;
+
+		line_edit_row_container->setCellWidget(1, 0, stop_button); // Position to right of line edit
+	}
+
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Show Builder AI";
+		expand_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/builder_ai.png", args);
+		expand_button->handler = this;
+		gl_ui->addWidget(expand_button);
+	}
+
+
+	setWidgetVisibilityForExpanded();
+	updateWidgetTransforms();
 }
 
 
@@ -213,25 +205,7 @@ void BuilderAIUI::setVisible(bool visible_)
 {
 	visible = visible_;
 
-	if(!isInitialisedFully())
-		return;
-
 	setWidgetVisibilityForExpanded();
-}
-
-
-bool BuilderAIUI::isInitialisedFully()
-{
-	return
-		gl_ui.nonNull() &&
-		window.nonNull() &&
-		main_grid_container.nonNull() &&
-		chat_grid_container.nonNull() &&
-		status_text.nonNull() &&
-		line_edit_row_container.nonNull() &&
-		msg_line_edit.nonNull() &&
-		stop_button.nonNull() &&
-		expand_button.nonNull();
 }
 
 
@@ -272,9 +246,6 @@ void BuilderAIUI::recreateMessageTextViews()
 
 void BuilderAIUI::appendMessage(bool from_user, bool is_error, const std::string& text)
 {
-	if(!isInitialisedFully())
-		return;
-
 	{
 		BuilderAIMessage msg;
 		msg.from_user = from_user;
@@ -312,9 +283,6 @@ void BuilderAIUI::appendUserMessage(const std::string& text)
 
 void BuilderAIUI::appendAssistantTextDelta(const std::string& text)
 {
-	if(!isInitialisedFully())
-		return;
-
 	if(last_message_is_streaming_assistant && !messages.empty())
 	{
 		// Continue the current assistant message.
@@ -333,9 +301,6 @@ void BuilderAIUI::appendAssistantTextDelta(const std::string& text)
 
 void BuilderAIUI::setToolActivity(const std::string& tool_name)
 {
-	if(!isInitialisedFully())
-		return;
-
 	// A new tool call means any streamed text before it is now a finished message.
 	last_message_is_streaming_assistant = false;
 
@@ -364,9 +329,6 @@ void BuilderAIUI::setTurnInProgress(bool in_progress)
 {
 	turn_in_progress = in_progress;
 
-	if(!isInitialisedFully())
-		return;
-
 	stop_button->setVisible(in_progress && this->expanded && visible);
 	if(!in_progress)
 	{
@@ -382,9 +344,6 @@ void BuilderAIUI::setTurnInProgress(bool in_progress)
 
 void BuilderAIUI::viewportResized(int w, int h)
 {
-	if(!isInitialisedFully())
-		return;
-
 	recreateMessageTextViews();
 	updateWidgetTransforms();
 }
@@ -397,9 +356,6 @@ void BuilderAIUI::handleMouseMoved(MouseEvent& mouse_event)
 
 void BuilderAIUI::updateWidgetTransforms()
 {
-	if(!isInitialisedFully())
-		return;
-
 	// Anchor the panel to the right hand side of the screen.
 	const float side_margin = gl_ui->getUIWidthForDevIndepPixelWidth(30);
 	const float top_margin  = gl_ui->getUIWidthForDevIndepPixelWidth(30);
@@ -432,9 +388,6 @@ void BuilderAIUI::setWidgetVisibilityForExpanded()
 
 void BuilderAIUI::eventOccurred(GLUICallbackEvent& event)
 {
-	if(!isInitialisedFully())
-		return;
-
 	if(event.widget == this->expand_button.ptr())
 	{
 		expanded = true;
