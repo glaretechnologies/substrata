@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <indigo/TextureServer.h>
 #include <graphics/ImageMapSequence.h>
 #include <graphics/GifDecoder.h>
+#include <graphics/WebPDecoder.h>
 #include <graphics/CompressedImage.h>
 #include <graphics/imformatdecoder.h> // For ImFormatExcep
 #include <graphics/TextureProcessing.h>
@@ -75,6 +76,8 @@ void LoadTextureTask::run(size_t thread_index)
 			Reference<Map2D> map;
 			if(hasExtension(key, "gif"))
 				map = GIFDecoder::decodeImageSequenceFromBuffer(texture_data_buffer.data(), texture_data_buffer.size(), worker_allocator.ptr());
+			else if(hasExtension(key, "webp"))
+				map = WebPDecoder::decodeImageOrSequenceFromBuffer(texture_data_buffer.data(), texture_data_buffer.size(), worker_allocator.ptr());
 			else
 			{
 				ImageDecoding::ImageDecodingOptions options;

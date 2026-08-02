@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <graphics/GifDecoder.h>
 #include <graphics/KTXDecoder.h>
 #include <graphics/BasisDecoder.h>
+#include <graphics/WebPDecoder.h>
 #include <graphics/Map2D.h>
 #include <utils/StringUtils.h>
 #include <utils/MemMappedFile.h>
@@ -29,7 +30,9 @@ Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, 
 		hasExtension(path, "gif") ||
 		hasExtension(path, "ktx") ||
 		hasExtension(path, "ktx2") ||
-		hasExtension(path, "basis"))
+		hasExtension(path, "basis") ||
+		hasExtension(path, "webp")
+		)
 	{
 		MemMappedFile file(path);
 		return decodeImageFromBuffer(indigo_base_dir, path, ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize()), mem_allocator, options);
@@ -78,6 +81,10 @@ Reference<Map2D> ImageDecoding::decodeImageFromBuffer(const std::string& indigo_
 		basis_options.ETC_support = options.ETC_support;
 		return BasisDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator, basis_options);
 	}
+	else if(hasExtension(path, "webp"))
+	{
+		return WebPDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), /*return_animated_webp_as_sequence=*/false, /*mem allocator=*/mem_allocator);
+	}
 	else
 	{
 		throw glare::Exception("Unhandled image format ('" + getExtension(path) + "')");
@@ -95,7 +102,8 @@ bool ImageDecoding::isSupportedImageExtension(string_view extension)
 		StringUtils::equalCaseInsensitive(extension, "gif") ||
 		StringUtils::equalCaseInsensitive(extension, "ktx") ||
 		StringUtils::equalCaseInsensitive(extension, "ktx2") ||
-		StringUtils::equalCaseInsensitive(extension, "basis");
+		StringUtils::equalCaseInsensitive(extension, "basis") ||
+		StringUtils::equalCaseInsensitive(extension, "webp");
 }
 
 
@@ -113,6 +121,16 @@ static bool firstNBytesMatch(const void* data, size_t data_len, const void* targ
 		return false;
 
 	return std::memcmp(data, target, target_len) == 0;
+}
+
+
+// Check the bytes data + [offset, offset + target_len) match the bytes target + [0, target_len).
+static bool bytesMatch(const void* data, size_t data_len, const void* target, size_t offset, size_t target_len)
+{
+	if(data_len < offset + target_len)
+		return false;
+
+	return std::memcmp((const uint8*)data + offset, target, target_len) == 0;
 }
 
 
@@ -155,6 +173,13 @@ bool ImageDecoding::areMagicBytesValid(const void* data, size_t data_len, string
 	{
 		const uint8 magic_bytes[] = { 0x73, 0x42, 0x13, 0x00 }; // Basis files in testfiles have these bytes in common.
 		return firstNBytesMatch(data, data_len, magic_bytes, staticArrayNumElems(magic_bytes));
+	}
+	else if(StringUtils::equalCaseInsensitive(extension, "webp"))
+	{
+		const uint8 RIFF[] = { 0x52, 0x49, 0x46, 0x46 }; // = "RIFF"
+		const uint8 WEBPVP8[] = { 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38 }; // = "WEBPVP8"
+		return firstNBytesMatch(data, data_len, RIFF, staticArrayNumElems(RIFF)) &&
+			bytesMatch(data, data_len, WEBPVP8, /*offset=*/8, staticArrayNumElems(WEBPVP8));
 	}
 	else
 		return false;

@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <graphics/ImageMapSequence.h>
 #include <graphics/TextureProcessing.h>
 #include <graphics/KTXDecoder.h>
+#include <graphics/WebPDecoder.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <dll/IndigoStringUtils.h>
@@ -280,6 +281,10 @@ void generateBasisTexture(const std::string& src_tex_path, int base_lod_level, i
 	{
 		map = GIFDecoder::decodeImageSequence(src_tex_path);
 	}
+	else if(hasExtension(src_tex_path, "webp"))
+	{
+		map = WebPDecoder::decodeImageOrSequence(src_tex_path);
+	}
 	else
 	{
 		//Timer timer;
@@ -330,6 +335,8 @@ void generateBasisTexture(const std::string& src_tex_path, int base_lod_level, i
 	else if(dynamic_cast<const ImageMapSequenceUInt8*>(map.ptr()))
 	{
 		const ImageMapSequenceUInt8* seq = map.downcastToPtr<ImageMapSequenceUInt8>();
+
+		conPrint("\t\tFile is image sequence with " + toString(seq->images.size()) + " images.");
 
 		Reference<Map2D> resized_seq = seq->resizeMidQuality(new_w, new_h, &task_manager);
 		runtimeCheck(resized_seq.isType<ImageMapSequenceUInt8>());
