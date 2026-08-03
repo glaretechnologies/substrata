@@ -625,8 +625,6 @@ public:
 
 	MeshManager mesh_manager;
 
-	UniqueRef<GaussianSplatRenderer> splat_renderer; // Renders all ObjectType_Splat objects in the world as a single shared GLObject.
-
 	// Decoded .sog splat clouds, keyed on model URL.  Splat data can't go in mesh_manager, which is typed around
 	// OpenGLMeshRenderData and PhysicsShape.
 	std::unordered_map<URLString, Reference<GaussianSplatData>, URLStringHasher> splat_data_cache;

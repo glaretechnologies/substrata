@@ -266,8 +266,6 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 	this->animated_texture_manager = new AnimatedTextureManager();
 
-	this->splat_renderer.set(new GaussianSplatRenderer());
-
 	this->object_scripts_evaluator = new Scripting::ObjectScriptsEvaluator();
 }
 
@@ -946,9 +944,6 @@ void GUIClient::makeShaders()
 		portal_shader_prog->uses_vert_uniform_buf_obs = true;
 		opengl_engine->bindCommonVertUniformBlocksToProgram(portal_shader_prog);
 	}
-
-	// Make shaders for Gaussian splat rendering.
-	splat_renderer->makeShaders(*opengl_engine, opengl_engine->getDataDir() + "/shaders");
 }
 
 
@@ -999,8 +994,6 @@ void GUIClient::shutdown()
 
 	disconnectFromServerAndClearAllObjects();
 
-
-	splat_renderer.set(nullptr); // Destroy splat_renderer.
 	splat_data_cache.clear();
 	
 	if(biome_manager)
@@ -1454,11 +1447,11 @@ void GUIClient::removeAndDeleteGLObjectsForOb(WorldObject& ob)
 	if(ob.opengl_light)
 		opengl_engine->removeLight(ob.opengl_light);
 
-	// Splat objects aren't drawn via opengl_engine_ob (which stays null for them), but as part of the splat renderer's
-	// single shared world object, so they are removed by handle instead.
+	// Splat objects aren't drawn via opengl_engine_ob (which stays null for them), but by the engine's splat renderer,
+	// so they are removed by handle instead.
 	if(ob.splat_handle != GaussianSplatRenderer::invalid_handle)
 	{
-		splat_renderer->removeObject(ob.splat_handle);
+		opengl_engine->getSplatRenderer().removeObject(ob.splat_handle);
 		ob.splat_handle = GaussianSplatRenderer::invalid_handle;
 	}
 
@@ -4703,7 +4696,7 @@ void GUIClient::updateSplatObjectTransform(WorldObject& ob, const Vec4f& pos_ws,
 		const Vec3f use_scale = useScaleForWorldOb(ob.scale);
 		const float uniform_scale = (use_scale.x + use_scale.y + use_scale.z) * (1 / 3.0f);
 
-		splat_renderer->updateObjectTransform(ob.splat_handle, pos_ws, rot_ws, uniform_scale, *opengl_engine);
+		opengl_engine->getSplatRenderer().updateObjectTransform(ob.splat_handle, pos_ws, rot_ws, uniform_scale);
 	}
 }
 
@@ -4767,9 +4760,9 @@ void GUIClient::loadPresentObjectSplatCloud(WorldObject* ob, const Reference<Gau
 	// NOTE: checked before anything is torn down below, so that a rejected cloud leaves the object exactly as it was, and
 	// leaves loading_or_loaded_model_lod_level set by the caller - otherwise the load would be retried, and this error
 	// logged, every frame.
-	const size_t max_splats = GaussianSplatRenderer::maxSupportedSplats(opengl_engine->max_texture_size);
-	if(splat_renderer->numSplatsInWorld() + splat_data->numSplats() > max_splats)
-		throw glare::Exception("Can't load splat cloud with " + toString(splat_data->numSplats()) + " splats: world splat limit of " + toString(max_splats) + " would be exceeded.");
+	const size_t max_splats = opengl_engine->getSplatRenderer().maxSplatsPerCloud();
+	if(splat_data->numSplats() > max_splats)
+		throw glare::Exception("Can't load splat cloud with " + toString(splat_data->numSplats()) + " splats: the per-cloud limit of " + toString(max_splats) + " would be exceeded.");
 
 	removeAndDeleteGLObjectsForOb(*ob); // Removes any existing splat cloud registration as well as any OpenGL object.
 
@@ -4785,7 +4778,7 @@ void GUIClient::loadPresentObjectSplatCloud(WorldObject* ob, const Reference<Gau
 	const Vec3f use_scale = useScaleForWorldOb(ob->scale);
 	const float uniform_scale = (use_scale.x + use_scale.y + use_scale.z) * (1 / 3.0f);
 
-	ob->splat_handle = splat_renderer->addObject(splat_data, ob->pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), uniform_scale, *opengl_engine);
+	ob->splat_handle = opengl_engine->getSplatRenderer().addObject(splat_data, ob->pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), uniform_scale);
 
 	ob->loading_or_loaded_model_lod_level = 0; // Splat objects have max_model_lod_level 0.
 
@@ -7711,11 +7704,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
 	}
 
-	// Applies any completed background splat depth sort and kicks off a new one if the camera has moved.
-	// NOTE: this reads the camera transform set on the engine by the previous frame's render, since the render happens after
-	// timerEvent().  The resulting one-frame lag doesn't matter: the sort is asynchronous and inherently several frames behind.
-	if(opengl_engine && (splat_renderer->numObjectsInWorld() > 0))
-		splat_renderer->think(*opengl_engine, model_and_texture_loader_task_manager);
 
 	assert(arena_allocator.currentOffset() == 0);
 	arena_allocator.clear();
@@ -10389,6 +10377,15 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		//msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
 		//msg += "OpenGL engine initialised: " + boolToString(opengl_engine->initSucceeded()) + "\n";
 		msg += "-------------------------------\n";
+
+		// Only shown when there is a splat object in the world - getDiagnostics() returns an empty string otherwise.
+		const std::string splat_diagnostics = opengl_engine->getSplatRenderer().getDiagnostics();
+		if(!splat_diagnostics.empty())
+		{
+			msg += "----------Splat clouds---------\n";
+			msg += splat_diagnostics;
+			msg += "-------------------------------\n";
+		}
 	}
 
 	// Only show physics details when physicsDiagnosticsCheckBox is checked.  Works around problem of physics_world->getDiagnostics() being slow, which causes stutters.
@@ -13537,9 +13534,9 @@ void GUIClient::clearAllObjects()
 			ob->move_to_controller = nullptr; // Break reference cycle (the ObjectMoveToController has a ref to the object)
 		}
 
-		// Remove all splat clouds in one go, rather than one per object: each individual removal re-uploads the entire
-		// remaining world cloud.
-		splat_renderer->removeAllObjects();
+		// Remove all splat clouds in one go, rather than one per object: removing a member of a merged cloud re-uploads
+		// the rest of that cloud.
+		opengl_engine->getSplatRenderer().removeAllObjects();
 
 		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
 		{

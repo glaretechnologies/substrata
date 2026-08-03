@@ -84,8 +84,6 @@ public:
 
 	Reference<GLObject> target_marker_ob; // For debugging camera
 
-	UniqueRef<GaussianSplatRenderer> splat_renderer; // For previewing .sog Gaussian splat clouds, which have no GLObject representation.
-
 	Timer timer;
 	QSettings* settings;
 
